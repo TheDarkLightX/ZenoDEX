@@ -1,0 +1,52 @@
+# Transfer Hook Guard v1 - Token Transfer Hook Validation
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: transfer hooks must not violate core rules
+#
+# PURPOSE: Validate that token transfer hooks don't violate invariants.
+# Hooks can reject transfers but cannot increase/decrease balances.
+# No passive payouts - purely a transfer validation gate.
+#
+# Stream mapping:
+# i1 = sender_balance_before (bv[32])
+# i2 = sender_balance_after (bv[32])
+# i3 = receiver_balance_before (bv[32])
+# i4 = receiver_balance_after (bv[32])
+# i5 = transfer_amount (bv[32])
+# i6 = hook_approved (sbf) - 1 if hook approved transfer
+# o1 = balances_ok
+# o2 = conservation_ok
+# o3 = hook_ok
+# o4 = transfer_hook_ok
+# @rule o4: Hook approved AND sender -= amount AND receiver += amount.
+
+set charvar off
+
+# Balances valid (non-negative by type)
+balances_positive(sb : bv[32], sa : bv[32], rb : bv[32], ra : bv[32]) := (sb >= sa) && (ra >= rb).
+
+# Sender balance change correct: before - after == amount
+sender_ok(before : bv[32], after : bv[32], amount : bv[32]) := (before - after) = amount.
+
+# Receiver balance change correct: after - before == amount
+receiver_ok(before : bv[32], after : bv[32], amount : bv[32]) := (after - before) = amount.
+
+# Conservation: sum unchanged
+conservation_ok(sb : bv[32], sa : bv[32], rb : bv[32], ra : bv[32]) := (sb + rb) = (sa + ra).
+
+# Hook approved
+hook_ok(approved : sbf) := approved = 1:sbf.
+
+# Full check
+transfer_hook_valid(sb : bv[32], sa : bv[32], rb : bv[32], ra : bv[32], amount : bv[32], approved : sbf) := balances_positive(sb, sa, rb, ra) && sender_ok(sb, sa, amount) && receiver_ok(rb, ra, amount) && conservation_ok(sb, sa, rb, ra) && hook_ok(approved).
+
+always
+  # @section: Balance validity
+  (o1[t]:sbf = 1:sbf <-> balances_positive(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Conservation check
+  (o2[t]:sbf = 1:sbf <-> (sender_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32]) && receiver_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32]) && conservation_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32]))) &&
+  # @section: Hook check
+  (o3[t]:sbf = 1:sbf <-> hook_ok(i6[t]:sbf)) &&
+  # @section: Aggregated transfer hook validity
+  (o4[t]:sbf = 1:sbf <-> transfer_hook_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf)).

@@ -1,0 +1,43 @@
+# Protocol Token Underflow Guard v1 - Safety Check
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: transfer/burn must not underflow balances or supply
+#
+# PURPOSE: Enforce non-underflow constraints for token transitions.
+# This is a safety gate intended to be combined with protocol_token_v1.
+#
+# Stream mapping (same as protocol_token_v1):
+# i1 = from_before_hi
+# i2 = from_before_lo
+# i3 = to_before_hi
+# i4 = to_before_lo
+# i5 = supply_before_hi
+# i6 = supply_before_lo
+# i7 = amount_hi
+# i8 = amount_lo
+# i9 = from_after_hi
+# i10 = from_after_lo
+# i11 = to_after_hi
+# i12 = to_after_lo
+# i13 = supply_after_hi
+# i14 = supply_after_lo
+# i15 = do_transfer
+# i16 = do_mint
+# i17 = do_burn
+# o1 = underflow_ok
+# @rule o1: Transfer/burn require sufficient balances and supply.
+
+set charvar off
+
+value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+transfer_ok() := value_gte_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16]).
+
+burn_ok() := value_gte_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16]) && value_gte_32(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16]).
+
+underflow_ok() := ((i15[t]:sbf = 1:sbf) -> transfer_ok()) && ((i17[t]:sbf = 1:sbf) -> burn_ok()).
+
+always
+  # @section: Underflow guard
+  (o1[t]:sbf = 1:sbf <-> underflow_ok()).

@@ -1,0 +1,17 @@
+# Experiment 07: Basic CPMM (Constant Product Market Maker) constraints
+# Core DEX swap validation logic
+
+# Fee validation: 0-10000 basis points (0-100%)
+fee_bps_valid(fee : bv[16]) := (fee >= { #x0000 }:bv[16]) && (fee <= { #x2710 }:bv[16]).
+
+# 32-bit positive check (hi:lo pair)
+is_positive(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+
+# 32-bit comparison: (hi1:lo1) >= (hi2:lo2)
+value_gte(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+# Full swap constraints - validates a swap is admissible
+# Inputs: reserve_in (i1:i2), reserve_out (i3:i4), amount_in (i5:i6), fee (i7), amount_out (i8:i9)
+swap_constraints(res_in_hi : bv[16], res_in_lo : bv[16], res_out_hi : bv[16], res_out_lo : bv[16], amt_in_hi : bv[16], amt_in_lo : bv[16], fee : bv[16], amt_out_hi : bv[16], amt_out_lo : bv[16]) := is_positive(res_in_hi, res_in_lo) && is_positive(res_out_hi, res_out_lo) && is_positive(amt_in_hi, amt_in_lo) && fee_bps_valid(fee) && is_positive(amt_out_hi, amt_out_lo) && value_gte(res_out_hi, res_out_lo, amt_out_hi, amt_out_lo).
+
+always (o1[t]:sbf = 1:sbf <-> swap_constraints(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16])).

@@ -1,0 +1,70 @@
+# Sandwich Detection v1 - Sandwich Attack Detection
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_price_impact_bps (i5)
+# IMMUTABLE_INVARIANTS: detect suspiciously large price movements around target tx
+#
+# PURPOSE: Detect sandwich attacks by analyzing price movements:
+# - Price moves significantly before target transaction
+# - Price moves significantly after target transaction
+# - Net attacker profit from the price movement
+# No passive payouts - purely a sandwich detection gate.
+#
+# DbC Preconditions:
+# - All prices are bv[32] (unsigned).
+# - Prices in consistent units.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff no sandwich pattern detected.
+#
+# Stream mapping:
+# i1 = price_before_front (bv[32]) - price before front-run tx
+# i2 = price_after_front (bv[32]) - price after front-run tx (before target)
+# i3 = price_after_target (bv[32]) - price after target tx
+# i4 = price_after_back (bv[32]) - price after back-run tx (final)
+# i5 = max_price_impact_bps (bv[32]) - max allowed movement per tx
+# o1 = params_ok
+# o2 = front_impact_ok
+# o3 = back_impact_ok
+# o4 = sandwich_safe
+# @rule o4: No excessive price impact from surrounding transactions.
+
+set charvar off
+
+# floor((2^32-1)/10000) for safe bps multiplication
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Max impact bps must be reasonable (e.g., <= 500 = 5%)
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# All prices must be positive
+prices_ok(p1 : bv[32], p2 : bv[32], p3 : bv[32], p4 : bv[32]) := (p1 > { #x00000000 }:bv[32]) && (p2 > { #x00000000 }:bv[32]) && (p3 > { #x00000000 }:bv[32]) && (p4 > { #x00000000 }:bv[32]).
+
+# Safe range for multiplication
+safe_range_ok(p1 : bv[32], p2 : bv[32], p3 : bv[32], p4 : bv[32]) := (p1 <= max_safe_32()) && (p2 <= max_safe_32()) && (p3 <= max_safe_32()) && (p4 <= max_safe_32()).
+
+# Parameters valid
+params_ok(p1 : bv[32], p2 : bv[32], p3 : bv[32], p4 : bv[32], max_bps : bv[32]) := prices_ok(p1, p2, p3, p4) && rate_ok(max_bps) && safe_range_ok(p1, p2, p3, p4).
+
+# Front-run impact: |price_after_front - price_before| * 10000 <= price_before * max_bps
+front_impact_up(before : bv[32], after : bv[32], max_bps : bv[32]) := ((after - before) * { #x00002710 }:bv[32]) <= (before * max_bps).
+front_impact_down(before : bv[32], after : bv[32], max_bps : bv[32]) := ((before - after) * { #x00002710 }:bv[32]) <= (before * max_bps).
+front_impact_ok(before : bv[32], after : bv[32], max_bps : bv[32]) := ((after >= before) && front_impact_up(before, after, max_bps)) || ((after < before) && front_impact_down(before, after, max_bps)).
+
+# Back-run impact: |price_after_back - price_after_target| * 10000 <= price_after_target * max_bps
+back_impact_up(target : bv[32], back : bv[32], max_bps : bv[32]) := ((back - target) * { #x00002710 }:bv[32]) <= (target * max_bps).
+back_impact_down(target : bv[32], back : bv[32], max_bps : bv[32]) := ((target - back) * { #x00002710 }:bv[32]) <= (target * max_bps).
+back_impact_ok(target : bv[32], back : bv[32], max_bps : bv[32]) := ((back >= target) && back_impact_up(target, back, max_bps)) || ((back < target) && back_impact_down(target, back, max_bps)).
+
+# Sandwich safe: both impacts within bounds
+sandwich_safe(p1 : bv[32], p2 : bv[32], p3 : bv[32], p4 : bv[32], max_bps : bv[32]) := params_ok(p1, p2, p3, p4, max_bps) && front_impact_ok(p1, p2, max_bps) && back_impact_ok(p3, p4, max_bps).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Front-run impact check
+  (o2[t]:sbf = 1:sbf <-> front_impact_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Back-run impact check
+  (o3[t]:sbf = 1:sbf <-> back_impact_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated sandwich safety
+  (o4[t]:sbf = 1:sbf <-> sandwich_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

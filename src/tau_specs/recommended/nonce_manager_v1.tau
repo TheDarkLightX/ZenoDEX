@@ -1,0 +1,54 @@
+# Nonce Manager v1 - Monotonic Nonce + Gap Limit (ZenoDEX)
+# [ORACLE]
+# REVIEW [SENTINEL]: docs/reviews/round1_security_audit.md (Grade B)
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS:
+# - last_nonce != 0xFFFFFFFF (no-wrap / liveness guard)
+# - nonce must strictly increase with bounded gap
+#
+# PURPOSE: Prevent replay of signed transactions by enforcing a strictly
+# increasing nonce, while limiting forward nonce jumps to reduce nonce-gap
+# DoS vectors.
+#
+# GAP LIMIT POLICY CHOICE:
+# - This v1 spec fixes MAX_NONCE_GAP = 1000 as a conservative anti-DoS bound.
+# - If a deployment needs a different bound, deploy a separate spec or bump the
+#   version suffix rather than silently changing this file.
+#
+# MULTI-SIGNER NOTE (OUT OF SCOPE):
+# - This policy enforces a single monotonic nonce sequence per account.
+# - If multiple authorities can sign for the same account, coordination (nonce
+#   reservation, per-signer nonce spaces, sequencing service, etc.) must happen
+#   off-policy; preventing signers from consuming "future" nonces within the
+#   allowed gap is an application-layer choice.
+#
+# DbC Preconditions:
+# - i1 and i2 are bv[32] nonces interpreted as unsigned.
+# - The execution layer provides a sensible i2 (e.g., last_nonce = 0 for first use).
+#
+# DbC Postcondition:
+# - o1[t] = 1:sbf iff the transaction nonce is accepted.
+# - On acceptance, the execution layer must update state: last_nonce := nonce.
+#
+# Stream mapping:
+# i1 = nonce (bv[32]) - current transaction nonce
+# i2 = last_nonce (bv[32]) - previously used nonce
+# o1 = ok
+# @rule o1: no_overflow(last_nonce) AND nonce > last_nonce AND (nonce - last_nonce) <= 1000.
+
+# Invariant 0: No wrap / liveness guard
+no_overflow(last : bv[32]) := last != { #xFFFFFFFF }:bv[32].
+
+# Invariant 1: Strict monotonic increase (anti-replay)
+nonce_monotonic(nonce : bv[32], last : bv[32]) := nonce > last.
+
+# Invariant 2: Bounded gap (anti-DoS)
+nonce_gap_bounded(nonce : bv[32], last : bv[32]) := (nonce - last) <= { #x000003E8 }:bv[32].
+
+# Aggregated validity
+nonce_manager_ok(nonce : bv[32], last : bv[32]) := no_overflow(last) && nonce_monotonic(nonce, last) && nonce_gap_bounded(nonce, last).
+
+# @section: Nonce anti-replay + gap bound
+always (o1[t]:sbf = 1:sbf <-> nonce_manager_ok(i1[t]:bv[32], i2[t]:bv[32])).

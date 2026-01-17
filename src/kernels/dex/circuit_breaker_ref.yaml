@@ -1,0 +1,159 @@
+# Reference implementation for circuit breaker synthesis
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "circuit_breaker_ref"
+  notes: "Reference: Reset volume if window expired, else accumulate"
+
+observables:
+  state_vars: ["window_start", "volume_accumulated", "breaker_triggered"]
+  effects: ["volume_after", "is_breached"]
+
+types: []
+
+state_vars:
+  - id: "window_start"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "volume_accumulated"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000 }
+  - id: "breaker_triggered"
+    role: "control"
+    type: { kind: "bool" }
+
+init:
+  - var: "window_start"
+    expr: { const: 0 }
+  - var: "volume_accumulated"
+    expr: { const: 0 }
+  - var: "breaker_triggered"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_volume_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "volume_accumulated" }, { const: 0 }]
+
+actions:
+  - id: "add_volume"
+    params:
+      - id: "volume"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "current_time"
+        type: { kind: "int", min: 0, max: 1000000 }
+      - id: "window_duration"
+        type: { kind: "int", min: 1, max: 86400 }
+      - id: "max_volume"
+        type: { kind: "int", min: 1, max: 10000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "not", args: [{ var: "breaker_triggered" }] }
+        - { op: ">=", args: [{ param: "current_time" }, { var: "window_start" }] }
+        - { op: ">", args: [{ param: "volume" }, { const: 0 }] }
+    updates:
+      - var: "window_start"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args:
+              [
+                { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] },
+                { param: "window_duration" },
+              ]
+          then: { param: "current_time" }
+          else: { var: "window_start" }
+      - var: "volume_accumulated"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args:
+              [
+                { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] },
+                { param: "window_duration" },
+              ]
+          then: { param: "volume" }
+          else:
+            op: "+"
+            args: [{ var: "volume_accumulated" }, { param: "volume" }]
+      - var: "breaker_triggered"
+        expr:
+          op: "or"
+          args:
+            [
+              { var: "breaker_triggered" },
+              {
+                op: ">=",
+                args:
+                  [
+                    {
+                      op: "ite",
+                      cond:
+                        op: ">"
+                        args:
+                          [
+                            { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] },
+                            { param: "window_duration" },
+                          ]
+                      then: { param: "volume" }
+                      else:
+                        op: "+"
+                        args: [{ var: "volume_accumulated" }, { param: "volume" }],
+                    },
+                    { param: "max_volume" },
+                  ],
+              },
+            ]
+    effects:
+      volume_after:
+        op: "ite"
+        cond:
+          op: ">"
+          args:
+            [
+              { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] },
+              { param: "window_duration" },
+            ]
+        then: { param: "volume" }
+        else:
+          op: "+"
+          args: [{ var: "volume_accumulated" }, { param: "volume" }]
+      is_breached:
+        op: ">="
+        args:
+          [
+            {
+              op: "ite",
+              cond:
+                op: ">"
+                args:
+                  [
+                    { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] },
+                    { param: "window_duration" },
+                  ]
+              then: { param: "volume" }
+              else:
+                op: "+"
+                args: [{ var: "volume_accumulated" }, { param: "volume" }],
+            },
+            { param: "max_volume" },
+          ]
+  - id: "reset"
+    params: []
+    guard:
+      op: "="
+      args: [{ var: "breaker_triggered" }, { bool: true }]
+    updates:
+      - var: "breaker_triggered"
+        expr: { bool: false }
+      - var: "volume_accumulated"
+        expr: { const: 0 }
+      - var: "window_start"
+        expr: { const: 0 }
+    effects:
+      volume_after: { const: 0 }
+      is_breached: { bool: false }

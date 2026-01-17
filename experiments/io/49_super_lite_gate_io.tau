@@ -1,0 +1,12 @@
+# REPL IO 49: Lite composite gate from sbf inputs (aligned for positive trace)
+
+auction_ok : sbf = in file("experiments/io/inputs/super_auction_ok.in")
+twap_ok : sbf = in file("experiments/io/inputs/super_twap_ok.in")
+fire_ok : sbf = in file("experiments/io/inputs/super_fire_ok.in")
+cpmm_ok : sbf = in file("experiments/io/inputs/super_cpmm_ok.in")
+risk_ok : sbf = in file("experiments/io/inputs/super_risk_ok.in")
+
+super_ok : sbf = out file("experiments/io/outputs/super_lite_ok.out")
+
+r (super_ok[t] = auction_ok[t] & twap_ok[t] & fire_ok[t] & cpmm_ok[t] & risk_ok[t])
+q

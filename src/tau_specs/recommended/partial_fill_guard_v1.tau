@@ -1,0 +1,57 @@
+# Partial Fill Guard v1 - Minimum Fill Threshold
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: min_fill_bps (i3)
+# IMMUTABLE_INVARIANTS: partial fills must meet minimum threshold
+#
+# PURPOSE: Validate partial fills meet minimum thresholds.
+# Prevents dust fills that cost more in gas than value received.
+# No passive payouts - purely a fill validation gate.
+#
+# Stream mapping:
+# i1 = fill_amount (bv[32]) - amount being filled
+# i2 = order_amount (bv[32]) - total order amount
+# i3 = min_fill_bps (bv[32]) - minimum fill as bps of order
+# i4 = remaining_after (bv[32]) - remaining after this fill
+# i5 = min_remaining (bv[32]) - min remaining (or zero for complete)
+# o1 = params_ok
+# o2 = fill_ok
+# o3 = remaining_ok
+# o4 = partial_fill_ok
+# @rule o4: fill >= order * min_bps / 10000 AND (remaining == 0 OR remaining >= min_remaining).
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Order positive
+order_ok(order : bv[32]) := order > { #x00000000 }:bv[32].
+
+# Safe range
+safe_ok(order : bv[32]) := order <= max_safe_32().
+
+# Params valid
+params_ok(order : bv[32], min_bps : bv[32]) := order_ok(order) && rate_ok(min_bps) && safe_ok(order).
+
+# Fill meets minimum: fill * 10000 >= order * min_bps
+fill_ok(fill : bv[32], order : bv[32], min_bps : bv[32]) := (fill * { #x00002710 }:bv[32]) >= (order * min_bps).
+
+# Remaining is either zero (complete fill) or above minimum
+remaining_ok(remaining : bv[32], min_rem : bv[32]) := (remaining = { #x00000000 }:bv[32]) || (remaining >= min_rem).
+
+# Full check
+partial_fill_valid(fill : bv[32], order : bv[32], min_bps : bv[32], remaining : bv[32], min_rem : bv[32]) := params_ok(order, min_bps) && fill_ok(fill, order, min_bps) && remaining_ok(remaining, min_rem).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Fill threshold
+  (o2[t]:sbf = 1:sbf <-> fill_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Remaining check
+  (o3[t]:sbf = 1:sbf <-> remaining_ok(i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated partial fill validity
+  (o4[t]:sbf = 1:sbf <-> partial_fill_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

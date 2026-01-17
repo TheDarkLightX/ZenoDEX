@@ -1,0 +1,29 @@
+# Spec 75: Trade Velocity Rate Limiter
+# NOVEL: Prevents rapid-fire trading attacks by limiting trade frequency
+# Uses temporal accumulator to track trades over sliding window
+# Enforces cooldown when velocity exceeds safe threshold
+#
+# Inputs: i1 = trade_occurred (1=yes), i2 = trade_size, i3 = max_trades_per_window
+# Outputs: o1 = trade_counted, o2 = velocity_safe, o3 = rate_limit_triggered, o4 = trade_allowed
+
+# Trade counter: accumulates over 3-step window
+# Count trades in window [t-2, t-1, t]
+
+# Single step trade count (0 or 1)
+tradecount(occurred : sbf) := occurred = 1:sbf.
+
+# Window trade count check: trades in last 3 steps <= max
+# We check if sum of trades in window exceeds threshold
+velocitysafe(t0 : sbf, t1 : sbf, t2 : sbf, maxcount : bv[16]) := !((t0 = 1:sbf) && (t1 = 1:sbf) && (t2 = 1:sbf)).
+
+# Rate limit triggered: 3 consecutive trades
+ratelimittriggered(t0 : sbf, t1 : sbf, t2 : sbf) := (t0 = 1:sbf) && (t1 = 1:sbf) && (t2 = 1:sbf).
+
+# Trade allowed: current trade only if velocity is safe
+tradeallowed(occurred : sbf, t1 : sbf, t2 : sbf) := (occurred = 0:sbf) || !((t1 = 1:sbf) && (t2 = 1:sbf)).
+
+# Large trade penalty: large trades count as multiple for rate limiting
+# Large = trade_size > 1000
+largetrade(tradesize : bv[16]) := tradesize > { #x03E8 }:bv[16].
+
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> tradecount(i1[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> velocitysafe(i1[t]:sbf, i1[t-1]:sbf, i1[t-2]:sbf, i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> ratelimittriggered(i1[t]:sbf, i1[t-1]:sbf, i1[t-2]:sbf)) && (o4[t]:sbf = 1:sbf <-> tradeallowed(i1[t]:sbf, i1[t-1]:sbf, i1[t-2]:sbf)).

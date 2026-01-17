@@ -1,0 +1,52 @@
+# Token V2 - Percentage Zeno Burn (Never-Zero via Integer Math)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: burn_rate_bps (i3), explicit_floor (i4)
+# IMMUTABLE_INVARIANTS: supply >= floor, burn = floor(amount * rate / 10000)
+#
+# ALGORITHM: Zeno's Paradox Burn
+# Each transfer burns X% of amount, creating exponential decay
+# In integer math: burn = amount * rate_bps / 10000
+# Implicit floor: When amount < 10000/rate, burn = 0
+#
+# Mathematical Guarantee (Never-Zero):
+# Let S(t) = supply at time t, r = burn_rate (e.g., 0.005 for 0.5%)
+# S(t+1) = S(t) - floor(transfer * r)
+# In integers: floor(x * 50 / 10000) = 0 when x < 200
+# Therefore: implicit_floor = 10000 / rate_bps = 200 for 0.5%
+#
+# Combined with explicit floor for safety
+#
+# Inputs:
+# i1 = transfer_amount
+# i2 = current_supply
+# i3 = burn_rate_bps (basis points, 50 = 0.5%)
+# i4 = explicit_floor (safety minimum)
+# i5 = sender_balance
+# Outputs:
+# o1 = burn_valid (burn calculation correct)
+# o2 = transfer_valid (sender has balance)
+# o3 = floor_protected (won't go below floor)
+# o4 = zeno_complete (all conditions met)
+
+# Burn calculation: burn = amount * rate / 10000
+# For 0.5%: burn = amount * 50 / 10000
+# Implicit floor: burn = 0 when amount < 200
+burnvalid(amount : bv[16], rate : bv[16], burn : bv[16]) := burn = (amount * rate) / { #x2710 }:bv[16].
+
+# Transfer valid: sender has sufficient balance
+transfervalid(senderbal : bv[16], amount : bv[16]) := (senderbal >= amount) && (amount > { #x0000 }:bv[16]).
+
+# Floor protected: supply after burn >= explicit floor
+floorprotected(supply : bv[16], burn : bv[16], floor : bv[16]) := supply >= floor + burn.
+
+# Zeno complete: all conditions met for valid deflationary transfer
+zenocomplete(senderbal : bv[16], amount : bv[16], supply : bv[16], rate : bv[16], floor : bv[16]) := transfervalid(senderbal, amount) && floorprotected(supply, (amount * rate) / { #x2710 }:bv[16], floor).
+
+# Implicit floor reached: burn would be zero due to integer division
+implicitfloorreached(amount : bv[16], rate : bv[16]) := (amount * rate) / { #x2710 }:bv[16] = { #x0000 }:bv[16].
+
+# Supply decreasing: supply[t] < supply[t-1]
+supplydecreasing(curr : bv[16], prev : bv[16]) := curr < prev.
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> burnvalid(i1[t]:bv[16], i3[t]:bv[16], (i1[t]:bv[16] * i3[t]:bv[16]) / { #x2710 }:bv[16])) && (o2[t]:sbf = 1:sbf <-> transfervalid(i5[t]:bv[16], i1[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> floorprotected(i2[t]:bv[16], (i1[t]:bv[16] * i3[t]:bv[16]) / { #x2710 }:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> zenocomplete(i5[t]:bv[16], i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).

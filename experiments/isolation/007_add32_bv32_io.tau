@@ -1,0 +1,10 @@
+# Isolation: bv[32] add only
+
+i1 : bv[32] = in file("experiments/isolation/inputs/bv32_a.in")
+i2 : bv[32] = in file("experiments/isolation/inputs/bv32_b.in")
+i3 : bv[32] = in file("experiments/isolation/inputs/bv32_sum.in")
+
+o1 : sbf = out file("experiments/isolation/outputs/add32_bv32_ok.out")
+
+r (o1[t]:sbf = 1:sbf <-> (i3[t]:bv[32] = (i1[t]:bv[32] + i2[t]:bv[32])))
+q

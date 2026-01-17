@@ -1,0 +1,9 @@
+# Experiment 10: Canonical batching order for 2 intents
+# Deterministic execution order based on intent IDs
+
+# Canonical order: execute lower ID first
+is_canonical_order(a_id : bv[64], b_id : bv[64], first_id : bv[64], second_id : bv[64]) := (a_id <= b_id && first_id = a_id && second_id = b_id) || (b_id < a_id && first_id = b_id && second_id = a_id).
+
+# Batch is valid if IDs are distinct AND order is canonical
+# i1=intent_a_id, i2=intent_b_id, i3=executed_first, i4=executed_second
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[64] != i2[t]:bv[64]) && is_canonical_order(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]))).

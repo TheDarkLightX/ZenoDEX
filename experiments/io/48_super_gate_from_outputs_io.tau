@@ -1,0 +1,12 @@
+# REPL IO 48: Compose existing output traces inside Tau
+
+auction_ok : sbf = in file("experiments/io/outputs/auction_ok.out")
+twap_ok : sbf = in file("experiments/io/outputs/twap_ok.out")
+fire : sbf = in file("experiments/io/outputs/oracle_fire.out")
+cpmm_ok : sbf = in file("experiments/io/outputs/cpmm8_valid.out")
+risk_ok : sbf = in file("experiments/io/outputs/can_trade.out")
+
+super_ok : sbf = out file("experiments/io/outputs/super_from_outputs.out")
+
+r (super_ok[t] = auction_ok[t] & twap_ok[t] & fire[t] & cpmm_ok[t] & risk_ok[t])
+q

@@ -1,0 +1,95 @@
+# TauSwap Ecosystem Specification Graph
+
+This map shows how the ecosystem works **as a connected graph of specifications**. Each module validates a piece of behavior and emits an `ok` signal. Composite policy specs gate state transitions by AND-ing those `ok` signals.
+
+```mermaid
+flowchart LR
+  %% ===== Inputs / Oracles =====
+  subgraph ORACLES[Inputs & Oracles]
+    P[Price / Market Feeds]
+    V[Volume / Risk Signals]
+    U[User Intents / Orders]
+    G[Governance Votes]
+  end
+
+  %% ===== Core DEX Math =====
+  subgraph DEX[Core DEX Math]
+    CPMM["cpmm_v1.tau (pool math validator)"]
+    SEI[swap_exact_in_v1.tau]
+    SEO[swap_exact_out_v1.tau]
+  end
+
+  %% ===== Tokenomics Modules =====
+  subgraph TOK[Tokenomics Modules]
+    RATE[tokenomics_rate_bps_32_v1.tau]
+    FSPLIT[tokenomics_fee_split_32_v1.tau]
+    BUY[tokenomics_buyback_floor_32_v1.tau]
+    TAX[tokenomics_transfer_tax_split_32_v1.tau]
+    LOCK[token_archetype_lock_weighted_rewards_32_v1.tau]
+    VEST[token_archetype_vesting_cliff_32_v1.tau]
+  end
+
+  %% ===== Token State Validation =====
+  subgraph TOKSTATE[Token State Validation]
+    TOKEN["protocol_token_v1.tau (hi/lo transfer/mint/burn)"]
+  end
+
+  %% ===== Governance & Parameters =====
+  subgraph GOV[Governance & Parameters]
+    REG[parameter_registry_v1.tau]
+    TIMEL[governance_timelock_v1.tau]
+    REV[revision_policy_v1.tau]
+  end
+
+  %% ===== Settlement / Policy =====
+  subgraph POL[Composite Policy & Settlement]
+    POLICY["dex_policy_v1.tau (AND of ok flags)"]
+    SETTLE[settlement_v4_buyback_floor_rebate_lock.tau]
+  end
+
+  %% ===== Wiring =====
+  P --> CPMM
+  U --> SEI
+  U --> SEO
+  CPMM --> SEI
+  CPMM --> SEO
+
+  SEI --> POLICY
+  SEO --> POLICY
+
+  V --> FSPLIT
+  FSPLIT --> BUY
+  FSPLIT --> POLICY
+  BUY --> POLICY
+
+  TAX --> POLICY
+  LOCK --> POLICY
+  VEST --> POLICY
+  RATE --> POLICY
+
+  TOKEN --> POLICY
+
+  G --> TIMEL
+  TIMEL --> REG
+  REG --> RATE
+  REG --> FSPLIT
+  REG --> BUY
+  REG --> TAX
+  REG --> LOCK
+  REG --> VEST
+  REV --> REG
+
+  POLICY --> SETTLE
+```
+
+## How to read this
+- **Left to right flow**: inputs and oracles feed math/spec modules, which emit `ok` flags.
+- **Module outputs** are **gated** by `dex_policy_v1.tau` (or a similar composite spec).
+- **Settlement** only occurs when the composite policy says the step is valid.
+- **Governance** updates parameter streams (rates, caps, floors), and those parameters are re-validated by the module specs each step.
+
+## Why this matters
+This graph makes the ecosystem **composable** and **auditable**:
+- Each spec is a small, provable rule.
+- The system’s behavior is the **intersection** of those rules.
+- Upgrades can be scoped to a single module without rewriting the entire protocol.

@@ -1,0 +1,15 @@
+# Experiment 32: Swap validity check without division (bv[16] + sbf)
+# Valid if out * (x + net_in) <= net_in * y
+
+i1 : bv[16] = in file("experiments/io/inputs/reserve_x_small.in")
+i2 : bv[16] = in file("experiments/io/inputs/reserve_y_small.in")
+i3 : bv[16] = in file("experiments/io/inputs/net_in_small.in")
+i4 : bv[16] = in file("experiments/io/inputs/amount_out_small.in")
+
+o1 : sbf = out file("experiments/io/outputs/is_valid_small.out")
+
+ispos(x : bv[16]) := x > { #x0000 }:bv[16]
+valid(rx : bv[16], ry : bv[16], net : bv[16], out : bv[16]) := ispos(rx) && ispos(ry) && ispos(net) && (out * (rx + net) <= net * ry)
+
+r (o1[t] = 1:sbf <-> valid(i1[t], i2[t], i3[t], i4[t]))
+q

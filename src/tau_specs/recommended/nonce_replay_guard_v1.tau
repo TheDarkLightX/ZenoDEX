@@ -1,0 +1,46 @@
+# Nonce Replay Guard v1 - Single-Use Nonce Prevention
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: nonce must be unused and greater than last used
+#
+# PURPOSE: Prevent replay of signed intents by enforcing single-use nonces.
+# Each intent has a nonce that must be strictly greater than the last used.
+# No passive payouts - purely a replay attack prevention gate.
+#
+# Stream mapping:
+# i1 = intent_nonce (bv[32]) - nonce of current intent
+# i2 = last_used_nonce (bv[32]) - last successfully used nonce
+# i3 = expected_nonce (bv[32]) - expected next nonce (last + 1)
+# o1 = params_ok
+# o2 = nonce_fresh
+# o3 = nonce_sequential
+# o4 = nonce_replay_ok
+# @rule o4: Nonce > last_used AND nonce == expected (strict sequential).
+
+set charvar off
+
+# Expected nonce calculation: last + 1
+expected_ok(last : bv[32], expected : bv[32]) := expected = (last + { #x00000001 }:bv[32]).
+
+# Nonce must be strictly greater than last used
+nonce_fresh(intent : bv[32], last : bv[32]) := intent > last.
+
+# Nonce must equal expected (sequential mode)
+nonce_sequential(intent : bv[32], expected : bv[32]) := intent = expected.
+
+# Params ok (nonces valid)
+params_ok(intent : bv[32], last : bv[32], expected : bv[32]) := expected_ok(last, expected).
+
+# Full replay guard check
+nonce_replay_valid(intent : bv[32], last : bv[32], expected : bv[32]) := params_ok(intent, last, expected) && nonce_fresh(intent, last) && nonce_sequential(intent, expected).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Nonce freshness
+  (o2[t]:sbf = 1:sbf <-> nonce_fresh(i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Sequential check
+  (o3[t]:sbf = 1:sbf <-> nonce_sequential(i1[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Aggregated replay guard validity
+  (o4[t]:sbf = 1:sbf <-> nonce_replay_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])).

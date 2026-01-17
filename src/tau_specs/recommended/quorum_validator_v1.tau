@@ -1,0 +1,65 @@
+# Quorum Validator v1 - Governance Voting Threshold
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: quorum_bps (i4)
+# IMMUTABLE_INVARIANTS: quorum requires total_votes >= supply * quorum_bps / 10000
+#
+# PURPOSE: Validate voting quorum requirements for governance proposals.
+# Ensures sufficient participation before proposals can pass.
+# No passive payouts - purely a governance validation gate.
+#
+# DbC Preconditions:
+# - All values are bv[32] (unsigned).
+# - quorum_bps <= 10000 (100%).
+# - total_supply > 0.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff total votes meet quorum threshold.
+#
+# Stream mapping:
+# i1 = votes_for (bv[32]) - votes in favor
+# i2 = votes_against (bv[32]) - votes against
+# i3 = total_supply (bv[32]) - total voting power available
+# i4 = quorum_bps (bv[32]) - required participation in bps
+# o1 = params_ok
+# o2 = total_votes
+# o3 = quorum_met
+# o4 = quorum_ok
+# @rule o4: Total votes (for + against) >= supply * quorum_bps / 10000.
+
+set charvar off
+
+# floor((2^32-1)/10000) for safe bps multiplication
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# bps must be <= 10000
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Supply must be positive
+supply_ok(supply : bv[32]) := supply > { #x00000000 }:bv[32].
+
+# Safe range for multiplication
+safe_range_ok(supply : bv[32]) := supply <= max_safe_32().
+votes_safe_ok(vfor : bv[32], vagainst : bv[32]) := (vfor + vagainst) <= max_safe_32().
+
+# Parameters valid
+params_ok(quorum_bps : bv[32], supply : bv[32], vfor : bv[32], vagainst : bv[32]) := rate_ok(quorum_bps) && supply_ok(supply) && safe_range_ok(supply) && votes_safe_ok(vfor, vagainst).
+
+# Total votes calculation (for + against)
+total_votes(votes_for : bv[32], votes_against : bv[32]) := votes_for + votes_against.
+
+# Quorum check: total_votes * 10000 >= supply * quorum_bps
+quorum_met(votes_for : bv[32], votes_against : bv[32], supply : bv[32], quorum_bps : bv[32]) := ((votes_for + votes_against) * { #x00002710 }:bv[32]) >= (supply * quorum_bps).
+
+# Full quorum check
+quorum_valid(votes_for : bv[32], votes_against : bv[32], supply : bv[32], quorum_bps : bv[32]) := params_ok(quorum_bps, supply, votes_for, votes_against) && quorum_met(votes_for, votes_against, supply, quorum_bps).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i4[t]:bv[32], i3[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Total votes computed (signal if positive)
+  (o2[t]:sbf = 1:sbf <-> (total_votes(i1[t]:bv[32], i2[t]:bv[32]) > { #x00000000 }:bv[32])) &&
+  # @section: Quorum threshold check
+  (o3[t]:sbf = 1:sbf <-> quorum_met(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Aggregated quorum validity
+  (o4[t]:sbf = 1:sbf <-> quorum_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])).

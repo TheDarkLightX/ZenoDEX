@@ -1,0 +1,56 @@
+# Liquidity Utilization Cap v1 - Per-Block Pool Usage Limit
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_utilization_bps (i3)
+# IMMUTABLE_INVARIANTS: per-block utilization capped
+#
+# PURPOSE: Cap how much of a pool's liquidity can be used per block.
+# Prevents liquidity extraction attacks and flash loan abuse.
+# No passive payouts - purely a utilization gate.
+#
+# Stream mapping:
+# i1 = trade_amount (bv[32]) - amount being traded
+# i2 = pool_liquidity (bv[32]) - total pool liquidity
+# i3 = max_utilization_bps (bv[32]) - max bps per block
+# i4 = already_used_this_block (bv[32]) - liquidity already used
+# o1 = params_ok
+# o2 = single_trade_ok
+# o3 = cumulative_ok
+# o4 = utilization_ok
+# @rule o4: (trade + already_used) * 10000 <= pool * max_bps.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Pool positive
+pool_ok(pool : bv[32]) := pool > { #x00000000 }:bv[32].
+
+# Safe range
+safe_ok(pool : bv[32]) := pool <= max_safe_32().
+
+# Params valid
+params_ok(pool : bv[32], max_bps : bv[32]) := pool_ok(pool) && rate_ok(max_bps) && safe_ok(pool).
+
+# Single trade utilization: trade * 10000 <= pool * max_bps
+single_trade_ok(trade : bv[32], pool : bv[32], max_bps : bv[32]) := (trade * { #x00002710 }:bv[32]) <= (pool * max_bps).
+
+# Cumulative utilization: (trade + already) * 10000 <= pool * max_bps
+cumulative_ok(trade : bv[32], already : bv[32], pool : bv[32], max_bps : bv[32]) := ((trade + already) * { #x00002710 }:bv[32]) <= (pool * max_bps).
+
+# Full check
+utilization_valid(trade : bv[32], pool : bv[32], max_bps : bv[32], already : bv[32]) := params_ok(pool, max_bps) && single_trade_ok(trade, pool, max_bps) && cumulative_ok(trade, already, pool, max_bps).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Single trade check
+  (o2[t]:sbf = 1:sbf <-> single_trade_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Cumulative check
+  (o3[t]:sbf = 1:sbf <-> cumulative_ok(i1[t]:bv[32], i4[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Aggregated utilization validity
+  (o4[t]:sbf = 1:sbf <-> utilization_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])).

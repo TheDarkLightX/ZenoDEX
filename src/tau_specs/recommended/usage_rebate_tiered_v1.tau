@@ -1,0 +1,54 @@
+# Usage Rebate Tiered v1 - Tiered Usage-Bound Rebates
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: tier thresholds (i2-i4), rebate rates (i5-i8)
+# IMMUTABLE_INVARIANTS: rebates require usage, tiered by usage level
+#
+# PURPOSE: Tiered rebates based on usage score (still usage-bound).
+# Higher usage = higher rebate tier. NO PASSIVE PAYOUTS.
+#
+# Stream mapping:
+# i1 = usage_score (bv[32]) - user's usage metric
+# i2 = tier1_threshold (bv[32])
+# i3 = tier2_threshold (bv[32])
+# i4 = tier3_threshold (bv[32])
+# i5 = tier0_rebate_bps (bv[32]) - base rebate
+# i6 = tier1_rebate_bps (bv[32])
+# i7 = tier2_rebate_bps (bv[32])
+# i8 = tier3_rebate_bps (bv[32])
+# i9 = applied_rebate_bps (bv[32]) - externally computed
+# o1 = thresholds_ok
+# o2 = rates_ok
+# o3 = tier_match_ok
+# o4 = usage_rebate_ok
+# @rule o4: Thresholds ascending, rates ascending, applied matches tier.
+
+set charvar off
+
+# Thresholds ascending
+thresholds_ok(t1 : bv[32], t2 : bv[32], t3 : bv[32]) := (t1 > { #x00000000 }:bv[32]) && (t2 > t1) && (t3 > t2).
+
+# Rates in bounds and ascending
+rates_ok(r0 : bv[32], r1 : bv[32], r2 : bv[32], r3 : bv[32]) := (r0 <= { #x00002710 }:bv[32]) && (r1 >= r0) && (r2 >= r1) && (r3 >= r2) && (r3 <= { #x00002710 }:bv[32]).
+
+# Tier determination
+is_tier3(usage : bv[32], t3 : bv[32]) := usage >= t3.
+is_tier2(usage : bv[32], t2 : bv[32], t3 : bv[32]) := (usage >= t2) && (usage < t3).
+is_tier1(usage : bv[32], t1 : bv[32], t2 : bv[32]) := (usage >= t1) && (usage < t2).
+is_tier0(usage : bv[32], t1 : bv[32]) := usage < t1.
+
+# Tier match
+tier_match_ok(usage : bv[32], t1 : bv[32], t2 : bv[32], t3 : bv[32], r0 : bv[32], r1 : bv[32], r2 : bv[32], r3 : bv[32], applied : bv[32]) := (is_tier0(usage, t1) && (applied = r0)) || (is_tier1(usage, t1, t2) && (applied = r1)) || (is_tier2(usage, t2, t3) && (applied = r2)) || (is_tier3(usage, t3) && (applied = r3)).
+
+# Full check
+usage_rebate_valid(usage : bv[32], t1 : bv[32], t2 : bv[32], t3 : bv[32], r0 : bv[32], r1 : bv[32], r2 : bv[32], r3 : bv[32], applied : bv[32]) := thresholds_ok(t1, t2, t3) && rates_ok(r0, r1, r2, r3) && tier_match_ok(usage, t1, t2, t3, r0, r1, r2, r3, applied).
+
+always
+  # @section: Threshold validation
+  (o1[t]:sbf = 1:sbf <-> thresholds_ok(i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Rate validation
+  (o2[t]:sbf = 1:sbf <-> rates_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])) &&
+  # @section: Tier match
+  (o3[t]:sbf = 1:sbf <-> tier_match_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32])) &&
+  # @section: Aggregated usage rebate validity
+  (o4[t]:sbf = 1:sbf <-> usage_rebate_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32])).

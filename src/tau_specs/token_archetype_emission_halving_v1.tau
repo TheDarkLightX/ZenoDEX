@@ -1,0 +1,31 @@
+# Token Archetype: Emission Halving Schedule v1
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: min_emission (i4), halving cadence controlled by i3
+# IMMUTABLE_INVARIANTS: halving is prev >> 1, emission monotone non-increasing
+#
+# PURPOSE: Validate a discrete halving emission schedule (Bitcoin-like), represented
+# as a stepwise update of an emission rate.
+#
+# Stream mapping:
+# i1 = emission_prev
+# i2 = emission_curr
+# i3 = halving_tick (1 triggers halving, 0 keeps emission)
+# i4 = min_emission_floor
+# o1 = halving_ok
+# o2 = floor_ok
+# o3 = monotone_ok
+# o4 = emission_ok
+
+halving_ok(prev : bv[16], curr : bv[16], tick : sbf) := ((tick = 1:sbf) -> (curr = (prev >> { 1 }:bv[16]))) && ((tick = 0:sbf) -> (curr = prev)).
+
+floor_ok(curr : bv[16], floor : bv[16]) := curr >= floor.
+
+monotone_ok(prev : bv[16], curr : bv[16]) := curr <= prev.
+
+emission_ok(prev : bv[16], curr : bv[16], tick : sbf, floor : bv[16]) := halving_ok(prev, curr, tick) && floor_ok(curr, floor) && monotone_ok(prev, curr).
+
+always (o1[t]:sbf = 1:sbf <-> halving_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> floor_ok(i2[t]:bv[16], i4[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> monotone_ok(i1[t]:bv[16], i2[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> emission_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:sbf, i4[t]:bv[16])).

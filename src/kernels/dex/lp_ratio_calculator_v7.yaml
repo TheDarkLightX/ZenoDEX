@@ -1,0 +1,395 @@
+# [FORGE] ZenoDEX LP Ratio Calculator v7 (A+ Grade)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "lp_ratio_calculator_v7"
+  created_by: "production-spec"
+  notes: |
+    A+ pure calculator with self-verifying effects:
+    - refund0_nonneg, refund1_nonneg
+    - optimal0_le_desired0, optimal1_le_desired1
+    - sum0_ok, sum1_ok (optimal + refund = desired)
+
+observables:
+  state_vars: ["reserve0", "reserve1"]
+  effects: ["optimal0", "optimal1", "is_initial", "refund0", "refund1",
+            "refund0_nonneg", "refund1_nonneg",
+            "optimal0_le_desired0", "optimal1_le_desired1",
+            "sum0_ok", "sum1_ok"]
+
+types: []
+
+state_vars:
+  - id: "reserve0"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "reserve1"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+
+init:
+  - var: "reserve0"
+    expr: { const: 0 }
+  - var: "reserve1"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_reserves_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "reserve0" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "reserve1" }, { const: 0 }] }
+  - id: "inv_pool_consistency"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: ">", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: ">", args: [{ var: "reserve1" }, { const: 0 }] }
+
+actions:
+  - id: "calculate_optimal"
+    params:
+      - id: "desired0"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "desired1"
+        type: { kind: "int", min: 1, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "desired0" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "desired1" }, { const: 0 }] }
+        - op: "or"
+          args:
+            - op: "and"
+              args:
+                - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+            - op: "and"
+              args:
+                - { op: ">", args: [{ var: "reserve0" }, { const: 0 }] }
+                - { op: ">", args: [{ var: "reserve1" }, { const: 0 }] }
+    updates: []
+    effects:
+      is_initial:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+
+      optimal0:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+        then: { param: "desired0" }
+        else:
+          op: "ite"
+          cond:
+            op: "<="
+            args:
+              - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+              - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+          then: { param: "desired0" }
+          else:
+            op: "div"
+            args:
+              - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+              - { var: "reserve1" }
+
+      optimal1:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+        then: { param: "desired1" }
+        else:
+          op: "ite"
+          cond:
+            op: "<="
+            args:
+              - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+              - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+          then:
+            op: "div"
+            args:
+              - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+              - { var: "reserve0" }
+          else: { param: "desired1" }
+
+      refund0:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+        then: { const: 0 }
+        else:
+          op: "ite"
+          cond:
+            op: "<="
+            args:
+              - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+              - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+          then: { const: 0 }
+          else:
+            op: "-"
+            args:
+              - { param: "desired0" }
+              - op: "div"
+                args:
+                  - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                  - { var: "reserve1" }
+
+      refund1:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+        then: { const: 0 }
+        else:
+          op: "ite"
+          cond:
+            op: "<="
+            args:
+              - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+              - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+          then:
+            op: "-"
+            args:
+              - { param: "desired1" }
+              - op: "div"
+                args:
+                  - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                  - { var: "reserve0" }
+          else: { const: 0 }
+
+      # A+ SELF-VERIFYING: refund0 >= 0
+      refund0_nonneg:
+        op: ">="
+        args:
+          - op: "ite"
+            cond:
+              op: "and"
+              args:
+                - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+            then: { const: 0 }
+            else:
+              op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                  - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+              then: { const: 0 }
+              else:
+                op: "-"
+                args:
+                  - { param: "desired0" }
+                  - op: "div"
+                    args:
+                      - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                      - { var: "reserve1" }
+          - { const: 0 }
+
+      # A+ SELF-VERIFYING: refund1 >= 0
+      refund1_nonneg:
+        op: ">="
+        args:
+          - op: "ite"
+            cond:
+              op: "and"
+              args:
+                - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+            then: { const: 0 }
+            else:
+              op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                  - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+              then:
+                op: "-"
+                args:
+                  - { param: "desired1" }
+                  - op: "div"
+                    args:
+                      - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                      - { var: "reserve0" }
+              else: { const: 0 }
+          - { const: 0 }
+
+      # A+ SELF-VERIFYING: optimal0 <= desired0
+      optimal0_le_desired0:
+        op: "<="
+        args:
+          - op: "ite"
+            cond:
+              op: "and"
+              args:
+                - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+            then: { param: "desired0" }
+            else:
+              op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                  - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+              then: { param: "desired0" }
+              else:
+                op: "div"
+                args:
+                  - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                  - { var: "reserve1" }
+          - { param: "desired0" }
+
+      # A+ SELF-VERIFYING: optimal1 <= desired1
+      optimal1_le_desired1:
+        op: "<="
+        args:
+          - op: "ite"
+            cond:
+              op: "and"
+              args:
+                - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+            then: { param: "desired1" }
+            else:
+              op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                  - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+              then:
+                op: "div"
+                args:
+                  - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                  - { var: "reserve0" }
+              else: { param: "desired1" }
+          - { param: "desired1" }
+
+      # A+ SELF-VERIFYING: optimal0 + refund0 = desired0
+      sum0_ok:
+        op: "="
+        args:
+          - op: "+"
+            args:
+              # optimal0
+              - op: "ite"
+                cond:
+                  op: "and"
+                  args:
+                    - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                    - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+                then: { param: "desired0" }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                      - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                  then: { param: "desired0" }
+                  else:
+                    op: "div"
+                    args:
+                      - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                      - { var: "reserve1" }
+              # refund0
+              - op: "ite"
+                cond:
+                  op: "and"
+                  args:
+                    - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                    - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+                then: { const: 0 }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                      - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                  then: { const: 0 }
+                  else:
+                    op: "-"
+                    args:
+                      - { param: "desired0" }
+                      - op: "div"
+                        args:
+                          - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                          - { var: "reserve1" }
+          - { param: "desired0" }
+
+      # A+ SELF-VERIFYING: optimal1 + refund1 = desired1
+      sum1_ok:
+        op: "="
+        args:
+          - op: "+"
+            args:
+              # optimal1
+              - op: "ite"
+                cond:
+                  op: "and"
+                  args:
+                    - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                    - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+                then: { param: "desired1" }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                      - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                  then:
+                    op: "div"
+                    args:
+                      - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                      - { var: "reserve0" }
+                  else: { param: "desired1" }
+              # refund1
+              - op: "ite"
+                cond:
+                  op: "and"
+                  args:
+                    - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+                    - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+                then: { const: 0 }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                      - { op: "*", args: [{ param: "desired1" }, { var: "reserve0" }] }
+                  then:
+                    op: "-"
+                    args:
+                      - { param: "desired1" }
+                      - op: "div"
+                        args:
+                          - { op: "*", args: [{ param: "desired0" }, { var: "reserve1" }] }
+                          - { var: "reserve0" }
+                  else: { const: 0 }
+          - { param: "desired1" }

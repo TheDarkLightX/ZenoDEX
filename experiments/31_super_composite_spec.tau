@@ -1,0 +1,13 @@
+# Spec 31: Super composite DEX gate (canonical + no_sandwich + price_stable + cpmm_valid + risk_gate)
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d).
+no_sandwich(pp : bv[16], p : bv[16], c : bv[16]) := ((pp <= p) && (p <= c)) || ((pp >= p) && (p >= c)).
+price_stable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev <= { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr <= { #x0032 }:bv[16])).
+
+ispos(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+hiok(h : bv[16]) := h = { #x0000 }:bv[16].
+cpmm_valid(resx_hi : bv[16], resx_lo : bv[16], resy_hi : bv[16], resy_lo : bv[16], net_hi : bv[16], net_lo : bv[16], out_hi : bv[16], out_lo : bv[16]) := hiok(resx_hi) && hiok(resy_hi) && hiok(net_hi) && hiok(out_hi) && ispos(resx_hi, resx_lo) && ispos(resy_hi, resy_lo) && ispos(net_hi, net_lo) && ispos(out_hi, out_lo) && (out_lo * (resx_lo + net_lo) <= net_lo * resy_lo).
+
+risk_gate(req : sbf, risk_ok : sbf, cooldown_ok : sbf, budget_ok : sbf) := (req = 1:sbf) && (risk_ok = 1:sbf) && (cooldown_ok = 1:sbf) && (budget_ok = 1:sbf).
+
+always (o1[t]:sbf = 1:sbf <-> canonical(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> no_sandwich(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> price_stable(i7[t]:bv[16], i6[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> cpmm_valid(i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16], i15[t]:bv[16])) && (o5[t]:sbf = 1:sbf <-> risk_gate(i16[t]:sbf, i17[t]:sbf, i18[t]:sbf, i19[t]:sbf)) && (o6[t]:sbf = o1[t] & o2[t] & o3[t] & o4[t] & o5[t]).

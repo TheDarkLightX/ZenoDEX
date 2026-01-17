@@ -1,0 +1,187 @@
+# [FORGE] Volatility Tracker (High ROI - Risk Management)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "volatility_tracker"
+  notes: |
+    Tracks price volatility for risk management and circuit breakers.
+    High ROI: Critical for MEV protection and user safety
+    Novel: Stateful volatility calculation with windowing
+
+observables:
+  state_vars: ["price_history_sum", "price_history_count", "last_price", "volatility_score"]
+  effects: ["current_volatility", "is_high_volatility", "price_change_bps"]
+
+types: []
+
+state_vars:
+  - id: "price_history_sum"
+    role: "data"
+    type: { kind: "int", min: 0, max: 100000000 }
+  - id: "price_history_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "last_price"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000 }
+  - id: "volatility_score"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+init:
+  - var: "price_history_sum"
+    expr: { const: 0 }
+  - var: "price_history_count"
+    expr: { const: 0 }
+  - var: "last_price"
+    expr: { const: 1000 }
+  - var: "volatility_score"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_price_positive"
+    kind: "safety"
+    expr:
+      op: ">"
+      args: [{ var: "last_price" }, { const: 0 }]
+  - id: "inv_volatility_in_range"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "volatility_score" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "volatility_score" }, { const: 10000 }] }
+
+actions:
+  - id: "record_price"
+    params:
+      - id: "new_price"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "window_size"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "new_price" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "last_price" }, { const: 0 }] }
+    updates:
+      - var: "price_history_sum"
+        expr:
+          op: "+"
+          args:
+            [
+              { var: "price_history_sum" },
+              {
+                op: "ite"
+                cond:
+                  op: ">="
+                  args: [{ param: "new_price" }, { var: "last_price" }]
+                then:
+                  op: "-"
+                  args: [{ param: "new_price" }, { var: "last_price" }]
+                else:
+                  op: "-"
+                  args: [{ var: "last_price" }, { param: "new_price" }],
+              },
+            ]
+      - var: "price_history_count"
+        expr:
+          op: "+"
+          args: [{ var: "price_history_count" }, { const: 1 }]
+      - var: "price_history_count"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args: [{ var: "price_history_count" }, { param: "window_size" }]
+          then: { param: "window_size" }
+          else: { var: "price_history_count" }
+      - var: "price_history_sum"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args: [{ var: "price_history_count" }, { param: "window_size" }]
+          then:
+            op: "-"
+            args:
+              [
+                { var: "price_history_sum" },
+                {
+                  op: "div"
+                  args:
+                    [
+                      { var: "price_history_sum" },
+                      { op: "+", args: [{ var: "price_history_count" }, { const: 1 }] },
+                    ],
+                },
+              ]
+          else: { var: "price_history_sum" }
+      - var: "last_price"
+        expr: { param: "new_price" }
+      - var: "volatility_score"
+        expr:
+          op: "div"
+          args:
+            [
+              {
+                op: "*"
+                args:
+                  [
+                    { var: "price_history_sum" },
+                    { const: 10000 },
+                  ],
+              },
+              {
+                op: "*"
+                args:
+                  [
+                    {
+                      op: "ite"
+                      cond:
+                        op: ">"
+                        args: [{ var: "price_history_count" }, { const: 0 }]
+                      then: { var: "price_history_count" }
+                      else: { const: 1 },
+                    },
+                    { var: "last_price" },
+                  ],
+              },
+            ]
+      - var: "volatility_score"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args: [{ var: "volatility_score" }, { const: 10000 }]
+          then: { const: 10000 }
+          else: { var: "volatility_score" }
+    effects:
+      current_volatility: { var: "volatility_score" }
+      is_high_volatility:
+        op: ">="
+        args: [{ var: "volatility_score" }, { const: 5000 }]
+      price_change_bps:
+        op: "div"
+        args:
+          [
+            {
+              op: "*"
+              args:
+                [
+                  {
+                    op: "ite"
+                    cond:
+                      op: ">="
+                      args: [{ param: "new_price" }, { var: "last_price" }]
+                    then:
+                      op: "-"
+                      args: [{ param: "new_price" }, { var: "last_price" }]
+                    else:
+                      op: "-"
+                      args: [{ var: "last_price" }, { param: "new_price" }],
+                  },
+                  { const: 10000 },
+                ],
+            },
+            { var: "last_price" },
+          ]

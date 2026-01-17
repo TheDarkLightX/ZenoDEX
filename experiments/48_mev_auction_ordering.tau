@@ -1,0 +1,34 @@
+# Spec 48: MEV-Resistant Auction with Cryptographic Ordering Proof
+# NOVEL: Enforces that transaction ordering is commitment-based, not manipulable
+# Uses temporal commitment-reveal pattern: commit at t, reveal at t+1, execute at t+2
+# Proves ordering was determined before values were known (prevents front-running)
+#
+# Inputs: i1 = commit_hash, i2 = revealed_value, i3 = expected_hash, i4 = exec_price
+# Outputs: o1 = commit_valid, o2 = reveal_matches, o3 = ordering_fair, o4 = mev_protected
+
+# Commitment check: hash was submitted before reveal
+# In practice, hash = H(value || nonce), we check hash matches
+# Simplified: revealed_value XOR nonce should reconstruct commit_hash pattern
+# We use a simpler model: commit_hash[t-1] should match expected_hash[t]
+
+commitvalid(commithash : bv[16], expectedhash : bv[16]) := commithash = expectedhash.
+
+# Reveal matches: the revealed value at t matches commitment from t-1
+# This proves the value was locked before it could be front-run
+revealmatch(commitprev : bv[16], revealed : bv[16], expected : bv[16]) := commitprev = expected.
+
+# Temporal ordering: commits must precede reveals by exactly 1 step
+# And reveals must precede execution by exactly 1 step
+# This creates a 3-step pipeline: commit -> reveal -> execute
+
+# Price bounded by commitment: exec price within 1% of revealed price
+pricebounded(revealed : bv[16], execprice : bv[16]) := ((execprice >= revealed) && ((execprice - revealed) * { #x0064 }:bv[16] < revealed)) || ((execprice < revealed) && ((revealed - execprice) * { #x0064 }:bv[16] < revealed)).
+
+# Full MEV protection: valid commit sequence AND price bounded
+mevprotected(commit2 : bv[16], commit1 : bv[16], reveal : bv[16], exec : bv[16]) := commitvalid(commit2, commit1) && pricebounded(reveal, exec).
+
+# Ordering fairness: earlier commits get priority (lower commit value = higher priority)
+# Check that execution order matches commit order
+orderfair(commit1 : bv[16], commit2 : bv[16], exec1first : sbf) := (commit1 <= commit2 && exec1first = 1:sbf) || (commit1 > commit2 && exec1first = 0:sbf).
+
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> commitvalid(i1[t-1]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> pricebounded(i2[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> orderfair(i1[t-2]:bv[16], i1[t-1]:bv[16], i5[t]:sbf)) && (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

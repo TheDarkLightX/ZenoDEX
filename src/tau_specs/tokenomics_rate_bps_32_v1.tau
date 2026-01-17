@@ -1,0 +1,43 @@
+# Tokenomics Rate (BPS) v1 - 32-bit safe variant
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: rate_bps (i2), rate_cap_bps (i5), out_cap (i4)
+# IMMUTABLE_INVARIANTS: out <= base, 0 <= rate <= 10000
+#
+# PURPOSE: Validate externally-computed floor(base * rate_bps / 10000)
+# using bv[32] amounts, with explicit safe-range guards to avoid overflow.
+#
+# Stream mapping:
+# i1 = base_amount (bv[32])
+# i2 = rate_bps (bv[32])
+# i3 = out_amount (bv[32])
+# i4 = out_cap (bv[32])
+# i5 = rate_cap_bps (bv[32])
+# o1 = rate_in_range
+# o2 = rate_calc_ok
+# o3 = caps_ok
+# o4 = rate_module_ok
+# @rule o4: Rate in range, safe-range guard, correct bps math, and caps all pass.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+rate_in_range(rate : bv[32], cap : bv[32]) := (rate <= { #x00002710 }:bv[32]) && (rate <= cap).
+
+safe_range_ok(base : bv[32], out : bv[32]) := (base <= max_safe_32()) && (out <= max_safe_32()).
+
+# out = floor(base * rate / 10000) with rounding tolerance <= 9999/10000
+rate_calc_ok(base : bv[32], rate : bv[32], out : bv[32]) := (out * { #x00002710 }:bv[32] >= base * rate) && (out * { #x00002710 }:bv[32] <= (base * rate) + { #x0000270F }:bv[32]).
+
+caps_ok(base : bv[32], out : bv[32], out_cap : bv[32]) := (out <= base) && (out <= out_cap).
+
+always
+  # @section: Rate bounds
+  (o1[t]:sbf = 1:sbf <-> rate_in_range(i2[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Rate math + caps
+  (o2[t]:sbf = 1:sbf <-> rate_calc_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> caps_ok(i1[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Full module check (includes safe-range guard)
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t] & (safe_range_ok(i1[t]:bv[32], i3[t]:bv[32]))).

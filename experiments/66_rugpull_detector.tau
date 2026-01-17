@@ -1,0 +1,26 @@
+# Spec 66: Rug Pull Detection and Prevention
+# NOVEL: Detects rug pull patterns by monitoring liquidity removal
+# Flags sudden large withdrawals that could devastate the pool
+# Uses temporal analysis to detect coordinated draining
+#
+# Inputs: i1 = current_liquidity, i2 = withdrawal_amount, i3 = owner_share_pct
+# Outputs: o1 = large_withdrawal, o2 = owner_dominated, o3 = rugpull_risk, o4 = pool_drained
+
+# Large withdrawal: > 25% of pool liquidity
+# withdrawal * 4 > liquidity
+largewithdrawal(withdrawal : bv[16], liquidity : bv[16]) := withdrawal * { #x0004 }:bv[16] > liquidity.
+
+# Owner dominated: single owner controls > 50% of pool
+ownerdominated(ownershare : bv[16]) := ownershare > { #x0032 }:bv[16].
+
+# Rug pull risk: large withdrawal AND owner dominated
+rugpullrisk(withdrawal : bv[16], liquidity : bv[16], ownershare : bv[16]) := largewithdrawal(withdrawal, liquidity) && ownerdominated(ownershare).
+
+# Pool drained: liquidity dropped > 50% in one step
+# current * 2 < previous
+pooldrained(curr : bv[16], prev : bv[16]) := curr * { #x0002 }:bv[16] < prev.
+
+# Rapid drain: pool drained over 2 consecutive steps
+rapiddrain(drain0 : sbf, drain1 : sbf) := (drain0 = 1:sbf) && (drain1 = 1:sbf).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> largewithdrawal(i2[t]:bv[16], i1[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> ownerdominated(i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> rugpullrisk(i2[t]:bv[16], i1[t]:bv[16], i3[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> pooldrained(i1[t]:bv[16], i1[t-1]:bv[16])).

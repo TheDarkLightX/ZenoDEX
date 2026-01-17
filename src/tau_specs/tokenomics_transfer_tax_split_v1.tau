@@ -1,0 +1,46 @@
+# Tokenomics Transfer-Tax Split v1 (basis points)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: tax_rate_bps (i2), tax_rate_cap_bps (i11), share_bps (i4..i6)
+# IMMUTABLE_INVARIANTS: net + tax = amount, split_sum ~= tax, shares sum to 10000
+#
+# PURPOSE: Validate externally-computed transfer tax, and its split into
+# burn/treasury/reflection buckets. Designed as a reusable module for token designs.
+#
+# Stream mapping:
+# i1  = transfer_amount
+# i2  = tax_rate_bps
+# i3  = tax_amount
+# i4  = burn_share_bps
+# i5  = treasury_share_bps
+# i6  = reflection_share_bps
+# i7  = burn_amount
+# i8  = treasury_amount
+# i9  = reflection_amount
+# i10 = net_amount
+# i11 = tax_rate_cap_bps
+# o1  = tax_ok
+# o2  = share_bps_ok
+# o3  = split_ok
+# o4  = tax_split_ok
+
+rate_ok(rate : bv[16], cap : bv[16]) := (rate <= { #x2710 }:bv[16]) && (rate <= cap).
+
+# out = floor(base * rate / 10000) with rounding tolerance <= 9999/10000
+bps_floor_ok(base : bv[16], rate : bv[16], out : bv[16]) := (out * { #x2710 }:bv[16] >= base * rate) && (out * { #x2710 }:bv[16] <= (base * rate) + { #x270F }:bv[16]).
+
+shares_sum_ok(b1 : bv[16], b2 : bv[16], b3 : bv[16]) := (b1 + b2 + b3) = { #x2710 }:bv[16].
+
+# component = floor(tax * share / 10000) with tolerance
+component_ok(tax : bv[16], share : bv[16], component : bv[16]) := (component * { #x2710 }:bv[16] >= tax * share) && (component * { #x2710 }:bv[16] <= (tax * share) + { #x270F }:bv[16]).
+
+# At most 2 units total rounding loss across 3 components.
+split_sum_ok(burn : bv[16], treas : bv[16], refl : bv[16], tax : bv[16]) := ((burn + treas + refl) <= tax) && ((burn + treas + refl + { #x0002 }:bv[16]) >= tax).
+
+net_ok(amount : bv[16], tax : bv[16], net : bv[16]) := (amount >= tax) && (net = (amount - tax)).
+
+always
+  (o1[t]:sbf = 1:sbf <-> (rate_ok(i2[t]:bv[16], i11[t]:bv[16]) && bps_floor_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16]) && net_ok(i1[t]:bv[16], i3[t]:bv[16], i10[t]:bv[16]))) &&
+  (o2[t]:sbf = 1:sbf <-> (shares_sum_ok(i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16]) && component_ok(i3[t]:bv[16], i4[t]:bv[16], i7[t]:bv[16]) && component_ok(i3[t]:bv[16], i5[t]:bv[16], i8[t]:bv[16]) && component_ok(i3[t]:bv[16], i6[t]:bv[16], i9[t]:bv[16]))) &&
+  (o3[t]:sbf = 1:sbf <-> split_sum_ok(i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i3[t]:bv[16])) &&
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

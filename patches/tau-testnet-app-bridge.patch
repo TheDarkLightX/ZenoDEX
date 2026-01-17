@@ -1,0 +1,1890 @@
+diff --git a/README.md b/README.md
+index a855a51..5650f67 100644
+--- a/README.md
++++ b/README.md
+@@ -9,6 +9,47 @@ The architecture is designed around the principle of extralogical processing. Th
+ Tau logic is fully integrated into the blockchain pipeline, but runtime evaluation is currently disabled by default through the TAU_FORCE_TEST switch. When this flag is enabled, the node bypasses real Tau logic execution and uses a deterministic "test" validator path instead. This allows development and debugging without requiring a running Tau Docker instance.
+ To enable true Tau-driven validation, unset TAU_FORCE_TEST in your environment or configuration.
+ 
++## Optional Application Bridge (`app_state`)
++
++Tau Testnet can optionally commit an additional application snapshot ("app state") into the block state commitment and publish it via the DHT. This keeps Tau Net generic while enabling higher-level applications (e.g., a DEX) to run as an **optional** plugin.
++
++Enable the bridge on the mining node by setting:
++
++*   `TAU_APP_BRIDGE_MODULE=<python.module.path>`
++*   `TAU_APP_BRIDGE_SYS_PATH=<comma-separated directories>` (optional; prepended to `sys.path` before importing)
++
++The bridge module must export:
++
++```py
++def apply_app_tx(
++    *,
++    app_state_json: str,
++    chain_balances: dict[str, int],
++    operations: dict[str, object],
++    tx_sender_pubkey: str,
++    block_timestamp: int,
++) -> (
++    tuple[bool, str | dict | list, dict[str, int] | None, str | None]
++    | tuple[bool, str | dict | list, str, dict[str, int] | None, str | None]
++): ...
++```
++
++Return values:
++
++*   `ok`: `True` on success
++*   `next_app_state_json`: canonical JSON string (or a JSON object/array to be canonicalized)
++*   `next_app_hash_hex` (optional): must equal `sha256(canonical_json_bytes).hexdigest()`
++*   `balances_patch` (optional): map of `address_hex -> new_native_balance` (**disabled by default**; enable with `TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH=1`)
++*   `error`: error string on failure
++
++When enabled, the node:
++
++*   Publishes `app_state:<app_hash>` records containing the canonical JSON snapshot bytes.
++*   Publishes `tau_state:<state_hash>` records containing `{"rules": ..., "accounts_hash": ..., "app_hash": ...}`.
++*   Includes `app_hash` bytes in the PoA consensus commitment: `state_hash = BLAKE3(rules_bytes + accounts_hash + app_hash)`.
++
++The TCP command `getappstate [full]` returns the current `app_hash` and (with `full`) the decoded snapshot.
++
+ ## Features
+ 
+ *   **TCP Server**: Handles client connections and commands.
+diff --git a/app/container.py b/app/container.py
+index e2e8edf..74e5f75 100644
+--- a/app/container.py
++++ b/app/container.py
+@@ -14,7 +14,18 @@ import chain_state
+ import config
+ import db
+ import tau_manager
+-from commands import createblock, getmempool, gettimestamp, sendtx, getbalance, getsequence, history, getblocks, getallaccounts
++from commands import (
++    createblock,
++    getallaccounts,
++    getbalance,
++    getblocks,
++    getappstate,
++    getmempool,
++    getsequence,
++    gettimestamp,
++    history,
++    sendtx,
++)
+ from errors import DependencyError
+ from network import BootstrapPeer, NetworkConfig
+ from network.identity import IDENTITY_SEED_SIZE
+@@ -56,6 +67,7 @@ class ServiceContainer:
+             "history": history,
+             "getblocks": getblocks,
+             "getallaccounts": getallaccounts,
++            "getappstate": getappstate,
+         }
+ 
+         mempool = override_map.get("mempool") or []
+diff --git a/app_bridge.py b/app_bridge.py
+new file mode 100644
+index 0000000..c123d68
+--- /dev/null
++++ b/app_bridge.py
+@@ -0,0 +1,201 @@
++"""
++Generic application-bridge hook for Tau Testnet Alpha.
++
++Tau Net is a general chain. Some deployments want to bind additional application
++state (e.g. a DEX) into block commitments without hard-coding any one app.
++
++This module loads an optional bridge plugin from a Python module path and
++invokes it during block execution.
++
++Enable by setting:
++  TAU_APP_BRIDGE_MODULE=<python.module.path>
++
++The module must export:
++  apply_app_tx(
++      *,
++      app_state_json: str,
++      chain_balances: dict[str, int],
++      operations: dict[str, object],
++      tx_sender_pubkey: str,
++      block_timestamp: int,
++  ) -> tuple[bool, str | dict, dict[str, int] | None, str | None]
++     | tuple[bool, str | dict, str, dict[str, int] | None, str | None]
++
++Return values:
++  - ok: bool
++  - next_app_state_json: canonical JSON string (or a JSON object to be canonicalized)
++  - next_app_hash_hex: optional sha256 hex over canonical JSON bytes (no 0x prefix, length 64)
++  - balances_patch: optional dict[address_hex -> new_native_balance]
++  - error: optional str
++"""
++
++from __future__ import annotations
++
++import hashlib
++import importlib
++import json
++import os
++import sys
++from dataclasses import dataclass
++from typing import Any, Callable, Dict, Optional, Tuple
++
++
++class AppBridgeError(RuntimeError):
++    pass
++
++
++ApplyFn = Callable[..., Any]
++
++
++@dataclass(frozen=True)
++class AppBridge:
++    module: str
++    apply_app_tx: ApplyFn
++
++
++def _prepend_sys_path_from_env() -> None:
++    raw = os.environ.get("TAU_APP_BRIDGE_SYS_PATH", "").strip()
++    if not raw:
++        return
++    # Comma-separated list of directories.
++    parts = [p.strip() for p in raw.split(",") if p.strip()]
++    for p in reversed(parts):
++        if p not in sys.path:
++            sys.path.insert(0, p)
++
++
++def load_app_bridge() -> Optional[AppBridge]:
++    _prepend_sys_path_from_env()
++    module = os.environ.get("TAU_APP_BRIDGE_MODULE", "").strip()
++    if not module:
++        return None
++
++    try:
++        mod = importlib.import_module(module)
++    except Exception as exc:
++        raise AppBridgeError(f"Failed to import TAU_APP_BRIDGE_MODULE={module!r}: {exc}") from exc
++
++    fn = getattr(mod, "apply_app_tx", None)
++    if not callable(fn):
++        raise AppBridgeError(f"Bridge module {module!r} must export callable apply_app_tx(...)")
++
++    return AppBridge(module=module, apply_app_tx=fn)  # type: ignore[arg-type]
++
++
++def has_app_ops(operations: Any) -> bool:
++    if not isinstance(operations, dict):
++        return False
++    # Any ops beyond base "0" (rules) and "1" (transfers) are treated as app-ops.
++    for k in operations.keys():
++        if k not in ("0", "1"):
++            return True
++    return False
++
++
++def canonicalize_app_state_json(app_state_json: Any) -> str:
++    """
++    Convert an app snapshot into a canonical JSON string.
++
++    - Accepts a JSON string or a JSON-compatible object (dict/list).
++    - Returns a canonical string with stable key ordering (sort_keys=True).
++    - Returns "" for empty / missing state.
++    """
++    if app_state_json is None:
++        return ""
++    if isinstance(app_state_json, str):
++        raw = app_state_json.strip()
++        if not raw:
++            return ""
++        try:
++            parsed = json.loads(raw)
++        except Exception as exc:  # pragma: no cover
++            raise AppBridgeError(f"app_state_json must be valid JSON: {exc}") from exc
++    else:
++        parsed = app_state_json
++
++    if not isinstance(parsed, (dict, list)):
++        raise AppBridgeError("app_state_json must be a JSON object or array")
++    return json.dumps(parsed, sort_keys=True, separators=(",", ":"))
++
++
++def compute_app_state_hash_hex(app_state_json: str) -> str:
++    """
++    Compute the content-addressed app hash for a canonical JSON snapshot.
++
++    The hash is a plain sha256 over UTF-8 bytes of the canonical JSON string.
++    """
++    if not isinstance(app_state_json, str):
++        raise AppBridgeError("app_state_json must be a string")
++    if not app_state_json:
++        return ""
++    return hashlib.sha256(app_state_json.encode("utf-8")).hexdigest()
++
++
++def _normalize_balances_patch(raw_patch: Any) -> Optional[Dict[str, int]]:
++    if raw_patch is None:
++        return None
++    if not isinstance(raw_patch, dict):
++        raise AppBridgeError("balances_patch must be an object")
++    if not raw_patch:
++        return None
++
++    normalized: Dict[str, int] = {}
++    for pk, bal in raw_patch.items():
++        if not isinstance(pk, str) or not pk or len(pk) > 512:
++            raise AppBridgeError("balances_patch keys must be non-empty strings")
++
++        if not isinstance(bal, int) or isinstance(bal, bool) or bal < 0:
++            raise AppBridgeError("balances_patch values must be non-negative integers")
++        normalized[pk] = int(bal)
++
++    return normalized or None
++
++
++def _split_apply_result_tuple(result: Any) -> Tuple[bool, Any, str, Any, Any]:
++    if not isinstance(result, tuple) or len(result) not in (4, 5):
++        raise AppBridgeError("apply_app_tx must return a tuple of length 4 or 5")
++
++    if len(result) == 4:
++        ok, next_state, balances_patch, err = result
++        reported_hash = ""
++    else:
++        ok, next_state, reported_hash, balances_patch, err = result
++
++    return ok, next_state, reported_hash, balances_patch, err
++
++
++def _normalize_optional_app_hash_hex(reported_hash: Any, *, computed_hash: str) -> None:
++    if reported_hash is None:
++        return
++    if not isinstance(reported_hash, str):
++        raise AppBridgeError("apply_app_tx app_hash must be a string")
++
++    h = reported_hash.strip()
++    if h.lower().startswith("0x"):
++        h = h[2:]
++    if not h:
++        return
++
++    if len(h) != 64:
++        raise AppBridgeError("apply_app_tx app_hash must be 32 bytes hex (length 64)")
++    try:
++        _ = bytes.fromhex(h)
++    except Exception as exc:  # pragma: no cover
++        raise AppBridgeError("apply_app_tx app_hash must be valid hex") from exc
++    if h.lower() != computed_hash:
++        raise AppBridgeError("apply_app_tx app_hash mismatch (must be sha256 of canonical app_state_json)")
++
++
++def normalize_apply_result(
++    result: Any,
++) -> Tuple[bool, str, str, Optional[Dict[str, int]], Optional[str]]:
++    """
++    Normalize the return value of `apply_app_tx`.
++
++    Accepted return shapes:
++      - (ok, next_state_json|obj, balances_patch, error)
++      - (ok, next_state_json|obj, app_hash_hex, balances_patch, error)
++
++    The app hash is computed as sha256 over the canonical JSON string. If the plugin
++    provides a non-empty app_hash_hex, it must match the computed value.
++    """
++    ok, next_state, reported_hash, balances_patch, err = _split_apply_result_tuple(result)
++
++    if not isinstance(ok, bool):
++        raise AppBridgeError("apply_app_tx[0] ok must be a bool")
++    if err is not None and not isinstance(err, str):
++        raise AppBridgeError("apply_app_tx error must be a string or None")
++
++    canonical_state = canonicalize_app_state_json(next_state)
++    computed_hash = compute_app_state_hash_hex(canonical_state)
++    _normalize_optional_app_hash_hex(reported_hash, computed_hash=computed_hash)
++
++    normalized_patch = _normalize_balances_patch(balances_patch)
++    return ok, canonical_state, computed_hash, normalized_patch, err
+diff --git a/chain_state.py b/chain_state.py
+index d8ab004..1789e3d 100644
+--- a/chain_state.py
++++ b/chain_state.py
+@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
+ import db
+ import tau_manager
+ import config
++import app_bridge
+ from poa import PoATauEngine, TauStateSnapshot, compute_state_hash
+ from block import Block
+ import hashlib
+@@ -47,9 +48,23 @@ _current_rules_state = ""
+ _last_processed_block_hash = ""
+ _tau_engine_state_hash = ""  # last known Tau engine snapshot hash (best-effort)
+ 
++# Lock for thread-safe access to application snapshot state (optional; used when an app bridge is enabled)
++_app_lock = threading.Lock()
++
++# Canonical JSON snapshot of the application state (stored in `chain_state` table under key "app_state")
++_current_app_state_json = ""
++
++# Hex-encoded 32-byte commitment for the application snapshot.
++# Defined as sha256(UTF-8 bytes of the canonical app_state JSON string), hex-encoded (no 0x prefix).
++_app_state_hash = ""
++
+ # DHT Client for storing formulas
+ _dht_client = None
+ 
++def _canonical_app_state_and_hash(app_state_json: str) -> tuple[str, str]:
++    canonical = app_bridge.canonicalize_app_state_json(app_state_json or "")
++    return canonical, app_bridge.compute_app_state_hash_hex(canonical)
++
+ def set_dht_client(client):
+     """Sets the DHT client for storing formulas."""
+     global _dht_client
+@@ -70,7 +85,7 @@ def _republish_state_to_dht():
+     This ensures that on node startup, the DHT is populated with the state loaded from DB,
+     allowing the node to advertise these keys during handshake.
+     """
+-    global _last_processed_block_hash, _current_rules_state, _tau_engine_state_hash
++    global _last_processed_block_hash, _current_rules_state, _tau_engine_state_hash, _current_app_state_json, _app_state_hash
+     
+     if not _last_processed_block_hash:
+         return
+@@ -84,11 +99,16 @@ def _republish_state_to_dht():
+     # Always RECOMPUTE state_hash to ensure it matches the payload (rules + accounts_hash).
+     # This avoids publishing with a stale or rules-only hash which would fail validation.
+     
+-    with _balance_lock, _sequence_lock, _rules_lock:
+-         acc_hash = compute_accounts_hash(_balances, _sequence_numbers)
+-         rules_bytes = (_current_rules_state or "").encode("utf-8")
+-    
+-    state_hash = compute_consensus_state_hash(rules_bytes, acc_hash)
++    with _balance_lock, _sequence_lock, _rules_lock, _app_lock:
++        acc_hash = compute_accounts_hash(_balances, _sequence_numbers)
++        rules_bytes = (_current_rules_state or "").encode("utf-8")
++        canonical_app_json, app_hash_hex = _canonical_app_state_and_hash(_current_app_state_json or "")
++        _current_app_state_json = canonical_app_json
++        _app_state_hash = app_hash_hex
++
++    app_hash_b = bytes.fromhex(app_hash_hex) if app_hash_hex else b""
++
++    state_hash = compute_consensus_state_hash(rules_bytes, acc_hash, app_hash_b)
+     
+     # Update global reference if it differs (though strictly we just want to publish valid data here)
+     if state_hash != _tau_engine_state_hash:
+@@ -98,14 +118,23 @@ def _republish_state_to_dht():
+     # Check if we have rules (even empty string is valid state now)
+     # Ensure we publish if state_hash is valid.
+     if state_hash and _current_rules_state is not None:
+-        publish_tau_state_snapshot(state_hash, rules_bytes, acc_hash)
++        publish_tau_state_snapshot(state_hash, rules_bytes, acc_hash, app_hash_hex=app_hash_hex or None)
+ 
++    if app_hash_hex and canonical_app_json:
++        publish_app_state_snapshot(app_hash_hex, canonical_app_json)
+ 
+ 
+-def publish_tau_state_snapshot(state_hash: str, tau_bytes: bytes, accounts_hash: bytes) -> bool:
++
++def publish_tau_state_snapshot(
++    state_hash: str,
++    tau_bytes: bytes,
++    accounts_hash: bytes,
++    *,
++    app_hash_hex: Optional[str] = None,
++) -> bool:
+     """
+     Publish the serialized Tau/rules snapshot into the DHT under `tau_state:<hash>`.
+-    Payload is JSON: `{"rules": <str>, "accounts_hash": <hex>}`.
++    Payload is JSON: `{"rules": <str>, "accounts_hash": <hex>, "app_hash": <hex?>}`.
+     """
+     if not state_hash or not isinstance(state_hash, str):
+         return False
+@@ -119,10 +148,14 @@ def publish_tau_state_snapshot(state_hash: str, tau_bytes: bytes, accounts_hash:
+         rules_str = tau_bytes.decode("utf-8")
+         accounts_hash_hex = accounts_hash.hex()
+         
+-        payload = json.dumps({
++        payload_obj: Dict[str, str] = {
+             "rules": rules_str,
+-            "accounts_hash": accounts_hash_hex
+-        }).encode("utf-8")
++            "accounts_hash": accounts_hash_hex,
++        }
++        if isinstance(app_hash_hex, str) and app_hash_hex:
++            payload_obj["app_hash"] = app_hash_hex
++
++        payload = json.dumps(payload_obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
+         
+         key = f"tau_state:{state_hash}".encode("ascii")
+     except Exception:
+@@ -149,10 +182,14 @@ def publish_tau_state_snapshot(state_hash: str, tau_bytes: bytes, accounts_hash:
+         return False
+ 
+ 
+-def fetch_tau_state_snapshot(state_hash: str) -> Optional[str]:
++def fetch_tau_state_snapshot_payload(state_hash: str) -> Optional[Dict[str, str]]:
+     """
+-    Fetch a serialized Tau rules snapshot (string) from the DHT `tau_state:<hash>`.
+-    Expects JSON payload with "rules" field.
++    Fetch a serialized Tau state snapshot payload from the DHT `tau_state:<hash>`.
++
++    Returns a dict with:
++      - rules: str
++      - accounts_hash: hex string (32 bytes)
++      - app_hash: optional hex string (32 bytes)
+     """
+     if not state_hash or not isinstance(state_hash, str):
+         return None
+@@ -169,18 +206,122 @@ def fetch_tau_state_snapshot(state_hash: str) -> Optional[str]:
+         else:
+             val = _dht_client.dht.value_store.get(key)
+             val_bytes = getattr(val, "value", val) if val else None
+-            
++
+         if val_bytes is None:
+             return None
+-            
+-        # Parse JSON payload
++
+         decoded = val_bytes.decode("utf-8")
+         data = json.loads(decoded)
+-        if isinstance(data, dict):
+-            return data.get("rules")
++        if not isinstance(data, dict):
++            return None
++
++        rules_str = data.get("rules", "")
++        accounts_hash_hex = data.get("accounts_hash", "")
++        app_hash_hex = data.get("app_hash", "")
++        if not isinstance(rules_str, str) or not isinstance(accounts_hash_hex, str):
++            return None
++
++        try:
++            acc_b = bytes.fromhex(accounts_hash_hex)
++        except Exception:
++            return None
++        if len(acc_b) != 32:
++            return None
++
++        out: Dict[str, str] = {"rules": rules_str, "accounts_hash": accounts_hash_hex}
++        if isinstance(app_hash_hex, str) and app_hash_hex:
++            try:
++                app_b = bytes.fromhex(app_hash_hex)
++            except Exception:
++                return None
++            if len(app_b) != 32:
++                return None
++            out["app_hash"] = app_hash_hex
++        return out
++    except Exception as exc:
++        print(f"[WARN][chain_state] Failed to fetch tau state snapshot payload from DHT: {exc}")
++        return None
++
++
++def fetch_tau_state_snapshot(state_hash: str) -> Optional[str]:
++    """
++    Fetch a serialized Tau rules snapshot (string) from the DHT `tau_state:<hash>`.
++    Expects JSON payload with "rules" field.
++    """
++    payload = fetch_tau_state_snapshot_payload(state_hash)
++    if not payload:
+         return None
++    return payload.get("rules")
++
++
++def publish_app_state_snapshot(app_hash: str, app_state_json: str) -> bool:
++    """
++    Publish the canonical application snapshot JSON into the DHT under `app_state:<hash>`.
++    """
++    if not app_hash or not isinstance(app_hash, str):
++        return False
++    if not isinstance(app_state_json, str):
++        return False
++    if not _dht_client or not getattr(_dht_client, "dht", None):
++        return False
++
++    try:
++        h = app_hash.strip()
++        if h.lower().startswith("0x"):
++            h = h[2:]
++        canonical = app_bridge.canonicalize_app_state_json(app_state_json)
++        expected = app_bridge.compute_app_state_hash_hex(canonical)
++        if expected != h:
++            logger.warning("Refusing to publish app_state with mismatched hash")
++            return False
++        payload = canonical.encode("utf-8")
++        key = f"app_state:{h}".encode("ascii")
++    except Exception:
++        return False
++
++    try:
++        if hasattr(_dht_client, "put_record_sync"):
++            return bool(_dht_client.put_record_sync(key, payload))
++        _dht_client.dht.value_store.put(key, payload)
++        return True
+     except Exception as exc:
+-        print(f"[WARN][chain_state] Failed to fetch tau state snapshot from DHT: {exc}")
++        print(f"[WARN][chain_state] Failed to publish app state snapshot to DHT: {exc}")
++        return False
++
++
++def fetch_app_state_snapshot(app_hash: str) -> Optional[str]:
++    """
++    Fetch the canonical application snapshot JSON from the DHT `app_state:<hash>`.
++    """
++    if not app_hash or not isinstance(app_hash, str):
++        return None
++    if not _dht_client or not getattr(_dht_client, "dht", None):
++        return None
++    try:
++        h = app_hash.strip()
++        if h.lower().startswith("0x"):
++            h = h[2:]
++        key = f"app_state:{h}".encode("ascii")
++    except Exception:
++        return None
++
++    try:
++        if hasattr(_dht_client, "get_record_sync"):
++            val_bytes = _dht_client.get_record_sync(key, timeout=2.0)
++        else:
++            val = _dht_client.dht.value_store.get(key)
++            val_bytes = getattr(val, "value", val) if val else None
++
++        if val_bytes is None:
++            return None
++        decoded = val_bytes.decode("utf-8")
++        canonical = app_bridge.canonicalize_app_state_json(decoded)
++        expected = app_bridge.compute_app_state_hash_hex(canonical)
++        if expected != h:
++            return None
++        return canonical
++    except Exception as exc:
++        print(f"[WARN][chain_state] Failed to fetch app state snapshot from DHT: {exc}")
+         return None
+ 
+ 
+@@ -311,24 +452,16 @@ def process_new_block(block: Block) -> bool:
+ 
+     Secondary-node fast path:
+     - Do NOT re-execute transactions.
+-    - Fetch the resulting `accounts` snapshot from DHT under `state:<block_hash>`.
+-    - Fetch the resulting Tau rules snapshot from DHT under `state:<state_hash>` and apply it to Tau via i0.
+-
+-    Fallback (backwards compatibility):
+-    - If snapshots are unavailable, fall back to the previous behavior (re-execute via PoATauEngine).
+-
+-    Returns True if successful, False otherwise.
++    - Fetch the resulting accounts snapshot from DHT under `state:<block_hash>`.
++    - Fetch the corresponding Tau snapshot from DHT under `tau_state:<state_hash>`.
++    - Optionally fetch application snapshot `app_state:<app_hash>` if the Tau snapshot includes `app_hash`.
+     """
+     block_number = block.header.block_number
+-    # Basic deduplication
+-    existing = db.get_block_by_hash(block.block_hash)
+-    if existing:
++    if db.get_block_by_hash(block.block_hash):
+         return True
+ 
+-    global _current_rules_state, _last_processed_block_hash
+-
+     print(f"[INFO][chain_state] Processing new block #{block_number} ({block.block_hash[:8]}...)")
+-    
++
+     engine = PoATauEngine()
+     if not engine.verify_block(block):
+         print(f"[WARN][chain_state] Block #{block_number} verification failed")
+@@ -336,14 +469,15 @@ def process_new_block(block: Block) -> bool:
+ 
+     expected_state_hash = getattr(block.header, "state_hash", "") or ""
+ 
+-    # --- Snapshot fast path (secondary nodes) ---------------------------------
+-    # Do not replay block transactions. Instead, pull the resulting state from DHT.
+     import time
+ 
+-    deadline = time.time() + 5.0  # allow brief propagation delay
++    deadline = time.time() + 5.0
+     balances_snapshot: Optional[Dict[str, int]] = None
+     sequences_snapshot: Optional[Dict[str, int]] = None
+     rules_from_dht: Optional[str] = None
++    accounts_hash_hex_from_dht = ""
++    app_hash_hex = ""
++    app_state_json: Optional[str] = None
+ 
+     while time.time() < deadline:
+         accounts_result = fetch_accounts_snapshot(block.block_hash)
+@@ -351,73 +485,86 @@ def process_new_block(block: Block) -> bool:
+             balances_snapshot, sequences_snapshot = accounts_result
+ 
+         if expected_state_hash and expected_state_hash != ("0" * 64):
+-            rules_from_dht = fetch_tau_state_snapshot(expected_state_hash)
++            tau_payload = fetch_tau_state_snapshot_payload(expected_state_hash)
++            if tau_payload is None:
++                rules_from_dht = None
++                accounts_hash_hex_from_dht = ""
++                app_hash_hex = ""
++                app_state_json = None
++            else:
++                rules_from_dht = tau_payload.get("rules", "")
++                accounts_hash_hex_from_dht = tau_payload.get("accounts_hash", "")
++                app_hash_hex = tau_payload.get("app_hash", "") or ""
++                if app_hash_hex:
++                    app_state_json = fetch_app_state_snapshot(app_hash_hex)
++                else:
++                    app_state_json = ""
+         else:
+             rules_from_dht = ""
+-
+-        if balances_snapshot is not None and sequences_snapshot is not None and rules_from_dht is not None:
+-             # Cache fetched snapshots to local DHT store to assist network propagation
+-            try:
+-                 if _dht_client and _dht_client.dht:
+-                    # Cache accounts
+-                    # Do NOT call publish_accounts_snapshot() (which reads current global state).
+-                    # Construct payload from FETCHED snapshots.
+-                    accounts_payload = json.dumps(
+-                         {
+-                             "block_hash": block.block_hash, 
+-                             "accounts": {
+-                                 addr: {"balance": bal, "sequence": sequences_snapshot.get(addr, 0)} 
+-                                 for addr, bal in balances_snapshot.items()
+-                             }
+-                         }, 
+-                         sort_keys=True, separators=(",", ":")
+-                    ).encode("utf-8")
+-                    
+-                    if hasattr(_dht_client, "put_record_sync"):
+-                        # Cache accounts
+-                        # Use put_record_sync which handles key encoding (e.g. /state/<hash>)
+-                        acc_key_raw = f"{config.STATE_LOCATOR_NAMESPACE}:{block.block_hash}".encode("ascii")
+-                        if not _dht_client.put_record_sync(acc_key_raw, accounts_payload):
+-                             logger.warning("[chain_state] Failed to cache accounts snapshot for %s via put_record_sync", block.block_hash)
+-                        
+-                        # Cache rules
+-                        if rules_from_dht is not None:
+-                             # Reconstruct payload for cache using local hash computation
+-                             acc_hash_for_cache = compute_accounts_hash(balances_snapshot, sequences_snapshot)
+-                             
+-                             import json
+-                             payload_cache = json.dumps({
+-                                 "rules": rules_from_dht,
+-                                 "accounts_hash": acc_hash_for_cache.hex()
+-                             }).encode("utf-8")
+-                             
+-                             rules_key_raw = f"tau_state:{expected_state_hash}".encode("ascii")
+-                             if not _dht_client.put_record_sync(rules_key_raw, payload_cache):
+-                                  logger.warning("[chain_state] Failed to cache rules snapshot for %s via put_record_sync", expected_state_hash)
+-                    else:
+-                        # Fallback if put_record_sync missing (should not happen with updated dht_manager)
+-                        acc_key = f"{config.STATE_LOCATOR_NAMESPACE}:{block.block_hash}".encode("ascii")
+-                        _dht_client.dht.value_store.put(acc_key, accounts_payload)
+-                        if rules_from_dht is not None:
+-                             acc_hash_for_cache = compute_accounts_hash(balances_snapshot, sequences_snapshot)
+-                             payload_cache = json.dumps({
+-                                 "rules": rules_from_dht,
+-                                 "accounts_hash": acc_hash_for_cache.hex()
+-                             }).encode("utf-8")
+-                             rules_key = f"tau_state:{expected_state_hash}".encode("ascii")
+-                             _dht_client.dht.value_store.put(rules_key, payload_cache)
+-            except Exception as e:
+-                 print(f"[WARN][chain_state] Failed to cache snapshots to local DHT: {e}")
++            accounts_hash_hex_from_dht = ""
++            app_hash_hex = ""
++            app_state_json = ""
++
++        have_accounts = balances_snapshot is not None and sequences_snapshot is not None
++        have_rules = rules_from_dht is not None
++        have_app = (not app_hash_hex) or (app_state_json is not None)
++        if have_accounts and have_rules and have_app:
+             break
+         time.sleep(0.2)
+ 
+     if balances_snapshot is None or sequences_snapshot is None:
+         print(f"[ERROR][chain_state] Missing accounts snapshot in DHT for block {block.block_hash[:12]}...")
+         return False
+-    # If expected_state_hash is present/non-empty, we demand rules
+     if expected_state_hash and expected_state_hash != ("0" * 64) and rules_from_dht is None:
+         print(f"[ERROR][chain_state] Missing Tau snapshot in DHT for state_hash {expected_state_hash[:12]}...")
+         return False
++    if app_hash_hex and app_state_json is None:
++        print(f"[ERROR][chain_state] Missing app snapshot in DHT for app_hash {app_hash_hex[:12]}...")
++        return False
++
++    # Best-effort: cache fetched snapshots to local DHT store to help propagation.
++    try:
++        if _dht_client and getattr(_dht_client, "dht", None):
++            accounts_payload = json.dumps(
++                {
++                    "block_hash": block.block_hash,
++                    "accounts": {
++                        addr: {"balance": bal, "sequence": sequences_snapshot.get(addr, 0)}
++                        for addr, bal in balances_snapshot.items()
++                    },
++                },
++                sort_keys=True,
++                separators=(",", ":"),
++            ).encode("utf-8")
++
++            acc_key = f"{config.STATE_LOCATOR_NAMESPACE}:{block.block_hash}".encode("ascii")
++            if hasattr(_dht_client, "put_record_sync"):
++                _dht_client.put_record_sync(acc_key, accounts_payload)
++            else:
++                _dht_client.dht.value_store.put(acc_key, accounts_payload)
++
++            if expected_state_hash and expected_state_hash != ("0" * 64) and rules_from_dht is not None:
++                acc_hash_for_cache = compute_accounts_hash(balances_snapshot, sequences_snapshot).hex()
++                payload_cache: Dict[str, str] = {"rules": rules_from_dht, "accounts_hash": acc_hash_for_cache}
++                if app_hash_hex:
++                    payload_cache["app_hash"] = app_hash_hex
++
++                rules_key = f"tau_state:{expected_state_hash}".encode("ascii")
++                rules_payload = json.dumps(payload_cache, sort_keys=True, separators=(",", ":")).encode("utf-8")
++                if hasattr(_dht_client, "put_record_sync"):
++                    _dht_client.put_record_sync(rules_key, rules_payload)
++                else:
++                    _dht_client.dht.value_store.put(rules_key, rules_payload)
++
++            if app_hash_hex and isinstance(app_state_json, str) and app_state_json:
++                app_key = f"app_state:{app_hash_hex}".encode("ascii")
++                app_payload = app_state_json.encode("utf-8")
++                if hasattr(_dht_client, "put_record_sync"):
++                    _dht_client.put_record_sync(app_key, app_payload)
++                else:
++                    _dht_client.dht.value_store.put(app_key, app_payload)
++    except Exception as exc:
++        print(f"[WARN][chain_state] Failed to cache snapshots to local DHT: {exc}")
+ 
+     # Apply Tau rules snapshot to the running Tau engine via i0.
+     if not tau_manager.tau_ready.is_set():
+@@ -427,60 +574,70 @@ def process_new_block(block: Block) -> bool:
+         return False
+ 
+     try:
+-        # Always reset Tau state even if empty
+-        rule_text = rules_from_dht if rules_from_dht else ""
+-        tau_manager.communicate_with_tau(rule_text=rule_text, target_output_stream_index=0)
++        tau_manager.communicate_with_tau(rule_text=rules_from_dht or "", target_output_stream_index=0)
+     except Exception as exc:
+         print(f"[ERROR][chain_state] Failed to apply Tau state snapshot via i0: {exc}")
+         return False
+ 
+     # Consensus State Verification
+-    # Confirm the applied rules AND accounts match the block commitment.
+-    
+-    # 1. Compute Accounts Hash
+     accounts_hash = compute_accounts_hash(balances_snapshot, sequences_snapshot)
+-    
+-    # 2. Compute Consensus Hash
+-    # Rules: existing logic tries `_current_rules_state` (if updated by communicate?) 
+-    # But communicate_with_tau updates _current_rules_state via handler? 
+-    # Let's rely on rules_from_dht since that's what we applied.
++    if accounts_hash_hex_from_dht:
++        if accounts_hash.hex() != accounts_hash_hex_from_dht:
++            print(
++                f"[ERROR][chain_state] accounts_hash mismatch. expected={accounts_hash_hex_from_dht[:12]} got={accounts_hash.hex()[:12]}"
++            )
++            return False
++
+     applied_rules = rules_from_dht or ""
+     rules_bytes = applied_rules.encode("utf-8")
+-    
+-    applied_hash = compute_consensus_state_hash(rules_bytes, accounts_hash)
+ 
+-    # Allow fallback? If hash format changed, we might have issues.
+-    # But for Phase 12 hardening, we enforce the new format.
+-    
++    app_hash_b = b""
++    if app_hash_hex:
++        try:
++            app_hash_b = bytes.fromhex(app_hash_hex)
++        except Exception:
++            print("[ERROR][chain_state] app_hash must be valid hex")
++            return False
++        if len(app_hash_b) != 32:
++            print("[ERROR][chain_state] app_hash must be 32 bytes")
++            return False
++
++    applied_hash = compute_consensus_state_hash(rules_bytes, accounts_hash, app_hash_b)
+     if expected_state_hash and expected_state_hash != ("0" * 64) and applied_hash != expected_state_hash:
+         print(
+-            f"[ERROR][chain_state] Consensus state hash mismatch. "
+-            f"expected={expected_state_hash[:12]} got={applied_hash[:12]}"
++            f"[ERROR][chain_state] Consensus state hash mismatch. expected={expected_state_hash[:12]} got={applied_hash[:12]}"
+         )
+         return False
+ 
+-    with _rules_lock:
+-        global _tau_engine_state_hash
+-        _tau_engine_state_hash = expected_state_hash
++    canonical_app_json, computed_app_hash_hex = _canonical_app_state_and_hash(app_state_json or "")
++    if app_hash_hex and computed_app_hash_hex != app_hash_hex:
++        print("[ERROR][chain_state] app_state hash mismatch")
++        return False
+ 
+-    # Replace local account state with the snapshot.
+-    with _balance_lock, _sequence_lock:
++    global _tau_engine_state_hash, _current_rules_state, _last_processed_block_hash, _current_app_state_json, _app_state_hash
++    with get_all_state_locks():
+         _balances.clear()
+         _balances.update(balances_snapshot)
+         _sequence_numbers.clear()
+         _sequence_numbers.update(sequences_snapshot)
+-
+-    with _rules_lock:
+         _current_rules_state = applied_rules
+         _last_processed_block_hash = block.block_hash
++        _current_app_state_json = canonical_app_json
++        _app_state_hash = computed_app_hash_hex
++        _tau_engine_state_hash = expected_state_hash
+ 
+     db.add_block(block)
+     db.save_chain_state(
+-        balances=_balances,
+-        sequences=_sequence_numbers,
++        balances=balances_snapshot,
++        sequences=sequences_snapshot,
+         rules=applied_rules,
+         last_block_hash=block.block_hash,
+     )
++    try:
++        db.save_chain_state_kv({"app_state": _current_app_state_json, "app_hash": _app_state_hash})
++    except Exception:
++        pass
++
+     print(f"[INFO][chain_state] Block #{block_number} persisted via DHT snapshots.")
+     return True
+ 
+@@ -496,10 +653,13 @@ def rebuild_state_from_blockchain(start_block=0):
+     
+     if start_block == 0:
+         # Clear current state for a full rebuild
+-        with _balance_lock, _sequence_lock, _rules_lock:
++        with _balance_lock, _sequence_lock, _rules_lock, _app_lock:
+             _balances.clear()
+             _sequence_numbers.clear()
+             _current_rules_state = ""
++            global _current_app_state_json, _app_state_hash
++            _current_app_state_json = ""
++            _app_state_hash = ""
+             global _tau_engine_state_hash
+             _tau_engine_state_hash = ""
+             _last_processed_block_hash = ''
+@@ -647,7 +807,8 @@ def get_all_state_locks():
+     with _balance_lock:
+         with _sequence_lock:
+             with _rules_lock:
+-                yield
++                with _app_lock:
++                    yield
+ 
+ def get_sequence_number(address_hex: str) -> int:
+     """Returns the current sequence number for the given address (defaults to 0)."""
+@@ -665,48 +826,42 @@ def save_rules_state(rules_content: str):
+     This represents the current rules state that should be persisted for chain state reconstruction.
+     """
+     global _current_rules_state, _tau_engine_state_hash
+-    with _rules_lock:
+-        # Do not strip()! We must preserve exact bytes for hash consistency.
+-        candidate = rules_content or ""
+-        if not candidate:
+-            logger.warning("Saving empty Tau rules state.")
+-            # return
++    candidate = rules_content or ""
++    if not candidate:
++        logger.warning("Saving empty Tau rules state.")
++
++    # Acquire locks in the same global order as `get_all_state_locks` to avoid deadlocks.
++    with get_all_state_locks():
++        # Do not strip()! Preserve exact bytes for hash consistency.
+         _current_rules_state = candidate
+-        
+-        # NOTE: We do NOT set _tau_engine_state_hash to the rules-only hash here.
+-        # We wait until we compute the consensus hash (rules + accounts_hash) below.
+-        
+-        print(f"[INFO][chain_state] Rules state updated. Length: {len(_current_rules_state)} characters")
+-        logger.debug(
+-            "Rules state saved (len=%s).",
+-            len(_current_rules_state)
+-        )
+ 
+-        if _dht_client:
+-                try:
+-                    rules_bytes = _current_rules_state.encode('utf-8')
+-                    # Compute Accounts Hash for Consensus Hash
+-                    with _balance_lock, _sequence_lock:
+-                         accounts_hash = compute_accounts_hash(_balances, _sequence_numbers)
+-                    
+-                    # Compute Consensus Hash
+-                    state_hash = compute_consensus_state_hash(rules_bytes, accounts_hash)
+-                    
+-                    # Update global hash
+-                    _tau_engine_state_hash = state_hash
+-                    
+-                    # Publish to tau_state:<consensus_hash>
+-                    publish_tau_state_snapshot(state_hash, rules_bytes, accounts_hash)
+-                    print(f"[INFO][chain_state] Published Tau state snapshot to DHT: tau_state:{state_hash}")
+-                    
+-                    # Previously we also published to formula:<sha256>. Keep it for raw formula lookup?
+-                    # The user asked to "Stop publishing state:<rules_hash>" which refers to keying by rule hash
+-                    # but using "state" namespace.
+-                    # We might still want "formula:<sha256>" -> raw_bytes for direct formula sharing if needed.
+-                    # But if not critical, we can skip. Let's keep formula for now as it seems distinct.
+-                    
+-                except Exception as e:
+-                    print(f"[ERROR][chain_state] Failed to store state in DHT: {e}")
++        rules_bytes = (_current_rules_state or "").encode("utf-8")
++        accounts_hash = compute_accounts_hash(_balances, _sequence_numbers)
++        app_hash_hex = _app_state_hash or ""
++        try:
++            app_hash_b = bytes.fromhex(app_hash_hex) if app_hash_hex else b""
++        except Exception:
++            app_hash_hex = ""
++            app_hash_b = b""
++
++        # Consensus hash commits to rules + accounts (+ app hash if present).
++        _tau_engine_state_hash = compute_consensus_state_hash(rules_bytes, accounts_hash, app_hash_b)
++        state_hash = _tau_engine_state_hash
++
++    print(f"[INFO][chain_state] Rules state updated. Length: {len(_current_rules_state)} characters")
++    logger.debug("Rules state saved (len=%s).", len(_current_rules_state))
++
++    if _dht_client:
++        try:
++            publish_tau_state_snapshot(
++                state_hash,
++                rules_bytes,
++                accounts_hash,
++                app_hash_hex=app_hash_hex or None,
++            )
++            print(f"[INFO][chain_state] Published Tau state snapshot to DHT: tau_state:{state_hash}")
++        except Exception as exc:
++            print(f"[ERROR][chain_state] Failed to store state in DHT: {exc}")
+         
+ 
+ def fetch_formula_from_dht(formula_hash: str) -> Optional[str]:
+@@ -761,6 +916,32 @@ def get_rules_state() -> str:
+         return _current_rules_state
+ 
+ 
++def get_app_state_json() -> str:
++    with _app_lock:
++        return _current_app_state_json
++
++
++def get_app_hash() -> str:
++    with _app_lock:
++        return _app_state_hash
++
++
++def set_app_state(*, app_state_json: str, app_hash_hex: str) -> None:
++    """
++    Replace the in-memory application snapshot and its hash.
++    """
++    global _current_app_state_json, _app_state_hash
++    with _app_lock:
++        canonical, computed = _canonical_app_state_and_hash(app_state_json)
++        provided = str(app_hash_hex or "").strip()
++        if provided.lower().startswith("0x"):
++            provided = provided[2:]
++        if provided and provided.lower() != computed:
++            logger.warning("set_app_state: provided app_hash mismatch; using computed hash")
++        _current_app_state_json = canonical
++        _app_state_hash = computed
++
++
+ def load_state_from_db() -> bool:
+     """
+     Loads chain state from the database into the in-memory caches.
+@@ -769,11 +950,12 @@ def load_state_from_db() -> bool:
+     import db
+     
+     balances, sequences, current_rules, last_processed_block_hash = db.load_chain_state()
++    extras = db.load_chain_state_kv(["app_state", "app_hash"])
+     
+     if not balances:
+         return False
+         
+-    with _balance_lock, _sequence_lock, _rules_lock:
++    with _balance_lock, _sequence_lock, _rules_lock, _app_lock:
+         _balances.clear()
+         _sequence_numbers.clear()
+         _balances.update(balances)
+@@ -781,6 +963,18 @@ def load_state_from_db() -> bool:
+         
+         global _current_rules_state
+         _current_rules_state = current_rules
++        global _current_app_state_json, _app_state_hash
++        raw_app_json = str(extras.get("app_state") or "")
++        canonical_app_json, computed_hash = _canonical_app_state_and_hash(raw_app_json)
++
++        stored_hash = str(extras.get("app_hash") or "").strip()
++        if stored_hash.lower().startswith("0x"):
++            stored_hash = stored_hash[2:]
++        if stored_hash and stored_hash.lower() != computed_hash:
++            logger.warning("Stored app_hash mismatch; recomputing from app_state_json")
++
++        _current_app_state_json = canonical_app_json
++        _app_state_hash = computed_hash
+ 
+         # We loaded rules state from persistence, but Tau engine has not necessarily
+         # been updated yet (it restarts fresh). Treat engine state as unknown until
+@@ -799,12 +993,17 @@ def commit_state_to_db(block_hash: str):
+     associating it with the provided block_hash.
+     """
+     # Snapshot state under locks
+-    with _balance_lock, _sequence_lock, _rules_lock:
++    with _balance_lock, _sequence_lock, _rules_lock, _app_lock:
+         balances_snapshot = _balances.copy()
+         sequences_snapshot = _sequence_numbers.copy()
+         rules_snapshot = _current_rules_state
++        app_snapshot_json, app_hash_hex = _canonical_app_state_and_hash(_current_app_state_json)
+         
+     db.save_chain_state(balances_snapshot, sequences_snapshot, rules_snapshot, block_hash)
++    try:
++        db.save_chain_state_kv({"app_state": app_snapshot_json, "app_hash": app_hash_hex})
++    except Exception:
++        pass
+ 
+ def initialize_persistent_state():
+     """
+diff --git a/commands/createblock.py b/commands/createblock.py
+index 550cbbe..61a9114 100644
+--- a/commands/createblock.py
++++ b/commands/createblock.py
+@@ -5,13 +5,15 @@ Command handler for creating a new block from the current mempool.
+ """
+ 
+ import json
++import hashlib
++import os
+ import time
+-from typing import List, Dict
++from typing import Any, Dict, List, Optional, Tuple
+ import db
+ import block
+ import chain_state
+ import config
+-from poa.state import compute_state_hash
++import app_bridge
+ 
+ 
+ import tau_manager
+@@ -28,7 +30,40 @@ except ImportError:
+     _BLS_AVAILABLE = False
+ 
+ 
+-def _validate_signature(payload: Dict) -> bool:
++def _bool_env(name: str) -> bool:
++    raw = os.environ.get(name)
++    if raw is None:
++        return False
++    return raw.strip().lower() in {"1", "true", "yes", "on"}
++
++
++def _call_app_bridge(
++    bridge: app_bridge.AppBridge,
++    *,
++    app_state_json: str,
++    chain_balances: Dict[str, int],
++    operations: Dict[str, object],
++    tx_sender_pubkey: str,
++    block_timestamp: int,
++    fallback_hash_hex: str,
++) -> Tuple[bool, str, str, Optional[Dict[str, int]], Optional[str]]:
++    try:
++        raw_result = bridge.apply_app_tx(
++            app_state_json=app_state_json,
++            chain_balances=chain_balances,
++            operations=operations,
++            tx_sender_pubkey=tx_sender_pubkey,
++            block_timestamp=int(block_timestamp),
++        )
++        ok_app, cand_state_json, cand_hash_hex, balances_patch, app_err = app_bridge.normalize_apply_result(
++            raw_result
++        )
++        return ok_app, cand_state_json, cand_hash_hex, balances_patch, app_err
++    except Exception as exc:
++        return False, app_state_json, fallback_hash_hex, None, str(exc)
++
++
++def _validate_signature(payload: Dict[str, Any]) -> bool:
+     """
+     Validates the BLS signature of the transaction.
+     """
+@@ -53,7 +88,7 @@ def _validate_signature(payload: Dict) -> bool:
+             "fee_limit": payload.get('fee_limit'),
+         }
+         msg_bytes = json.dumps(signing_dict, sort_keys=True, separators=(",", ":")).encode()
+-        msg_hash = import_hashlib().sha256(msg_bytes).digest()
++        msg_hash = hashlib.sha256(msg_bytes).digest()
+         
+         pubkey_bytes = bytes.fromhex(sender_pubkey)
+         sig_bytes = bytes.fromhex(signature)
+@@ -62,20 +97,23 @@ def _validate_signature(payload: Dict) -> bool:
+     except Exception:
+         return False
+ 
+-def import_hashlib():
+-    import hashlib
+-    return hashlib
+ 
+-def execute_batch(transactions: List[Dict], tx_ids: List[int]):
++def execute_batch(transactions: List[Dict[str, Any]], tx_ids: List[int], *, block_timestamp: int):
+     """
+     Executes a batch of transactions against a SNAPSHOT of the chain state.
+-    Returns (final_txs, final_reserved_ids, final_rules, final_balances, final_sequences)
++    Returns (final_txs, final_reserved_ids, final_rules, final_balances, final_sequences, app_state_json, app_hash_hex)
+     """
+     # 1. Capture Consistent State Snapshot (Phase 9.2 multi-lock)
+     with chain_state.get_all_state_locks():
+         temp_balances = chain_state._balances.copy()
+         temp_sequences = chain_state._sequence_numbers.copy()
+         temp_rules = chain_state._current_rules_state
++        temp_app_state_json = getattr(chain_state, "_current_app_state_json", "")
++
++    bridge = app_bridge.load_app_bridge()
++    app_state_json = app_bridge.canonicalize_app_state_json(temp_app_state_json)
++    app_hash_hex = app_bridge.compute_app_state_hash_hex(app_state_json)
++    allow_balance_patch = _bool_env("TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH")
+         
+     final_txs = []
+     final_reserved_ids = []
+@@ -113,7 +151,7 @@ def execute_batch(transactions: List[Dict], tx_ids: List[int]):
+             continue
+             
+         # B. Expiry (Phase 11.6: Consistent Type Check)
+-        if tx.get('expiration_time') and int(tx.get('expiration_time', 0)) < int(time.time()):
++        if tx.get('expiration_time') and int(tx.get('expiration_time', 0)) < int(block_timestamp):
+             print(f"[WARN][miner] TX {i} rejected: Expired")
+             continue
+             
+@@ -132,6 +170,9 @@ def execute_batch(transactions: List[Dict], tx_ids: List[int]):
+         ops = tx.get('operations', {})
+         rule_op = ops.get("0")
+         transfer_op = ops.get("1")
++        next_app_state_json = app_state_json
++        next_app_hash_hex = app_hash_hex
++        app_balances_patch: Optional[Dict[str, int]] = None
+         
+         # D. Rule Injection
+         if rule_op:
+@@ -247,6 +288,37 @@ def execute_batch(transactions: List[Dict], tx_ids: List[int]):
+                 # Validated! Add to pending list for commit
+                 pending_transfers_list.append((f_addr, t_addr, amt))
+ 
++        # Optional application bridge (e.g., a DEX) that consumes ops beyond 0/1.
++        if tx_success and bridge is not None and app_bridge.has_app_ops(ops):
++            balances_view = dict(temp_balances)
++            if transfer_op:
++                for f_addr, t_addr, amt in pending_transfers_list:
++                    if f_addr not in balances_view and getattr(config, "TESTNET_AUTO_FAUCET", False):
++                        balances_view[f_addr] = 100000
++                    balances_view[f_addr] = int(balances_view.get(f_addr, 0)) - int(amt)
++                    balances_view[t_addr] = int(balances_view.get(t_addr, 0)) + int(amt)
++
++            ok_app, cand_state_json, cand_hash_hex, balances_patch, app_err = _call_app_bridge(
++                bridge,
++                app_state_json=app_state_json,
++                chain_balances=balances_view,
++                operations=ops,
++                tx_sender_pubkey=str(sender or ""),
++                block_timestamp=block_timestamp,
++                fallback_hash_hex=app_hash_hex,
++            )
++            if balances_patch and not allow_balance_patch:
++                ok_app = False
++                app_err = "balances_patch is disabled (set TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH=1)"
++
++            if not ok_app or app_err:
++                print(f"[WARN][miner] TX {i} rejected: app bridge rejected tx: {app_err}")
++                tx_success = False
++            else:
++                next_app_state_json = cand_state_json
++                next_app_hash_hex = cand_hash_hex
++                app_balances_patch = balances_patch
++
+         if tx_success:
+             # Apply changes to temp state (Commit)
+             if rule_op:
+@@ -267,7 +339,15 @@ def execute_batch(transactions: List[Dict], tx_ids: List[int]):
+                     temp_balances[f_addr] = temp_balances.get(f_addr, 0) - amt
+                     # Credit to temp_balances
+                     temp_balances[t_addr] = temp_balances.get(t_addr, 0) + amt
+-            
++
++            if app_balances_patch:
++                for pk, bal in app_balances_patch.items():
++                    temp_balances[pk] = int(bal)
++
++            if next_app_hash_hex or next_app_state_json != app_state_json:
++                app_state_json = next_app_state_json
++                app_hash_hex = next_app_hash_hex
++
+             # Increment sequence
+             temp_sequences[sender] = expected_seq + 1
+             
+@@ -289,241 +369,239 @@ def execute_batch(transactions: List[Dict], tx_ids: List[int]):
+             temp_rules = checkpoint_rules
+             # temp_balances/sequences not touched
+             
+-    return final_txs, final_reserved_ids, temp_rules, temp_balances, temp_sequences
++    # Final app sync: keep app snapshot consistent with the final native balances.
++    if bridge is not None:
++        ok_sync, synced_state_json, synced_hash_hex, balances_patch, sync_err = _call_app_bridge(
++            bridge,
++            app_state_json=app_state_json,
++            chain_balances=dict(temp_balances),
++            operations={},
++            tx_sender_pubkey="",
++            block_timestamp=block_timestamp,
++            fallback_hash_hex=app_hash_hex,
++        )
++        if balances_patch and not allow_balance_patch:
++            ok_sync = False
++            sync_err = "balances_patch is disabled (set TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH=1)"
++
++        if not ok_sync or sync_err:
++            raise RuntimeError(f"App bridge sync failed: {sync_err}")
++
++        if balances_patch:
++            for pk, bal in balances_patch.items():
++                temp_balances[pk] = int(bal)
++
++        app_state_json = synced_state_json
++        app_hash_hex = synced_hash_hex
+ 
++    return final_txs, final_reserved_ids, temp_rules, temp_balances, temp_sequences, app_state_json, app_hash_hex
+ 
+-def create_block_from_mempool() -> Dict:
++
++def create_block_from_mempool() -> Dict[str, Any]:
+     """
+-    Creates a new block from all transactions currently in the mempool,
+-    saves it to the database, and clears the mempool.
++    Creates a new block from transactions currently in the mempool.
++
++    - Reserves a batch from the mempool.
++    - Executes valid transactions against a consistent snapshot (rules + accounts + app state).
++    - Commits the resulting block + state atomically.
+     """
+-    print(f"[INFO][createblock] Starting block creation process...")
+-    
+-    # Get batch of reserved transactions from mempool
++    print("[INFO][createblock] Starting block creation process...")
++
+     reserved_txs = db.reserve_mempool_txs(limit=1000)
+     print(f"[INFO][createblock] Reserved {len(reserved_txs)} entries from mempool")
+-
+     if not reserved_txs:
+-        # Check if there were any pending at all (for logging purposes)
+-        # But we are done if no reserved txs
+         print("[INFO][createblock] Mempool is empty (no pending txs). No block created.")
+         return {"message": "Mempool is empty. No block created."}
+-    
+-    # Extract data
+-    mempool_txs = [rtx['payload'] for rtx in reserved_txs]
+-    reserved_ids = [rtx['id'] for rtx in reserved_txs]
+-    
+-    # Phase 10.5: Fix JSON alignment
+-    # We must filter reserved_ids and transactions in lockstep
+-    transactions = []
+-    filtered_reserved_ids = []
+-    skipped_count = 0
+-    
+-    for i, tx_data in enumerate(mempool_txs):
+-        r_id = reserved_ids[i]
++
++    reserved_ids = [rtx["id"] for rtx in reserved_txs]
++    parsed_txs: List[Dict[str, Any]] = []
++    parsed_ids: List[int] = []
++    skipped = 0
++    for i, rtx in enumerate(reserved_txs):
++        tx_data = rtx.get("payload", "")
++        r_id = rtx.get("id")
++        if not isinstance(tx_data, str):
++            skipped += 1
++            continue
+         try:
+-            clean_data = tx_data
+-            if clean_data.startswith("json:"):
+-                clean_data = clean_data[5:]
+-            
+-            tx = json.loads(clean_data)
+-            transactions.append(tx)
+-            filtered_reserved_ids.append(r_id)
+-        except json.JSONDecodeError as e:
+-            print(f"[WARN][createblock] Skipping invalid JSON transaction #{i+1}: {e}")
+-            skipped_count += 1
+-            # We do NOT add to filtered lists, so align remains correct
+-            # But we might want to delete this invalid row? 
+-            # For now, just skip inclusion. It will be deleted if we delete all reserved_ids?
+-            # Yes, `reserved_ids` (original list) is used for cleanup.
+-            
+-    if skipped_count > 0:
+-        print(f"[WARN][createblock] Skipped {skipped_count} invalid transactions")
+-    
+-    if not transactions:
+-        print("[INFO][createblock] No valid transactions parsed. Cleared reserved.")
+-        if reserved_ids:
+-             import db as _db
+-             _db.remove_transactions(reserved_ids)
++            clean_data = tx_data[5:] if tx_data.startswith("json:") else tx_data
++            parsed_txs.append(json.loads(clean_data))
++            parsed_ids.append(int(r_id))
++        except Exception as exc:
++            print(f"[WARN][createblock] Skipping invalid JSON transaction #{i+1}: {exc}")
++            skipped += 1
++
++    if skipped:
++        print(f"[WARN][createblock] Skipped {skipped} invalid transactions")
++
++    if not parsed_txs:
++        print("[INFO][createblock] No valid transactions parsed. Clearing reserved.")
++        db.remove_transactions(reserved_ids)
+         return {"message": "No valid transactions parsed."}
+-    
+-    print(f"[INFO][createblock] Validating and Executing Batch...")
+-    # Use filtered IDs so index matches
++
++    print("[INFO][createblock] Validating and executing batch...")
++    block_timestamp = int(time.time())
+     try:
+-        final_txs, final_reserved_ids, final_rules, final_balances, final_sequences = execute_batch(transactions, filtered_reserved_ids)
+-    except Exception as e:
+-        print(f"[ERROR][createblock] Block creation failed during batch execution: {e}")
+-        # Phase 13: Liveness Fix - Unreserve so they can be retried immediately
+-        import db as _db
+-        _db.unreserve_mempool_txs(reserved_ids)
+-        return {"error": str(e)}
+-    
+-    print(f"[INFO][createblock] Execution Result: {len(final_txs)}/{len(transactions)} accepted")
+-    
++        (
++            final_txs,
++            _final_reserved_ids,
++            final_rules,
++            final_balances,
++            final_sequences,
++            final_app_state_json,
++            final_app_hash_hex,
++        ) = execute_batch(parsed_txs, parsed_ids, block_timestamp=block_timestamp)
++    except Exception as exc:
++        print(f"[ERROR][createblock] Block creation failed during batch execution: {exc}")
++        db.unreserve_mempool_txs(reserved_ids)
++        return {"error": str(exc)}
++
++    print(f"[INFO][createblock] Execution result: {len(final_txs)}/{len(parsed_txs)} accepted")
+     if not final_txs:
+         print("[INFO][createblock] All transactions rejected. No block created.")
+-        # We should still delete the rejected txs!
+-        # Handled by Phase 6 logic (final_reserved_ids contains accepted ones, but we want to delete REJECTED ones too?)
+-        # "delete processed mempool rows... delete accepted... delete rejected"
+-        # My `execute_batch` only returns `accepted` IDs.
+-        # I should assume ALL reserved IDs are "processed" and should be deleted?
+-        # Yes, if they are rejected, they are invalid and removed from mempool.
+-        # So we should delete ALL `reserved_ids`.
+-        # But wait, if we return empty `final_txs`, do we create an empty block?
+-        # Probably not.
+-        # So we should delete them and return.
+-        if reserved_ids:
+-            import db as _db
+-            _db.remove_transactions(reserved_ids)
++        db.remove_transactions(reserved_ids)
+         return {"message": "All transactions rejected. Mempool cleared."}
+ 
+-    # Use final_txs for the block
+-    transactions = final_txs
+-    
+-    # Get latest block to determine new block number and previous hash
+     latest_block = db.get_latest_block()
+     if latest_block:
+-        block_number = latest_block['header']['block_number'] + 1
+-        previous_hash = latest_block['block_hash']
+-        print(f"[INFO][createblock] Latest block is #{latest_block['header']['block_number']}. New block will be #{block_number}.")
++        block_number = latest_block["header"]["block_number"] + 1
++        previous_hash = latest_block["block_hash"]
+     else:
+-        # Genesis block
+         block_number = 0
+         previous_hash = "0" * 64
+-        print(f"[INFO][createblock] No existing blocks. Creating Genesis Block #{block_number}.")
+-    
+-    print(f"[INFO][createblock] Creating block #{block_number} with previous hash: {previous_hash[:16]}...")
+-    
+-    # Create the block
+-    # Create the block
+-    print(f"[INFO][createblock] Computing transaction hashes and Merkle root...")
+-    # Use FINAL RULES from execution, not global state
++
+     rules_blob = final_rules.encode("utf-8")
+-    
+-    # Phase 12.6: Consensus State Commitment (Rules + Accounts)
+     accounts_hash = chain_state.compute_accounts_hash(final_balances, final_sequences)
+-    state_hash = chain_state.compute_consensus_state_hash(rules_blob, accounts_hash)
+-    
++    app_hash_b = b""
++    if final_app_hash_hex:
++        app_hash_b = bytes.fromhex(final_app_hash_hex)
++        if len(app_hash_b) != 32:
++            raise ValueError("internal error: app_hash must be 32 bytes")
++    state_hash = chain_state.compute_consensus_state_hash(rules_blob, accounts_hash, app_hash_b)
++
+     state_locator = f"{config.STATE_LOCATOR_NAMESPACE}:{state_hash}"
+     new_block = block.Block.create(
+         block_number=block_number,
+         previous_hash=previous_hash,
+-        transactions=transactions,
++        transactions=final_txs,
+         state_hash=state_hash,
+         state_locator=state_locator,
+         signing_key_hex=config.MINER_PRIVKEY,
++        timestamp=block_timestamp,
+     )
+-    
+-    print(f"[INFO][createblock] Block created successfully!")
+-    print(f"[INFO][createblock] Block Details:")
+-    print(f"[INFO][createblock]   - Block Number: {new_block.header.block_number}")
+-    print(f"[INFO][createblock]   - Timestamp: {new_block.header.timestamp}")
+-    print(f"[INFO][createblock]   - Transaction Count: {len(transactions)}")
+-    print(f"[INFO][createblock]   - Merkle Root: {new_block.header.merkle_root}")
+-    print(f"[INFO][createblock]   - State Hash: {new_block.header.state_hash}")
+-    print(f"[INFO][createblock]   - Block Hash: {new_block.block_hash}")
+-    
+-    # Show transaction summary
+-    if transactions:
+-        print(f"[INFO][createblock] Transaction Summary:")
+-        for i, tx in enumerate(transactions):
+-            sender = tx.get("sender_pubkey", "unknown")[:10] + "..."
+-            seq = tx.get("sequence_number", "?")
+-            ops = tx.get("operations", {})
+-            transfers = ops.get("1", [])
+-            transfer_count = len(transfers) if isinstance(transfers, list) else 0
+-            rule = "Yes" if ops.get("0") else "No"
+-            print(f"[INFO][createblock]   TX #{i+1}: {sender} (seq:{seq}) - {transfer_count} transfers, rule:{rule}")
+-    
+-    # Atomically save the new block, commit state, and clear mempool
+-    print(f"[INFO][createblock] Committing block #{new_block.header.block_number}, state, and clearing mempool in a single transaction...")
+-    import chain_state as _cs, db as _db
+-    # Inline block insertion and state commit to ensure atomicity
++
++    print(
++        f"[INFO][createblock] Committing block #{new_block.header.block_number}, state, and clearing mempool in a single transaction..."
++    )
++    import db as _db
++
+     with _db._db_lock, _db._db_conn:
+         conn = _db._db_conn
+-        # Insert block
+         block_dict = new_block.to_dict()
+-        block_data_json = json.dumps(block_dict)
+         conn.execute(
+-            'INSERT INTO blocks (block_number, block_hash, previous_hash, timestamp, block_data) VALUES (?, ?, ?, ?, ?)',
++            "INSERT INTO blocks (block_number, block_hash, previous_hash, timestamp, block_data) VALUES (?, ?, ?, ?, ?)",
+             (
+                 new_block.header.block_number,
+                 new_block.block_hash,
+                 new_block.header.previous_hash,
+                 new_block.header.timestamp,
+-                block_data_json,
+-            )
++                json.dumps(block_dict),
++            ),
++        )
++        conn.execute(
++            "INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)",
++            ("current_rules", final_rules),
+         )
+-        # Commit in-memory state to database
+         conn.execute(
+-            'INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)',
+-            ('current_rules', final_rules)
++            "INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)",
++            ("last_processed_block_hash", new_block.block_hash),
+         )
+         conn.execute(
+-            'INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)',
+-            ('last_processed_block_hash', new_block.block_hash)
++            "INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)",
++            ("app_state", final_app_state_json or ""),
++        )
++        conn.execute(
++            "INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)",
++            ("app_hash", final_app_hash_hex or ""),
+         )
+         for addr, bal in final_balances.items():
+             seq = final_sequences.get(addr, 0)
+             conn.execute(
+-                'INSERT OR REPLACE INTO accounts (address, balance, sequence_number) VALUES (?, ?, ?)',
+-                (addr, bal, seq)
++                "INSERT OR REPLACE INTO accounts (address, balance, sequence_number) VALUES (?, ?, ?)",
++                (addr, int(bal), int(seq)),
+             )
+-        # Clear ONLY the reserved transactions from mempool (safe cleanup)
+-        # We delete ALL reserved IDs (both accepted and rejected)
+         if reserved_ids:
+-            placeholders = ','.join(['?'] * len(reserved_ids))
+-            conn.execute(f'DELETE FROM mempool WHERE id IN ({placeholders})', tuple(reserved_ids))
+-        
+-    # Phase 9.5 / 10.6: In-Memory Swap Correctness
+-    # We acquire ALL locks to ensure no readers see partial state during update
+-    print(f"[INFO][createblock] Block committed. Updating in-memory state...")
++            placeholders = ",".join(["?"] * len(reserved_ids))
++            conn.execute(f"DELETE FROM mempool WHERE id IN ({placeholders})", tuple(reserved_ids))
++
++    print("[INFO][createblock] Block committed. Updating in-memory state...")
+     try:
+         with chain_state.get_all_state_locks():
+             chain_state._balances.clear()
+             chain_state._balances.update(final_balances)
+-            
++
+             chain_state._sequence_numbers.clear()
+             chain_state._sequence_numbers.update(final_sequences)
+-            
++
+             chain_state._current_rules_state = final_rules
++            chain_state._current_app_state_json = final_app_state_json or ""
++            chain_state._app_state_hash = final_app_hash_hex or ""
+             chain_state._tau_engine_state_hash = state_hash
+             chain_state._last_processed_block_hash = new_block.block_hash
+-    except Exception as e:
+-        print(f"[CRITICAL][createblock] Failed to update in-memory state after DB commit: {e}. Node restart recommended.")
+-            
++    except Exception as exc:
++        print(
++            f"[CRITICAL][createblock] Failed to update in-memory state after DB commit: {exc}. Node restart recommended."
++        )
++
+     print(f"[INFO][createblock] Block, state committed; {len(reserved_ids)} mempool txs cleared.")
+ 
+-    # Publish the Tau/rules snapshot tied to this block so peers can fetch it by
+-    # (state_hash/state_locator) and apply it to their Tau engine.
++    # Best-effort DHT publication.
+     try:
+         published = False
+         if hasattr(chain_state, "publish_tau_state_snapshot"):
+-            # Compute accounts hash for consensus integrity
+-            accounts_hash = chain_state.compute_accounts_hash(final_balances, final_sequences)
+-            published = bool(chain_state.publish_tau_state_snapshot(state_hash, rules_blob, accounts_hash))
++            published = bool(
++                chain_state.publish_tau_state_snapshot(
++                    state_hash,
++                    rules_blob,
++                    accounts_hash,
++                    app_hash_hex=final_app_hash_hex or None,
++                )
++            )
+         if published:
+             print(f"[INFO][createblock] Published Tau state snapshot to DHT: {state_locator}")
+         else:
+-            print(f"[DEBUG][createblock] Tau state snapshot not published to DHT (no DHT client?)")
+-    except Exception as e:
+-        print(f"[WARN][createblock] Failed to publish Tau state snapshot to DHT: {e}")
++            print("[DEBUG][createblock] Tau state snapshot not published to DHT (no DHT client?)")
++    except Exception as exc:
++        print(f"[WARN][createblock] Failed to publish Tau state snapshot to DHT: {exc}")
++
++    if final_app_hash_hex and final_app_state_json:
++        try:
++            published_app = False
++            if hasattr(chain_state, "publish_app_state_snapshot"):
++                published_app = bool(
++                    chain_state.publish_app_state_snapshot(final_app_hash_hex, final_app_state_json)
++                )
++            if published_app:
++                print(f"[INFO][createblock] Published app state snapshot to DHT: app_state:{final_app_hash_hex}")
++            else:
++                print("[DEBUG][createblock] App state snapshot not published to DHT (no DHT client?)")
++        except Exception as exc:
++            print(f"[WARN][createblock] Failed to publish app state snapshot to DHT: {exc}")
+ 
+-    # Publish the resulting accounts table so secondary nodes can update balances
+-    # without re-executing transactions.
+     try:
+         published_accounts = False
+         if hasattr(chain_state, "publish_accounts_snapshot"):
+             published_accounts = bool(chain_state.publish_accounts_snapshot(new_block.block_hash))
+         if published_accounts:
+-            print(f"[INFO][createblock] Published accounts snapshot to DHT: {config.STATE_LOCATOR_NAMESPACE}:{new_block.block_hash}")
++            print(
++                f"[INFO][createblock] Published accounts snapshot to DHT: {config.STATE_LOCATOR_NAMESPACE}:{new_block.block_hash}"
++            )
+         else:
+-            print(f"[DEBUG][createblock] Accounts snapshot not published to DHT (no DHT client?)")
+-    except Exception as e:
+-        print(f"[WARN][createblock] Failed to publish accounts snapshot to DHT: {e}")
+-    
+-    print(f"[INFO][createblock] Block creation process completed!")
+-    
++            print("[DEBUG][createblock] Accounts snapshot not published to DHT (no DHT client?)")
++    except Exception as exc:
++        print(f"[WARN][createblock] Failed to publish accounts snapshot to DHT: {exc}")
++
++    print("[INFO][createblock] Block creation process completed!")
+     return new_block.to_dict()
+ 
+ 
+@@ -546,10 +624,6 @@ def decode_output(tau_output: str, tau_input: str) -> str:
+     # depending on how this is used elsewhere.
+     return ""
+ 
+-
+-import logging
+-logger = logging.getLogger(__name__)
+-
+ def execute(raw_command: str, container):
+     """
+     Executes the createblock command.
+diff --git a/commands/getappstate.py b/commands/getappstate.py
+new file mode 100644
+index 0000000..96985ea
+--- /dev/null
++++ b/commands/getappstate.py
+@@ -0,0 +1,33 @@
++import json
++import logging
++
++import chain_state
++
++
++logger = logging.getLogger(__name__)
++
++
++def execute(raw_command: str, container):
++    """
++    getappstate [full]
++
++    - Default: returns `APP_HASH: <hex>` (empty if unset)
++    - `full`: returns JSON with the current app_hash + app_state snapshot
++    """
++    parts = (raw_command or "").strip().split()
++    full = len(parts) > 1 and parts[1].lower() == "full"
++
++    app_hash = chain_state.get_app_hash() or ""
++    if not full:
++        return f"APP_HASH: {app_hash}\r\n"
++
++    app_state_json = chain_state.get_app_state_json() or ""
++    app_state_obj = None
++    if app_state_json:
++        try:
++            app_state_obj = json.loads(app_state_json)
++        except Exception:
++            app_state_obj = None
++
++    payload = {"app_hash": app_hash, "app_state": app_state_obj}
++    return json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\r\n"
+diff --git a/db.py b/db.py
+index daf25a2..ac3a964 100644
+--- a/db.py
++++ b/db.py
+@@ -456,6 +456,47 @@ def save_chain_state(balances: Dict[str, int], sequences: Dict[str, int], rules:
+                     (address, balance, seq)
+                 )
+ 
++
++def load_chain_state_kv(keys: List[str]) -> Dict[str, str]:
++    """
++    Load arbitrary key/value entries from the `chain_state` table.
++    """
++    if _db_conn is None:
++        init_db()
++    if not keys:
++        return {}
++    with _db_lock:
++        placeholders = ",".join(["?"] * len(keys))
++        cur = _db_conn.execute(
++            f"SELECT key, value FROM chain_state WHERE key IN ({placeholders})",
++            tuple(keys),
++        )
++        rows = cur.fetchall()
++    out: Dict[str, str] = {}
++    for k, v in rows:
++        if isinstance(k, str):
++            out[k] = str(v)
++    return out
++
++
++def save_chain_state_kv(entries: Dict[str, str]) -> None:
++    """
++    Save arbitrary key/value entries into the `chain_state` table atomically.
++    """
++    if _db_conn is None:
++        init_db()
++    if not entries:
++        return
++    with _db_lock:
++        with _db_conn:
++            for k, v in entries.items():
++                if not isinstance(k, str) or not k:
++                    continue
++                _db_conn.execute(
++                    'INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)',
++                    (k, str(v)),
++                )
++
+ # --- Peerstore DB-backed functions ---
+ from typing import Optional, Dict, List
+ 
+diff --git a/network/dht_manager.py b/network/dht_manager.py
+index c661819..7162ac3 100644
+--- a/network/dht_manager.py
++++ b/network/dht_manager.py
+@@ -230,6 +230,7 @@ class DHTManager:
+         self.register_validator("tx", self._validate_tx_record)
+         self.register_validator("state", self._validate_state_record)
+         self.register_validator("tau_state", self._validate_tau_state_record)
++        self.register_validator("app_state", self._validate_app_state_record)
+         self.register_validator("formula", self._validate_formula_record)
+ 
+     def _validate_block_record(self, key: bytes, value: bytes) -> bool:
+@@ -296,7 +297,7 @@ class DHTManager:
+     def _validate_tau_state_record(self, key: bytes, value: bytes) -> bool:
+         """
+         Validate a `tau_state:<consensus_hash>` record.
+-        Payload MUST be JSON: `{"rules": <str>, "accounts_hash": <hex>}`.
++        Payload MUST be JSON: `{"rules": <str>, "accounts_hash": <hex>, "app_hash": <hex?>}`.
+         Validator recomputes consensus hash and compares to key suffix.
+         """
+         import json
+@@ -316,6 +317,7 @@ class DHTManager:
+             
+             rules_str = data.get("rules", "")
+             accounts_hash_hex = data.get("accounts_hash", "")
++            app_hash_hex = data.get("app_hash", "")
+             
+             if not isinstance(rules_str, str) or not isinstance(accounts_hash_hex, str):
+                 return False
+@@ -332,12 +334,45 @@ class DHTManager:
+                 accounts_hash_bytes = bytes.fromhex(accounts_hash_hex)
+             except ValueError:
+                 return False
++            if len(accounts_hash_bytes) != 32:
++                return False
++
++            app_hash_bytes = b""
++            if isinstance(app_hash_hex, str) and app_hash_hex:
++                try:
++                    app_hash_bytes = bytes.fromhex(app_hash_hex)
++                except ValueError:
++                    return False
++                if len(app_hash_bytes) != 32:
++                    return False
+                 
+-            computed = compute_consensus_state_hash(rules_bytes, accounts_hash_bytes)
++            computed = compute_consensus_state_hash(rules_bytes, accounts_hash_bytes, app_hash_bytes)
+             return computed == consensus_hash
+         except Exception:
+             return False
+ 
++    def _validate_app_state_record(self, key: bytes, value: bytes) -> bool:
++        """
++        Validate an `app_state:<app_hash>` record.
++
++        The key suffix is the content-addressed commitment:
++          app_hash = sha256(canonical_app_state_json_bytes).hexdigest()
++        """
++        import hashlib
++
++        decoded = self._decode_dht_key(key)
++        if not decoded:
++            return False
++        namespace, app_hash = decoded
++        if namespace != "app_state":
++            return False
++
++        try:
++            computed = hashlib.sha256(value).hexdigest()
++            return computed == app_hash
++        except Exception:
++            return False
++
+     def put_record_sync(self, key: bytes, value: bytes, timeout: float = 5.0) -> bool:
+         """
+         Best-effort synchronous DHT publish helper.
+@@ -385,7 +420,7 @@ class DHTManager:
+         if self._dht and getattr(self._dht, "provider_store", None):
+             try:
+                 ns = self._extract_dht_namespace(encoded_key)
+-                if ns in ("state", "tau_state"):
++                if ns in ("state", "tau_state", "app_state"):
+                      from libp2p.peer.peerinfo import PeerInfo
+                      
+                      # Add self as provider
+@@ -462,4 +497,3 @@ class DHTManager:
+         
+         logger.debug("No validator for namespace %s, allowing", namespace)
+         return True
+-
+diff --git a/poa/state.py b/poa/state.py
+index 83fe26b..fd5313c 100644
+--- a/poa/state.py
++++ b/poa/state.py
+@@ -12,14 +12,16 @@ def compute_state_hash(payload: bytes) -> str:
+     return blake3(payload).hexdigest()
+ 
+ 
+-def compute_consensus_state_hash(rules_bytes: bytes, accounts_hash: bytes) -> str:
++def compute_consensus_state_hash(rules_bytes: bytes, accounts_hash: bytes, app_hash: bytes = b"") -> str:
+     """
+     Computes the final consensus state hash committing to both Rules and Accounts.
+-    state_hash = BLAKE3(rules_bytes + accounts_hash).hexdigest()
++    state_hash = BLAKE3(rules_bytes + accounts_hash + app_hash).hexdigest()
+     """
+     hasher = blake3()
+     hasher.update(rules_bytes)
+     hasher.update(accounts_hash)
++    if app_hash:
++        hasher.update(app_hash)
+     return hasher.hexdigest()
+ 
+ 
+@@ -77,4 +79,3 @@ class StateStore:
+             metadata={"source": "chain_state"},
+         )
+         return self.commit(snapshot)
+-
+diff --git a/tests/test_app_bridge.py b/tests/test_app_bridge.py
+new file mode 100644
+index 0000000..8a555f4
+--- /dev/null
++++ b/tests/test_app_bridge.py
+@@ -0,0 +1,41 @@
++import hashlib
++import json
++
++import pytest
++
++import app_bridge
++
++
++def test_canonicalize_app_state_json() -> None:
++    payload = {"b": 2, "a": 1}
++
++    as_obj = app_bridge.canonicalize_app_state_json(payload)
++    assert as_obj == '{"a":1,"b":2}'
++
++    as_str = app_bridge.canonicalize_app_state_json(json.dumps(payload))
++    assert as_str == '{"a":1,"b":2}'
++
++
++def test_compute_app_state_hash_hex_matches_sha256() -> None:
++    canonical = '{"a":1,"b":2}'
++    expected = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
++    assert app_bridge.compute_app_state_hash_hex(canonical) == expected
++
++
++def test_normalize_apply_result_accepts_4_tuple() -> None:
++    ok, state_json, state_hash, balances_patch, err = app_bridge.normalize_apply_result(
++        (True, {"b": 2, "a": 1}, None, None)
++    )
++    assert ok is True
++    assert err is None
++    assert balances_patch is None
++    assert state_json == '{"a":1,"b":2}'
++    assert state_hash == hashlib.sha256(state_json.encode("utf-8")).hexdigest()
++
++
++def test_normalize_apply_result_rejects_mismatched_hash() -> None:
++    canonical = '{"a":1}'
++    wrong_hash = "00" * 32
++    with pytest.raises(app_bridge.AppBridgeError):
++        app_bridge.normalize_apply_result((True, canonical, wrong_hash, None, None))
++

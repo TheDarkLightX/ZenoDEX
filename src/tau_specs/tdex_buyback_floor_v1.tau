@@ -1,0 +1,42 @@
+# TDEX Buyback + Burn with Minimum Supply Floor
+# Inputs:
+# i1 = trade_amount
+# i2 = fee_charged
+# i3 = buyback_amount
+# i4 = burned_amount
+# i5 = supply_before_hi
+# i6 = supply_before_lo
+# i7 = supply_after_hi
+# i8 = supply_after_lo
+# i9 = floor_hi
+# i10 = floor_lo
+# Outputs:
+# o1 = fee_rate_ok
+# o2 = buyback_share_ok
+# o3 = burn_floor_ok
+# o4 = buyback_ok
+# @rule o4: Fee rate, buyback share, and floor burn must all pass.
+
+set charvar off
+
+fee_rate_ok(amount : bv[16], fee : bv[16]) := (fee * { #x2710 }:bv[16] >= amount * { #x001D }:bv[16]) && (fee * { #x2710 }:bv[16] <= (amount * { #x001D }:bv[16]) + { #x270F }:bv[16]).
+
+buyback_share_ok(fee : bv[16], bb : bv[16]) := (bb * { #x0064 }:bv[16] >= fee * { #x0015 }:bv[16]) && (bb * { #x0064 }:bv[16] <= (fee * { #x0015 }:bv[16]) + { #x0063 }:bv[16]).
+
+# 32-bit comparison helpers
+ge_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := (a_hi > b_hi) || ((a_hi = b_hi) && (a_lo >= b_lo)).
+le_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := ge_32(b_hi, b_lo, a_hi, a_lo).
+eq_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := (a_hi = b_hi) && (a_lo = b_lo).
+
+sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], d_hi : bv[16], d_lo : bv[16]) := (d_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (d_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (d_hi = (a_hi - b_hi)))).
+
+floor_reached(s_hi : bv[16], s_lo : bv[16], f_hi : bv[16], f_lo : bv[16]) := le_32(s_hi, s_lo, f_hi, f_lo).
+
+burn_floor_ok(s_hi : bv[16], s_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16], f_hi : bv[16], f_lo : bv[16], bb : bv[16], burned : bv[16]) := (floor_reached(s_hi, s_lo, f_hi, f_lo) && (burned = { #x0000 }:bv[16]) && eq_32(s_hi, s_lo, s2_hi, s2_lo)) || (!floor_reached(s_hi, s_lo, f_hi, f_lo) && (burned = bb) && sub_32(s_hi, s_lo, { #x0000 }:bv[16], burned, s2_hi, s2_lo) && ge_32(s2_hi, s2_lo, f_hi, f_lo)).
+
+always
+  # @section: Buyback + burn floor checks
+  (o1[t]:sbf = 1:sbf <-> fee_rate_ok(i1[t]:bv[16], i2[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> buyback_share_ok(i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> burn_floor_ok(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

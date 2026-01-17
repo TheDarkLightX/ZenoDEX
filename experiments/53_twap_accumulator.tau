@@ -1,0 +1,26 @@
+# Spec 53: Time-Weighted Average Price (TWAP) Accumulator
+# NOVEL: Recursive TWAP accumulator with manipulation detection
+# Uses temporal state to track price sum and detect deviations from TWAP
+# Detects rapid divergence from TWAP as potential manipulation
+#
+# Inputs: i1 = current_price
+# Outputs: o1 = twap_value (accumulated), o2 = price_above_twap, o3 = twap_deviation_safe, 
+#          o4 = manipulation_detected (3-step sustained deviation)
+
+# TWAP update: twap[t] = (twap[t-1] * 3 + price[t]) / 4
+# Using bit shifts: twap = twap - twap/4 + price/4
+# Equivalent: twap = (3*twap + price) >> 2
+
+# Deviation safe: price within 5% of TWAP
+# |price - twap| * 20 < twap
+deviationsafe(price : bv[16], twap : bv[16]) := ((price >= twap) && ((price - twap) * { #x0014 }:bv[16] < twap)) || ((price < twap) && ((twap - price) * { #x0014 }:bv[16] < twap)).
+
+# Sustained deviation: price consistently above/below TWAP for 3 steps
+# This pattern suggests manipulation
+sustainedabove(a0 : sbf, a1 : sbf, a2 : sbf) := (a0 = 1:sbf) && (a1 = 1:sbf) && (a2 = 1:sbf).
+sustainedbelow(a0 : sbf, a1 : sbf, a2 : sbf) := (a0 = 0:sbf) && (a1 = 0:sbf) && (a2 = 0:sbf).
+
+# Manipulation detected: sustained deviation AND unsafe deviation magnitude
+manipulationpattern(above0 : sbf, above1 : sbf, above2 : sbf, safe : sbf) := (sustainedabove(above0, above1, above2) || sustainedbelow(above0, above1, above2)) && (safe = 0:sbf).
+
+always (o1[0]:bv[16] = i1[0]:bv[16]) && (o1[1]:bv[16] = o1[0]:bv[16] - (o1[0]:bv[16] >> { 2 }:bv[16]) + (i1[1]:bv[16] >> { 2 }:bv[16])) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o1[t]:bv[16] = o1[t-1]:bv[16] - (o1[t-1]:bv[16] >> { 2 }:bv[16]) + (i1[t]:bv[16] >> { 2 }:bv[16])) && (o2[t]:sbf = 1:sbf <-> i1[t]:bv[16] > o1[t]:bv[16]) && (o3[t]:sbf = 1:sbf <-> deviationsafe(i1[t]:bv[16], o1[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> manipulationpattern(o2[t]:sbf, o2[t-1]:sbf, o2[t-2]:sbf, o3[t]:sbf)).

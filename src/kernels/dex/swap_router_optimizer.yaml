@@ -1,0 +1,101 @@
+# [FORGE] Swap Router Optimizer (High ROI - Every Swap)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "swap_router_optimizer"
+  notes: |
+    Optimizes swap routing for best execution.
+    High ROI: Used in every swap for optimal pricing
+    Novel: Stateful routing with path optimization
+
+observables:
+  state_vars: ["best_path_score", "routing_success_count", "total_savings"]
+  effects: ["optimal_path", "savings_bps", "routing_efficiency"]
+
+types: []
+
+state_vars:
+  - id: "best_path_score"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "routing_success_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "total_savings"
+    role: "data"
+    type: { kind: "int", min: 0, max: 100000000 }
+
+init:
+  - var: "best_path_score"
+    expr: { const: 0 }
+  - var: "routing_success_count"
+    expr: { const: 0 }
+  - var: "total_savings"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_score_in_range"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "best_path_score" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "best_path_score" }, { const: 10000 }] }
+  - id: "inv_savings_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "total_savings" }, { const: 0 }]
+
+actions:
+  - id: "route_swap"
+    params:
+      - id: "path_score"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "savings_amount"
+        type: { kind: "int", min: 0, max: 10000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ param: "path_score" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "path_score" }, { const: 10000 }] }
+        - { op: ">=", args: [{ param: "savings_amount" }, { const: 0 }] }
+    updates:
+      - var: "best_path_score"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args: [{ param: "path_score" }, { var: "best_path_score" }]
+          then: { param: "path_score" }
+          else: { var: "best_path_score" }
+      - var: "routing_success_count"
+        expr:
+          op: "+"
+          args: [{ var: "routing_success_count" }, { const: 1 }]
+      - var: "total_savings"
+        expr:
+          op: "+"
+          args: [{ var: "total_savings" }, { param: "savings_amount" }]
+    effects:
+      optimal_path: { var: "best_path_score" }
+      savings_bps:
+        op: "div"
+        args:
+          [
+            { op: "*", args: [{ param: "savings_amount" }, { const: 10000 }] },
+            { const: 1000000 },
+          ]
+      routing_efficiency:
+        op: "div"
+        args:
+          [
+            { var: "total_savings" },
+            {
+              op: "ite"
+              cond:
+                op: ">"
+                args: [{ var: "routing_success_count" }, { const: 0 }]
+              then: { var: "routing_success_count" }
+              else: { const: 1 },
+            },
+          ]

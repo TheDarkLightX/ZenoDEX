@@ -1,0 +1,35 @@
+# Token Archetype: Demurrage (Negative Interest) v1
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: demurrage_rate_bps (i3), supply_floor (i5)
+# IMMUTABLE_INVARIANTS: supply_after >= floor, triggered -> supply_after = supply_before - burned
+#
+# PURPOSE: Validate a periodic demurrage event that burns a fraction of supply.
+# This creates deflationary pressure while guaranteeing a non-zero supply via a floor.
+#
+# Stream mapping:
+# i1 = supply_before
+# i2 = supply_after
+# i3 = demurrage_rate_bps
+# i4 = burned_amount
+# i5 = supply_floor
+# i6 = demurrage_triggered
+# o1 = burn_calc_ok
+# o2 = supply_transition_ok
+# o3 = floor_ok
+# o4 = demurrage_ok
+
+rate_bps_in_range(rate : bv[16]) := rate <= { #x2710 }:bv[16].
+
+burn_calc_ok(supply : bv[16], rate : bv[16], burned : bv[16], trig : sbf) := ((trig = 1:sbf) -> (rate_bps_in_range(rate) && (burned * { #x2710 }:bv[16] >= supply * rate) && (burned * { #x2710 }:bv[16] <= (supply * rate) + { #x270F }:bv[16]))) && ((trig = 0:sbf) -> (burned = { #x0000 }:bv[16])).
+
+supply_transition_ok(s1 : bv[16], s2 : bv[16], burned : bv[16], trig : sbf) := ((trig = 1:sbf) -> (s1 >= burned && (s2 = (s1 - burned)))) && ((trig = 0:sbf) -> (s2 = s1)).
+
+floor_ok(supply : bv[16], floor : bv[16]) := supply >= floor.
+
+demurrage_ok(s1 : bv[16], s2 : bv[16], rate : bv[16], burned : bv[16], floor : bv[16], trig : sbf) := burn_calc_ok(s1, rate, burned, trig) && supply_transition_ok(s1, s2, burned, trig) && floor_ok(s2, floor).
+
+always (o1[t]:sbf = 1:sbf <-> burn_calc_ok(i1[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i6[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> supply_transition_ok(i1[t]:bv[16], i2[t]:bv[16], i4[t]:bv[16], i6[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> floor_ok(i2[t]:bv[16], i5[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> demurrage_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:sbf)).

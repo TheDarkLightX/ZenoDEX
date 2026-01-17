@@ -1,0 +1,46 @@
+# Volatility Tier Guard v1 - definition-free safety gate (Tau REPL harness compatible)
+#
+# PURPOSE:
+# - Guard the volatility tier controller boundary with small, always-on invariants:
+#   - thresholds are ordered and bounded (<= 10_000 bps),
+#   - tiers are bounded (0..3),
+#   - fail-closed: data_ok=0 => tier_out=3 (halt),
+#   - monotone within epoch: if epoch unchanged then tier_out >= tier_prev,
+#   - epoch is non-decreasing (epoch_now >= epoch_prev).
+#
+# Stream mapping (host-provided wiring):
+# i1 = epoch_now (bv[32])     # current batch_epoch / block_height surrogate
+# i2 = tier_out (bv[8])       # controller output tier (0..3)
+# i3 = data_ok (sbf)          # 1 if volatility signal valid, else 0 (fail-closed)
+# i4 = t1_bps (bv[32])        # threshold 1 (0..10000)
+# i5 = t2_bps (bv[32])        # threshold 2 (0..10000)
+# i6 = t3_bps (bv[32])        # threshold 3 (0..10000)
+# i7 = epoch_prev (bv[32])    # previous epoch from controller pre-state
+# i8 = tier_prev (bv[8])      # previous tier from controller pre-state
+#
+# Outputs:
+# o1 = all_ok (sbf)
+#
+# NOTE:
+# - This spec is intentionally definition-free (no `:=` helpers).
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (
+    # Threshold discipline (ordered + bounded).
+    (i4[t]:bv[32] <= i5[t]:bv[32]) &&
+    (i5[t]:bv[32] <= i6[t]:bv[32]) &&
+    (i6[t]:bv[32] <= { #x00002710 }:bv[32]) &&
+
+    # Tier bounds.
+    (i2[t]:bv[8] <= { #x03 }:bv[8]) &&
+    (i8[t]:bv[8] <= { #x03 }:bv[8]) &&
+
+    # Fail-closed: invalid/missing volatility data => tier_out == 3.
+    ((i3[t]:sbf = 0:sbf) -> (i2[t]:bv[8] = { #x03 }:bv[8])) &&
+
+    # Monotone within epoch + epoch monotonicity.
+    (i1[t]:bv[32] >= i7[t]:bv[32]) &&
+    ((i1[t]:bv[32] = i7[t]:bv[32]) -> (i2[t]:bv[8] >= i8[t]:bv[8]))
+  )).

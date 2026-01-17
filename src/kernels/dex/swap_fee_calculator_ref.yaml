@@ -1,0 +1,52 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "swap_fee_calculator_ref"
+
+observables:
+  state_vars: []
+  effects: ["fee_amount", "net_amount_in"]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "calculate_fee"
+    params:
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "fee_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "amount_in" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "fee_bps" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "fee_bps" }, { const: 10000 }] }
+    updates: []
+    effects:
+      fee_amount:
+        op: "div"
+        args:
+          [
+            { op: "*", args: [{ param: "amount_in" }, { param: "fee_bps" }] },
+            { const: 10000 },
+          ]
+      net_amount_in:
+        op: "-"
+        args:
+          [
+            { param: "amount_in" },
+            {
+              op: "div",
+              args:
+                [
+                  { op: "*", args: [{ param: "amount_in" }, { param: "fee_bps" }] },
+                  { const: 10000 },
+                ],
+            },
+          ]

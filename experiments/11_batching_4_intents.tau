@@ -1,0 +1,8 @@
+# Experiment 11: Canonical batching for 4 intents
+# Tests strictly increasing order validation
+
+# Check if 4 IDs are strictly increasing (canonical order)
+is_strictly_increasing_4(id0 : bv[64], id1 : bv[64], id2 : bv[64], id3 : bv[64]) := (id0 < id1) && (id1 < id2) && (id2 < id3).
+
+# i1-i4 are the 4 intent IDs in execution order
+always (o1[t]:sbf = 1:sbf <-> is_strictly_increasing_4(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])).

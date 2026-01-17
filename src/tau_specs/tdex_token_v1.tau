@@ -1,0 +1,60 @@
+# TDEX Token v1 - Deflationary DEX Token with Auto-Burn
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: burn_rate (i3 implicit 0.5%), explicit_floor (i5)
+# IMMUTABLE_INVARIANTS: supply >= floor, burn <= calculated_max
+# 
+# Purpose: Core token spec for TDEX with automatic burn on transfer
+# Implements deflationary pressure through transfer tax
+#
+# Tokenomics:
+# - Initial Supply: 1,000,000 TDEX (represented as 1000000000 with 3 decimals)
+# - Transfer Burn: 0.5% of every transfer is burned
+# - Minimum Supply Floor: 100,000 TDEX (10% of initial)
+#
+# DbC Preconditions:
+# - All amounts are bv[16] (max 65535 per limb)
+# - Amount must be > 0 for valid transfer
+# - Sender must have sufficient balance
+#
+# DbC Postcondition:
+# - o1 = transfer_valid (with burn applied)
+# - o2 = burn_amount_correct
+# - o3 = supply_above_floor
+# - o4 = transfer_complete (all conditions met)
+#
+# Inputs:
+# i1 = sender_balance_before
+# i2 = receiver_balance_before
+# i3 = transfer_amount
+# i4 = current_supply
+# i5 = min_supply (floor)
+# Outputs:
+# o1 = transfer_valid
+# o2 = burn_correct
+# o3 = above_floor
+# o4 = transfer_complete
+
+# Calculate burn amount: 0.5% of transfer = amount / 200
+# Cross-mult: burn * 200 <= amount < burn * 200 + 200
+burnok(amount : bv[16], burn : bv[16]) := (burn * { #x00C8 }:bv[16] <= amount) && (amount < burn * { #x00C8 }:bv[16] + { #x00C8 }:bv[16]).
+
+# Net amount after burn: amount - burn
+netamount(amount : bv[16], burn : bv[16], net : bv[16]) := net = amount - burn.
+
+# Sender has sufficient balance
+senderok(senderbal : bv[16], amount : bv[16]) := senderbal >= amount.
+
+# Transfer valid: sender has enough AND amount > 0
+transfervalid(senderbal : bv[16], amount : bv[16]) := senderok(senderbal, amount) && (amount > { #x0000 }:bv[16]).
+
+# Supply above floor: current_supply - burn >= min_supply
+abovefloor(supply : bv[16], burn : bv[16], minsupply : bv[16]) := supply >= minsupply + burn.
+
+# Burn correct: burn is 0.5% of amount AND above floor
+burncorrect(amount : bv[16], burn : bv[16], supply : bv[16], minsupply : bv[16]) := burnok(amount, burn) && abovefloor(supply, burn, minsupply).
+
+# Transfer complete: all conditions met
+transfercomplete(senderbal : bv[16], amount : bv[16], burn : bv[16], supply : bv[16], minsupply : bv[16]) := transfervalid(senderbal, amount) && burncorrect(amount, burn, supply, minsupply).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> transfervalid(i1[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> burnok(i3[t]:bv[16], i3[t]:bv[16] / { #x00C8 }:bv[16])) && (o3[t]:sbf = 1:sbf <-> abovefloor(i4[t]:bv[16], i3[t]:bv[16] / { #x00C8 }:bv[16], i5[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> transfercomplete(i1[t]:bv[16], i3[t]:bv[16], i3[t]:bv[16] / { #x00C8 }:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

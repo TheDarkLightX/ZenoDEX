@@ -1,0 +1,32 @@
+# Experiment 41: Batch pipeline (canonical + no_sandwich + cpmm8 valid)
+
+# Inputs
+# order ids (4), prices (pp,p,c), cpmm (rx,ry,net,out)
+
+i1 : bv[16] = in file("experiments/io/inputs/order_id1.in")
+i2 : bv[16] = in file("experiments/io/inputs/order_id2.in")
+i3 : bv[16] = in file("experiments/io/inputs/order_id3.in")
+i4 : bv[16] = in file("experiments/io/inputs/order_id4.in")
+
+i5 : bv[16] = in file("experiments/io/inputs/price_pp.in")
+i6 : bv[16] = in file("experiments/io/inputs/price_p.in")
+i7 : bv[16] = in file("experiments/io/inputs/price_c.in")
+
+i8 : bv[16] = in file("experiments/io/inputs/cpmm8_resx.in")
+i9 : bv[16] = in file("experiments/io/inputs/cpmm8_resy.in")
+i10 : bv[16] = in file("experiments/io/inputs/cpmm8_net.in")
+i11 : bv[16] = in file("experiments/io/inputs/cpmm8_out.in")
+
+# Outputs
+# o1 canonical, o2 no_sandwich, o3 cpmm8_valid, o4 batch_ok
+
+o1 : sbf = out file("experiments/io/outputs/batch_canonical.out")
+o2 : sbf = out file("experiments/io/outputs/batch_no_sandwich.out")
+o3 : sbf = out file("experiments/io/outputs/batch_cpmm_ok.out")
+o4 : sbf = out file("experiments/io/outputs/batch_all_ok.out")
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d)
+no_sandwich(pp : bv[16], p : bv[16], c : bv[16]) := ((pp <= p) && (p <= c)) || ((pp >= p) && (p >= c))
+
+r (o1[t] = 1:sbf <-> canonical(i1[t], i2[t], i3[t], i4[t])) && (o2[t] = 1:sbf <-> no_sandwich(i5[t], i6[t], i7[t])) && (o3[t] = 1:sbf <-> (i11[t] * (i8[t] + i10[t]) <= i10[t] * i9[t])) && (o4[t] = 1:sbf <-> ((o1[t] = 1:sbf) && (o2[t] = 1:sbf) && (o3[t] = 1:sbf)))
+q

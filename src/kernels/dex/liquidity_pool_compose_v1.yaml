@@ -1,0 +1,324 @@
+# [FORGE] Liquidity pool (compose-friendly wrapper; ABI-compatible)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "liquidity_pool_compose_v1"
+  notes: |
+    ABI-compatible wrapper around `liquidity_pool` for system composition.
+
+    Adds non-observable internal effects (e.g. `new_reserve_a/new_reserve_b/new_total_lp_shares`)
+    so a system spec can wire state synchronization without changing the module’s
+    observable contract (observables.* unchanged).
+observables:
+  state_vars: ["reserve_a", "reserve_b", "total_lp_shares"]
+  effects: ["lp_shares_minted", "lp_shares_burned", "amounts_added", "amounts_removed"]
+types: []
+state_vars:
+  - id: "reserve_a"
+    role: "data"
+    type: { kind: "int", min: 1, max: 45 }
+  - id: "reserve_a_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 45 }
+  - id: "reserve_b"
+    role: "data"
+    type: { kind: "int", min: 1, max: 45 }
+  - id: "reserve_b_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 45 }
+  - id: "total_lp_shares"
+    role: "data"
+    type: { kind: "int", min: 1, max: 60 }
+  - id: "total_lp_shares_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 60 }
+invariants:
+  - id: "inv_lp_supply_positive_when_reserves_positive"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "and"
+          args:
+            - op: ">"
+              args: [{ var: "reserve_a" }, { const: 0 }]
+            - op: ">"
+              args: [{ var: "reserve_b" }, { const: 0 }]
+        - op: ">"
+          args: [{ var: "total_lp_shares" }, { const: 0 }]
+  # NOTE: Avoid nonlinear invariants (reserve_a * reserve_b >= k) so Z3+CVC5 can
+  # prove inductiveness in bounded domains. Reserve-safety is enforced via bounds.
+  - id: "inv_reserve_a_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve_a" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "reserve_a" }, { const: 45 }] }
+  - id: "inv_reserve_b_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve_b" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "reserve_b" }, { const: 45 }] }
+init:
+  - var: "reserve_a"
+    expr: { const: 25 }
+  - var: "reserve_a_before"
+    expr: { const: 25 }
+  - var: "reserve_b"
+    expr: { const: 25 }
+  - var: "reserve_b_before"
+    expr: { const: 25 }
+  - var: "total_lp_shares"
+    expr: { const: 50 }
+  - var: "total_lp_shares_before"
+    expr: { const: 50 }
+actions:
+  - id: "add_liquidity"
+    params:
+      - id: "amount_a_in"
+        type: { kind: "int", min: 1, max: 50 }
+      - id: "amount_b_in"
+        type: { kind: "int", min: 1, max: 50 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "reserve_a" }, { param: "amount_a_in" }]
+            - { const: 45 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "reserve_b" }, { param: "amount_b_in" }]
+            - { const: 45 }
+        - op: ">="
+          args:
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args: [{ param: "amount_a_in" }, { var: "total_lp_shares" }]
+                      - { var: "reserve_a" }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args: [{ param: "amount_b_in" }, { var: "total_lp_shares" }]
+                      - { var: "reserve_b" }
+              then:
+                op: "div"
+                args:
+                  - op: "*"
+                    args: [{ param: "amount_a_in" }, { var: "total_lp_shares" }]
+                  - { var: "reserve_a" }
+              else:
+                op: "div"
+                args:
+                  - op: "*"
+                    args: [{ param: "amount_b_in" }, { var: "total_lp_shares" }]
+                  - { var: "reserve_b" }
+            - { const: 1 }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "total_lp_shares" }
+                - op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args: [{ param: "amount_a_in" }, { var: "total_lp_shares" }]
+                          - { var: "reserve_a" }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args: [{ param: "amount_b_in" }, { var: "total_lp_shares" }]
+                          - { var: "reserve_b" }
+                  then:
+                    op: "div"
+                    args:
+                      - op: "*"
+                        args: [{ param: "amount_a_in" }, { var: "total_lp_shares" }]
+                      - { var: "reserve_a" }
+                  else:
+                    op: "div"
+                    args:
+                      - op: "*"
+                        args: [{ param: "amount_b_in" }, { var: "total_lp_shares" }]
+                      - { var: "reserve_b" }
+            - { const: 60 }
+    updates:
+      - var: "reserve_a_before"
+        expr: { var: "reserve_a" }
+      - var: "reserve_b_before"
+        expr: { var: "reserve_b" }
+      - var: "total_lp_shares_before"
+        expr: { var: "total_lp_shares" }
+      - var: "reserve_a"
+        expr:
+          op: "+"
+          args: [{ var: "reserve_a" }, { param: "amount_a_in" }]
+      - var: "reserve_b"
+        expr:
+          op: "+"
+          args: [{ var: "reserve_b" }, { param: "amount_b_in" }]
+      - var: "total_lp_shares"
+        expr:
+          op: "+"
+          args:
+            - { var: "total_lp_shares" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args: [{ param: "amount_a_in" }, { var: "total_lp_shares" }]
+                      - { var: "reserve_a" }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args: [{ param: "amount_b_in" }, { var: "total_lp_shares" }]
+                      - { var: "reserve_b" }
+              then:
+                op: "div"
+                args:
+                  - op: "*"
+                    args: [{ param: "amount_a_in" }, { var: "total_lp_shares" }]
+                  - { var: "reserve_a" }
+              else:
+                op: "div"
+                args:
+                  - op: "*"
+                    args: [{ param: "amount_b_in" }, { var: "total_lp_shares" }]
+                  - { var: "reserve_b" }
+    effects:
+      lp_shares_minted:
+        op: "ite"
+        cond:
+          op: "<="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ param: "amount_a_in" }, { var: "total_lp_shares_before" }]
+                - { var: "reserve_a_before" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ param: "amount_b_in" }, { var: "total_lp_shares_before" }]
+                - { var: "reserve_b_before" }
+        then:
+          op: "div"
+          args:
+            - op: "*"
+              args: [{ param: "amount_a_in" }, { var: "total_lp_shares_before" }]
+            - { var: "reserve_a_before" }
+        else:
+          op: "div"
+          args:
+            - op: "*"
+              args: [{ param: "amount_b_in" }, { var: "total_lp_shares_before" }]
+            - { var: "reserve_b_before" }
+      lp_shares_burned: { const: 0 }
+      amounts_added:
+        op: "+"
+        args: [{ param: "amount_a_in" }, { param: "amount_b_in" }]
+      amounts_removed: { const: 0 }
+      # Internal (non-observable): enables system wiring to sync reserves/shares.
+      new_reserve_a: { var: "reserve_a" }
+      new_reserve_b: { var: "reserve_b" }
+      new_total_lp_shares: { var: "total_lp_shares" }
+  - id: "remove_liquidity"
+    params:
+      - id: "lp_shares_burn"
+        type: { kind: "int", min: 1, max: 60 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args: [{ param: "lp_shares_burn" }, { var: "total_lp_shares" }]
+        - op: ">="
+          args:
+            - op: "-"
+              args: [{ var: "total_lp_shares" }, { param: "lp_shares_burn" }]
+            - { const: 1 }
+        - op: ">="
+          args:
+            - op: "-"
+              args:
+                - { var: "reserve_a" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args: [{ param: "lp_shares_burn" }, { var: "reserve_a" }]
+                    - { var: "total_lp_shares" }
+            - { const: 1 }
+        - op: ">="
+          args:
+            - op: "-"
+              args:
+                - { var: "reserve_b" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args: [{ param: "lp_shares_burn" }, { var: "reserve_b" }]
+                    - { var: "total_lp_shares" }
+            - { const: 1 }
+    updates:
+      - var: "reserve_a_before"
+        expr: { var: "reserve_a" }
+      - var: "reserve_b_before"
+        expr: { var: "reserve_b" }
+      - var: "total_lp_shares_before"
+        expr: { var: "total_lp_shares" }
+      - var: "reserve_a"
+        expr:
+          op: "-"
+          args:
+            - { var: "reserve_a" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ param: "lp_shares_burn" }, { var: "reserve_a" }]
+                - { var: "total_lp_shares" }
+      - var: "reserve_b"
+        expr:
+          op: "-"
+          args:
+            - { var: "reserve_b" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ param: "lp_shares_burn" }, { var: "reserve_b" }]
+                - { var: "total_lp_shares" }
+      - var: "total_lp_shares"
+        expr:
+          op: "-"
+          args: [{ var: "total_lp_shares" }, { param: "lp_shares_burn" }]
+    effects:
+      lp_shares_minted: { const: 0 }
+      lp_shares_burned: { param: "lp_shares_burn" }
+      amounts_added: { const: 0 }
+      amounts_removed:
+        op: "+"
+        args:
+          - op: "-"
+            args: [{ var: "reserve_a_before" }, { var: "reserve_a" }]
+          - op: "-"
+            args: [{ var: "reserve_b_before" }, { var: "reserve_b" }]
+      # Internal (non-observable): enables system wiring to sync reserves/shares.
+      new_reserve_a: { var: "reserve_a" }
+      new_reserve_b: { var: "reserve_b" }
+      new_total_lp_shares: { var: "total_lp_shares" }
+
+# REVIEW [SENTINEL]: please audit LP mint/burn rounding + invariant/guard coverage in `examples/dex/liquidity_pool.yaml`.

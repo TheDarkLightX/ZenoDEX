@@ -1,0 +1,33 @@
+# TauSwap v1 balance transition (external-computation validation)
+# DbC: Inputs are 32-bit unsigned values represented as 16-bit hi/lo limbs.
+# DbC: Validates balance_after = balance_before + delta_add - delta_sub.
+
+# Stream mapping:
+# i1 = balance_before_hi
+# i2 = balance_before_lo
+# i3 = delta_add_hi
+# i4 = delta_add_lo
+# i5 = delta_sub_hi
+# i6 = delta_sub_lo
+# i7 = balance_mid_hi
+# i8 = balance_mid_lo
+# i9 = balance_after_hi
+# i10 = balance_after_lo
+# o1 = balance_transition_valid
+# @rule o1: balance_after must equal balance_before + delta_add - delta_sub.
+
+set charvar off
+
+is_non_negative_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo >= { #x0000 }:bv[16]).
+
+value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := (sum_lo = (a_lo + b_lo)) && (((sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi + { #x0001 }:bv[16]))) && (!(sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi)))).
+
+sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], diff_hi : bv[16], diff_lo : bv[16]) := (diff_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (diff_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (diff_hi = (a_hi - b_hi)))).
+
+balance_transition_constraints(balance_before_hi_arg : bv[16], balance_before_lo_arg : bv[16], delta_add_hi_arg : bv[16], delta_add_lo_arg : bv[16], delta_sub_hi_arg : bv[16], delta_sub_lo_arg : bv[16], balance_mid_hi_arg : bv[16], balance_mid_lo_arg : bv[16], balance_after_hi_arg : bv[16], balance_after_lo_arg : bv[16]) := is_non_negative_32(balance_before_hi_arg, balance_before_lo_arg) && is_non_negative_32(delta_add_hi_arg, delta_add_lo_arg) && is_non_negative_32(delta_sub_hi_arg, delta_sub_lo_arg) && value_gte_32(balance_before_hi_arg, balance_before_lo_arg, delta_sub_hi_arg, delta_sub_lo_arg) && add_32(balance_before_hi_arg, balance_before_lo_arg, delta_add_hi_arg, delta_add_lo_arg, balance_mid_hi_arg, balance_mid_lo_arg) && sub_32(balance_mid_hi_arg, balance_mid_lo_arg, delta_sub_hi_arg, delta_sub_lo_arg, balance_after_hi_arg, balance_after_lo_arg) && is_non_negative_32(balance_after_hi_arg, balance_after_lo_arg).
+
+always
+  # @section: Balance transition validation
+  (o1[t]:sbf = 1:sbf <-> balance_transition_constraints(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16])).

@@ -1,0 +1,76 @@
+# Emergency Circuit Breaker v2 - Multi-Stage Breaker
+#
+# WARNING: risk_medium - more complex logic
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: stage thresholds, cooldown periods
+# IMMUTABLE_INVARIANTS: staged response based on deviation severity
+#
+# PURPOSE: Multi-stage circuit breaker with cooldown and re-enable criteria:
+# - Stage 0: Normal trading
+# - Stage 1: Warning (reduced limits)
+# - Stage 2: Restricted (critical ops only)
+# - Stage 3: Halted (no trading)
+# No passive payouts - purely a safety gate.
+#
+# Stream mapping:
+# i1 = price_deviation_bps (bv[32]) - current deviation from reference
+# i2 = stage1_threshold (bv[32]) - bps to trigger stage 1
+# i3 = stage2_threshold (bv[32]) - bps to trigger stage 2
+# i4 = stage3_threshold (bv[32]) - bps to trigger stage 3
+# i5 = cooldown_remaining (bv[32]) - blocks until cooldown expires
+# i6 = current_stage (bv[16]) - current circuit breaker stage
+# i7 = requested_stage (bv[16]) - requested new stage
+# o1 = params_ok
+# o2 = stage_valid
+# o3 = transition_ok
+# o4 = emergency_cb_ok
+# @rule o4: Stage appropriate for deviation AND transition valid.
+
+set charvar off
+
+# Stages
+stage_normal() := { #x0000 }:bv[16].
+stage_warning() := { #x0001 }:bv[16].
+stage_restricted() := { #x0002 }:bv[16].
+stage_halted() := { #x0003 }:bv[16].
+
+# Thresholds ascending
+thresholds_ok(t1 : bv[32], t2 : bv[32], t3 : bv[32]) := (t1 > { #x00000000 }:bv[32]) && (t2 > t1) && (t3 > t2) && (t3 <= { #x00002710 }:bv[32]).
+
+# Stage valid
+stage_valid(s : bv[16]) := s <= stage_halted().
+
+# Params ok
+params_ok(t1 : bv[32], t2 : bv[32], t3 : bv[32], curr : bv[16], req : bv[16]) := thresholds_ok(t1, t2, t3) && stage_valid(curr) && stage_valid(req).
+
+# Required stage for deviation
+req_stage3(dev : bv[32], t3 : bv[32]) := dev >= t3.
+req_stage2(dev : bv[32], t2 : bv[32], t3 : bv[32]) := (dev >= t2) && (dev < t3).
+req_stage1(dev : bv[32], t1 : bv[32], t2 : bv[32]) := (dev >= t1) && (dev < t2).
+req_stage0(dev : bv[32], t1 : bv[32]) := dev < t1.
+
+# Stage appropriate for deviation
+stage_appropriate(dev : bv[32], t1 : bv[32], t2 : bv[32], t3 : bv[32], req_st : bv[16]) := (req_stage0(dev, t1) && (req_st = stage_normal())) || (req_stage1(dev, t1, t2) && (req_st = stage_warning())) || (req_stage2(dev, t2, t3) && (req_st = stage_restricted())) || (req_stage3(dev, t3) && (req_st = stage_halted())).
+
+# Can elevate stage (always allowed)
+can_elevate(curr : bv[16], req : bv[16]) := req >= curr.
+
+# Can de-escalate only if cooldown expired
+can_deescalate(curr : bv[16], req : bv[16], cooldown : bv[32]) := (req >= curr) || (cooldown = { #x00000000 }:bv[32]).
+
+# Transition ok
+transition_ok(curr : bv[16], req : bv[16], cooldown : bv[32]) := can_elevate(curr, req) || can_deescalate(curr, req, cooldown).
+
+# Full check
+emergency_cb_valid(dev : bv[32], t1 : bv[32], t2 : bv[32], t3 : bv[32], cooldown : bv[32], curr : bv[16], req : bv[16]) := params_ok(t1, t2, t3, curr, req) && stage_appropriate(dev, t1, t2, t3, req) && transition_ok(curr, req, cooldown).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i6[t]:bv[16], i7[t]:bv[16])) &&
+  # @section: Stage validity
+  (o2[t]:sbf = 1:sbf <-> stage_appropriate(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i7[t]:bv[16])) &&
+  # @section: Transition check
+  (o3[t]:sbf = 1:sbf <-> transition_ok(i6[t]:bv[16], i7[t]:bv[16], i5[t]:bv[32])) &&
+  # @section: Aggregated emergency CB validity
+  (o4[t]:sbf = 1:sbf <-> emergency_cb_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[16], i7[t]:bv[16])).

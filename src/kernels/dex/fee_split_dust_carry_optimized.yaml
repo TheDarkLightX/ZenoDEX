@@ -1,0 +1,221 @@
+actions:
+- effects:
+    buyback_amount:
+      args:
+      - args:
+        - args:
+          - param: fee_amount
+          - var: dust
+          op: +
+        - param: buyback_bps
+        op: '*'
+      - const: 10000
+      op: div
+    dust_out:
+      var: dust
+    rewards_amount:
+      args:
+      - args:
+        - args:
+          - param: fee_amount
+          - var: dust
+          op: +
+        - param: rewards_bps
+        op: '*'
+      - const: 10000
+      op: div
+    total_distributed:
+      args:
+      - args:
+        - args:
+          - args:
+            - args:
+              - param: fee_amount
+              - var: dust
+              op: +
+            - param: rewards_bps
+            op: '*'
+          - const: 10000
+          op: div
+        - args:
+          - args:
+            - args:
+              - param: fee_amount
+              - var: dust
+              op: +
+            - param: treasury_bps
+            op: '*'
+          - const: 10000
+          op: div
+        op: +
+      - args:
+        - args:
+          - args:
+            - param: fee_amount
+            - var: dust
+            op: +
+          - param: buyback_bps
+          op: '*'
+        - const: 10000
+        op: div
+      op: +
+    treasury_amount:
+      args:
+      - args:
+        - args:
+          - param: fee_amount
+          - var: dust
+          op: +
+        - param: treasury_bps
+        op: '*'
+      - const: 10000
+      op: div
+  guard:
+    args:
+    - args:
+      - args:
+        - param: buyback_bps
+        - param: treasury_bps
+        op: +
+      - args:
+        - const: 10000
+        - param: rewards_bps
+        op: '-'
+      op: '='
+    - args:
+      - param: buyback_bps
+      - const: 0
+      op: '>='
+    - args:
+      - param: rewards_bps
+      - const: 0
+      op: '>='
+    - args:
+      - param: treasury_bps
+      - const: 0
+      op: '>='
+    op: and
+  id: split
+  params:
+  - id: fee_amount
+    type:
+      kind: int
+      max: 1000000
+      min: 0
+  - id: buyback_bps
+    type:
+      kind: int
+      max: 10000
+      min: 0
+  - id: treasury_bps
+    type:
+      kind: int
+      max: 10000
+      min: 0
+  - id: rewards_bps
+    type:
+      kind: int
+      max: 10000
+      min: 0
+  updates:
+  - expr:
+      args:
+      - args:
+        - param: fee_amount
+        - var: dust
+        op: +
+      - args:
+        - args:
+          - args:
+            - args:
+              - args:
+                - param: fee_amount
+                - var: dust
+                op: +
+              - param: rewards_bps
+              op: '*'
+            - const: 10000
+            op: div
+          - args:
+            - args:
+              - args:
+                - param: fee_amount
+                - var: dust
+                op: +
+              - param: treasury_bps
+              op: '*'
+            - const: 10000
+            op: div
+          op: +
+        - args:
+          - args:
+            - args:
+              - param: fee_amount
+              - var: dust
+              op: +
+            - param: buyback_bps
+            op: '*'
+          - const: 10000
+          op: div
+        op: +
+      op: '-'
+    var: dust
+init:
+- expr:
+    const: 0
+  var: dust
+invariants:
+- expr:
+    args:
+    - var: dust
+    - const: 1000000
+    op: <=
+  id: inv_dust_bounded
+  kind: safety
+- expr:
+    args:
+    - var: dust
+    - const: 0
+    op: '>='
+  id: inv_dust_nonnegative
+  kind: safety
+ir_version: esso-ir/v1
+meta:
+  model_id: fee_split_dust_carry
+  notes: 'Deterministic fee splitting kernel with dust carry (rounding remainder preservation).
+
+    Splits a fee amount across three destinations (buyback, treasury, rewards) using
+    basis points.
+
+    Remainders from floor rounding are carried forward to prevent value loss.
+
+
+    High ROI: Used in every fee split operation. Critical for value conservation.
+
+
+    Invariants:
+
+    - buyback + treasury + rewards + dust = fee_amount + dust_in
+
+    - All amounts non-negative
+
+    - bps sum to 10000
+
+    '
+observables:
+  effects:
+  - buyback_amount
+  - treasury_amount
+  - rewards_amount
+  - dust_out
+  - total_distributed
+  state_vars:
+  - dust
+state_vars:
+- id: dust
+  role: data
+  type:
+    kind: int
+    max: 1000000
+    min: 0
+types: []

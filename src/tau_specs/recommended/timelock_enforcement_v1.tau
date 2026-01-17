@@ -1,0 +1,62 @@
+# Timelock Enforcement v1 - Minimum Delay for Parameter Changes
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: parameter changes require minimum delay
+#
+# PURPOSE: Enforce minimum delay between proposal and execution of
+# parameter changes. Complements governance_timelock with explicit
+# parameter change validation.
+# No passive payouts - purely a governance safety gate.
+#
+# Stream mapping:
+# i1 = proposal_timestamp (bv[32]) - when change was proposed
+# i2 = execution_timestamp (bv[32]) - when change is being executed
+# i3 = min_delay (bv[32]) - minimum required delay
+# i4 = param_criticality (bv[32]) - 0=low, 1=medium, 2=high, 3=critical
+# i5 = criticality_multiplier (bv[32]) - delay multiplier per criticality
+# o1 = params_ok
+# o2 = delay_ok
+# o3 = criticality_ok
+# o4 = timelock_ok
+# @rule o4: Actual delay >= min_delay * (1 + criticality * multiplier).
+
+set charvar off
+
+# Timestamps valid
+timestamps_ok(proposal : bv[32], execution : bv[32]) := execution >= proposal.
+
+# Min delay positive
+delay_positive(delay : bv[32]) := delay > { #x00000000 }:bv[32].
+
+# Criticality in range [0,3]
+criticality_ok(crit : bv[32]) := crit <= { #x00000003 }:bv[32].
+
+# Multiplier reasonable (0-10x per level)
+multiplier_ok(mult : bv[32]) := mult <= { #x0000000A }:bv[32].
+
+# Safe delay upper bound for factor <= 31
+max_safe_delay() := { #x08421084 }:bv[32].
+delay_safe_ok(delay : bv[32]) := delay <= max_safe_delay().
+
+# Params valid
+params_ok(proposal : bv[32], execution : bv[32], delay : bv[32], crit : bv[32], mult : bv[32]) := timestamps_ok(proposal, execution) && delay_positive(delay) && delay_safe_ok(delay) && criticality_ok(crit) && multiplier_ok(mult).
+
+# Delay factor = 1 + crit * mult (max 31)
+delay_factor(crit : bv[32], mult : bv[32]) := { #x00000001 }:bv[32] + (crit * mult).
+
+# Delay check: execution - proposal >= min_delay * factor
+delay_ok(proposal : bv[32], execution : bv[32], delay : bv[32], crit : bv[32], mult : bv[32]) := (execution - proposal) >= (delay * delay_factor(crit, mult)).
+
+# Full timelock check (simplified - uses base delay)
+timelock_valid(proposal : bv[32], execution : bv[32], delay : bv[32], crit : bv[32], mult : bv[32]) := params_ok(proposal, execution, delay, crit, mult) && delay_ok(proposal, execution, delay, crit, mult).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Delay check
+  (o2[t]:sbf = 1:sbf <-> delay_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Criticality check
+  (o3[t]:sbf = 1:sbf <-> criticality_ok(i4[t]:bv[32])) &&
+  # @section: Aggregated timelock validity
+  (o4[t]:sbf = 1:sbf <-> timelock_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

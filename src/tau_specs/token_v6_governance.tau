@@ -1,0 +1,51 @@
+# Token V6 - Governance-Controlled Token with Vote-Weighted Burns
+#
+# MUTABILITY: UPDATABLE (meta-governance)
+# UPDATABLE_PARAMS: quorum_threshold (i5), rate_bounds (0-500 bps)
+# IMMUTABLE_INVARIANTS: quorum logic, supermajority for large changes
+#
+# ALGORITHM: Democratic Deflation Control
+# Burn rate and floor adjustable via governance votes
+# Token holders vote on monetary policy parameters
+#
+# Features:
+# - Vote-weighted parameter changes
+# - Quorum requirements for changes
+# - Time-locked parameter updates
+# - Emergency governance override
+#
+# Inputs:
+# i1 = current_burn_rate_bps
+# i2 = proposed_burn_rate_bps
+# i3 = votes_for
+# i4 = votes_against
+# i5 = quorum_threshold
+# Outputs:
+# o1 = quorum_reached
+# o2 = proposal_passes
+# o3 = rate_change_valid
+# o4 = governance_healthy
+
+# Quorum reached: total votes >= quorum threshold
+quorumreached(votesfor : bv[16], votesagainst : bv[16], quorum : bv[16]) := votesfor + votesagainst >= quorum.
+
+# Proposal passes: votes_for > votes_against AND quorum reached
+proposalpasses(votesfor : bv[16], votesagainst : bv[16], quorum : bv[16]) := quorumreached(votesfor, votesagainst, quorum) && (votesfor > votesagainst).
+
+# Rate change valid: new rate within bounds (0-500 bps = 0-5%)
+ratechangevalid(newrate : bv[16]) := newrate <= { #x01F4 }:bv[16].
+
+# Governance healthy: quorum met in recent votes
+governancehealthy(votesfor : bv[16], votesagainst : bv[16], quorum : bv[16]) := quorumreached(votesfor, votesagainst, quorum).
+
+# Rate change approved: passes AND valid
+ratechangeapproved(votesfor : bv[16], votesagainst : bv[16], quorum : bv[16], newrate : bv[16]) := proposalpasses(votesfor, votesagainst, quorum) && ratechangevalid(newrate).
+
+# Supermajority required for large changes (>100 bps change)
+# Large change: |new - old| > 100
+largechange(oldrate : bv[16], newrate : bv[16]) := ((newrate > oldrate) && (newrate - oldrate > { #x0064 }:bv[16])) || ((oldrate > newrate) && (oldrate - newrate > { #x0064 }:bv[16])).
+
+# Supermajority: votes_for * 3 > (votes_for + votes_against) * 2
+supermajority(votesfor : bv[16], votesagainst : bv[16]) := votesfor * { #x0003 }:bv[16] > (votesfor + votesagainst) * { #x0002 }:bv[16].
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> quorumreached(i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> proposalpasses(i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> ratechangevalid(i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> governancehealthy(i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

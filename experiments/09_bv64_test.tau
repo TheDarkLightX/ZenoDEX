@@ -1,0 +1,6 @@
+# Experiment 09: Testing bv[64] bitvector type
+# Batching specs use 64-bit IDs
+
+is_less(a : bv[64], b : bv[64]) := a < b.
+
+always (o1[t]:sbf = 1:sbf <-> is_less(i1[t]:bv[64], i2[t]:bv[64])).

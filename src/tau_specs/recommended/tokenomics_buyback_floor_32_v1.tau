@@ -1,0 +1,46 @@
+# Tokenomics Buyback + Floor Burn v1 - 32-bit safe variant
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: buyback_share_bps (i2), supply_floor (i7)
+# IMMUTABLE_INVARIANTS: burn <= buyback, supply_after = supply_before - burn, supply_after >= floor
+#
+# PURPOSE: Validate buyback allocation and burn against a minimum supply floor.
+#
+# Stream mapping:
+# i1 = fee_amount (bv[32])
+# i2 = buyback_share_bps (bv[32])
+# i3 = buyback_amount (bv[32])
+# i4 = burn_amount (bv[32])
+# i5 = supply_before (bv[32])
+# i6 = supply_after (bv[32])
+# i7 = supply_floor (bv[32])
+# o1 = buyback_calc_ok
+# o2 = burn_amount_ok
+# o3 = floor_ok
+# o4 = buyback_floor_ok
+# @rule o4: Buyback math, burn bound, and floor-preserving supply update all pass.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# buyback = floor(fee * share / 10000) with tolerance
+buyback_calc_ok(fee : bv[32], share : bv[32], buyback : bv[32]) := (buyback * { #x00002710 }:bv[32] >= fee * share) && (buyback * { #x00002710 }:bv[32] <= (fee * share) + { #x0000270F }:bv[32]).
+
+burn_amount_ok(burn : bv[32], buyback : bv[32]) := burn <= buyback.
+
+supply_update_ok(s_before : bv[32], s_after : bv[32], burn : bv[32]) := (s_before >= burn) && (s_after = (s_before - burn)).
+
+floor_ok(s_after : bv[32], floor : bv[32]) := s_after >= floor.
+
+safe_range_ok(fee : bv[32], buyback : bv[32]) := (fee <= max_safe_32()) && (buyback <= max_safe_32()).
+
+always
+  # @section: Buyback allocation
+  (o1[t]:sbf = 1:sbf <-> buyback_calc_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Burn bound + supply transition
+  (o2[t]:sbf = 1:sbf <-> burn_amount_ok(i4[t]:bv[32], i3[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> (supply_update_ok(i5[t]:bv[32], i6[t]:bv[32], i4[t]:bv[32]) && floor_ok(i6[t]:bv[32], i7[t]:bv[32]))) &&
+  # @section: Full module check (includes safe-range guard)
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t] & safe_range_ok(i1[t]:bv[32], i3[t]:bv[32])).

@@ -1,0 +1,23 @@
+# Spec 77: Commit-Reveal Anti-Front-Running Protocol
+# NOVEL: Cryptographic protection against front-running via 2-phase submission
+# Phase 1 (Commit): User submits hash of intended trade
+# Phase 2 (Reveal): User reveals trade details, system verifies hash
+#
+# Inputs: i1 = commit_hash, i2 = reveal_hash, i3 = commit_block, 
+#         i4 = reveal_block, i5 = min_delay_blocks
+# Outputs: o1 = hash_matches, o2 = delay_sufficient, o3 = reveal_valid, o4 = frontrun_protected
+
+# Hash matches: revealed hash equals committed hash from previous step
+hashmatches(commithash : bv[16], revealhash : bv[16]) := commithash = revealhash.
+
+# Delay sufficient: reveal_block - commit_block >= min_delay
+# This prevents instant reveal that could still be front-run
+delaysufficient(commitblock : bv[16], revealblock : bv[16], mindelay : bv[16]) := (revealblock >= commitblock) && ((revealblock - commitblock) >= mindelay).
+
+# Reveal valid: hash matches AND delay is sufficient
+revealvalid(commithash : bv[16], revealhash : bv[16], commitblock : bv[16], revealblock : bv[16], mindelay : bv[16]) := hashmatches(commithash, revealhash) && delaysufficient(commitblock, revealblock, mindelay).
+
+# Front-run protected: valid reveal from previous commit
+frontrunprotected(prevcommit : bv[16], currreveal : bv[16], commitblock : bv[16], revealblock : bv[16], mindelay : bv[16]) := hashmatches(prevcommit, currreveal) && delaysufficient(commitblock, revealblock, mindelay).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> hashmatches(i1[t-1]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> delaysufficient(i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> revealvalid(i1[t-1]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> frontrunprotected(i1[t-1]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

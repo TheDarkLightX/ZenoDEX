@@ -1,0 +1,41 @@
+# Token Archetype: Vesting Cliff v1 - 32-bit safe variant
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: cliff_reached (i4), max_claim_bps (i6)
+# IMMUTABLE_INVARIANTS: if cliff not reached -> vested=0 and claim=0; claim <= vested <= total
+#
+# PURPOSE: Validate cliff-based vesting with a per-claim cap (bps of total).
+#
+# Stream mapping:
+# i1 = total_allocation (bv[32])
+# i2 = vested_amount (bv[32])
+# i3 = claim_amount (bv[32])
+# i4 = cliff_reached (sbf)
+# i5 = claim_cap_amount (bv[32])   # externally computed cap
+# i6 = max_claim_bps (bv[32])      # cap rate for reference
+# o1 = cliff_ok
+# o2 = claim_ok
+# o3 = vesting_ok
+# @rule o3: Cliff gate, claim bound, and cap check all pass.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+cliff_ok(cliff : sbf, vested : bv[32], claim : bv[32]) := ((cliff = 0:sbf) -> ((vested = { #x00000000 }:bv[32]) && (claim = { #x00000000 }:bv[32]))) && ((cliff = 1:sbf) -> (claim <= vested)).
+
+bounds_ok(total : bv[32], vested : bv[32], claim : bv[32]) := (vested <= total) && (claim <= vested).
+
+cap_ok(total : bv[32], cap_amount : bv[32], cap_bps : bv[32]) := rate_ok(cap_bps) && (cap_amount * { #x00002710 }:bv[32] <= (total * cap_bps) + { #x0000270F }:bv[32]).
+
+safe_range_ok(total : bv[32], vested : bv[32], claim : bv[32], cap_amount : bv[32]) := (total <= max_safe_32()) && (vested <= max_safe_32()) && (claim <= max_safe_32()) && (cap_amount <= max_safe_32()).
+
+always
+  # @section: Cliff gate + bounds
+  (o1[t]:sbf = 1:sbf <-> cliff_ok(i4[t]:sbf, i2[t]:bv[32], i3[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> (bounds_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]) && cap_ok(i1[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32]))) &&
+  # @section: Full module check (includes safe-range guard)
+  (o3[t]:sbf = o1[t] & o2[t] & safe_range_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32])).

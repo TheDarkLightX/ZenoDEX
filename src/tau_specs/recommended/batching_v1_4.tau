@@ -1,0 +1,30 @@
+# TauSwap v1 deterministic batching (single pool, 4 intents)
+#
+# Canonical ordering rule: execute intents in ascending order of intent_id.
+# This avoids any reliance on a centralized sequencer or privileged ordering.
+#
+# DbC Preconditions:
+# - i1..i4 are the set of intent IDs included in the block for this pool.
+# - i5..i8 are the IDs in the order they were executed.
+#
+# DbC Postcondition:
+# - o1[t] = 1:sbf iff executed_ids are a strictly increasing permutation of intent_ids.
+
+# Stream mapping:
+# i1 = intent_id_0
+# i2 = intent_id_1
+# i3 = intent_id_2
+# i4 = intent_id_3
+# i5 = executed_id_0
+# i6 = executed_id_1
+# i7 = executed_id_2
+# i8 = executed_id_3
+# o1 = batch_order_valid
+
+all_distinct_4(a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (a != b) && (a != c) && (a != d) && (b != c) && (b != d) && (c != d).
+
+is_member_4(x : bv[64], a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (x = a) || (x = b) || (x = c) || (x = d).
+
+is_strictly_increasing_4(a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (a < b) && (b < c) && (c < d).
+
+always (o1[t]:sbf = 1:sbf <-> (all_distinct_4(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]) && is_member_4(i5[t]:bv[64], i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]) && is_member_4(i6[t]:bv[64], i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]) && is_member_4(i7[t]:bv[64], i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]) && is_member_4(i8[t]:bv[64], i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]) && is_strictly_increasing_4(i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64]))).

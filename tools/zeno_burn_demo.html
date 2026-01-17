@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zeno Burn Demo</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --panel: #1c1c22;
+      --text: #f2f2f2;
+      --muted: #9aa0a6;
+      --accent: #4cc9f0;
+      --accent2: #f4a261;
+      --grid: #2b2f36;
+    }
+    body {
+      margin: 0;
+      font-family: "SF Pro Text", "Segoe UI", Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 10% 0%, #16202a, #0f0f12);
+      color: var(--text);
+    }
+    header {
+      padding: 20px 24px;
+      border-bottom: 1px solid #222;
+    }
+    h1 {
+      margin: 0 0 6px 0;
+      font-size: 22px;
+    }
+    .sub { color: var(--muted); font-size: 13px; }
+    .wrap {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+      padding: 16px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid #2a2a33;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    label { display: block; font-size: 12px; margin: 12px 0 6px; color: var(--muted); }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #121218;
+      color: var(--text);
+      font-size: 14px;
+    }
+    button {
+      margin-top: 14px;
+      width: 100%;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #061018;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { filter: brightness(1.05); }
+    canvas { width: 100%; height: 340px; background: #11151c; border-radius: 10px; }
+    .stats { margin-top: 12px; font-size: 13px; color: var(--muted); line-height: 1.6; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+    th, td { text-align: right; padding: 6px 8px; border-bottom: 1px solid #2b2f36; }
+    th { color: var(--muted); font-weight: 600; }
+    td:first-child, th:first-child { text-align: left; }
+    .note { margin-top: 10px; font-size: 12px; color: var(--muted); }
+    @media (max-width: 900px) {
+      .wrap { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Zeno’s Paradox Burn - Interactive Demo</h1>
+    <div class="sub">Each step burns a fixed percentage of the remaining supply. Total burned approaches 100% but never fully reaches it.</div>
+  </header>
+
+  <div class="wrap">
+    <div class="panel">
+      <label>Initial Supply</label>
+      <input id="s0" type="number" value="1000000" min="1" />
+      <label>Burn Percentage per Step</label>
+      <input id="p" type="number" value="10" min="0" max="99" step="0.1" />
+      <label>Steps</label>
+      <input id="n" type="number" value="30" min="1" max="200" />
+      <button id="run">Simulate</button>
+      <div class="stats" id="stats"></div>
+      <div class="note">
+        Formula: <code>S(n) = S0 · (1 - p)^n</code> where <code>p</code> is the burn rate as a fraction.
+      </div>
+    </div>
+
+    <div class="panel">
+      <canvas id="chart" width="900" height="340"></canvas>
+      <table id="table">
+        <thead>
+          <tr><th>Step</th><th>Remaining</th><th>Burned (Cumulative)</th><th>Burned %</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+
+    function simulate() {
+      const s0 = Math.max(1, Number(document.getElementById('s0').value || 1));
+      const pPct = Math.min(99, Math.max(0, Number(document.getElementById('p').value || 0)));
+      const steps = Math.max(1, Number(document.getElementById('n').value || 1));
+      const p = pPct / 100.0;
+
+      const remaining = [];
+      const burned = [];
+
+      let s = s0;
+      for (let i = 0; i <= steps; i++) {
+        remaining.push(s);
+        burned.push(s0 - s);
+        s = s * (1 - p);
+      }
+
+      renderChart(remaining, burned, s0);
+      renderTable(remaining, burned, s0);
+      const last = remaining[remaining.length - 1];
+      const burnedPct = (1 - (last / s0)) * 100;
+      document.getElementById('stats').innerHTML =
+        `After <b>${steps}</b> steps: remaining <b>${fmt(last)}</b> (${fmt(100 - burnedPct)}%), ` +
+        `burned <b>${fmt(s0 - last)}</b> (${fmt(burnedPct)}%).`;
+    }
+
+    function renderChart(remaining, burned, s0) {
+      const canvas = document.getElementById('chart');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // grid
+      ctx.strokeStyle = '#2b2f36';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const y = 20 + (h - 40) * (i / 5);
+        ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 20, y); ctx.stroke();
+      }
+
+      const maxY = s0;
+      const minY = 0;
+      const sx = (i, n) => 40 + (w - 60) * (i / n);
+      const sy = (v) => 20 + (h - 40) * (1 - (v - minY) / (maxY - minY));
+
+      // remaining line
+      ctx.strokeStyle = '#4cc9f0';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      remaining.forEach((v, i) => {
+        const x = sx(i, remaining.length - 1);
+        const y = sy(v);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // burned line
+      ctx.strokeStyle = '#f4a261';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      burned.forEach((v, i) => {
+        const x = sx(i, burned.length - 1);
+        const y = sy(v);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // labels
+      ctx.fillStyle = '#9aa0a6';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('Remaining', 50, 18);
+      ctx.fillStyle = '#f4a261';
+      ctx.fillText('Burned', 140, 18);
+    }
+
+    function renderTable(remaining, burned, s0) {
+      const tbody = document.querySelector('#table tbody');
+      tbody.innerHTML = '';
+      const maxRows = Math.min(remaining.length, 50);
+      for (let i = 0; i < maxRows; i++) {
+        const tr = document.createElement('tr');
+        const burnPct = (burned[i] / s0) * 100;
+        tr.innerHTML = `<td>${i}</td><td>${fmt(remaining[i])}</td><td>${fmt(burned[i])}</td><td>${fmt(burnPct)}%</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    document.getElementById('run').addEventListener('click', simulate);
+    simulate();
+  </script>
+</body>
+</html>

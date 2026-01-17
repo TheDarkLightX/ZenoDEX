@@ -1,0 +1,25 @@
+# Spec 55: Dynamic Spread Optimizer with Volatility Feedback
+# NOVEL: Automatically adjusts bid-ask spread based on recent volatility
+# Uses temporal volatility tracking to widen spread during high volatility
+# Protects LPs from adverse selection during volatile periods
+#
+# Inputs: i1 = current_price, i2 = proposed_spread, i3 = base_spread
+# Outputs: o1 = volatility_low, o2 = volatility_high, o3 = spread_valid, o4 = lp_protected
+
+# Volatility measurement: |price[t] - price[t-1]| / price[t-1]
+# Low volatility: change < 1% (cross-mult: |diff| * 100 < prev)
+volatilitylow(curr : bv[16], prev : bv[16]) := ((curr >= prev) && ((curr - prev) * { #x0064 }:bv[16] < prev)) || ((curr < prev) && ((prev - curr) * { #x0064 }:bv[16] < prev)).
+
+# High volatility: change > 3% (cross-mult: |diff| * 100 > prev * 3)
+volatilityhigh(curr : bv[16], prev : bv[16]) := ((curr >= prev) && ((curr - prev) * { #x0064 }:bv[16] > prev * { #x0003 }:bv[16])) || ((curr < prev) && ((prev - curr) * { #x0064 }:bv[16] > prev * { #x0003 }:bv[16])).
+
+# Spread valid for low volatility: proposed >= base (can use tighter spread)
+spreadvalidlow(proposed : bv[16], base : bv[16]) := proposed >= base.
+
+# Spread valid for high volatility: proposed >= base * 2 (must widen)
+spreadvalidhigh(proposed : bv[16], base : bv[16]) := proposed >= base * { #x0002 }:bv[16].
+
+# LP protection: spread matches volatility regime
+lpprotected(curr : bv[16], prev : bv[16], proposed : bv[16], base : bv[16]) := (volatilitylow(curr, prev) && spreadvalidlow(proposed, base)) || (volatilityhigh(curr, prev) && spreadvalidhigh(proposed, base)) || (!volatilitylow(curr, prev) && !volatilityhigh(curr, prev) && proposed >= base).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> volatilitylow(i1[t]:bv[16], i1[t-1]:bv[16])) && (o2[t]:sbf = 1:sbf <-> volatilityhigh(i1[t]:bv[16], i1[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> spreadvalidlow(i2[t]:bv[16], i3[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> lpprotected(i1[t]:bv[16], i1[t-1]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

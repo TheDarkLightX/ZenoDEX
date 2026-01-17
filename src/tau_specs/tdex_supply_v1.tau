@@ -1,0 +1,38 @@
+# TDEX Supply Tracking v1 - Deflationary Supply Management
+#
+# Purpose: Track TDEX token supply with deflation and floor enforcement
+# Ensures supply never goes below minimum threshold
+#
+# Tokenomics:
+# - Tracks cumulative burns over time
+# - Enforces 10% supply floor (100,000 TDEX minimum)
+# - Validates supply transitions are always decreasing or stable
+#
+# Inputs:
+# i1 = current_supply
+# i2 = burn_amount
+# i3 = min_supply (floor = 100000)
+# i4 = initial_supply (for deflation rate calc)
+# Outputs:
+# o1 = supply_valid
+# o2 = floor_respected
+# o3 = supply_decreased
+# o4 = deflation_healthy
+
+# Supply valid: current > 0 AND current >= min
+supplyvalid(supply : bv[16], minsupply : bv[16]) := (supply > { #x0000 }:bv[16]) && (supply >= minsupply).
+
+# Floor respected: supply after burn >= min_supply
+floorrespected(supply : bv[16], burn : bv[16], minsupply : bv[16]) := (burn = { #x0000 }:bv[16]) || (supply >= minsupply + burn).
+
+# Supply decreased: current < previous (deflationary)
+supplydecreased(currsupply : bv[16], prevsupply : bv[16]) := currsupply <= prevsupply.
+
+# Deflation rate healthy: not burning more than 1% per step
+# burn * 100 <= supply
+deflationhealthy(supply : bv[16], burn : bv[16]) := burn * { #x0064 }:bv[16] <= supply.
+
+# Burn valid: respects floor AND healthy rate
+burnvalid(supply : bv[16], burn : bv[16], minsupply : bv[16]) := floorrespected(supply, burn, minsupply) && deflationhealthy(supply, burn).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> supplyvalid(i1[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> floorrespected(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> supplydecreased(i1[t]:bv[16], i1[t-1]:bv[16])) && (o4[t]:sbf = 1:sbf <-> deflationhealthy(i1[t]:bv[16], i2[t]:bv[16])).

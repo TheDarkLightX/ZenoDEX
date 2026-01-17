@@ -1,0 +1,31 @@
+# Test Orchestrator v1 - Range Validation Example
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: test_value is within [1, 100]
+#
+# PURPOSE: Validate an input value is within an inclusive range.
+#
+# Stream mapping:
+# i1 = test_value (bv[32]) - value under test
+# o1 = lower_ok
+# o2 = upper_ok
+# o3 = ok
+# @rule o3: test_value >= 1 AND test_value <= 100.
+
+set charvar off
+
+min_value() := { #x00000001 }:bv[32].
+max_value() := { #x00000064 }:bv[32].
+
+lower_ok(test_value : bv[32]) := test_value >= min_value().
+upper_ok(test_value : bv[32]) := test_value <= max_value().
+range_ok(test_value : bv[32]) := lower_ok(test_value) && upper_ok(test_value).
+
+always
+  # @section: Lower bound (inclusive)
+  (o1[t]:sbf = 1:sbf <-> lower_ok(i1[t]:bv[32])) &&
+  # @section: Upper bound (inclusive)
+  (o2[t]:sbf = 1:sbf <-> upper_ok(i1[t]:bv[32])) &&
+  # @section: Aggregated range validity
+  (o3[t]:sbf = 1:sbf <-> range_ok(i1[t]:bv[32])).

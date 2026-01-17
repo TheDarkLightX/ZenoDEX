@@ -1,0 +1,64 @@
+# Insurance Fund Policy v1 - Verified Loss Payouts
+#
+# WARNING: risk_medium - payout logic (but loss-gated)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_payout_bps (i4), cooldown (i6)
+# IMMUTABLE_INVARIANTS: payouts only on verified loss conditions
+#
+# PURPOSE: Constrained insurance payouts only on verified loss conditions.
+# Requires loss_proof AND loss within threshold AND cooldown elapsed.
+# NO PASSIVE PAYOUTS - requires verified loss proof.
+#
+# Stream mapping:
+# i1 = claimed_loss (bv[32]) - amount of loss claimed
+# i2 = verified_loss (bv[32]) - verified loss amount
+# i3 = fund_balance (bv[32]) - insurance fund balance
+# i4 = max_payout_bps (bv[32]) - max payout as bps of fund
+# i5 = loss_proof (sbf) - 1 if loss verified by oracle/verifier
+# i6 = last_claim_blocks (bv[32]) - blocks since last claim
+# i7 = min_cooldown (bv[32]) - min blocks between claims
+# o1 = params_ok
+# o2 = loss_ok
+# o3 = payout_ok
+# o4 = insurance_ok
+# @rule o4: Loss verified AND payout <= limit AND cooldown elapsed.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(r : bv[32]) := r <= { #x00002710 }:bv[32].
+
+# Safe
+safe_ok(v : bv[32]) := v <= max_safe_32().
+
+# Fund positive
+fund_ok(f : bv[32]) := f > { #x00000000 }:bv[32].
+
+# Params ok
+params_ok(fund : bv[32], max_bps : bv[32]) := fund_ok(fund) && rate_ok(max_bps) && safe_ok(fund).
+
+# Loss verified and claimed <= verified
+loss_ok(claimed : bv[32], verified : bv[32], proof : sbf) := (proof = 1:sbf) && (claimed <= verified).
+
+# Payout within limit: claimed * 10000 <= fund * max_bps
+payout_ok(claimed : bv[32], fund : bv[32], max_bps : bv[32]) := (claimed * { #x00002710 }:bv[32]) <= (fund * max_bps).
+
+# Cooldown elapsed
+cooldown_ok(since_last : bv[32], min_cd : bv[32]) := since_last >= min_cd.
+
+# Full check
+insurance_valid(claimed : bv[32], verified : bv[32], fund : bv[32], max_bps : bv[32], proof : sbf, since_last : bv[32], min_cd : bv[32]) := params_ok(fund, max_bps) && loss_ok(claimed, verified, proof) && payout_ok(claimed, fund, max_bps) && cooldown_ok(since_last, min_cd).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Loss verification
+  (o2[t]:sbf = 1:sbf <-> loss_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:sbf)) &&
+  # @section: Payout limit
+  (o3[t]:sbf = 1:sbf <-> (payout_ok(i1[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32]) && cooldown_ok(i6[t]:bv[32], i7[t]:bv[32]))) &&
+  # @section: Aggregated insurance validity
+  (o4[t]:sbf = 1:sbf <-> insurance_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf, i6[t]:bv[32], i7[t]:bv[32])).

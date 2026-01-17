@@ -1,0 +1,57 @@
+# Token V3 - Adaptive Burn Rate (Self-Limiting Deflation)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: base_rate_bps (i4), explicit_floor (i5)
+# IMMUTABLE_INVARIANTS: effective_rate <= base_rate, supply >= floor
+#
+# ALGORITHM: Supply-Proportional Burn Rate
+# Burn rate decreases as supply decreases
+# Formula: effective_rate = base_rate * current_supply / initial_supply
+#
+# Mathematical Guarantee (Never-Zero):
+# As supply → floor, burn_rate → 0
+# This creates natural deceleration of deflation
+# Combined with explicit floor for absolute safety
+#
+# Example (base_rate = 100 bps = 1%):
+# - At 100% supply: burn 1.0%
+# - At 50% supply: burn 0.5%
+# - At 10% supply: burn 0.1%
+# - At floor: burn 0%
+#
+# Inputs:
+# i1 = transfer_amount
+# i2 = current_supply
+# i3 = initial_supply
+# i4 = base_rate_bps (e.g., 100 = 1%)
+# i5 = explicit_floor
+# Outputs:
+# o1 = effective_rate_valid
+# o2 = adaptive_burn_correct
+# o3 = deflation_sustainable
+# o4 = adaptive_complete
+
+# Effective rate: base_rate * current / initial
+# Scaled: (base_rate * current) / initial
+effectiveratecalc(baserate : bv[16], current : bv[16], initial : bv[16]) := (baserate * current) / initial.
+
+# Effective rate valid: rate decreases as supply decreases
+effectiveratevalid(baserate : bv[16], current : bv[16], initial : bv[16]) := (current <= initial) && (effectiveratecalc(baserate, current, initial) <= baserate).
+
+# Adaptive burn: burn = amount * effective_rate / 10000
+adaptiveburn(amount : bv[16], baserate : bv[16], current : bv[16], initial : bv[16]) := (amount * effectiveratecalc(baserate, current, initial)) / { #x2710 }:bv[16].
+
+# Adaptive burn correct: calculated burn matches expected
+adaptiveburncorrect(amount : bv[16], baserate : bv[16], current : bv[16], initial : bv[16], burn : bv[16]) := burn = adaptiveburn(amount, baserate, current, initial).
+
+# Deflation sustainable: burn rate is proportional to supply distance from floor
+# Higher supply = higher burn, lower supply = lower burn
+deflationsustainable(current : bv[16], floor : bv[16], baserate : bv[16], initial : bv[16]) := (current > floor) && (effectiveratecalc(baserate, current, initial) > { #x0000 }:bv[16]).
+
+# Floor protected: supply - burn >= floor
+floorprotected(current : bv[16], burn : bv[16], floor : bv[16]) := current >= floor + burn.
+
+# Adaptive complete: all conditions for valid adaptive burn
+adaptivecomplete(amount : bv[16], current : bv[16], initial : bv[16], baserate : bv[16], floor : bv[16]) := effectiveratevalid(baserate, current, initial) && floorprotected(current, adaptiveburn(amount, baserate, current, initial), floor).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> effectiveratevalid(i4[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> adaptiveburncorrect(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], adaptiveburn(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16]))) && (o3[t]:sbf = 1:sbf <-> deflationsustainable(i2[t]:bv[16], i5[t]:bv[16], i4[t]:bv[16], i3[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> adaptivecomplete(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

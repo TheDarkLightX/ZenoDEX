@@ -1,0 +1,41 @@
+# Proof Mining Reward Gate v1 - 32-bit safe variant (no minting)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: base_reward (i1), epoch (i2)
+# IMMUTABLE_INVARIANTS: reward only when proof flags pass, claim is unique, reward matches schedule, and pool covers payout
+#
+# PURPOSE: Validate a treasury-style proof-mining payout.
+# ZenoDex can distribute tokens without minting by paying provers from a pre-funded reward pool.
+#
+# Stream mapping:
+# i1 = base_reward (bv[32])          # schedule parameter (from registry)
+# i2 = epoch (bv[32])               # right-shift count, bounded to 0..7 in v1
+# i3 = reward_amount (bv[32])       # proposed payout amount
+# i4 = pool_balance (bv[32])        # pool balance BEFORE payout
+# i5 = proof_ok (sbf)               # host-verified receipt/proof validity
+# i6 = binding_ok (sbf)             # host-verified proposal_hash binding
+# i7 = policy_ok (sbf)              # host-verified policy/image allowlist
+# i8 = nonce_ok (sbf)               # host-verified anti-replay
+# i9 = unclaimed_ok (sbf)           # host-verified uniqueness (proposal not yet rewarded)
+# o1 = flags_ok
+# o2 = schedule_ok
+# o3 = budget_ok
+# o4 = proof_reward_ok
+# @rule o4: All flags pass AND reward matches schedule AND pool covers payout.
+
+set charvar off
+
+always
+  # @section: Proof-mining flags (host-verified)
+  (o1[t]:sbf = 1:sbf <-> ((i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf))) &&
+  # @section: Schedule (clamp-to-1 halving by right shift)
+  (o2[t]:sbf = 1:sbf <-> (
+    (i1[t]:bv[32] > { #x00000000 }:bv[32]) &&
+    (i2[t]:bv[32] <= { #x00000007 }:bv[32]) &&
+    (((i1[t]:bv[32] >> i2[t]:bv[32]) > { #x00000000 }:bv[32]) -> (i3[t]:bv[32] = (i1[t]:bv[32] >> i2[t]:bv[32]))) &&
+    (((i1[t]:bv[32] >> i2[t]:bv[32]) = { #x00000000 }:bv[32]) -> (i3[t]:bv[32] = { #x00000001 }:bv[32]))
+  )) &&
+  # @section: Pool budget (no minting)
+  (o3[t]:sbf = 1:sbf <-> ((i3[t]:bv[32] > { #x00000000 }:bv[32]) && (i4[t]:bv[32] >= i3[t]:bv[32]))) &&
+  # @section: Gate
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

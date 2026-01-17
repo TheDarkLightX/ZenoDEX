@@ -1,0 +1,289 @@
+/* TokenStats Styles - Enhanced with ZDEX branding */
+
+.token-stats {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-xl);
+}
+
+.stats-header h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--font-size-2xl);
+}
+
+/* Zenith-inspired Z logo */
+.zdex-logo-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+    color: #fff;
+    font-weight: 900;
+    font-size: 22px;
+    font-style: italic;
+    border-radius: var(--radius-md);
+    transform: skewX(-5deg);
+    box-shadow: 0 0 20px rgba(76, 201, 240, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.zdex-logo-inline::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -50%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.2) 50%,
+            transparent 100%);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.live-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--accent-green);
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent-green);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.stats-grid {
+    margin-bottom: var(--space-xl);
+}
+
+.stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.stat-sub {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.stat-burned {
+    color: var(--accent-orange);
+}
+
+.stat-pool {
+    color: var(--accent-cyan);
+}
+
+/* Supply Progress */
+.supply-progress {
+    margin-bottom: var(--space-xl);
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: var(--space-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.progress-bar-container {
+    display: flex;
+    height: 24px;
+    background: var(--bg-primary);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    transition: width var(--transition-slow);
+}
+
+.progress-bar.burned {
+    background: linear-gradient(90deg, var(--accent-orange), var(--accent-red));
+}
+
+.progress-bar.remaining {
+    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple));
+}
+
+.progress-bar.floor {
+    background: var(--bg-tertiary);
+}
+
+.progress-legend {
+    display: flex;
+    gap: var(--space-lg);
+    margin-top: var(--space-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: var(--space-xs);
+}
+
+.legend-dot.burned {
+    background: var(--accent-orange);
+}
+
+.legend-dot.remaining {
+    background: var(--accent-cyan);
+}
+
+.legend-dot.floor {
+    background: var(--bg-tertiary);
+}
+
+/* Burn Mechanics */
+.burn-mechanics {
+    margin-bottom: var(--space-xl);
+}
+
+.burn-mechanics h3 {
+    margin-bottom: var(--space-md);
+    font-size: var(--font-size-lg);
+}
+
+.mechanic-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.mechanic-item {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.mechanic-label {
+    color: var(--text-secondary);
+}
+
+.mechanic-value {
+    font-weight: 600;
+    color: var(--accent-cyan);
+}
+
+.model-desc {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.6;
+    margin-bottom: var(--space-md);
+}
+
+.formula {
+    background: var(--bg-primary);
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    text-align: center;
+    margin-bottom: var(--space-sm);
+}
+
+.formula code {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-lg);
+    color: var(--accent-cyan);
+}
+
+.model-note {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Burn History Chart */
+.burn-chart {
+    margin-bottom: var(--space-xl);
+}
+
+.burn-chart h3 {
+    margin-bottom: var(--space-lg);
+}
+
+.chart-container {
+    display: flex;
+    height: 200px;
+}
+
+.chart-y-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding-right: var(--space-md);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.chart-area {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-md);
+    border-left: 1px solid var(--border-primary);
+    border-bottom: 1px solid var(--border-primary);
+    padding: 0 var(--space-md) var(--space-xl);
+}
+
+.chart-bar {
+    flex: 1;
+    background: linear-gradient(180deg, var(--accent-cyan), var(--accent-purple));
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    position: relative;
+    min-height: 20px;
+    animation: slideUp var(--transition-slow) ease-out both;
+}
+
+.chart-label {
+    position: absolute;
+    bottom: -24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.stats-footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.verified-badge {
+    color: var(--accent-green);
+    margin-right: var(--space-sm);
+}

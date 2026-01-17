@@ -1,0 +1,24 @@
+# Spec 93: Referral Reward Calculation Validator
+# NOVEL: Validates referral rewards are calculated correctly
+# Ensures referrers get fair share of referred trade fees
+# Prevents self-referral and referral fraud
+#
+# Inputs: i1 = trade_fee, i2 = referral_reward, i3 = referral_pct,
+#         i4 = referrer_id, i5 = trader_id
+# Outputs: o1 = reward_correct, o2 = no_self_referral, o3 = reward_capped, o4 = referral_valid
+
+# Reward correct: referral_reward = trade_fee * referral_pct / 100
+# Cross-mult: reward * 100 = fee * pct (within 1 unit tolerance)
+rewardcorrect(fee : bv[16], reward : bv[16], pct : bv[16]) := ((reward * { #x0064 }:bv[16] >= fee * pct) && (reward * { #x0064 }:bv[16] <= fee * pct + { #x0064 }:bv[16])).
+
+# No self-referral: referrer != trader
+noselfreferral(referrer : bv[16], trader : bv[16]) := referrer != trader.
+
+# Reward capped: referral reward <= 50% of trade fee
+# reward * 2 <= fee
+rewardcapped(fee : bv[16], reward : bv[16]) := reward * { #x0002 }:bv[16] <= fee.
+
+# Referral valid: correct reward AND no self-referral AND capped
+referralvalid(fee : bv[16], reward : bv[16], pct : bv[16], referrer : bv[16], trader : bv[16]) := rewardcorrect(fee, reward, pct) && noselfreferral(referrer, trader) && rewardcapped(fee, reward).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> rewardcorrect(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> noselfreferral(i4[t]:bv[16], i5[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> rewardcapped(i1[t]:bv[16], i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> referralvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

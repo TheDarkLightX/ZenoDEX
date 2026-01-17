@@ -1,0 +1,10 @@
+# Isolation: add low limb only
+
+i2 : bv[16] = in file("experiments/io/inputs/swap_exact_in_reserve_in_lo.in")
+i4 : bv[16] = in file("experiments/io/inputs/swap_exact_in_amount_in_lo.in")
+i6 : bv[16] = in file("experiments/io/inputs/swap_exact_in_new_reserve_in_lo.in")
+
+o1 : sbf = out file("experiments/isolation/outputs/add_lo_ok.out")
+
+r (o1[t]:sbf = 1:sbf <-> (i6[t]:bv[16] = (i2[t]:bv[16] + i4[t]:bv[16])))
+q

@@ -1,0 +1,27 @@
+# TDEX Fee Rebate v1 (basis points)
+# Inputs:
+# i1 = trade_fee
+# i2 = rebate_rate_bps (e.g., 50 = 0.50%)
+# i3 = rebate_amount
+# i4 = rebate_cap
+# Outputs:
+# o1 = rebate_rate_ok
+# o2 = rebate_cap_ok
+# o3 = rebate_ok
+# @rule o3: Rebate passes only if rate math and cap checks both pass.
+
+set charvar off
+
+# rebate = floor(fee * rate / 10000) with rounding tolerance
+rebate_rate_ok(fee : bv[16], rate : bv[16], rebate : bv[16]) := (rebate * { #x2710 }:bv[16] >= fee * rate) && (rebate * { #x2710 }:bv[16] <= (fee * rate) + { #x270F }:bv[16]).
+
+# rebate must be <= cap and <= fee
+rebate_cap_ok(fee : bv[16], rebate : bv[16], cap : bv[16]) := (rebate <= cap) && (rebate <= fee).
+
+always
+  # rebate rate math (with rounding tolerance)
+  (o1[t]:sbf = 1:sbf <-> rebate_rate_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) &&
+  # rebate cap and <= fee
+  (o2[t]:sbf = 1:sbf <-> rebate_cap_ok(i1[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  # final rebate gate
+  (o3[t]:sbf = o1[t] & o2[t]).

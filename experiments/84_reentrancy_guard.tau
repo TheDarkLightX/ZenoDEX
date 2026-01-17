@@ -1,0 +1,24 @@
+# Spec 84: Reentrancy Guard State Validator
+# NOVEL: Validates reentrancy protection state machine
+# Ensures functions cannot be re-entered while executing
+# Tracks lock/unlock transitions for correctness
+#
+# Inputs: i1 = function_entered (1=entering), i2 = function_exited (1=exiting),
+#         i3 = external_call_made, i4 = lock_state
+# Outputs: o1 = lock_valid, o2 = no_reentry, o3 = state_consistent, o4 = guard_active
+
+# Lock valid: lock is either 0 (unlocked) or 1 (locked)
+lockvalid(lockstate : bv[16]) := (lockstate = { #x0000 }:bv[16]) || (lockstate = { #x0001 }:bv[16]).
+
+# No reentry: cannot enter while already locked
+# If entering, lock must be 0; after entering, lock becomes 1
+noreentry(entering : sbf, lockstate : bv[16]) := (entering = 0:sbf) || (lockstate = { #x0000 }:bv[16]).
+
+# State consistent: lock state transitions are valid
+# unlocked -> locked (on enter), locked -> unlocked (on exit)
+stateconsistent(currlock : bv[16], prevlock : bv[16], entering : sbf, exiting : sbf) := ((entering = 1:sbf) && (prevlock = { #x0000 }:bv[16]) && (currlock = { #x0001 }:bv[16])) || ((exiting = 1:sbf) && (prevlock = { #x0001 }:bv[16]) && (currlock = { #x0000 }:bv[16])) || ((entering = 0:sbf) && (exiting = 0:sbf) && (currlock = prevlock)).
+
+# Guard active: lock is held during external call
+guardactive(extcall : sbf, lockstate : bv[16]) := (extcall = 0:sbf) || (lockstate = { #x0001 }:bv[16]).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> lockvalid(i4[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> noreentry(i1[t]:sbf, i4[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> stateconsistent(i4[t]:bv[16], i4[t-1]:bv[16], i1[t]:sbf, i2[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> guardactive(i3[t]:sbf, i4[t]:bv[16])).

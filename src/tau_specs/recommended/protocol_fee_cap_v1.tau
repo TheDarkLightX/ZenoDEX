@@ -1,0 +1,54 @@
+# Protocol Fee Cap v1 - Hard Cap on Protocol Fees
+#
+# MUTABILITY: IMMUTABLE (cap itself is immutable)
+# UPDATABLE_PARAMS: none - cap is immutable trust assumption
+# IMMUTABLE_INVARIANTS: protocol fee never exceeds hard cap
+#
+# PURPOSE: Hard cap on protocol fee extraction. Trust minimization -
+# even with governance compromise, fees cannot exceed this cap.
+# No passive payouts - purely a fee validation gate.
+#
+# Stream mapping:
+# i1 = protocol_fee_bps (bv[32]) - current protocol fee
+# i2 = max_fee_cap_bps (bv[32]) - immutable maximum cap
+# i3 = fee_change_proposed (bv[32]) - proposed new fee
+# i4 = total_extracted_period (bv[32]) - total fees this period
+# i5 = max_extraction_period (bv[32]) - max extraction per period
+# o1 = current_ok
+# o2 = proposed_ok
+# o3 = extraction_ok
+# o4 = protocol_fee_ok
+# @rule o4: Current <= cap AND proposed <= cap AND extraction <= max.
+
+set charvar off
+
+# Max protocol fee cap (500 bps = 5% absolute maximum)
+absolute_max_fee() := { #x000001F4 }:bv[32].
+
+# Rate ok (within absolute max)
+rate_ok(rate : bv[32]) := rate <= absolute_max_fee().
+
+# Cap ok (must be <= absolute max)
+cap_ok(cap : bv[32]) := cap <= absolute_max_fee().
+
+# Current fee within cap
+current_ok(current : bv[32], cap : bv[32]) := current <= cap.
+
+# Proposed fee within cap
+proposed_ok(proposed : bv[32], cap : bv[32]) := proposed <= cap.
+
+# Extraction within period limit
+extraction_ok(extracted : bv[32], max_ext : bv[32]) := extracted <= max_ext.
+
+# Full check
+protocol_fee_valid(current : bv[32], cap : bv[32], proposed : bv[32], extracted : bv[32], max_ext : bv[32]) := cap_ok(cap) && current_ok(current, cap) && proposed_ok(proposed, cap) && extraction_ok(extracted, max_ext).
+
+always
+  # @section: Current fee check
+  (o1[t]:sbf = 1:sbf <-> current_ok(i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Proposed fee check
+  (o2[t]:sbf = 1:sbf <-> proposed_ok(i3[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Extraction limit
+  (o3[t]:sbf = 1:sbf <-> extraction_ok(i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated protocol fee validity
+  (o4[t]:sbf = 1:sbf <-> protocol_fee_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

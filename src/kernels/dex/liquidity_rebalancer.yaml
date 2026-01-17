@@ -1,0 +1,220 @@
+# [FORGE] Liquidity Rebalancer (High ROI - Pool Health)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "liquidity_rebalancer"
+  notes: |
+    Optimizes liquidity ratios to maintain pool health.
+    High ROI: Prevents impermanent loss, maintains pool balance
+    Novel: Stateful rebalancing with ratio tracking
+
+observables:
+  state_vars: ["reserve0", "reserve1", "target_ratio", "rebalance_count"]
+  effects: ["current_ratio", "rebalance_needed", "deviation_bps"]
+
+types: []
+
+state_vars:
+  - id: "reserve0"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000 }
+  - id: "reserve1"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000 }
+  - id: "target_ratio"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+  - id: "rebalance_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 100000 }
+
+init:
+  - var: "reserve0"
+    expr: { const: 1000 }
+  - var: "reserve1"
+    expr: { const: 2000 }
+  - var: "target_ratio"
+    expr: { const: 200 }
+  - var: "rebalance_count"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_reserves_positive"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve0" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "reserve1" }, { const: 0 }] }
+  - id: "inv_ratio_in_range"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "target_ratio" }, { const: 1 }] }
+        - { op: "<=", args: [{ var: "target_ratio" }, { const: 10000 }] }
+
+actions:
+  - id: "update_reserves"
+    params:
+      - id: "delta0"
+        type: { kind: "int", min: -1000000, max: 1000000 }
+      - id: "delta1"
+        type: { kind: "int", min: -1000000, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - {
+            op: ">=",
+            args:
+              [
+                { op: "+", args: [{ var: "reserve0" }, { param: "delta0" }] },
+                { const: 1 },
+              ],
+          }
+        - {
+            op: ">=",
+            args:
+              [
+                { op: "+", args: [{ var: "reserve1" }, { param: "delta1" }] },
+                { const: 1 },
+              ],
+          }
+    updates:
+      - var: "reserve0"
+        expr:
+          op: "+"
+          args: [{ var: "reserve0" }, { param: "delta0" }]
+      - var: "reserve1"
+        expr:
+          op: "+"
+          args: [{ var: "reserve1" }, { param: "delta1" }]
+    effects:
+      current_ratio:
+        op: "div"
+        args:
+          [
+            { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
+            { var: "reserve0" },
+          ]
+      rebalance_needed:
+        op: ">"
+        args:
+          [
+            {
+              op: "ite"
+              cond:
+                op: ">="
+                args:
+                  [
+                    {
+                      op: "div"
+                      args:
+                        [
+                          { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
+                          { var: "reserve0" },
+                        ],
+                    },
+                    { var: "target_ratio" },
+                  ]
+              then:
+                op: "-"
+                args:
+                  [
+                    {
+                      op: "div"
+                      args:
+                        [
+                          { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
+                          { var: "reserve0" },
+                        ],
+                    },
+                    { var: "target_ratio" },
+                  ]
+              else:
+                op: "-"
+                args:
+                  [
+                    { var: "target_ratio" },
+                    {
+                      op: "div"
+                      args:
+                        [
+                          { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
+                          { var: "reserve0" },
+                        ],
+                    },
+                  ],
+            },
+            { const: 50 },
+          ]
+      deviation_bps:
+        op: "ite"
+        cond:
+          op: ">="
+          args:
+            [
+              {
+                op: "div"
+                args:
+                  [
+                    { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
+                    { var: "reserve0" },
+                  ],
+              },
+              { var: "target_ratio" },
+            ]
+        then:
+          op: "-"
+          args:
+            [
+              {
+                op: "div"
+                args:
+                  [
+                    { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
+                    { var: "reserve0" },
+                  ],
+              },
+              { var: "target_ratio" },
+            ]
+        else:
+          op: "-"
+          args:
+            [
+              { var: "target_ratio" },
+              {
+                op: "div"
+                args:
+                  [
+                    { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
+                    { var: "reserve0" },
+                  ],
+              },
+            ]
+
+  - id: "rebalance"
+    params:
+      - id: "new_ratio"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ param: "new_ratio" }, { const: 1 }] }
+        - { op: "<=", args: [{ param: "new_ratio" }, { const: 10000 }] }
+    updates:
+      - var: "target_ratio"
+        expr: { param: "new_ratio" }
+      - var: "rebalance_count"
+        expr:
+          op: "+"
+          args: [{ var: "rebalance_count" }, { const: 1 }]
+    effects:
+      current_ratio:
+        op: "div"
+        args:
+          [
+            { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
+            { var: "reserve0" },
+          ]
+      rebalance_needed: { bool: false }
+      deviation_bps: { const: 0 }

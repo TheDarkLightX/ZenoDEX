@@ -1,0 +1,33 @@
+# Spec 68: Bonding Curve Price Validator
+# NOVEL: Validates token pricing follows a bonding curve formula
+# Ensures price increases monotonically with supply (no manipulation)
+# Validates buy/sell symmetry - same curve in both directions
+#
+# Model: Linear bonding curve price = base_price + slope * supply
+# For bitvector: price = base + (supply * slope) / scale
+#
+# Inputs: i1 = current_supply, i2 = current_price, i3 = base_price, 
+#         i4 = slope_factor, i5 = is_buy (1=buy increases supply)
+# Outputs: o1 = price_on_curve, o2 = monotonic_valid, o3 = curve_intact, o4 = trade_fair
+
+# Price on curve: actual price matches expected from formula
+# Expected: base + supply * slope / 100 (slope in basis points)
+# Tolerance: within 1% of expected
+# |actual - expected| * 100 < expected
+priceoncurve(supply : bv[16], price : bv[16], base : bv[16], slope : bv[16]) := ((price >= base) && (price - base <= (supply * slope) / { #x0064 }:bv[16] + { #x0001 }:bv[16])) && ((price <= base + (supply * slope) / { #x0064 }:bv[16] + { #x0001 }:bv[16])).
+
+# Monotonic: price[t] >= price[t-1] when supply[t] >= supply[t-1] (buy)
+# Or price[t] <= price[t-1] when supply[t] <= supply[t-1] (sell)
+monotonicbuy(currprice : bv[16], prevprice : bv[16], currsupply : bv[16], prevsupply : bv[16]) := (currsupply >= prevsupply) && (currprice >= prevprice).
+
+monotonicsell(currprice : bv[16], prevprice : bv[16], currsupply : bv[16], prevsupply : bv[16]) := (currsupply <= prevsupply) && (currprice <= prevprice).
+
+monotonicvalid(currprice : bv[16], prevprice : bv[16], currsupply : bv[16], prevsupply : bv[16], isbuy : sbf) := (isbuy = 1:sbf && monotonicbuy(currprice, prevprice, currsupply, prevsupply)) || (isbuy = 0:sbf && monotonicsell(currprice, prevprice, currsupply, prevsupply)).
+
+# Curve intact: base price hasn't changed (no parameter manipulation)
+curveintact(currbase : bv[16], prevbase : bv[16]) := currbase = prevbase.
+
+# Trade fair: all conditions met
+tradefair(supply : bv[16], price : bv[16], base : bv[16], slope : bv[16], prevprice : bv[16], prevsupply : bv[16], prevbase : bv[16], isbuy : sbf) := priceoncurve(supply, price, base, slope) && monotonicvalid(price, prevprice, supply, prevsupply, isbuy) && curveintact(base, prevbase).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> priceoncurve(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> monotonicvalid(i2[t]:bv[16], i2[t-1]:bv[16], i1[t]:bv[16], i1[t-1]:bv[16], i5[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> curveintact(i3[t]:bv[16], i3[t-1]:bv[16])) && (o4[t]:sbf = 1:sbf <-> tradefair(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i2[t-1]:bv[16], i1[t-1]:bv[16], i3[t-1]:bv[16], i5[t]:sbf)).

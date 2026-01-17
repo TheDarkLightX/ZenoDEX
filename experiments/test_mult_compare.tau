@@ -1,0 +1,4 @@
+# Minimal test: curr * 2 > prev * 3 (>50% increase check)
+spike(curr : bv[16], prev : bv[16]) := curr * { #x0002 }:bv[16] > prev * { #x0003 }:bv[16].
+
+always (o1[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> spike(i1[t]:bv[16], i1[t-1]:bv[16])).

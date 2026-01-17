@@ -1,0 +1,49 @@
+# Token V8 - Staking Rewards with Auto-Compounding
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: reward_rate_bps (i3), minimum_stake, minimum_duration
+# IMMUTABLE_INVARIANTS: reward calculation formula, stake_share fairness
+#
+# ALGORITHM: Stake-to-Earn with Compound Interest
+# Staked tokens earn rewards proportional to stake and duration
+# Rewards can auto-compound or be claimed separately
+#
+# Reward Formula:
+# reward = staked * rate * duration / 10000
+# Compound: new_stake = staked + reward (if auto-compound enabled)
+#
+# Inputs:
+# i1 = staked_amount
+# i2 = stake_duration_blocks
+# i3 = reward_rate_bps (annual rate in basis points)
+# i4 = auto_compound_enabled
+# i5 = total_staked_pool
+# Outputs:
+# o1 = reward_earned
+# o2 = compound_valid
+# o3 = stake_share_fair
+# o4 = staking_healthy
+
+# Calculate reward: staked * rate * duration / 10000
+# Simplified for block-based: staked * rate / 10000 per block
+rewardcalc(staked : bv[16], rate : bv[16], duration : bv[16]) := (staked * rate * duration) / { #x2710 }:bv[16].
+
+# Reward earned: calculated reward > 0
+rewardearned(staked : bv[16], rate : bv[16], duration : bv[16]) := rewardcalc(staked, rate, duration) > { #x0000 }:bv[16].
+
+# Compound valid: auto-compound enabled AND reward > 0
+compoundvalid(staked : bv[16], rate : bv[16], duration : bv[16], autocompound : sbf) := (autocompound = 1:sbf) && rewardearned(staked, rate, duration).
+
+# Stake share fair: user stake <= total pool (no over-allocation)
+stakesharefair(staked : bv[16], totalpool : bv[16]) := staked <= totalpool.
+
+# Staking healthy: pool has stake AND rate is reasonable (< 100% APY)
+stakinghealthy(totalpool : bv[16], rate : bv[16]) := (totalpool > { #x0000 }:bv[16]) && (rate <= { #x2710 }:bv[16]).
+
+# Minimum stake check: staked >= minimum (100 units)
+minimumstake(staked : bv[16]) := staked >= { #x0064 }:bv[16].
+
+# Unstake valid: can unstake after minimum duration (100 blocks)
+unstakevalid(duration : bv[16]) := duration >= { #x0064 }:bv[16].
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> rewardearned(i1[t]:bv[16], i3[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> compoundvalid(i1[t]:bv[16], i3[t]:bv[16], i2[t]:bv[16], i4[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> stakesharefair(i1[t]:bv[16], i5[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> stakinghealthy(i5[t]:bv[16], i3[t]:bv[16])).

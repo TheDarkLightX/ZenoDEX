@@ -1,0 +1,58 @@
+# Proposal Quorum Floor v1 - Minimum Quorum Enforcement
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: min_quorum_bps (i4), min_participation (i5)
+# IMMUTABLE_INVARIANTS: quorum and participation must meet minimums
+#
+# PURPOSE: Enforce minimum quorum and participation thresholds for
+# governance proposals before they can pass.
+# No passive payouts - purely a governance safety gate.
+#
+# Stream mapping:
+# i1 = votes_for (bv[32]) - votes in favor
+# i2 = votes_against (bv[32]) - votes against
+# i3 = total_supply (bv[32]) - total voting power
+# i4 = min_quorum_bps (bv[32]) - minimum quorum in bps
+# i5 = min_participation (bv[32]) - minimum absolute votes
+# o1 = params_ok
+# o2 = quorum_met
+# o3 = participation_met
+# o4 = quorum_floor_ok
+# @rule o4: (votes_for + votes_against) * 10000 >= supply * min_quorum AND total_votes >= min_participation.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate in range
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Supply positive
+supply_ok(supply : bv[32]) := supply > { #x00000000 }:bv[32].
+
+# Safe range
+safe_ok(supply : bv[32]) := supply <= max_safe_32().
+votes_safe_ok(vfor : bv[32], vagainst : bv[32]) := (vfor + vagainst) <= max_safe_32().
+
+# Params valid
+params_ok(supply : bv[32], quorum_bps : bv[32], vfor : bv[32], vagainst : bv[32]) := supply_ok(supply) && rate_ok(quorum_bps) && safe_ok(supply) && votes_safe_ok(vfor, vagainst).
+
+# Quorum met: (for + against) * 10000 >= supply * min_quorum
+quorum_met(vfor : bv[32], vagainst : bv[32], supply : bv[32], quorum_bps : bv[32]) := ((vfor + vagainst) * { #x00002710 }:bv[32]) >= (supply * quorum_bps).
+
+# Participation met: for + against >= min_participation
+participation_met(vfor : bv[32], vagainst : bv[32], min_part : bv[32]) := (vfor + vagainst) >= min_part.
+
+# Full check
+quorum_floor_valid(vfor : bv[32], vagainst : bv[32], supply : bv[32], quorum_bps : bv[32], min_part : bv[32]) := params_ok(supply, quorum_bps, vfor, vagainst) && quorum_met(vfor, vagainst, supply, quorum_bps) && participation_met(vfor, vagainst, min_part).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Quorum check
+  (o2[t]:sbf = 1:sbf <-> quorum_met(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Participation check
+  (o3[t]:sbf = 1:sbf <-> participation_met(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated quorum floor validity
+  (o4[t]:sbf = 1:sbf <-> quorum_floor_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

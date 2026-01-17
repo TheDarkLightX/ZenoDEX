@@ -1,0 +1,9 @@
+# Spec 29: Batch pipeline composite checks (canonical + sandwich + stable + cpmm small)
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d).
+no_sandwich(pp : bv[16], p : bv[16], c : bv[16]) := ((pp <= p) && (p <= c)) || ((pp >= p) && (p >= c)).
+price_stable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev <= { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr <= { #x0032 }:bv[16])).
+small(x : bv[16]) := x <= { #x00FF }:bv[16].
+cpmm_small(rx : bv[16], ry : bv[16], net : bv[16], out : bv[16]) := small(rx) && small(ry) && small(net) && small(out) && small(rx + net) && (out * (rx + net) <= net * ry).
+
+always (o1[t]:sbf = 1:sbf <-> canonical(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> no_sandwich(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> price_stable(i6[t]:bv[16], i5[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> cpmm_small(i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16], i11[t]:bv[16])) && (o5[t]:sbf = o1[t] & o2[t] & o3[t] & o4[t]).

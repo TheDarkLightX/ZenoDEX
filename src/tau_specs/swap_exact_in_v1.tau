@@ -1,0 +1,40 @@
+# TauSwap v1 swap exact-in validation (external-computation validation)
+# DbC: Inputs are 32-bit unsigned values represented as 16-bit hi/lo limbs.
+# DbC: Validates bounds, slippage, and reserve transitions for exact-in swaps.
+
+# Stream mapping:
+# i1 = reserve_in_hi
+# i2 = reserve_in_lo
+# i3 = reserve_out_hi
+# i4 = reserve_out_lo
+# i5 = amount_in_hi
+# i6 = amount_in_lo
+# i7 = fee_bps
+# i8 = min_amount_out_hi
+# i9 = min_amount_out_lo
+# i10 = amount_out_hi
+# i11 = amount_out_lo
+# i12 = new_reserve_in_hi
+# i13 = new_reserve_in_lo
+# i14 = new_reserve_out_hi
+# i15 = new_reserve_out_lo
+# o1 = swap_exact_in_valid
+# @rule o1: Swap is valid if bounds, slippage, and reserve transitions are correct.
+
+set charvar off
+
+fee_bps_valid(fee : bv[16]) := (fee >= { #x0000 }:bv[16]) && (fee <= { #x2710 }:bv[16]).
+
+is_positive_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+
+value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := (sum_lo = (a_lo + b_lo)) && (((sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi + { #x0001 }:bv[16]))) && (!(sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi)))).
+
+sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], diff_hi : bv[16], diff_lo : bv[16]) := (diff_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (diff_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (diff_hi = (a_hi - b_hi)))).
+
+swap_exact_in_constraints(reserve_in_hi_arg : bv[16], reserve_in_lo_arg : bv[16], reserve_out_hi_arg : bv[16], reserve_out_lo_arg : bv[16], amount_in_hi_arg : bv[16], amount_in_lo_arg : bv[16], fee_bps_arg : bv[16], min_amount_out_hi_arg : bv[16], min_amount_out_lo_arg : bv[16], amount_out_hi_arg : bv[16], amount_out_lo_arg : bv[16], new_reserve_in_hi_arg : bv[16], new_reserve_in_lo_arg : bv[16], new_reserve_out_hi_arg : bv[16], new_reserve_out_lo_arg : bv[16]) := is_positive_32(reserve_in_hi_arg, reserve_in_lo_arg) && is_positive_32(reserve_out_hi_arg, reserve_out_lo_arg) && is_positive_32(amount_in_hi_arg, amount_in_lo_arg) && fee_bps_valid(fee_bps_arg) && is_positive_32(amount_out_hi_arg, amount_out_lo_arg) && value_gte_32(reserve_out_hi_arg, reserve_out_lo_arg, amount_out_hi_arg, amount_out_lo_arg) && value_gte_32(amount_out_hi_arg, amount_out_lo_arg, min_amount_out_hi_arg, min_amount_out_lo_arg) && add_32(reserve_in_hi_arg, reserve_in_lo_arg, amount_in_hi_arg, amount_in_lo_arg, new_reserve_in_hi_arg, new_reserve_in_lo_arg) && sub_32(reserve_out_hi_arg, reserve_out_lo_arg, amount_out_hi_arg, amount_out_lo_arg, new_reserve_out_hi_arg, new_reserve_out_lo_arg).
+
+always
+  # @section: Exact-in swap validation
+  (o1[t]:sbf = 1:sbf <-> swap_exact_in_constraints(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16], i15[t]:bv[16])).

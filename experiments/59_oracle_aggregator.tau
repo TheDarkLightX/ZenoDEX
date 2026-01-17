@@ -1,0 +1,25 @@
+# Spec 59: Multi-Source Oracle Aggregator with Outlier Rejection
+# NOVEL: Aggregates prices from 3 oracles and rejects outliers
+# Uses median-style logic to filter manipulated oracle feeds
+# Requires 2/3 agreement for price acceptance
+#
+# Inputs: i1 = oracle1_price, i2 = oracle2_price, i3 = oracle3_price
+# Outputs: o1 = oracles_agree, o2 = outlier_detected, o3 = consensus_price_valid, o4 = feed_healthy
+
+# Pair agreement: two prices within 1% of each other
+# |a - b| * 100 < min(a, b)
+pairagree(a : bv[16], b : bv[16]) := ((a >= b) && ((a - b) * { #x0064 }:bv[16] < b)) || ((a < b) && ((b - a) * { #x0064 }:bv[16] < a)).
+
+# 2/3 oracles agree (at least one pair agrees)
+oraclesagree(p1 : bv[16], p2 : bv[16], p3 : bv[16]) := pairagree(p1, p2) || pairagree(p1, p3) || pairagree(p2, p3).
+
+# Outlier detected: one oracle disagrees with both others
+outlierdetected(p1 : bv[16], p2 : bv[16], p3 : bv[16]) := (pairagree(p1, p2) && !pairagree(p1, p3) && !pairagree(p2, p3)) || (pairagree(p1, p3) && !pairagree(p1, p2) && !pairagree(p2, p3)) || (pairagree(p2, p3) && !pairagree(p1, p2) && !pairagree(p1, p3)).
+
+# All three agree (strongest consensus)
+allagree(p1 : bv[16], p2 : bv[16], p3 : bv[16]) := pairagree(p1, p2) && pairagree(p1, p3) && pairagree(p2, p3).
+
+# Feed healthy: consistent agreement over 2 steps
+feedhealthy(agree0 : sbf, agree1 : sbf) := (agree0 = 1:sbf) && (agree1 = 1:sbf).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> oraclesagree(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> outlierdetected(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> allagree(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> feedhealthy(o1[t]:sbf, o1[t-1]:sbf)).

@@ -1,0 +1,30 @@
+# Spec 70: MEV-Share Redistribution Validator
+# NOVEL: Validates fair redistribution of MEV back to users
+# Ensures extracted value is split according to protocol rules
+# Detects unfair MEV extraction patterns over time
+#
+# Model: total_mev = user_share + searcher_share + protocol_share
+# Fair split: user gets at least 50%, protocol max 10%
+#
+# Inputs: i1 = total_mev, i2 = user_share, i3 = searcher_share, 
+#         i4 = protocol_share, i5 = tx_was_backrun
+# Outputs: o1 = shares_sum_valid, o2 = user_share_fair, o3 = protocol_capped, o4 = mev_redistribution_valid
+
+# Shares sum to total: user + searcher + protocol = total
+sharessumvalid(total : bv[16], usershare : bv[16], searchershare : bv[16], protocolshare : bv[16]) := usershare + searchershare + protocolshare = total.
+
+# User share fair: user gets at least 50% of MEV
+# user_share * 2 >= total_mev
+usersharefair(total : bv[16], usershare : bv[16]) := usershare * { #x0002 }:bv[16] >= total.
+
+# Protocol capped: protocol takes max 10%
+# protocol_share * 10 <= total_mev
+protocolcapped(total : bv[16], protocolshare : bv[16]) := protocolshare * { #x000A }:bv[16] <= total.
+
+# MEV redistribution valid: all conditions met
+mevredistributionvalid(total : bv[16], usershare : bv[16], searchershare : bv[16], protocolshare : bv[16]) := sharessumvalid(total, usershare, searchershare, protocolshare) && usersharefair(total, usershare) && protocolcapped(total, protocolshare).
+
+# Repeated backrun detection: user backrun in consecutive steps (exploitation pattern)
+repeatedbackrun(backrun0 : sbf, backrun1 : sbf) := (backrun0 = 1:sbf) && (backrun1 = 1:sbf).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> sharessumvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> usersharefair(i1[t]:bv[16], i2[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> protocolcapped(i1[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> mevredistributionvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).
