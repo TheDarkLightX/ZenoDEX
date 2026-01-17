@@ -1,0 +1,30 @@
+# TauSwap v4 swap exact-out validation (sound k-guard, bv[32]-native)
+#
+# Goal: make Tau validation *sound* for CPMM reserve transitions without relying on
+# externally supplied products.
+#
+# This spec still does NOT validate the full CPMM pricing formula (too expensive in Tau),
+# but it DOES enforce:
+# - structural correctness (positivity, bounds, slippage)
+# - reserve transitions
+# - constant-product monotonicity: k_after >= k_before
+#
+# IMPORTANT: Tau bitvectors are modular. To make k checks meaningful we restrict reserves
+# and post-reserves to a range where bv[32] multiplication does not overflow.
+#
+# Stream mapping:
+# i1 = reserve_in (bv[32])
+# i2 = reserve_out (bv[32])
+# i3 = amount_out (bv[32])         # exact output requested
+# i4 = fee_bps (bv[32])            # 0..10000 (fee math not validated here)
+# i5 = max_amount_in (bv[32])
+# i6 = amount_in (bv[32])          # externally computed
+# i7 = new_reserve_in (bv[32])
+# i8 = new_reserve_out (bv[32])
+# o1 = swap_exact_out_valid
+#
+# @rule o1: swap is valid iff all constraints hold (including k monotonicity).
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32]) && (i6[t]:bv[32] > { #x00000000 }:bv[32]) && (i4[t]:bv[32] <= { #x00002710 }:bv[32]) && (i3[t]:bv[32] < i2[t]:bv[32]) && (i6[t]:bv[32] <= i5[t]:bv[32]) && (i7[t]:bv[32] = i1[t]:bv[32] + i6[t]:bv[32]) && (i8[t]:bv[32] = i2[t]:bv[32] - i3[t]:bv[32]) && (i1[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i2[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i6[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i3[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i7[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i8[t]:bv[32] <= { #x0000FFFF }:bv[32]) && ((i7[t]:bv[32] * i8[t]:bv[32]) >= (i1[t]:bv[32] * i2[t]:bv[32])))).

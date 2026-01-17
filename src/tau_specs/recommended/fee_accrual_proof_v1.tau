@@ -1,0 +1,59 @@
+# Fee Accrual Proof v1 - Fee Calculation Verification
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: fee accrual math must be correct
+#
+# PURPOSE: Verify fee accrual calculations are mathematically correct.
+# Ensures fees charged match the fee rate applied to trade volume.
+# No passive payouts - purely a fee accounting verification.
+#
+# Stream mapping:
+# i1 = trade_volume (bv[32]) - volume of trade
+# i2 = fee_rate_bps (bv[32]) - fee rate in bps
+# i3 = claimed_fee (bv[32]) - fee amount claimed
+# i4 = fee_recipient_before (bv[32]) - recipient balance before
+# i5 = fee_recipient_after (bv[32]) - recipient balance after
+# o1 = params_ok
+# o2 = fee_calc_ok
+# o3 = accrual_ok
+# o4 = fee_proof_ok
+# @rule o4: claimed_fee in [volume*rate/10000, volume*rate/10000 + 1] AND after = before + claimed.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Volume positive
+volume_ok(vol : bv[32]) := vol > { #x00000000 }:bv[32].
+
+# Safe range
+safe_ok(vol : bv[32]) := vol <= max_safe_32().
+
+# Params valid
+params_ok(vol : bv[32], rate : bv[32]) := volume_ok(vol) && rate_ok(rate) && safe_ok(vol).
+
+# Fee calculation: claimed * 10000 in range [volume * rate, volume * rate + 9999]
+fee_calc_lower(vol : bv[32], rate : bv[32], claimed : bv[32]) := (claimed * { #x00002710 }:bv[32]) >= (vol * rate).
+fee_calc_upper(vol : bv[32], rate : bv[32], claimed : bv[32]) := (claimed * { #x00002710 }:bv[32]) <= ((vol * rate) + { #x0000270F }:bv[32]).
+fee_calc_ok(vol : bv[32], rate : bv[32], claimed : bv[32]) := fee_calc_lower(vol, rate, claimed) && fee_calc_upper(vol, rate, claimed).
+
+# Accrual check: after = before + claimed
+accrual_ok(before : bv[32], after : bv[32], claimed : bv[32]) := after = (before + claimed).
+
+# Full check
+fee_proof_valid(vol : bv[32], rate : bv[32], claimed : bv[32], before : bv[32], after : bv[32]) := params_ok(vol, rate) && fee_calc_ok(vol, rate, claimed) && accrual_ok(before, after, claimed).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Fee calculation
+  (o2[t]:sbf = 1:sbf <-> fee_calc_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Accrual check
+  (o3[t]:sbf = 1:sbf <-> accrual_ok(i4[t]:bv[32], i5[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Aggregated fee proof validity
+  (o4[t]:sbf = 1:sbf <-> fee_proof_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

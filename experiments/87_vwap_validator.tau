@@ -1,0 +1,25 @@
+# Spec 87: Volume-Weighted Average Price (VWAP) Validator
+# NOVEL: Validates execution price matches volume-weighted average
+# Ensures large orders execute at fair average price across levels
+# Detects price manipulation in order execution
+#
+# Inputs: i1 = execution_price, i2 = vwap_calculated, i3 = volume_traded,
+#         i4 = total_volume, i5 = tolerance_bps
+# Outputs: o1 = price_at_vwap, o2 = volume_significant, o3 = execution_fair, o4 = vwap_stable
+
+# Price at VWAP: execution within tolerance of calculated VWAP
+# |exec - vwap| * 10000 < vwap * tolerance_bps
+priceatvwap(execprice : bv[16], vwap : bv[16], tolerance : bv[16]) := ((execprice >= vwap) && ((execprice - vwap) * { #x2710 }:bv[16] < vwap * tolerance)) || ((execprice < vwap) && ((vwap - execprice) * { #x2710 }:bv[16] < vwap * tolerance)).
+
+# Volume significant: trade is meaningful portion of total (> 1%)
+# volume_traded * 100 > total_volume
+volumesignificant(voltraded : bv[16], totalvol : bv[16]) := voltraded * { #x0064 }:bv[16] > totalvol.
+
+# Execution fair: price at VWAP for significant volume
+executionfair(execprice : bv[16], vwap : bv[16], tolerance : bv[16], voltraded : bv[16], totalvol : bv[16]) := priceatvwap(execprice, vwap, tolerance) || !volumesignificant(voltraded, totalvol).
+
+# VWAP stable: VWAP didn't change significantly from previous step
+# |vwap[t] - vwap[t-1]| * 100 < vwap[t-1] * 2
+vwapstable(currvwap : bv[16], prevvwap : bv[16]) := ((currvwap >= prevvwap) && ((currvwap - prevvwap) * { #x0064 }:bv[16] < prevvwap * { #x0002 }:bv[16])) || ((currvwap < prevvwap) && ((prevvwap - currvwap) * { #x0064 }:bv[16] < prevvwap * { #x0002 }:bv[16])) || (prevvwap = { #x0000 }:bv[16]).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> priceatvwap(i1[t]:bv[16], i2[t]:bv[16], i5[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> volumesignificant(i3[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> executionfair(i1[t]:bv[16], i2[t]:bv[16], i5[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> vwapstable(i2[t]:bv[16], i2[t-1]:bv[16])).

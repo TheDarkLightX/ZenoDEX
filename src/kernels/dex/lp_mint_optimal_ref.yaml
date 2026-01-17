@@ -1,0 +1,117 @@
+# Reference implementation for LP mint synthesis
+# This is the target semantics that synthesis should match
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "lp_mint_optimal_ref"
+  notes: "Reference implementation: min(amount0 * lp_supply / reserve0, amount1 * lp_supply / reserve1)"
+
+observables:
+  state_vars: ["reserve0", "reserve1", "lp_supply"]
+  effects: ["lp_minted"]
+
+types: []
+
+state_vars:
+  - id: "reserve0"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000 }
+  - id: "reserve1"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000 }
+  - id: "lp_supply"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000 }
+
+init:
+  - var: "reserve0"
+    expr: { const: 1000 }
+  - var: "reserve1"
+    expr: { const: 2000 }
+  - var: "lp_supply"
+    expr: { const: 1000 }
+
+invariants:
+  - id: "inv_reserves_positive"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve0" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "reserve1" }, { const: 0 }] }
+  - id: "inv_lp_supply_positive"
+    kind: "safety"
+    expr:
+      op: ">"
+      args: [{ var: "lp_supply" }, { const: 0 }]
+
+actions:
+  - id: "mint"
+    params:
+      - id: "amount0"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "amount1"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve0" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "reserve1" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "lp_supply" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "amount0" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "amount1" }, { const: 0 }] }
+    updates:
+      - var: "reserve0"
+        expr: { op: "+", args: [{ var: "reserve0" }, { param: "amount0" }] }
+      - var: "reserve1"
+        expr: { op: "+", args: [{ var: "reserve1" }, { param: "amount1" }] }
+      - var: "lp_supply"
+        expr:
+          op: "+"
+          args:
+            [
+              { var: "lp_supply" },
+              {
+                op: "min",
+                args:
+                  [
+                    {
+                      op: "div",
+                      args:
+                        [
+                          { op: "*", args: [{ param: "amount0" }, { var: "lp_supply" }] },
+                          { var: "reserve0" },
+                        ],
+                    },
+                    {
+                      op: "div",
+                      args:
+                        [
+                          { op: "*", args: [{ param: "amount1" }, { var: "lp_supply" }] },
+                          { var: "reserve1" },
+                        ],
+                    },
+                  ],
+              },
+            ]
+    effects:
+      lp_minted:
+        op: "min"
+        args:
+          [
+            {
+              op: "div",
+              args:
+                [
+                  { op: "*", args: [{ param: "amount0" }, { var: "lp_supply" }] },
+                  { var: "reserve0" },
+                ],
+            },
+            {
+              op: "div",
+              args:
+                [
+                  { op: "*", args: [{ param: "amount1" }, { var: "lp_supply" }] },
+                  { var: "reserve1" },
+                ],
+            },
+          ]

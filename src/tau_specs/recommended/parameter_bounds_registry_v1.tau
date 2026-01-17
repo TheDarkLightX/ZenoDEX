@@ -1,0 +1,45 @@
+# Parameter Bounds Registry v1 - Hard Bounds for Adjustable Parameters
+#
+# MUTABILITY: IMMUTABLE (bounds are immutable)
+# UPDATABLE_PARAMS: none - bounds themselves are immutable
+# IMMUTABLE_INVARIANTS: parameter values must be within hard bounds
+#
+# PURPOSE: Enforce hard upper and lower bounds for every adjustable
+# parameter. Registry rejects any value outside these bounds.
+# No passive payouts - purely a bounds validation gate.
+#
+# Stream mapping:
+# i1 = param_value (bv[32]) - proposed parameter value
+# i2 = param_min (bv[32]) - minimum allowed value
+# i3 = param_max (bv[32]) - maximum allowed value
+# i4 = param_id (bv[16]) - parameter identifier
+# i5 = is_bps_param (sbf) - 1 if parameter is in bps (max 10000)
+# o1 = bounds_valid
+# o2 = value_in_range
+# o3 = bps_ok
+# o4 = param_bounds_ok
+# @rule o4: param_min <= param_value <= param_max AND bps constraint if applicable.
+
+set charvar off
+
+# Bounds valid: min <= max
+bounds_valid(pmin : bv[32], pmax : bv[32]) := pmin <= pmax.
+
+# Value in range: min <= value <= max
+value_in_range(value : bv[32], pmin : bv[32], pmax : bv[32]) := (value >= pmin) && (value <= pmax).
+
+# BPS constraint: if is_bps_param, value <= 10000
+bps_ok(value : bv[32], is_bps : sbf) := (is_bps = 0:sbf) || (value <= { #x00002710 }:bv[32]).
+
+# Full check
+param_bounds_valid(value : bv[32], pmin : bv[32], pmax : bv[32], is_bps : sbf) := bounds_valid(pmin, pmax) && value_in_range(value, pmin, pmax) && bps_ok(value, is_bps).
+
+always
+  # @section: Bounds validity
+  (o1[t]:sbf = 1:sbf <-> bounds_valid(i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Value in range
+  (o2[t]:sbf = 1:sbf <-> value_in_range(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: BPS constraint
+  (o3[t]:sbf = 1:sbf <-> bps_ok(i1[t]:bv[32], i5[t]:sbf)) &&
+  # @section: Aggregated bounds validity
+  (o4[t]:sbf = 1:sbf <-> param_bounds_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i5[t]:sbf)).

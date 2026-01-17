@@ -1,0 +1,1455 @@
+# [FORGE] Cubic-sum AMM swap v1 (K = x*y*(x+y), exact-in/out with sqrt witness)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "cubic_sum_swap_v1"
+  notes: |
+    Cubic-sum AMM invariant family:
+      K(x,y) := x * y * (p*x + q*y)
+    Baseline: p=q=1 => K(x,y)=x*y*(x+y)
+
+    This kernel models exact-in and exact-out swaps with deterministic integer rounding.
+
+    - exact-in:
+        x1 = x + dx
+        y1 = min integer y1 such that K(x1,y1) >= K(x,y)
+        amount_out = y - y1
+        post-state (x1,y1)
+
+      This kernel computes y1 via the quadratic root formula with a witness `sqrt_D`
+      for `ceil_isqrt(D)`. Minimality is enforced by checking y1-1 fails.
+
+    - exact-out:
+        y1 = y - dy
+        x1 = min integer x1 such that K(x1,y1) >= K(x,y)
+        amount_in = x1 - x
+        post-state (x1,y1)
+
+      This kernel computes x1 via the quadratic root formula with a witness `sqrt_D`
+      for `ceil_isqrt(D)`. Minimality is enforced by checking x1-1 fails.
+
+    Bounds:
+    - This is a bounded-domain validation kernel (not production scale).
+    - All arithmetic is over mathematical integers with explicit min/max guards.
+
+observables:
+  state_vars: ["reserve_in", "reserve_out", "p", "q"]
+  effects:
+    [
+      "amount_in",
+      "amount_out",
+      "sqrt_D",
+      "k_before",
+      "k_after",
+      "new_reserve_in",
+      "new_reserve_out",
+    ]
+
+types: []
+
+state_vars:
+  - id: "reserve_in_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 2000 }
+  - id: "reserve_in"
+    role: "data"
+    type: { kind: "int", min: 1, max: 2000 }
+  - id: "reserve_out_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 2000 }
+  - id: "reserve_out"
+    role: "data"
+    type: { kind: "int", min: 1, max: 2000 }
+  - id: "p"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1 }
+  - id: "q"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1 }
+
+init:
+  - var: "reserve_in_before"
+    expr: { const: 100 }
+  - var: "reserve_in"
+    expr: { const: 100 }
+  - var: "reserve_out_before"
+    expr: { const: 100 }
+  - var: "reserve_out"
+    expr: { const: 100 }
+  - var: "p"
+    expr: { const: 1 }
+  - var: "q"
+    expr: { const: 1 }
+
+invariants:
+  - id: "inv_reserves_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve_in" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "reserve_out" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "reserve_in" }, { const: 2000 }] }
+        - { op: "<=", args: [{ var: "reserve_out" }, { const: 2000 }] }
+
+actions:
+  - id: "swap_exact_in"
+    params:
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 2000 }
+      - id: "min_amount_out"
+        type: { kind: "int", min: 0, max: 2000 }
+      - id: "sqrt_D"
+        type: { kind: "int", min: 1, max: 30000000 }
+    guard:
+      op: "and"
+      args:
+        # Post-state bound: x1 = reserve_in + amount_in <= 2000
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+              { const: 2000 }
+            ]
+          }
+        # Define x1 := reserve_in + amount_in and y1 := ceil_div(sqrt_D - b, 2*a).
+        # Coeffs for quadratic in y:
+        #   a := q * x1
+        #   b := p * x1^2
+        #
+        # Discriminant:
+        #   D := b^2 + 4*a*K0
+        #
+        # Verify sqrt_D = ceil_isqrt(D):
+        #   (sqrt_D - 1)^2 < D <= sqrt_D^2
+        - { op: "<=",
+            args: [
+              { op: "+",
+                args: [
+                  # b^2
+                  { op: "*",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "p" },
+                          { op: "*",
+                            args: [
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "*",
+                        args: [
+                          { var: "p" },
+                          { op: "*",
+                            args: [
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  # 4*a*K0
+                  { op: "*",
+                    args: [
+                      { const: 4 },
+                      { op: "*",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { var: "q" },
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                            ]
+                          },
+                          { op: "*",
+                            args: [
+                              { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] },
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] },
+                                  { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { op: "*", args: [{ param: "sqrt_D" }, { param: "sqrt_D" }] }
+            ]
+          }
+        - { op: "<",
+            args: [
+              { op: "*",
+                args: [
+                  { op: "-", args: [{ param: "sqrt_D" }, { const: 1 }] },
+                  { op: "-", args: [{ param: "sqrt_D" }, { const: 1 }] }
+                ]
+              },
+              { op: "+",
+                args: [
+                  { op: "*",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "p" },
+                          { op: "*",
+                            args: [
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "*",
+                        args: [
+                          { var: "p" },
+                          { op: "*",
+                            args: [
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "*",
+                    args: [
+                      { const: 4 },
+                      { op: "*",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { var: "q" },
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                            ]
+                          },
+                          { op: "*",
+                            args: [
+                              { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] },
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] },
+                                  { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        # y1 must be within (0..reserve_out]
+        - { op: ">=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "-",
+                        args: [
+                          { param: "sqrt_D" },
+                          { op: "*",
+                            args: [
+                              { var: "p" },
+                              { op: "*",
+                                args: [
+                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "-",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { const: 2 },
+                              { op: "*",
+                                args: [
+                                  { var: "q" },
+                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                ]
+                              }
+                            ]
+                          },
+                          { const: 1 }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "*",
+                    args: [
+                      { const: 2 },
+                      { op: "*",
+                        args: [
+                          { var: "q" },
+                          { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 1 }
+            ]
+          }
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "-",
+                        args: [
+                          { param: "sqrt_D" },
+                          { op: "*",
+                            args: [
+                              { var: "p" },
+                              { op: "*",
+                                args: [
+                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "-",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { const: 2 },
+                              { op: "*",
+                                args: [
+                                  { var: "q" },
+                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                ]
+                              }
+                            ]
+                          },
+                          { const: 1 }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "*",
+                    args: [
+                      { const: 2 },
+                      { op: "*",
+                        args: [
+                          { var: "q" },
+                          { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { var: "reserve_out" }
+            ]
+          }
+        # K(x1,y1) >= K(x,y)
+        - { op: ">=",
+            args: [
+              { op: "*",
+                args: [
+                  { op: "*",
+                    args: [
+                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                      { op: "div",
+                        args: [
+                          { op: "+",
+                            args: [
+                              { op: "-",
+                                args: [
+                                  { param: "sqrt_D" },
+                                  { op: "*",
+                                    args: [
+                                      { var: "p" },
+                                      { op: "*",
+                                        args: [
+                                          { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                                          { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { op: "-",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { const: 2 },
+                                      { op: "*",
+                                        args: [
+                                          { var: "q" },
+                                          { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { const: 1 }
+                                ]
+                              }
+                            ]
+                          },
+                          { op: "*",
+                            args: [
+                              { const: 2 },
+                              { op: "*",
+                                args: [
+                                  { var: "q" },
+                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ var: "p" }, { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }] },
+                      { op: "*",
+                        args: [
+                          { var: "q" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "-",
+                                    args: [
+                                      { param: "sqrt_D" },
+                                      { op: "*",
+                                        args: [
+                                          { var: "p" },
+                                          { op: "*",
+                                            args: [
+                                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { op: "-",
+                                    args: [
+                                      { op: "*",
+                                        args: [
+                                          { const: 2 },
+                                          { op: "*",
+                                            args: [
+                                              { var: "q" },
+                                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      { const: 1 }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { op: "*",
+                                args: [
+                                  { const: 2 },
+                                  { op: "*",
+                                    args: [
+                                      { var: "q" },
+                                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { op: "*",
+                args: [
+                  { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] },
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] },
+                      { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        # Minimality: K(x1, y1-1) < K(x,y)
+        - { op: "<",
+            args: [
+              { op: "*",
+                args: [
+                  { op: "*",
+                    args: [
+                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                      { op: "-",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "-",
+                                    args: [
+                                      { param: "sqrt_D" },
+                                      { op: "*",
+                                        args: [
+                                          { var: "p" },
+                                          { op: "*",
+                                            args: [
+                                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { op: "-",
+                                    args: [
+                                      { op: "*",
+                                        args: [
+                                          { const: 2 },
+                                          { op: "*",
+                                            args: [
+                                              { var: "q" },
+                                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      { const: 1 }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { op: "*",
+                                args: [
+                                  { const: 2 },
+                                  { op: "*",
+                                    args: [
+                                      { var: "q" },
+                                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          { const: 1 }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ var: "p" }, { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }] },
+                      { op: "*",
+                        args: [
+                          { var: "q" },
+                          { op: "-",
+                            args: [
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "-",
+                                        args: [
+                                          { param: "sqrt_D" },
+                                          { op: "*",
+                                            args: [
+                                              { var: "p" },
+                                              { op: "*",
+                                                args: [
+                                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      { op: "-",
+                                        args: [
+                                          { op: "*",
+                                            args: [
+                                              { const: 2 },
+                                              { op: "*",
+                                                args: [
+                                                  { var: "q" },
+                                                  { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          { const: 1 }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { op: "*",
+                                    args: [
+                                      { const: 2 },
+                                      { op: "*",
+                                        args: [
+                                          { var: "q" },
+                                          { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { const: 1 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { op: "*",
+                args: [
+                  { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] },
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] },
+                      { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        # amount_out >= 1 and >= min_amount_out
+        - { op: ">=",
+            args: [
+              { op: "-",
+                args: [
+                  { var: "reserve_out" },
+                  { op: "div",
+                    args: [
+                      { op: "+",
+                        args: [
+                          { op: "-",
+                            args: [
+                              { param: "sqrt_D" },
+                              { op: "*",
+                                args: [
+                                  { var: "p" },
+                                  { op: "*",
+                                    args: [
+                                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          { op: "-",
+                            args: [
+                              { op: "*",
+                                args: [
+                                  { const: 2 },
+                                  { op: "*",
+                                    args: [
+                                      { var: "q" },
+                                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { const: 1 }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "*",
+                        args: [
+                          { const: 2 },
+                          { op: "*",
+                            args: [
+                              { var: "q" },
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 1 }
+            ]
+          }
+        - { op: ">=",
+            args: [
+              { op: "-",
+                args: [
+                  { var: "reserve_out" },
+                  { op: "div",
+                    args: [
+                      { op: "+",
+                        args: [
+                          { op: "-",
+                            args: [
+                              { param: "sqrt_D" },
+                              { op: "*",
+                                args: [
+                                  { var: "p" },
+                                  { op: "*",
+                                    args: [
+                                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] },
+                                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          { op: "-",
+                            args: [
+                              { op: "*",
+                                args: [
+                                  { const: 2 },
+                                  { op: "*",
+                                    args: [
+                                      { var: "q" },
+                                      { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { const: 1 }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "*",
+                        args: [
+                          { const: 2 },
+                          { op: "*",
+                            args: [
+                              { var: "q" },
+                              { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { param: "min_amount_out" }
+            ]
+          }
+    updates:
+      - var: "reserve_in_before"
+        expr: { var: "reserve_in" }
+      - var: "reserve_out_before"
+        expr: { var: "reserve_out" }
+      - var: "reserve_in"
+        expr: { op: "+", args: [{ var: "reserve_in" }, { param: "amount_in" }] }
+      - var: "reserve_out"
+        expr:
+          op: "div"
+          args:
+            - op: "+"
+              args:
+                - op: "-"
+                  args:
+                    - { param: "sqrt_D" }
+                    - op: "*"
+                      args:
+                        - { var: "p" }
+                        - op: "*"
+                          args:
+                            - op: "+"
+                              args: [{ var: "reserve_in" }, { param: "amount_in" }]
+                            - op: "+"
+                              args: [{ var: "reserve_in" }, { param: "amount_in" }]
+                - op: "-"
+                  args:
+                    - op: "*"
+                      args:
+                        - { const: 2 }
+                        - op: "*"
+                          args:
+                            - { var: "q" }
+                            - op: "+"
+                              args: [{ var: "reserve_in" }, { param: "amount_in" }]
+                    - { const: 1 }
+            - op: "*"
+              args:
+                - { const: 2 }
+                - op: "*"
+                  args:
+                    - { var: "q" }
+                    - op: "+"
+                      args: [{ var: "reserve_in" }, { param: "amount_in" }]
+    effects:
+      amount_in: { param: "amount_in" }
+      amount_out:
+        op: "-"
+        args: [{ var: "reserve_out_before" }, { var: "reserve_out" }]
+      sqrt_D: { param: "sqrt_D" }
+      k_before:
+        op: "*"
+        args:
+          - op: "*"
+            args: [{ var: "reserve_in_before" }, { var: "reserve_out_before" }]
+          - op: "+"
+            args:
+              - { op: "*", args: [{ var: "p" }, { var: "reserve_in_before" }] }
+              - { op: "*", args: [{ var: "q" }, { var: "reserve_out_before" }] }
+      k_after:
+        op: "*"
+        args:
+          - op: "*"
+            args: [{ var: "reserve_in" }, { var: "reserve_out" }]
+          - op: "+"
+            args:
+              - { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] }
+              - { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+      new_reserve_in: { var: "reserve_in" }
+      new_reserve_out: { var: "reserve_out" }
+
+  - id: "swap_exact_out"
+    params:
+      - id: "amount_out"
+        type: { kind: "int", min: 1, max: 2000 }
+      - id: "sqrt_D"
+        type: { kind: "int", min: 1, max: 30000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "<", args: [{ param: "amount_out" }, { var: "reserve_out" }] }
+        # y1 = reserve_out - amount_out must stay >= 1
+        - { op: ">",
+            args: [
+              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+              { const: 0 }
+            ]
+          }
+        # Verify sqrt_D = ceil_isqrt(D) for the x-quadratic at y1.
+        - { op: "<=",
+            args: [
+              { op: "+",
+                args: [
+                  # b^2 where b = q*y1^2
+                  { op: "*",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "q" },
+                          { op: "*",
+                            args: [
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "*",
+                        args: [
+                          { var: "q" },
+                          { op: "*",
+                            args: [
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  # 4*a*K0 where a = p*y1
+                  { op: "*",
+                    args: [
+                      { const: 4 },
+                      { op: "*",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { var: "p" },
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                            ]
+                          },
+                          { op: "*",
+                            args: [
+                              { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] },
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] },
+                                  { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { op: "*", args: [{ param: "sqrt_D" }, { param: "sqrt_D" }] }
+            ]
+          }
+        - { op: "<",
+            args: [
+              { op: "*",
+                args: [
+                  { op: "-", args: [{ param: "sqrt_D" }, { const: 1 }] },
+                  { op: "-", args: [{ param: "sqrt_D" }, { const: 1 }] }
+                ]
+              },
+              { op: "+",
+                args: [
+                  { op: "*",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "q" },
+                          { op: "*",
+                            args: [
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "*",
+                        args: [
+                          { var: "q" },
+                          { op: "*",
+                            args: [
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "*",
+                    args: [
+                      { const: 4 },
+                      { op: "*",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { var: "p" },
+                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                            ]
+                          },
+                          { op: "*",
+                            args: [
+                              { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] },
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] },
+                                  { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        # x1 := ceil_div(sqrt_D - b, 2*a) must stay in-bounds and be > reserve_in
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "-",
+                        args: [
+                          { param: "sqrt_D" },
+                          { op: "*",
+                            args: [
+                              { var: "q" },
+                              { op: "*",
+                                args: [
+                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "-",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { const: 2 },
+                              { op: "*",
+                                args: [
+                                  { var: "p" },
+                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                ]
+                              }
+                            ]
+                          },
+                          { const: 1 }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "*",
+                    args: [
+                      { const: 2 },
+                      { op: "*",
+                        args: [
+                          { var: "p" },
+                          { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 2000 }
+            ]
+          }
+        - { op: ">",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "-",
+                        args: [
+                          { param: "sqrt_D" },
+                          { op: "*",
+                            args: [
+                              { var: "q" },
+                              { op: "*",
+                                args: [
+                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "-",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { const: 2 },
+                              { op: "*",
+                                args: [
+                                  { var: "p" },
+                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                ]
+                              }
+                            ]
+                          },
+                          { const: 1 }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "*",
+                    args: [
+                      { const: 2 },
+                      { op: "*",
+                        args: [
+                          { var: "p" },
+                          { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { var: "reserve_in" }
+            ]
+          }
+        # Minimality: K(x1,y1) >= K(x,y) and K(x1-1,y1) < K(x,y)
+        - { op: ">=",
+            args: [
+              { op: "*",
+                args: [
+                  { op: "*",
+                    args: [
+                      { op: "div",
+                        args: [
+                          { op: "+",
+                            args: [
+                              { op: "-",
+                                args: [
+                                  { param: "sqrt_D" },
+                                  { op: "*",
+                                    args: [
+                                      { var: "q" },
+                                      { op: "*",
+                                        args: [
+                                          { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                                          { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { op: "-",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { const: 2 },
+                                      { op: "*",
+                                        args: [
+                                          { var: "p" },
+                                          { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { const: 1 }
+                                ]
+                              }
+                            ]
+                          },
+                          { op: "*",
+                            args: [
+                              { const: 2 },
+                              { op: "*",
+                                args: [
+                                  { var: "p" },
+                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "p" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "-",
+                                    args: [
+                                      { param: "sqrt_D" },
+                                      { op: "*",
+                                        args: [
+                                          { var: "q" },
+                                          { op: "*",
+                                            args: [
+                                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { op: "-",
+                                    args: [
+                                      { op: "*",
+                                        args: [
+                                          { const: 2 },
+                                          { op: "*",
+                                            args: [
+                                              { var: "p" },
+                                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      { const: 1 }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { op: "*",
+                                args: [
+                                  { const: 2 },
+                                  { op: "*",
+                                    args: [
+                                      { var: "p" },
+                                      { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "*", args: [{ var: "q" }, { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }] }
+                    ]
+                  }
+                ]
+              },
+              { op: "*",
+                args: [
+                  { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] },
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] },
+                      { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        - { op: "<",
+            args: [
+              { op: "*",
+                args: [
+                  { op: "*",
+                    args: [
+                      { op: "-",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "-",
+                                    args: [
+                                      { param: "sqrt_D" },
+                                      { op: "*",
+                                        args: [
+                                          { var: "q" },
+                                          { op: "*",
+                                            args: [
+                                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { op: "-",
+                                    args: [
+                                      { op: "*",
+                                        args: [
+                                          { const: 2 },
+                                          { op: "*",
+                                            args: [
+                                              { var: "p" },
+                                              { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      { const: 1 }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { op: "*",
+                                args: [
+                                  { const: 2 },
+                                  { op: "*",
+                                    args: [
+                                      { var: "p" },
+                                      { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          { const: 1 }
+                        ]
+                      },
+                      { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "p" },
+                          { op: "-",
+                            args: [
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "-",
+                                        args: [
+                                          { param: "sqrt_D" },
+                                          { op: "*",
+                                            args: [
+                                              { var: "q" },
+                                              { op: "*",
+                                                args: [
+                                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] },
+                                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      },
+                                      { op: "-",
+                                        args: [
+                                          { op: "*",
+                                            args: [
+                                              { const: 2 },
+                                              { op: "*",
+                                                args: [
+                                                  { var: "p" },
+                                                  { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          { const: 1 }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { op: "*",
+                                    args: [
+                                      { const: 2 },
+                                      { op: "*",
+                                        args: [
+                                          { var: "p" },
+                                          { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { const: 1 }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "*", args: [{ var: "q" }, { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }] }
+                    ]
+                  }
+                ]
+              },
+              { op: "*",
+                args: [
+                  { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] },
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] },
+                      { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+    updates:
+      - var: "reserve_in_before"
+        expr: { var: "reserve_in" }
+      - var: "reserve_out_before"
+        expr: { var: "reserve_out" }
+      - var: "reserve_in"
+        expr:
+          op: "div"
+          args:
+            - op: "+"
+              args:
+                - op: "-"
+                  args:
+                    - { param: "sqrt_D" }
+                    - op: "*"
+                      args:
+                        - { var: "q" }
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args: [{ var: "reserve_out" }, { param: "amount_out" }]
+                            - op: "-"
+                              args: [{ var: "reserve_out" }, { param: "amount_out" }]
+                - op: "-"
+                  args:
+                    - op: "*"
+                      args:
+                        - { const: 2 }
+                        - op: "*"
+                          args:
+                            - { var: "p" }
+                            - op: "-"
+                              args: [{ var: "reserve_out" }, { param: "amount_out" }]
+                    - { const: 1 }
+            - op: "*"
+              args:
+                - { const: 2 }
+                - op: "*"
+                  args:
+                    - { var: "p" }
+                    - op: "-"
+                      args: [{ var: "reserve_out" }, { param: "amount_out" }]
+      - var: "reserve_out"
+        expr: { op: "-", args: [{ var: "reserve_out" }, { param: "amount_out" }] }
+    effects:
+      amount_in:
+        op: "-"
+        args: [{ var: "reserve_in" }, { var: "reserve_in_before" }]
+      amount_out: { param: "amount_out" }
+      sqrt_D: { param: "sqrt_D" }
+      k_before:
+        op: "*"
+        args:
+          - op: "*"
+            args: [{ var: "reserve_in_before" }, { var: "reserve_out_before" }]
+          - op: "+"
+            args:
+              - { op: "*", args: [{ var: "p" }, { var: "reserve_in_before" }] }
+              - { op: "*", args: [{ var: "q" }, { var: "reserve_out_before" }] }
+      k_after:
+        op: "*"
+        args:
+          - op: "*"
+            args: [{ var: "reserve_in" }, { var: "reserve_out" }]
+          - op: "+"
+            args:
+              - { op: "*", args: [{ var: "p" }, { var: "reserve_in" }] }
+              - { op: "*", args: [{ var: "q" }, { var: "reserve_out" }] }
+      new_reserve_in: { var: "reserve_in" }
+      new_reserve_out: { var: "reserve_out" }

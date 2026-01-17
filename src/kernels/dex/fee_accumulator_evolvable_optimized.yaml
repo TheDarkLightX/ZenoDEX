@@ -1,0 +1,100 @@
+actions:
+- effects:
+    average_fee:
+      args:
+      - var: total_fees
+      - var: transaction_count
+      op: div
+  guard:
+    args:
+    - args:
+      - args:
+        - const: 1
+        - var: transaction_count
+        op: +
+      - const: 1000000
+      op: <=
+    - args:
+      - args:
+        - param: fee_amount
+        - var: total_fees
+        op: +
+      - const: 10000000
+      op: <=
+    - args:
+      - param: fee_amount
+      - const: 0
+      op: '>'
+    op: and
+  id: add_fee
+  params:
+  - id: fee_amount
+    type:
+      kind: int
+      max: 1000000
+      min: 1
+  updates:
+  - expr:
+      args:
+      - param: fee_amount
+      - var: total_fees
+      op: +
+    var: total_fees
+  - expr:
+      args:
+      - const: 1
+      - var: transaction_count
+      op: +
+    var: transaction_count
+init:
+- expr:
+    const: 0
+  var: total_fees
+- expr:
+    const: 0
+  var: transaction_count
+invariants:
+- expr:
+    args:
+    - var: transaction_count
+    - const: 0
+    op: '>='
+  id: inv_count_nonnegative
+  kind: safety
+- expr:
+    args:
+    - var: total_fees
+    - const: 0
+    op: '>='
+  id: inv_total_fees_nonnegative
+  kind: safety
+ir_version: esso-ir/v1
+meta:
+  model_id: fee_accumulator_evolvable
+  notes: 'Fee accumulator with correct post-state references.
+
+    Evolution will optimize the state transition logic.
+
+    High ROI: Used in every fee operation
+
+    '
+observables:
+  effects:
+  - average_fee
+  state_vars:
+  - total_fees
+  - transaction_count
+state_vars:
+- id: total_fees
+  role: data
+  type:
+    kind: int
+    max: 10000000
+    min: 0
+- id: transaction_count
+  role: data
+  type:
+    kind: int
+    max: 1000000
+    min: 0
+types: []

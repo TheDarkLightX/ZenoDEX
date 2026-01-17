@@ -1,0 +1,108 @@
+# [FORGE] Fee Optimizer (High ROI - Used Every Swap)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fee_optimizer"
+  notes: |
+    Optimizes fee calculation for maximum protocol revenue.
+    High ROI: Used in every swap operation
+    Novel: Adaptive fee calculation with revenue tracking
+
+observables:
+  state_vars: ["base_fee_bps", "total_revenue", "swap_count"]
+  effects: ["current_fee_bps", "revenue_per_swap", "optimization_score"]
+
+types: []
+
+state_vars:
+  - id: "base_fee_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000 }
+  - id: "total_revenue"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "swap_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000 }
+
+init:
+  - var: "base_fee_bps"
+    expr: { const: 30 }
+  - var: "total_revenue"
+    expr: { const: 0 }
+  - var: "swap_count"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_fee_in_range"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "base_fee_bps" }, { const: 1 }] }
+        - { op: "<=", args: [{ var: "base_fee_bps" }, { const: 1000 }] }
+  - id: "inv_revenue_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "total_revenue" }, { const: 0 }]
+
+actions:
+  - id: "calculate_fee"
+    params:
+      - id: "swap_amount"
+        type: { kind: "int", min: 1, max: 10000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "swap_amount" }, { const: 0 }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "swap_count" }, { const: 1 }] }, { const: 10000000 }] }
+    updates:
+      - var: "total_revenue"
+        expr:
+          op: "+"
+          args:
+            [
+              { var: "total_revenue" },
+              {
+                op: "div"
+                args:
+                  [
+                    { op: "*", args: [{ param: "swap_amount" }, { var: "base_fee_bps" }] },
+                    { const: 10000 },
+                  ],
+              },
+            ]
+      - var: "swap_count"
+        expr:
+          op: "+"
+          args: [{ var: "swap_count" }, { const: 1 }]
+    effects:
+      current_fee_bps: { var: "base_fee_bps" }
+      revenue_per_swap:
+        op: "div"
+        args:
+          [
+            { var: "total_revenue" },
+            {
+              op: "ite"
+              cond:
+                op: ">"
+                args: [{ var: "swap_count" }, { const: 0 }]
+              then: { var: "swap_count" }
+              else: { const: 1 },
+            },
+          ]
+      optimization_score:
+        op: "*"
+        args:
+          [
+            { var: "total_revenue" },
+            {
+              op: "ite"
+              cond:
+                op: ">"
+                args: [{ var: "swap_count" }, { const: 0 }]
+              then: { var: "swap_count" }
+              else: { const: 1 },
+            },
+          ]

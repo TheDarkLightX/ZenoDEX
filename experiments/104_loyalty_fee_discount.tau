@@ -1,0 +1,8 @@
+# Spec 104: Loyalty Fee Discount Ladder
+# Pattern: tier-based fee discount with strict bounds
+# Inputs: i1=base_fee, i2=fee, i3=tier
+# Output: o1=fee_ok
+
+fee_ok(base : bv[16], fee : bv[16], tier : bv[16]) := ((tier = { #x0000 }:bv[16]) && (fee = base)) || ((tier = { #x0001 }:bv[16]) && (base >= { #x0005 }:bv[16]) && (fee <= base) && (fee >= base - { #x0005 }:bv[16])) || ((tier = { #x0002 }:bv[16]) && (base >= { #x000A }:bv[16]) && (fee <= base) && (fee >= base - { #x000A }:bv[16])) || ((tier = { #x0003 }:bv[16]) && (base >= { #x0014 }:bv[16]) && (fee <= base) && (fee >= base - { #x0014 }:bv[16])).
+
+always (o1[t]:sbf = 1:sbf <-> fee_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

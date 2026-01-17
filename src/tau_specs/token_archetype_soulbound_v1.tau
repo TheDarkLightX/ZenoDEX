@@ -1,0 +1,38 @@
+# Token Archetype: Soulbound Policy v1 (Non-transferable)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: issuer_id (i3)
+# IMMUTABLE_INVARIANTS: transfers only allowed if issuer involved; one-hot op selection
+#
+# PURPOSE: Model a soulbound token (SBT) where transfers between users are forbidden.
+# Only the issuer is allowed to mint to users, revoke (burn), or perform administrative
+# moves involving itself.
+#
+# Stream mapping:
+# i1 = from_id
+# i2 = to_id
+# i3 = issuer_id
+# i4 = do_transfer
+# i5 = do_mint
+# i6 = do_burn
+# o1 = transfer_allowed
+# o2 = mint_allowed
+# o3 = burn_allowed
+# o4 = soulbound_ok
+
+one_hot_3(a : sbf, b : sbf, c : sbf) := ((a = 1:sbf) && (b = 0:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 1:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 0:sbf) && (c = 1:sbf)).
+
+issuer_involved(from : bv[16], to : bv[16], issuer : bv[16]) := (from = issuer) || (to = issuer).
+
+transfer_allowed(do_tx : sbf, from : bv[16], to : bv[16], issuer : bv[16]) := (do_tx = 0:sbf) || issuer_involved(from, to, issuer).
+
+mint_allowed(do_mint : sbf, from : bv[16], issuer : bv[16]) := (do_mint = 0:sbf) || (from = issuer).
+
+burn_allowed(do_burn : sbf, to : bv[16], issuer : bv[16]) := (do_burn = 0:sbf) || (to = issuer).
+
+soulbound_ok(from : bv[16], to : bv[16], issuer : bv[16], a : sbf, b : sbf, c : sbf) := (one_hot_3(a, b, c) = 1:sbf) && transfer_allowed(a, from, to, issuer) && mint_allowed(b, from, issuer) && burn_allowed(c, to, issuer).
+
+always (o1[t]:sbf = 1:sbf <-> transfer_allowed(i4[t]:sbf, i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> mint_allowed(i5[t]:sbf, i1[t]:bv[16], i3[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> burn_allowed(i6[t]:sbf, i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> soulbound_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)).

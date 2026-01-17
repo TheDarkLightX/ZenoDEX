@@ -1,0 +1,11 @@
+# Spec 27: Risk budget state machine (temporal)
+
+cantrade(req : sbf, risk : sbf, cd : sbf, bal : bv[16], debit : bv[16]) := (req = 1:sbf) && (risk = 1:sbf) && (cd = 0:sbf) && (bal >= debit).
+
+always (o1[0]:bv[16] = { #x0064 }:bv[16]) &&
+  (o2[t]:sbf = 1:sbf <-> cantrade(i1[t]:sbf, i2[t]:sbf, o7[t-1]:sbf, o1[t-1]:bv[16], i4[t]:bv[16])) &&
+  (o3[t]:sbf = i1[t]:sbf & o2[t]:sbf) &&
+  ((i3[t]:sbf = 1:sbf) ? (o1[t]:bv[16] = { #x0064 }:bv[16]) : (o3[t]:sbf ? (o1[t]:bv[16] = o1[t-1]:bv[16] - i4[t]:bv[16]) : (o1[t]:bv[16] = o1[t-1]:bv[16]))) &&
+  ((i3[t]:sbf = 1:sbf) ? (o5[t]:sbf = 0:sbf) : (o5[t]:sbf = o3[t]:sbf)) &&
+  ((i3[t]:sbf = 1:sbf) ? (o6[t]:sbf = 0:sbf) : (o6[t]:sbf = o5[t-1]:sbf)) &&
+  ((i3[t]:sbf = 1:sbf) ? (o7[t]:sbf = 0:sbf) : (o7[t]:sbf = o5[t-1]:sbf | o6[t-1]:sbf)).

@@ -1,0 +1,59 @@
+# Concentrated Liquidity Range v1 - Position Range Validation
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: tick spacing, min/max range width
+# IMMUTABLE_INVARIANTS: position must be within valid tick range
+#
+# PURPOSE: Validate concentrated liquidity position ranges for CLMMs.
+# Ensures tick bounds are valid and properly spaced.
+# No passive payouts - purely a position validation gate.
+#
+# Stream mapping:
+# i1 = tick_lower (bv[32]) - lower tick of position
+# i2 = tick_upper (bv[32]) - upper tick of position
+# i3 = tick_spacing (bv[32]) - required tick spacing
+# i4 = min_range_width (bv[32]) - minimum position width
+# i5 = max_range_width (bv[32]) - maximum position width
+# o1 = params_ok
+# o2 = bounds_ok
+# o3 = spacing_ok
+# o4 = cl_range_ok
+# @rule o4: lower < upper AND width in [min, max] AND ticks aligned to spacing.
+
+set charvar off
+
+# Spacing positive
+spacing_ok(spacing : bv[32]) := spacing > { #x00000000 }:bv[32].
+
+# Width bounds valid
+width_bounds_ok(min_w : bv[32], max_w : bv[32]) := (min_w > { #x00000000 }:bv[32]) && (max_w >= min_w).
+
+# Params valid
+params_ok(spacing : bv[32], min_w : bv[32], max_w : bv[32]) := spacing_ok(spacing) && width_bounds_ok(min_w, max_w).
+
+# Bounds ordering: lower < upper
+bounds_ordered(lower : bv[32], upper : bv[32]) := upper > lower.
+
+# Width in range
+width_ok(lower : bv[32], upper : bv[32], min_w : bv[32], max_w : bv[32]) := ((upper - lower) >= min_w) && ((upper - lower) <= max_w).
+
+# Bounds check combined
+bounds_ok(lower : bv[32], upper : bv[32], min_w : bv[32], max_w : bv[32]) := bounds_ordered(lower, upper) && width_ok(lower, upper, min_w, max_w).
+
+# Tick alignment: tick mod spacing == 0 (simplified: check divisibility)
+# Using: (tick / spacing) * spacing == tick
+tick_aligned(tick : bv[32], spacing : bv[32]) := ((tick / spacing) * spacing) = tick.
+ticks_aligned(lower : bv[32], upper : bv[32], spacing : bv[32]) := tick_aligned(lower, spacing) && tick_aligned(upper, spacing).
+
+# Full check
+cl_range_valid(lower : bv[32], upper : bv[32], spacing : bv[32], min_w : bv[32], max_w : bv[32]) := params_ok(spacing, min_w, max_w) && bounds_ok(lower, upper, min_w, max_w) && ticks_aligned(lower, upper, spacing).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Bounds check
+  (o2[t]:sbf = 1:sbf <-> bounds_ok(i1[t]:bv[32], i2[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Spacing alignment
+  (o3[t]:sbf = 1:sbf <-> ticks_aligned(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Aggregated CL range validity
+  (o4[t]:sbf = 1:sbf <-> cl_range_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

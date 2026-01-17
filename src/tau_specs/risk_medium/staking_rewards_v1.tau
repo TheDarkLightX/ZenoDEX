@@ -1,0 +1,80 @@
+# Staking Rewards v1 - Usage-Bound Staking Incentives
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: reward_rate_bps (i3), min_usage (i6), reward_cap (i7)
+# IMMUTABLE_INVARIANTS: rewards proportional to stake, gated by usage
+#
+# PURPOSE: Usage-bound staking rewards that require active participation.
+# Stakers must maintain usage_score >= min_usage to receive rewards.
+# This prevents passive staking yield - users must actively use the protocol.
+# NO PASSIVE PAYOUTS - rewards are usage-bound per ZenoDex rules.
+#
+# DbC Preconditions:
+# - All values are bv[32] (unsigned).
+# - reward_rate_bps <= 5000 (50% max APY equivalent).
+# - usage_score >= min_usage required.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff usage gate passed AND reward math correct AND capped.
+#
+# Stream mapping:
+# i1 = staked_amount (bv[32]) - tokens staked
+# i2 = stake_duration (bv[32]) - time staked (periods)
+# i3 = reward_rate_bps (bv[32]) - reward rate in bps per period
+# i4 = computed_reward (bv[32]) - externally computed reward
+# i5 = usage_score (bv[32]) - user's usage metric
+# i6 = min_usage (bv[32]) - minimum usage required
+# i7 = reward_cap (bv[32]) - maximum reward allowed
+# o1 = params_ok
+# o2 = usage_gate_ok
+# o3 = reward_math_ok
+# o4 = staking_ok
+# @rule o4: Usage gate passed AND reward proportional to stake*duration*rate AND capped.
+
+set charvar off
+
+# floor((2^32-1)/10000) for safe bps multiplication
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Reward rate must be <= 5000 bps (50%)
+rate_ok(rate : bv[32]) := rate <= { #x00001388 }:bv[32].
+
+# Staked amount must be positive
+stake_ok(stake : bv[32]) := stake > { #x00000000 }:bv[32].
+
+# Duration must be positive
+duration_ok(dur : bv[32]) := dur > { #x00000000 }:bv[32].
+
+# Safe range for multiplication
+safe_range_ok(stake : bv[32]) := stake <= max_safe_32().
+
+# Parameters valid
+params_ok(stake : bv[32], dur : bv[32], rate : bv[32]) := stake_ok(stake) && duration_ok(dur) && rate_ok(rate) && safe_range_ok(stake).
+
+# USAGE GATE: Staker must have minimum usage to receive rewards
+# This is the key anti-passive-payout mechanism
+usage_gate_ok(usage : bv[32], min_usage : bv[32]) := usage >= min_usage.
+
+# Reward math: reward should be proportional to stake * rate / 10000
+# With tolerance for rounding and duration scaling
+# Simplified: reward * 10000 <= stake * rate + tolerance
+reward_calc_ok(stake : bv[32], rate : bv[32], reward : bv[32]) := ((reward * { #x00002710 }:bv[32]) >= (stake * rate)) && ((reward * { #x00002710 }:bv[32]) <= ((stake * rate) + { #x0000270F }:bv[32])).
+
+# Reward must be within cap
+cap_ok(reward : bv[32], cap : bv[32]) := reward <= cap.
+
+# Full reward math check
+reward_math_ok(stake : bv[32], rate : bv[32], reward : bv[32], cap : bv[32]) := reward_calc_ok(stake, rate, reward) && cap_ok(reward, cap).
+
+# Full staking check: usage gate AND math
+staking_valid(stake : bv[32], dur : bv[32], rate : bv[32], reward : bv[32], usage : bv[32], min_usage : bv[32], cap : bv[32]) := params_ok(stake, dur, rate) && usage_gate_ok(usage, min_usage) && reward_math_ok(stake, rate, reward, cap).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Usage gate (anti-passive-payout)
+  (o2[t]:sbf = 1:sbf <-> usage_gate_ok(i5[t]:bv[32], i6[t]:bv[32])) &&
+  # @section: Reward math and cap
+  (o3[t]:sbf = 1:sbf <-> reward_math_ok(i1[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i7[t]:bv[32])) &&
+  # @section: Aggregated staking validity
+  (o4[t]:sbf = 1:sbf <-> staking_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])).

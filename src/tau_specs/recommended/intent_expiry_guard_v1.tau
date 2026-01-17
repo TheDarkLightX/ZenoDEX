@@ -1,0 +1,51 @@
+# Intent Expiry Guard v1 - Reject Expired Intents
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: intents must not be expired
+#
+# PURPOSE: Reject intents that have passed their expiry deadline.
+# Prevents stale intents from being executed at unfavorable prices.
+# No passive payouts - purely an intent validation gate.
+#
+# Stream mapping:
+# i1 = intent_deadline (bv[32]) - intent expiry timestamp
+# i2 = current_timestamp (bv[32]) - current block timestamp
+# i3 = min_validity_period (bv[32]) - minimum time intent must be valid
+# i4 = max_validity_period (bv[32]) - maximum allowed intent validity
+# i5 = intent_created (bv[32]) - when intent was created
+# o1 = params_ok
+# o2 = not_expired
+# o3 = validity_ok
+# o4 = intent_expiry_ok
+# @rule o4: current < deadline AND (deadline - created) in [min, max].
+
+set charvar off
+
+# Timestamps valid
+timestamps_ok(created : bv[32], deadline : bv[32], current : bv[32]) := (deadline > created) && (current >= created).
+
+# Validity bounds ok
+validity_bounds_ok(min_v : bv[32], max_v : bv[32]) := (min_v > { #x00000000 }:bv[32]) && (max_v >= min_v).
+
+# Params valid
+params_ok(created : bv[32], deadline : bv[32], current : bv[32], min_v : bv[32], max_v : bv[32]) := timestamps_ok(created, deadline, current) && validity_bounds_ok(min_v, max_v).
+
+# Not expired: current < deadline
+not_expired(current : bv[32], deadline : bv[32]) := current < deadline.
+
+# Validity period in bounds: min <= (deadline - created) <= max
+validity_in_range(created : bv[32], deadline : bv[32], min_v : bv[32], max_v : bv[32]) := ((deadline - created) >= min_v) && ((deadline - created) <= max_v).
+
+# Full check
+intent_expiry_valid(deadline : bv[32], current : bv[32], min_v : bv[32], max_v : bv[32], created : bv[32]) := params_ok(created, deadline, current, min_v, max_v) && not_expired(current, deadline) && validity_in_range(created, deadline, min_v, max_v).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i5[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Expiry check
+  (o2[t]:sbf = 1:sbf <-> not_expired(i2[t]:bv[32], i1[t]:bv[32])) &&
+  # @section: Validity period check
+  (o3[t]:sbf = 1:sbf <-> validity_in_range(i5[t]:bv[32], i1[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Aggregated intent expiry validity
+  (o4[t]:sbf = 1:sbf <-> intent_expiry_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

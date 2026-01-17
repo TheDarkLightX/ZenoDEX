@@ -1,0 +1,139 @@
+# [FORGE] Multi-Phase Fee Collector (Simplified for Evolution)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "multi_phase_fee_collector_simple"
+  notes: |
+    Multi-phase fee collection with phase transitions.
+    Simplified for successful evolution.
+
+observables:
+  state_vars: ["phase", "fees_collected", "total_distributed"]
+  effects: ["phase_after", "fees_after", "distribution_ready"]
+
+types: []
+
+state_vars:
+  - id: "phase"
+    role: "control"
+    type: { kind: "int", min: 0, max: 3 }  # 0=Collecting, 1=Accumulating, 2=Distributing, 3=Complete
+  - id: "fees_collected"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000 }
+  - id: "total_distributed"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000 }
+
+init:
+  - var: "phase"
+    expr: { const: 0 }
+  - var: "fees_collected"
+    expr: { const: 0 }
+  - var: "total_distributed"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_fees_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "fees_collected" }, { const: 0 }]
+  - id: "inv_distributed_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "total_distributed" }, { const: 0 }]
+  - id: "inv_conservation"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "total_distributed" }, { var: "fees_collected" }]
+
+actions:
+  - id: "collect_fee"
+    params:
+      - id: "fee_amount"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "fee_amount" }, { const: 0 }] }
+        - {
+            op: "<=",
+            args:
+              [
+                { op: "+", args: [{ var: "fees_collected" }, { param: "fee_amount" }] },
+                { const: 10000000 },
+              ],
+          }
+    updates:
+      - var: "fees_collected"
+        expr:
+          op: "+"
+          args: [{ var: "fees_collected" }, { param: "fee_amount" }]
+    effects:
+      phase_after: { var: "phase" }
+      fees_after: { var: "fees_collected" }
+      distribution_ready: { bool: false }
+
+  - id: "transition_to_accumulating"
+    params:
+      - id: "min_fees_threshold"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "fees_collected" }, { param: "min_fees_threshold" }] }
+    updates:
+      - var: "phase"
+        expr: { const: 1 }
+    effects:
+      phase_after: { const: 1 }
+      fees_after: { var: "fees_collected" }
+      distribution_ready: { bool: true }
+
+  - id: "distribute"
+    params:
+      - id: "distribution_amount"
+        type: { kind: "int", min: 1, max: 10000000 }
+    guard:
+      op: "and"
+      args:
+        - {
+            op: "or",
+            args:
+              [
+                { op: "=", args: [{ var: "phase" }, { const: 1 }] },
+                { op: "=", args: [{ var: "phase" }, { const: 2 }] },
+              ],
+          }
+        - { op: ">=", args: [{ var: "fees_collected" }, { op: "+", args: [{ var: "total_distributed" }, { param: "distribution_amount" }] }] }
+        - { op: ">", args: [{ param: "distribution_amount" }, { const: 0 }] }
+    updates:
+      - var: "total_distributed"
+        expr:
+          op: "+"
+          args: [{ var: "total_distributed" }, { param: "distribution_amount" }]
+      - var: "phase"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args:
+              [
+                { var: "total_distributed" },
+                { var: "fees_collected" },
+              ]
+          then: { const: 3 }
+          else: { const: 2 }
+    effects:
+      phase_after: { var: "phase" }
+      fees_after: { var: "fees_collected" }
+      distribution_ready:
+        op: "="
+        args:
+          [
+            { var: "total_distributed" },
+            { var: "fees_collected" },
+          ]

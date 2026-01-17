@@ -1,0 +1,20 @@
+# Core dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Cryptographic operations (for intent signing)
+py-ecc>=6.1.0  # BLS12-381 signatures (same as tau-testnet)
+
+# Type hints
+typing-extensions>=4.8.0
+
+# JSON canonicalization
+canonicaljson>=1.6.0
+
+# Deterministic hashing uses the Python stdlib `hashlib`.
+
+# Multi-agent orchestrator
+openai>=1.40.0
+openai-agents>=0.1.0
+python-dotenv>=1.0.0
+pyyaml>=6.0

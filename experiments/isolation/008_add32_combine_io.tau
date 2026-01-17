@@ -1,0 +1,17 @@
+# Isolation: add_32 using combine to bv[32]
+
+i1 : bv[16] = in file("experiments/io/inputs/swap_exact_in_reserve_in_hi.in")
+i2 : bv[16] = in file("experiments/io/inputs/swap_exact_in_reserve_in_lo.in")
+i3 : bv[16] = in file("experiments/io/inputs/swap_exact_in_amount_in_hi.in")
+i4 : bv[16] = in file("experiments/io/inputs/swap_exact_in_amount_in_lo.in")
+i5 : bv[16] = in file("experiments/io/inputs/swap_exact_in_new_reserve_in_hi.in")
+i6 : bv[16] = in file("experiments/io/inputs/swap_exact_in_new_reserve_in_lo.in")
+
+o1 : sbf = out file("experiments/isolation/outputs/add32_combine_ok.out")
+
+combine32(hi : bv[16], lo : bv[16]) := ((hi:bv[32]) << { #x0010 }:bv[32]) + (lo:bv[32]).
+
+add32_ok() := combine32(i5[t], i6[t]) = (combine32(i1[t], i2[t]) + combine32(i3[t], i4[t])).
+
+r (o1[t]:sbf = 1:sbf <-> add32_ok())
+q

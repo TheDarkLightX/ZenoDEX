@@ -1,0 +1,62 @@
+# Oracle Freshness v2 - Enhanced Staleness with Monotonic Progression
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_staleness (i3), max_jump (i4)
+# IMMUTABLE_INVARIANTS: freshness + monotonic timestamp progression
+#
+# PURPOSE: Enhanced oracle validation with:
+# 1. Staleness check (current - oracle <= max_staleness)
+# 2. Monotonic progression (new timestamp > previous timestamp)
+# 3. Max jump guard (prevents large timestamp jumps indicating manipulation)
+# No passive payouts - purely a safety gate.
+#
+# Stream mapping:
+# i1 = oracle_timestamp (bv[32]) - current oracle timestamp
+# i2 = current_timestamp (bv[32]) - system timestamp
+# i3 = max_staleness (bv[32]) - max allowed age
+# i4 = max_jump (bv[32]) - max allowed timestamp jump
+# i5 = prev_oracle_timestamp (bv[32]) - previous oracle timestamp
+# o1 = params_ok
+# o2 = freshness_ok
+# o3 = monotonic_ok
+# o4 = oracle_v2_ok
+# @rule o4: Fresh AND monotonically increasing AND bounded jump.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Staleness positive
+staleness_ok(stale : bv[32]) := stale > { #x00000000 }:bv[32].
+
+# Jump positive
+jump_ok(jump : bv[32]) := jump > { #x00000000 }:bv[32].
+
+# Timestamp order valid
+order_ok(oracle : bv[32], current : bv[32]) := current >= oracle.
+
+# Params valid
+params_ok(stale : bv[32], jump : bv[32], oracle : bv[32], current : bv[32]) := staleness_ok(stale) && jump_ok(jump) && order_ok(oracle, current).
+
+# Freshness: age <= max_staleness
+freshness_ok(oracle : bv[32], current : bv[32], max_stale : bv[32]) := (current - oracle) <= max_stale.
+
+# Monotonic: new > prev (strict)
+monotonic_ok(oracle : bv[32], prev : bv[32]) := oracle > prev.
+
+# Jump bounded: new - prev <= max_jump
+jump_bounded(oracle : bv[32], prev : bv[32], max_jump : bv[32]) := (oracle - prev) <= max_jump.
+
+# Full v2 check
+oracle_v2_valid(oracle : bv[32], current : bv[32], max_stale : bv[32], max_jump : bv[32], prev : bv[32]) := params_ok(max_stale, max_jump, oracle, current) && freshness_ok(oracle, current, max_stale) && monotonic_ok(oracle, prev) && jump_bounded(oracle, prev, max_jump).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32], i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Freshness check
+  (o2[t]:sbf = 1:sbf <-> freshness_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Monotonic + bounded jump
+  (o3[t]:sbf = 1:sbf <-> (monotonic_ok(i1[t]:bv[32], i5[t]:bv[32]) && jump_bounded(i1[t]:bv[32], i5[t]:bv[32], i4[t]:bv[32]))) &&
+  # @section: Aggregated oracle v2 validity
+  (o4[t]:sbf = 1:sbf <-> oracle_v2_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

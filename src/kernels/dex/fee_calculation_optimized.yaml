@@ -1,0 +1,58 @@
+# [FORGE] Optimized Fee Calculation Kernel
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fee_calculation_optimized"
+  notes: |
+    Optimized fee calculation with ceiling rounding for exact-in swaps.
+    Formula: fee = ceil(amount_in * fee_bps / 10000)
+    High ROI: Used in every swap operation
+    This will be evolved to find optimal rounding strategy
+
+observables:
+  state_vars: []
+  effects: ["fee_amount", "net_amount_in"]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "calculate_fee_ceiling"
+    params:
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "fee_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "amount_in" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "fee_bps" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "fee_bps" }, { const: 10000 }] }
+    updates: []
+    effects:
+      fee_amount:
+        op: "div"
+        args:
+          [
+            { op: "*", args: [{ param: "amount_in" }, { param: "fee_bps" }] },
+            { const: 10000 },
+          ]
+      net_amount_in:
+        op: "-"
+        args:
+          [
+            { param: "amount_in" },
+            {
+              op: "div",
+              args:
+                [
+                  { op: "*", args: [{ param: "amount_in" }, { param: "fee_bps" }] },
+                  { const: 10000 },
+                ],
+            },
+          ]

@@ -1,0 +1,18 @@
+# TauSwap v1 batch canonicalization (reject-only, 4 intents)
+#
+# DbC Preconditions:
+# - i1..i4 represent the batch encoding for a single pool.
+#
+# DbC Postcondition:
+# - o1[t] = 1:sbf iff the encoding is strictly increasing.
+
+# Stream mapping:
+# i1 = intent_id_0
+# i2 = intent_id_1
+# i3 = intent_id_2
+# i4 = intent_id_3
+# o1 = batch_canonical_valid
+
+is_strictly_increasing_4(a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (a < b) && (b < c) && (c < d).
+
+always (o1[t]:sbf = 1:sbf <-> is_strictly_increasing_4(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])).

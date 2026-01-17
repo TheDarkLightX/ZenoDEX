@@ -1,0 +1,56 @@
+# Route Path Valid v1 - Multi-Hop Route Validation
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_hops
+# IMMUTABLE_INVARIANTS: routes must be well-formed
+#
+# PURPOSE: Validate multi-hop swap routes are well-formed.
+# Ensures routes have valid pool connections and don't exceed max hops.
+# No passive payouts - purely a routing validation gate.
+#
+# Stream mapping:
+# i1 = hop_count (bv[32]) - number of hops in route
+# i2 = max_hops (bv[32]) - maximum allowed hops
+# i3 = path_continuous (sbf) - 1 if all hops connect properly
+# i4 = all_pools_valid (sbf) - 1 if all pools in path are valid
+# i5 = no_cycles (sbf) - 1 if path has no cycles
+# o1 = params_ok
+# o2 = hop_count_ok
+# o3 = path_ok
+# o4 = route_valid
+# @rule o4: hops <= max AND path continuous AND pools valid AND no cycles.
+
+set charvar off
+
+# Hop count positive and bounded
+hop_count_positive(hops : bv[32]) := hops > { #x00000000 }:bv[32].
+
+# Max hops reasonable (prevent gas exhaustion)
+max_hops_ok(max : bv[32]) := (max > { #x00000000 }:bv[32]) && (max <= { #x0000000A }:bv[32]).
+
+# Params valid
+params_ok(hops : bv[32], max : bv[32]) := hop_count_positive(hops) && max_hops_ok(max).
+
+# Hop count within limit
+hop_count_ok(hops : bv[32], max : bv[32]) := hops <= max.
+
+# Path properties
+path_continuous(cont : sbf) := cont = 1:sbf.
+pools_valid(valid : sbf) := valid = 1:sbf.
+no_cycles(nc : sbf) := nc = 1:sbf.
+
+# Path ok: all properties satisfied
+path_ok(cont : sbf, valid : sbf, nc : sbf) := path_continuous(cont) && pools_valid(valid) && no_cycles(nc).
+
+# Full check
+route_path_valid(hops : bv[32], max : bv[32], cont : sbf, valid : sbf, nc : sbf) := params_ok(hops, max) && hop_count_ok(hops, max) && path_ok(cont, valid, nc).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Hop count check
+  (o2[t]:sbf = 1:sbf <-> hop_count_ok(i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Path properties
+  (o3[t]:sbf = 1:sbf <-> path_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  # @section: Aggregated route validity
+  (o4[t]:sbf = 1:sbf <-> route_path_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)).

@@ -1,0 +1,47 @@
+# ============================================================================
+# ULTIMATE DEX SPECIFICATION - Maximum Complexity Tau Spec
+# Novel Algorithms: Temporal trend analysis, MEV resistance, multi-signal fusion
+# ============================================================================
+# INPUTS (7 streams):
+#   i1=buy_max  i2=sell_min  i3=oracle_price  i4=buy_id  i5=sell_id  i6=exec1  i7=exec2
+# OUTPUTS (9 signals):
+#   o1=match  o2=stable  o3=canonical  o4=nosandwich  o5=allvalid
+#   o6=safe   o7=uptrend  o8=downtrend  o9=executable
+# ============================================================================
+
+# === LAYER 1: BASIC MATCHING ===
+intentsmatch(bmax : bv[16], smin : bv[16]) := bmax >= smin.
+
+# === LAYER 2: TEMPORAL STABILITY (5% threshold) ===
+pricestable(curr : bv[16], prev : bv[16]) := (curr >= prev) ? (curr - prev < { #x01F4 }:bv[16]) : (prev - curr < { #x01F4 }:bv[16]).
+
+# === LAYER 3: SANDWICH ATTACK DETECTION ===
+isspike(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 > p0) && (p1 > p2).
+nosandwich(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := !isspike(p0, p1, p2).
+
+# === LAYER 4: CANONICAL ORDERING ===
+iscanonical(ida : bv[16], idb : bv[16], f : bv[16], s : bv[16]) := (ida <= idb && f = ida && s = idb) || (idb < ida && f = idb && s = ida).
+
+# === LAYER 5: VOLATILITY CLASSIFICATION ===
+issafe(curr : bv[16], prev : bv[16]) := (curr >= prev) ? (curr - prev < { #x00C8 }:bv[16]) : (prev - curr < { #x00C8 }:bv[16]).
+
+# === LAYER 6: TREND DETECTION (NOVEL) ===
+isuptrend(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 > p0) && (p2 > p1).
+isdowntrend(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 < p0) && (p2 < p1).
+
+# === LAYER 7: SLIPPAGE PROTECTION (NOVEL) ===
+# Buy slippage OK: oracle <= buy_max (not paying more than willing)
+# Sell slippage OK: oracle >= sell_min (not receiving less than willing)
+buyslippageok(oracle : bv[16], buymax : bv[16]) := oracle <= buymax.
+sellslippageok(oracle : bv[16], sellmin : bv[16]) := oracle >= sellmin.
+slippageok(oracle : bv[16], buymax : bv[16], sellmin : bv[16]) := buyslippageok(oracle, buymax) && sellslippageok(oracle, sellmin).
+
+# === LAYER 8: COMBINED CORE VALIDATION ===
+corevalid(bmax : bv[16], smin : bv[16], pcurr : bv[16], pprev : bv[16], p2ago : bv[16], ida : bv[16], idb : bv[16], f : bv[16], s : bv[16]) := intentsmatch(bmax, smin) && pricestable(pcurr, pprev) && iscanonical(ida, idb, f, s) && nosandwich(p2ago, pprev, pcurr).
+
+# === LAYER 9: FULL EXECUTABLE CHECK (NOVEL) ===
+# Trade is executable iff: core valid AND slippage OK AND market is safe
+isexecutable(bmax : bv[16], smin : bv[16], pcurr : bv[16], pprev : bv[16], p2ago : bv[16], ida : bv[16], idb : bv[16], f : bv[16], s : bv[16]) := corevalid(bmax, smin, pcurr, pprev, p2ago, ida, idb, f, s) && slippageok(pcurr, bmax, smin) && issafe(pcurr, pprev).
+
+# === MAIN SPECIFICATION: 9 OUTPUT SIGNALS ===
+always (o1[t]:sbf = 1:sbf <-> intentsmatch(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> pricestable(i3[t]:bv[16], i3[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> iscanonical(i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> nosandwich(i3[t-2]:bv[16], i3[t-1]:bv[16], i3[t]:bv[16])) && (o5[t]:sbf = 1:sbf <-> corevalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i3[t-1]:bv[16], i3[t-2]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) && (o6[t]:sbf = 1:sbf <-> issafe(i3[t]:bv[16], i3[t-1]:bv[16])) && (o7[t]:sbf = 1:sbf <-> isuptrend(i3[t-2]:bv[16], i3[t-1]:bv[16], i3[t]:bv[16])) && (o8[t]:sbf = 1:sbf <-> isdowntrend(i3[t-2]:bv[16], i3[t-1]:bv[16], i3[t]:bv[16])) && (o9[t]:sbf = 1:sbf <-> isexecutable(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i3[t-1]:bv[16], i3[t-2]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])).

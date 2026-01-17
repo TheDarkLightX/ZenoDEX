@@ -1,0 +1,28 @@
+# Spec 92: Slashing Condition and Penalty Validator
+# NOVEL: Validates slashing penalties are proportional to offenses
+# Ensures fair punishment for protocol violations
+# Tracks repeated offenses for escalating penalties
+#
+# Inputs: i1 = stake_amount, i2 = slash_amount, i3 = offense_severity,
+#         i4 = offense_count, i5 = max_slash_pct
+# Outputs: o1 = slash_proportional, o2 = slash_capped, o3 = offense_valid, o4 = penalty_fair
+
+# Slash proportional: slash_amount based on severity
+# slash = stake * severity / 100
+# Cross-mult: slash * 100 <= stake * severity
+slashproportional(stake : bv[16], slash : bv[16], severity : bv[16]) := slash * { #x0064 }:bv[16] <= stake * severity.
+
+# Slash capped: cannot slash more than max_slash_pct of stake
+# slash * 100 <= stake * max_slash_pct
+slashcapped(stake : bv[16], slash : bv[16], maxpct : bv[16]) := slash * { #x0064 }:bv[16] <= stake * maxpct.
+
+# Offense valid: severity is within bounds (1-100)
+offensevalid(severity : bv[16]) := (severity > { #x0000 }:bv[16]) && (severity <= { #x0064 }:bv[16]).
+
+# Penalty fair: proportional AND capped AND offense valid
+penaltyfair(stake : bv[16], slash : bv[16], severity : bv[16], maxpct : bv[16]) := slashproportional(stake, slash, severity) && slashcapped(stake, slash, maxpct) && offensevalid(severity).
+
+# Repeat offender: offense count > 2
+repeatoffender(offensecount : bv[16]) := offensecount > { #x0002 }:bv[16].
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> slashproportional(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> slashcapped(i1[t]:bv[16], i2[t]:bv[16], i5[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> offensevalid(i3[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> penaltyfair(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i5[t]:bv[16])).

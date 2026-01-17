@@ -1,0 +1,23 @@
+# Spec 62: Just-In-Time (JIT) Liquidity Attack Detector
+# NOVEL: Detects JIT liquidity attacks where LPs sandwich traders
+# Pattern: liquidity added just before trade, removed just after
+# Temporal signature: spike -> trade -> drain within 3 steps
+#
+# Inputs: i1 = pool_liquidity, i2 = trade_occurred (1=yes)
+# Outputs: o1 = liquidity_spike, o2 = liquidity_drain, o3 = jit_pattern, o4 = lp_sandwich
+
+# Liquidity spike: > 30% increase from previous step
+# liq[t] * 10 > liq[t-1] * 13
+liqspike(curr : bv[16], prev : bv[16]) := curr * { #x000A }:bv[16] > prev * { #x000D }:bv[16].
+
+# Liquidity drain: > 25% decrease from previous step
+# liq[t] * 4 < liq[t-1] * 3
+liqdrain(curr : bv[16], prev : bv[16]) := curr * { #x0004 }:bv[16] < prev * { #x0003 }:bv[16].
+
+# JIT pattern: spike at t-2, trade at t-1, drain at t
+jitpattern(liq2 : bv[16], liq1 : bv[16], liq0 : bv[16], trade1 : sbf) := liqspike(liq1, liq2) && (trade1 = 1:sbf) && liqdrain(liq0, liq1).
+
+# LP sandwich: JIT pattern detected (LP sandwiched the trader)
+lpsandwich(liq2 : bv[16], liq1 : bv[16], liq0 : bv[16], trade1 : sbf) := jitpattern(liq2, liq1, liq0, trade1).
+
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> liqspike(i1[t]:bv[16], i1[t-1]:bv[16])) && (o2[t]:sbf = 1:sbf <-> liqdrain(i1[t]:bv[16], i1[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> jitpattern(i1[t-2]:bv[16], i1[t-1]:bv[16], i1[t]:bv[16], i2[t-1]:sbf)) && (o4[t]:sbf = 1:sbf <-> lpsandwich(i1[t-2]:bv[16], i1[t-1]:bv[16], i1[t]:bv[16], i2[t-1]:sbf)).

@@ -1,0 +1,26 @@
+# Spec 82: Sybil Attack Pattern Detector
+# NOVEL: Detects coordinated trading suggesting Sybil attack
+# Monitors for suspiciously synchronized trades across accounts
+# Flags wash trading and artificial volume patterns
+#
+# Inputs: i1 = trade_amount, i2 = account_trade_count, i3 = total_trades,
+#         i4 = unique_accounts, i5 = avg_trade_size
+# Outputs: o1 = concentration_high, o2 = pattern_suspicious, o3 = wash_trade_risk, o4 = sybil_alert
+
+# Concentration high: single account > 30% of trades
+# account_count * 100 > total_trades * 30
+concentrationhigh(accountcount : bv[16], totaltrades : bv[16]) := accountcount * { #x0064 }:bv[16] > totaltrades * { #x001E }:bv[16].
+
+# Pattern suspicious: trade amount very close to average (suggests bot)
+# |trade - avg| * 20 < avg (within 5%)
+patternsuspicious(tradeamt : bv[16], avgsize : bv[16]) := ((tradeamt >= avgsize) && ((tradeamt - avgsize) * { #x0014 }:bv[16] < avgsize)) || ((tradeamt < avgsize) && ((avgsize - tradeamt) * { #x0014 }:bv[16] < avgsize)).
+
+# Wash trade risk: few unique accounts making many trades
+# total_trades / unique_accounts > 10
+# Cross-mult: total_trades > unique_accounts * 10
+washtraderisk(totaltrades : bv[16], uniqueaccounts : bv[16]) := (uniqueaccounts > { #x0000 }:bv[16]) && (totaltrades > uniqueaccounts * { #x000A }:bv[16]).
+
+# Sybil alert: multiple indicators triggered
+sybilalert(concentration : sbf, pattern : sbf, wash : sbf) := (concentration = 1:sbf && pattern = 1:sbf) || (concentration = 1:sbf && wash = 1:sbf) || (pattern = 1:sbf && wash = 1:sbf).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> concentrationhigh(i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> patternsuspicious(i1[t]:bv[16], i5[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> washtraderisk(i3[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> sybilalert(o1[t]:sbf, o2[t]:sbf, o3[t]:sbf)).

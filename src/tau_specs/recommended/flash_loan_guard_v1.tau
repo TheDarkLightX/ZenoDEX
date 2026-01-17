@@ -1,0 +1,51 @@
+# Flash Loan Guard v1 - Single-Transaction Attack Prevention
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: borrow and repay cannot occur in same atomic context
+#
+# PURPOSE: Prevent flash loan attacks by requiring separation between
+# critical operations (borrow/trade/repay must span multiple contexts).
+# No passive payouts - purely an attack prevention gate.
+#
+# DbC Preconditions:
+# - All inputs are sbf signals.
+# - is_same_context indicates if we're in same atomic execution context.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff no dangerous flash loan pattern detected.
+#
+# Stream mapping:
+# i1 = has_borrow (sbf) - 1 if borrow occurred
+# i2 = has_trade (sbf) - 1 if price-impacting trade occurred
+# i3 = has_repay (sbf) - 1 if repay occurred
+# i4 = is_same_context (sbf) - 1 if all in same atomic context
+# o1 = borrow_repay_same
+# o2 = trade_with_borrow
+# o3 = flash_pattern_detected
+# o4 = flash_loan_safe
+# @rule o4: No borrow+trade+repay in same atomic context.
+
+set charvar off
+
+# Detects if borrow and repay happened in same context
+borrow_repay_same(borrow : sbf, repay : sbf, same_ctx : sbf) := (borrow = 1:sbf) && (repay = 1:sbf) && (same_ctx = 1:sbf).
+
+# Detects if trade happened with a borrow
+trade_with_borrow(borrow : sbf, trade : sbf, same_ctx : sbf) := (borrow = 1:sbf) && (trade = 1:sbf) && (same_ctx = 1:sbf).
+
+# Full flash loan attack pattern: borrow + trade + repay in same context
+flash_pattern_detected(borrow : sbf, trade : sbf, repay : sbf, same_ctx : sbf) := (borrow = 1:sbf) && (trade = 1:sbf) && (repay = 1:sbf) && (same_ctx = 1:sbf).
+
+# Flash loan safe: pattern NOT detected
+flash_loan_safe(borrow : sbf, trade : sbf, repay : sbf, same_ctx : sbf) := !flash_pattern_detected(borrow, trade, repay, same_ctx).
+
+always
+  # @section: Borrow+repay same context
+  (o1[t]:sbf = 1:sbf <-> borrow_repay_same(i1[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  # @section: Trade with borrow
+  (o2[t]:sbf = 1:sbf <-> trade_with_borrow(i1[t]:sbf, i2[t]:sbf, i4[t]:sbf)) &&
+  # @section: Full flash pattern
+  (o3[t]:sbf = 1:sbf <-> flash_pattern_detected(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  # @section: Flash loan safety (pattern NOT detected)
+  (o4[t]:sbf = 1:sbf <-> flash_loan_safe(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)).

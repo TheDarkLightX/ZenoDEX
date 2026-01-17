@@ -1,0 +1,16 @@
+# Spec 37: Adaptive Fee Tiering Based on Volatility (FIXED - proper base case)
+# Novel pattern: Fee tier based on 2-step price change magnitude.
+# Higher volatility = higher required fee (MEV protection).
+# Inputs: i1 = current price, i2 = proposed fee
+# Outputs: o1 = stable (change < 50), o2 = fee_valid
+#
+# BASE CASE: t=0 has no i1[t-1], so o1[0]=0 (assume volatile), o2[0]=0 (require high fee)
+# GENERAL CASE: t>=1, stability and fee validity computed from temporal data
+
+# Price stability check: |curr - prev| < threshold
+stable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr < { #x0032 }:bv[16])).
+
+# Fee validity: if stable, fee >= 10; if volatile, fee >= 50
+feeok(curr : bv[16], prev : bv[16], fee : bv[16]) := (stable(curr, prev) && fee >= { #x000A }:bv[16]) || (!stable(curr, prev) && fee >= { #x0032 }:bv[16]).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> stable(i1[t]:bv[16], i1[t-1]:bv[16])) && (o2[t]:sbf = 1:sbf <-> feeok(i1[t]:bv[16], i1[t-1]:bv[16], i2[t]:bv[16])).

@@ -1,0 +1,61 @@
+# Protocol token v1 (Tau-executable, external-computation validation)
+#
+# Purpose: Validate a single token state transition (transfer OR mint OR burn)
+# using 32-bit amounts represented as (hi, lo) 16-bit limbs.
+#
+# DbC Preconditions:
+# - All limbs are bv[16] (unsigned).
+# - Exactly one of i15/i16/i17 is set.
+#
+# DbC Postcondition:
+# - o1[t] = 1:sbf iff the selected transition preserves
+#   local conservation laws and supply rules.
+
+# Stream mapping:
+# i1 = from_before_hi
+# i2 = from_before_lo
+# i3 = to_before_hi
+# i4 = to_before_lo
+# i5 = supply_before_hi
+# i6 = supply_before_lo
+# i7 = amount_hi
+# i8 = amount_lo
+# i9 = from_after_hi
+# i10 = from_after_lo
+# i11 = to_after_hi
+# i12 = to_after_lo
+# i13 = supply_after_hi
+# i14 = supply_after_lo
+# i15 = do_transfer
+# i16 = do_mint
+# i17 = do_burn
+# o1 = token_transition_valid
+# @rule o1: Exactly one of transfer/mint/burn is selected and the selected state update is valid.
+
+set charvar off
+
+is_zero_32(hi : bv[16], lo : bv[16]) := (hi = { #x0000 }:bv[16]) && (lo = { #x0000 }:bv[16]).
+
+is_positive_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || ((hi = { #x0000 }:bv[16]) && (lo > { #x0000 }:bv[16])).
+
+one_hot_3(a : sbf, b : sbf, c : sbf) := ((a = 1:sbf) && (b = 0:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 1:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 0:sbf) && (c = 1:sbf)).
+
+add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := (sum_lo = (a_lo + b_lo)) && (((sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi + { #x0001 }:bv[16]))) && (!(sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi)))).
+
+sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], diff_hi : bv[16], diff_lo : bv[16]) := (diff_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (diff_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (diff_hi = (a_hi - b_hi)))).
+
+supply_eq() := (i13[t]:bv[16] = i5[t]:bv[16]) && (i14[t]:bv[16] = i6[t]:bv[16]).
+
+supply_inc_by_amount() := add_32(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16]).
+
+supply_dec_by_amount() := sub_32(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16]).
+
+transfer_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && sub_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16]) && add_32(i3[t]:bv[16], i4[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && supply_eq().
+
+mint_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && (i9[t]:bv[16] = i1[t]:bv[16]) && (i10[t]:bv[16] = i2[t]:bv[16]) && add_32(i3[t]:bv[16], i4[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && supply_inc_by_amount().
+
+burn_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && sub_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16]) && (i11[t]:bv[16] = i3[t]:bv[16]) && (i12[t]:bv[16] = i4[t]:bv[16]) && supply_dec_by_amount().
+
+always
+  # @section: Token transition validity
+  (o1[t]:sbf = 1:sbf <-> ((one_hot_3(i15[t]:sbf, i16[t]:sbf, i17[t]:sbf) = 1:sbf) && (((i15[t]:sbf = 1:sbf) && transfer_valid()) || ((i16[t]:sbf = 1:sbf) && mint_valid()) || ((i17[t]:sbf = 1:sbf) && burn_valid())))).

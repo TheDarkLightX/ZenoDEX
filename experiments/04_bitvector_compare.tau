@@ -1,0 +1,8 @@
+# Experiment 04: Bitvector comparisons
+# Testing greater-than, less-than for DEX reserve checks
+
+is_positive(x : bv[16]) := x > { #x0000 }:bv[16].
+is_gte(a : bv[16], b : bv[16]) := a >= b.
+
+# Output true if input is positive
+always (o1[t]:sbf = 1:sbf <-> is_positive(i1[t]:bv[16])).

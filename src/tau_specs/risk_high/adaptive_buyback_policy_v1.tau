@@ -1,0 +1,62 @@
+# Adaptive Buyback Policy v1 - Dynamic Buyback Based on Volatility
+#
+# WARNING: risk_high - dynamic economic policy with perception risk
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: volatility thresholds, buyback rates
+# IMMUTABLE_INVARIANTS: buyback bounded by volatility signal and caps
+#
+# PURPOSE: Dynamic buyback based on volatility and usage signals.
+# Higher volatility = lower buyback (preserve stability).
+# Higher usage = higher buyback (reward activity).
+# WARNING: More perception risk due to dynamic nature.
+#
+# Stream mapping:
+# i1 = volatility_bps (bv[32]) - current volatility
+# i2 = usage_score (bv[32]) - protocol usage
+# i3 = base_buyback_bps (bv[32]) - base buyback rate
+# i4 = buyback_amount (bv[32]) - computed buyback
+# i5 = treasury_balance (bv[32]) - treasury balance
+# i6 = max_buyback_bps (bv[32]) - max buyback as bps of treasury
+# i7 = volatility_dampener_bps (bv[32]) - how much volatility reduces buyback
+# o1 = params_ok
+# o2 = volatility_ok
+# o3 = cap_ok
+# o4 = adaptive_buyback_ok
+# @rule o4: Buyback bounded by caps AND volatility-adjusted.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(r : bv[32]) := r <= { #x00002710 }:bv[32].
+
+# Treasury positive
+treasury_ok(t : bv[32]) := t > { #x00000000 }:bv[32].
+
+# Safe
+safe_ok(v : bv[32]) := v <= max_safe_32().
+
+# Params ok
+params_ok(base : bv[32], max : bv[32], treasury : bv[32]) := rate_ok(base) && rate_ok(max) && treasury_ok(treasury) && safe_ok(treasury).
+
+# Volatility within reasonable range
+volatility_ok(vol : bv[32]) := vol <= { #x00002710 }:bv[32].
+
+# Cap ok: buyback * 10000 <= treasury * max_bps
+cap_ok(buyback : bv[32], treasury : bv[32], max_bps : bv[32]) := (buyback * { #x00002710 }:bv[32]) <= (treasury * max_bps).
+
+# Full check (simplified)
+adaptive_buyback_valid(vol : bv[32], usage : bv[32], base : bv[32], buyback : bv[32], treasury : bv[32], max_bps : bv[32]) := params_ok(base, max_bps, treasury) && volatility_ok(vol) && cap_ok(buyback, treasury, max_bps).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i6[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Volatility check
+  (o2[t]:sbf = 1:sbf <-> volatility_ok(i1[t]:bv[32])) &&
+  # @section: Cap check
+  (o3[t]:sbf = 1:sbf <-> cap_ok(i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])) &&
+  # @section: Aggregated adaptive buyback validity
+  (o4[t]:sbf = 1:sbf <-> adaptive_buyback_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])).

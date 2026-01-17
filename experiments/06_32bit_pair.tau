@@ -1,0 +1,11 @@
+# Experiment 06: 32-bit values using hi/lo pairs
+# DEX needs larger integers - use 2x bv[16] for 32-bit values
+
+# Check if a 32-bit value (hi:lo) is positive
+is_positive_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+
+# Compare two 32-bit values: (hi1:lo1) >= (hi2:lo2)
+gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+# Test: output true if reserve (i1:i2) >= amount (i3:i4)
+always (o1[t]:sbf = 1:sbf <-> gte_32(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).

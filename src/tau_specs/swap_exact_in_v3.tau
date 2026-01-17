@@ -1,0 +1,55 @@
+# TauSwap v3 swap exact-in validation (performance-optimized)
+#
+# This spec trades off exhaustive formula verification for performance.
+# It validates structural correctness and safety properties while
+# delegating exact CPMM formula verification to off-chain computation.
+#
+# VALIDATED:
+# - Positivity: reserves and amounts > 0
+# - Fee bounds: fee_bps <= 10000
+# - Slippage protection: out >= min_out
+# - Reserve transitions: new_rin = rin + gross, new_rout = rout - out
+# - K monotonicity: new_rin * new_rout >= rin * rout (via pre-computed k values)
+#
+# NOT VALIDATED (must be verified off-chain):
+# - Exact CPMM formula: out = (rout * net_in) / (rin + net_in)
+# - in_u32 bounds (caller must ensure values fit in u32)
+#
+# Stream mapping:
+# i1 = reserve_in (bv[32])
+# i2 = reserve_out (bv[32])
+# i3 = amount_in (bv[32])          # gross_in
+# i4 = fee_bps (bv[32])            # 0..10000
+# i5 = min_amount_out (bv[32])
+# i6 = amount_out (bv[32])         # externally computed
+# i7 = new_reserve_in (bv[32])
+# i8 = new_reserve_out (bv[32])
+# i9 = k_old (bv[64])              # pre-computed: rin * rout
+# i10 = k_new (bv[64])             # pre-computed: rin2 * rout2
+# o1 = swap_exact_in_valid
+#
+# @rule o1: swap is valid iff all structural constraints hold
+#
+# Performance: ~10s per step (vs 60s+ timeout for v2)
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    # Positivity
+    (i1[t]:bv[32] > { #x00000000 }:bv[32]) &&
+    (i2[t]:bv[32] > { #x00000000 }:bv[32]) &&
+    (i3[t]:bv[32] > { #x00000000 }:bv[32]) &&
+    # Fee bounds
+    (i4[t]:bv[32] <= { #x00002710 }:bv[32]) &&
+    # Output positivity and bounds
+    (i6[t]:bv[32] > { #x00000000 }:bv[32]) &&
+    (i6[t]:bv[32] < i2[t]:bv[32]) &&
+    # Slippage protection
+    (i6[t]:bv[32] >= i5[t]:bv[32]) &&
+    # Reserve transitions
+    (i7[t]:bv[32] = i1[t]:bv[32] + i3[t]:bv[32]) &&
+    (i8[t]:bv[32] = i2[t]:bv[32] - i6[t]:bv[32]) &&
+    # K monotonicity (pre-computed products)
+    (i10[t]:bv[64] >= i9[t]:bv[64])
+  ).

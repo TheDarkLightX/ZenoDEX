@@ -1,0 +1,35 @@
+# TDEX Lock Duration Weighting (PulseX-style weight tiers)
+# Inputs:
+# i1 = lock_days
+# i2 = stake_amount
+# i3 = tier1_days (lower threshold)
+# i4 = tier2_days (upper threshold)
+# i5 = weight_t1
+# i6 = weight_t2
+# i7 = weight_t3
+# i8 = weight_claimed
+# i9 = weighted_stake
+# Outputs:
+# o1 = thresholds_ok
+# o2 = weight_ok
+# o3 = weighted_stake_ok
+# o4 = lock_weight_ok
+# @rule o4: Tier thresholds, weight claim, and weighted stake must all pass.
+
+set charvar off
+
+thresholds_ok(t1 : bv[16], t2 : bv[16]) := t1 < t2.
+
+weight_tier_ok(lock : bv[16], t1 : bv[16], t2 : bv[16], w1 : bv[16], w2 : bv[16], w3 : bv[16], w : bv[16]) := ((lock < t1) && (w = w1)) || ((lock >= t1) && (lock < t2) && (w = w2)) || ((lock >= t2) && (w = w3)).
+
+weighted_stake_ok(stake : bv[16], w : bv[16], ws : bv[16]) := ws = stake * w.
+
+always
+  # tier thresholds are ordered
+  (o1[t]:sbf = 1:sbf <-> thresholds_ok(i3[t]:bv[16], i4[t]:bv[16])) &&
+  # claimed weight matches tier for lock duration
+  (o2[t]:sbf = 1:sbf <-> (thresholds_ok(i3[t]:bv[16], i4[t]:bv[16]) && weight_tier_ok(i1[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16]))) &&
+  # weighted stake is stake * weight
+  (o3[t]:sbf = 1:sbf <-> weighted_stake_ok(i2[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16])) &&
+  # final gate
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

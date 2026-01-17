@@ -1,0 +1,23 @@
+# REPL IO 54: Risk budget (aligned inputs, sbf-only)
+
+trade_req : sbf = in file("experiments/io/inputs/aligned_trade_req.in")
+risk_ok : sbf = in file("experiments/io/inputs/aligned_risk_ok_budget.in")
+reset_epoch : sbf = in file("experiments/io/inputs/aligned_reset_epoch_budget.in")
+
+b0 : sbf = out file("experiments/io/outputs/aligned_budget_b0.out")
+b1 : sbf = out file("experiments/io/outputs/aligned_budget_b1.out")
+can_trade : sbf = out file("experiments/io/outputs/aligned_can_trade.out")
+trade_fire : sbf = out file("experiments/io/outputs/aligned_trade_fire.out")
+cd1 : sbf = out file("experiments/io/outputs/aligned_cooldown1.out")
+cd2 : sbf = out file("experiments/io/outputs/aligned_cooldown2.out")
+cd_active : sbf = out file("experiments/io/outputs/aligned_cooldown_active.out")
+
+r (b0[0] = 1:sbf) && (b1[0] = 1:sbf) && (cd1[0] = 0:sbf) && (cd2[0] = 0:sbf) && (cd_active[0] = 0:sbf) &&
+  (can_trade[t] = (trade_req[t] & risk_ok[t] & cd_active[t-1]' & (b0[t-1] | b1[t-1]))) &&
+  (trade_fire[t] = (trade_req[t] & can_trade[t])) &&
+  (b0[t] = (reset_epoch[t] | (trade_fire[t]' & b0[t-1]) | (trade_fire[t] & b1[t-1] & b0[t-1]'))) &&
+  (b1[t] = (reset_epoch[t] | (trade_fire[t]' & b1[t-1]) | (trade_fire[t] & b1[t-1] & b0[t-1]))) &&
+  (cd1[t] = reset_epoch[t]' & trade_fire[t]) &&
+  (cd2[t] = reset_epoch[t]' & cd1[t-1]) &&
+  (cd_active[t] = reset_epoch[t]' & (cd1[t-1] | cd2[t-1]))
+q

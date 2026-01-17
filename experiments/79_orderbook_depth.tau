@@ -1,0 +1,28 @@
+# Spec 79: Order Book Depth and Spread Validator
+# NOVEL: Validates order book has sufficient liquidity depth
+# Ensures trades won't exhaust available liquidity at price levels
+# Monitors bid-ask spread for market health
+#
+# Inputs: i1 = bid_depth (total bid liquidity), i2 = ask_depth (total ask liquidity),
+#         i3 = best_bid, i4 = best_ask, i5 = trade_size
+# Outputs: o1 = depth_sufficient, o2 = spread_healthy, o3 = trade_executable, o4 = book_balanced
+
+# Depth sufficient: trade_size < 50% of side depth
+# Prevents single trade from draining liquidity
+depthsufficient(tradesize : bv[16], depth : bv[16]) := tradesize * { #x0002 }:bv[16] < depth.
+
+# Spread healthy: (ask - bid) / bid < 2% (tight spread)
+# Cross-mult: (ask - bid) * 50 < bid
+spreadhealthy(bid : bv[16], ask : bv[16]) := (ask >= bid) && ((ask - bid) * { #x0032 }:bv[16] < bid).
+
+# Trade executable: sufficient depth on both sides AND healthy spread
+tradeexecutable(tradesize : bv[16], biddepth : bv[16], askdepth : bv[16], bid : bv[16], ask : bv[16]) := depthsufficient(tradesize, biddepth) && depthsufficient(tradesize, askdepth) && spreadhealthy(bid, ask).
+
+# Book balanced: bid and ask depths within 3x of each other
+# bid_depth * 3 >= ask_depth AND ask_depth * 3 >= bid_depth
+bookbalanced(biddepth : bv[16], askdepth : bv[16]) := (biddepth * { #x0003 }:bv[16] >= askdepth) && (askdepth * { #x0003 }:bv[16] >= biddepth).
+
+# Depth depleting: depth decreased significantly from previous step
+depthdepleting(currdepth : bv[16], prevdepth : bv[16]) := currdepth * { #x0002 }:bv[16] < prevdepth.
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> depthsufficient(i5[t]:bv[16], i1[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> spreadhealthy(i3[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> tradeexecutable(i5[t]:bv[16], i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> bookbalanced(i1[t]:bv[16], i2[t]:bv[16])).

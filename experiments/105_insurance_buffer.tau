@@ -1,0 +1,10 @@
+# Spec 105: Insurance Buffer Update
+# Pattern: buffer_after = buffer_before + deposit - payout, buffer_after >= min_required
+# Inputs: i1=buffer_before, i2=deposit, i3=payout, i4=buffer_after, i5=min_required
+# Output: o1=buffer_ok
+
+no_wrap_add2(a : bv[16], b : bv[16]) := (a + b >= a) && (a + b >= b).
+
+buffer_ok(before : bv[16], deposit : bv[16], payout : bv[16], after : bv[16], min_required : bv[16]) := no_wrap_add2(before, deposit) && (payout <= before + deposit) && (after = before + deposit - payout) && (after >= min_required).
+
+always (o1[t]:sbf = 1:sbf <-> buffer_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

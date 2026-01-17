@@ -1,0 +1,58 @@
+# Reserve Invariant Guard v1 - CPMM k Monotonicity
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none (drift must be zero in strict mode)
+# IMMUTABLE_INVARIANTS: k_after >= k_before (strict monotonic)
+#
+# PURPOSE: Enforce constant product (k = x * y) monotonicity for CPMM pools.
+# k should never decrease (only increase from fees).
+# Drift is disabled in this strict recommended profile.
+# No passive payouts - purely an invariant guard.
+#
+# Stream mapping:
+# i1 = reserve_x_before (bv[32])
+# i2 = reserve_y_before (bv[32])
+# i3 = reserve_x_after (bv[32])
+# i4 = reserve_y_after (bv[32])
+# i5 = max_drift_bps (bv[32]) - must be 0 in strict mode
+# o1 = params_ok
+# o2 = k_computed_ok
+# o3 = k_monotonic_ok
+# o4 = reserve_invariant_ok
+# @rule o4: k_after >= k_before (strict mode; drift must be zero).
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Reserves must be positive
+reserves_ok(x : bv[32], y : bv[32]) := (x > { #x00000000 }:bv[32]) && (y > { #x00000000 }:bv[32]).
+
+# Drift must be zero in strict mode
+drift_ok(drift : bv[32]) := drift = { #x00000000 }:bv[32].
+
+# Safe range for multiplication (use smaller bound for k computation)
+safe_ok(x : bv[32], y : bv[32]) := (x <= { #x0000FFFF }:bv[32]) && (y <= { #x0000FFFF }:bv[32]).
+
+# Params valid
+params_ok(xb : bv[32], yb : bv[32], xa : bv[32], ya : bv[32], drift : bv[32]) := reserves_ok(xb, yb) && reserves_ok(xa, ya) && drift_ok(drift) && safe_ok(xb, yb) && safe_ok(xa, ya).
+
+# k computation ok (non-zero)
+k_ok(x : bv[32], y : bv[32]) := (x * y) > { #x00000000 }:bv[32].
+
+# k monotonic (strict): k_after >= k_before
+k_monotonic(xb : bv[32], yb : bv[32], xa : bv[32], ya : bv[32], drift : bv[32]) := (xa * ya) >= (xb * yb).
+
+# Full check
+reserve_invariant_valid(xb : bv[32], yb : bv[32], xa : bv[32], ya : bv[32], drift : bv[32]) := params_ok(xb, yb, xa, ya, drift) && k_ok(xb, yb) && k_ok(xa, ya) && k_monotonic(xb, yb, xa, ya, drift).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: k computation valid
+  (o2[t]:sbf = 1:sbf <-> (k_ok(i1[t]:bv[32], i2[t]:bv[32]) && k_ok(i3[t]:bv[32], i4[t]:bv[32]))) &&
+  # @section: k monotonicity check
+  (o3[t]:sbf = 1:sbf <-> k_monotonic(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated invariant validity
+  (o4[t]:sbf = 1:sbf <-> reserve_invariant_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

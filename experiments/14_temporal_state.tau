@@ -1,0 +1,3 @@
+set charvar off
+
+run always ((i0volume[t] : bv[16] & { #xFFFF } : bv[16] = i0volume[t]) && (o0prev[t] : bv[16] = i0volume[t-1]) && (o1trend[t] : bv[16] = i0volume[t] - o0prev[t]) && ((i0volume[t] > { #x2710 } : bv[16]) ? (o2limit[t] : bv[8] = { #x00 } : bv[8] && o3status[t] : bv[8] = { #x02 } : bv[8]) : (i0volume[t] > { #x1388 } : bv[16]) ? (o2limit[t] = { #x32 } : bv[8] && o3status[t] = { #x01 } : bv[8]) : (o2limit[t] = { #x64 } : bv[8] && o3status[t] = { #x00 } : bv[8])))

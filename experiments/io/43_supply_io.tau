@@ -1,0 +1,15 @@
+# Experiment 43: Supply invariants (mint/burn/cap)
+
+# Inputs: mint, burn, cap
+
+i1 : bv[16] = in file("experiments/io/inputs/mint.in")
+i2 : bv[16] = in file("experiments/io/inputs/burn.in")
+i3 : bv[16] = in file("experiments/io/inputs/cap.in")
+
+# Outputs: supply, ok
+
+o1 : bv[16] = out file("experiments/io/outputs/supply.out")
+o2 : sbf = out file("experiments/io/outputs/supply_ok.out")
+
+r (o1[0] = { #x0000 }:bv[16]) && (o1[t] = o1[t-1] + i1[t] - i2[t]) && (o2[t] = 1:sbf <-> ((i2[t] <= (o1[t-1] + i1[t])) && (o1[t] <= i3[t])))
+q

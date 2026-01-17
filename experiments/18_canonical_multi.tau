@@ -1,0 +1,18 @@
+# Iteration 4: Canonical ordering with multi-output validation
+# Combines: intent matching, price stability, canonical order, sandwich detection
+
+# Intent matching
+intentsmatch(bp : bv[16], sp : bv[16]) := bp >= sp.
+
+# Price stability (< 10% change)
+pricestable(curr : bv[16], prev : bv[16]) := (curr >= prev) ? (curr - prev < { #x03E8 }:bv[16]) : (prev - curr < { #x03E8 }:bv[16]).
+
+# Canonical order: lower ID executes first
+iscanonical(ida : bv[16], idb : bv[16], first : bv[16], second : bv[16]) := (ida <= idb && first = ida && second = idb) || (idb < ida && first = idb && second = ida).
+
+# Sandwich detection
+isspike(before : bv[16], peak : bv[16], after : bv[16]) := (peak > before) && (peak > after).
+nosandwich(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := !isspike(p0, p1, p2).
+
+# Multi-output spec: o1=match, o2=stable, o3=canonical, o4=nosandwich
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> intentsmatch(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> pricestable(i3[t]:bv[16], i3[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> iscanonical(i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> nosandwich(i3[t-2]:bv[16], i3[t-1]:bv[16], i3[t]:bv[16])).

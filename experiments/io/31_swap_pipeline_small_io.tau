@@ -1,0 +1,16 @@
+# Experiment 31: Swap pipeline on small reserves (bv[16])
+# Computes fee, net_in, amount_out, and new reserves.
+
+i1 : bv[16] = in file("experiments/io/inputs/reserve_x_small.in")
+i2 : bv[16] = in file("experiments/io/inputs/reserve_y_small.in")
+i3 : bv[16] = in file("experiments/io/inputs/amount_in_small.in")
+i4 : bv[16] = in file("experiments/io/inputs/fee_bps_small.in")
+
+o1 : bv[16] = out file("experiments/io/outputs/fee_small.out")
+o2 : bv[16] = out file("experiments/io/outputs/net_in_small.out")
+o3 : bv[16] = out file("experiments/io/outputs/amount_out_small.out")
+o4 : bv[16] = out file("experiments/io/outputs/new_x_small.out")
+o5 : bv[16] = out file("experiments/io/outputs/new_y_small.out")
+
+r (o1[t] = (i3[t] * i4[t]) / { #x2710 }:bv[16]) && (o2[t] = i3[t] - o1[t]) && (o3[t] = (o2[t] * i2[t]) / (i1[t] + o2[t])) && (o4[t] = i1[t] + o2[t]) && (o5[t] = i2[t] - o3[t])
+q

@@ -1,0 +1,10 @@
+# Spec 107: Exit Tax Lock
+# Pattern: early exit pays tax, unlock exit pays no tax
+# Inputs: i1=withdraw, i2=tax, i3=tax_rate_pct, i4=now, i5=lock_end, i6=withdraw_after
+# Output: o1=exit_ok
+
+tax_calc_ok(withdraw : bv[16], tax : bv[16], tax_rate : bv[16]) := (withdraw <= { #x028F }:bv[16]) && (tax_rate <= { #x0064 }:bv[16]) && (tax * { #x0064 }:bv[16] = withdraw * tax_rate) && (tax <= withdraw).
+
+exit_ok(now : bv[16], lock_end : bv[16], withdraw : bv[16], tax : bv[16], tax_rate : bv[16], withdraw_after : bv[16]) := ((now < lock_end) && tax_calc_ok(withdraw, tax, tax_rate) && (withdraw_after = withdraw - tax)) || ((now >= lock_end) && (tax = { #x0000 }:bv[16]) && (withdraw_after = withdraw)).
+
+always (o1[t]:sbf = 1:sbf <-> exit_ok(i4[t]:bv[16], i5[t]:bv[16], i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i6[t]:bv[16])).

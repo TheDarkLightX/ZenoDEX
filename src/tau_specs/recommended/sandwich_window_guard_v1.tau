@@ -1,0 +1,62 @@
+# Sandwich Window Guard v1 - Enhanced Sandwich Detection
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_impact_bps (i5), window_blocks (i6)
+# IMMUTABLE_INVARIANTS: no suspicious price patterns in surrounding blocks
+#
+# PURPOSE: Stronger sandwich detector using pattern-based heuristics:
+# - Check price at multiple points in window
+# - Detect reversal patterns (up-target-down or down-target-up)
+# No passive payouts - purely a market integrity gate.
+#
+# Stream mapping:
+# i1 = price_start (bv[32]) - price at window start
+# i2 = price_pre_target (bv[32]) - price just before target tx
+# i3 = price_post_target (bv[32]) - price just after target tx
+# i4 = price_end (bv[32]) - price at window end
+# i5 = max_impact_bps (bv[32]) - max allowed movement
+# o1 = params_ok
+# o2 = pre_move_ok
+# o3 = post_move_ok
+# o4 = sandwich_window_ok
+# @rule o4: No reversal pattern exceeding max_impact.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# All prices positive and safe
+prices_ok(p1 : bv[32], p2 : bv[32], p3 : bv[32], p4 : bv[32]) := (p1 > { #x00000000 }:bv[32]) && (p2 > { #x00000000 }:bv[32]) && (p3 > { #x00000000 }:bv[32]) && (p4 > { #x00000000 }:bv[32]) && (p1 <= max_safe_32()) && (p2 <= max_safe_32()) && (p3 <= max_safe_32()) && (p4 <= max_safe_32()).
+
+# Window must be positive
+window_ok(win : bv[32]) := win > { #x00000000 }:bv[32].
+
+# Params valid
+params_ok(p1 : bv[32], p2 : bv[32], p3 : bv[32], p4 : bv[32], bps : bv[32], win : bv[32]) := prices_ok(p1, p2, p3, p4) && rate_ok(bps) && window_ok(win).
+
+# Pre-target move ok: |pre - start| * 10000 <= start * max_bps
+pre_up(start : bv[32], pre : bv[32], bps : bv[32]) := ((pre - start) * { #x00002710 }:bv[32]) <= (start * bps).
+pre_down(start : bv[32], pre : bv[32], bps : bv[32]) := ((start - pre) * { #x00002710 }:bv[32]) <= (start * bps).
+pre_move_ok(start : bv[32], pre : bv[32], bps : bv[32]) := ((pre >= start) && pre_up(start, pre, bps)) || ((pre < start) && pre_down(start, pre, bps)).
+
+# Post-target move ok: |end - post| * 10000 <= post * max_bps
+post_up(post : bv[32], end : bv[32], bps : bv[32]) := ((end - post) * { #x00002710 }:bv[32]) <= (post * bps).
+post_down(post : bv[32], end : bv[32], bps : bv[32]) := ((post - end) * { #x00002710 }:bv[32]) <= (post * bps).
+post_move_ok(post : bv[32], end : bv[32], bps : bv[32]) := ((end >= post) && post_up(post, end, bps)) || ((end < post) && post_down(post, end, bps)).
+
+# Full check
+sandwich_window_valid(p1 : bv[32], p2 : bv[32], p3 : bv[32], p4 : bv[32], bps : bv[32], win : bv[32]) := params_ok(p1, p2, p3, p4, bps, win) && pre_move_ok(p1, p2, bps) && post_move_ok(p3, p4, bps).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])) &&
+  # @section: Pre-target move
+  (o2[t]:sbf = 1:sbf <-> pre_move_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Post-target move
+  (o3[t]:sbf = 1:sbf <-> post_move_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated sandwich window validity
+  (o4[t]:sbf = 1:sbf <-> sandwich_window_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])).

@@ -1,0 +1,453 @@
+# [FORGE] ZenoDEX CPMM swap kernel spec (fee + min-out, deterministic rounding)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "cpmm_swap"
+  notes: "CPMM swap validation kernel"
+observables:
+  state_vars: ["reserve_x", "reserve_y", "fee_bps"]
+  effects: ["swap_dir", "amount_in", "fee_paid", "net_in", "amount_out", "k_before", "k_after"]
+types:
+  - id: "t_swap_dir"
+    type:
+      kind: "enum"
+      symbols: ["XForY", "YForX"]
+state_vars:
+  - id: "reserve_x_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 50 }
+  - id: "reserve_x"
+    role: "data"
+    type: { kind: "int", min: 1, max: 50 }
+  - id: "reserve_y_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 50 }
+  - id: "reserve_y"
+    role: "data"
+    type: { kind: "int", min: 1, max: 50 }
+  - id: "fee_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+invariants:
+  - id: "inv_reserve_x_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve_x" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "reserve_x" }, { const: 50 }] }
+  - id: "inv_reserve_y_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve_y" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "reserve_y" }, { const: 50 }] }
+  # Economic safety: constant-product should not decrease for fee-in-pool swaps.
+  # Expressed using snapshot vars captured each step.
+  - id: "inv_k_non_decreasing"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - op: "*"
+          args: [{ var: "reserve_x" }, { var: "reserve_y" }]
+        - op: "*"
+          args: [{ var: "reserve_x_before" }, { var: "reserve_y_before" }]
+init:
+  - var: "reserve_x_before"
+    expr: { const: 25 }
+  - var: "reserve_x"
+    expr: { const: 25 }
+  - var: "reserve_y_before"
+    expr: { const: 25 }
+  - var: "reserve_y"
+    expr: { const: 25 }
+  - var: "fee_bps"
+    expr: { const: 30 }
+actions:
+  - id: "swap_x_for_y"
+    params:
+      - id: "amount_in_x"
+        type: { kind: "int", min: 1, max: 50 }
+      - id: "min_amount_out"
+        type: { kind: "int", min: 0, max: 50 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "reserve_x" }, { param: "amount_in_x" }]
+            - { const: 50 }
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_x" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+                    - { var: "reserve_y" }
+                - op: "+"
+                  args:
+                    - { var: "reserve_x" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_x" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { const: 1 }
+        - op: ">="
+          args:
+            - op: "-"
+              args:
+                - { var: "reserve_y" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args:
+                            - { param: "amount_in_x" }
+                            - op: "div"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - op: "*"
+                                      args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                                    - { const: 9999 }
+                                - { const: 10000 }
+                        - { var: "reserve_y" }
+                    - op: "+"
+                      args:
+                        - { var: "reserve_x" }
+                        - op: "-"
+                          args:
+                            - { param: "amount_in_x" }
+                            - op: "div"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - op: "*"
+                                      args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                                    - { const: 9999 }
+                                - { const: 10000 }
+            - { const: 1 }
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_x" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+                    - { var: "reserve_y" }
+                - op: "+"
+                  args:
+                    - { var: "reserve_x" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_x" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { param: "min_amount_out" }
+    updates:
+      - var: "reserve_x_before"
+        expr: { var: "reserve_x" }
+      - var: "reserve_y_before"
+        expr: { var: "reserve_y" }
+      - var: "reserve_x"
+        expr:
+          op: "+"
+          args: [{ var: "reserve_x" }, { param: "amount_in_x" }]
+      - var: "reserve_y"
+        expr:
+          op: "-"
+          args:
+            - { var: "reserve_y" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_x" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+                    - { var: "reserve_y" }
+                - op: "+"
+                  args:
+                    - { var: "reserve_x" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_x" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+    effects:
+      swap_dir: { enum: "XForY" }
+      amount_in: { param: "amount_in_x" }
+      fee_paid:
+        op: "div"
+        args:
+          - op: "+"
+            args:
+              - op: "*"
+                args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+              - { const: 9999 }
+          - { const: 10000 }
+      net_in:
+        op: "-"
+        args:
+          - { param: "amount_in_x" }
+          - op: "div"
+            args:
+              - op: "+"
+                args:
+                  - op: "*"
+                    args: [{ param: "amount_in_x" }, { var: "fee_bps" }]
+                  - { const: 9999 }
+              - { const: 10000 }
+      amount_out:
+        op: "-"
+        args: [{ var: "reserve_y_before" }, { var: "reserve_y" }]
+      k_before:
+        op: "*"
+        args: [{ var: "reserve_x_before" }, { var: "reserve_y_before" }]
+      k_after:
+        op: "*"
+        args: [{ var: "reserve_x" }, { var: "reserve_y" }]
+  - id: "swap_y_for_x"
+    params:
+      - id: "amount_in_y"
+        type: { kind: "int", min: 1, max: 50 }
+      - id: "min_amount_out"
+        type: { kind: "int", min: 0, max: 50 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "reserve_y" }, { param: "amount_in_y" }]
+            - { const: 50 }
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_y" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+                    - { var: "reserve_x" }
+                - op: "+"
+                  args:
+                    - { var: "reserve_y" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_y" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { const: 1 }
+        - op: ">="
+          args:
+            - op: "-"
+              args:
+                - { var: "reserve_x" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args:
+                            - { param: "amount_in_y" }
+                            - op: "div"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - op: "*"
+                                      args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                                    - { const: 9999 }
+                                - { const: 10000 }
+                        - { var: "reserve_x" }
+                    - op: "+"
+                      args:
+                        - { var: "reserve_y" }
+                        - op: "-"
+                          args:
+                            - { param: "amount_in_y" }
+                            - op: "div"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - op: "*"
+                                      args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                                    - { const: 9999 }
+                                - { const: 10000 }
+            - { const: 1 }
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_y" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+                    - { var: "reserve_x" }
+                - op: "+"
+                  args:
+                    - { var: "reserve_y" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_y" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { param: "min_amount_out" }
+    updates:
+      - var: "reserve_x_before"
+        expr: { var: "reserve_x" }
+      - var: "reserve_y_before"
+        expr: { var: "reserve_y" }
+      - var: "reserve_y"
+        expr:
+          op: "+"
+          args: [{ var: "reserve_y" }, { param: "amount_in_y" }]
+      - var: "reserve_x"
+        expr:
+          op: "-"
+          args:
+            - { var: "reserve_x" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_y" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+                    - { var: "reserve_x" }
+                - op: "+"
+                  args:
+                    - { var: "reserve_y" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in_y" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                                - { const: 9999 }
+                            - { const: 10000 }
+    effects:
+      swap_dir: { enum: "YForX" }
+      amount_in: { param: "amount_in_y" }
+      fee_paid:
+        op: "div"
+        args:
+          - op: "+"
+            args:
+              - op: "*"
+                args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+              - { const: 9999 }
+          - { const: 10000 }
+      net_in:
+        op: "-"
+        args:
+          - { param: "amount_in_y" }
+          - op: "div"
+            args:
+              - op: "+"
+                args:
+                  - op: "*"
+                    args: [{ param: "amount_in_y" }, { var: "fee_bps" }]
+                  - { const: 9999 }
+              - { const: 10000 }
+      amount_out:
+        op: "-"
+        args: [{ var: "reserve_x_before" }, { var: "reserve_x" }]
+      k_before:
+        op: "*"
+        args: [{ var: "reserve_x_before" }, { var: "reserve_y_before" }]
+      k_after:
+        op: "*"
+        args: [{ var: "reserve_x" }, { var: "reserve_y" }]

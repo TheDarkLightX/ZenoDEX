@@ -1,0 +1,12 @@
+# Isolation: protocol token one_hot only
+
+i15 : sbf = in file("experiments/io/inputs/protocol_token_do_transfer.in")
+i16 : sbf = in file("experiments/io/inputs/protocol_token_do_mint.in")
+i17 : sbf = in file("experiments/io/inputs/protocol_token_do_burn.in")
+
+o1 : sbf = out file("experiments/isolation/outputs/protocol_token_onehot_ok.out")
+
+one_hot_3(a : sbf, b : sbf, c : sbf) := ((a = 1:sbf) && (b = 0:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 1:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 0:sbf) && (c = 1:sbf)).
+
+r (o1[t]:sbf = 1:sbf <-> (one_hot_3(i15[t]:sbf, i16[t]:sbf, i17[t]:sbf) = 1:sbf))
+q

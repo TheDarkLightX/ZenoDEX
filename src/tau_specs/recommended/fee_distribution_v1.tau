@@ -1,0 +1,47 @@
+# Fee Distribution v1 - Round 5 (DEX)
+# [ORACLE] v2
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS:
+# - Conservation: lp_share + treasury_share + agrs_burn == total_fee (no-wrap)
+# - Deterministic rounding: remainder goes to agrs_burn
+# - Monotonicity: total_fee > 0 => (lp_share > 0 || treasury_share > 0 || agrs_burn > 0)
+#
+# PURPOSE: Validate externally-computed fee distribution for DEX fees.
+# Split rule (exact integer math; remainder-to-burn):
+# - lp_share = floor(total_fee * 60 / 100)
+# - treasury_share = floor(total_fee * 20 / 100)
+# - agrs_burn = total_fee - lp_share - treasury_share  (absorbs remainder)
+#
+# Safe math:
+# - Guard: total_fee <= MAX_U64 / 60 (prevents overflow in total_fee * 60 and total_fee * 20)
+#
+# Stream mapping:
+# i1 = total_fee (bv[64])
+# i2 = lp_share (bv[64])        # 60%
+# i3 = treasury_share (bv[64])  # 20%
+# i4 = agrs_burn (bv[64])       # 20% + remainder
+# o1 = split_math_ok
+# o2 = conservation_ok
+# o3 = monotonicity_ok
+# o4 = fee_distribution_ok
+# @rule o4: 60/20/20 split with remainder-to-burn, conservation, and monotonicity.
+
+no_wrap_add2(a : bv[64], b : bv[64]) := (a + b >= a) && (a + b >= b).
+
+no_wrap_mul60(total : bv[64]) := total <= { #x0444444444444444 }:bv[64].
+
+lp_expected(total : bv[64]) := ((total * { #x000000000000003c }:bv[64]) / { #x0000000000000064 }:bv[64]).
+
+treasury_expected(total : bv[64]) := ((total * { #x0000000000000014 }:bv[64]) / { #x0000000000000064 }:bv[64]).
+
+split_math_ok(total : bv[64], lp : bv[64], treas : bv[64], burn : bv[64]) := no_wrap_mul60(total) && (lp = lp_expected(total)) && (treas = treasury_expected(total)) && no_wrap_add2(lp, treas) && ((lp + treas) <= total) && (burn = (total - (lp + treas))).
+
+conservation_ok(total : bv[64], lp : bv[64], treas : bv[64], burn : bv[64]) := no_wrap_add2(lp, treas) && no_wrap_add2(lp + treas, burn) && ((lp + treas + burn) = total).
+
+monotonicity_ok(total : bv[64], lp : bv[64], treas : bv[64], burn : bv[64]) := (total > { #x0000000000000000 }:bv[64]) -> ((lp > { #x0000000000000000 }:bv[64]) || (treas > { #x0000000000000000 }:bv[64]) || (burn > { #x0000000000000000 }:bv[64])).
+
+fee_distribution_ok(total : bv[64], lp : bv[64], treas : bv[64], burn : bv[64]) := split_math_ok(total, lp, treas, burn) && conservation_ok(total, lp, treas, burn) && monotonicity_ok(total, lp, treas, burn).
+
+always ((o1[t]:sbf = 1:sbf <-> split_math_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) && (o2[t]:sbf = 1:sbf <-> conservation_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) && (o3[t]:sbf = 1:sbf <-> monotonicity_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) && (o4[t]:sbf = 1:sbf <-> fee_distribution_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]))).

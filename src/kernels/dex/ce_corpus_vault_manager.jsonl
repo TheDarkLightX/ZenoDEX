@@ -1,0 +1,1 @@
+{"kind":"step","meta":{"model_id":"vault_manager"},"state":{"acc_reward_per_share":0,"last_update_acc":0,"pending_rewards":0,"reward_balance":0,"staked_lp_shares":0},"command":{"tag":"deposit_rewards","args":{"amount":100}},"details":{"note":"Representative vault reward deposit step for CE maturity."},"retained":true,"minimized":true,"duplicate":false}

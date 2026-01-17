@@ -1,0 +1,7 @@
+# Isolation: bv16 echo
+
+i1 : bv[16] = in file("experiments/io/inputs/swap_exact_in_reserve_in_lo.in")
+o1 : bv[16] = out file("experiments/isolation/outputs/bv16_echo.out")
+
+r (o1[t] = i1[t])
+q

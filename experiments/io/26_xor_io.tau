@@ -1,0 +1,8 @@
+# Experiment 26: XOR with file I/O (sbf)
+
+i1 : sbf = in file("experiments/io/inputs/xor_a.in")
+i2 : sbf = in file("experiments/io/inputs/xor_b.in")
+o1 : sbf = out file("experiments/io/outputs/xor_out.out")
+
+r o1[t] = i1[t] ^ i2[t]
+q

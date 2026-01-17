@@ -1,0 +1,93 @@
+# Token V5 - Full Finite State Machine Token
+#
+# MUTABILITY: PARTIAL
+# UPDATABLE_PARAMS: required_lock_time (i4), governance_approved (i5)
+# IMMUTABLE_INVARIANTS: state transition rules, BURNED is terminal
+#
+# ALGORITHM: Complete Token Lifecycle State Machine
+# Models all token states and valid transitions
+# Implements governance, vesting, staking, and burn states
+#
+# STATE DIAGRAM:
+# ┌─────────┐    mint    ┌──────────┐
+# │ GENESIS │ ─────────> │ ACTIVE   │
+# └─────────┘            └────┬─────┘
+#                             │
+#          ┌──────────────────┼──────────────────┐
+#          │                  │                  │
+#          v                  v                  v
+#    ┌──────────┐      ┌──────────┐      ┌──────────┐
+#    │ VESTING  │      │ STAKED   │      │ LOCKED   │
+#    └────┬─────┘      └────┬─────┘      └────┬─────┘
+#          │                │                  │
+#          └────────────────┼──────────────────┘
+#                           │ unlock/unstake/vest
+#                           v
+#                    ┌──────────┐
+#                    │ ACTIVE   │
+#                    └────┬─────┘
+#                         │ burn
+#                         v
+#                    ┌──────────┐
+#                    │ BURNED   │ (terminal, reduces supply)
+#                    └──────────┘
+#
+# States (encoded as bv[16]):
+# 0 = GENESIS, 1 = ACTIVE, 2 = VESTING, 3 = STAKED, 4 = LOCKED, 5 = BURNED
+#
+# Inputs:
+# i1 = current_state
+# i2 = requested_transition (0=none, 1=mint, 2=vest, 3=stake, 4=lock, 5=burn, 6=unlock)
+# i3 = time_elapsed (for vesting/lock periods)
+# i4 = required_lock_time
+# i5 = governance_approved (1=yes)
+# Outputs:
+# o1 = transition_valid
+# o2 = state_active (can transfer)
+# o3 = state_terminal (burned)
+# o4 = fsm_consistent
+
+# State constants
+stategenesis() := { #x0000 }:bv[16].
+stateactive() := { #x0001 }:bv[16].
+statevesting() := { #x0002 }:bv[16].
+statestaked() := { #x0003 }:bv[16].
+statelocked() := { #x0004 }:bv[16].
+stateburned() := { #x0005 }:bv[16].
+
+# Transition constants
+txnone() := { #x0000 }:bv[16].
+txmint() := { #x0001 }:bv[16].
+txvest() := { #x0002 }:bv[16].
+txstake() := { #x0003 }:bv[16].
+txlock() := { #x0004 }:bv[16].
+txburn() := { #x0005 }:bv[16].
+txunlock() := { #x0006 }:bv[16].
+
+# Valid transitions from each state
+validfromgenesis(tx : bv[16]) := tx = txmint().
+
+validfromactive(tx : bv[16]) := (tx = txvest()) || (tx = txstake()) || (tx = txlock()) || (tx = txburn()).
+
+validfromvesting(tx : bv[16], elapsed : bv[16], required : bv[16]) := (tx = txunlock()) && (elapsed >= required).
+
+validfromstaked(tx : bv[16]) := tx = txunlock().
+
+validfromlocked(tx : bv[16], elapsed : bv[16], required : bv[16], govapproved : sbf) := ((tx = txunlock()) && (elapsed >= required)) || ((tx = txunlock()) && (govapproved = 1:sbf)).
+
+# Burned is terminal - no valid transitions
+validfromburned(tx : bv[16]) := tx = txnone().
+
+# Transition valid based on current state
+transitionvalid(state : bv[16], tx : bv[16], elapsed : bv[16], required : bv[16], govapproved : sbf) := ((state = stategenesis()) && validfromgenesis(tx)) || ((state = stateactive()) && validfromactive(tx)) || ((state = statevesting()) && validfromvesting(tx, elapsed, required)) || ((state = statestaked()) && validfromstaked(tx)) || ((state = statelocked()) && validfromlocked(tx, elapsed, required, govapproved)) || ((state = stateburned()) && validfromburned(tx)).
+
+# State is active (can transfer)
+isactive(state : bv[16]) := state = stateactive().
+
+# State is terminal (burned)
+isterminal(state : bv[16]) := state = stateburned().
+
+# FSM consistent: valid state AND valid transition
+fsmconsistent(state : bv[16], tx : bv[16], elapsed : bv[16], required : bv[16], govapproved : sbf) := (state <= stateburned()) && ((tx = txnone()) || transitionvalid(state, tx, elapsed, required, govapproved)).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> transitionvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> isactive(i1[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> isterminal(i1[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> fsmconsistent(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:sbf)).

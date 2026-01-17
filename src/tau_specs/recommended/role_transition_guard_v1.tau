@@ -1,0 +1,58 @@
+# Role Transition Guard v1 - Role Change Validation
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: role transitions follow proper process
+#
+# PURPOSE: Validate role changes (admin, operator, guardian) follow
+# proper transition rules with timelock and multi-sig requirements.
+# No passive payouts - purely an access control gate.
+#
+# Stream mapping:
+# i1 = current_role (bv[8]) - current role ID
+# i2 = target_role (bv[8]) - target role ID
+# i3 = timelock_elapsed (sbf) - 1 if timelock passed
+# i4 = multisig_approved (sbf) - 1 if multi-sig approved
+# i5 = role_level_current (bv[8]) - privilege level of current
+# i6 = role_level_target (bv[8]) - privilege level of target
+# o1 = roles_ok
+# o2 = elevation_ok
+# o3 = approval_ok
+# o4 = role_transition_ok
+# @rule o4: Roles valid AND (demotion OR (elevation with timelock + multisig)).
+
+set charvar off
+
+# Role IDs
+role_none() := { #x00 }:bv[8].
+role_operator() := { #x01 }:bv[8].
+role_guardian() := { #x02 }:bv[8].
+role_admin() := { #x03 }:bv[8].
+
+# Role valid
+role_valid(r : bv[8]) := r <= role_admin().
+
+# Both roles valid
+roles_ok(current : bv[8], target : bv[8]) := role_valid(current) && role_valid(target).
+
+# Elevation: target level > current level
+is_elevation(curr_level : bv[8], target_level : bv[8]) := target_level > curr_level.
+
+# Demotion: target level <= current level (always allowed)
+is_demotion(curr_level : bv[8], target_level : bv[8]) := target_level <= curr_level.
+
+# Elevation requires timelock AND multisig
+elevation_ok(curr_level : bv[8], target_level : bv[8], timelock : sbf, multisig : sbf) := is_demotion(curr_level, target_level) || (is_elevation(curr_level, target_level) && (timelock = 1:sbf) && (multisig = 1:sbf)).
+
+# Full check
+role_transition_valid(current : bv[8], target : bv[8], timelock : sbf, multisig : sbf, curr_level : bv[8], target_level : bv[8]) := roles_ok(current, target) && elevation_ok(curr_level, target_level, timelock, multisig).
+
+always
+  # @section: Roles validity
+  (o1[t]:sbf = 1:sbf <-> roles_ok(i1[t]:bv[8], i2[t]:bv[8])) &&
+  # @section: Elevation check
+  (o2[t]:sbf = 1:sbf <-> elevation_ok(i5[t]:bv[8], i6[t]:bv[8], i3[t]:sbf, i4[t]:sbf)) &&
+  # @section: Approval check
+  (o3[t]:sbf = 1:sbf <-> ((i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf))) &&
+  # @section: Aggregated role transition validity
+  (o4[t]:sbf = 1:sbf <-> role_transition_valid(i1[t]:bv[8], i2[t]:bv[8], i3[t]:sbf, i4[t]:sbf, i5[t]:bv[8], i6[t]:bv[8])).

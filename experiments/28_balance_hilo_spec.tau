@@ -1,0 +1,4 @@
+# Spec 28: 32-bit balance update using hi:lo with carry/borrow
+# Outputs: o1=sum_lo, o2=sum_hi, o3=new_hi, o4=new_lo, o5=underflow
+
+always ((o1[t]:bv[16] = (i2[t]:bv[16] + i4[t]:bv[16])) && ((o1[t]:bv[16] < i2[t]:bv[16]) ? (o2[t]:bv[16] = i1[t]:bv[16] + i3[t]:bv[16] + { #x0001 }:bv[16]) : (o2[t]:bv[16] = i1[t]:bv[16] + i3[t]:bv[16])) && (o4[t]:bv[16] = o1[t]:bv[16] - i6[t]:bv[16]) && ((o1[t]:bv[16] < i6[t]:bv[16]) ? (o3[t]:bv[16] = o2[t]:bv[16] - i5[t]:bv[16] - { #x0001 }:bv[16]) : (o3[t]:bv[16] = o2[t]:bv[16] - i5[t]:bv[16])) && (o5[t]:sbf = 1:sbf <-> ((o2[t]:bv[16] < i5[t]:bv[16]) || ((o2[t]:bv[16] = i5[t]:bv[16]) && (o1[t]:bv[16] < i6[t]:bv[16]))))).

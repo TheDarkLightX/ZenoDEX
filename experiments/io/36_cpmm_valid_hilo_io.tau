@@ -1,0 +1,25 @@
+# Experiment 36: CPMM validity (hi:lo) with hi=0 guard (bv[16] + sbf)
+
+# Inputs
+# resx (hi,lo), resy (hi,lo), net_in (hi,lo), out (hi,lo)
+
+i1 : bv[16] = in file("experiments/io/inputs/cpmm_resx_hi.in")
+i2 : bv[16] = in file("experiments/io/inputs/cpmm_resx_lo.in")
+i3 : bv[16] = in file("experiments/io/inputs/cpmm_resy_hi.in")
+i4 : bv[16] = in file("experiments/io/inputs/cpmm_resy_lo.in")
+i5 : bv[16] = in file("experiments/io/inputs/cpmm_net_hi.in")
+i6 : bv[16] = in file("experiments/io/inputs/cpmm_net_lo.in")
+i7 : bv[16] = in file("experiments/io/inputs/cpmm_out_hi.in")
+i8 : bv[16] = in file("experiments/io/inputs/cpmm_out_lo.in")
+
+# Outputs
+# o1 valid, o2 hi_ok
+
+o1 : sbf = out file("experiments/io/outputs/cpmm_valid.out")
+o2 : sbf = out file("experiments/io/outputs/cpmm_hi_ok.out")
+
+ispos(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16])
+hiok(h : bv[16]) := h = { #x0000 }:bv[16]
+
+r (o2[t] = 1:sbf <-> (hiok(i1[t]) && hiok(i3[t]) && hiok(i5[t]) && hiok(i7[t]))) && (o1[t] = 1:sbf <-> ((o2[t] = 1:sbf) && ispos(i1[t], i2[t]) && ispos(i3[t], i4[t]) && ispos(i5[t], i6[t]) && ispos(i7[t], i8[t]) && (i8[t] * (i2[t] + i6[t]) <= i6[t] * i4[t])))
+q

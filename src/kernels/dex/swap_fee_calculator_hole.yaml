@@ -1,0 +1,45 @@
+# [FORGE] Swap Fee Calculator (Synthesizable)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "swap_fee_calculator_hole"
+  created_by: "cgs"
+  notes: |
+    Calculates swap fee from amount_in and fee_bps.
+    High ROI: Used in every swap operation.
+    Synthesis target: fee = amount_in * fee_bps / 10000
+
+observables:
+  state_vars: []
+  effects: ["fee_amount", "net_amount_in"]
+
+types: []
+
+state_vars: []  # Stateless calculation
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "calculate_fee"
+    params:
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "fee_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "amount_in" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "fee_bps" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "fee_bps" }, { const: 10000 }] }
+    updates: []
+    effects:
+      fee_amount: { const: 0 }  # HOLE: amount_in * fee_bps / 10000
+      net_amount_in:
+        op: "-"
+        args:
+          [
+            { param: "amount_in" },
+            { const: 0 },  # HOLE: Same as fee_amount
+          ]

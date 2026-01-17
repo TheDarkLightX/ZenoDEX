@@ -1,0 +1,11 @@
+# Iteration 2: Temporal price stability - detect manipulation
+# Novel pattern: Compare price[t] vs price[t-1] to detect spikes
+
+# Price is stable if change < 10% (1000 basis points = 0x03E8)
+pricestable(curr : bv[16], prev : bv[16]) := (curr >= prev) ? (curr - prev < { #x03E8 }:bv[16]) : (prev - curr < { #x03E8 }:bv[16]).
+
+# Intent match: buy >= sell
+intentsmatch(bp : bv[16], sp : bv[16]) := bp >= sp.
+
+# Combined: match valid only if price is stable
+always (o1[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> (intentsmatch(i1[t]:bv[16], i2[t]:bv[16]) && pricestable(i3[t]:bv[16], i3[t-1]:bv[16]))).

@@ -1,0 +1,147 @@
+# Settlement v4: swap + balance + token validation + buyback burn (floor+fixed-point) + rebate + lock weight
+# Inputs:
+# i1..i4 = order ids (canonical)
+# i5..i7 = price prevprev, prev, curr (for no_sandwich + stability)
+# i8..i11 = cpmm rx, ry, net, out
+# i12..i15 = bal_before_hi, bal_before_lo, delta_hi, delta_lo
+# i16..i17 = bal_after_hi, bal_after_lo
+# i18..i34 = protocol token transition (see protocol_token_v1)
+# i35 = trade_amount (basis for fee)
+# i36 = fee_charged
+# i37 = buyback_amount
+# i38 = burned_amount
+# i39..i40 = supply_floor_hi/lo
+# i41 = unit_scale (fixed-point)
+# i42 = rebate_rate_bps
+# i43 = rebate_amount
+# i44 = rebate_cap
+# i45 = lock_days
+# i46 = stake_amount
+# i47 = tier1_days
+# i48 = tier2_days
+# i49 = weight_t1
+# i50 = weight_t2
+# i51 = weight_t3
+# i52 = weight_claimed
+# i53 = weighted_stake
+# Outputs:
+# o1 = canonical_ok
+# o2 = no_sandwich_ok
+# o3 = stable_ok
+# o4 = cpmm_ok
+# o5 = balance_ok
+# o6 = token_ok
+# o7 = buyback_floor_ok
+# o8 = buyback_floor_fixedpoint_ok
+# o9 = rebate_ok
+# o10 = lock_weight_ok
+# o11 = settlement_ok
+# @rule o6: Exactly one of transfer/mint/burn is chosen, and the chosen token state update is valid.
+# @rule o7: Fee matches 0.29%, buyback is 21% of fee, and burn respects the supply floor.
+# @rule o8: All trade-related amounts are aligned to the fixed-point unit scale.
+# @rule o9: Rebate amount matches rate (bps) and is within the cap and fee.
+# @rule o10: Lock duration maps to the correct tier weight, and weighted stake matches stake*weight.
+# @rule o11: Final gate requires all checks: canonical, no_sandwich, stable, cpmm, balance, token, buyback+unit, rebate, lock weight.
+
+set charvar off
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d).
+no_sandwich(pp : bv[16], p : bv[16], c : bv[16]) := ((pp <= p) && (p <= c)) || ((pp >= p) && (p >= c)).
+stable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr < { #x0032 }:bv[16])).
+cpmm_ok(rx : bv[16], ry : bv[16], net : bv[16], out : bv[16]) := (out * (rx + net) <= net * ry).
+
+# Balance transition (32-bit hi/lo subtraction)
+sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], diff_hi : bv[16], diff_lo : bv[16]) := (diff_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (diff_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (diff_hi = (a_hi - b_hi)))).
+balance_ok(hi0 : bv[16], lo0 : bv[16], dhi : bv[16], dlo : bv[16], hi1 : bv[16], lo1 : bv[16]) := sub_32(hi0, lo0, dhi, dlo, hi1, lo1).
+
+# Protocol token validation (inlined from protocol_token_v1)
+is_zero_32(hi : bv[16], lo : bv[16]) := (hi = { #x0000 }:bv[16]) && (lo = { #x0000 }:bv[16]).
+is_positive_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || ((hi = { #x0000 }:bv[16]) && (lo > { #x0000 }:bv[16])).
+one_hot_3(a : sbf, b : sbf, c : sbf) := ((a = 1:sbf) && (b = 0:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 1:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 0:sbf) && (c = 1:sbf)).
+add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := (sum_lo = (a_lo + b_lo)) && (((sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi + { #x0001 }:bv[16]))) && (!(sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi)))).
+sub_32_tok(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], diff_hi : bv[16], diff_lo : bv[16]) := (diff_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (diff_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (diff_hi = (a_hi - b_hi)))).
+
+token_supply_eq(s_hi : bv[16], s_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := (s2_hi = s_hi) && (s2_lo = s_lo).
+
+token_supply_inc(s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := add_32(s_hi, s_lo, a_hi, a_lo, s2_hi, s2_lo).
+
+token_supply_dec(s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := sub_32_tok(s_hi, s_lo, a_hi, a_lo, s2_hi, s2_lo).
+
+token_transfer_valid(f_hi : bv[16], f_lo : bv[16], t_hi : bv[16], t_lo : bv[16], s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], f2_hi : bv[16], f2_lo : bv[16], t2_hi : bv[16], t2_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := is_positive_32(a_hi, a_lo) && sub_32_tok(f_hi, f_lo, a_hi, a_lo, f2_hi, f2_lo) && add_32(t_hi, t_lo, a_hi, a_lo, t2_hi, t2_lo) && token_supply_eq(s_hi, s_lo, s2_hi, s2_lo).
+
+token_mint_valid(f_hi : bv[16], f_lo : bv[16], t_hi : bv[16], t_lo : bv[16], s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], f2_hi : bv[16], f2_lo : bv[16], t2_hi : bv[16], t2_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := is_positive_32(a_hi, a_lo) && (f2_hi = f_hi) && (f2_lo = f_lo) && add_32(t_hi, t_lo, a_hi, a_lo, t2_hi, t2_lo) && token_supply_inc(s_hi, s_lo, a_hi, a_lo, s2_hi, s2_lo).
+
+token_burn_valid(f_hi : bv[16], f_lo : bv[16], t_hi : bv[16], t_lo : bv[16], s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], f2_hi : bv[16], f2_lo : bv[16], t2_hi : bv[16], t2_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := is_positive_32(a_hi, a_lo) && sub_32_tok(f_hi, f_lo, a_hi, a_lo, f2_hi, f2_lo) && (t2_hi = t_hi) && (t2_lo = t_lo) && token_supply_dec(s_hi, s_lo, a_hi, a_lo, s2_hi, s2_lo).
+
+token_ok(f_hi : bv[16], f_lo : bv[16], t_hi : bv[16], t_lo : bv[16], s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], f2_hi : bv[16], f2_lo : bv[16], t2_hi : bv[16], t2_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16], do_tr : sbf, do_m : sbf, do_b : sbf) := (one_hot_3(do_tr, do_m, do_b) = 1:sbf) && ((do_tr = 1:sbf && token_transfer_valid(f_hi, f_lo, t_hi, t_lo, s_hi, s_lo, a_hi, a_lo, f2_hi, f2_lo, t2_hi, t2_lo, s2_hi, s2_lo)) || (do_m = 1:sbf && token_mint_valid(f_hi, f_lo, t_hi, t_lo, s_hi, s_lo, a_hi, a_lo, f2_hi, f2_lo, t2_hi, t2_lo, s2_hi, s2_lo)) || (do_b = 1:sbf && token_burn_valid(f_hi, f_lo, t_hi, t_lo, s_hi, s_lo, a_hi, a_lo, f2_hi, f2_lo, t2_hi, t2_lo, s2_hi, s2_lo))).
+
+# PulseX-style buyback/burn: 0.29% fee, 21% to buyback
+fee_rate_ok(amount : bv[16], fee : bv[16]) := (fee * { #x2710 }:bv[16] >= amount * { #x001D }:bv[16]) && (fee * { #x2710 }:bv[16] <= (amount * { #x001D }:bv[16]) + { #x270F }:bv[16]).
+buyback_share_ok(fee : bv[16], bb : bv[16]) := (bb * { #x0064 }:bv[16] >= fee * { #x0015 }:bv[16]) && (bb * { #x0064 }:bv[16] <= (fee * { #x0015 }:bv[16]) + { #x0063 }:bv[16]).
+
+# Floor burn constraint (uses token supply before/after)
+ge_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := (a_hi > b_hi) || ((a_hi = b_hi) && (a_lo >= b_lo)).
+le_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := ge_32(b_hi, b_lo, a_hi, a_lo).
+eq_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := (a_hi = b_hi) && (a_lo = b_lo).
+
+floor_reached(s_hi : bv[16], s_lo : bv[16], f_hi : bv[16], f_lo : bv[16]) := le_32(s_hi, s_lo, f_hi, f_lo).
+
+burn_floor_ok(s_hi : bv[16], s_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16], f_hi : bv[16], f_lo : bv[16], bb : bv[16], burned : bv[16]) := (floor_reached(s_hi, s_lo, f_hi, f_lo) && (burned = { #x0000 }:bv[16]) && eq_32(s_hi, s_lo, s2_hi, s2_lo)) || (!floor_reached(s_hi, s_lo, f_hi, f_lo) && (burned = bb) && sub_32_tok(s_hi, s_lo, { #x0000 }:bv[16], burned, s2_hi, s2_lo) && ge_32(s2_hi, s2_lo, f_hi, f_lo)).
+
+unit_ok(scale : bv[16], a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (scale != { #x0000 }:bv[16]) && ((a % scale) = { #x0000 }:bv[16]) && ((b % scale) = { #x0000 }:bv[16]) && ((c % scale) = { #x0000 }:bv[16]) && ((d % scale) = { #x0000 }:bv[16]).
+
+# Fee rebate (basis points)
+rebate_rate_ok(fee : bv[16], rate : bv[16], rebate : bv[16]) := (rebate * { #x2710 }:bv[16] >= fee * rate) && (rebate * { #x2710 }:bv[16] <= (fee * rate) + { #x270F }:bv[16]).
+rebate_cap_ok(fee : bv[16], rebate : bv[16], cap : bv[16]) := (rebate <= cap) && (rebate <= fee).
+
+# Lock-duration weighting
+thresholds_ok(t1 : bv[16], t2 : bv[16]) := t1 < t2.
+weight_tier_ok(lock : bv[16], t1 : bv[16], t2 : bv[16], w1 : bv[16], w2 : bv[16], w3 : bv[16], w : bv[16]) := ((lock < t1) && (w = w1)) || ((lock >= t1) && (lock < t2) && (w = w2)) || ((lock >= t2) && (w = w3)).
+weighted_stake_ok(stake : bv[16], w : bv[16], ws : bv[16]) := ws = stake * w.
+
+always
+  # @section: Base cases (warmup for temporal references)
+  (o1[0]:sbf = 1:sbf <-> canonical(i1[0]:bv[16], i2[0]:bv[16], i3[0]:bv[16], i4[0]:bv[16])) &&
+  (o1[1]:sbf = 1:sbf <-> canonical(i1[1]:bv[16], i2[1]:bv[16], i3[1]:bv[16], i4[1]:bv[16])) &&
+  (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) &&
+  (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 1:sbf <-> stable(i7[1]:bv[16], i6[1]:bv[16])) &&
+  (o4[0]:sbf = 1:sbf <-> cpmm_ok(i8[0]:bv[16], i9[0]:bv[16], i10[0]:bv[16], i11[0]:bv[16])) &&
+  (o4[1]:sbf = 1:sbf <-> cpmm_ok(i8[1]:bv[16], i9[1]:bv[16], i10[1]:bv[16], i11[1]:bv[16])) &&
+  (o5[0]:sbf = 1:sbf <-> balance_ok(i12[0]:bv[16], i13[0]:bv[16], i14[0]:bv[16], i15[0]:bv[16], i16[0]:bv[16], i17[0]:bv[16])) &&
+  (o5[1]:sbf = 1:sbf <-> balance_ok(i12[1]:bv[16], i13[1]:bv[16], i14[1]:bv[16], i15[1]:bv[16], i16[1]:bv[16], i17[1]:bv[16])) &&
+  (o6[0]:sbf = 1:sbf <-> token_ok(i18[0]:bv[16], i19[0]:bv[16], i20[0]:bv[16], i21[0]:bv[16], i22[0]:bv[16], i23[0]:bv[16], i24[0]:bv[16], i25[0]:bv[16], i26[0]:bv[16], i27[0]:bv[16], i28[0]:bv[16], i29[0]:bv[16], i30[0]:bv[16], i31[0]:bv[16], i32[0]:sbf, i33[0]:sbf, i34[0]:sbf)) &&
+  (o6[1]:sbf = 1:sbf <-> token_ok(i18[1]:bv[16], i19[1]:bv[16], i20[1]:bv[16], i21[1]:bv[16], i22[1]:bv[16], i23[1]:bv[16], i24[1]:bv[16], i25[1]:bv[16], i26[1]:bv[16], i27[1]:bv[16], i28[1]:bv[16], i29[1]:bv[16], i30[1]:bv[16], i31[1]:bv[16], i32[1]:sbf, i33[1]:sbf, i34[1]:sbf)) &&
+  (o7[0]:sbf = fee_rate_ok(i35[0]:bv[16], i36[0]:bv[16]) & buyback_share_ok(i36[0]:bv[16], i37[0]:bv[16]) & burn_floor_ok(i22[0]:bv[16], i23[0]:bv[16], i30[0]:bv[16], i31[0]:bv[16], i39[0]:bv[16], i40[0]:bv[16], i37[0]:bv[16], i38[0]:bv[16])) &&
+  (o7[1]:sbf = fee_rate_ok(i35[1]:bv[16], i36[1]:bv[16]) & buyback_share_ok(i36[1]:bv[16], i37[1]:bv[16]) & burn_floor_ok(i22[1]:bv[16], i23[1]:bv[16], i30[1]:bv[16], i31[1]:bv[16], i39[1]:bv[16], i40[1]:bv[16], i37[1]:bv[16], i38[1]:bv[16])) &&
+  (o8[0]:sbf = o7[0] & unit_ok(i41[0]:bv[16], i35[0]:bv[16], i36[0]:bv[16], i37[0]:bv[16], i38[0]:bv[16])) &&
+  (o8[1]:sbf = o7[1] & unit_ok(i41[1]:bv[16], i35[1]:bv[16], i36[1]:bv[16], i37[1]:bv[16], i38[1]:bv[16])) &&
+  (o9[0]:sbf = rebate_rate_ok(i36[0]:bv[16], i42[0]:bv[16], i43[0]:bv[16]) & rebate_cap_ok(i36[0]:bv[16], i43[0]:bv[16], i44[0]:bv[16])) &&
+  (o9[1]:sbf = rebate_rate_ok(i36[1]:bv[16], i42[1]:bv[16], i43[1]:bv[16]) & rebate_cap_ok(i36[1]:bv[16], i43[1]:bv[16], i44[1]:bv[16])) &&
+  (o10[0]:sbf = thresholds_ok(i47[0]:bv[16], i48[0]:bv[16]) & weight_tier_ok(i45[0]:bv[16], i47[0]:bv[16], i48[0]:bv[16], i49[0]:bv[16], i50[0]:bv[16], i51[0]:bv[16], i52[0]:bv[16]) & weighted_stake_ok(i46[0]:bv[16], i52[0]:bv[16], i53[0]:bv[16])) &&
+  (o10[1]:sbf = thresholds_ok(i47[1]:bv[16], i48[1]:bv[16]) & weight_tier_ok(i45[1]:bv[16], i47[1]:bv[16], i48[1]:bv[16], i49[1]:bv[16], i50[1]:bv[16], i51[1]:bv[16], i52[1]:bv[16]) & weighted_stake_ok(i46[1]:bv[16], i52[1]:bv[16], i53[1]:bv[16])) &&
+  (o11[0]:sbf = 0:sbf) && (o11[1]:sbf = 0:sbf) &&
+
+  # @section: Canonical ordering + anti-sandwich + price stability
+  (o1[t]:sbf = 1:sbf <-> canonical(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> no_sandwich(i5[t-2]:bv[16], i5[t-1]:bv[16], i5[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> stable(i7[t]:bv[16], i6[t]:bv[16])) &&
+
+  # @section: CPMM + balance transition
+  (o4[t]:sbf = 1:sbf <-> cpmm_ok(i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16], i11[t]:bv[16])) &&
+  (o5[t]:sbf = 1:sbf <-> balance_ok(i12[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16], i15[t]:bv[16], i16[t]:bv[16], i17[t]:bv[16])) &&
+
+  # @section: Protocol token transition
+  (o6[t]:sbf = 1:sbf <-> token_ok(i18[t]:bv[16], i19[t]:bv[16], i20[t]:bv[16], i21[t]:bv[16], i22[t]:bv[16], i23[t]:bv[16], i24[t]:bv[16], i25[t]:bv[16], i26[t]:bv[16], i27[t]:bv[16], i28[t]:bv[16], i29[t]:bv[16], i30[t]:bv[16], i31[t]:bv[16], i32[t]:sbf, i33[t]:sbf, i34[t]:sbf)) &&
+
+  # @section: Buyback/burn + floor + unit scale
+  (o7[t]:sbf = fee_rate_ok(i35[t]:bv[16], i36[t]:bv[16]) & buyback_share_ok(i36[t]:bv[16], i37[t]:bv[16]) & burn_floor_ok(i22[t]:bv[16], i23[t]:bv[16], i30[t]:bv[16], i31[t]:bv[16], i39[t]:bv[16], i40[t]:bv[16], i37[t]:bv[16], i38[t]:bv[16])) &&
+  (o8[t]:sbf = o7[t] & unit_ok(i41[t]:bv[16], i35[t]:bv[16], i36[t]:bv[16], i37[t]:bv[16], i38[t]:bv[16])) &&
+
+  # @section: Fee rebate checks
+  (o9[t]:sbf = rebate_rate_ok(i36[t]:bv[16], i42[t]:bv[16], i43[t]:bv[16]) & rebate_cap_ok(i36[t]:bv[16], i43[t]:bv[16], i44[t]:bv[16])) &&
+
+  # @section: Lock-duration weighting
+  (o10[t]:sbf = thresholds_ok(i47[t]:bv[16], i48[t]:bv[16]) & weight_tier_ok(i45[t]:bv[16], i47[t]:bv[16], i48[t]:bv[16], i49[t]:bv[16], i50[t]:bv[16], i51[t]:bv[16], i52[t]:bv[16]) & weighted_stake_ok(i46[t]:bv[16], i52[t]:bv[16], i53[t]:bv[16])) &&
+
+  # @section: Final settlement gate
+  (o11[t]:sbf = o1[t] & o2[t] & o3[t] & o4[t] & o5[t] & o6[t] & o8[t] & o9[t] & o10[t]).

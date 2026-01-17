@@ -1,0 +1,25 @@
+# Spec 85: Transaction Deadline Enforcement
+# NOVEL: Validates transactions execute before user-specified deadline
+# Protects against delayed execution at stale/unfavorable prices
+# Temporal: tracks deadline proximity and expiration
+#
+# Inputs: i1 = tx_deadline, i2 = current_block, i3 = grace_period,
+#         i4 = execution_requested
+# Outputs: o1 = before_deadline, o2 = in_grace_period, o3 = execution_valid, o4 = tx_expired
+
+# Before deadline: current_block < tx_deadline
+beforedeadline(deadline : bv[16], currentblock : bv[16]) := currentblock < deadline.
+
+# In grace period: deadline <= current < deadline + grace
+ingraceperiod(deadline : bv[16], currentblock : bv[16], grace : bv[16]) := (currentblock >= deadline) && (currentblock < deadline + grace).
+
+# Transaction expired: current_block >= deadline + grace_period
+txexpired(deadline : bv[16], currentblock : bv[16], grace : bv[16]) := currentblock >= deadline + grace.
+
+# Execution valid: execution requested AND before deadline
+executionvalid(deadline : bv[16], currentblock : bv[16], execreq : sbf) := (execreq = 1:sbf) && beforedeadline(deadline, currentblock).
+
+# Deadline approaching: within 10 blocks of deadline
+deadlineapproaching(deadline : bv[16], currentblock : bv[16]) := (currentblock < deadline) && (deadline - currentblock <= { #x000A }:bv[16]).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> beforedeadline(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> ingraceperiod(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> executionvalid(i1[t]:bv[16], i2[t]:bv[16], i4[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> txexpired(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

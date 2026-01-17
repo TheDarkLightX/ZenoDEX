@@ -1,0 +1,64 @@
+# [FORGE] Optimized Swap Output Calculator
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "swap_output_optimized"
+  notes: |
+    Optimized CPMM swap output calculation.
+    Formula: amount_out = (reserve_out * net_in) / (reserve_in + net_in)
+    High ROI: Core DEX math - used in every swap
+    Will be evolved to optimize gas efficiency
+
+observables:
+  state_vars: []
+  effects: ["amount_out", "new_reserve_in", "new_reserve_out"]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "calculate_swap_output"
+    params:
+      - id: "reserve_in"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "reserve_out"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "net_in"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "reserve_in" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "reserve_out" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "net_in" }, { const: 0 }] }
+        - { op: "<", args: [{ param: "net_in" }, { param: "reserve_in" }] }
+    updates: []
+    effects:
+      amount_out:
+        op: "div"
+        args:
+          [
+            { op: "*", args: [{ param: "reserve_out" }, { param: "net_in" }] },
+            { op: "+", args: [{ param: "reserve_in" }, { param: "net_in" }] },
+          ]
+      new_reserve_in:
+        op: "+"
+        args: [{ param: "reserve_in" }, { param: "net_in" }]
+      new_reserve_out:
+        op: "-"
+        args:
+          [
+            { param: "reserve_out" },
+            {
+              op: "div",
+              args:
+                [
+                  { op: "*", args: [{ param: "reserve_out" }, { param: "net_in" }] },
+                  { op: "+", args: [{ param: "reserve_in" }, { param: "net_in" }] },
+                ],
+            },
+          ]

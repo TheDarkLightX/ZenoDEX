@@ -1,0 +1,15 @@
+# Experiment 40: Slippage stability check (bv[16] + sbf)
+# stable if within +/- TH using addition (no subtraction)
+
+# Inputs: current and previous price series (pre-shifted)
+
+i1 : bv[16] = in file("experiments/io/inputs/price_series.in")
+i2 : bv[16] = in file("experiments/io/inputs/price_prev.in")
+
+# Output
+# o1 stable
+
+o1 : sbf = out file("experiments/io/outputs/price_stable.out")
+
+r (o1[t] = 1:sbf <-> ((i1[t] <= (i2[t] + { #x0032 }:bv[16])) && (i2[t] <= (i1[t] + { #x0032 }:bv[16]))))
+q

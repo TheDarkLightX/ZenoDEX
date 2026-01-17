@@ -1,0 +1,25 @@
+# Spec-mode: Lock duration weight tiers
+
+i1 : bv[16] = in file("experiments/io/inputs/lock_days.in").
+i2 : bv[16] = in file("experiments/io/inputs/lock_stake.in").
+i3 : bv[16] = in file("experiments/io/inputs/lock_t1.in").
+i4 : bv[16] = in file("experiments/io/inputs/lock_t2.in").
+i5 : bv[16] = in file("experiments/io/inputs/lock_w1.in").
+i6 : bv[16] = in file("experiments/io/inputs/lock_w2.in").
+i7 : bv[16] = in file("experiments/io/inputs/lock_w3.in").
+i8 : bv[16] = in file("experiments/io/inputs/lock_w_claimed.in").
+i9 : bv[16] = in file("experiments/io/inputs/lock_weighted_stake.in").
+
+o1 : sbf = out file("experiments/io/outputs/lock_thresholds_ok.out").
+o2 : sbf = out file("experiments/io/outputs/lock_weight_ok.out").
+o3 : sbf = out file("experiments/io/outputs/lock_weighted_ok.out").
+o4 : sbf = out file("experiments/io/outputs/lock_all_ok.out").
+
+thresholds_ok(t1 : bv[16], t2 : bv[16]) := t1 < t2.
+weight_tier_ok(lock : bv[16], t1 : bv[16], t2 : bv[16], w1 : bv[16], w2 : bv[16], w3 : bv[16], w : bv[16]) := ((lock < t1) && (w = w1)) || ((lock >= t1) && (lock < t2) && (w = w2)) || ((lock >= t2) && (w = w3)).
+weighted_stake_ok(stake : bv[16], w : bv[16], ws : bv[16]) := ws = stake * w.
+
+always (o1[t]:sbf = 1:sbf <-> thresholds_ok(i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> (thresholds_ok(i3[t]:bv[16], i4[t]:bv[16]) && weight_tier_ok(i1[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16]))) &&
+  (o3[t]:sbf = 1:sbf <-> weighted_stake_ok(i2[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16])) &&
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

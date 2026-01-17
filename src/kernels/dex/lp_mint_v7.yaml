@@ -1,0 +1,481 @@
+# [FORGE] ZenoDEX LP Mint v7 (A+ Grade)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "lp_mint_v7"
+  created_by: "production-spec"
+  notes: |
+    A+ production-grade LP minting with:
+    - Properly locked MINIMUM_LIQUIDITY as separate state
+    - Refund effects (amount0_refund, amount1_refund)
+    - Guards verifying used <= provided
+    - Full post-update bounds
+
+    IR semantics note:
+    - Action `updates` are evaluated on the pre-state and applied simultaneously.
+    - Action `effects` are evaluated on the post-state (new_state).
+    - `*_before` vars exist only to snapshot pre-state for delta-based effects/witnessing.
+
+observables:
+  state_vars: ["reserve0", "reserve1", "lp_supply", "locked_liquidity"]
+  effects: ["liquidity_minted", "amount0_used", "amount1_used", "total_supply",
+            "amount0_refund", "amount1_refund"]
+
+types: []
+
+state_vars:
+  - id: "reserve0_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "reserve0"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "reserve1_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "reserve1"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "lp_supply_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "lp_supply"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "locked_liquidity"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+init:
+  - var: "reserve0_before"
+    expr: { const: 0 }
+  - var: "reserve0"
+    expr: { const: 0 }
+  - var: "reserve1_before"
+    expr: { const: 0 }
+  - var: "reserve1"
+    expr: { const: 0 }
+  - var: "lp_supply_before"
+    expr: { const: 0 }
+  - var: "lp_supply"
+    expr: { const: 0 }
+  - var: "locked_liquidity"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_reserves_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "reserve0" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "reserve1" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "lp_supply" }, { const: 0 }] }
+  - id: "inv_locked_valid"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "locked_liquidity" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "locked_liquidity" }, { const: 1000 }] }
+  - id: "inv_pool_consistency"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "lp_supply" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "locked_liquidity" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: ">", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: ">", args: [{ var: "reserve1" }, { const: 0 }] }
+            - { op: ">=", args: [{ var: "lp_supply" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "locked_liquidity" }, { const: 1000 }] }
+  - id: "inv_bounds"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ var: "reserve0" }, { const: 3000000000 }] }
+        - { op: "<=", args: [{ var: "reserve1" }, { const: 3000000000 }] }
+        - { op: "<=", args: [{ var: "lp_supply" }, { const: 3000000000 }] }
+
+actions:
+  - id: "mint_initial"
+    params:
+      - id: "amount0"
+        type: { kind: "int", min: 1001, max: 1000000000 }
+      - id: "amount1"
+        type: { kind: "int", min: 1001, max: 1000000000 }
+      - id: "sqrt_product"
+        type: { kind: "int", min: 1001, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "reserve0" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "reserve1" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "lp_supply" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "locked_liquidity" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "amount0" }, { const: 1000 }] }
+        - { op: ">", args: [{ param: "amount1" }, { const: 1000 }] }
+        - { op: ">", args: [{ param: "sqrt_product" }, { const: 1000 }] }
+        # Verify sqrt
+        - { op: "<=",
+            args: [
+              { op: "*", args: [{ param: "sqrt_product" }, { param: "sqrt_product" }] },
+              { op: "*", args: [{ param: "amount0" }, { param: "amount1" }] }
+            ]
+          }
+        - { op: "<",
+            args: [
+              { op: "*", args: [{ param: "amount0" }, { param: "amount1" }] },
+              { op: "*",
+                args: [
+                  { op: "+", args: [{ param: "sqrt_product" }, { const: 1 }] },
+                  { op: "+", args: [{ param: "sqrt_product" }, { const: 1 }] }
+                ]
+              }
+            ]
+          }
+        # Post-update bounds
+        - { op: "<=", args: [{ param: "amount0" }, { const: 3000000000 }] }
+        - { op: "<=", args: [{ param: "amount1" }, { const: 3000000000 }] }
+        - { op: "<=",
+            args: [
+              { op: "-", args: [{ param: "sqrt_product" }, { const: 1000 }] },
+              { const: 3000000000 }
+            ]
+          }
+    updates:
+      - var: "reserve0_before"
+        expr: { var: "reserve0" }
+      - var: "reserve0"
+        expr: { param: "amount0" }
+      - var: "reserve1_before"
+        expr: { var: "reserve1" }
+      - var: "reserve1"
+        expr: { param: "amount1" }
+      - var: "lp_supply_before"
+        expr: { var: "lp_supply" }
+      - var: "lp_supply"
+        expr:
+          op: "-"
+          args:
+            - { param: "sqrt_product" }
+            - { const: 1000 }
+      - var: "locked_liquidity"
+        expr: { const: 1000 }
+    effects:
+      liquidity_minted:
+        op: "-"
+        args: [{ var: "lp_supply" }, { var: "lp_supply_before" }]
+      amount0_used:
+        op: "-"
+        args: [{ var: "reserve0" }, { var: "reserve0_before" }]
+      amount1_used:
+        op: "-"
+        args: [{ var: "reserve1" }, { var: "reserve1_before" }]
+      total_supply:
+        op: "+"
+        args: [{ var: "lp_supply" }, { var: "locked_liquidity" }]
+      amount0_refund:
+        op: "-"
+        args:
+          - { param: "amount0" }
+          - op: "-"
+            args: [{ var: "reserve0" }, { var: "reserve0_before" }]
+      amount1_refund:
+        op: "-"
+        args:
+          - { param: "amount1" }
+          - op: "-"
+            args: [{ var: "reserve1" }, { var: "reserve1_before" }]
+
+  - id: "mint"
+    params:
+      - id: "amount0"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "amount1"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "min_liquidity"
+        type: { kind: "int", min: 0, max: 3000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve0" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "reserve1" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "locked_liquidity" }, { const: 1000 }] }
+        - { op: ">", args: [{ param: "amount0" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "amount1" }, { const: 0 }] }
+        # Reserve bounds
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "reserve0" }, { param: "amount0" }] },
+              { const: 3000000000 }
+            ]
+          }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "reserve1" }, { param: "amount1" }] },
+              { const: 3000000000 }
+            ]
+          }
+        # Liquidity > 0
+        - { op: ">",
+            args: [
+              { op: "ite",
+                cond: { op: "<=",
+                        args: [
+                          { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] },
+                          { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+                        ]
+                      },
+                then: { op: "div",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { param: "amount0" },
+                              { op: "+", args: [{ var: "lp_supply" }, { var: "locked_liquidity" }] }
+                            ]
+                          },
+                          { var: "reserve0" }
+                        ]
+                      },
+                else: { op: "div",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { param: "amount1" },
+                              { op: "+", args: [{ var: "lp_supply" }, { var: "locked_liquidity" }] }
+                            ]
+                          },
+                          { var: "reserve1" }
+                        ]
+                      }
+              },
+              { const: 0 }
+            ]
+          }
+        # Slippage
+        - { op: ">=",
+            args: [
+              { op: "ite",
+                cond: { op: "<=",
+                        args: [
+                          { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] },
+                          { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+                        ]
+                      },
+                then: { op: "div",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { param: "amount0" },
+                              { op: "+", args: [{ var: "lp_supply" }, { var: "locked_liquidity" }] }
+                            ]
+                          },
+                          { var: "reserve0" }
+                        ]
+                      },
+                else: { op: "div",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { param: "amount1" },
+                              { op: "+", args: [{ var: "lp_supply" }, { var: "locked_liquidity" }] }
+                            ]
+                          },
+                          { var: "reserve1" }
+                        ]
+                      }
+              },
+              { param: "min_liquidity" }
+            ]
+          }
+        # lp_supply bound
+        - { op: "<=",
+            args: [
+              { op: "+",
+                args: [
+                  { var: "lp_supply" },
+                  { op: "ite",
+                    cond: { op: "<=",
+                            args: [
+                              { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] },
+                              { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+                            ]
+                          },
+                    then: { op: "div",
+                            args: [
+                              { op: "*",
+                                args: [
+                                  { param: "amount0" },
+                                  { op: "+", args: [{ var: "lp_supply" }, { var: "locked_liquidity" }] }
+                                ]
+                              },
+                              { var: "reserve0" }
+                            ]
+                          },
+                    else: { op: "div",
+                            args: [
+                              { op: "*",
+                                args: [
+                                  { param: "amount1" },
+                                  { op: "+", args: [{ var: "lp_supply" }, { var: "locked_liquidity" }] }
+                                ]
+                              },
+                              { var: "reserve1" }
+                            ]
+                          }
+                  }
+                ]
+              },
+              { const: 3000000000 }
+            ]
+          }
+        # A+ USED <= PROVIDED: amount0_used <= amount0
+        - { op: "<=",
+            args: [
+              { op: "ite",
+                cond: { op: "<=",
+                        args: [
+                          { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] },
+                          { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+                        ]
+                      },
+                then: { param: "amount0" },
+                else: { op: "div",
+                        args: [
+                          { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] },
+                          { var: "reserve1" }
+                        ]
+                      }
+              },
+              { param: "amount0" }
+            ]
+          }
+        # A+ USED <= PROVIDED: amount1_used <= amount1
+        - { op: "<=",
+            args: [
+              { op: "ite",
+                cond: { op: "<=",
+                        args: [
+                          { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] },
+                          { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+                        ]
+                      },
+                then: { op: "div",
+                        args: [
+                          { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] },
+                          { var: "reserve0" }
+                        ]
+                      },
+                else: { param: "amount1" }
+              },
+              { param: "amount1" }
+            ]
+          }
+    updates:
+      - var: "reserve0_before"
+        expr: { var: "reserve0" }
+      - var: "reserve1_before"
+        expr: { var: "reserve1" }
+      - var: "lp_supply_before"
+        expr: { var: "lp_supply" }
+      - var: "reserve0"
+        expr:
+          op: "+"
+          args:
+            - { var: "reserve0" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] }
+                  - { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+              then: { param: "amount0" }
+              else:
+                op: "div"
+                args:
+                  - { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+                  - { var: "reserve1" }
+      - var: "reserve1"
+        expr:
+          op: "+"
+          args:
+            - { var: "reserve1" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] }
+                  - { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+              then:
+                op: "div"
+                args:
+                  - { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] }
+                  - { var: "reserve0" }
+              else: { param: "amount1" }
+      - var: "lp_supply"
+        expr:
+          op: "+"
+          args:
+            - { var: "lp_supply" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "amount0" }, { var: "reserve1" }] }
+                  - { op: "*", args: [{ param: "amount1" }, { var: "reserve0" }] }
+              then:
+                op: "div"
+                args:
+                  - { op: "*",
+                      args: [
+                        { param: "amount0" },
+                        { op: "+", args: [{ var: "lp_supply" }, { var: "locked_liquidity" }] }
+                      ]
+                    }
+                  - { var: "reserve0" }
+              else:
+                op: "div"
+                args:
+                  - { op: "*",
+                      args: [
+                        { param: "amount1" },
+                        { op: "+", args: [{ var: "lp_supply" }, { var: "locked_liquidity" }] }
+                      ]
+                    }
+                  - { var: "reserve1" }
+      - var: "locked_liquidity"
+        expr: { var: "locked_liquidity" }
+    effects:
+      liquidity_minted:
+        op: "-"
+        args: [{ var: "lp_supply" }, { var: "lp_supply_before" }]
+      amount0_used:
+        op: "-"
+        args: [{ var: "reserve0" }, { var: "reserve0_before" }]
+      amount1_used:
+        op: "-"
+        args: [{ var: "reserve1" }, { var: "reserve1_before" }]
+      total_supply:
+        op: "+"
+        args:
+          - { var: "lp_supply" }
+          - { var: "locked_liquidity" }
+      amount0_refund:
+        op: "-"
+        args:
+          - { param: "amount0" }
+          - op: "-"
+            args: [{ var: "reserve0" }, { var: "reserve0_before" }]
+      amount1_refund:
+        op: "-"
+        args:
+          - { param: "amount1" }
+          - op: "-"
+            args: [{ var: "reserve1" }, { var: "reserve1_before" }]

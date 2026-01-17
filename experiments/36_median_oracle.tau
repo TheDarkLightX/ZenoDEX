@@ -1,0 +1,20 @@
+# Spec 36: Median-of-3 Robust Oracle
+# Novel pattern: Validates that a claimed median price is correct for 3 oracle feeds.
+# Robust against single oracle manipulation - median excludes outliers.
+# Inputs: i1, i2, i3 = three oracle price feeds, i4 = claimed median
+# Outputs: o1 = median_valid (claimed median is correct)
+
+# Between predicate: x is between a and b (inclusive)
+between(x : bv[16], a : bv[16], b : bv[16]) := ((a <= x) && (x <= b)) || ((b <= x) && (x <= a)).
+
+# Median validation: m is the median of (a,b,c) iff m is between each pair
+# If m = median, then m is >= one value and <= another for all pairs
+ismedian(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := between(m, a, b) && between(m, b, c) && between(m, a, c).
+
+# Additionally check median equals one of the inputs (prevents arbitrary middle values)
+equalsinput(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := (m = a) || (m = b) || (m = c).
+
+# Combined: valid median must be between all pairs AND equal to one input
+median_valid(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := ismedian(a, b, c, m) && equalsinput(a, b, c, m).
+
+always (o1[t]:sbf = 1:sbf <-> median_valid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).

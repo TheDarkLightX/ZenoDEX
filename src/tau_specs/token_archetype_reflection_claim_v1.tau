@@ -1,0 +1,34 @@
+# Token Archetype: Reflection Claim v1 (Fee Redistribution)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: claim_policy knobs external (pool sizing, cadence)
+# IMMUTABLE_INVARIANTS: claim does not exceed proportional share; claim <= pool
+#
+# PURPOSE: Validate a single holder claim against a reflection pool.
+# Reflection tokens redistribute a portion of fees to holders. This module validates
+# that a computed claim is not an over-claim.
+#
+# Stream mapping:
+# i1 = holder_balance
+# i2 = total_supply
+# i3 = reflection_pool
+# i4 = claim_amount
+# o1 = proportional_ok
+# o2 = pool_sufficient
+# o3 = supply_valid
+# o4 = reflection_claim_ok
+
+supply_valid(total : bv[16]) := total > { #x0000 }:bv[16].
+
+pool_sufficient(pool : bv[16], claim : bv[16]) := claim <= pool.
+
+# Over-claim guard: claim <= floor(pool * balance / total)
+# Cross-mult without division: claim * total <= pool * balance
+proportional_ok(balance : bv[16], total : bv[16], pool : bv[16], claim : bv[16]) := supply_valid(total) && ((claim * total) <= (pool * balance)).
+
+reflection_claim_ok(balance : bv[16], total : bv[16], pool : bv[16], claim : bv[16]) := proportional_ok(balance, total, pool, claim) && pool_sufficient(pool, claim).
+
+always (o1[t]:sbf = 1:sbf <-> proportional_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> pool_sufficient(i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> supply_valid(i2[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> reflection_claim_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).
