@@ -1,0 +1,31 @@
+# Tokenomics Rate Module v1 (basis points)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: rate_bps (i2), rate_cap_bps (i5), out_cap (i4)
+# IMMUTABLE_INVARIANTS: out <= base, 0 <= rate <= 10000
+#
+# PURPOSE: Generic validator for externally-computed floor(base * rate_bps / 10000)
+# with deterministic rounding tolerance.
+#
+# Stream mapping:
+# i1 = base_amount
+# i2 = rate_bps
+# i3 = out_amount
+# i4 = out_cap
+# i5 = rate_cap_bps
+# o1 = rate_in_range
+# o2 = rate_calc_ok
+# o3 = out_capped
+# o4 = rate_module_ok
+
+rate_in_range(rate : bv[16], cap : bv[16]) := (rate <= { #x2710 }:bv[16]) && (rate <= cap).
+
+# out = floor(base * rate / 10000) with rounding tolerance <= 9999/10000
+rate_calc_ok(base : bv[16], rate : bv[16], out : bv[16]) := (out * { #x2710 }:bv[16] >= base * rate) && (out * { #x2710 }:bv[16] <= (base * rate) + { #x270F }:bv[16]).
+
+out_capped(base : bv[16], out : bv[16], cap : bv[16]) := (out <= base) && (out <= cap).
+
+always (o1[t]:sbf = 1:sbf <-> rate_in_range(i2[t]:bv[16], i5[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> rate_calc_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> out_capped(i1[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

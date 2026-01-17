@@ -1,0 +1,44 @@
+# Treasury Spend Policy v1 - 32-bit safe variant
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: spend_cap (i2), category_flags (i5..i7)
+# IMMUTABLE_INVARIANTS: spend <= cap and budget, category allowed, service proof when spending
+#
+# PURPOSE: Ensure treasury spend is policy-bounded and tied to services.
+#
+# Stream mapping:
+# i1 = spend_amount (bv[32])
+# i2 = spend_cap (bv[32])
+# i3 = budget_remaining (bv[32])
+# i4 = category_id (bv[8])         # 0x01 grants, 0x02 ops, 0x03 audits
+# i5 = allow_grants (sbf)
+# i6 = allow_ops (sbf)
+# i7 = allow_audits (sbf)
+# i8 = service_proof (sbf)
+# o1 = category_ok
+# o2 = amount_ok
+# o3 = proof_ok
+# o4 = treasury_spend_ok
+# @rule o4: Allowed category, bounded amount, and service proof when spending.
+
+set charvar off
+
+is_positive_32(x : bv[32]) := x > { #x00000000 }:bv[32].
+
+cat_grants() := { #x01 }:bv[8].
+cat_ops() := { #x02 }:bv[8].
+cat_audits() := { #x03 }:bv[8].
+
+category_ok(cat : bv[8], g : sbf, o : sbf, a : sbf) := ((cat = cat_grants()) -> (g = 1:sbf)) && ((cat = cat_ops()) -> (o = 1:sbf)) && ((cat = cat_audits()) -> (a = 1:sbf)) && (((cat != cat_grants()) && (cat != cat_ops()) && (cat != cat_audits())) -> (0:sbf = 1:sbf)).
+
+amount_ok(amount : bv[32], cap : bv[32], budget : bv[32]) := (amount <= cap) && (amount <= budget).
+
+proof_ok(amount : bv[32], proof : sbf) := (is_positive_32(amount) -> (proof = 1:sbf)).
+
+always
+  # @section: Category + amount bounds
+  (o1[t]:sbf = 1:sbf <-> category_ok(i4[t]:bv[8], i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> amount_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Service proof when spending
+  (o3[t]:sbf = 1:sbf <-> proof_ok(i1[t]:bv[32], i8[t]:sbf)) &&
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

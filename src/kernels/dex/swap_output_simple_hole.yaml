@@ -1,0 +1,39 @@
+# [FORGE] Simple Swap Output Calculator (Synthesizable)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "swap_output_simple_hole"
+  created_by: "cgs"
+  notes: |
+    Calculates swap output: output = (input * reserve_out) / (reserve_in + input)
+    High ROI: Core DEX math
+
+observables:
+  state_vars: []
+  effects: ["output_amount"]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "calculate_output"
+    params:
+      - id: "reserve_in"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "reserve_out"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "input_amount"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "reserve_in" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "reserve_out" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "input_amount" }, { const: 0 }] }
+    updates: []
+    effects:
+      output_amount: { const: 0 }  # HOLE: (input_amount * reserve_out) / (reserve_in + input_amount)

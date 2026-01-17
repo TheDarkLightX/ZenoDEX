@@ -1,0 +1,32 @@
+# [FORGE] Simple Fee Multiplier (Synthesizable - Test Case)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "simple_fee_multiplier_hole"
+  created_by: "cgs"
+  notes: |
+    Simple synthesizable kernel to test synthesis pipeline.
+    Synthesize: fee_amount * fee_bps / 10000
+
+observables:
+  state_vars: []
+  effects: ["fee_result"]
+
+types: []
+
+state_vars: []  # Stateless
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "calculate"
+    params:
+      - id: "fee_amount"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "fee_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+    guard: { bool: true }
+    updates: []
+    effects:
+      fee_result: { const: 0 }  # HOLE: Synthesize fee_amount * fee_bps / 10000

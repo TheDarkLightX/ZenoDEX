@@ -1,0 +1,17 @@
+# Spec-mode: Fee rebate validation (bv[16] + sbf)
+
+i1 : bv[16] = in file("experiments/io/inputs/fee_rebate_fee.in").
+i2 : bv[16] = in file("experiments/io/inputs/fee_rebate_rate.in").
+i3 : bv[16] = in file("experiments/io/inputs/fee_rebate_rebate.in").
+i4 : bv[16] = in file("experiments/io/inputs/fee_rebate_cap.in").
+
+o1 : sbf = out file("experiments/io/outputs/fee_rebate_rate_ok.out").
+o2 : sbf = out file("experiments/io/outputs/fee_rebate_cap_ok.out").
+o3 : sbf = out file("experiments/io/outputs/fee_rebate_ok.out").
+
+rebate_rate_ok(fee : bv[16], rate : bv[16], rebate : bv[16]) := (rebate * { #x2710 }:bv[16] >= fee * rate) && (rebate * { #x2710 }:bv[16] <= (fee * rate) + { #x270F }:bv[16]).
+rebate_cap_ok(fee : bv[16], rebate : bv[16], cap : bv[16]) := (rebate <= cap) && (rebate <= fee).
+
+always (o1[t]:sbf = 1:sbf <-> rebate_rate_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> rebate_cap_ok(i1[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o3[t]:sbf = o1[t] & o2[t]).

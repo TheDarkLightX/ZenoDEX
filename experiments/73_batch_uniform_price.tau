@@ -1,0 +1,27 @@
+# Spec 73: Batch Auction Uniform Clearing Price Validator
+# NOVEL: Validates batch auction clears at single fair price
+# All matched orders execute at the same uniform clearing price
+# Ensures buyers pay <= bid and sellers receive >= ask
+#
+# Inputs: i1 = clearing_price, i2 = highest_bid, i3 = lowest_ask,
+#         i4 = total_buy_volume, i5 = total_sell_volume
+# Outputs: o1 = price_in_spread, o2 = buyers_satisfied, o3 = sellers_satisfied, o4 = auction_valid
+
+# Price in spread: clearing price between best bid and best ask
+# lowest_ask <= clearing_price <= highest_bid (for crossed orders)
+pricevalidspread(clearing : bv[16], highbid : bv[16], lowask : bv[16]) := (clearing <= highbid) && (clearing >= lowask).
+
+# Buyers satisfied: clearing price <= their bid (they pay at most what they offered)
+buyerssatisfied(clearing : bv[16], highbid : bv[16]) := clearing <= highbid.
+
+# Sellers satisfied: clearing price >= their ask (they receive at least what they wanted)
+sellerssatisfied(clearing : bv[16], lowask : bv[16]) := clearing >= lowask.
+
+# Volume balance: buy and sell volumes should be approximately equal for full clearing
+# |buy - sell| * 10 < max(buy, sell) means within 10% imbalance
+volumebalanced(buyvol : bv[16], sellvol : bv[16]) := ((buyvol >= sellvol) && ((buyvol - sellvol) * { #x000A }:bv[16] < buyvol)) || ((sellvol > buyvol) && ((sellvol - buyvol) * { #x000A }:bv[16] < sellvol)).
+
+# Auction valid: price satisfies both sides AND volume is balanced
+auctionvalid(clearing : bv[16], highbid : bv[16], lowask : bv[16], buyvol : bv[16], sellvol : bv[16]) := pricevalidspread(clearing, highbid, lowask) && volumebalanced(buyvol, sellvol).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> pricevalidspread(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> buyerssatisfied(i1[t]:bv[16], i2[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> sellerssatisfied(i1[t]:bv[16], i3[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> auctionvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

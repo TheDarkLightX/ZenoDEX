@@ -1,0 +1,59 @@
+# Volume Anomaly Guard v1 - Volume Spike Blocking
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_volume_delta_bps (i3), reference_volume (i2)
+# IMMUTABLE_INVARIANTS: volume within bounded delta of reference
+#
+# PURPOSE: Block trades if volume spikes beyond allowed delta from
+# reference volume. Non-discretionary volume-based protection.
+# No passive payouts - purely a market integrity gate.
+#
+# Stream mapping:
+# i1 = trade_volume (bv[32]) - volume of proposed trade
+# i2 = reference_volume (bv[32]) - reference/average volume
+# i3 = max_delta_bps (bv[32]) - max allowed delta in bps
+# i4 = cumulative_volume (bv[32]) - cumulative volume this window
+# i5 = max_cumulative (bv[32]) - max cumulative per window
+# o1 = params_ok
+# o2 = single_trade_ok
+# o3 = cumulative_ok
+# o4 = volume_anomaly_ok
+# @rule o4: Single trade within delta AND cumulative within max.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+# floor((2^32-1)/20000) for (10000 + delta)
+max_safe_32_2x() := { #x000346DC }:bv[32].
+
+# Rate ok
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Reference positive
+ref_ok(ref : bv[32]) := ref > { #x00000000 }:bv[32].
+
+# Safe range for multiplication
+safe_ok(trade : bv[32], ref : bv[32]) := (trade <= max_safe_32_2x()) && (ref <= max_safe_32_2x()).
+
+# Params valid
+params_ok(trade : bv[32], ref : bv[32], delta_bps : bv[32]) := ref_ok(ref) && rate_ok(delta_bps) && safe_ok(trade, ref).
+
+# Single trade ok: trade * 10000 <= ref * (10000 + delta_bps)
+single_trade_ok(trade : bv[32], ref : bv[32], delta_bps : bv[32]) := (trade * { #x00002710 }:bv[32]) <= (ref * ({ #x00002710 }:bv[32] + delta_bps)).
+
+# Cumulative ok
+cumulative_ok(cumul : bv[32], max_cumul : bv[32]) := cumul <= max_cumul.
+
+# Full check
+volume_anomaly_valid(trade : bv[32], ref : bv[32], delta_bps : bv[32], cumul : bv[32], max_cumul : bv[32]) := params_ok(trade, ref, delta_bps) && single_trade_ok(trade, ref, delta_bps) && cumulative_ok(cumul, max_cumul).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Single trade check
+  (o2[t]:sbf = 1:sbf <-> single_trade_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Cumulative check
+  (o3[t]:sbf = 1:sbf <-> cumulative_ok(i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated volume anomaly validity
+  (o4[t]:sbf = 1:sbf <-> volume_anomaly_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

@@ -1,0 +1,22 @@
+# TauSwap v1 deterministic batching (single pool, two intents)
+#
+# Goal: a validator can derive the unique execution order from public data only,
+# eliminating any sequencer/ordering SPOF.
+#
+# DbC Preconditions:
+# - i1 and i2 are unique identifiers for intents included in the same block.
+# - i3/i4 are the ids of the intents as actually executed.
+#
+# DbC Postcondition:
+# - o1[t] = 1:sbf iff execution order equals canonical sort-by-id order.
+
+# Stream mapping:
+# i1 = intent_a_id
+# i2 = intent_b_id
+# i3 = executed_first_id
+# i4 = executed_second_id
+# o1 = batch_order_valid
+
+is_canonical_order(a_id : bv[64], b_id : bv[64], first_id : bv[64], second_id : bv[64]) := (a_id <= b_id && first_id = a_id && second_id = b_id) || (b_id < a_id && first_id = b_id && second_id = a_id).
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[64] != i2[t]:bv[64]) && is_canonical_order(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]))).

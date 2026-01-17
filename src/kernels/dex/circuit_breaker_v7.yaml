@@ -1,0 +1,305 @@
+# [FORGE] ZenoDEX Circuit Breaker v7 (A+ Grade)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "circuit_breaker_v7"
+  created_by: "production-spec"
+  notes: |
+    A+ production-grade circuit breaker with:
+    - All roles as "data" (schema-safe/portable)
+    - Consistent volume saturation in all branches
+    - Explicit OPEN/CLOSED bookkeeping invariants
+
+    IR semantics note:
+    - Action `updates` are evaluated on the pre-state and applied simultaneously.
+    - Action `effects` are evaluated on the post-state (new_state).
+
+observables:
+  state_vars: ["window_start", "volume_accumulated", "breaker_open", "trigger_time",
+               "max_volume", "window_duration", "cooldown_duration"]
+  effects: ["volume_after", "triggered", "can_trade"]
+
+types: []
+
+state_vars:
+  - id: "window_start"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2000000000 }
+  - id: "volume_accumulated"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "breaker_open"
+    role: "data"  # A+ FIX: "data" not "control"
+    type: { kind: "bool" }
+  - id: "trigger_time"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2000000000 }
+  # A+ FIX: "data" not "config" for portability
+  - id: "max_volume"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000000 }
+  - id: "window_duration"
+    role: "data"
+    type: { kind: "int", min: 1, max: 86400 }
+  - id: "cooldown_duration"
+    role: "data"
+    type: { kind: "int", min: 1, max: 86400 }
+
+init:
+  - var: "window_start"
+    expr: { const: 0 }
+  - var: "volume_accumulated"
+    expr: { const: 0 }
+  - var: "breaker_open"
+    expr: { bool: false }
+  - var: "trigger_time"
+    expr: { const: 0 }
+  - var: "max_volume"
+    expr: { const: 100000000 }
+  - var: "window_duration"
+    expr: { const: 3600 }
+  - var: "cooldown_duration"
+    expr: { const: 300 }
+
+invariants:
+  - id: "inv_volume_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "volume_accumulated" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "volume_accumulated" }, { var: "max_volume" }] }
+  - id: "inv_config_valid"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "max_volume" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "window_duration" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "cooldown_duration" }, { const: 0 }] }
+  # A+ INVARIANT: CLOSED => trigger_time = 0
+  - id: "inv_closed_no_trigger"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { var: "breaker_open" }
+        - { op: "=", args: [{ var: "trigger_time" }, { const: 0 }] }
+  # A+ INVARIANT: OPEN => trigger_time > 0
+  - id: "inv_open_has_trigger"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "not", args: [{ var: "breaker_open" }] }
+        - { op: ">", args: [{ var: "trigger_time" }, { const: 0 }] }
+
+actions:
+  - id: "configure"
+    params:
+      - id: "caller_is_admin"
+        type: { kind: "bool" }
+      - id: "new_max_volume"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "new_window_duration"
+        type: { kind: "int", min: 1, max: 86400 }
+      - id: "new_cooldown_duration"
+        type: { kind: "int", min: 1, max: 86400 }
+      - id: "current_time"
+        type: { kind: "int", min: 0, max: 2000000000 }
+    guard:
+      op: "and"
+      args:
+        - { param: "caller_is_admin" }
+        - { op: "not", args: [{ var: "breaker_open" }] }
+        - { op: ">", args: [{ param: "new_max_volume" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "new_window_duration" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "new_cooldown_duration" }, { const: 0 }] }
+    updates:
+      - var: "max_volume"
+        expr: { param: "new_max_volume" }
+      - var: "window_duration"
+        expr: { param: "new_window_duration" }
+      - var: "cooldown_duration"
+        expr: { param: "new_cooldown_duration" }
+      - var: "volume_accumulated"
+        expr: { const: 0 }
+      # A+ FIX: Reset window_start to current_time, not 0
+      - var: "window_start"
+        expr: { param: "current_time" }
+      - var: "breaker_open"
+        expr: { bool: false }
+      - var: "trigger_time"
+        expr: { const: 0 }
+    effects:
+      volume_after: { const: 0 }
+      triggered: { bool: false }
+      can_trade: { bool: true }
+
+  - id: "add_volume"
+    params:
+      - id: "volume"
+        type: { kind: "int", min: 1, max: 100000000 }
+      - id: "current_time"
+        type: { kind: "int", min: 1, max: 2000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "not", args: [{ var: "breaker_open" }] }
+        - { op: ">=", args: [{ param: "current_time" }, { var: "window_start" }] }
+        - { op: ">", args: [{ param: "volume" }, { const: 0 }] }
+    updates:
+      - var: "window_start"
+        expr:
+          op: "ite"
+          cond:
+            op: ">="
+            args:
+              - { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] }
+              - { var: "window_duration" }
+          then: { param: "current_time" }
+          else: { var: "window_start" }
+      # A+ FIX: Consistent saturation in ALL branches
+      - var: "volume_accumulated"
+        expr:
+          op: "ite"
+          cond:
+            op: ">="
+            args:
+              - { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] }
+              - { var: "window_duration" }
+          then:
+            # New window: cap volume at max_volume
+            op: "ite"
+            cond:
+              op: "<="
+              args: [{ param: "volume" }, { var: "max_volume" }]
+            then: { param: "volume" }
+            else: { var: "max_volume" }
+          else:
+            # Same window: accumulate with saturation
+            op: "ite"
+            cond:
+              op: "<="
+              args:
+                - { op: "+", args: [{ var: "volume_accumulated" }, { param: "volume" }] }
+                - { var: "max_volume" }
+            then:
+              op: "+"
+              args: [{ var: "volume_accumulated" }, { param: "volume" }]
+            else: { var: "max_volume" }
+      # A+ FIX: Use saturated volume for trigger decision
+      - var: "breaker_open"
+        expr:
+          op: ">="
+          args:
+            - op: "ite"
+              cond:
+                op: ">="
+                args:
+                  - { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] }
+                  - { var: "window_duration" }
+              then:
+                # New window: capped volume
+                op: "ite"
+                cond:
+                  op: "<="
+                  args: [{ param: "volume" }, { var: "max_volume" }]
+                then: { param: "volume" }
+                else: { var: "max_volume" }
+              else:
+                # Same window: capped accumulation
+                op: "ite"
+                cond:
+                  op: "<="
+                  args:
+                    - { op: "+", args: [{ var: "volume_accumulated" }, { param: "volume" }] }
+                    - { var: "max_volume" }
+                then:
+                  op: "+"
+                  args: [{ var: "volume_accumulated" }, { param: "volume" }]
+                else: { var: "max_volume" }
+            - { var: "max_volume" }
+      # A+ FIX: Use saturated volume for trigger_time decision
+      - var: "trigger_time"
+        expr:
+          op: "ite"
+          cond:
+            op: ">="
+            args:
+              - op: "ite"
+                cond:
+                  op: ">="
+                  args:
+                    - { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] }
+                    - { var: "window_duration" }
+                then:
+                  op: "ite"
+                  cond:
+                    op: "<="
+                    args: [{ param: "volume" }, { var: "max_volume" }]
+                  then: { param: "volume" }
+                  else: { var: "max_volume" }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - { op: "+", args: [{ var: "volume_accumulated" }, { param: "volume" }] }
+                      - { var: "max_volume" }
+                  then:
+                    op: "+"
+                    args: [{ var: "volume_accumulated" }, { param: "volume" }]
+                  else: { var: "max_volume" }
+              - { var: "max_volume" }
+          then: { param: "current_time" }
+          else: { const: 0 }
+      - var: "max_volume"
+        expr: { var: "max_volume" }
+      - var: "window_duration"
+        expr: { var: "window_duration" }
+      - var: "cooldown_duration"
+        expr: { var: "cooldown_duration" }
+    effects:
+      volume_after: { var: "volume_accumulated" }
+      triggered: { var: "breaker_open" }
+      can_trade:
+        op: "not"
+        args: [{ var: "breaker_open" }]
+
+  - id: "reset"
+    params:
+      - id: "caller_is_admin"
+        type: { kind: "bool" }
+      - id: "current_time"
+        type: { kind: "int", min: 1, max: 2000000000 }
+    guard:
+      op: "and"
+      args:
+        - { param: "caller_is_admin" }
+        - { var: "breaker_open" }
+        - { op: ">=", args: [{ param: "current_time" }, { var: "trigger_time" }] }
+        - { op: ">=",
+            args: [
+              { op: "-", args: [{ param: "current_time" }, { var: "trigger_time" }] },
+              { var: "cooldown_duration" }
+            ]
+          }
+    updates:
+      - var: "breaker_open"
+        expr: { bool: false }
+      - var: "volume_accumulated"
+        expr: { const: 0 }
+      - var: "window_start"
+        expr: { param: "current_time" }
+      - var: "trigger_time"
+        expr: { const: 0 }
+      - var: "max_volume"
+        expr: { var: "max_volume" }
+      - var: "window_duration"
+        expr: { var: "window_duration" }
+      - var: "cooldown_duration"
+        expr: { var: "cooldown_duration" }
+    effects:
+      volume_after: { const: 0 }
+      triggered: { bool: false }
+      can_trade: { bool: true }

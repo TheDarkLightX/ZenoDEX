@@ -1,0 +1,29 @@
+# Spec 72: Stablecoin Depeg Detection and Alert System
+# NOVEL: Monitors stablecoin price relative to peg with multi-level alerts
+# Detects both temporary volatility and sustained depeg events
+# Uses 3-step temporal analysis to distinguish noise from real depeg
+#
+# Inputs: i1 = stablecoin_price (scaled, 1000 = $1.00), i2 = peg_target (1000)
+# Outputs: o1 = within_band, o2 = minor_depeg, o3 = major_depeg, o4 = sustained_depeg
+
+# Peg target typically 1000 (representing $1.00 with 3 decimal precision)
+# Band definitions:
+#   Within band: |price - peg| < 0.5% (5 units)
+#   Minor depeg: 0.5% - 2% deviation
+#   Major depeg: > 2% deviation
+
+# Within band: |price - 1000| * 200 < 1000 (< 0.5%)
+withinband(price : bv[16], peg : bv[16]) := ((price >= peg) && ((price - peg) * { #x00C8 }:bv[16] < peg)) || ((price < peg) && ((peg - price) * { #x00C8 }:bv[16] < peg)).
+
+# Minor depeg: 0.5% - 2% deviation
+# |price - peg| * 50 >= peg AND |price - peg| * 50 < peg * 2
+minordepeg(price : bv[16], peg : bv[16]) := !withinband(price, peg) && (((price >= peg) && ((price - peg) * { #x0032 }:bv[16] < peg)) || ((price < peg) && ((peg - price) * { #x0032 }:bv[16] < peg))).
+
+# Major depeg: > 2% deviation
+# |price - peg| * 50 >= peg
+majordepeg(price : bv[16], peg : bv[16]) := ((price >= peg) && ((price - peg) * { #x0032 }:bv[16] >= peg)) || ((price < peg) && ((peg - price) * { #x0032 }:bv[16] >= peg)).
+
+# Sustained depeg: outside band for 3 consecutive steps
+sustaineddepeg(band0 : sbf, band1 : sbf, band2 : sbf) := (band0 = 0:sbf) && (band1 = 0:sbf) && (band2 = 0:sbf).
+
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> withinband(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> minordepeg(i1[t]:bv[16], i2[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> majordepeg(i1[t]:bv[16], i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> sustaineddepeg(o1[t]:sbf, o1[t-1]:sbf, o1[t-2]:sbf)).

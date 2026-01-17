@@ -1,0 +1,535 @@
+{
+  "specs": [
+    {
+      "id": "minimal_verified",
+      "path": "experiments/23_minimal_verified.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if i1 >= i2 else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1, 2, 3],
+        "i2": [0, 1, 2, 3]
+      },
+      "inputs": [
+        {"i1": 1000, "i2": 500},
+        {"i1": 500, "i2": 1000},
+        {"i1": 1000, "i2": 1000}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 1}
+      ]
+    },
+    {
+      "id": "temporal_verified",
+      "path": "experiments/24_temporal_verified.tau",
+      "mode": "skip",
+      "skip_reason": "REPL segfaults on temporal t-1 expressions in this Tau build.",
+      "inputs": [
+        {"i1": 1000},
+        {"i1": 1100},
+        {"i1": 1600},
+        {"i1": 1500}
+      ],
+      "expected": [
+        {"o1": null},
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 1}
+      ]
+    },
+    {
+      "id": "verified_dex",
+      "path": "experiments/22_verified_dex.tau",
+      "mode": "skip",
+      "skip_reason": "REPL segfaults on temporal t-1/t-2 expressions in this Tau build.",
+      "inputs": [
+        {"i1": 1000, "i2": 500, "i3": 1000, "i4": 1, "i5": 2},
+        {"i1": 400, "i2": 500, "i3": 1100, "i4": 5, "i5": 3},
+        {"i1": 1000, "i2": 1000, "i3": 900, "i4": 2, "i5": 4}
+      ],
+      "expected": [
+        {"o1": 1, "o2": null, "o3": 1, "o4": null, "o5": null},
+        {"o1": 0, "o2": 1, "o3": 0, "o4": null, "o5": null},
+        {"o1": 1, "o2": 1, "o3": 1, "o4": 0, "o5": 0}
+      ]
+    },
+    {
+      "id": "complete_verified_dex",
+      "path": "experiments/25_complete_verified_dex.tau",
+      "mode": "skip",
+      "skip_reason": "REPL segfaults on temporal t-1/t-2 expressions in this Tau build.",
+      "inputs": [
+        {"i1": 1000, "i2": 500, "i3": 1000},
+        {"i1": 400, "i2": 500, "i3": 1100},
+        {"i1": 1000, "i2": 1000, "i3": 900}
+      ],
+      "expected": [
+        {"o1": 1, "o2": null, "o3": null},
+        {"o1": 0, "o2": 1, "o3": null},
+        {"o1": 1, "o2": 1, "o3": 0}
+      ]
+    },
+    {
+      "id": "circuit_breaker",
+      "path": "experiments/35_circuit_breaker.tau",
+      "mode": "skip",
+      "skip_reason": "REPL segfaults on temporal t-1 expressions in this Tau build.",
+      "inputs": [
+        {"i1": 1000},
+        {"i1": 1100},
+        {"i1": 1120},
+        {"i1": 1130},
+        {"i1": 1140}
+      ],
+      "expected": [
+        {"o1": 0, "o2": 0, "o3": 0, "o4": 0},
+        {"o1": 0, "o2": 0, "o3": 0, "o4": 0},
+        {"o1": 1, "o2": 0, "o3": 0, "o4": 0},
+        {"o1": 1, "o2": 1, "o3": 0, "o4": 0},
+        {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+      ]
+    },
+    {
+      "id": "median_oracle",
+      "path": "experiments/36_median_oracle.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if i4 == sorted([i1, i2, i3])[1] else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [100, 150, 200],
+        "i2": [100, 150, 200],
+        "i3": [100, 150, 200],
+        "i4": [100, 150, 200]
+      },
+      "inputs": [
+        {"i1": 100, "i2": 150, "i3": 200, "i4": 150},
+        {"i1": 100, "i2": 200, "i3": 150, "i4": 150},
+        {"i1": 100, "i2": 150, "i3": 200, "i4": 100},
+        {"i1": 100, "i2": 150, "i3": 200, "i4": 175}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "adaptive_fee",
+      "path": "experiments/37_adaptive_fee.tau",
+      "mode": "skip",
+      "skip_reason": "REPL segfaults on temporal t-1 expressions in this Tau build.",
+      "inputs": [
+        {"i1": 1000, "i2": 10},
+        {"i1": 1010, "i2": 10},
+        {"i1": 1100, "i2": 50}
+      ],
+      "expected": [
+        {"o1": null, "o2": null},
+        {"o1": 1, "o2": 1},
+        {"o1": 0, "o2": 1}
+      ]
+    },
+    {
+      "id": "basic_echo",
+      "path": "experiments/01_basic_echo.tau",
+      "mode": "skip",
+      "skip_reason": "Spec uses untyped stream i1:tau; tau REPL/spec mode cannot parse numeric inputs reliably.",
+      "inputs": [
+        {"i1": 0},
+        {"i1": 5}
+      ],
+      "expected": [
+        {"o1": 0},
+        {"o1": 5}
+      ]
+    },
+    {
+      "id": "sbf_simple",
+      "path": "experiments/02_sbf_simple.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if i1 == 1 else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1]
+      },
+      "inputs": [
+        {"i1": 1},
+        {"i1": 0},
+        {"i1": 1}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 1}
+      ]
+    },
+    {
+      "id": "bitvector_zero",
+      "path": "experiments/03_bitvector_basic.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if i1 == 0 else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1, 2]
+      },
+      "inputs": [
+        {"i1": 0},
+        {"i1": 1},
+        {"i1": 2}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "bitvector_positive",
+      "path": "experiments/04_bitvector_compare.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if i1 > 0 else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1, 2]
+      },
+      "inputs": [
+        {"i1": 0},
+        {"i1": 1},
+        {"i1": 2}
+      ],
+      "expected": [
+        {"o1": 0},
+        {"o1": 1},
+        {"o1": 1}
+      ]
+    },
+    {
+      "id": "multi_predicate",
+      "path": "experiments/05_multi_predicate.tau",
+      "mode": "spec",
+      "spec_timeout": 2.0,
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if (0 <= i1 <= 0x2710 and i2 > 0) else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1, 10000, 10001],
+        "i2": [0, 1, 2]
+      },
+      "inputs": [
+        {"i1": 0, "i2": 1},
+        {"i1": 10001, "i2": 1},
+        {"i1": 1, "i2": 0}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "pair_gte_32",
+      "path": "experiments/06_32bit_pair.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if (i1 > i3 or (i1 == i3 and i2 >= i4)) else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1],
+        "i2": [0, 1],
+        "i3": [0, 1],
+        "i4": [0, 1]
+      },
+      "inputs": [
+        {"i1": 1, "i2": 0, "i3": 0, "i4": 1},
+        {"i1": 0, "i2": 1, "i3": 0, "i4": 1},
+        {"i1": 0, "i2": 1, "i3": 1, "i4": 0}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 1},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "cpmm_basic",
+      "path": "experiments/07_cpmm_basic.tau",
+      "mode": "spec",
+      "spec_timeout": 2.0,
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if ((i1 > 0 or (i1 == 0 and i2 > 0)) and (i3 > 0 or (i3 == 0 and i4 > 0)) and (i5 > 0 or (i5 == 0 and i6 > 0)) and (0 <= i7 <= 0x2710) and (i8 > 0 or (i8 == 0 and i9 > 0)) and (i3 > i8 or (i3 == i8 and i4 >= i9))) else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0],
+        "i2": [0, 1],
+        "i3": [0],
+        "i4": [0, 1],
+        "i5": [0],
+        "i6": [0, 1],
+        "i7": [0, 10000],
+        "i8": [0],
+        "i9": [0, 1]
+      },
+      "inputs": [
+        {"i1": 0, "i2": 1, "i3": 0, "i4": 1, "i5": 0, "i6": 1, "i7": 10000, "i8": 0, "i9": 1},
+        {"i1": 0, "i2": 0, "i3": 0, "i4": 1, "i5": 0, "i6": 1, "i7": 10000, "i8": 0, "i9": 1},
+        {"i1": 0, "i2": 1, "i3": 0, "i4": 0, "i5": 0, "i6": 1, "i7": 10000, "i8": 0, "i9": 1}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "bv64_less",
+      "path": "experiments/09_bv64_test.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if i1 < i2 else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1, 2],
+        "i2": [0, 1, 2]
+      },
+      "inputs": [
+        {"i1": 0, "i2": 1},
+        {"i1": 2, "i2": 1},
+        {"i1": 1, "i2": 1}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "batching_canonical",
+      "path": "experiments/10_batching_canonical.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if (i1 != i2 and ((i1 <= i2 and i3 == i1 and i4 == i2) or (i2 < i1 and i3 == i2 and i4 == i1))) else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1, 2],
+        "i2": [0, 1, 2],
+        "i3": [0, 1, 2],
+        "i4": [0, 1, 2]
+      },
+      "inputs": [
+        {"i1": 1, "i2": 2, "i3": 1, "i4": 2},
+        {"i1": 2, "i2": 1, "i3": 1, "i4": 2},
+        {"i1": 1, "i2": 1, "i3": 1, "i4": 1}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 1},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "batching_4_intents",
+      "path": "experiments/11_batching_4_intents.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if (i1 < i2 and i2 < i3 and i3 < i4) else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1, 2],
+        "i2": [0, 1, 2],
+        "i3": [0, 1, 2],
+        "i4": [0, 1, 2]
+      },
+      "inputs": [
+        {"i1": 0, "i2": 1, "i3": 2, "i4": 3},
+        {"i1": 0, "i2": 0, "i3": 1, "i4": 2},
+        {"i1": 1, "i2": 2, "i3": 2, "i4": 3}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "balance_safety",
+      "path": "experiments/12_balance_safety.tau",
+      "mode": "spec",
+      "spec_timeout": 2.0,
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if ((i1 > 0 or (i1 == 0 and i2 >= 0)) and (i3 > 0 or (i3 == 0 and i4 >= 0)) and (i5 > 0 or (i5 == 0 and i6 >= 0))) else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1],
+        "i2": [0, 1],
+        "i3": [0, 1],
+        "i4": [0, 1],
+        "i5": [0, 1],
+        "i6": [0, 1]
+      },
+      "inputs": [
+        {"i1": 0, "i2": 0, "i3": 0, "i4": 0, "i5": 0, "i6": 0},
+        {"i1": 1, "i2": 0, "i3": 0, "i4": 1, "i5": 0, "i6": 1}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 1}
+      ]
+    },
+    {
+      "id": "dex_complete",
+      "path": "experiments/13_dex_complete.tau",
+      "mode": "spec",
+      "spec_timeout": 2.0,
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if ((i1 > 0 or (i1 == 0 and i2 > 0)) and (i3 > 0 or (i3 == 0 and i4 > 0)) and (i5 > 0 or (i5 == 0 and i6 > 0)) and (0 <= i7 <= 0x2710) and (i8 > 0 or (i8 == 0 and i9 > 0)) and (i3 > i8 or (i3 == i8 and i4 >= i9))) else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0],
+        "i2": [0, 1],
+        "i3": [0],
+        "i4": [0, 1],
+        "i5": [0],
+        "i6": [0, 1],
+        "i7": [0, 10000],
+        "i8": [0],
+        "i9": [0, 1]
+      },
+      "inputs": [
+        {"i1": 0, "i2": 1, "i3": 0, "i4": 1, "i5": 0, "i6": 1, "i7": 10000, "i8": 0, "i9": 1},
+        {"i1": 0, "i2": 0, "i3": 0, "i4": 1, "i5": 0, "i6": 1, "i7": 10000, "i8": 0, "i9": 1}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "baseline_match",
+      "path": "experiments/15_baseline_match.tau",
+      "mode": "repl",
+      "oracle": {
+        "type": "python",
+        "outputs": {
+          "o1": "1 if i1 >= i2 else 0"
+        }
+      },
+      "enumeration": {
+        "i1": [0, 1, 2],
+        "i2": [0, 1, 2]
+      },
+      "inputs": [
+        {"i1": 2, "i2": 1},
+        {"i1": 1, "i2": 2},
+        {"i1": 1, "i2": 1}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 1}
+      ]
+    },
+    {
+      "id": "swap_exact_in_v4",
+      "path": "src/tau_specs/swap_exact_in_v4.tau",
+      "mode": "repl",
+      "inputs": [
+        {"i1": 100, "i2": 100, "i3": 10, "i4": 30, "i5": 1, "i6": 8, "i7": 110, "i8": 92},
+        {"i1": 100, "i2": 100, "i3": 10, "i4": 30, "i5": 1, "i6": 10, "i7": 110, "i8": 90},
+        {"i1": 70000, "i2": 70000, "i3": 1, "i4": 30, "i5": 0, "i6": 1, "i7": 70001, "i8": 69999}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "swap_exact_out_v4",
+      "path": "src/tau_specs/swap_exact_out_v4.tau",
+      "mode": "repl",
+      "inputs": [
+        {"i1": 100, "i2": 100, "i3": 5, "i4": 30, "i5": 100, "i6": 7, "i7": 107, "i8": 95},
+        {"i1": 100, "i2": 100, "i3": 5, "i4": 30, "i5": 100, "i6": 5, "i7": 105, "i8": 95},
+        {"i1": 100, "i2": 100, "i3": 5, "i4": 30, "i5": 6, "i6": 7, "i7": 107, "i8": 95}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "swap_exact_in_v3",
+      "path": "src/tau_specs/swap_exact_in_v3.tau",
+      "mode": "repl",
+      "inputs": [
+        {"i1": 1000000, "i2": 2000000, "i3": 50000, "i4": 30, "i5": 1, "i6": 94965, "i7": 1050000, "i8": 1905035, "i9": 2000000000000, "i10": 2000286750000},
+        {"i1": 1000000, "i2": 2000000, "i3": 50000, "i4": 30, "i5": 1, "i6": 94965, "i7": 1050000, "i8": 1905035, "i9": 2000000000000, "i10": 1999999999999}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0}
+      ]
+    },
+    {
+      "id": "swap_exact_out_v3",
+      "path": "src/tau_specs/swap_exact_out_v3.tau",
+      "mode": "repl",
+      "inputs": [
+        {"i1": 1000000, "i2": 2000000, "i3": 50000, "i4": 30, "i5": 10000000, "i6": 25720, "i7": 1025720, "i8": 1950000, "i9": 2000000000000, "i10": 2000154000000},
+        {"i1": 1000000, "i2": 2000000, "i3": 50000, "i4": 30, "i5": 10000000, "i6": 25720, "i7": 1025720, "i8": 1950000, "i9": 2000000000000, "i10": 1999999999999}
+      ],
+      "expected": [
+        {"o1": 1},
+        {"o1": 0}
+      ]
+    }
+  ]
+}

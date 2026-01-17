@@ -1,0 +1,54 @@
+# Oracle Freshness v1 - Price Data Staleness Check
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_staleness (i3)
+# IMMUTABLE_INVARIANTS: oracle data must be fresh (recent timestamp)
+#
+# PURPOSE: Validate oracle price data freshness to prevent stale price attacks.
+# Stale oracles are a major attack vector in DeFi.
+# No passive payouts - purely a safety validation gate.
+#
+# DbC Preconditions:
+# - All values are bv[32] (unsigned).
+# - max_staleness > 0.
+# - current_timestamp >= oracle_timestamp.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff (current_timestamp - oracle_timestamp) <= max_staleness.
+#
+# Stream mapping:
+# i1 = oracle_timestamp (bv[32]) - timestamp of oracle price update
+# i2 = current_timestamp (bv[32]) - current block/system timestamp
+# i3 = max_staleness (bv[32]) - maximum allowed age of oracle data
+# o1 = params_ok
+# o2 = timestamp_order_ok
+# o3 = freshness_ok
+# o4 = oracle_fresh_ok
+# @rule o4: Oracle data is fresh (age <= max_staleness).
+
+set charvar off
+
+# Max staleness must be positive
+staleness_ok(max_stale : bv[32]) := max_stale > { #x00000000 }:bv[32].
+
+# Timestamps must be valid (current >= oracle)
+timestamp_order_ok(oracle_ts : bv[32], current_ts : bv[32]) := current_ts >= oracle_ts.
+
+# Parameters valid
+params_ok(oracle_ts : bv[32], current_ts : bv[32], max_stale : bv[32]) := staleness_ok(max_stale) && timestamp_order_ok(oracle_ts, current_ts).
+
+# Freshness check: current - oracle <= max_staleness
+freshness_ok(oracle_ts : bv[32], current_ts : bv[32], max_stale : bv[32]) := (current_ts - oracle_ts) <= max_stale.
+
+# Full oracle freshness check
+oracle_fresh_valid(oracle_ts : bv[32], current_ts : bv[32], max_stale : bv[32]) := params_ok(oracle_ts, current_ts, max_stale) && freshness_ok(oracle_ts, current_ts, max_stale).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Timestamp order check
+  (o2[t]:sbf = 1:sbf <-> timestamp_order_ok(i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Freshness check
+  (o3[t]:sbf = 1:sbf <-> freshness_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Aggregated oracle freshness validity
+  (o4[t]:sbf = 1:sbf <-> oracle_fresh_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])).

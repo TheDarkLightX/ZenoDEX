@@ -1,0 +1,32 @@
+# Token Archetype: Anti-Whale Transfer Cap v1
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_transfer_bps_of_supply (i3)
+# IMMUTABLE_INVARIANTS: transfer_amount <= supply * max_bps / 10000
+#
+# PURPOSE: Prevent whale transfers by bounding each transfer as a fraction of supply.
+# This can be used alone or composed with other tokenomics modules.
+#
+# Stream mapping:
+# i1 = transfer_amount
+# i2 = current_supply
+# i3 = max_transfer_bps
+# o1 = params_ok
+# o2 = supply_ok
+# o3 = amount_ok
+# o4 = anti_whale_ok
+
+params_ok(max_bps : bv[16]) := max_bps <= { #x2710 }:bv[16].
+
+supply_ok(supply : bv[16]) := supply > { #x0000 }:bv[16].
+
+# amount <= floor(supply * max_bps / 10000)
+# Cross-mult: amount * 10000 <= supply * max_bps
+amount_ok(amount : bv[16], supply : bv[16], max_bps : bv[16]) := (amount * { #x2710 }:bv[16]) <= (supply * max_bps).
+
+anti_whale_ok(amount : bv[16], supply : bv[16], max_bps : bv[16]) := params_ok(max_bps) && supply_ok(supply) && amount_ok(amount, supply, max_bps).
+
+always (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> supply_ok(i2[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> amount_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> anti_whale_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

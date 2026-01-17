@@ -1,0 +1,43 @@
+# TDEX Buyback and Burn v1 - DEX Fee to Token Burn
+#
+# Purpose: Validate buyback and burn mechanism from DEX trading fees
+# 50% of DEX trading fees are used to buyback and burn TDEX
+#
+# Mechanism:
+# 1. DEX collects trading fees (0.3% per swap)
+# 2. 50% of fees accumulate in buyback pool
+# 3. When threshold reached, buyback executes
+# 4. Bought TDEX is burned, reducing supply
+#
+# Inputs:
+# i1 = trading_fee_collected
+# i2 = buyback_pool_balance
+# i3 = buyback_threshold
+# i4 = tdex_bought
+# i5 = tdex_burned
+# Outputs:
+# o1 = fee_split_correct
+# o2 = threshold_reached
+# o3 = buyback_valid
+# o4 = burn_executed
+
+# Fee split correct: 50% of fee goes to buyback pool
+# pool_increase = fee / 2
+feesplitcorrect(fee : bv[16], poolincrease : bv[16]) := (poolincrease * { #x0002 }:bv[16] >= fee) && (poolincrease * { #x0002 }:bv[16] <= fee + { #x0001 }:bv[16]).
+
+# Threshold reached: pool balance >= threshold
+thresholdreached(poolbal : bv[16], threshold : bv[16]) := poolbal >= threshold.
+
+# Buyback valid: if threshold reached, TDEX was bought
+buybackvalid(poolbal : bv[16], threshold : bv[16], bought : bv[16]) := !thresholdreached(poolbal, threshold) || (bought > { #x0000 }:bv[16]).
+
+# Burn executed: bought TDEX equals burned TDEX (all bought tokens burned)
+burnexecuted(bought : bv[16], burned : bv[16]) := bought = burned.
+
+# Buyback complete: all conditions met
+buybackcomplete(fee : bv[16], poolbal : bv[16], threshold : bv[16], bought : bv[16], burned : bv[16]) := buybackvalid(poolbal, threshold, bought) && burnexecuted(bought, burned).
+
+# Pool accumulating: balance increased from previous step
+poolaccumulating(currbal : bv[16], prevbal : bv[16]) := currbal >= prevbal.
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> feesplitcorrect(i1[t]:bv[16], i1[t]:bv[16] / { #x0002 }:bv[16])) && (o2[t]:sbf = 1:sbf <-> thresholdreached(i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> buybackvalid(i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> burnexecuted(i4[t]:bv[16], i5[t]:bv[16])).

@@ -1,0 +1,23 @@
+# Spec 97: Anti-Spam Trade Filter
+# NOVEL: Prevents spam trades and denial of service attacks
+# Validates minimum trade sizes and enforces rate limits
+# Protects protocol from dust attacks and spam
+#
+# Inputs: i1 = trade_amount, i2 = min_trade_size, i3 = trades_in_window,
+#         i4 = max_trades_per_window, i5 = gas_price
+# Outputs: o1 = above_min_size, o2 = within_rate_limit, o3 = gas_reasonable, o4 = trade_allowed
+
+# Above minimum size: trade >= minimum threshold (dust prevention)
+aboveminsize(tradeamt : bv[16], minsize : bv[16]) := tradeamt >= minsize.
+
+# Within rate limit: trades in window < max allowed
+withinratelimit(tradeswindow : bv[16], maxtrades : bv[16]) := tradeswindow < maxtrades.
+
+# Gas reasonable: gas price not excessively high (< 10x base)
+# Prevents gas war spam attacks
+gasreasonable(gasprice : bv[16]) := gasprice < { #x03E8 }:bv[16].
+
+# Trade allowed: all anti-spam checks pass
+tradeallowed(tradeamt : bv[16], minsize : bv[16], tradeswindow : bv[16], maxtrades : bv[16], gasprice : bv[16]) := aboveminsize(tradeamt, minsize) && withinratelimit(tradeswindow, maxtrades) && gasreasonable(gasprice).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> aboveminsize(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> withinratelimit(i3[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> gasreasonable(i5[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> tradeallowed(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

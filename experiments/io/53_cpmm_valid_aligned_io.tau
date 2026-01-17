@@ -1,0 +1,11 @@
+# REPL IO 53: CPMM validity (aligned inputs)
+
+i1 : bv[16] = in file("experiments/io/inputs/aligned_cpmm_resx.in")
+i2 : bv[16] = in file("experiments/io/inputs/aligned_cpmm_resy.in")
+i3 : bv[16] = in file("experiments/io/inputs/aligned_cpmm_net.in")
+i4 : bv[16] = in file("experiments/io/inputs/aligned_cpmm_out.in")
+
+o1 : sbf = out file("experiments/io/outputs/aligned_cpmm_ok.out")
+
+r (o1[t] = 1:sbf <-> (i4[t] * (i1[t] + i3[t]) <= i3[t] * i2[t]))
+q

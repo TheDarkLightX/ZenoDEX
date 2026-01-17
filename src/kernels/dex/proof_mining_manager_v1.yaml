@@ -1,0 +1,425 @@
+# [FORGE] Proof Mining Manager v1 (no-minting; treasury-style reward pool)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "proof_mining_manager_v1"
+  notes: |
+    Proof mining is a verifiable-computation reward mechanism:
+      - Provers submit a proof-carrying bundle attesting a specific transition.
+      - The chain pays at most once per proposal (anti-replay / uniqueness).
+
+    This v1 kernel models the *no minting* variant: rewards are paid from a
+    pre-funded reward pool (treasury balance), so total payouts are conserved:
+      total_paid + reward_pool_balance == initial_pool
+
+    Important: this kernel treats cryptographic receipt verification as an
+    external boolean witness (proof_ok/binding_ok/policy_ok/nonce_ok). That
+    matches the repo-wide pattern "host computes, rules validate".
+
+observables:
+  state_vars:
+    - "epoch"
+    - "reward_pool_balance"
+    - "total_paid"
+    - "claimed_0"
+    - "claimed_1"
+    - "claimed_2"
+    - "claimed_3"
+    - "claimed_4"
+    - "claimed_5"
+    - "claimed_6"
+    - "claimed_7"
+  effects: ["proposal_slot", "prover_id", "reward_amount", "reward_kind", "paid"]
+
+types:
+  - id: "t_reward_kind"
+    type:
+      kind: "enum"
+      symbols: ["TreasuryTransfer"]
+
+state_vars:
+  - id: "epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 7 }
+  - id: "base_reward"
+    role: "control"
+    type: { kind: "int", min: 1, max: 128 }
+  - id: "initial_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "reward_pool_balance"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "total_paid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+
+  # Bounded claimed-set surrogate (real chain uses a map/set keyed by proposal_hash).
+  - id: "claimed_0"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "claimed_1"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "claimed_2"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "claimed_3"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "claimed_4"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "claimed_5"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "claimed_6"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "claimed_7"
+    role: "data"
+    type: { kind: "bool" }
+
+invariants:
+  - id: "inv_pool_conserved"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args: [{ var: "total_paid" }, { var: "reward_pool_balance" }]
+        - { var: "initial_pool" }
+  - id: "inv_pool_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "<="
+          args: [{ var: "reward_pool_balance" }, { var: "initial_pool" }]
+        - op: "<="
+          args: [{ var: "total_paid" }, { var: "initial_pool" }]
+
+init:
+  - var: "epoch"
+    expr: { const: 0 }
+  - var: "base_reward"
+    expr: { const: 64 }
+  - var: "initial_pool"
+    expr: { const: 500 }
+  - var: "reward_pool_balance"
+    expr: { const: 500 }
+  - var: "total_paid"
+    expr: { const: 0 }
+  - var: "claimed_0"
+    expr: { bool: false }
+  - var: "claimed_1"
+    expr: { bool: false }
+  - var: "claimed_2"
+    expr: { bool: false }
+  - var: "claimed_3"
+    expr: { bool: false }
+  - var: "claimed_4"
+    expr: { bool: false }
+  - var: "claimed_5"
+    expr: { bool: false }
+  - var: "claimed_6"
+    expr: { bool: false }
+  - var: "claimed_7"
+    expr: { bool: false }
+
+actions:
+  - id: "advance_epoch"
+    params: []
+    guard:
+      op: "<"
+      args: [{ var: "epoch" }, { const: 7 }]
+    updates:
+      - var: "epoch"
+        expr:
+          op: "+"
+          args: [{ var: "epoch" }, { const: 1 }]
+    effects:
+      proposal_slot: { const: 0 }
+      prover_id: { const: 0 }
+      reward_amount: { const: 0 }
+      reward_kind: { enum: "TreasuryTransfer" }
+      paid: { bool: false }
+
+  - id: "submit_proof"
+    params:
+      - id: "proposal_slot"
+        type: { kind: "int", min: 0, max: 7 }
+      - id: "prover_id"
+        type: { kind: "int", min: 0, max: 3 }
+      # External verification flags (host-provided booleans).
+      - id: "proof_ok"
+        type: { kind: "bool" }
+      - id: "binding_ok"
+        type: { kind: "bool" }
+      - id: "policy_ok"
+        type: { kind: "bool" }
+      - id: "nonce_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "proof_ok" }, { bool: true }] }
+        - { op: "=", args: [{ param: "binding_ok" }, { bool: true }] }
+        - { op: "=", args: [{ param: "policy_ok" }, { bool: true }] }
+        - { op: "=", args: [{ param: "nonce_ok" }, { bool: true }] }
+        # Not already claimed (bounded surrogate for a proposal_hash set).
+        - op: "not"
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 0 }] }
+              then: { var: "claimed_0" }
+              else:
+                op: "ite"
+                cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 1 }] }
+                then: { var: "claimed_1" }
+                else:
+                  op: "ite"
+                  cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 2 }] }
+                  then: { var: "claimed_2" }
+                  else:
+                    op: "ite"
+                    cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 3 }] }
+                    then: { var: "claimed_3" }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 4 }] }
+                      then: { var: "claimed_4" }
+                      else:
+                        op: "ite"
+                        cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 5 }] }
+                        then: { var: "claimed_5" }
+                        else:
+                          op: "ite"
+                          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 6 }] }
+                          then: { var: "claimed_6" }
+                          else: { var: "claimed_7" }
+        # Enough budget to pay the epoch reward (epoch-halving schedule, clamped to >= 1).
+        - op: ">="
+          args:
+            - { var: "reward_pool_balance" }
+            - op: "ite"
+              cond:
+                op: ">"
+                args:
+                  - op: "ite"
+                    cond: { op: "=", args: [{ var: "epoch" }, { const: 0 }] }
+                    then: { var: "base_reward" }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ var: "epoch" }, { const: 1 }] }
+                      then: { op: "div", args: [{ var: "base_reward" }, { const: 2 }] }
+                      else:
+                        op: "ite"
+                        cond: { op: "=", args: [{ var: "epoch" }, { const: 2 }] }
+                        then: { op: "div", args: [{ var: "base_reward" }, { const: 4 }] }
+                        else:
+                          op: "ite"
+                          cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
+                          then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
+                          else: { const: 0 }
+                  - { const: 0 }
+              then:
+                op: "ite"
+                cond: { op: "=", args: [{ var: "epoch" }, { const: 0 }] }
+                then: { var: "base_reward" }
+                else:
+                  op: "ite"
+                  cond: { op: "=", args: [{ var: "epoch" }, { const: 1 }] }
+                  then: { op: "div", args: [{ var: "base_reward" }, { const: 2 }] }
+                  else:
+                    op: "ite"
+                    cond: { op: "=", args: [{ var: "epoch" }, { const: 2 }] }
+                    then: { op: "div", args: [{ var: "base_reward" }, { const: 4 }] }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
+                      then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
+                      else: { const: 0 }
+              else: { const: 1 }
+    updates:
+      - var: "reward_pool_balance"
+        expr:
+          op: "-"
+          args:
+            - { var: "reward_pool_balance" }
+            - op: "ite"
+              cond:
+                op: ">"
+                args:
+                  - op: "ite"
+                    cond: { op: "=", args: [{ var: "epoch" }, { const: 0 }] }
+                    then: { var: "base_reward" }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ var: "epoch" }, { const: 1 }] }
+                      then: { op: "div", args: [{ var: "base_reward" }, { const: 2 }] }
+                      else:
+                        op: "ite"
+                        cond: { op: "=", args: [{ var: "epoch" }, { const: 2 }] }
+                        then: { op: "div", args: [{ var: "base_reward" }, { const: 4 }] }
+                        else:
+                          op: "ite"
+                          cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
+                          then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
+                          else: { const: 0 }
+                  - { const: 0 }
+              then:
+                op: "ite"
+                cond: { op: "=", args: [{ var: "epoch" }, { const: 0 }] }
+                then: { var: "base_reward" }
+                else:
+                  op: "ite"
+                  cond: { op: "=", args: [{ var: "epoch" }, { const: 1 }] }
+                  then: { op: "div", args: [{ var: "base_reward" }, { const: 2 }] }
+                  else:
+                    op: "ite"
+                    cond: { op: "=", args: [{ var: "epoch" }, { const: 2 }] }
+                    then: { op: "div", args: [{ var: "base_reward" }, { const: 4 }] }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
+                      then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
+                      else: { const: 0 }
+              else: { const: 1 }
+      - var: "total_paid"
+        expr:
+          op: "+"
+          args:
+            - { var: "total_paid" }
+            - op: "ite"
+              cond:
+                op: ">"
+                args:
+                  - op: "ite"
+                    cond: { op: "=", args: [{ var: "epoch" }, { const: 0 }] }
+                    then: { var: "base_reward" }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ var: "epoch" }, { const: 1 }] }
+                      then: { op: "div", args: [{ var: "base_reward" }, { const: 2 }] }
+                      else:
+                        op: "ite"
+                        cond: { op: "=", args: [{ var: "epoch" }, { const: 2 }] }
+                        then: { op: "div", args: [{ var: "base_reward" }, { const: 4 }] }
+                        else:
+                          op: "ite"
+                          cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
+                          then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
+                          else: { const: 0 }
+                  - { const: 0 }
+              then:
+                op: "ite"
+                cond: { op: "=", args: [{ var: "epoch" }, { const: 0 }] }
+                then: { var: "base_reward" }
+                else:
+                  op: "ite"
+                  cond: { op: "=", args: [{ var: "epoch" }, { const: 1 }] }
+                  then: { op: "div", args: [{ var: "base_reward" }, { const: 2 }] }
+                  else:
+                    op: "ite"
+                    cond: { op: "=", args: [{ var: "epoch" }, { const: 2 }] }
+                    then: { op: "div", args: [{ var: "base_reward" }, { const: 4 }] }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
+                      then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
+                      else: { const: 0 }
+              else: { const: 1 }
+
+      - var: "claimed_0"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 0 }] }
+          then: { bool: true }
+          else: { var: "claimed_0" }
+      - var: "claimed_1"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 1 }] }
+          then: { bool: true }
+          else: { var: "claimed_1" }
+      - var: "claimed_2"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 2 }] }
+          then: { bool: true }
+          else: { var: "claimed_2" }
+      - var: "claimed_3"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 3 }] }
+          then: { bool: true }
+          else: { var: "claimed_3" }
+      - var: "claimed_4"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 4 }] }
+          then: { bool: true }
+          else: { var: "claimed_4" }
+      - var: "claimed_5"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 5 }] }
+          then: { bool: true }
+          else: { var: "claimed_5" }
+      - var: "claimed_6"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 6 }] }
+          then: { bool: true }
+          else: { var: "claimed_6" }
+      - var: "claimed_7"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "proposal_slot" }, { const: 7 }] }
+          then: { bool: true }
+          else: { var: "claimed_7" }
+    effects:
+      proposal_slot: { param: "proposal_slot" }
+      prover_id: { param: "prover_id" }
+      reward_amount:
+        op: "ite"
+        cond:
+          op: ">"
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ var: "epoch" }, { const: 0 }] }
+              then: { var: "base_reward" }
+              else:
+                op: "ite"
+                cond: { op: "=", args: [{ var: "epoch" }, { const: 1 }] }
+                then: { op: "div", args: [{ var: "base_reward" }, { const: 2 }] }
+                else:
+                  op: "ite"
+                  cond: { op: "=", args: [{ var: "epoch" }, { const: 2 }] }
+                  then: { op: "div", args: [{ var: "base_reward" }, { const: 4 }] }
+                  else:
+                    op: "ite"
+                    cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
+                    then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
+                    else: { const: 0 }
+            - { const: 0 }
+        then:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "epoch" }, { const: 0 }] }
+          then: { var: "base_reward" }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "epoch" }, { const: 1 }] }
+            then: { op: "div", args: [{ var: "base_reward" }, { const: 2 }] }
+            else:
+              op: "ite"
+              cond: { op: "=", args: [{ var: "epoch" }, { const: 2 }] }
+              then: { op: "div", args: [{ var: "base_reward" }, { const: 4 }] }
+              else:
+                op: "ite"
+                cond: { op: "=", args: [{ var: "epoch" }, { const: 3 }] }
+                then: { op: "div", args: [{ var: "base_reward" }, { const: 8 }] }
+                else: { const: 0 }
+        else: { const: 1 }
+      reward_kind: { enum: "TreasuryTransfer" }
+      paid: { bool: true }

@@ -1,0 +1,38 @@
+# Token Archetype: Lock-Weighted Rewards v1 - 32-bit safe variant
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: lock_weight_bps (i2), reward_cap (i4)
+# IMMUTABLE_INVARIANTS: reward <= floor(stake * lock_bps / 10000)
+#
+# PURPOSE: Validate time/lock-weighted reward amounts with bps weighting.
+#
+# Stream mapping:
+# i1 = stake_amount (bv[32])
+# i2 = lock_weight_bps (bv[32])
+# i3 = reward_amount (bv[32])
+# i4 = reward_cap (bv[32])
+# o1 = weight_calc_ok
+# o2 = reward_ok
+# o3 = lock_weighted_ok
+# @rule o3: BPS weight math and reward cap both pass.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# reward <= floor(stake * lock_bps / 10000) with tolerance on implied floor
+weight_calc_ok(stake : bv[32], rate : bv[32], reward : bv[32]) := (reward * { #x00002710 }:bv[32] <= (stake * rate) + { #x0000270F }:bv[32]).
+
+reward_ok(reward : bv[32], cap : bv[32]) := reward <= cap.
+
+safe_range_ok(stake : bv[32], reward : bv[32]) := (stake <= max_safe_32()) && (reward <= max_safe_32()).
+
+always
+  # @section: Rate + weight math
+  (o1[t]:sbf = 1:sbf <-> (rate_ok(i2[t]:bv[32]) && weight_calc_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))) &&
+  # @section: Reward caps + safe-range guard
+  (o2[t]:sbf = 1:sbf <-> reward_ok(i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o3[t]:sbf = o1[t] & o2[t] & safe_range_ok(i1[t]:bv[32], i3[t]:bv[32])).

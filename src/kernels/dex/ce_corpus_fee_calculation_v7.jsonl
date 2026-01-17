@@ -1,0 +1,1 @@
+{"kind":"step","meta":{"model_id":"fee_calculation_v7"},"state":{"lp_fees_collected":0,"protocol_fees_collected":0,"total_fees_collected":0},"command":{"tag":"calculate_fee","args":{"gross_amount":1000,"fee_bps":30,"protocol_fee_share_bps":2000}},"details":{"note":"Representative fee calculation step for CE maturity."},"retained":true,"minimized":true,"duplicate":false}

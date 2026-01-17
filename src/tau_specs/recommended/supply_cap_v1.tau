@@ -1,0 +1,50 @@
+# Supply Cap v1 - Hard Token Supply Cap
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none - supply cap is immutable
+# IMMUTABLE_INVARIANTS: total supply never exceeds cap
+#
+# PURPOSE: Enforce hard cap on total token supply.
+# Prevents inflationary attacks even with governance compromise.
+# No passive payouts - purely a supply validation gate.
+#
+# Stream mapping:
+# i1 = current_supply (bv[32]) - current total supply
+# i2 = mint_amount (bv[32]) - amount being minted
+# i3 = supply_cap (bv[32]) - immutable supply cap
+# i4 = is_mint_op (sbf) - 1 if this is a mint operation
+# o1 = params_ok
+# o2 = current_ok
+# o3 = after_mint_ok
+# o4 = supply_cap_ok
+# @rule o4: current <= cap AND (current + mint) <= cap.
+
+set charvar off
+
+# Supply cap positive
+cap_ok(cap : bv[32]) := cap > { #x00000000 }:bv[32].
+
+# Params valid
+params_ok(cap : bv[32]) := cap_ok(cap).
+
+# Current supply within cap
+current_ok(current : bv[32], cap : bv[32]) := current <= cap.
+
+# After mint within cap (only checked if is_mint)
+after_mint_ok(current : bv[32], mint : bv[32], cap : bv[32], is_mint : sbf) := (is_mint = 0:sbf) || ((current + mint) <= cap).
+
+# No overflow check: current + mint >= current
+no_overflow(current : bv[32], mint : bv[32]) := (current + mint) >= current.
+
+# Full check
+supply_cap_valid(current : bv[32], mint : bv[32], cap : bv[32], is_mint : sbf) := params_ok(cap) && current_ok(current, cap) && after_mint_ok(current, mint, cap, is_mint) && no_overflow(current, mint).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32])) &&
+  # @section: Current supply check
+  (o2[t]:sbf = 1:sbf <-> current_ok(i1[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: After mint check
+  (o3[t]:sbf = 1:sbf <-> after_mint_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf)) &&
+  # @section: Aggregated supply cap validity
+  (o4[t]:sbf = 1:sbf <-> supply_cap_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf)).

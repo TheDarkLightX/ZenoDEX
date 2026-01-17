@@ -1,0 +1,57 @@
+# Price Band Guard v1 - Bounded Price vs Reference
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_deviation_bps (i3)
+# IMMUTABLE_INVARIANTS: trade price within band of reference price
+#
+# PURPOSE: Tighter than circuit breaker - ensures each trade price
+# stays within a bounded band vs reference (TWAP, oracle, etc).
+# No passive payouts - purely a price validation gate.
+#
+# Stream mapping:
+# i1 = trade_price (bv[32]) - price of the trade
+# i2 = reference_price (bv[32]) - reference (TWAP/oracle)
+# i3 = max_deviation_bps (bv[32]) - max allowed deviation in bps
+# o1 = params_ok
+# o2 = upper_bound_ok
+# o3 = lower_bound_ok
+# o4 = price_band_ok
+# @rule o4: Trade price within [ref*(1-bps), ref*(1+bps)].
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+# floor((2^32-1)/20000) for (10000 + bps)
+max_safe_32_2x() := { #x000346DC }:bv[32].
+
+# bps <= 10000
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Prices positive
+price_ok(price : bv[32]) := price > { #x00000000 }:bv[32].
+
+# Safe range for multiplication
+safe_ok(trade : bv[32], ref : bv[32]) := (trade <= max_safe_32_2x()) && (ref <= max_safe_32_2x()).
+
+# Params valid
+params_ok(trade : bv[32], ref : bv[32], max_bps : bv[32]) := price_ok(trade) && price_ok(ref) && rate_ok(max_bps) && safe_ok(trade, ref).
+
+# Upper bound: trade * 10000 <= ref * (10000 + bps)
+upper_bound_ok(trade : bv[32], ref : bv[32], bps : bv[32]) := (trade * { #x00002710 }:bv[32]) <= (ref * ({ #x00002710 }:bv[32] + bps)).
+
+# Lower bound: trade * 10000 >= ref * (10000 - bps)
+lower_bound_ok(trade : bv[32], ref : bv[32], bps : bv[32]) := (trade * { #x00002710 }:bv[32]) >= (ref * ({ #x00002710 }:bv[32] - bps)).
+
+# Full check
+price_band_valid(trade : bv[32], ref : bv[32], bps : bv[32]) := params_ok(trade, ref, bps) && upper_bound_ok(trade, ref, bps) && lower_bound_ok(trade, ref, bps).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Upper bound check
+  (o2[t]:sbf = 1:sbf <-> upper_bound_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Lower bound check
+  (o3[t]:sbf = 1:sbf <-> lower_bound_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Aggregated price band validity
+  (o4[t]:sbf = 1:sbf <-> price_band_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])).

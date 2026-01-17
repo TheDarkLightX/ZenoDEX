@@ -1,0 +1,26 @@
+# Spec 88: Partial Order Fill Validator
+# NOVEL: Validates partial fills don't exceed order size
+# Tracks cumulative fills across multiple executions
+# Ensures no overfill and fair pro-rata distribution
+#
+# Inputs: i1 = order_size, i2 = fill_amount, i3 = cumulative_filled,
+#         i4 = min_fill_size
+# Outputs: o1 = fill_valid, o2 = no_overfill, o3 = fill_significant, o4 = order_complete
+
+# Fill valid: fill_amount <= remaining order
+# fill_amount <= order_size - cumulative_filled
+fillvalid(ordersize : bv[16], fillamt : bv[16], cumfilled : bv[16]) := (cumfilled <= ordersize) && (fillamt <= ordersize - cumfilled).
+
+# No overfill: cumulative + current <= order_size
+nooverfill(ordersize : bv[16], fillamt : bv[16], cumfilled : bv[16]) := cumfilled + fillamt <= ordersize.
+
+# Fill significant: fill >= minimum fill size (dust prevention)
+fillsignificant(fillamt : bv[16], minfill : bv[16]) := fillamt >= minfill.
+
+# Order complete: cumulative + current = order_size
+ordercomplete(ordersize : bv[16], fillamt : bv[16], cumfilled : bv[16]) := cumfilled + fillamt = ordersize.
+
+# Fill increased: more filled than previous step
+fillincreased(currfilled : bv[16], prevfilled : bv[16]) := currfilled > prevfilled.
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> fillvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> nooverfill(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> fillsignificant(i2[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> ordercomplete(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

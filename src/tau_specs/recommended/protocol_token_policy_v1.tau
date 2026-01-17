@@ -1,0 +1,62 @@
+# Protocol Token Policy v1 - Composite Validity Gate
+#
+# PURPOSE: Combine protocol_token_v1 transition validity with the
+# underflow guard (protocol_token_underflow_guard_v1).
+#
+# Stream mapping (same as protocol_token_v1):
+# i1 = from_before_hi
+# i2 = from_before_lo
+# i3 = to_before_hi
+# i4 = to_before_lo
+# i5 = supply_before_hi
+# i6 = supply_before_lo
+# i7 = amount_hi
+# i8 = amount_lo
+# i9 = from_after_hi
+# i10 = from_after_lo
+# i11 = to_after_hi
+# i12 = to_after_lo
+# i13 = supply_after_hi
+# i14 = supply_after_lo
+# i15 = do_transfer
+# i16 = do_mint
+# i17 = do_burn
+# o1 = token_transition_valid
+# o2 = underflow_ok
+# o3 = policy_ok
+# @rule o3: Policy ok iff the transition is valid and no underflow is possible.
+
+set charvar off
+
+is_positive_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || ((hi = { #x0000 }:bv[16]) && (lo > { #x0000 }:bv[16])).
+
+one_hot_3(a : sbf, b : sbf, c : sbf) := ((a = 1:sbf) && (b = 0:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 1:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 0:sbf) && (c = 1:sbf)).
+
+# NOTE: Runtime-safe 32-bit limb math (no carry/borrow). Enforces no-wrap constraints.
+add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := (sum_lo = (a_lo + b_lo)) && (sum_lo >= a_lo) && (sum_lo >= b_lo) && (sum_hi = (a_hi + b_hi)) && (sum_hi >= a_hi) && (sum_hi >= b_hi).
+
+sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], diff_hi : bv[16], diff_lo : bv[16]) := (a_hi >= b_hi) && (a_lo >= b_lo) && (diff_lo = (a_lo - b_lo)) && (diff_hi = (a_hi - b_hi)).
+
+supply_eq() := (i13[t]:bv[16] = i5[t]:bv[16]) && (i14[t]:bv[16] = i6[t]:bv[16]).
+supply_inc_by_amount() := add_32(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16]).
+supply_dec_by_amount() := sub_32(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16]).
+
+transfer_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && sub_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16]) && add_32(i3[t]:bv[16], i4[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && supply_eq().
+
+mint_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && (i9[t]:bv[16] = i1[t]:bv[16]) && (i10[t]:bv[16] = i2[t]:bv[16]) && add_32(i3[t]:bv[16], i4[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && supply_inc_by_amount().
+
+burn_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && sub_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16]) && (i11[t]:bv[16] = i3[t]:bv[16]) && (i12[t]:bv[16] = i4[t]:bv[16]) && supply_dec_by_amount().
+
+token_ok() := (one_hot_3(i15[t]:sbf, i16[t]:sbf, i17[t]:sbf) = 1:sbf) && (((i15[t]:sbf = 1:sbf) && transfer_valid()) || ((i16[t]:sbf = 1:sbf) && mint_valid()) || ((i17[t]:sbf = 1:sbf) && burn_valid())).
+
+value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || ((hi1 = hi2) && (lo1 >= lo2)).
+
+transfer_ok() := value_gte_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16]).
+burn_ok() := value_gte_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16]) && value_gte_32(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16]).
+underflow_ok() := ((i15[t]:sbf = 1:sbf) -> transfer_ok()) && ((i17[t]:sbf = 1:sbf) -> burn_ok()).
+
+always
+  # @section: Token policy composition
+  (o1[t]:sbf = 1:sbf <-> token_ok()) &&
+  (o2[t]:sbf = 1:sbf <-> underflow_ok()) &&
+  (o3[t]:sbf = 1:sbf <-> (token_ok() && underflow_ok())).

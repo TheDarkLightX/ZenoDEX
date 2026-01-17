@@ -1,0 +1,26 @@
+# Spec 81: LP Token Fair Pricing Validator
+# NOVEL: Validates LP token price reflects underlying pool value
+# LP token value = (reserve_a + reserve_b) / total_lp_supply
+# Prevents LP token mispricing and inflation attacks
+#
+# Inputs: i1 = reserve_a, i2 = reserve_b, i3 = lp_supply, 
+#         i4 = lp_price_claimed, i5 = mint_amount
+# Outputs: o1 = price_fair, o2 = no_dilution, o3 = mint_valid, o4 = lp_value_stable
+
+# Fair price: lp_price * lp_supply approximately equals total_reserves
+# lp_price * lp_supply should be close to (reserve_a + reserve_b)
+# |lp_price * lp_supply - (res_a + res_b)| * 100 < (res_a + res_b) * 5
+pricefair(resa : bv[16], resb : bv[16], lpsupply : bv[16], lpprice : bv[16]) := (lpsupply > { #x0000 }:bv[16]) && (((lpprice * lpsupply >= resa + resb) && ((lpprice * lpsupply - (resa + resb)) * { #x0014 }:bv[16] < resa + resb)) || ((lpprice * lpsupply < resa + resb) && (((resa + resb) - lpprice * lpsupply) * { #x0014 }:bv[16] < resa + resb))).
+
+# No dilution: LP supply increase matched by reserve increase
+# new_supply / old_supply <= new_reserves / old_reserves
+# Cross-mult: new_supply * old_reserves <= new_reserves * old_supply
+nodilution(currsupply : bv[16], prevsupply : bv[16], currres : bv[16], prevres : bv[16]) := currsupply * prevres <= currres * prevsupply.
+
+# Mint valid: minted LP tokens proportional to added reserves
+mintvalid(mintamt : bv[16], lpsupply : bv[16], addedres : bv[16], totalres : bv[16]) := (totalres > { #x0000 }:bv[16]) && (mintamt * totalres <= addedres * lpsupply + lpsupply).
+
+# LP value stable: LP token value didn't change significantly
+lpvaluestable(currprice : bv[16], prevprice : bv[16]) := ((currprice >= prevprice) && ((currprice - prevprice) * { #x0014 }:bv[16] < prevprice)) || ((currprice < prevprice) && ((prevprice - currprice) * { #x0014 }:bv[16] < prevprice)) || (prevprice = { #x0000 }:bv[16]).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> pricefair(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> nodilution(i3[t]:bv[16], i3[t-1]:bv[16], i1[t]:bv[16] + i2[t]:bv[16], i1[t-1]:bv[16] + i2[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> mintvalid(i5[t]:bv[16], i3[t]:bv[16], i1[t]:bv[16], i1[t]:bv[16] + i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> lpvaluestable(i4[t]:bv[16], i4[t-1]:bv[16])).

@@ -1,0 +1,61 @@
+# Reserve Ratio v1 - Protocol Solvency Check
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: min_ratio_bps (i3)
+# IMMUTABLE_INVARIANTS: reserves * 10000 >= liabilities * min_ratio_bps
+#
+# PURPOSE: Validate minimum reserve ratio for protocol solvency.
+# Ensures protocol can cover liabilities with sufficient margin.
+# No passive payouts - purely a solvency validation gate.
+#
+# DbC Preconditions:
+# - All values are bv[32] (unsigned).
+# - min_ratio_bps typically >= 10000 (100% = fully collateralized).
+# - liabilities > 0.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff reserves/liabilities >= min_ratio_bps/10000.
+#
+# Stream mapping:
+# i1 = reserves (bv[32]) - protocol reserves/collateral
+# i2 = liabilities (bv[32]) - protocol liabilities/debts
+# i3 = min_ratio_bps (bv[32]) - minimum ratio (10000 = 100%, 15000 = 150%)
+# o1 = params_ok
+# o2 = liabilities_ok
+# o3 = ratio_ok
+# o4 = reserve_ok
+# @rule o4: Reserve ratio >= min_ratio.
+
+set charvar off
+
+# floor((2^32-1)/10000) for safe bps multiplication
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Min ratio must be positive (typically >= 10000 for 100%)
+ratio_ok(min_ratio : bv[32]) := min_ratio > { #x00000000 }:bv[32].
+
+# Liabilities must be positive (division by zero protection)
+liabilities_ok(liab : bv[32]) := liab > { #x00000000 }:bv[32].
+
+# Safe range for multiplication
+safe_reserve_ok(reserves : bv[32]) := reserves <= max_safe_32().
+safe_ratio_ok(liab : bv[32], min_ratio : bv[32]) := (min_ratio > { #x00000000 }:bv[32]) && (liab <= ({ #xFFFFFFFF }:bv[32] / min_ratio)).
+
+# Parameters valid
+params_ok(reserves : bv[32], liab : bv[32], min_ratio : bv[32]) := ratio_ok(min_ratio) && liabilities_ok(liab) && safe_reserve_ok(reserves) && safe_ratio_ok(liab, min_ratio).
+
+# Reserve ratio check: reserves * 10000 >= liabilities * min_ratio_bps
+reserve_ratio_ok(reserves : bv[32], liab : bv[32], min_ratio : bv[32]) := (reserves * { #x00002710 }:bv[32]) >= (liab * min_ratio).
+
+# Full reserve check
+reserve_valid(reserves : bv[32], liab : bv[32], min_ratio : bv[32]) := params_ok(reserves, liab, min_ratio) && reserve_ratio_ok(reserves, liab, min_ratio).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Liabilities check
+  (o2[t]:sbf = 1:sbf <-> liabilities_ok(i2[t]:bv[32])) &&
+  # @section: Ratio check
+  (o3[t]:sbf = 1:sbf <-> reserve_ratio_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Aggregated reserve validity
+  (o4[t]:sbf = 1:sbf <-> reserve_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])).

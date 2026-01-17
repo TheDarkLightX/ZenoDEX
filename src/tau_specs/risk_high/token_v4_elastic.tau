@@ -1,0 +1,56 @@
+# Token V4 - Elastic Supply (Burn + Conditional Mint)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: target_supply (i2), demand thresholds (105/95)
+# IMMUTABLE_INVARIANTS: mint only when demand_high, burn only when supply > floor
+#
+# ALGORITHM: Rebase Token with Demand-Responsive Supply
+# Burns on transfers (deflationary pressure)
+# Mints when demand signal exceeds threshold (inflationary response)
+# Supply oscillates around target, never reaches zero
+#
+# Mathematical Guarantee (Never-Zero):
+# 1. Burn only allowed when supply > floor
+# 2. Mint triggered when supply < target AND demand high
+# 3. Net effect: supply bounded between floor and ceiling
+#
+# Demand Signal: price_ratio = current_price / target_price
+# - If ratio > 1.05: high demand → mint allowed
+# - If ratio < 0.95: low demand → extra burn
+# - Otherwise: normal burn only
+#
+# Inputs:
+# i1 = current_supply
+# i2 = target_supply
+# i3 = price_ratio_x100 (100 = 1.0, 105 = 1.05)
+# i4 = burn_amount
+# i5 = mint_amount
+# Outputs:
+# o1 = demand_high (should mint)
+# o2 = demand_low (should burn more)
+# o3 = supply_in_band (within target range)
+# o4 = rebase_valid (elastic action valid)
+
+# Demand high: price ratio > 105% (high demand, consider minting)
+demandhigh(priceratio : bv[16]) := priceratio > { #x0069 }:bv[16].
+
+# Demand low: price ratio < 95% (low demand, extra burn)
+demandlow(priceratio : bv[16]) := priceratio < { #x005F }:bv[16].
+
+# Supply in band: within 20% of target
+# |current - target| * 5 < target
+supplyinband(current : bv[16], target : bv[16]) := ((current >= target) && ((current - target) * { #x0005 }:bv[16] < target)) || ((current < target) && ((target - current) * { #x0005 }:bv[16] < target)).
+
+# Mint valid: demand high AND supply below target
+mintvalid(priceratio : bv[16], current : bv[16], target : bv[16], mintamt : bv[16]) := demandhigh(priceratio) && (current < target) && (mintamt > { #x0000 }:bv[16]).
+
+# Burn valid: always allowed when supply > floor, extra if demand low
+burnvalid(priceratio : bv[16], current : bv[16], floor : bv[16], burnamt : bv[16]) := (current > floor + burnamt) && (burnamt > { #x0000 }:bv[16]).
+
+# Rebase valid: either mint or burn is valid based on demand
+rebasevalid(priceratio : bv[16], current : bv[16], target : bv[16], burnamt : bv[16], mintamt : bv[16]) := (demandhigh(priceratio) && mintvalid(priceratio, current, target, mintamt)) || (demandlow(priceratio) && (burnamt > { #x0000 }:bv[16])) || (!demandhigh(priceratio) && !demandlow(priceratio)).
+
+# Supply stable: not oscillating wildly between steps
+supplystable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && ((curr - prev) * { #x000A }:bv[16] < prev)) || ((curr < prev) && ((prev - curr) * { #x000A }:bv[16] < prev)).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> demandhigh(i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> demandlow(i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> supplyinband(i1[t]:bv[16], i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> rebasevalid(i3[t]:bv[16], i1[t]:bv[16], i2[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

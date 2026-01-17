@@ -1,0 +1,198 @@
+actions:
+- effects:
+    distribution_ready:
+      bool: false
+    fees_after:
+      var: fees_collected
+    phase_after:
+      var: phase
+  guard:
+    args:
+    - args:
+      - args:
+        - param: fee_amount
+        - var: fees_collected
+        op: +
+      - const: 10000000
+      op: <=
+    - args:
+      - const: 0
+      - var: phase
+      op: '='
+    - args:
+      - param: fee_amount
+      - const: 0
+      op: '>'
+    op: and
+  id: collect_fee
+  params:
+  - id: fee_amount
+    type:
+      kind: int
+      max: 1000000
+      min: 1
+  updates:
+  - expr:
+      args:
+      - param: fee_amount
+      - var: fees_collected
+      op: +
+    var: fees_collected
+- effects:
+    distribution_ready:
+      args:
+      - var: fees_collected
+      - var: total_distributed
+      op: '='
+    fees_after:
+      var: fees_collected
+    phase_after:
+      var: phase
+  guard:
+    args:
+    - args:
+      - param: distribution_amount
+      - const: 0
+      op: '>'
+    - args:
+      - var: fees_collected
+      - args:
+        - param: distribution_amount
+        - var: total_distributed
+        op: +
+      op: '>='
+    - args:
+      - args:
+        - const: 1
+        - var: phase
+        op: '='
+      - args:
+        - const: 2
+        - var: phase
+        op: '='
+      op: or
+    op: and
+  id: distribute
+  params:
+  - id: distribution_amount
+    type:
+      kind: int
+      max: 10000000
+      min: 1
+  updates:
+  - expr:
+      args:
+      - param: distribution_amount
+      - var: total_distributed
+      op: +
+    var: total_distributed
+  - expr:
+      cond:
+        args:
+        - var: fees_collected
+        - var: total_distributed
+        op: '='
+      else:
+        const: 2
+      op: ite
+      then:
+        const: 3
+    var: phase
+- effects:
+    distribution_ready:
+      bool: true
+    fees_after:
+      var: fees_collected
+    phase_after:
+      const: 1
+  guard:
+    args:
+    - args:
+      - const: 0
+      - var: phase
+      op: '='
+    - args:
+      - var: fees_collected
+      - param: min_fees_threshold
+      op: '>='
+    op: and
+  id: transition_to_accumulating
+  params:
+  - id: min_fees_threshold
+    type:
+      kind: int
+      max: 1000000
+      min: 1
+  updates:
+  - expr:
+      const: 1
+    var: phase
+init:
+- expr:
+    const: 0
+  var: phase
+- expr:
+    const: 0
+  var: fees_collected
+- expr:
+    const: 0
+  var: total_distributed
+invariants:
+- expr:
+    args:
+    - var: total_distributed
+    - var: fees_collected
+    op: <=
+  id: inv_conservation
+  kind: safety
+- expr:
+    args:
+    - var: total_distributed
+    - const: 0
+    op: '>='
+  id: inv_distributed_nonnegative
+  kind: safety
+- expr:
+    args:
+    - var: fees_collected
+    - const: 0
+    op: '>='
+  id: inv_fees_nonnegative
+  kind: safety
+ir_version: esso-ir/v1
+meta:
+  model_id: multi_phase_fee_collector_simple
+  notes: 'Multi-phase fee collection with phase transitions.
+
+    Simplified for successful evolution.
+
+    '
+observables:
+  effects:
+  - phase_after
+  - fees_after
+  - distribution_ready
+  state_vars:
+  - phase
+  - fees_collected
+  - total_distributed
+state_vars:
+- id: fees_collected
+  role: data
+  type:
+    kind: int
+    max: 10000000
+    min: 0
+- id: phase
+  role: control
+  type:
+    kind: int
+    max: 3
+    min: 0
+- id: total_distributed
+  role: data
+  type:
+    kind: int
+    max: 10000000
+    min: 0
+types: []

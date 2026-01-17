@@ -1,0 +1,38 @@
+# Tokenomics v1: protocol fee split + buyback-and-burn constraints (Tau-executable)
+#
+# This module validates that externally-computed fee splits and burn actions
+# are consistent and bounded.
+
+# Stream mapping:
+# i1 = fee_total_hi
+# i2 = fee_total_lo
+# i3 = fee_to_lp_hi
+# i4 = fee_to_lp_lo
+# i5 = fee_to_treasury_hi
+# i6 = fee_to_treasury_lo
+# i7 = fee_to_burn_hi
+# i8 = fee_to_burn_lo
+# i9 = fee_lp_treasury_hi
+# i10 = fee_lp_treasury_lo
+# i11 = fee_sum_hi
+# i12 = fee_sum_lo
+# i13 = buyback_triggered
+# i14 = burn_amount_hi
+# i15 = burn_amount_lo
+# i16 = burn_limit_hi
+# i17 = burn_limit_lo
+# o1 = tokenomics_valid
+
+is_positive_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || ((hi = { #x0000 }:bv[16]) && (lo > { #x0000 }:bv[16])).
+
+is_zero_32(hi : bv[16], lo : bv[16]) := (hi = { #x0000 }:bv[16]) && (lo = { #x0000 }:bv[16]).
+
+value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || ((hi1 = hi2) && (lo1 >= lo2)).
+
+add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := (sum_lo = (a_lo + b_lo)) && (((sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi + { #x0001 }:bv[16]))) && (!(sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi)))).
+
+fee_sum_matches_total() := add_32(i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16]) && add_32(i9[t]:bv[16], i10[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && (i1[t]:bv[16] = i11[t]:bv[16]) && (i2[t]:bv[16] = i12[t]:bv[16]).
+
+burn_bounded() := ((i13[t]:sbf = 1:sbf) -> (is_positive_32(i14[t]:bv[16], i15[t]:bv[16]) && value_gte_32(i16[t]:bv[16], i17[t]:bv[16], i14[t]:bv[16], i15[t]:bv[16]))) && ((i13[t]:sbf = 0:sbf) -> is_zero_32(i14[t]:bv[16], i15[t]:bv[16])).
+
+always (o1[t]:sbf = 1:sbf <-> (fee_sum_matches_total() && burn_bounded())).

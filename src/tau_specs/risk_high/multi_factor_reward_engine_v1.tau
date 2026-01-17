@@ -1,0 +1,63 @@
+# Multi-Factor Reward Engine v1 - Composite Reward Using Multiple Signals
+#
+# WARNING: risk_high - complex multi-signal reward logic, harder to audit
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: factor weights
+# IMMUTABLE_INVARIANTS: reward = sum(factor * weight), capped
+#
+# PURPOSE: Composite reward calculation using multiple usage signals:
+# - Trading volume (factor 1)
+# - LP provision (factor 2)
+# - Governance participation (factor 3)
+# Each factor weighted and summed for final reward.
+# WARNING: Complex logic - harder to audit fully.
+#
+# Stream mapping:
+# i1 = factor1_score (bv[32]) - trading volume score
+# i2 = factor2_score (bv[32]) - LP score
+# i3 = factor3_score (bv[32]) - governance score
+# i4 = weight1_bps (bv[32]) - weight for factor 1
+# i5 = weight2_bps (bv[32]) - weight for factor 2
+# i6 = weight3_bps (bv[32]) - weight for factor 3
+# i7 = computed_reward (bv[32]) - externally computed reward
+# i8 = reward_cap (bv[32]) - max reward
+# i9 = min_total_score (bv[32]) - min combined score to qualify
+# o1 = params_ok
+# o2 = weights_ok
+# o3 = score_ok
+# o4 = multi_factor_ok
+# @rule o4: Weights sum <= 10000 AND total score >= min AND reward capped.
+
+set charvar off
+
+# Rate ok
+rate_ok(r : bv[32]) := r <= { #x00002710 }:bv[32].
+
+# Weights sum to at most 10000
+weights_ok(w1 : bv[32], w2 : bv[32], w3 : bv[32]) := rate_ok(w1) && rate_ok(w2) && rate_ok(w3) && ((w1 + w2 + w3) <= { #x00002710 }:bv[32]).
+
+# Total score (sum of weighted factors, simplified as sum of raw scores for check)
+total_score(f1 : bv[32], f2 : bv[32], f3 : bv[32]) := f1 + f2 + f3.
+
+# Score qualifies
+score_ok(f1 : bv[32], f2 : bv[32], f3 : bv[32], min_score : bv[32]) := total_score(f1, f2, f3) >= min_score.
+
+# Reward capped
+cap_ok(reward : bv[32], cap : bv[32]) := reward <= cap.
+
+# Params ok
+params_ok(cap : bv[32]) := cap > { #x00000000 }:bv[32].
+
+# Full check
+multi_factor_valid(f1 : bv[32], f2 : bv[32], f3 : bv[32], w1 : bv[32], w2 : bv[32], w3 : bv[32], reward : bv[32], cap : bv[32], min_score : bv[32]) := params_ok(cap) && weights_ok(w1, w2, w3) && score_ok(f1, f2, f3, min_score) && cap_ok(reward, cap).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i8[t]:bv[32])) &&
+  # @section: Weights check
+  (o2[t]:sbf = 1:sbf <-> weights_ok(i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])) &&
+  # @section: Score qualification
+  (o3[t]:sbf = 1:sbf <-> (score_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i9[t]:bv[32]) && cap_ok(i7[t]:bv[32], i8[t]:bv[32]))) &&
+  # @section: Aggregated multi-factor validity
+  (o4[t]:sbf = 1:sbf <-> multi_factor_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32])).

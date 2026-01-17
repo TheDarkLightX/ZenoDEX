@@ -1,0 +1,10 @@
+# Spec 101: Fee Flywheel Splitter
+# Pattern: enforce fee component conservation + minimum burn/reserve
+# Inputs: i1=total_fee, i2=burn_fee, i3=rewards_fee, i4=treasury_fee, i5=reserve_fee, i6=min_burn, i7=min_reserve
+# Output: o1=split_valid
+
+no_wrap_add2(a : bv[16], b : bv[16]) := (a + b >= a) && (a + b >= b).
+
+split_valid(total : bv[16], burn : bv[16], rewards : bv[16], treasury : bv[16], reserve : bv[16], min_burn : bv[16], min_reserve : bv[16]) := no_wrap_add2(burn, rewards) && no_wrap_add2(burn + rewards, treasury) && no_wrap_add2(burn + rewards + treasury, reserve) && (burn + rewards + treasury + reserve = total) && (burn >= min_burn) && (reserve >= min_reserve).
+
+always (o1[t]:sbf = 1:sbf <-> split_valid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])).

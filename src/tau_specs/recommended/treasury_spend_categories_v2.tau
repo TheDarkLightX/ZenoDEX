@@ -1,0 +1,63 @@
+# Treasury Spend Categories v2 - Category-Specific Caps
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: category caps (i3-i6)
+# IMMUTABLE_INVARIANTS: spend <= category cap AND total cap
+#
+# PURPOSE: Enhanced treasury policy with category-specific caps:
+# - Audits: highest priority, bounded
+# - Ops: operational expenses, bounded
+# - Grants: community grants, bounded
+# - Other: catch-all, bounded
+# No passive payouts - service-bound spend validation.
+#
+# Stream mapping:
+# i1 = spend_amount (bv[32])
+# i2 = category_id (bv[8]) - 1=audits, 2=ops, 3=grants, 4=other
+# i3 = audit_cap (bv[32])
+# i4 = ops_cap (bv[32])
+# i5 = grants_cap (bv[32])
+# i6 = other_cap (bv[32])
+# i7 = category_spent (bv[32]) - already spent in category
+# i8 = service_proof (sbf)
+# o1 = category_valid
+# o2 = cap_ok
+# o3 = service_ok
+# o4 = treasury_v2_ok
+# @rule o4: Valid category AND spend + already_spent <= cap AND service_proof.
+
+set charvar off
+
+# Category IDs
+cat_audits() := { #x01 }:bv[8].
+cat_ops() := { #x02 }:bv[8].
+cat_grants() := { #x03 }:bv[8].
+cat_other() := { #x04 }:bv[8].
+
+# Category valid
+category_valid(cat : bv[8]) := (cat = cat_audits()) || (cat = cat_ops()) || (cat = cat_grants()) || (cat = cat_other()).
+
+# Get cap for category
+cap_for_audits(cat : bv[8], aud_cap : bv[32], spend : bv[32], spent : bv[32]) := (cat != cat_audits()) || ((spend + spent) <= aud_cap).
+cap_for_ops(cat : bv[8], ops_cap : bv[32], spend : bv[32], spent : bv[32]) := (cat != cat_ops()) || ((spend + spent) <= ops_cap).
+cap_for_grants(cat : bv[8], grants_cap : bv[32], spend : bv[32], spent : bv[32]) := (cat != cat_grants()) || ((spend + spent) <= grants_cap).
+cap_for_other(cat : bv[8], other_cap : bv[32], spend : bv[32], spent : bv[32]) := (cat != cat_other()) || ((spend + spent) <= other_cap).
+
+# All caps ok
+cap_ok(spend : bv[32], cat : bv[8], aud : bv[32], ops : bv[32], gra : bv[32], oth : bv[32], spent : bv[32]) := cap_for_audits(cat, aud, spend, spent) && cap_for_ops(cat, ops, spend, spent) && cap_for_grants(cat, gra, spend, spent) && cap_for_other(cat, oth, spend, spent).
+
+# Service proof required for non-zero spend
+service_ok(spend : bv[32], proof : sbf) := (spend = { #x00000000 }:bv[32]) || (proof = 1:sbf).
+
+# Full check
+treasury_v2_valid(spend : bv[32], cat : bv[8], aud : bv[32], ops : bv[32], gra : bv[32], oth : bv[32], spent : bv[32], proof : sbf) := category_valid(cat) && cap_ok(spend, cat, aud, ops, gra, oth, spent) && service_ok(spend, proof).
+
+always
+  # @section: Category validation
+  (o1[t]:sbf = 1:sbf <-> category_valid(i2[t]:bv[8])) &&
+  # @section: Cap check
+  (o2[t]:sbf = 1:sbf <-> cap_ok(i1[t]:bv[32], i2[t]:bv[8], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])) &&
+  # @section: Service proof
+  (o3[t]:sbf = 1:sbf <-> service_ok(i1[t]:bv[32], i8[t]:sbf)) &&
+  # @section: Aggregated treasury v2 validity
+  (o4[t]:sbf = 1:sbf <-> treasury_v2_valid(i1[t]:bv[32], i2[t]:bv[8], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:sbf)).

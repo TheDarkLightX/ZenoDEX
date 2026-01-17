@@ -1,0 +1,6 @@
+# Minimal verified spec - single output, easy to test
+# o1 = 1 iff i1 >= i2 (intent match)
+
+intentsmatch(bp : bv[16], sp : bv[16]) := bp >= sp.
+
+always (o1[t]:sbf = 1:sbf <-> intentsmatch(i1[t]:bv[16], i2[t]:bv[16])).

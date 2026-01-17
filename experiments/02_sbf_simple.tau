@@ -1,0 +1,4 @@
+# Experiment 02: Simple Boolean Function (sbf) operations
+# Using sbf type for basic boolean logic
+
+always (o1[t]:sbf = 1:sbf <-> i1[t]:sbf = 1:sbf).

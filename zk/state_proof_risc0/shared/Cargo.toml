@@ -1,0 +1,10 @@
+[package]
+name = "tau-state-proof-risc0-shared"
+version = "0.1.0"
+edition = "2021"
+description = "Shared types and deterministic hashing for Tau state proofs (Risc0)"
+
+[dependencies]
+serde = { version = "1.0.219", default-features = false, features = ["alloc", "derive"] }
+sha2 = { version = "0.10.9", default-features = false }
+

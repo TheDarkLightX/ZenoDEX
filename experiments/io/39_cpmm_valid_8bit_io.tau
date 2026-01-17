@@ -1,0 +1,17 @@
+# Experiment 39: CPMM validity (8-bit bounded inputs expected, no explicit bounds)
+
+# Inputs
+# resx_lo, resy_lo, net_lo, out_lo (assumed <= 0x00FF)
+
+i1 : bv[16] = in file("experiments/io/inputs/cpmm8_resx.in")
+i2 : bv[16] = in file("experiments/io/inputs/cpmm8_resy.in")
+i3 : bv[16] = in file("experiments/io/inputs/cpmm8_net.in")
+i4 : bv[16] = in file("experiments/io/inputs/cpmm8_out.in")
+
+# Output
+# o1 valid
+
+o1 : sbf = out file("experiments/io/outputs/cpmm8_valid.out")
+
+r (o1[t] = 1:sbf <-> (i4[t] * (i1[t] + i3[t]) <= i3[t] * i2[t]))
+q

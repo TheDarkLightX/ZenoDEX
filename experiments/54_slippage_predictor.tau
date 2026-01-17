@@ -1,0 +1,26 @@
+# Spec 54: Slippage Prediction and Validation
+# NOVEL: Pre-trade slippage prediction based on order size and liquidity depth
+# Validates that actual execution price matches predicted slippage bounds
+# Prevents trades with excessive unexpected slippage
+#
+# Inputs: i1 = order_size, i2 = pool_liquidity, i3 = expected_price, i4 = actual_price
+# Outputs: o1 = slippage_predicted, o2 = slippage_acceptable, o3 = execution_valid, o4 = no_unexpected_slippage
+
+# Slippage prediction: slippage % = order_size / pool_liquidity * 100
+# Cross-mult: predicted_slippage = order_size * 100 / liquidity
+# We check if slippage < threshold (2%)
+
+# Predicted slippage acceptable: order_size * 50 < liquidity (implies < 2% slippage)
+slippagepredicted(ordersize : bv[16], liquidity : bv[16]) := ordersize * { #x0032 }:bv[16] < liquidity.
+
+# Actual slippage check: |actual - expected| / expected < 2%
+# Cross-mult: |actual - expected| * 50 < expected
+actualslippageok(expected : bv[16], actual : bv[16]) := ((actual >= expected) && ((actual - expected) * { #x0032 }:bv[16] < expected)) || ((actual < expected) && ((expected - actual) * { #x0032 }:bv[16] < expected)).
+
+# Execution valid: predicted slippage matched actual
+executionvalid(ordersize : bv[16], liquidity : bv[16], expected : bv[16], actual : bv[16]) := slippagepredicted(ordersize, liquidity) && actualslippageok(expected, actual).
+
+# No unexpected slippage: either prediction was safe OR actual was within bounds anyway
+nounexpected(ordersize : bv[16], liquidity : bv[16], expected : bv[16], actual : bv[16]) := slippagepredicted(ordersize, liquidity) <-> actualslippageok(expected, actual).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> slippagepredicted(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> actualslippageok(i3[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> executionvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> nounexpected(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).

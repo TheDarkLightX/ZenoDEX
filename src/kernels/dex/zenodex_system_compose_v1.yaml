@@ -1,0 +1,90 @@
+# [FORGE] system-spec/v1
+schema: system-spec/v1
+system_id: zenodex_core_compose
+system_version: 1.2.0
+
+modules:
+  - req_id: cpmm_swap_compose_v1
+    req_version: 1.0.0
+    alias: swap
+  - req_id: liquidity_pool_compose_v2
+    req_version: 1.0.0
+    alias: lp
+  - req_id: vault_manager_compose_v2
+    req_version: 1.0.0
+    alias: vault
+
+global_invariants:
+  # Single-pool consistency: swap module reserves mirror LP reserves.
+  - name: reserves_consistent_x
+    expr: "swap.reserve_x == lp.reserve_a"
+  - name: reserves_consistent_y
+    expr: "swap.reserve_y == lp.reserve_b"
+
+  # Vault cannot have more shares staked than exist.
+  - name: stake_consistency
+    expr: "vault.staked_lp_shares <= lp.total_lp_shares"
+  - name: stake_mirror_consistency
+    expr: "lp.vault_staked_lp_shares_mirror == vault.staked_lp_shares"
+  - name: supply_mirror_consistency
+    expr: "vault.lp_total_lp_shares_mirror == lp.total_lp_shares"
+
+  # Sanity: positive pool value proxy (bounded-domain nonlinearity is OK here).
+  - name: value_preservation
+    expr: "0 < swap.reserve_x * swap.reserve_y"
+
+wiring:
+  # Sync LP reserves when swap executes.
+  - from: "swap.swap_x_for_y.new_reserve_x"
+    to: "lp.reserve_a"
+    op: set
+  - from: "swap.swap_x_for_y.new_reserve_y"
+    to: "lp.reserve_b"
+    op: set
+  - from: "swap.swap_y_for_x.new_reserve_x"
+    to: "lp.reserve_a"
+    op: set
+  - from: "swap.swap_y_for_x.new_reserve_y"
+    to: "lp.reserve_b"
+    op: set
+
+  # Sync swap reserves (and history snapshots) when LP liquidity changes.
+  - from: "lp.add_liquidity.new_reserve_a"
+    to: "swap.reserve_x"
+    op: set
+  - from: "lp.add_liquidity.new_reserve_a"
+    to: "swap.reserve_x_before"
+    op: set
+  - from: "lp.add_liquidity.new_reserve_b"
+    to: "swap.reserve_y"
+    op: set
+  - from: "lp.add_liquidity.new_reserve_b"
+    to: "swap.reserve_y_before"
+    op: set
+
+  - from: "lp.remove_liquidity.new_reserve_a"
+    to: "swap.reserve_x"
+    op: set
+  - from: "lp.remove_liquidity.new_reserve_a"
+    to: "swap.reserve_x_before"
+    op: set
+  - from: "lp.remove_liquidity.new_reserve_b"
+    to: "swap.reserve_y"
+    op: set
+  - from: "lp.remove_liquidity.new_reserve_b"
+    to: "swap.reserve_y_before"
+    op: set
+
+  # Sync stake mirrors (LP <-> Vault) so stake_consistency is guard-inductive.
+  - from: "lp.add_liquidity.new_total_lp_shares"
+    to: "vault.lp_total_lp_shares_mirror"
+    op: set
+  - from: "lp.remove_liquidity.new_total_lp_shares"
+    to: "vault.lp_total_lp_shares_mirror"
+    op: set
+  - from: "vault.stake.new_staked_lp_shares"
+    to: "lp.vault_staked_lp_shares_mirror"
+    op: set
+  - from: "vault.unstake.new_staked_lp_shares"
+    to: "lp.vault_staked_lp_shares_mirror"
+    op: set

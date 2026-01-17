@@ -1,0 +1,26 @@
+# Experiment 34: Batch auction checks (bv[16] + sbf)
+# Canonical ordering + anti-sandwich based on 3 price points.
+
+# Inputs: order ids and price triple (prevprev, prev, current)
+
+i1 : bv[16] = in file("experiments/io/inputs/order_id1.in")
+i2 : bv[16] = in file("experiments/io/inputs/order_id2.in")
+i3 : bv[16] = in file("experiments/io/inputs/order_id3.in")
+i4 : bv[16] = in file("experiments/io/inputs/order_id4.in")
+
+i5 : bv[16] = in file("experiments/io/inputs/price_pp.in")
+i6 : bv[16] = in file("experiments/io/inputs/price_p.in")
+i7 : bv[16] = in file("experiments/io/inputs/price_c.in")
+
+# Outputs
+# o1 canonical_order, o2 no_sandwich, o3 batch_ok
+
+o1 : sbf = out file("experiments/io/outputs/canonical_ok.out")
+o2 : sbf = out file("experiments/io/outputs/no_sandwich.out")
+o3 : sbf = out file("experiments/io/outputs/batch_ok.out")
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d)
+no_sandwich(pp : bv[16], p : bv[16], c : bv[16]) := ((pp <= p) && (p <= c)) || ((pp >= p) && (p >= c))
+
+r (o1[t] = 1:sbf <-> canonical(i1[t], i2[t], i3[t], i4[t])) && (o2[t] = 1:sbf <-> no_sandwich(i5[t], i6[t], i7[t])) && (o3[t] = o1[t] & o2[t])
+q

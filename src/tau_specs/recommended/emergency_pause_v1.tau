@@ -1,0 +1,57 @@
+# Emergency Pause v1 - Pause Condition Validation
+#
+# MUTABILITY: IMMUTABLE (pause conditions are immutable)
+# UPDATABLE_PARAMS: none - pause triggers are fixed
+# IMMUTABLE_INVARIANTS: pause only allowed under specific conditions
+#
+# PURPOSE: Validate that emergency pause conditions are actually met.
+# Prevents frivolous pauses while allowing legitimate emergencies.
+# No passive payouts - purely a pause validation gate.
+#
+# Stream mapping:
+# i1 = price_deviation_bps (bv[32]) - current price deviation
+# i2 = pause_threshold_bps (bv[32]) - threshold to trigger pause
+# i3 = oracle_stale (sbf) - 1 if oracle is stale
+# i4 = reserve_breach (sbf) - 1 if reserve ratio breached
+# i5 = governance_approved (sbf) - 1 if governance approved pause
+# o1 = auto_trigger_ok
+# o2 = manual_trigger_ok
+# o3 = can_pause
+# o4 = emergency_pause_ok
+# @rule o4: (Auto-trigger condition met) OR (governance approved).
+
+set charvar off
+
+# Price deviation exceeds threshold
+deviation_trigger(dev : bv[32], threshold : bv[32]) := dev >= threshold.
+
+# Oracle stale trigger
+oracle_trigger(stale : sbf) := stale = 1:sbf.
+
+# Reserve breach trigger
+reserve_trigger(breach : sbf) := breach = 1:sbf.
+
+# Any automatic trigger met
+auto_trigger_ok(dev : bv[32], threshold : bv[32], stale : sbf, breach : sbf) := deviation_trigger(dev, threshold) || oracle_trigger(stale) || reserve_trigger(breach).
+
+# Manual trigger (governance approved)
+manual_trigger_ok(approved : sbf) := approved = 1:sbf.
+
+# Can pause: either auto or manual trigger
+can_pause(dev : bv[32], threshold : bv[32], stale : sbf, breach : sbf, approved : sbf) := auto_trigger_ok(dev, threshold, stale, breach) || manual_trigger_ok(approved).
+
+# Threshold valid
+threshold_ok(threshold : bv[32]) := threshold > { #x00000000 }:bv[32].
+
+# Full check
+emergency_pause_valid(dev : bv[32], threshold : bv[32], stale : sbf, breach : sbf, approved : sbf) := threshold_ok(threshold) && can_pause(dev, threshold, stale, breach, approved).
+
+always
+  # @section: Auto-trigger check
+  (o1[t]:sbf = 1:sbf <-> auto_trigger_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:sbf, i4[t]:sbf)) &&
+  # @section: Manual trigger check
+  (o2[t]:sbf = 1:sbf <-> manual_trigger_ok(i5[t]:sbf)) &&
+  # @section: Can pause
+  (o3[t]:sbf = 1:sbf <-> can_pause(i1[t]:bv[32], i2[t]:bv[32], i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  # @section: Aggregated emergency pause validity
+  (o4[t]:sbf = 1:sbf <-> emergency_pause_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)).

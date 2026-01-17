@@ -1,0 +1,5 @@
+# Experiment 08: Testing console I/O declarations
+# Some specs use "in console" / "out console" syntax
+
+# Simple echo with console declarations
+always o1[t] = i1[t].

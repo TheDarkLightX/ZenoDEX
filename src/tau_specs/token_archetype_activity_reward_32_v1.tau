@@ -1,0 +1,33 @@
+# Token Archetype: Activity-Bound Rewards v1 - 32-bit safe variant
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: min_activity (i2), reward_cap (i5)
+# IMMUTABLE_INVARIANTS: rewards require activity and are capped
+#
+# PURPOSE: Ensure rewards are tied to activity rather than passive holding.
+#
+# Stream mapping:
+# i1 = activity_score (bv[32])
+# i2 = min_activity (bv[32])
+# i3 = reward_amount (bv[32])
+# i4 = activity_flag (sbf)
+# i5 = reward_cap (bv[32])
+# o1 = activity_ok
+# o2 = reward_ok
+# o3 = activity_reward_ok
+# @rule o3: Activity gate and reward caps must pass.
+
+set charvar off
+
+is_positive_32(x : bv[32]) := x > { #x00000000 }:bv[32].
+
+activity_ok(score : bv[32], min : bv[32], flag : sbf, reward : bv[32]) := (score >= min) && (flag = 1:sbf) && (reward <= score).
+
+reward_ok(reward : bv[32], cap : bv[32]) := reward <= cap.
+
+always
+  # @section: Activity gate
+  (o1[t]:sbf = 1:sbf <-> activity_ok(i1[t]:bv[32], i2[t]:bv[32], i4[t]:sbf, i3[t]:bv[32])) &&
+  # @section: Reward caps
+  (o2[t]:sbf = 1:sbf <-> reward_ok(i3[t]:bv[32], i5[t]:bv[32])) &&
+  (o3[t]:sbf = o1[t] & o2[t]).

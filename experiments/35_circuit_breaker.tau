@@ -1,0 +1,20 @@
+# Spec 35: Circuit Breaker with Hysteresis (FIXED - proper base cases)
+# Novel pattern: Trading halts when volatility exceeds threshold.
+# Requires 3 consecutive calm steps to resume (hysteresis prevents rapid cycling).
+# Inputs: i1 = current price
+# Outputs: o1 = calm (price stable), o2/o3 = shift register, o4 = breaker_open (trading allowed)
+#
+# BASE CASE HANDLING:
+# - t=0: No previous price exists, so o1[0]=0 (undefined -> assume not calm)
+# - t>=1: o1[t] = calm(i1[t], i1[t-1]) properly defined
+# - Shift registers o2, o3 propagate o1 history
+# - o4 = breaker open only when o1 & o2 & o3 all true
+
+# Price stability check - calm if |curr - prev| < threshold (50 = 0x0032)
+calm(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr < { #x0032 }:bv[16])).
+
+# Explicit base cases for t=0 (warmup step - no history available)
+# General case for t>=1 uses guarded form: (t=0 && base) || (t>0 && general)
+# In Tau, we set o1[0], o1[1] explicitly, then o1[t] for t>=2 uses the predicate
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[1]:sbf = 1:sbf <-> calm(i1[1]:bv[16], i1[0]:bv[16])) && (o2[1]:sbf = o1[0]:sbf) && (o3[1]:sbf = o2[0]:sbf) && (o4[1]:sbf = o1[1] & o2[1] & o3[1]) && (o1[t]:sbf = 1:sbf <-> calm(i1[t]:bv[16], i1[t-1]:bv[16])) && (o2[t]:sbf = o1[t-1]:sbf) && (o3[t]:sbf = o2[t-1]:sbf) && (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

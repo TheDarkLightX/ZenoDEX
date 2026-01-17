@@ -1,0 +1,148 @@
+/* ZenoDEX - Global Styles */
+@import './styles/design-system.css';
+
+/* App Layout */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-xl);
+  border-bottom: 1px solid var(--border-primary);
+  background: rgba(15, 15, 18, 0.8);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Zenith-inspired Z lightning bolt logo */
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(76, 201, 240, 0.3);
+}
+
+.logo-z {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 900;
+  font-style: italic;
+  transform: skewX(-8deg);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.logo-icon::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.15) 50%,
+      transparent 60%);
+  animation: logo-shine 3s infinite;
+}
+
+@keyframes logo-shine {
+  0% {
+    transform: translateX(-100%) rotate(45deg);
+  }
+
+  100% {
+    transform: translateX(100%) rotate(45deg);
+  }
+}
+
+.logo-text {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.logo-highlight {
+  color: var(--accent-cyan);
+}
+
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.nav-link {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.nav-link:hover,
+.nav-link.active {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Main Content */
+.main {
+  flex: 1;
+  padding: var(--space-xl);
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Swap Container */
+.swap-container {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* Footer */
+.footer {
+  padding: var(--space-lg) var(--space-xl);
+  border-top: 1px solid var(--border-primary);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.footer-sep {
+  margin: 0 var(--space-sm);
+  opacity: 0.5;
+}
+
+.footer-agrs {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}

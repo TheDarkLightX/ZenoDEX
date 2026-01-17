@@ -1,0 +1,10 @@
+# Spec 103: Stake Lock + Tier Assignment
+# Pattern: lock-based withdrawal gating + tier classification by stake
+# Inputs: i1=staked, i2=withdraw, i3=now, i4=lock_end, i5=tier, i6=t1, i7=t2, i8=t3
+# Outputs: o1=withdraw_ok, o2=tier_ok
+
+withdraw_ok(now : bv[16], lock_end : bv[16], staked : bv[16], withdraw : bv[16]) := ((now < lock_end) && (withdraw = { #x0000 }:bv[16])) || ((now >= lock_end) && (withdraw <= staked)).
+
+tier_ok(staked : bv[16], tier : bv[16], t1 : bv[16], t2 : bv[16], t3 : bv[16]) := ((tier = { #x0000 }:bv[16]) && (staked < t1)) || ((tier = { #x0001 }:bv[16]) && (staked >= t1) && (staked < t2)) || ((tier = { #x0002 }:bv[16]) && (staked >= t2) && (staked < t3)) || ((tier = { #x0003 }:bv[16]) && (staked >= t3)).
+
+always (o1[t]:sbf = 1:sbf <-> withdraw_ok(i3[t]:bv[16], i4[t]:bv[16], i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> tier_ok(i1[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16])).

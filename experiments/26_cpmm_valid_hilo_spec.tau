@@ -1,0 +1,7 @@
+# Spec 26: CPMM validity (hi:lo) with hi=0 guard
+
+ispos(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+is16(hi : bv[16]) := hi = { #x0000 }:bv[16].
+valid(resx_hi : bv[16], resx_lo : bv[16], resy_hi : bv[16], resy_lo : bv[16], net_hi : bv[16], net_lo : bv[16], out_hi : bv[16], out_lo : bv[16]) := is16(resx_hi) && is16(resy_hi) && is16(net_hi) && is16(out_hi) && ispos(resx_hi, resx_lo) && ispos(resy_hi, resy_lo) && ispos(net_hi, net_lo) && ispos(out_hi, out_lo) && (out_lo * (resx_lo + net_lo) <= net_lo * resy_lo).
+
+always (o1[t]:sbf = 1:sbf <-> valid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16])).

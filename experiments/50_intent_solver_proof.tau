@@ -1,0 +1,38 @@
+# Spec 50: Intent-Based Solver Correctness Proof
+# NOVEL: Proves that a solver's solution satisfies all user intents
+# Users submit intents (constraints), solver proposes solution, spec verifies
+# This is the core pattern for intent-centric DEX architecture
+#
+# Model: 2 users with intents, solver proposes execution
+# User1: wants to swap tokenA for tokenB, min_received = X
+# User2: wants to swap tokenB for tokenA, min_received = Y
+# Solver proposes: (amount1_in, amount1_out, amount2_in, amount2_out)
+#
+# Inputs: i1 = user1_min_out, i2 = user2_min_out, i3 = solver_user1_out, i4 = solver_user2_out
+#         i5 = solver_user1_in, i6 = solver_user2_in
+# Outputs: o1 = intent1_satisfied, o2 = intent2_satisfied, o3 = solver_valid, 
+#          o4 = pareto_optimal, o5 = no_extraction
+
+# Intent satisfaction: user gets at least their minimum
+intent1sat(minout : bv[16], actualout : bv[16]) := actualout >= minout.
+intent2sat(minout : bv[16], actualout : bv[16]) := actualout >= minout.
+
+# Solver valid: both intents satisfied
+solvervalid(min1 : bv[16], actual1 : bv[16], min2 : bv[16], actual2 : bv[16]) := intent1sat(min1, actual1) && intent2sat(min2, actual2).
+
+# Conservation: what user1 gives = what user2 gets (approximately, within fee)
+# user1_in should equal user2_out and vice versa (for direct swap)
+conserved(u1in : bv[16], u1out : bv[16], u2in : bv[16], u2out : bv[16]) := (u1in >= u2out) && (u2in >= u1out) && ((u1in - u2out) + (u2in - u1out) < { #x0064 }:bv[16]).
+
+# Pareto optimal: no way to make one user better without making other worse
+# Simplified: total surplus is maximized (outputs close to equilibrium)
+paretocheck(u1out : bv[16], u2out : bv[16], u1in : bv[16], u2in : bv[16]) := (u1out + u2out) * { #x0002 }:bv[16] >= (u1in + u2in).
+
+# No MEV extraction: solver doesn't take excessive surplus
+# Surplus = (u1_in + u2_in) - (u1_out + u2_out) should be < 1%
+noextraction(u1in : bv[16], u2in : bv[16], u1out : bv[16], u2out : bv[16]) := ((u1in + u2in) >= (u1out + u2out)) && (((u1in + u2in) - (u1out + u2out)) * { #x0064 }:bv[16] < (u1in + u2in)).
+
+# Full solver proof: valid AND conserved AND no extraction
+solverproof(min1 : bv[16], min2 : bv[16], u1in : bv[16], u1out : bv[16], u2in : bv[16], u2out : bv[16]) := solvervalid(min1, u1out, min2, u2out) && conserved(u1in, u1out, u2in, u2out) && noextraction(u1in, u2in, u1out, u2out).
+
+always (o1[t]:sbf = 1:sbf <-> intent1sat(i1[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> intent2sat(i2[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> solvervalid(i1[t]:bv[16], i3[t]:bv[16], i2[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> paretocheck(i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16])) && (o5[t]:sbf = 1:sbf <-> noextraction(i5[t]:bv[16], i6[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).

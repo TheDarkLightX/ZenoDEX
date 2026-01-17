@@ -1,0 +1,36 @@
+# Spec 41: Order Flow Toxicity Detector (VPIN-inspired)
+# NOVEL: Running accumulator pattern to track buy/sell imbalance over time
+# Toxic flow indicates informed trading - market maker should widen spreads
+#
+# Inputs: i1 = buy_volume, i2 = sell_volume (per period)
+# Outputs: o1 = period_imbalance, o2 = cumulative_imbalance (3-period), 
+#          o3 = toxic_flow, o4 = flow_direction
+
+# Period imbalance: |buy - sell| / (buy + sell) > threshold
+# Cross-mult to avoid division: |buy - sell| * 100 > (buy + sell) * threshold
+# Toxic if imbalance > 30% (threshold = 30)
+
+periodimbalance(buy : bv[16], sell : bv[16]) := ((buy >= sell) && ((buy - sell) * { #x0064 }:bv[16] > (buy + sell) * { #x001E }:bv[16])) || ((buy < sell) && ((sell - buy) * { #x0064 }:bv[16] > (buy + sell) * { #x001E }:bv[16])).
+
+# 3-period cumulative imbalance check
+# Sum of (buy - sell) over 3 periods vs sum of (buy + sell) over 3 periods
+# |sum_net| * 100 > sum_total * 25 (25% cumulative imbalance)
+
+# Helper: net flow (buy - sell), clamped to prevent underflow issues
+# We track direction separately
+
+buydom(buy : bv[16], sell : bv[16]) := buy > sell.
+
+# Cumulative 3-period toxicity check
+# Check if buy-dominated or sell-dominated consistently
+consistent3(b0 : bv[16], s0 : bv[16], b1 : bv[16], s1 : bv[16], b2 : bv[16], s2 : bv[16]) := (buydom(b0, s0) && buydom(b1, s1) && buydom(b2, s2)) || (!buydom(b0, s0) && !buydom(b1, s1) && !buydom(b2, s2)).
+
+# Cumulative magnitude check: total imbalance > 25% of total volume
+# |(b0-s0) + (b1-s1) + (b2-s2)| * 100 > (b0+s0+b1+s1+b2+s2) * 25
+# Simplified: check each period has imbalance and they're consistent direction
+cumulativetoxic(b0 : bv[16], s0 : bv[16], b1 : bv[16], s1 : bv[16], b2 : bv[16], s2 : bv[16]) := consistent3(b0, s0, b1, s1, b2, s2) && periodimbalance(b0, s0) && periodimbalance(b1, s1).
+
+# Flow direction output
+flowdir(buy : bv[16], sell : bv[16]) := buy > sell.
+
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> periodimbalance(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> consistent3(i1[t]:bv[16], i2[t]:bv[16], i1[t-1]:bv[16], i2[t-1]:bv[16], i1[t-2]:bv[16], i2[t-2]:bv[16])) && (o3[t]:sbf = 1:sbf <-> cumulativetoxic(i1[t]:bv[16], i2[t]:bv[16], i1[t-1]:bv[16], i2[t-1]:bv[16], i1[t-2]:bv[16], i2[t-2]:bv[16])) && (o4[t]:sbf = 1:sbf <-> flowdir(i1[t]:bv[16], i2[t]:bv[16])).

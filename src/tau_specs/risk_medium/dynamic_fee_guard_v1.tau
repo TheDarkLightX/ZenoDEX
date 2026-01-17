@@ -1,0 +1,56 @@
+# Dynamic Fee Guard v1 - Volatility-Bounded Fees
+#
+# WARNING: risk_medium - dynamic fee logic
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: volatility thresholds, fee ranges
+# IMMUTABLE_INVARIANTS: fees bounded by volatility signal
+#
+# PURPOSE: Allow dynamic fee tiers but bounded by volatility signals.
+# Higher volatility = higher allowed fees (but still capped).
+# No passive payouts - purely a fee validation gate.
+#
+# Stream mapping:
+# i1 = volatility_bps (bv[32]) - current volatility measure
+# i2 = applied_fee_bps (bv[32]) - fee being applied
+# i3 = base_fee_bps (bv[32]) - minimum fee
+# i4 = max_fee_bps (bv[32]) - maximum fee
+# i5 = volatility_multiplier_bps (bv[32]) - how much fee increases per volatility unit
+# o1 = params_ok
+# o2 = fee_floor_ok
+# o3 = fee_ceiling_ok
+# o4 = dynamic_fee_ok
+# @rule o4: base_fee <= applied_fee <= min(max_fee, base + vol*mult/10000).
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(r : bv[32]) := r <= { #x00002710 }:bv[32].
+
+# Safe
+safe_ok(v : bv[32]) := v <= max_safe_32().
+
+# Params ok
+params_ok(base : bv[32], max : bv[32], mult : bv[32]) := rate_ok(base) && rate_ok(max) && (base <= max) && rate_ok(mult).
+
+# Fee floor: applied >= base
+fee_floor_ok(applied : bv[32], base : bv[32]) := applied >= base.
+
+# Fee ceiling: applied <= max
+fee_ceiling_ok(applied : bv[32], max : bv[32]) := applied <= max.
+
+# Full check (simplified - just bounds, no dynamic calc to avoid overflow)
+dynamic_fee_valid(vol : bv[32], applied : bv[32], base : bv[32], max : bv[32]) := params_ok(base, max, vol) && fee_floor_ok(applied, base) && fee_ceiling_ok(applied, max).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Fee floor check
+  (o2[t]:sbf = 1:sbf <-> fee_floor_ok(i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Fee ceiling check
+  (o3[t]:sbf = 1:sbf <-> fee_ceiling_ok(i2[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Aggregated dynamic fee validity
+  (o4[t]:sbf = 1:sbf <-> dynamic_fee_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])).

@@ -1,0 +1,85 @@
+# Proposal Lifecycle v1 - Governance State Machine
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: only valid state transitions allowed
+#
+# PURPOSE: Validate proposal state transitions in governance lifecycle.
+# States: 0=DRAFT, 1=ACTIVE, 2=PASSED, 3=FAILED, 4=EXECUTED, 5=CANCELLED
+# No passive payouts - purely a state transition validation.
+#
+# DbC Preconditions:
+# - current_state and next_state are bv[16] (unsigned).
+# - States are: 0=DRAFT, 1=ACTIVE, 2=PASSED, 3=FAILED, 4=EXECUTED, 5=CANCELLED.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff state transition is valid per governance rules.
+#
+# Valid transitions:
+# DRAFT(0) -> ACTIVE(1) or CANCELLED(5)
+# ACTIVE(1) -> PASSED(2) or FAILED(3) or CANCELLED(5)
+# PASSED(2) -> EXECUTED(4) or CANCELLED(5)
+# FAILED(3) -> (terminal)
+# EXECUTED(4) -> (terminal)
+# CANCELLED(5) -> (terminal)
+#
+# Stream mapping:
+# i1 = current_state (bv[16])
+# i2 = next_state (bv[16])
+# i3 = quorum_met (sbf) - required for ACTIVE->PASSED
+# i4 = timelock_elapsed (sbf) - required for PASSED->EXECUTED
+# o1 = state_valid
+# o2 = transition_allowed
+# o3 = conditions_met
+# o4 = lifecycle_ok
+# @rule o4: State transition is valid and required conditions are met.
+
+set charvar off
+
+# State constants
+state_draft() := { #x0000 }:bv[16].
+state_active() := { #x0001 }:bv[16].
+state_passed() := { #x0002 }:bv[16].
+state_failed() := { #x0003 }:bv[16].
+state_executed() := { #x0004 }:bv[16].
+state_cancelled() := { #x0005 }:bv[16].
+
+# State is a valid value
+state_valid(s : bv[16]) := s <= state_cancelled().
+
+# DRAFT -> ACTIVE or CANCELLED
+from_draft_ok(next : bv[16]) := (next = state_active()) || (next = state_cancelled()).
+
+# ACTIVE -> PASSED or FAILED or CANCELLED
+from_active_ok(next : bv[16]) := (next = state_passed()) || (next = state_failed()) || (next = state_cancelled()).
+
+# PASSED -> EXECUTED or CANCELLED
+from_passed_ok(next : bv[16]) := (next = state_executed()) || (next = state_cancelled()).
+
+# Terminal states: no transitions allowed
+is_terminal(s : bv[16]) := (s = state_failed()) || (s = state_executed()) || (s = state_cancelled()).
+
+# Transition allowed based on current state
+transition_allowed(curr : bv[16], next : bv[16]) := ((curr = state_draft()) && from_draft_ok(next)) || ((curr = state_active()) && from_active_ok(next)) || ((curr = state_passed()) && from_passed_ok(next)).
+
+# Condition: ACTIVE->PASSED requires quorum
+active_to_passed_ok(curr : bv[16], next : bv[16], quorum : sbf) := !((curr = state_active()) && (next = state_passed())) || (quorum = 1:sbf).
+
+# Condition: PASSED->EXECUTED requires timelock
+passed_to_executed_ok(curr : bv[16], next : bv[16], timelock : sbf) := !((curr = state_passed()) && (next = state_executed())) || (timelock = 1:sbf).
+
+# All conditions met
+conditions_met(curr : bv[16], next : bv[16], quorum : sbf, timelock : sbf) := active_to_passed_ok(curr, next, quorum) && passed_to_executed_ok(curr, next, timelock).
+
+# Full lifecycle check
+lifecycle_valid(curr : bv[16], next : bv[16], quorum : sbf, timelock : sbf) := state_valid(curr) && state_valid(next) && !is_terminal(curr) && transition_allowed(curr, next) && conditions_met(curr, next, quorum, timelock).
+
+always
+  # @section: State value validation
+  (o1[t]:sbf = 1:sbf <-> (state_valid(i1[t]:bv[16]) && state_valid(i2[t]:bv[16]))) &&
+  # @section: Transition allowed check
+  (o2[t]:sbf = 1:sbf <-> transition_allowed(i1[t]:bv[16], i2[t]:bv[16])) &&
+  # @section: Required conditions check
+  (o3[t]:sbf = 1:sbf <-> conditions_met(i1[t]:bv[16], i2[t]:bv[16], i3[t]:sbf, i4[t]:sbf)) &&
+  # @section: Aggregated lifecycle validity
+  (o4[t]:sbf = 1:sbf <-> lifecycle_valid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:sbf, i4[t]:sbf)).

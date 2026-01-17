@@ -1,0 +1,23 @@
+# TauSwap v1 balance delta constraints (Tau-executable)
+# DbC: Preconditions: all inputs are bv[16] components representing non-negative integers.
+# DbC: Postcondition: balance_inputs_non_negative(...) is true iff all provided components are non-negative.
+
+# Stream mapping:
+# i1 = balance_before_hi
+# i2 = balance_before_lo
+# i3 = delta_add_hi
+# i4 = delta_add_lo
+# i5 = delta_sub_hi
+# i6 = delta_sub_lo
+# o1 = balance_non_negative_valid
+# @rule o1: All balance and delta limbs must be non-negative.
+
+set charvar off
+
+is_non_negative(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo >= { #x0000 }:bv[16]).
+
+balance_inputs_non_negative(bal_hi : bv[16], bal_lo : bv[16], add_hi : bv[16], add_lo : bv[16], sub_hi : bv[16], sub_lo : bv[16]) := is_non_negative(bal_hi, bal_lo) && is_non_negative(add_hi, add_lo) && is_non_negative(sub_hi, sub_lo).
+
+always
+  # @section: Balance input safety
+  (o1[t]:sbf = 1:sbf <-> balance_inputs_non_negative(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16])).

@@ -1,0 +1,61 @@
+# LP Mint Burn v1 - Liquidity Token Validation
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: LP tokens mint/burn matches liquidity delta
+#
+# PURPOSE: Validate LP token minting and burning matches the underlying
+# liquidity added/removed. Prevents inflation attacks.
+# No passive payouts - purely an AMM invariant.
+#
+# Stream mapping:
+# i1 = liquidity_delta (bv[32]) - amount of liquidity added/removed
+# i2 = lp_tokens_delta (bv[32]) - LP tokens minted/burned
+# i3 = total_liquidity_before (bv[32]) - total liquidity before
+# i4 = total_lp_supply_before (bv[32]) - total LP tokens before
+# i5 = is_mint (sbf) - 1 if minting, 0 if burning
+# o1 = params_ok
+# o2 = proportion_ok
+# o3 = direction_ok
+# o4 = lp_mint_burn_ok
+# @rule o4: lp_delta / total_lp == liquidity_delta / total_liquidity.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Totals must be positive
+liquidity_ok(liq : bv[32]) := liq > { #x00000000 }:bv[32].
+supply_ok(supply : bv[32]) := supply > { #x00000000 }:bv[32].
+
+# Deltas must be positive (non-zero operation)
+delta_ok(delta : bv[32]) := delta > { #x00000000 }:bv[32].
+
+# Safe range
+safe_ok(v : bv[32]) := v <= max_safe_32().
+
+# Params valid
+params_ok(liq_delta : bv[32], lp_delta : bv[32], total_liq : bv[32], total_lp : bv[32]) := delta_ok(liq_delta) && delta_ok(lp_delta) && liquidity_ok(total_liq) && supply_ok(total_lp) && safe_ok(total_liq) && safe_ok(total_lp).
+
+# Proportion check: lp_delta * total_liquidity in range [liquidity_delta * total_lp - tolerance, + tolerance]
+# Cross multiply to avoid division: lp_delta * total_liq == liquidity_delta * total_lp (with tolerance)
+proportion_lower(lp_delta : bv[32], total_liq : bv[32], liq_delta : bv[32], total_lp : bv[32]) := (lp_delta * total_liq) >= (liq_delta * total_lp).
+proportion_upper(lp_delta : bv[32], total_liq : bv[32], liq_delta : bv[32], total_lp : bv[32]) := (lp_delta * total_liq) <= ((liq_delta * total_lp) + total_lp).
+proportion_ok(lp_delta : bv[32], total_liq : bv[32], liq_delta : bv[32], total_lp : bv[32]) := proportion_lower(lp_delta, total_liq, liq_delta, total_lp) && proportion_upper(lp_delta, total_liq, liq_delta, total_lp).
+
+# Direction check (both operations result in consistent direction)
+direction_ok(is_mint : sbf) := (is_mint = 1:sbf) || (is_mint = 0:sbf).
+
+# Full check
+lp_mint_burn_valid(liq_delta : bv[32], lp_delta : bv[32], total_liq : bv[32], total_lp : bv[32], is_mint : sbf) := params_ok(liq_delta, lp_delta, total_liq, total_lp) && proportion_ok(lp_delta, total_liq, liq_delta, total_lp) && direction_ok(is_mint).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Proportion check
+  (o2[t]:sbf = 1:sbf <-> proportion_ok(i2[t]:bv[32], i3[t]:bv[32], i1[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Direction check
+  (o3[t]:sbf = 1:sbf <-> direction_ok(i5[t]:sbf)) &&
+  # @section: Aggregated LP mint/burn validity
+  (o4[t]:sbf = 1:sbf <-> lp_mint_burn_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf)).

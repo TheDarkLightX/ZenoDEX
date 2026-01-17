@@ -1,0 +1,94 @@
+/* PoolDashboard Styles */
+
+.pool-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.pool-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-xl);
+}
+
+.pool-header h2 {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+}
+
+.pool-stats {
+    margin-bottom: var(--space-xl);
+}
+
+.pool-table {
+    overflow: hidden;
+}
+
+.pool-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pool-table th {
+    text-align: left;
+    padding: var(--space-md);
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-primary);
+}
+
+.pool-table td {
+    padding: var(--space-md);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.pool-table tr:last-child td {
+    border-bottom: none;
+}
+
+.pool-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.pool-pair {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.pool-icons {
+    display: flex;
+    font-size: 24px;
+}
+
+.pool-icons span:last-child {
+    margin-left: -8px;
+}
+
+.pool-name {
+    font-weight: 600;
+}
+
+.apy-cell {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+.no-position {
+    color: var(--text-muted);
+}
+
+.pool-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.pool-footer {
+    text-align: center;
+    margin-top: var(--space-xl);
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+}

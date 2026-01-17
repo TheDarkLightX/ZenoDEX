@@ -1,0 +1,53 @@
+# [FORGE] CPMM Output Amount Calculator (Hole) v2 (Integer-Safe)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "cpmm_output_amount_hole_v2"
+  created_by: "neural-hint-pipeline"
+  notes: |
+    Calculates CPMM output amount:
+      amount_out = floor(reserve_out * net_in / (reserve_in + net_in))
+
+    v2: Uses parameter ranges and synthesis constraints that are satisfiable under
+    integer arithmetic (output may be 0 for small swaps).
+
+observables:
+  state_vars: []
+  effects: ["amount_out"]
+
+types: []
+
+state_vars:
+  - id: "dummy"
+    role: "data"
+    type: { kind: "int", min: 0, max: 0 }
+
+init:
+  - var: "dummy"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_dummy_fixed"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "dummy" }, { const: 0 }] }
+
+actions:
+  - id: "calculate_output"
+    params:
+      - id: "reserve_in"
+        type: { kind: "int", min: 100, max: 1000000 }
+      - id: "reserve_out"
+        type: { kind: "int", min: 100, max: 1000000 }
+      - id: "net_in"
+        type: { kind: "int", min: 1, max: 100000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ param: "reserve_in" }, { const: 100 }] }
+        - { op: ">=", args: [{ param: "reserve_out" }, { const: 100 }] }
+        - { op: ">", args: [{ param: "net_in" }, { const: 0 }] }
+        - { op: "<=", args: [{ op: "*", args: [{ param: "net_in" }, { const: 10 }] }, { param: "reserve_in" }] }  # Max 10% swap
+    updates:
+      - var: "dummy"
+        expr: { var: "dummy" }
+    effects:
+      amount_out: { const: 0 }  # HOLE: (safe_div (* reserve_out net_in) (+ reserve_in net_in))

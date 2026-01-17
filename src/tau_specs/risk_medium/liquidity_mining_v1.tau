@@ -1,0 +1,71 @@
+# Liquidity Mining v1 - Usage-Bound LP Rewards
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: min_usage (i6), reward_rate_bps (implied in reward_pool distribution)
+# IMMUTABLE_INVARIANTS: rewards proportional to LP share, gated by usage
+#
+# PURPOSE: Usage-bound reward distribution for liquidity providers.
+# Rewards are proportional to LP share but REQUIRE active usage to claim.
+# This prevents passive yield farming - users must transact to earn.
+# NO PASSIVE PAYOUTS - rewards are usage-bound per ZenoDex rules.
+#
+# DbC Preconditions:
+# - All values are bv[32] (unsigned).
+# - total_lp > 0.
+# - usage_score >= min_usage required for any reward.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff usage gate passed AND reward math correct.
+#
+# Stream mapping:
+# i1 = lp_share (bv[32]) - user's LP tokens
+# i2 = total_lp (bv[32]) - total LP tokens in pool
+# i3 = reward_pool (bv[32]) - total rewards available this period
+# i4 = computed_reward (bv[32]) - externally computed reward
+# i5 = usage_score (bv[32]) - user's usage metric
+# i6 = min_usage (bv[32]) - minimum usage required
+# o1 = params_ok
+# o2 = usage_gate_ok
+# o3 = reward_math_ok
+# o4 = lp_reward_ok
+# @rule o4: Usage gate passed AND reward proportional to LP share.
+
+set charvar off
+
+# floor((2^32-1)/10000) for safe multiplication
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Total LP must be positive
+total_lp_ok(total : bv[32]) := total > { #x00000000 }:bv[32].
+
+# LP share must not exceed total
+share_ok(share : bv[32], total : bv[32]) := share <= total.
+
+# Safe range for multiplication
+safe_range_ok(share : bv[32], reward_pool : bv[32]) := (share <= max_safe_32()) && (reward_pool <= max_safe_32()).
+
+# Parameters valid
+params_ok(share : bv[32], total : bv[32], reward_pool : bv[32]) := total_lp_ok(total) && share_ok(share, total) && safe_range_ok(share, reward_pool).
+
+# USAGE GATE: User must have minimum usage to receive rewards
+# This is the key anti-passive-payout mechanism
+usage_gate_ok(usage : bv[32], min_usage : bv[32]) := usage >= min_usage.
+
+# Reward math: computed_reward * total_lp should approximately equal lp_share * reward_pool
+# With tolerance for rounding: |computed * total - share * pool| <= total
+# Using: computed * total <= share * pool + tolerance AND computed * total >= share * pool - tolerance
+# Simplified with cross-multiply bounds
+reward_math_ok(share : bv[32], total : bv[32], pool : bv[32], reward : bv[32]) := ((reward * total) <= ((share * pool) + total)) && ((reward * total) >= (share * pool)).
+
+# Full LP reward check: usage gate AND math
+lp_reward_valid(share : bv[32], total : bv[32], pool : bv[32], reward : bv[32], usage : bv[32], min_usage : bv[32]) := params_ok(share, total, pool) && usage_gate_ok(usage, min_usage) && reward_math_ok(share, total, pool, reward).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Usage gate (anti-passive-payout)
+  (o2[t]:sbf = 1:sbf <-> usage_gate_ok(i5[t]:bv[32], i6[t]:bv[32])) &&
+  # @section: Reward proportionality math
+  (o3[t]:sbf = 1:sbf <-> reward_math_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Aggregated LP reward validity
+  (o4[t]:sbf = 1:sbf <-> lp_reward_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])).

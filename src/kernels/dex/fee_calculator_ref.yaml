@@ -1,0 +1,64 @@
+# Reference implementation for fee calculator
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fee_calculator_ref"
+
+observables:
+  state_vars: ["total_fees_collected"]
+  effects: ["fee_calculated"]
+
+types: []
+
+state_vars:
+  - id: "total_fees_collected"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000 }
+
+init:
+  - var: "total_fees_collected"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_total_fees_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "total_fees_collected" }, { const: 0 }]
+
+actions:
+  - id: "calculate_and_collect"
+    params:
+      - id: "fee_amount"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "fee_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "fee_amount" }, { const: 0 }] }
+        - { op: ">=", args: [{ param: "fee_bps" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "fee_bps" }, { const: 10000 }] }
+    updates:
+      - var: "total_fees_collected"
+        expr:
+          op: "+"
+          args:
+            [
+              { var: "total_fees_collected" },
+              {
+                op: "div",
+                args:
+                  [
+                    { op: "*", args: [{ param: "fee_amount" }, { param: "fee_bps" }] },
+                    { const: 10000 },
+                  ],
+              },
+            ]
+    effects:
+      fee_calculated:
+        op: "div"
+        args:
+          [
+            { op: "*", args: [{ param: "fee_amount" }, { param: "fee_bps" }] },
+            { const: 10000 },
+          ]

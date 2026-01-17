@@ -1,0 +1,51 @@
+# TDEX Economics v1 - Complete Deflationary Tokenomics Validator
+#
+# Purpose: Master validator for TDEX deflationary token economics
+# Combines all tokenomics rules into single comprehensive spec
+#
+# TDEX Token Economics:
+# - Symbol: TDEX
+# - Initial Supply: 1,000,000 (scaled: 1000000000 with 3 decimals)
+# - Minimum Supply: 100,000 (10% floor)
+# - Transfer Burn: 0.5% per transfer
+# - Swap Burn: 0.3% of DEX swap fees
+# - Buyback: 50% of trading fees -> buyback -> burn
+#
+# Deflationary Pressure Sources:
+# 1. Every TDEX transfer burns 0.5%
+# 2. Every DEX swap contributes to buyback pool
+# 3. Buyback pool buys and burns TDEX
+#
+# Inputs:
+# i1 = current_supply
+# i2 = transfer_volume (in current step)
+# i3 = swap_volume (in current step)
+# i4 = min_supply (floor)
+# i5 = burn_rate_bps (basis points, 50 = 0.5%)
+# Outputs:
+# o1 = economics_valid
+# o2 = deflation_active
+# o3 = supply_healthy
+# o4 = tokenomics_sustainable
+
+# Calculate expected burn from transfers: transfer_volume * burn_rate / 10000
+# Simplified: volume * 50 / 10000 = volume / 200
+transferburn(volume : bv[16], burn : bv[16]) := (burn * { #x00C8 }:bv[16] <= volume) && (volume < burn * { #x00C8 }:bv[16] + { #x00C8 }:bv[16]).
+
+# Supply above floor
+supplyabovefloor(supply : bv[16], minsupply : bv[16]) := supply > minsupply.
+
+# Deflation active: supply is decreasing over time
+deflationactive(currsupply : bv[16], prevsupply : bv[16]) := currsupply < prevsupply.
+
+# Supply healthy: above floor AND positive
+supplyhealthy(supply : bv[16], minsupply : bv[16]) := (supply > { #x0000 }:bv[16]) && supplyabovefloor(supply, minsupply).
+
+# Economics valid: healthy supply with proper burn mechanics
+economicsvalid(supply : bv[16], minsupply : bv[16], transfervol : bv[16]) := supplyhealthy(supply, minsupply) && (transfervol * { #x0032 }:bv[16] / { #x2710 }:bv[16] < supply - minsupply || transfervol = { #x0000 }:bv[16]).
+
+# Tokenomics sustainable: not burning faster than activity generates value
+# Burn rate should be less than supply - floor
+tokenomicssustainable(supply : bv[16], minsupply : bv[16], transfervol : bv[16], swapvol : bv[16]) := (supply > minsupply) && ((transfervol + swapvol) / { #x00C8 }:bv[16] < supply - minsupply).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> economicsvalid(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> deflationactive(i1[t]:bv[16], i1[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> supplyhealthy(i1[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> tokenomicssustainable(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

@@ -1,0 +1,12 @@
+# Experiment 28: Balance transition with underflow safety (bv[16] + sbf)
+
+i1 : bv[16] = in file("experiments/io/inputs/balance.in")
+i2 : bv[16] = in file("experiments/io/inputs/delta_in.in")
+i3 : bv[16] = in file("experiments/io/inputs/delta_out.in")
+o1 : bv[16] = out file("experiments/io/outputs/new_balance.out")
+o2 : sbf = out file("experiments/io/outputs/is_safe.out")
+
+issafe(bal : bv[16], tin : bv[16], tout : bv[16]) := (bal + tin) >= tout
+
+r (o1[t] = (i1[t] + i2[t]) - i3[t]) && (o2[t] = 1:sbf <-> issafe(i1[t], i2[t], i3[t]))
+q

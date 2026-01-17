@@ -1,0 +1,16 @@
+# REPL IO 52: TWAP guard (aligned inputs)
+
+p1 : bv[16] = in file("experiments/io/inputs/aligned_twap_prev1.in")
+p2 : bv[16] = in file("experiments/io/inputs/aligned_twap_prev2.in")
+curr : bv[16] = in file("experiments/io/inputs/aligned_twap_curr.in")
+delta : bv[16] = in file("experiments/io/inputs/aligned_twap_delta.in")
+
+low_ok : sbf = out file("experiments/io/outputs/aligned_twap_low_ok.out")
+high_ok : sbf = out file("experiments/io/outputs/aligned_twap_high_ok.out")
+twap_ok : sbf = out file("experiments/io/outputs/aligned_twap_ok.out")
+
+twap_low(c : bv[16], a : bv[16], b : bv[16], d : bv[16]) := ((c + c) + (d + d)) >= (a + b)
+twap_high(c : bv[16], a : bv[16], b : bv[16], d : bv[16]) := (c + c) <= ((a + b) + (d + d))
+
+r (low_ok[t] = 1:sbf <-> twap_low(curr[t], p1[t], p2[t], delta[t])) && (high_ok[t] = 1:sbf <-> twap_high(curr[t], p1[t], p2[t], delta[t])) && (twap_ok[t] = 1:sbf <-> ((low_ok[t] = 1:sbf) && (high_ok[t] = 1:sbf)))
+q

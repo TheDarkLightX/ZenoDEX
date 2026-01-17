@@ -1,0 +1,50 @@
+# Governance Rate Limiter v1 - Parameter Change Rate Limiting
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_changes_per_window (i3), window_size (i4)
+# IMMUTABLE_INVARIANTS: changes per window <= max allowed
+#
+# PURPOSE: Limit rate of parameter changes per time window to prevent
+# aggressive or rapid governance changes that could destabilize protocol.
+# No passive payouts - purely a governance safety gate.
+#
+# Stream mapping:
+# i1 = changes_in_window (bv[32]) - count of changes in current window
+# i2 = proposed_change (sbf) - 1 if proposing new change
+# i3 = max_changes (bv[32]) - max allowed changes per window
+# i4 = window_elapsed (sbf) - 1 if window has reset
+# o1 = params_ok
+# o2 = current_ok
+# o3 = after_change_ok
+# o4 = gov_rate_ok
+# @rule o4: Current changes < max OR window has reset.
+
+set charvar off
+
+# Max changes positive
+max_ok(max_ch : bv[32]) := max_ch > { #x00000000 }:bv[32].
+
+# Params valid
+params_ok(max_ch : bv[32]) := max_ok(max_ch).
+
+# Current count ok
+current_ok(count : bv[32], max_ch : bv[32]) := count < max_ch.
+
+# After proposed change still ok (count + 1 <= max)
+after_change_ok(count : bv[32], max_ch : bv[32], proposing : sbf) := (proposing = 0:sbf) || ((count + { #x00000001 }:bv[32]) <= max_ch).
+
+# Window reset allows any change
+window_allows(elapsed : sbf) := elapsed = 1:sbf.
+
+# Full check
+gov_rate_valid(count : bv[32], proposing : sbf, max_ch : bv[32], elapsed : sbf) := params_ok(max_ch) && current_ok(count, max_ch) && (window_allows(elapsed) || after_change_ok(count, max_ch, proposing)).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32])) &&
+  # @section: Current count check
+  (o2[t]:sbf = 1:sbf <-> current_ok(i1[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: After-change check
+  (o3[t]:sbf = 1:sbf <-> after_change_ok(i1[t]:bv[32], i3[t]:bv[32], i2[t]:sbf)) &&
+  # @section: Aggregated gov rate validity
+  (o4[t]:sbf = 1:sbf <-> gov_rate_valid(i1[t]:bv[32], i2[t]:sbf, i3[t]:bv[32], i4[t]:sbf)).

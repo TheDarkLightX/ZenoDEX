@@ -1,0 +1,22 @@
+# Spec 57: Automatic Rebalancing Proof for LP Positions
+# NOVEL: Proves rebalancing maintains target allocation ratios
+# Validates that after rebalance, token ratios return to target bounds
+# Prevents drift from optimal allocation over time
+#
+# Inputs: i1 = token_a_value, i2 = token_b_value, i3 = target_ratio_pct (e.g., 50 = 50%)
+# Outputs: o1 = current_ratio_ok, o2 = needs_rebalance, o3 = rebalance_valid, o4 = drift_detected
+
+# Current ratio: token_a / (token_a + token_b) * 100
+# Ratio OK if within 5% of target: |current_ratio - target| < 5
+# Cross-mult: |token_a * 100 - (token_a + token_b) * target| < (token_a + token_b) * 5
+
+# Simplified: check if ratio is approximately at target (within 5%)
+ratioatok(a : bv[16], b : bv[16], target : bv[16]) := ((a * { #x0064 }:bv[16] >= (a + b) * target) && (a * { #x0064 }:bv[16] - (a + b) * target < (a + b) * { #x0005 }:bv[16])) || ((a * { #x0064 }:bv[16] < (a + b) * target) && ((a + b) * target - a * { #x0064 }:bv[16] < (a + b) * { #x0005 }:bv[16])).
+
+# Needs rebalance: ratio drifted more than 10% from target
+needsrebalance(a : bv[16], b : bv[16], target : bv[16]) := ((a * { #x0064 }:bv[16] >= (a + b) * target) && (a * { #x0064 }:bv[16] - (a + b) * target >= (a + b) * { #x000A }:bv[16])) || ((a * { #x0064 }:bv[16] < (a + b) * target) && ((a + b) * target - a * { #x0064 }:bv[16] >= (a + b) * { #x000A }:bv[16])).
+
+# Drift detection: ratio moved away from target over 2 consecutive steps
+# Indicates sustained drift requiring attention
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> ratioatok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> needsrebalance(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> (needsrebalance(i1[t-1]:bv[16], i2[t-1]:bv[16], i3[t-1]:bv[16]) && ratioatok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16]))) && (o4[t]:sbf = 1:sbf <-> (!o1[t]:sbf && !o1[t-1]:sbf)).

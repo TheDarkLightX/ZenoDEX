@@ -1,0 +1,27 @@
+# Spec 58: Fee Tier Selection Optimizer
+# NOVEL: Validates fee tier selection based on pair volatility characteristics
+# Higher volatility pairs should use higher fee tiers for LP protection
+# Inspired by Uniswap V3 fee tier system (0.05%, 0.3%, 1%)
+#
+# Inputs: i1 = current_price, i2 = proposed_fee_tier (1=low, 2=medium, 3=high)
+# Outputs: o1 = volatility_class, o2 = fee_tier_matches, o3 = tier_valid, o4 = lp_optimal
+
+# Volatility classes based on price change:
+# Low: < 0.5% change, Medium: 0.5-2% change, High: > 2% change
+
+# Low volatility: |change| * 200 < prev (< 0.5%)
+lowvolatility(curr : bv[16], prev : bv[16]) := ((curr >= prev) && ((curr - prev) * { #x00C8 }:bv[16] < prev)) || ((curr < prev) && ((prev - curr) * { #x00C8 }:bv[16] < prev)).
+
+# High volatility: |change| * 50 > prev (> 2%)
+highvolatility(curr : bv[16], prev : bv[16]) := ((curr >= prev) && ((curr - prev) * { #x0032 }:bv[16] > prev)) || ((curr < prev) && ((prev - curr) * { #x0032 }:bv[16] > prev)).
+
+# Fee tier 1 (0.05%) valid for low volatility
+tier1valid(curr : bv[16], prev : bv[16], tier : bv[16]) := lowvolatility(curr, prev) && (tier = { #x0001 }:bv[16]).
+
+# Fee tier 3 (1%) required for high volatility
+tier3required(curr : bv[16], prev : bv[16], tier : bv[16]) := highvolatility(curr, prev) && (tier = { #x0003 }:bv[16]).
+
+# Fee matches volatility: correct tier for volatility class
+feematches(curr : bv[16], prev : bv[16], tier : bv[16]) := tier1valid(curr, prev, tier) || tier3required(curr, prev, tier) || (!lowvolatility(curr, prev) && !highvolatility(curr, prev) && (tier = { #x0002 }:bv[16])).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> lowvolatility(i1[t]:bv[16], i1[t-1]:bv[16])) && (o2[t]:sbf = 1:sbf <-> highvolatility(i1[t]:bv[16], i1[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> feematches(i1[t]:bv[16], i1[t-1]:bv[16], i2[t]:bv[16])) && (o4[t]:sbf = o3[t]).

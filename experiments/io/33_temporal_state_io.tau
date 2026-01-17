@@ -1,0 +1,38 @@
+# Experiment 33: Temporal swap state machine (sbf)
+# Features: nonce replay guard, 2-step cooldown, risk gate, holding/executing state.
+
+# Inputs
+# i1 buy_req, i2 sell_req, i3 risk_ok, i4 nonce_fresh, i5 reset_epoch
+
+i1 : sbf = in file("experiments/io/inputs/buy_req.in")
+i2 : sbf = in file("experiments/io/inputs/sell_req.in")
+i3 : sbf = in file("experiments/io/inputs/risk_ok.in")
+i4 : sbf = in file("experiments/io/inputs/nonce_fresh.in")
+i5 : sbf = in file("experiments/io/inputs/reset_epoch.in")
+
+# Outputs
+# o1 holding, o2 executing, o3 buy_fire, o4 sell_fire
+# o5 cooldown_1, o6 cooldown_2, o7 cooldown_active
+# o8 nonce_used, o9 replay_block
+
+o1 : sbf = out file("experiments/io/outputs/holding.out")
+o2 : sbf = out file("experiments/io/outputs/executing.out")
+o3 : sbf = out file("experiments/io/outputs/buy_fire.out")
+o4 : sbf = out file("experiments/io/outputs/sell_fire.out")
+o5 : sbf = out file("experiments/io/outputs/cooldown_1.out")
+o6 : sbf = out file("experiments/io/outputs/cooldown_2.out")
+o7 : sbf = out file("experiments/io/outputs/cooldown_active.out")
+o8 : sbf = out file("experiments/io/outputs/nonce_used.out")
+o9 : sbf = out file("experiments/io/outputs/replay_block.out")
+
+r (o1[0] = 0:sbf) && (o2[0] = 0:sbf) && (o5[0] = 0:sbf) && (o6[0] = 0:sbf) && (o8[0] = 0:sbf) &&
+  (o3[t] = i1[t] & i3[t] & o1[t-1]' & o7[t-1]' & o8[t-1]' & i4[t]) &&
+  (o4[t] = i2[t] & o1[t-1]) &&
+  (o1[t] = o3[t] | (o1[t-1] & o4[t]')) &&
+  (o2[t] = o3[t] | (o2[t-1] & o4[t]')) &&
+  (o5[t] = o3[t]) &&
+  (o6[t] = o5[t-1]) &&
+  (o7[t] = o5[t-1] | o6[t-1]) &&
+  (o8[t] = i5[t]' & (o3[t] | o8[t-1])) &&
+  (o9[t] = i1[t] & o8[t-1])
+q

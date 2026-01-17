@@ -1,0 +1,62 @@
+# Limit Order Bounds v1 - Limit Order Price Validation
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_deviation_bps from current price
+# IMMUTABLE_INVARIANTS: limit price within reasonable bounds
+#
+# PURPOSE: Validate limit order prices are within reasonable bounds
+# of the current market price. Prevents griefing with extreme prices.
+# No passive payouts - purely an order validation gate.
+#
+# Stream mapping:
+# i1 = limit_price (bv[32]) - user's limit price
+# i2 = current_price (bv[32]) - current market price
+# i3 = max_above_bps (bv[32]) - max bps above current (for sells)
+# i4 = max_below_bps (bv[32]) - max bps below current (for buys)
+# i5 = is_buy (sbf) - 1 if buy order, 0 if sell
+# o1 = params_ok
+# o2 = price_ok
+# o3 = bounds_ok
+# o4 = limit_order_ok
+# @rule o4: Buy limit >= current*(1-max_below) AND sell limit <= current*(1+max_above).
+
+set charvar off
+
+# floor((2^32-1)/20000)
+max_safe_32() := { #x000346DC }:bv[32].
+
+# Rate ok
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Price positive
+price_ok(price : bv[32]) := price > { #x00000000 }:bv[32].
+
+# Safe range
+safe_ok(price : bv[32]) := price <= max_safe_32().
+
+# Params valid
+params_ok(limit : bv[32], current : bv[32], max_above : bv[32], max_below : bv[32]) := price_ok(limit) && price_ok(current) && rate_ok(max_above) && rate_ok(max_below) && safe_ok(limit) && safe_ok(current).
+
+# Buy order: limit >= current * (10000 - max_below) / 10000
+# Rearranged: limit * 10000 >= current * (10000 - max_below)
+buy_ok(limit : bv[32], current : bv[32], max_below : bv[32]) := (limit * { #x00002710 }:bv[32]) >= (current * ({ #x00002710 }:bv[32] - max_below)).
+
+# Sell order: limit <= current * (10000 + max_above) / 10000
+# Rearranged: limit * 10000 <= current * (10000 + max_above)
+sell_ok(limit : bv[32], current : bv[32], max_above : bv[32]) := (limit * { #x00002710 }:bv[32]) <= (current * ({ #x00002710 }:bv[32] + max_above)).
+
+# Bounds check based on order type
+bounds_ok(limit : bv[32], current : bv[32], max_above : bv[32], max_below : bv[32], is_buy : sbf) := ((is_buy = 1:sbf) && buy_ok(limit, current, max_below)) || ((is_buy = 0:sbf) && sell_ok(limit, current, max_above)).
+
+# Full check
+limit_order_valid(limit : bv[32], current : bv[32], max_above : bv[32], max_below : bv[32], is_buy : sbf) := params_ok(limit, current, max_above, max_below) && bounds_ok(limit, current, max_above, max_below, is_buy).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Price validity
+  (o2[t]:sbf = 1:sbf <-> (price_ok(i1[t]:bv[32]) && price_ok(i2[t]:bv[32]))) &&
+  # @section: Bounds check
+  (o3[t]:sbf = 1:sbf <-> bounds_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf)) &&
+  # @section: Aggregated limit order validity
+  (o4[t]:sbf = 1:sbf <-> limit_order_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf)).

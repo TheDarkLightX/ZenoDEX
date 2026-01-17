@@ -1,0 +1,17 @@
+# REPL IO 47: 3-sample TWAP guard using addition-only bounds
+
+p1 : bv[16] = in file("experiments/io/inputs/twap3_prev1.in")
+p2 : bv[16] = in file("experiments/io/inputs/twap3_prev2.in")
+p3 : bv[16] = in file("experiments/io/inputs/twap3_prev3.in")
+curr : bv[16] = in file("experiments/io/inputs/twap3_curr.in")
+delta : bv[16] = in file("experiments/io/inputs/twap3_delta.in")
+
+low_ok : sbf = out file("experiments/io/outputs/twap3_low_ok.out")
+high_ok : sbf = out file("experiments/io/outputs/twap3_high_ok.out")
+twap_ok : sbf = out file("experiments/io/outputs/twap3_ok.out")
+
+twap3_low(c : bv[16], a : bv[16], b : bv[16], d : bv[16], e : bv[16]) := (c + c + c) + (e + e + e) >= (a + b + d)
+twap3_high(c : bv[16], a : bv[16], b : bv[16], d : bv[16], e : bv[16]) := (c + c + c) <= (a + b + d) + (e + e + e)
+
+r (low_ok[t] = 1:sbf <-> twap3_low(curr[t], p1[t], p2[t], p3[t], delta[t])) && (high_ok[t] = 1:sbf <-> twap3_high(curr[t], p1[t], p2[t], p3[t], delta[t])) && (twap_ok[t] = 1:sbf <-> ((low_ok[t] = 1:sbf) && (high_ok[t] = 1:sbf)))
+q

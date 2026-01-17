@@ -1,0 +1,19 @@
+# REPL IO 50: Oracle nonce with aligned inputs (target fire=1 at step 0)
+
+fresh : sbf = in file("experiments/io/inputs/aligned_oracle_fresh.in")
+req : sbf = in file("experiments/io/inputs/aligned_oracle_req.in")
+risk_ok : sbf = in file("experiments/io/inputs/aligned_oracle_risk_ok.in")
+reset : sbf = in file("experiments/io/inputs/aligned_oracle_reset.in")
+
+nonce_used : sbf = out file("experiments/io/outputs/aligned_oracle_nonce_used.out")
+fire : sbf = out file("experiments/io/outputs/aligned_oracle_fire.out")
+cd1 : sbf = out file("experiments/io/outputs/aligned_oracle_cd1.out")
+cd2 : sbf = out file("experiments/io/outputs/aligned_oracle_cd2.out")
+cd_active : sbf = out file("experiments/io/outputs/aligned_oracle_cd_active.out")
+
+r (fire[t] = reset[t]' & fresh[t] & req[t] & risk_ok[t] & cd_active[t-1]' & nonce_used[t-1]') &&
+  (nonce_used[t] = reset[t]' & (nonce_used[t-1] | fire[t])) &&
+  (cd1[t] = reset[t]' & fire[t]) &&
+  (cd2[t] = reset[t]' & cd1[t-1]) &&
+  (cd_active[t] = reset[t]' & (cd1[t-1] | cd2[t-1]))
+q

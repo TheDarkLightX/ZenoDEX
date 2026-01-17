@@ -1,0 +1,33 @@
+# Spec 42: Impermanent Loss Guardian for Liquidity Providers
+# NOVEL: Tracks LP position value ratio over time and halts if IL exceeds threshold
+# IL occurs when price diverges from entry - tracks sqrt(price_ratio) vs 1
+# Uses temporal state to remember entry price and compute ongoing IL
+#
+# Inputs: i1 = current_price, i2 = entry_price (LP's entry), i3 = lp_action (1=enter, 0=hold)
+# Outputs: o1 = price_ratio_safe, o2 = il_warning, o3 = il_critical, o4 = should_exit
+
+# Impermanent Loss approximation without sqrt:
+# IL% approx 2 * sqrt(r) / (1 + r) - 1, where r = price_now / price_entry
+# For r > 1: IL increases as r increases
+# For r < 1: IL increases as r decreases
+# Simplified: IL is significant when |r - 1| > threshold
+
+# Price ratio check: is current within X% of entry?
+# |current - entry| * 100 < entry * X
+# Safe zone: within 20% of entry price
+pricesafe(curr : bv[16], entry : bv[16]) := ((curr >= entry) && ((curr - entry) * { #x0064 }:bv[16] < entry * { #x0014 }:bv[16])) || ((curr < entry) && ((entry - curr) * { #x0064 }:bv[16] < entry * { #x0014 }:bv[16])).
+
+# IL Warning: price moved 20-50% from entry
+ilwarning(curr : bv[16], entry : bv[16]) := !pricesafe(curr, entry) && (((curr >= entry) && ((curr - entry) * { #x0064 }:bv[16] < entry * { #x0032 }:bv[16])) || ((curr < entry) && ((entry - curr) * { #x0064 }:bv[16] < entry * { #x0032 }:bv[16]))).
+
+# IL Critical: price moved > 50% from entry (IL > ~5.7%)
+ilcritical(curr : bv[16], entry : bv[16]) := ((curr >= entry) && ((curr - entry) * { #x0064 }:bv[16] >= entry * { #x0032 }:bv[16])) || ((curr < entry) && ((entry - curr) * { #x0064 }:bv[16] >= entry * { #x0032 }:bv[16])).
+
+# Trend detection: is IL getting worse over 3 steps?
+# Price moving further from entry over time
+ilworsening(c0 : bv[16], c1 : bv[16], c2 : bv[16], entry : bv[16]) := ((c0 > entry) && (c1 > entry) && (c2 > entry) && (c0 > c1) && (c1 > c2)) || ((c0 < entry) && (c1 < entry) && (c2 < entry) && (c0 < c1) && (c1 < c2)).
+
+# Should exit: critical IL AND worsening trend
+shouldexit(c0 : bv[16], c1 : bv[16], c2 : bv[16], entry : bv[16]) := ilcritical(c0, entry) && ilworsening(c0, c1, c2, entry).
+
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> pricesafe(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> ilwarning(i1[t]:bv[16], i2[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> ilcritical(i1[t]:bv[16], i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> shouldexit(i1[t]:bv[16], i1[t-1]:bv[16], i1[t-2]:bv[16], i2[t]:bv[16])).

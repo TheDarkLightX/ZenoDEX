@@ -1,0 +1,14 @@
+# Isolation: combine32 with bv[32] hi/lo
+
+i1 : bv[32] = in file("experiments/isolation/inputs/bv32_a.in")  # hi
+
+i2 : bv[32] = in file("experiments/isolation/inputs/bv32_b.in")  # lo
+
+i3 : bv[32] = in file("experiments/isolation/inputs/bv32_sum.in") # sum
+
+o1 : sbf = out file("experiments/isolation/outputs/add32_combine_bv32_ok.out")
+
+combine32(hi : bv[32], lo : bv[32]) := (hi << { #x0010 }:bv[32]) + lo.
+
+r (o1[t]:sbf = 1:sbf <-> (i3[t]:bv[32] = combine32(i1[t], i2[t])))
+q

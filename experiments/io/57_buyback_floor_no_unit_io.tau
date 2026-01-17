@@ -1,0 +1,36 @@
+# Experiment 57a: Buyback burn with floor (no unit check)
+
+i1 : bv[16] = in file("experiments/io/inputs/bbf_amount.in")
+i2 : bv[16] = in file("experiments/io/inputs/bbf_fee.in")
+i3 : bv[16] = in file("experiments/io/inputs/bbf_buyback.in")
+i4 : bv[16] = in file("experiments/io/inputs/bbf_burned.in")
+i5 : bv[16] = in file("experiments/io/inputs/bbf_supply_hi.in")
+i6 : bv[16] = in file("experiments/io/inputs/bbf_supply_lo.in")
+i7 : bv[16] = in file("experiments/io/inputs/bbf_supply2_hi.in")
+i8 : bv[16] = in file("experiments/io/inputs/bbf_supply2_lo.in")
+i9 : bv[16] = in file("experiments/io/inputs/bbf_floor_hi.in")
+i10 : bv[16] = in file("experiments/io/inputs/bbf_floor_lo.in")
+
+o1 : sbf = out file("experiments/io/outputs/bbf_fee_ok.out")
+o2 : sbf = out file("experiments/io/outputs/bbf_buyback_ok.out")
+o3 : sbf = out file("experiments/io/outputs/bbf_burn_floor_ok.out")
+o5 : sbf = out file("experiments/io/outputs/bbf_all_ok_no_unit.out")
+
+fee_rate_ok(amount : bv[16], fee : bv[16]) := (fee * { #x2710 }:bv[16] >= amount * { #x001D }:bv[16]) && (fee * { #x2710 }:bv[16] <= (amount * { #x001D }:bv[16]) + { #x270F }:bv[16])
+buyback_share_ok(fee : bv[16], bb : bv[16]) := (bb * { #x0064 }:bv[16] >= fee * { #x0015 }:bv[16]) && (bb * { #x0064 }:bv[16] <= (fee * { #x0015 }:bv[16]) + { #x0063 }:bv[16])
+
+ge_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := (a_hi > b_hi) || ((a_hi = b_hi) && (a_lo >= b_lo))
+le_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := ge_32(b_hi, b_lo, a_hi, a_lo)
+eq_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := (a_hi = b_hi) && (a_lo = b_lo)
+
+sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], d_hi : bv[16], d_lo : bv[16]) := (d_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (d_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (d_hi = (a_hi - b_hi))))
+
+floor_reached(s_hi : bv[16], s_lo : bv[16], f_hi : bv[16], f_lo : bv[16]) := le_32(s_hi, s_lo, f_hi, f_lo)
+
+burn_floor_ok(s_hi : bv[16], s_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16], f_hi : bv[16], f_lo : bv[16], bb : bv[16], burned : bv[16]) := (floor_reached(s_hi, s_lo, f_hi, f_lo) && (burned = { #x0000 }:bv[16]) && eq_32(s_hi, s_lo, s2_hi, s2_lo)) || (!floor_reached(s_hi, s_lo, f_hi, f_lo) && (burned = bb) && sub_32(s_hi, s_lo, { #x0000 }:bv[16], burned, s2_hi, s2_lo) && ge_32(s2_hi, s2_lo, f_hi, f_lo))
+
+r (o1[t] = 1:sbf <-> fee_rate_ok(i1[t], i2[t])) &&
+  (o2[t] = 1:sbf <-> buyback_share_ok(i2[t], i3[t])) &&
+  (o3[t] = 1:sbf <-> burn_floor_ok(i5[t], i6[t], i7[t], i8[t], i9[t], i10[t], i3[t], i4[t])) &&
+  (o5[t] = o1[t] & o2[t] & o3[t])
+q

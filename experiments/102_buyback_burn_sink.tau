@@ -1,0 +1,12 @@
+# Spec 102: Buyback Burn Sink (32-bit hi:lo)
+# Pattern: supply_after = supply_before - burn, burn <= supply_before
+# Inputs: i1=before_hi, i2=before_lo, i3=burn_hi, i4=burn_lo, i5=after_hi, i6=after_lo
+# Output: o1=burn_valid
+
+value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+sub32(ahi : bv[16], alo : bv[16], bhi : bv[16], blo : bv[16], rhi : bv[16], rlo : bv[16]) := (rlo = alo - blo) && ((alo < blo) ? (rhi = ahi - bhi - { #x0001 }:bv[16]) : (rhi = ahi - bhi)).
+
+burn_valid(before_hi : bv[16], before_lo : bv[16], burn_hi : bv[16], burn_lo : bv[16], after_hi : bv[16], after_lo : bv[16]) := value_gte_32(before_hi, before_lo, burn_hi, burn_lo) && sub32(before_hi, before_lo, burn_hi, burn_lo, after_hi, after_lo).
+
+always (o1[t]:sbf = 1:sbf <-> burn_valid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16])).

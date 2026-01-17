@@ -1,0 +1,18 @@
+{
+  "properties": [
+    {
+      "id": "init_implies_invariants",
+      "weight": 0.3,
+      "status": "proved_inductive",
+      "critical": true
+    },
+    {
+      "id": "invariants_inductive",
+      "weight": 0.7,
+      "status": "proved_inductive",
+      "critical": true
+    }
+  ],
+  "critical_min": 0.7,
+  "critical_cap": 0.6
+}

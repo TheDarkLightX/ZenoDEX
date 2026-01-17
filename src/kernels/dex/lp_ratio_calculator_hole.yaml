@@ -1,0 +1,43 @@
+# [FORGE] LP Ratio Calculator (Synthesizable)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "lp_ratio_calculator_hole"
+  created_by: "cgs"
+  notes: |
+    Calculates optimal LP ratio for liquidity addition.
+    High ROI: Used in every liquidity add operation.
+
+observables:
+  state_vars: []
+  effects: ["amount0_used", "amount1_used"]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "calculate_ratio"
+    params:
+      - id: "reserve0"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "reserve1"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "amount0_desired"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "amount1_desired"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "reserve0" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "reserve1" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "amount0_desired" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "amount1_desired" }, { const: 0 }] }
+    updates: []
+    effects:
+      amount0_used: { const: 0 }  # HOLE: Calculate optimal amount0
+      amount1_used: { const: 0 }   # HOLE: Calculate optimal amount1

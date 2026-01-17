@@ -1,0 +1,131 @@
+# [FORGE] ZenoDEX Circuit Breaker State Machine (Synthesizable)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "circuit_breaker_hole"
+  created_by: "cgs"
+  notes: |
+    Circuit breaker kernel with synthesizable volume accumulation over time windows.
+    Tracks volume/deviation and triggers breaker when thresholds exceeded.
+    
+    High ROI: Critical risk management - prevents excessive volatility/MEV attacks.
+    Synthesis target: Optimal volume accumulation formula that respects time windows.
+
+observables:
+  state_vars: ["window_start", "volume_accumulated", "breaker_triggered"]
+  effects: ["volume_after", "is_breached"]
+
+types: []
+
+state_vars:
+  - id: "window_start"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }  # Timestamp/block height
+  - id: "volume_accumulated"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000 }
+  - id: "breaker_triggered"
+    role: "control"
+    type: { kind: "bool" }
+
+init:
+  - var: "window_start"
+    expr: { const: 0 }
+  - var: "volume_accumulated"
+    expr: { const: 0 }
+  - var: "breaker_triggered"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_volume_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "volume_accumulated" }, { const: 0 }]
+  - id: "inv_window_monotone"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "window_start" }, { const: 0 }]
+  - id: "inv_breaker_persistent"
+    kind: "safety"
+    expr:
+      # Once triggered, breaker stays triggered until reset
+      op: "=>"
+      args:
+        - { var: "breaker_triggered" }
+        - {
+            op: "or",
+            args:
+              [
+                { var: "breaker_triggered" },
+                { op: "=", args: [{ var: "volume_accumulated" }, { const: 0 }] },
+              ],
+          }
+
+actions:
+  - id: "add_volume"
+    params:
+      - id: "volume"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "current_time"
+        type: { kind: "int", min: 0, max: 1000000 }
+      - id: "window_duration"
+        type: { kind: "int", min: 1, max: 86400 }
+      - id: "max_volume"
+        type: { kind: "int", min: 1, max: 10000000 }
+    guard:
+      op: "and"
+      args:
+        # Breaker not triggered
+        - { op: "not", args: [{ var: "breaker_triggered" }] }
+        # Time must advance
+        - { op: ">=", args: [{ param: "current_time" }, { var: "window_start" }] }
+        # Volume must be positive
+        - { op: ">", args: [{ param: "volume" }, { const: 0 }] }
+    updates:
+      - var: "window_start"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args:
+              [
+                { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] },
+                { param: "window_duration" },
+              ]
+          then: { param: "current_time" }
+          else: { var: "window_start" }
+      - var: "volume_accumulated"
+        expr: { const: 0 }  # HOLE: Synthesize volume accumulation with window reset
+      - var: "breaker_triggered"
+        expr:
+          op: ">="
+          args:
+            [
+              { const: 0 },  # Will use volume_accumulated after synthesis
+              { param: "max_volume" },
+            ]
+    effects:
+      volume_after: { const: 0 }  # HOLE: Same as volume_accumulated update
+      is_breached:
+        op: ">="
+        args:
+          [
+            { var: "volume_accumulated" },
+            { param: "max_volume" },
+          ]
+  - id: "reset"
+    params: []
+    guard:
+      op: "="
+      args: [{ var: "breaker_triggered" }, { bool: true }]
+    updates:
+      - var: "breaker_triggered"
+        expr: { bool: false }
+      - var: "volume_accumulated"
+        expr: { const: 0 }
+      - var: "window_start"
+        expr: { const: 0 }
+    effects:
+      volume_after: { const: 0 }
+      is_breached: { bool: false }

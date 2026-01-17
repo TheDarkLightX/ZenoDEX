@@ -1,0 +1,8 @@
+# Spec 108: Protocol-Owned Liquidity Floor
+# Pattern: enforce minimum POL floor computed externally
+# Inputs: i1=pol_amount, i2=min_pol
+# Output: o1=pol_ok
+
+pol_ok(pol : bv[16], min_pol : bv[16]) := pol >= min_pol.
+
+always (o1[t]:sbf = 1:sbf <-> pol_ok(i1[t]:bv[16], i2[t]:bv[16])).

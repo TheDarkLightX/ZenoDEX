@@ -1,0 +1,34 @@
+# Isolation: swap exact-in full constraint
+
+i1 : bv[16] = in file("experiments/io/inputs/swap_exact_in_reserve_in_hi.in")
+i2 : bv[16] = in file("experiments/io/inputs/swap_exact_in_reserve_in_lo.in")
+i3 : bv[16] = in file("experiments/io/inputs/swap_exact_in_reserve_out_hi.in")
+i4 : bv[16] = in file("experiments/io/inputs/swap_exact_in_reserve_out_lo.in")
+i5 : bv[16] = in file("experiments/io/inputs/swap_exact_in_amount_in_hi.in")
+i6 : bv[16] = in file("experiments/io/inputs/swap_exact_in_amount_in_lo.in")
+i7 : bv[16] = in file("experiments/io/inputs/swap_exact_in_fee_bps.in")
+i8 : bv[16] = in file("experiments/io/inputs/swap_exact_in_min_out_hi.in")
+i9 : bv[16] = in file("experiments/io/inputs/swap_exact_in_min_out_lo.in")
+i10 : bv[16] = in file("experiments/io/inputs/swap_exact_in_amount_out_hi.in")
+i11 : bv[16] = in file("experiments/io/inputs/swap_exact_in_amount_out_lo.in")
+i12 : bv[16] = in file("experiments/io/inputs/swap_exact_in_new_reserve_in_hi.in")
+i13 : bv[16] = in file("experiments/io/inputs/swap_exact_in_new_reserve_in_lo.in")
+i14 : bv[16] = in file("experiments/io/inputs/swap_exact_in_new_reserve_out_hi.in")
+i15 : bv[16] = in file("experiments/io/inputs/swap_exact_in_new_reserve_out_lo.in")
+
+o1 : sbf = out file("experiments/isolation/outputs/swap_exact_in_full_ok.out")
+
+fee_bps_valid(fee : bv[16]) := (fee >= { #x0000 }:bv[16]) && (fee <= { #x2710 }:bv[16]).
+
+is_positive_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+
+value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := (sum_lo = (a_lo + b_lo)) && (((sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi + { #x0001 }:bv[16]))) && (!(sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi)))).
+
+sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], diff_hi : bv[16], diff_lo : bv[16]) := (diff_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (diff_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (diff_hi = (a_hi - b_hi)))).
+
+swap_exact_in_constraints(reserve_in_hi_arg : bv[16], reserve_in_lo_arg : bv[16], reserve_out_hi_arg : bv[16], reserve_out_lo_arg : bv[16], amount_in_hi_arg : bv[16], amount_in_lo_arg : bv[16], fee_bps_arg : bv[16], min_amount_out_hi_arg : bv[16], min_amount_out_lo_arg : bv[16], amount_out_hi_arg : bv[16], amount_out_lo_arg : bv[16], new_reserve_in_hi_arg : bv[16], new_reserve_in_lo_arg : bv[16], new_reserve_out_hi_arg : bv[16], new_reserve_out_lo_arg : bv[16]) := is_positive_32(reserve_in_hi_arg, reserve_in_lo_arg) && is_positive_32(reserve_out_hi_arg, reserve_out_lo_arg) && is_positive_32(amount_in_hi_arg, amount_in_lo_arg) && fee_bps_valid(fee_bps_arg) && is_positive_32(amount_out_hi_arg, amount_out_lo_arg) && value_gte_32(reserve_out_hi_arg, reserve_out_lo_arg, amount_out_hi_arg, amount_out_lo_arg) && value_gte_32(amount_out_hi_arg, amount_out_lo_arg, min_amount_out_hi_arg, min_amount_out_lo_arg) && add_32(reserve_in_hi_arg, reserve_in_lo_arg, amount_in_hi_arg, amount_in_lo_arg, new_reserve_in_hi_arg, new_reserve_in_lo_arg) && sub_32(reserve_out_hi_arg, reserve_out_lo_arg, amount_out_hi_arg, amount_out_lo_arg, new_reserve_out_hi_arg, new_reserve_out_lo_arg).
+
+r (o1[t]:sbf = 1:sbf <-> swap_exact_in_constraints(i1[t], i2[t], i3[t], i4[t], i5[t], i6[t], i7[t], i8[t], i9[t], i10[t], i11[t], i12[t], i13[t], i14[t], i15[t]))
+q

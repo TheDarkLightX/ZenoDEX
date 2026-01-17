@@ -1,0 +1,3 @@
+# Spec 33: Supply invariants (mint/burn/cap)
+
+always (o1[0]:bv[16] = { #x0000 }:bv[16]) && (o2[0]:sbf = 0:sbf) && (o1[t]:bv[16] = o1[t-1]:bv[16] + i1[t]:bv[16] - i2[t]:bv[16]) && (o2[t]:sbf = 1:sbf <-> ((i2[t]:bv[16] <= (o1[t-1]:bv[16] + i1[t]:bv[16])) && (o1[t]:bv[16] <= i3[t]:bv[16]))).

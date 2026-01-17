@@ -1,0 +1,62 @@
+# LP Fee Rebate v1 - Usage-Bound LP Rebates
+#
+# WARNING: risk_medium - payout logic (but usage-gated)
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: rebate_rate_bps (i4), min_usage (i6)
+# IMMUTABLE_INVARIANTS: rebates proportional to fees paid, gated by usage
+#
+# PURPOSE: Usage-bound rebates to LPs based on fees generated.
+# LPs must maintain usage to receive rebates - NO PASSIVE PAYOUTS.
+#
+# Stream mapping:
+# i1 = lp_fees_paid (bv[32]) - fees paid by LP's liquidity
+# i2 = rebate_amount (bv[32]) - computed rebate
+# i3 = rebate_cap (bv[32]) - max rebate per period
+# i4 = rebate_rate_bps (bv[32]) - rebate rate
+# i5 = usage_score (bv[32]) - LP's usage score
+# i6 = min_usage (bv[32]) - minimum usage required
+# o1 = params_ok
+# o2 = usage_ok
+# o3 = rebate_ok
+# o4 = lp_rebate_ok
+# @rule o4: Usage gate passed AND rebate math correct AND capped.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(r : bv[32]) := r <= { #x00002710 }:bv[32].
+
+# Safe
+safe_ok(v : bv[32]) := v <= max_safe_32().
+
+# Params ok
+params_ok(fees : bv[32], rate : bv[32]) := (fees > { #x00000000 }:bv[32]) && rate_ok(rate) && safe_ok(fees).
+
+# USAGE GATE: must have min usage
+usage_ok(score : bv[32], min : bv[32]) := score >= min.
+
+# Rebate math: rebate * 10000 in range [fees * rate, fees * rate + 9999]
+rebate_calc_ok(fees : bv[32], rate : bv[32], rebate : bv[32]) := ((rebate * { #x00002710 }:bv[32]) >= (fees * rate)) && ((rebate * { #x00002710 }:bv[32]) <= ((fees * rate) + { #x0000270F }:bv[32])).
+
+# Cap ok
+cap_ok(rebate : bv[32], cap : bv[32]) := rebate <= cap.
+
+# Full rebate check
+rebate_ok(fees : bv[32], rate : bv[32], rebate : bv[32], cap : bv[32]) := rebate_calc_ok(fees, rate, rebate) && cap_ok(rebate, cap).
+
+# Full LP rebate check
+lp_rebate_valid(fees : bv[32], rebate : bv[32], cap : bv[32], rate : bv[32], usage : bv[32], min_usage : bv[32]) := params_ok(fees, rate) && usage_ok(usage, min_usage) && rebate_ok(fees, rate, rebate, cap).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Usage gate
+  (o2[t]:sbf = 1:sbf <-> usage_ok(i5[t]:bv[32], i6[t]:bv[32])) &&
+  # @section: Rebate math
+  (o3[t]:sbf = 1:sbf <-> rebate_ok(i1[t]:bv[32], i4[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Aggregated LP rebate validity
+  (o4[t]:sbf = 1:sbf <-> lp_rebate_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])).

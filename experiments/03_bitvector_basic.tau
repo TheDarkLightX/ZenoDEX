@@ -1,0 +1,7 @@
+# Experiment 03: Basic bitvector operations
+# Using bv[16] type for 16-bit integers
+
+# Define a simple predicate
+is_zero(x : bv[16]) := x = { #x0000 }:bv[16].
+
+always (o1[t]:sbf = 1:sbf <-> is_zero(i1[t]:bv[16])).

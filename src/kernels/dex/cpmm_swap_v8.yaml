@@ -1,0 +1,733 @@
+# [FORGE] ZenoDEX CPMM Swap v8 (Fee-in-pool, optional protocol share)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "cpmm_swap_v8"
+  created_by: "kernel-v8"
+  notes: |
+    CPMM exact-in swap with:
+    - Uniswap-v2-style fee handling: price uses net_in; LP fee stays in pool
+    - Optional protocol fee share removed from the pool (protocol_fee_share_bps)
+    - Delta-based effects (safe under post-state effect semantics)
+
+    Semantics:
+    - gross_in = amount_in
+    - fee_total = ceil(gross_in * fee_bps / 10_000)
+    - net_in = gross_in - fee_total
+    - protocol_fee = floor(fee_total * protocol_fee_share_bps / 10_000)
+    - lp_fee = fee_total - protocol_fee   (stays in pool)
+    - reserve_in' = reserve_in + gross_in - protocol_fee
+    - amount_out = floor(reserve_out * net_in / (reserve_in + net_in))
+    - reserve_out' = reserve_out - amount_out
+
+    IR semantics note:
+    - Action `updates` are evaluated on the pre-state and applied simultaneously.
+    - Action `effects` are evaluated on the post-state (new_state).
+    - `reserve_*_before` exist only to snapshot pre-state for delta-based effects/witnessing.
+
+observables:
+  state_vars: ["reserve_in", "reserve_out", "fee_bps", "protocol_fee_share_bps"]
+  effects:
+    [
+      "amount_out",
+      "fee_total",
+      "protocol_fee",
+      "lp_fee",
+      "net_in",
+      "gross_in",
+      "new_reserve_in",
+      "new_reserve_out",
+      "k_before",
+      "k_after",
+      "fee_split_ok",
+      "net_ok",
+    ]
+
+types: []
+
+state_vars:
+  - id: "reserve_in_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 3000000000 }
+  - id: "reserve_in"
+    role: "data"
+    type: { kind: "int", min: 1, max: 3000000000 }
+  - id: "reserve_out_before"
+    role: "data"
+    type: { kind: "int", min: 1, max: 3000000000 }
+  - id: "reserve_out"
+    role: "data"
+    type: { kind: "int", min: 1, max: 3000000000 }
+  - id: "fee_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "protocol_fee_share_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+init:
+  - var: "reserve_in_before"
+    expr: { const: 1000000 }
+  - var: "reserve_in"
+    expr: { const: 1000000 }
+  - var: "reserve_out_before"
+    expr: { const: 1000000 }
+  - var: "reserve_out"
+    expr: { const: 1000000 }
+  - var: "fee_bps"
+    expr: { const: 30 }
+  - var: "protocol_fee_share_bps"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_reserves_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve_in" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "reserve_out" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "reserve_in" }, { const: 3000000000 }] }
+        - { op: "<=", args: [{ var: "reserve_out" }, { const: 3000000000 }] }
+  - id: "inv_fee_bps_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "fee_bps" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "fee_bps" }, { const: 10000 }] }
+        - { op: ">=", args: [{ var: "protocol_fee_share_bps" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "protocol_fee_share_bps" }, { const: 10000 }] }
+
+actions:
+  - id: "swap"
+    params:
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 3000000000 }
+      - id: "min_amount_out"
+        type: { kind: "int", min: 1, max: 3000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "reserve_in" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "reserve_out" }, { const: 0 }] }
+        - { op: ">", args: [{ param: "amount_in" }, { const: 0 }] }
+        # fee_total <= amount_in (prevents negative net_in)
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                      { const: 9999 }
+                    ]
+                  },
+                  { const: 10000 }
+                ]
+              },
+              { param: "amount_in" }
+            ]
+          }
+        # net_in > 0
+        - { op: ">",
+            args: [
+              { op: "-",
+                args: [
+                  { param: "amount_in" },
+                  { op: "div",
+                    args: [
+                      { op: "+",
+                        args: [
+                          { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                          { const: 9999 }
+                        ]
+                      },
+                      { const: 10000 }
+                    ]
+                  }
+                ]
+              },
+              { const: 0 }
+            ]
+          }
+        # protocol_fee <= fee_total (implied by bounds, but explicit for clarity)
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "*",
+                    args: [
+                      { op: "div",
+                        args: [
+                          { op: "+",
+                            args: [
+                              { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                              { const: 9999 }
+                            ]
+                          },
+                          { const: 10000 }
+                        ]
+                      },
+                      { var: "protocol_fee_share_bps" }
+                    ]
+                  },
+                  { const: 10000 }
+                ]
+              },
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                      { const: 9999 }
+                    ]
+                  },
+                  { const: 10000 }
+                ]
+              }
+            ]
+          }
+        # POST-UPDATE BOUND: reserve_in + amount_in - protocol_fee <= 3B
+        - { op: "<=",
+            args: [
+              { op: "+",
+                args: [
+                  { var: "reserve_in" },
+                  { op: "-",
+                    args: [
+                      { param: "amount_in" },
+                      { op: "div",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              },
+                              { var: "protocol_fee_share_bps" }
+                            ]
+                          },
+                          { const: 10000 }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 3000000000 }
+            ]
+          }
+        # amount_out >= min_amount_out (slippage check)
+        - { op: ">=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "*",
+                    args: [
+                      { var: "reserve_out" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { var: "reserve_in" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { param: "min_amount_out" }
+            ]
+          }
+        # amount_out > 0
+        - { op: ">",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "*",
+                    args: [
+                      { var: "reserve_out" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { var: "reserve_in" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 0 }
+            ]
+          }
+        # cannot drain
+        - { op: "<",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "*",
+                    args: [
+                      { var: "reserve_out" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { var: "reserve_in" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { var: "reserve_out" }
+            ]
+          }
+        # new_reserve_out >= 1
+        - { op: ">=",
+            args: [
+              { op: "-",
+                args: [
+                  { var: "reserve_out" },
+                  { op: "div",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "reserve_out" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "+",
+                        args: [
+                          { var: "reserve_in" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 1 }
+            ]
+          }
+        # k_after >= k_before
+        - { op: ">=",
+            args: [
+              { op: "*",
+                args: [
+                  { op: "+",
+                    args: [
+                      { var: "reserve_in" },
+                      { op: "-",
+                        args: [
+                          { param: "amount_in" },
+                          { op: "div",
+                            args: [
+                              { op: "*",
+                                args: [
+                                  { op: "div",
+                                    args: [
+                                      { op: "+",
+                                        args: [
+                                          { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                          { const: 9999 }
+                                        ]
+                                      },
+                                      { const: 10000 }
+                                    ]
+                                  },
+                                  { var: "protocol_fee_share_bps" }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "-",
+                    args: [
+                      { var: "reserve_out" },
+                      { op: "div",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { var: "reserve_out" },
+                              { op: "-",
+                                args: [
+                                  { param: "amount_in" },
+                                  { op: "div",
+                                    args: [
+                                      { op: "+",
+                                        args: [
+                                          { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                          { const: 9999 }
+                                        ]
+                                      },
+                                      { const: 10000 }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          { op: "+",
+                            args: [
+                              { var: "reserve_in" },
+                              { op: "-",
+                                args: [
+                                  { param: "amount_in" },
+                                  { op: "div",
+                                    args: [
+                                      { op: "+",
+                                        args: [
+                                          { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                          { const: 9999 }
+                                        ]
+                                      },
+                                      { const: 10000 }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { op: "*", args: [{ var: "reserve_in" }, { var: "reserve_out" }] }
+            ]
+          }
+    updates:
+      - var: "reserve_in_before"
+        expr: { var: "reserve_in" }
+      - var: "reserve_out_before"
+        expr: { var: "reserve_out" }
+      - var: "reserve_in"
+        expr:
+          op: "+"
+          args:
+            - { var: "reserve_in" }
+            - op: "-"
+              args:
+                - { param: "amount_in" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                        - { var: "protocol_fee_share_bps" }
+                    - { const: 10000 }
+      - var: "reserve_out"
+        expr:
+          op: "-"
+          args:
+            - { var: "reserve_out" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "reserve_out" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "reserve_in" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+      - var: "fee_bps"
+        expr: { var: "fee_bps" }
+      - var: "protocol_fee_share_bps"
+        expr: { var: "protocol_fee_share_bps" }
+    effects:
+      gross_in: { param: "amount_in" }
+      fee_total:
+        op: "div"
+        args:
+          - op: "+"
+            args:
+              - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+              - { const: 9999 }
+          - { const: 10000 }
+      net_in:
+        op: "-"
+        args:
+          - { param: "amount_in" }
+          - op: "div"
+            args:
+              - op: "+"
+                args:
+                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                  - { const: 9999 }
+              - { const: 10000 }
+      protocol_fee:
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "div"
+                args:
+                  - op: "+"
+                    args:
+                      - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                      - { const: 9999 }
+                  - { const: 10000 }
+              - { var: "protocol_fee_share_bps" }
+          - { const: 10000 }
+      lp_fee:
+        op: "-"
+        args:
+          - op: "div"
+            args:
+              - op: "+"
+                args:
+                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                  - { const: 9999 }
+              - { const: 10000 }
+          - op: "div"
+            args:
+              - op: "*"
+                args:
+                  - op: "div"
+                    args:
+                      - op: "+"
+                        args:
+                          - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                          - { const: 9999 }
+                      - { const: 10000 }
+                  - { var: "protocol_fee_share_bps" }
+              - { const: 10000 }
+      amount_out:
+        op: "-"
+        args: [{ var: "reserve_out_before" }, { var: "reserve_out" }]
+      new_reserve_in: { var: "reserve_in" }
+      new_reserve_out: { var: "reserve_out" }
+      k_before:
+        op: "*"
+        args: [{ var: "reserve_in_before" }, { var: "reserve_out_before" }]
+      k_after:
+        op: "*"
+        args: [{ var: "reserve_in" }, { var: "reserve_out" }]
+      fee_split_ok:
+        op: "="
+        args:
+          - op: "+"
+            args:
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                              - { const: 9999 }
+                          - { const: 10000 }
+                      - { var: "protocol_fee_share_bps" }
+                  - { const: 10000 }
+              - op: "-"
+                args:
+                  - op: "div"
+                    args:
+                      - op: "+"
+                        args:
+                          - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                          - { const: 9999 }
+                      - { const: 10000 }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+                          - { var: "protocol_fee_share_bps" }
+                      - { const: 10000 }
+          - op: "div"
+            args:
+              - op: "+"
+                args:
+                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                  - { const: 9999 }
+              - { const: 10000 }
+      net_ok:
+        op: "="
+        args:
+          - op: "+"
+            args:
+              - op: "-"
+                args:
+                  - { param: "amount_in" }
+                  - op: "div"
+                    args:
+                      - op: "+"
+                        args:
+                          - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                          - { const: 9999 }
+                      - { const: 10000 }
+              - op: "div"
+                args:
+                  - op: "+"
+                    args:
+                      - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                      - { const: 9999 }
+                  - { const: 10000 }
+          - { param: "amount_in" }

@@ -1,0 +1,33 @@
+# Governance Timelock Validator v1
+# MUTABILITY: IMMUTABLE
+# Inputs:
+# i1 = proposal_ts
+# i2 = current_ts
+# i3 = min_delay
+# i4 = exec_req
+# Outputs:
+# o1 = delay_elapsed
+# o2 = execution_valid
+# o3 = proposal_mature
+# o4 = governance_safe
+# @rule o4: Governance is safe unless execution is requested before timelock.
+
+set charvar off
+
+# Delay elapsed: current_time - proposal_time >= min_delay
+delayelapsed(proposal_ts : bv[16], current_ts : bv[16], min_delay : bv[16]) := (current_ts >= proposal_ts) && ((current_ts - proposal_ts) >= min_delay).
+
+# Execution valid: delay elapsed AND execution was requested
+executionvalid(proposal_ts : bv[16], current_ts : bv[16], min_delay : bv[16], exec_req : sbf) := delayelapsed(proposal_ts, current_ts, min_delay) && (exec_req = 1:sbf).
+
+# Proposal mature: past minimum delay, ready for execution
+proposalmature(proposal_ts : bv[16], current_ts : bv[16], min_delay : bv[16]) := delayelapsed(proposal_ts, current_ts, min_delay).
+
+# Governance safe: no premature execution attempts
+governancesafe(proposal_ts : bv[16], current_ts : bv[16], min_delay : bv[16], exec_req : sbf) := (exec_req = 0:sbf) || delayelapsed(proposal_ts, current_ts, min_delay).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) &&
+  (o1[t]:sbf = 1:sbf <-> delayelapsed(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> executionvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> proposalmature(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> governancesafe(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:sbf)).

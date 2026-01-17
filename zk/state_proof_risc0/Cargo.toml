@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+  "shared",
+  "methods",
+  "methods/guest",
+  "cli",
+]
+

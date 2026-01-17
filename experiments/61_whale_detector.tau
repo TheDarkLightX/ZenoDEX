@@ -1,0 +1,27 @@
+# Spec 61: Whale Trade Detection and Impact Analysis
+# NOVEL: Detects large trades that could move the market
+# Tracks trade size relative to pool liquidity
+# Flags potential market manipulation from concentrated traders
+#
+# Inputs: i1 = trade_size, i2 = pool_liquidity, i3 = daily_volume
+# Outputs: o1 = whale_trade, o2 = market_impact_high, o3 = concentration_risk, o4 = requires_review
+
+# Whale trade: single trade > 5% of pool liquidity
+# trade_size * 20 > pool_liquidity
+whaletrade(tradesize : bv[16], liquidity : bv[16]) := tradesize * { #x0014 }:bv[16] > liquidity.
+
+# High market impact: trade > 10% of daily volume
+# trade_size * 10 > daily_volume
+highimpact(tradesize : bv[16], volume : bv[16]) := tradesize * { #x000A }:bv[16] > volume.
+
+# Concentration risk: trade > 20% of liquidity (severe)
+# trade_size * 5 > pool_liquidity
+concentrationrisk(tradesize : bv[16], liquidity : bv[16]) := tradesize * { #x0005 }:bv[16] > liquidity.
+
+# Requires review: whale trade OR high impact OR concentration risk
+requiresreview(tradesize : bv[16], liquidity : bv[16], volume : bv[16]) := whaletrade(tradesize, liquidity) || highimpact(tradesize, volume) || concentrationrisk(tradesize, liquidity).
+
+# Repeated whale: whale trades in consecutive steps (pattern detection)
+repeatedwhale(whale0 : sbf, whale1 : sbf) := (whale0 = 1:sbf) && (whale1 = 1:sbf).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> whaletrade(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> highimpact(i1[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> concentrationrisk(i1[t]:bv[16], i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> requiresreview(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

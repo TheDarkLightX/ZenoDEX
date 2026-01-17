@@ -1,0 +1,30 @@
+# TauSwap v1 CPMM constraints (Tau-executable)
+# DbC: Preconditions: all inputs are bv[16] components representing non-negative integers.
+# DbC: Postcondition: swap_constraints(...) is true iff the provided external-computation swap is admissible.
+
+# Stream mapping:
+# i1 = reserve_in_hi
+# i2 = reserve_in_lo
+# i3 = reserve_out_hi
+# i4 = reserve_out_lo
+# i5 = amount_in_hi
+# i6 = amount_in_lo
+# i7 = fee_bps
+# i8 = amount_out_hi
+# i9 = amount_out_lo
+# o1 = swap_valid
+# @rule o1: Swap is valid only if reserves/amounts are positive and output <= reserve_out.
+
+set charvar off
+
+fee_bps_valid(fee : bv[16]) := (fee >= { #x0000 }:bv[16]) && (fee <= { #x2710 }:bv[16]).
+
+is_positive(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+
+value_gte(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+swap_constraints(reserve_in_hi_arg : bv[16], reserve_in_lo_arg : bv[16], reserve_out_hi_arg : bv[16], reserve_out_lo_arg : bv[16], amount_in_hi_arg : bv[16], amount_in_lo_arg : bv[16], fee_bps_arg : bv[16], amount_out_hi_arg : bv[16], amount_out_lo_arg : bv[16]) := is_positive(reserve_in_hi_arg, reserve_in_lo_arg) && is_positive(reserve_out_hi_arg, reserve_out_lo_arg) && is_positive(amount_in_hi_arg, amount_in_lo_arg) && fee_bps_valid(fee_bps_arg) && is_positive(amount_out_hi_arg, amount_out_lo_arg) && value_gte(reserve_out_hi_arg, reserve_out_lo_arg, amount_out_hi_arg, amount_out_lo_arg).
+
+always
+  # @section: CPMM swap validity
+  (o1[t]:sbf = 1:sbf <-> swap_constraints(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16])).

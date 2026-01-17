@@ -1,0 +1,64 @@
+# Volatility Cascade Guard v1 - Tiered Risk Control (Tau-executable)
+#
+# PURPOSE:
+# - Provide a lightweight, user-auditable safety gate around the volatility cascade controller.
+# - Focus on invariants that must *always* hold for the controller outputs:
+#   - thresholds are ordered and bounded,
+#   - tier output is bounded (0..3),
+#   - fail-closed when volatility data is invalid,
+#   - epoch is non-decreasing and tier is monotone within an epoch.
+#
+# Stream mapping (expected wiring from the controller boundary):
+# i1 = epoch (bv[32])         # batch epoch / block height surrogate
+# i2 = tier_out (bv[8])       # controller tier output (0..3)
+# i3 = data_ok (sbf)          # 1 if volatility signal is valid, else 0 (fail-closed)
+# i4 = t1_bps (bv[32])        # threshold 1 in bps (0..10000)
+# i5 = t2_bps (bv[32])        # threshold 2 in bps (0..10000)
+# i6 = t3_bps (bv[32])        # threshold 3 in bps (0..10000)
+#
+# Outputs:
+# o1 = thresholds_ok
+# o2 = tier_bounded_ok
+# o3 = fail_closed_ok
+# o4 = transition_ok
+# o5 = all_ok
+#
+# @rule o5: o1 && o2 && o3 && o4.
+#
+# NOTE:
+# - Keep this spec definition-free (no `:=` helpers) to stay compatible with Tau's REPL-based sat gate.
+
+set charvar off
+
+always
+  # Base outputs
+  (o1[0]:sbf = 0:sbf) &&
+  (o2[0]:sbf = 0:sbf) &&
+  (o3[0]:sbf = 0:sbf) &&
+  (o4[0]:sbf = 0:sbf) &&
+  (o5[0]:sbf = 0:sbf) &&
+
+  # Thresholds ordered and within 0..10000 bps (0x2710)
+  (o1[t]:sbf = 1:sbf <->
+    (i4[t]:bv[32] <= i5[t]:bv[32]) &&
+    (i5[t]:bv[32] <= i6[t]:bv[32]) &&
+    (i6[t]:bv[32] <= { #x00002710 }:bv[32])
+  ) &&
+
+  # Tier output bounded by 3 (0x03)
+  (o2[t]:sbf = 1:sbf <-> (i2[t]:bv[8] <= { #x03 }:bv[8])) &&
+
+  # Fail-closed: invalid/missing volatility data => tier_out == 3
+  (o3[t]:sbf = 1:sbf <-> ((i3[t]:sbf = 0:sbf) -> (i2[t]:bv[8] = { #x03 }:bv[8]))) &&
+
+  # Transition sanity:
+  # - epoch must be non-decreasing
+  # - if epoch unchanged, tier must not decrease
+  (o4[t]:sbf = 1:sbf <->
+    (i1[t]:bv[32] >= i1[t-1]:bv[32]) &&
+    ((i1[t]:bv[32] = i1[t-1]:bv[32]) -> (i2[t]:bv[8] >= i2[t-1]:bv[8]))
+  ) &&
+
+  # Aggregate
+  (o5[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && (o3[t]:sbf = 1:sbf) && (o4[t]:sbf = 1:sbf))).
+

@@ -1,0 +1,1 @@
+{"kind":"step","meta":{"model_id":"oracle_freshness"},"state":{"current_timestamp":0,"max_staleness_seconds":300,"price_timestamp":0},"command":{"tag":"advance_time","args":{"delta_seconds":10}},"details":{"note":"Representative oracle time-advance step for CE maturity."},"retained":true,"minimized":true,"duplicate":false}

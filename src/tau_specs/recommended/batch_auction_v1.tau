@@ -1,0 +1,84 @@
+# Batch Auction v1 - Intent-Based Trading (ZenoDEX)
+# [ORACLE] v2
+# REVIEW [SENTINEL]: batch_auction_v1.tau
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS:
+# - batch_id must strictly increase vs last_batch_id
+# - intents must not be expired at settlement time
+# - total_buy_volume <= total_sell_volume (supply/demand balance)
+# - clearing_price must be within [min_price, max_price]
+# - no partial fill (if clearing, buy == sell; else settle none)
+# - settlement is all-or-nothing and aligned (all intents settle iff clearing succeeds)
+#
+# DbC Preconditions:
+# - i1 is the proposed batch_id; i2 is last_batch_id from state.
+# - i3 is the current_timestamp at validation time.
+# - i4..i7 are intent_expiry_0..3 for intents included in the batch.
+# - i8..i11 are intent_settled_0..3 flags for the proposed settlement.
+# - i12..i16 are the aggregated auction totals and price bounds.
+#
+# DbC Postcondition:
+# - o6[t] = 1:sbf iff the batch auction settlement is valid.
+#
+# Stream mapping:
+# i1  = batch_id (bv[32])
+# i2  = last_batch_id (bv[32])
+# i3  = current_timestamp (bv[64])
+# i4  = intent_expiry_0 (bv[64])
+# i5  = intent_expiry_1 (bv[64])
+# i6  = intent_expiry_2 (bv[64])
+# i7  = intent_expiry_3 (bv[64])
+# i8  = intent_settled_0 (sbf)
+# i9  = intent_settled_1 (sbf)
+# i10 = intent_settled_2 (sbf)
+# i11 = intent_settled_3 (sbf)
+# i12 = total_buy_volume (bv[64])
+# i13 = total_sell_volume (bv[64])
+# i14 = clearing_price (bv[64])
+# i15 = min_price (bv[64])
+# i16 = max_price (bv[64])
+#
+# o1 = batch_id_ok
+# o2 = expiries_ok
+# o3 = volumes_ok
+# o4 = price_ok
+# o5 = atomic_ok
+# o6 = batch_auction_ok
+
+# Invariant 1: batch_id strictly increases
+batch_id_monotonic(batch : bv[32], last : bv[32]) := batch > last.
+
+# Invariant 2: intent is not expired at validation time
+not_expired(now : bv[64], expiry : bv[64]) := now < expiry.
+
+expiries_ok_4(now : bv[64], e0 : bv[64], e1 : bv[64], e2 : bv[64], e3 : bv[64]) := not_expired(now, e0) && not_expired(now, e1) && not_expired(now, e2) && not_expired(now, e3).
+
+# Invariant 3: buy demand cannot exceed sell supply (same units)
+volumes_ok(total_buy : bv[64], total_sell : bv[64]) := total_buy <= total_sell.
+
+# Invariant 4: clearing price within declared bounds
+price_in_bounds(price : bv[64], min_p : bv[64], max_p : bv[64]) := (min_p <= price) && (price <= max_p).
+
+# Invariant 5: no partial fills (successful clearing requires exact volume match)
+no_partial_fill(total_buy : bv[64], total_sell : bv[64]) := total_buy = total_sell.
+
+# Invariant 6: atomic settlement (all-or-nothing)
+all_equal_4_sbf(a : sbf, b : sbf, c : sbf, d : sbf) := (a = b) && (b = c) && (c = d).
+
+settlement_atomic_4(s0 : sbf, s1 : sbf, s2 : sbf, s3 : sbf) := all_equal_4_sbf(s0, s1, s2, s3).
+
+# Helpers: settle all or none
+all_settled_4(s0 : sbf, s1 : sbf, s2 : sbf, s3 : sbf) := (s0 = 1:sbf) && (s1 = 1:sbf) && (s2 = 1:sbf) && (s3 = 1:sbf).
+none_settled_4(s0 : sbf, s1 : sbf, s2 : sbf, s3 : sbf) := (s0 = 0:sbf) && (s1 = 0:sbf) && (s2 = 0:sbf) && (s3 = 0:sbf).
+
+# Clearing succeeds iff no partial fill is needed (exact match); settlement must reflect this.
+settlement_aligned_4(total_buy : bv[64], total_sell : bv[64], s0 : sbf, s1 : sbf, s2 : sbf, s3 : sbf) := (no_partial_fill(total_buy, total_sell) -> all_settled_4(s0, s1, s2, s3)) && (!no_partial_fill(total_buy, total_sell) -> none_settled_4(s0, s1, s2, s3)).
+
+# Aggregated validity
+batch_valid_base(batch : bv[32], last : bv[32], now : bv[64], e0 : bv[64], e1 : bv[64], e2 : bv[64], e3 : bv[64], total_buy : bv[64], total_sell : bv[64], price : bv[64], min_p : bv[64], max_p : bv[64]) := batch_id_monotonic(batch, last) && expiries_ok_4(now, e0, e1, e2, e3) && volumes_ok(total_buy, total_sell) && price_in_bounds(price, min_p, max_p).
+
+batch_auction_ok(batch : bv[32], last : bv[32], now : bv[64], e0 : bv[64], e1 : bv[64], e2 : bv[64], e3 : bv[64], total_buy : bv[64], total_sell : bv[64], price : bv[64], min_p : bv[64], max_p : bv[64], s0 : sbf, s1 : sbf, s2 : sbf, s3 : sbf) := batch_valid_base(batch, last, now, e0, e1, e2, e3, total_buy, total_sell, price, min_p, max_p) && settlement_atomic_4(s0, s1, s2, s3) && settlement_aligned_4(total_buy, total_sell, s0, s1, s2, s3).
+
+always ((o1[t]:sbf = 1:sbf <-> batch_id_monotonic(i1[t]:bv[32], i2[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> expiries_ok_4(i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64])) && (o3[t]:sbf = 1:sbf <-> volumes_ok(i12[t]:bv[64], i13[t]:bv[64])) && (o4[t]:sbf = 1:sbf <-> price_in_bounds(i14[t]:bv[64], i15[t]:bv[64], i16[t]:bv[64])) && (o5[t]:sbf = 1:sbf <-> settlement_atomic_4(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) && (o6[t]:sbf = 1:sbf <-> batch_auction_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i12[t]:bv[64], i13[t]:bv[64], i14[t]:bv[64], i15[t]:bv[64], i16[t]:bv[64], i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf))).

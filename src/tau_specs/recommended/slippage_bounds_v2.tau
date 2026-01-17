@@ -1,0 +1,73 @@
+# Slippage Bounds v2 - Explicit Min/Max Output with Price Impact
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_slippage_bps (i4), max_price_impact_bps (i6)
+# IMMUTABLE_INVARIANTS: output within bounds AND price impact within limit
+#
+# PURPOSE: Enhanced slippage protection with explicit:
+# 1. Minimum output floor
+# 2. Maximum output ceiling
+# 3. Price impact constraint
+# No passive payouts - purely a swap validation gate.
+#
+# Stream mapping:
+# i1 = expected_output (bv[32]) - expected output amount
+# i2 = actual_output (bv[32]) - actual output received
+# i3 = min_output (bv[32]) - user-specified minimum
+# i4 = max_slippage_bps (bv[32]) - max slippage tolerance
+# i5 = price_before (bv[32]) - price before swap
+# i6 = price_after (bv[32]) - price after swap
+# i7 = max_impact_bps (bv[32]) - max price impact
+# o1 = params_ok
+# o2 = output_ok
+# o3 = impact_ok
+# o4 = slippage_v2_ok
+# @rule o4: Output >= min AND within slippage AND price impact <= max.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Expected positive
+expected_ok(exp : bv[32]) := exp > { #x00000000 }:bv[32].
+
+# Price positive
+price_ok(p : bv[32]) := p > { #x00000000 }:bv[32].
+
+# Safe range
+safe_ok(v : bv[32]) := v <= max_safe_32().
+safe_pair_ok(exp : bv[32], actual : bv[32], p_before : bv[32], p_after : bv[32]) := safe_ok(exp) && safe_ok(actual) && safe_ok(p_before) && safe_ok(p_after).
+
+# Params valid
+params_ok(exp : bv[32], actual : bv[32], slip_bps : bv[32], p_before : bv[32], p_after : bv[32], impact_bps : bv[32]) := expected_ok(exp) && rate_ok(slip_bps) && price_ok(p_before) && price_ok(p_after) && rate_ok(impact_bps) && safe_pair_ok(exp, actual, p_before, p_after).
+
+# Output floor check
+floor_ok(actual : bv[32], min_out : bv[32]) := actual >= min_out.
+
+# Slippage check: actual * 10000 >= expected * (10000 - slip_bps)
+slip_ok(exp : bv[32], actual : bv[32], slip_bps : bv[32]) := (actual * { #x00002710 }:bv[32]) >= (exp * ({ #x00002710 }:bv[32] - slip_bps)).
+
+# Combined output check
+output_ok(exp : bv[32], actual : bv[32], min_out : bv[32], slip_bps : bv[32]) := floor_ok(actual, min_out) && slip_ok(exp, actual, slip_bps).
+
+# Price impact: |after - before| * 10000 <= before * impact_bps
+impact_up(before : bv[32], after : bv[32], impact_bps : bv[32]) := ((after - before) * { #x00002710 }:bv[32]) <= (before * impact_bps).
+impact_down(before : bv[32], after : bv[32], impact_bps : bv[32]) := ((before - after) * { #x00002710 }:bv[32]) <= (before * impact_bps).
+impact_ok(before : bv[32], after : bv[32], impact_bps : bv[32]) := ((after >= before) && impact_up(before, after, impact_bps)) || ((after < before) && impact_down(before, after, impact_bps)).
+
+# Full check
+slippage_v2_valid(exp : bv[32], actual : bv[32], min_out : bv[32], slip_bps : bv[32], p_before : bv[32], p_after : bv[32], impact_bps : bv[32]) := params_ok(exp, actual, slip_bps, p_before, p_after, impact_bps) && output_ok(exp, actual, min_out, slip_bps) && impact_ok(p_before, p_after, impact_bps).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])) &&
+  # @section: Output bounds check
+  (o2[t]:sbf = 1:sbf <-> output_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  # @section: Price impact check
+  (o3[t]:sbf = 1:sbf <-> impact_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])) &&
+  # @section: Aggregated slippage v2 validity
+  (o4[t]:sbf = 1:sbf <-> slippage_v2_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])).

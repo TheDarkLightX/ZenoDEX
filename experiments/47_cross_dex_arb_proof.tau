@@ -1,0 +1,34 @@
+# Spec 47: Cross-DEX Arbitrage-Free Proof with Temporal Consistency
+# NOVEL: Proves prices across 3 DEXes are arbitrage-free over time window
+# Not just instant arb-free, but temporally consistent (no delayed arb)
+# Uses 3-step temporal window to detect cross-temporal arbitrage opportunities
+#
+# Model: 3 DEXes with prices p1, p2, p3 for same asset
+# Arb-free: max(p1,p2,p3) - min(p1,p2,p3) < threshold at each step
+# Temporal arb: price at DEX1[t] vs DEX2[t+1] creates arb opportunity
+#
+# Inputs: i1 = dex1_price, i2 = dex2_price, i3 = dex3_price
+# Outputs: o1 = instant_arb_free, o2 = temporal_arb_free, o3 = all_arb_free
+
+# Max/min helpers using boolean expansion
+ismax(a : bv[16], b : bv[16], c : bv[16]) := (a >= b) && (a >= c).
+ismin(a : bv[16], b : bv[16], c : bv[16]) := (a <= b) && (a <= c).
+
+# Spread calculation: max - min < 2% of min
+# Cross-mult: (max - min) * 100 < min * 2
+spreadok(a : bv[16], b : bv[16], c : bv[16]) := (ismax(a, b, c) && ismin(b, a, c) && (a - b) * { #x0064 }:bv[16] < b * { #x0002 }:bv[16]) || (ismax(a, b, c) && ismin(c, a, b) && (a - c) * { #x0064 }:bv[16] < c * { #x0002 }:bv[16]) || (ismax(b, a, c) && ismin(a, b, c) && (b - a) * { #x0064 }:bv[16] < a * { #x0002 }:bv[16]) || (ismax(b, a, c) && ismin(c, a, b) && (b - c) * { #x0064 }:bv[16] < c * { #x0002 }:bv[16]) || (ismax(c, a, b) && ismin(a, b, c) && (c - a) * { #x0064 }:bv[16] < a * { #x0002 }:bv[16]) || (ismax(c, a, b) && ismin(b, a, c) && (c - b) * { #x0064 }:bv[16] < b * { #x0002 }:bv[16]).
+
+# Instant arb-free: spread is ok at current time
+instantarbfree(p1 : bv[16], p2 : bv[16], p3 : bv[16]) := spreadok(p1, p2, p3).
+
+# Temporal arb check: DEX1[t-1] vs DEX2[t] spread
+# Can arb by buying at DEX1 yesterday and selling at DEX2 today
+temporalspread(p1prev : bv[16], p2curr : bv[16]) := ((p2curr >= p1prev) && ((p2curr - p1prev) * { #x0064 }:bv[16] < p1prev * { #x0002 }:bv[16])) || ((p2curr < p1prev) && ((p1prev - p2curr) * { #x0064 }:bv[16] < p2curr * { #x0002 }:bv[16])).
+
+# Full temporal arb-free: all cross-temporal pairs within spread
+temporalarbfree(p1t : bv[16], p2t : bv[16], p3t : bv[16], p1t1 : bv[16], p2t1 : bv[16], p3t1 : bv[16]) := temporalspread(p1t1, p2t) && temporalspread(p1t1, p3t) && temporalspread(p2t1, p1t) && temporalspread(p2t1, p3t) && temporalspread(p3t1, p1t) && temporalspread(p3t1, p2t).
+
+# All arb-free: instant AND temporal
+allarbfree(p1t : bv[16], p2t : bv[16], p3t : bv[16], p1t1 : bv[16], p2t1 : bv[16], p3t1 : bv[16]) := instantarbfree(p1t, p2t, p3t) && temporalarbfree(p1t, p2t, p3t, p1t1, p2t1, p3t1).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> instantarbfree(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> temporalarbfree(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i1[t-1]:bv[16], i2[t-1]:bv[16], i3[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> allarbfree(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i1[t-1]:bv[16], i2[t-1]:bv[16], i3[t-1]:bv[16])).

@@ -1,0 +1,14 @@
+# REPL IO 46: Auction clearing check (pairwise match)
+
+b1 : bv[16] = in file("experiments/io/inputs/auction_b1.in")
+b2 : bv[16] = in file("experiments/io/inputs/auction_b2.in")
+a1 : bv[16] = in file("experiments/io/inputs/auction_a1.in")
+a2 : bv[16] = in file("experiments/io/inputs/auction_a2.in")
+clear : bv[16] = in file("experiments/io/inputs/auction_clear.in")
+
+auction_ok : sbf = out file("experiments/io/outputs/auction_ok.out")
+
+auction_ok_pred(u : bv[16], v : bv[16], x : bv[16], y : bv[16], z : bv[16]) := ((u >= x) && (z >= x) && (z <= u)) || ((u >= y) && (z >= y) && (z <= u)) || ((v >= x) && (z >= x) && (z <= v)) || ((v >= y) && (z >= y) && (z <= v))
+
+r (auction_ok[t] = 1:sbf <-> auction_ok_pred(b1[t], b2[t], a1[t], a2[t], clear[t]))
+q

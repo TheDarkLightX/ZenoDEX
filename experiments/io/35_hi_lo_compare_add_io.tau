@@ -1,0 +1,22 @@
+# Experiment 35: 32-bit hi:lo compare + safe add (bv[16] + sbf)
+
+# Inputs: (hi1:lo1) and (hi2:lo2)
+
+i1 : bv[16] = in file("experiments/io/inputs/hi1.in")
+i2 : bv[16] = in file("experiments/io/inputs/lo1.in")
+i3 : bv[16] = in file("experiments/io/inputs/hi2.in")
+i4 : bv[16] = in file("experiments/io/inputs/lo2.in")
+
+# Outputs: compare, equality, safe_add, sum_hi, sum_lo
+
+o1 : sbf = out file("experiments/io/outputs/hl_gte.out")
+o2 : sbf = out file("experiments/io/outputs/hl_eq.out")
+o3 : sbf = out file("experiments/io/outputs/hl_safe_add.out")
+o4 : bv[16] = out file("experiments/io/outputs/hl_sum_hi.out")
+o5 : bv[16] = out file("experiments/io/outputs/hl_sum_lo.out")
+
+gte(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2)
+eq(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 = hi2) && (lo1 = lo2)
+
+r (o1[t] = 1:sbf <-> gte(i1[t], i2[t], i3[t], i4[t])) && (o2[t] = 1:sbf <-> eq(i1[t], i2[t], i3[t], i4[t])) && (o3[t] = 1:sbf <-> ((i2[t] + i4[t]) >= i2[t])) && (o4[t] = i1[t] + i3[t]) && (o5[t] = i2[t] + i4[t])
+q

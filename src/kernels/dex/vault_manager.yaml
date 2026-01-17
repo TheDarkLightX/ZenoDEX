@@ -1,0 +1,328 @@
+# [FORGE] v4
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "vault_manager"
+  notes: "Vault staking + per-share accumulator (ACC_SCALE=1_000_000) with base-unit pending carry. Designed to be inductive and to fail-closed on harvest solvency (cannot spend pending)."
+observables:
+  state_vars: ["staked_lp_shares", "acc_reward_per_share", "last_update_acc", "reward_balance", "pending_rewards"]
+  effects: ["delta_acc", "harvested_reward"]
+types: []
+state_vars:
+  - id: "staked_lp_shares"
+    role: "data"
+    type: { kind: "int", min: 0, max: 100 }
+  - id: "acc_reward_per_share"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "last_update_acc"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "reward_balance"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "pending_rewards"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+invariants:
+  - id: "inv_staked_lp_shares_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "staked_lp_shares" }, { const: 0 }]
+  - id: "inv_reward_balance_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "reward_balance" }, { const: 0 }]
+  - id: "inv_pending_rewards_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "pending_rewards" }, { const: 0 }]
+  - id: "inv_pending_le_reward_balance"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "pending_rewards" }, { var: "reward_balance" }]
+  - id: "inv_acc_reward_per_share_monotone"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "acc_reward_per_share" }, { var: "last_update_acc" }]
+init:
+  - var: "staked_lp_shares"
+    expr: { const: 0 }
+  - var: "acc_reward_per_share"
+    expr: { const: 0 }
+  - var: "last_update_acc"
+    expr: { const: 0 }
+  - var: "reward_balance"
+    expr: { const: 0 }
+  - var: "pending_rewards"
+    expr: { const: 0 }
+actions:
+  - id: "deposit_rewards"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "reward_balance" }, { param: "amount" }]
+            - { const: 1000000 }
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "staked_lp_shares" }, { const: 0 }]
+          then:
+            op: "<="
+            args:
+              - op: "+"
+                args: [{ var: "pending_rewards" }, { param: "amount" }]
+              - { const: 1000000 }
+          else:
+            op: "<="
+            args:
+              - op: "+"
+                args:
+                  - { var: "acc_reward_per_share" }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "+"
+                            args: [{ var: "pending_rewards" }, { param: "amount" }]
+                          - { const: 1000000 }
+                      - { var: "staked_lp_shares" }
+              - { const: 1000000000000 }
+    updates:
+      - var: "last_update_acc"
+        expr: { var: "acc_reward_per_share" }
+      - var: "reward_balance"
+        expr:
+          op: "+"
+          args: [{ var: "reward_balance" }, { param: "amount" }]
+      - var: "acc_reward_per_share"
+        expr:
+          op: "+"
+          args:
+            - { var: "acc_reward_per_share" }
+            - op: "ite"
+              cond:
+                op: "="
+                args: [{ var: "staked_lp_shares" }, { const: 0 }]
+              then: { const: 0 }
+              else:
+                op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "+"
+                        args: [{ var: "pending_rewards" }, { param: "amount" }]
+                      - { const: 1000000 }
+                  - { var: "staked_lp_shares" }
+      - var: "pending_rewards"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "staked_lp_shares" }, { const: 0 }]
+          then:
+            op: "+"
+            args: [{ var: "pending_rewards" }, { param: "amount" }]
+          else:
+            op: "-"
+            args:
+              - op: "+"
+                args: [{ var: "pending_rewards" }, { param: "amount" }]
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "+"
+                                args: [{ var: "pending_rewards" }, { param: "amount" }]
+                              - { const: 1000000 }
+                          - { var: "staked_lp_shares" }
+                      - { var: "staked_lp_shares" }
+                  - { const: 1000000 }
+    effects:
+      delta_acc:
+        op: "-"
+        args: [{ var: "acc_reward_per_share" }, { var: "last_update_acc" }]
+      harvested_reward: { const: 0 }
+
+  - id: "harvest"
+    params:
+      - id: "entry_acc"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args: [{ param: "entry_acc" }, { var: "acc_reward_per_share" }]
+        - op: "<="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "staked_lp_shares" }
+                    - op: "-"
+                      args: [{ var: "acc_reward_per_share" }, { param: "entry_acc" }]
+                - { const: 1000000 }
+            - op: "-"
+              args: [{ var: "reward_balance" }, { var: "pending_rewards" }]
+    updates:
+      - var: "last_update_acc"
+        expr: { var: "acc_reward_per_share" }
+      - var: "reward_balance"
+        expr:
+          op: "-"
+          args:
+            - { var: "reward_balance" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "staked_lp_shares" }
+                    - op: "-"
+                      args: [{ var: "acc_reward_per_share" }, { param: "entry_acc" }]
+                - { const: 1000000 }
+    effects:
+      delta_acc:
+        op: "-"
+        args: [{ var: "acc_reward_per_share" }, { var: "last_update_acc" }]
+      harvested_reward:
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - { var: "staked_lp_shares" }
+              - op: "-"
+                args: [{ var: "acc_reward_per_share" }, { param: "entry_acc" }]
+          - { const: 1000000 }
+
+  - id: "stake"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 100 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "staked_lp_shares" }, { param: "amount" }]
+            - { const: 100 }
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "staked_lp_shares" }, { const: 0 }]
+          then:
+            op: "<="
+            args:
+              - op: "+"
+                args:
+                  - { var: "acc_reward_per_share" }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args: [{ var: "pending_rewards" }, { const: 1000000 }]
+                      - op: "+"
+                        args: [{ var: "staked_lp_shares" }, { param: "amount" }]
+              - { const: 1000000000000 }
+          else: { bool: true }
+    updates:
+      - var: "last_update_acc"
+        expr: { var: "acc_reward_per_share" }
+      - var: "staked_lp_shares"
+        expr:
+          op: "+"
+          args: [{ var: "staked_lp_shares" }, { param: "amount" }]
+      - var: "acc_reward_per_share"
+        expr:
+          op: "+"
+          args:
+            - { var: "acc_reward_per_share" }
+            - op: "ite"
+              cond:
+                op: "="
+                args: [{ var: "staked_lp_shares" }, { const: 0 }]
+              then:
+                op: "div"
+                args:
+                  - op: "*"
+                    args: [{ var: "pending_rewards" }, { const: 1000000 }]
+                  - op: "+"
+                    args: [{ var: "staked_lp_shares" }, { param: "amount" }]
+              else: { const: 0 }
+      - var: "pending_rewards"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "staked_lp_shares" }, { const: 0 }]
+          then:
+            op: "-"
+            args:
+              - { var: "pending_rewards" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args: [{ var: "pending_rewards" }, { const: 1000000 }]
+                          - op: "+"
+                            args: [{ var: "staked_lp_shares" }, { param: "amount" }]
+                      - op: "+"
+                        args: [{ var: "staked_lp_shares" }, { param: "amount" }]
+                  - { const: 1000000 }
+          else: { var: "pending_rewards" }
+    effects:
+      delta_acc:
+        op: "-"
+        args: [{ var: "acc_reward_per_share" }, { var: "last_update_acc" }]
+      harvested_reward: { const: 0 }
+
+  - id: "unstake"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 100 }
+    guard:
+      op: "<="
+      args: [{ param: "amount" }, { var: "staked_lp_shares" }]
+    updates:
+      - var: "last_update_acc"
+        expr: { var: "acc_reward_per_share" }
+      - var: "staked_lp_shares"
+        expr:
+          op: "-"
+          args: [{ var: "staked_lp_shares" }, { param: "amount" }]
+    effects:
+      delta_acc:
+        op: "-"
+        args: [{ var: "acc_reward_per_share" }, { var: "last_update_acc" }]
+      harvested_reward: { const: 0 }
+
+refinement:
+  state_abstraction:
+    - var: "staked_lp_shares"
+      expr: { var: "staked_lp_shares" }
+    - var: "acc_reward_per_share"
+      expr: { var: "acc_reward_per_share" }
+    - var: "last_update_acc"
+      expr: { var: "last_update_acc" }
+    - var: "reward_balance"
+      expr: { var: "reward_balance" }
+    - var: "pending_rewards"
+      expr: { var: "pending_rewards" }
+

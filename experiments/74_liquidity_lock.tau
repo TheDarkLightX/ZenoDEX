@@ -1,0 +1,25 @@
+# Spec 74: Liquidity Lock and Vesting Validator
+# NOVEL: Validates LP tokens are locked for minimum period to prevent rug pulls
+# Ensures no early withdrawal before lock expiry
+# Tracks lock status over time for trustless verification
+#
+# Inputs: i1 = lock_start_time, i2 = lock_duration, i3 = current_time,
+#         i4 = withdrawal_requested, i5 = locked_amount
+# Outputs: o1 = lock_active, o2 = lock_expired, o3 = withdrawal_valid, o4 = funds_safe
+
+# Lock active: current_time < lock_start + lock_duration
+lockactive(starttime : bv[16], duration : bv[16], currenttime : bv[16]) := currenttime < starttime + duration.
+
+# Lock expired: current_time >= lock_start + lock_duration
+lockexpired(starttime : bv[16], duration : bv[16], currenttime : bv[16]) := currenttime >= starttime + duration.
+
+# Withdrawal valid: only if lock has expired
+withdrawalvalid(starttime : bv[16], duration : bv[16], currenttime : bv[16], requested : sbf) := (requested = 1:sbf) && lockexpired(starttime, duration, currenttime).
+
+# Funds safe: either no withdrawal requested OR withdrawal is valid
+fundssafe(starttime : bv[16], duration : bv[16], currenttime : bv[16], requested : sbf) := (requested = 0:sbf) || withdrawalvalid(starttime, duration, currenttime, requested).
+
+# Lock amount unchanged: locked amount shouldn't decrease while active
+lockamountvalid(curramount : bv[16], prevamount : bv[16], active : sbf) := (active = 0:sbf) || (curramount >= prevamount).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> lockactive(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> lockexpired(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> withdrawalvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> fundssafe(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:sbf)).

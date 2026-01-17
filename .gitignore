@@ -1,0 +1,75 @@
+# External dependencies (git-ignored as per plan)
+external/
+internal/
+node_modules/
+
+# Local dev scratch (not part of repo)
+.claude/
+.docker/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Rust
+target/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation
+docs/_build/
+
+# OS
+.DS_Store
+Thumbs.db
+.tau_history
+
+# Local runs / reports
+runs/
+
+# Temporary / Scratch
+tmp_*
+*.in
+*.out
+.env
+
+# Local editor/tooling config
+.mcp.json
+mcp-servers.json
+

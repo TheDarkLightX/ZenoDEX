@@ -1,0 +1,24 @@
+# Spec 78: AMM Reserve Invariant Validator (x * y = k)
+# NOVEL: Validates constant product invariant holds after every operation
+# Core security property: product of reserves must not decrease
+# Detects exploits that would drain reserves by breaking invariant
+#
+# Inputs: i1 = reserve_x, i2 = reserve_y, i3 = fee_taken
+# Outputs: o1 = product_valid, o2 = product_increased, o3 = reserves_balanced, o4 = invariant_safe
+
+# Product valid: k = x * y > 0 (non-zero liquidity)
+productvalid(resx : bv[16], resy : bv[16]) := (resx > { #x0000 }:bv[16]) && (resy > { #x0000 }:bv[16]).
+
+# Product increased or equal: k[t] >= k[t-1] (invariant preserved with fees)
+# x[t] * y[t] >= x[t-1] * y[t-1]
+productincreased(currx : bv[16], curry : bv[16], prevx : bv[16], prevy : bv[16]) := currx * curry >= prevx * prevy.
+
+# Reserves balanced: neither reserve dominates excessively
+# x / y between 0.1 and 10 (10x ratio max)
+# Cross-mult: x * 10 >= y AND y * 10 >= x
+reservesbalanced(resx : bv[16], resy : bv[16]) := (resx * { #x000A }:bv[16] >= resy) && (resy * { #x000A }:bv[16] >= resx).
+
+# Invariant safe: product valid AND increased/equal from previous
+invariantsafe(currx : bv[16], curry : bv[16], prevx : bv[16], prevy : bv[16]) := productvalid(currx, curry) && productincreased(currx, curry, prevx, prevy).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> productvalid(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> productincreased(i1[t]:bv[16], i2[t]:bv[16], i1[t-1]:bv[16], i2[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> reservesbalanced(i1[t]:bv[16], i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> invariantsafe(i1[t]:bv[16], i2[t]:bv[16], i1[t-1]:bv[16], i2[t-1]:bv[16])).

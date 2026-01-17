@@ -1,0 +1,29 @@
+# Spec 60: Limit Order Matching Engine Validator
+# NOVEL: Validates limit order matching follows price-time priority
+# Ensures orders execute at limit price or better
+# Prevents order queue manipulation
+#
+# Inputs: i1 = order_limit_price, i2 = execution_price, i3 = order_timestamp,
+#         i4 = next_order_timestamp, i5 = is_buy_order
+# Outputs: o1 = price_satisfied, o2 = time_priority_valid, o3 = execution_valid, o4 = no_frontrun
+
+# Buy order price satisfied: execution <= limit (got equal or better price)
+buysatisfied(limit : bv[16], exec : bv[16]) := exec <= limit.
+
+# Sell order price satisfied: execution >= limit (got equal or better price)
+sellsatisfied(limit : bv[16], exec : bv[16]) := exec >= limit.
+
+# Price satisfied based on order type
+pricesatisfied(limit : bv[16], exec : bv[16], isbuy : sbf) := (isbuy = 1:sbf && buysatisfied(limit, exec)) || (isbuy = 0:sbf && sellsatisfied(limit, exec)).
+
+# Time priority: earlier timestamp executes first
+timepriority(ts1 : bv[16], ts2 : bv[16]) := ts1 <= ts2.
+
+# Execution valid: price satisfied AND time priority maintained
+executionvalid(limit : bv[16], exec : bv[16], ts : bv[16], nextts : bv[16], isbuy : sbf) := pricesatisfied(limit, exec, isbuy) && timepriority(ts, nextts).
+
+# No frontrunning: order executed in submission order
+# Timestamp delta between consecutive executions is consistent
+nofrontrun(ts : bv[16], prevts : bv[16]) := ts >= prevts.
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> pricesatisfied(i1[t]:bv[16], i2[t]:bv[16], i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> timepriority(i3[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> executionvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> nofrontrun(i3[t]:bv[16], i3[t-1]:bv[16])).

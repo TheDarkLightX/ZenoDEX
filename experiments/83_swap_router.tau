@@ -1,0 +1,29 @@
+# Spec 83: Multi-Hop Swap Router Path Validator
+# NOVEL: Validates multi-hop swap paths for correctness and slippage
+# Ensures intermediate tokens match between consecutive hops
+# Validates cumulative slippage doesn't exceed user's limit
+#
+# Model: A -> B -> C swap via two pools
+# Inputs: i1 = amount_in, i2 = amount_mid, i3 = amount_out, 
+#         i4 = min_out, i5 = max_hops
+# Outputs: o1 = amounts_decreasing, o2 = output_sufficient, o3 = path_valid, o4 = slippage_ok
+
+# Amounts decreasing: each hop has some loss due to fees
+# amount_in >= amount_mid >= amount_out (accounting for fees)
+amountsdecreasing(amtin : bv[16], amtmid : bv[16], amtout : bv[16]) := (amtin >= amtmid) && (amtmid >= amtout).
+
+# Output sufficient: final output >= minimum requested
+outputsufficient(amtout : bv[16], minout : bv[16]) := amtout >= minout.
+
+# Path valid: amounts logical AND output meets minimum
+pathvalid(amtin : bv[16], amtmid : bv[16], amtout : bv[16], minout : bv[16]) := amountsdecreasing(amtin, amtmid, amtout) && outputsufficient(amtout, minout).
+
+# Slippage OK: total slippage (in - out) / in < 5%
+# (amtin - amtout) * 20 < amtin
+slippageok(amtin : bv[16], amtout : bv[16]) := (amtin >= amtout) && ((amtin - amtout) * { #x0014 }:bv[16] < amtin).
+
+# Per-hop slippage reasonable: each hop loses < 3%
+# (amt_prev - amt_curr) * 33 < amt_prev
+hopslippageok(amtprev : bv[16], amtcurr : bv[16]) := (amtprev >= amtcurr) && ((amtprev - amtcurr) * { #x0021 }:bv[16] < amtprev).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> amountsdecreasing(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> outputsufficient(i3[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> pathvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> slippageok(i1[t]:bv[16], i3[t]:bv[16])).

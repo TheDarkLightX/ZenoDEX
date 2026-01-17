@@ -1,0 +1,55 @@
+# Parameter Registry v1 (applies approved updates)
+# MUTABILITY: UPDATABLE
+# Inputs:
+# i1 = exec_req
+# i2 = revision_ok
+# i3/i4 = fee_curr/fee_next
+# i5/i6 = buyback_curr/buyback_next
+# i7/i8 = rebate_curr/rebate_next
+# i9/i10 = floor_curr_hi/lo
+# i11/i12 = floor_next_hi/lo
+# i13/i14 = unit_curr/unit_next
+# i15/i16 = tier1_curr/tier1_next
+# i17/i18 = tier2_curr/tier2_next
+# i19/i20 = weight1_curr/weight1_next
+# i21/i22 = weight2_curr/weight2_next
+# i23/i24 = weight3_curr/weight3_next
+# Outputs:
+# o1 = gate_ok
+# o2..o4 = applied fee/buyback/rebate
+# o5..o6 = applied floor_hi/lo
+# o7 = applied unit
+# o8..o9 = applied tiers
+# o10..o12 = applied weights
+# @rule o1: Gate is true only when exec_req and revision_ok are both true.
+# @rule o2: Applied values use next when gated, otherwise current.
+
+set charvar off
+
+gate_ok(exec_req : sbf, revision_ok : sbf) := (exec_req = 1:sbf) && (revision_ok = 1:sbf).
+apply_param(gate : sbf, curr : bv[16], next : bv[16], out : bv[16]) := (gate = 1:sbf -> out = next) && (gate = 0:sbf -> out = curr).
+
+always
+  # gate: only apply updates when exec + revision_ok
+  (o1[t]:sbf = 1:sbf <-> gate_ok(i1[t]:sbf, i2[t]:sbf)) &&
+
+  # economic rates
+  apply_param(o1[t], i3[t]:bv[16], i4[t]:bv[16], o2[t]) &&
+  apply_param(o1[t], i5[t]:bv[16], i6[t]:bv[16], o3[t]) &&
+  apply_param(o1[t], i7[t]:bv[16], i8[t]:bv[16], o4[t]) &&
+
+  # supply floor (hi/lo)
+  apply_param(o1[t], i9[t]:bv[16], i11[t]:bv[16], o5[t]) &&
+  apply_param(o1[t], i10[t]:bv[16], i12[t]:bv[16], o6[t]) &&
+
+  # fixed-point unit scale
+  apply_param(o1[t], i13[t]:bv[16], i14[t]:bv[16], o7[t]) &&
+
+  # lock tiers
+  apply_param(o1[t], i15[t]:bv[16], i16[t]:bv[16], o8[t]) &&
+  apply_param(o1[t], i17[t]:bv[16], i18[t]:bv[16], o9[t]) &&
+
+  # lock weights
+  apply_param(o1[t], i19[t]:bv[16], i20[t]:bv[16], o10[t]) &&
+  apply_param(o1[t], i21[t]:bv[16], i22[t]:bv[16], o11[t]) &&
+  apply_param(o1[t], i23[t]:bv[16], i24[t]:bv[16], o12[t]).

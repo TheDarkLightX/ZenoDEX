@@ -1,0 +1,80 @@
+# Vote Weight v1 - Time-Weighted Voting Power
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_multiplier_bps (i3), max_lock_duration (i5)
+# IMMUTABLE_INVARIANTS: weight = tokens * (1 + lock_bonus), capped at max_multiplier
+#
+# PURPOSE: Validate vote weight based on lock duration (time-weighted voting).
+# Longer lock = higher voting power, up to a cap.
+# No passive payouts - purely a governance weight validation.
+#
+# DbC Preconditions:
+# - All values are bv[32] (unsigned).
+# - max_multiplier_bps >= 10000 (at least 1x, up to max).
+# - max_multiplier_bps <= 40000 (4x max for sanity).
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff computed weight is within bounds and matches endpoints.
+#
+# Stream mapping:
+# i1 = token_amount (bv[32]) - base tokens locked
+# i2 = lock_duration (bv[32]) - lock duration in time units
+# i3 = max_multiplier_bps (bv[32]) - max vote multiplier (e.g., 20000 = 2x)
+# i4 = computed_weight (bv[32]) - externally computed vote weight
+# i5 = max_lock_duration (bv[32]) - duration for max multiplier
+# o1 = params_ok
+# o2 = multiplier_ok
+# o3 = weight_math_ok
+# o4 = vote_weight_ok
+# @rule o4: Weight is bounded, lock duration capped, and endpoint weights match.
+
+set charvar off
+
+# floor((2^32-1)/10000) for safe bps multiplication
+max_safe_32() := { #x00068DB8 }:bv[32].
+# floor((2^32-1)/40000) for max multiplier (4x)
+max_safe_32_mult() := { #x0001A36E }:bv[32].
+
+# Max multiplier must be between 10000 (1x) and 40000 (4x)
+multiplier_ok(max_mult : bv[32]) := (max_mult >= { #x00002710 }:bv[32]) && (max_mult <= { #x00009C40 }:bv[32]).
+
+# Token amount must be positive
+tokens_ok(tokens : bv[32]) := tokens > { #x00000000 }:bv[32].
+
+# Max lock duration must be positive
+duration_ok(max_dur : bv[32]) := max_dur > { #x00000000 }:bv[32].
+
+# Safe range for multiplication
+safe_range_ok(tokens : bv[32], weight : bv[32]) := (tokens <= max_safe_32_mult()) && (weight <= max_safe_32()).
+
+# Parameters valid
+params_ok(tokens : bv[32], weight : bv[32], max_mult : bv[32], max_dur : bv[32]) := tokens_ok(tokens) && multiplier_ok(max_mult) && duration_ok(max_dur) && safe_range_ok(tokens, weight).
+
+# Min weight: at least base tokens (1x)
+weight_min_ok(tokens : bv[32], weight : bv[32]) := weight >= tokens.
+
+# Max weight: at most tokens * max_multiplier / 10000
+weight_max_ok(tokens : bv[32], weight : bv[32], max_mult : bv[32]) := (weight * { #x00002710 }:bv[32]) <= (tokens * max_mult).
+
+# Lock capped at max duration
+lock_capped(lock_dur : bv[32], max_dur : bv[32]) := lock_dur <= max_dur.
+
+# Endpoint checks
+lock_zero_ok(lock_dur : bv[32], tokens : bv[32], weight : bv[32]) := (lock_dur = { #x00000000 }:bv[32]) -> (weight = tokens).
+lock_max_ok(lock_dur : bv[32], max_dur : bv[32], tokens : bv[32], weight : bv[32], max_mult : bv[32]) := (lock_dur = max_dur) -> ((weight * { #x00002710 }:bv[32]) >= (tokens * max_mult) && (weight * { #x00002710 }:bv[32]) <= ((tokens * max_mult) + { #x0000270F }:bv[32])).
+
+# Weight math combines bounds + endpoints
+weight_math_ok(tokens : bv[32], weight : bv[32], max_mult : bv[32], lock_dur : bv[32], max_dur : bv[32]) := weight_min_ok(tokens, weight) && weight_max_ok(tokens, weight, max_mult) && lock_capped(lock_dur, max_dur) && lock_zero_ok(lock_dur, tokens, weight) && lock_max_ok(lock_dur, max_dur, tokens, weight, max_mult).
+
+# Full vote weight check
+vote_weight_valid(tokens : bv[32], lock_dur : bv[32], max_mult : bv[32], weight : bv[32], max_dur : bv[32]) := params_ok(tokens, weight, max_mult, max_dur) && weight_math_ok(tokens, weight, max_mult, lock_dur, max_dur).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i4[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Multiplier bounds check
+  (o2[t]:sbf = 1:sbf <-> multiplier_ok(i3[t]:bv[32])) &&
+  # @section: Weight math validation
+  (o3[t]:sbf = 1:sbf <-> weight_math_ok(i1[t]:bv[32], i4[t]:bv[32], i3[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated vote weight validity
+  (o4[t]:sbf = 1:sbf <-> vote_weight_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

@@ -1,0 +1,27 @@
+# Spec 52: Liquidity Concentration Proof
+# NOVEL: Proves liquidity is properly concentrated around the current price
+# Inspired by Uniswap V3 concentrated liquidity - validates tick range efficiency
+# Measures capital efficiency by comparing active vs total liquidity
+#
+# Inputs: i1 = current_price, i2 = lower_tick, i3 = upper_tick, 
+#         i4 = active_liquidity, i5 = total_liquidity
+# Outputs: o1 = price_in_range, o2 = concentration_valid, o3 = capital_efficient, o4 = range_optimal
+
+# Price in range: lower <= price <= upper
+priceinrange(price : bv[16], lower : bv[16], upper : bv[16]) := (price >= lower) && (price <= upper).
+
+# Range width check: range not too wide (upper - lower < 20% of price)
+# Cross-mult: (upper - lower) * 5 < price
+rangenarrow(price : bv[16], lower : bv[16], upper : bv[16]) := (upper - lower) * { #x0005 }:bv[16] < price.
+
+# Capital efficiency: active/total > 80% (cross-mult: active * 100 > total * 80)
+capitalefficient(active : bv[16], total : bv[16]) := active * { #x0064 }:bv[16] > total * { #x0050 }:bv[16].
+
+# Concentration valid: price in range AND range is narrow
+concentrationvalid(price : bv[16], lower : bv[16], upper : bv[16]) := priceinrange(price, lower, upper) && rangenarrow(price, lower, upper).
+
+# Range optimal: all conditions met
+rangeoptimal(price : bv[16], lower : bv[16], upper : bv[16], active : bv[16], total : bv[16]) := concentrationvalid(price, lower, upper) && capitalefficient(active, total).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> priceinrange(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> concentrationvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> capitalefficient(i4[t]:bv[16], i5[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> rangeoptimal(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).
+

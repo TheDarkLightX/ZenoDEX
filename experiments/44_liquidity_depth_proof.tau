@@ -1,0 +1,38 @@
+# Spec 44: Liquidity Depth Proof with Multi-Level Order Book
+# NOVEL: Models discrete liquidity at 3 price levels and validates trade execution
+# Proves trade can execute without excessive slippage through available depth
+#
+# Inputs: i1 = trade_size, i2 = liq_level1, i3 = liq_level2, i4 = liq_level3
+#         i5 = price_level1, i6 = price_level2, i7 = price_level3, i8 = max_slippage_price
+# Levels are cumulative: level1 is best price, level2 is next, etc.
+# Outputs: o1 = fits_level1, o2 = fits_level2, o3 = fits_level3, 
+#          o4 = executable, o5 = within_slippage
+
+# Trade fits entirely in level 1 (best price)
+fitslevel1(size : bv[16], liq1 : bv[16]) := size <= liq1.
+
+# Trade fits in levels 1+2
+fitslevel2(size : bv[16], liq1 : bv[16], liq2 : bv[16]) := size <= liq1 + liq2.
+
+# Trade fits in levels 1+2+3
+fitslevel3(size : bv[16], liq1 : bv[16], liq2 : bv[16], liq3 : bv[16]) := size <= liq1 + liq2 + liq3.
+
+# Trade is executable if it fits somewhere
+executable(size : bv[16], liq1 : bv[16], liq2 : bv[16], liq3 : bv[16]) := fitslevel3(size, liq1, liq2, liq3).
+
+# Compute execution price (weighted average approximation)
+# If fits level1: exec_price = price1
+# If fits level2: exec_price approx (liq1*p1 + remaining*p2) / size
+# We check if worst-case price is within slippage
+# Worst case: all execution at deepest level used
+
+# Within slippage check: 
+# If fits level1: price1 <= max_slippage
+# If fits level2 but not level1: price2 <= max_slippage  
+# If fits level3 but not level2: price3 <= max_slippage
+withinslippage(size : bv[16], liq1 : bv[16], liq2 : bv[16], liq3 : bv[16], p1 : bv[16], p2 : bv[16], p3 : bv[16], maxp : bv[16]) := (fitslevel1(size, liq1) && p1 <= maxp) || (!fitslevel1(size, liq1) && fitslevel2(size, liq1, liq2) && p2 <= maxp) || (!fitslevel2(size, liq1, liq2) && fitslevel3(size, liq1, liq2, liq3) && p3 <= maxp).
+
+# Trade validation: executable AND within slippage
+tradevalid(size : bv[16], liq1 : bv[16], liq2 : bv[16], liq3 : bv[16], p1 : bv[16], p2 : bv[16], p3 : bv[16], maxp : bv[16]) := executable(size, liq1, liq2, liq3) && withinslippage(size, liq1, liq2, liq3, p1, p2, p3, maxp).
+
+always (o1[t]:sbf = 1:sbf <-> fitslevel1(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> fitslevel2(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> fitslevel3(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> executable(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o5[t]:sbf = 1:sbf <-> tradevalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16])).

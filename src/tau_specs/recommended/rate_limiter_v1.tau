@@ -1,0 +1,50 @@
+# Rate Limiter v1 - Transaction Frequency Control
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: tx_limit (i2)
+# IMMUTABLE_INVARIANTS: tx_count <= tx_limit when window is active
+#
+# PURPOSE: Limit transaction frequency to prevent spam and DoS attacks.
+# No passive payouts - purely a safety gate.
+#
+# DbC Preconditions:
+# - tx_count and tx_limit are bv[32] (unsigned).
+# - tx_limit > 0.
+# - window_elapsed indicates if rate limit window has reset.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff tx count within limit OR window has reset.
+#
+# Stream mapping:
+# i1 = tx_count_current (bv[32]) - transactions in current window
+# i2 = tx_limit (bv[32]) - max transactions per window
+# i3 = window_elapsed (sbf) - 1 if window has reset
+# o1 = limit_ok
+# o2 = count_within_limit
+# o3 = window_ok
+# o4 = rate_limit_ok
+# @rule o4: Transaction count within limit OR window has reset.
+
+set charvar off
+
+# Limit must be positive
+limit_ok(limit : bv[32]) := limit > { #x00000000 }:bv[32].
+
+# Count within limit
+count_within_limit(count : bv[32], limit : bv[32]) := count <= limit.
+
+# Window has reset (allows transactions to proceed)
+window_reset(elapsed : sbf) := elapsed = 1:sbf.
+
+# Rate limit satisfied: either within limit or window reset
+rate_limit_satisfied(count : bv[32], limit : bv[32], window : sbf) := limit_ok(limit) && (count_within_limit(count, limit) || window_reset(window)).
+
+always
+  # @section: Limit validation
+  (o1[t]:sbf = 1:sbf <-> limit_ok(i2[t]:bv[32])) &&
+  # @section: Count check
+  (o2[t]:sbf = 1:sbf <-> count_within_limit(i1[t]:bv[32], i2[t]:bv[32])) &&
+  # @section: Window status
+  (o3[t]:sbf = 1:sbf <-> window_reset(i3[t]:sbf)) &&
+  # @section: Aggregated rate limit check
+  (o4[t]:sbf = 1:sbf <-> rate_limit_satisfied(i1[t]:bv[32], i2[t]:bv[32], i3[t]:sbf)).

@@ -1,0 +1,1 @@
+{"kind":"step","meta":{"model_id":"lp_ratio_calculator_v7"},"state":{"reserve0":1000000,"reserve1":2000000},"command":{"tag":"calculate_optimal","args":{"desired0":1000,"desired1":1000}},"details":{"note":"Representative optimal-ratio calculation step for CE maturity."},"retained":true,"minimized":true,"duplicate":false}

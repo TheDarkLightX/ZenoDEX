@@ -1,0 +1,61 @@
+# Arbitrage Bounds v1 - Bounded Arbitrage Protection
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_arb_profit_bps
+# IMMUTABLE_INVARIANTS: arbitrage profit bounded to prevent extraction
+#
+# PURPOSE: Allow bounded arbitrage (healthy for price discovery) but
+# prevent excessive extraction attacks. Limits arb profit per trade.
+# No passive payouts - purely a market integrity gate.
+#
+# Stream mapping:
+# i1 = input_value (bv[32]) - value of input tokens
+# i2 = output_value (bv[32]) - value of output tokens
+# i3 = max_profit_bps (bv[32]) - max allowed profit in bps
+# i4 = is_arb_route (sbf) - 1 if identified as arb route
+# i5 = pool_depth (bv[32]) - depth of pool being arbed
+# o1 = params_ok
+# o2 = profit_ok
+# o3 = depth_ok
+# o4 = arb_bounds_ok
+# @rule o4: (not arb) OR (profit <= input * max_bps / 10000).
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# Rate ok
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Input positive
+input_ok(input : bv[32]) := input > { #x00000000 }:bv[32].
+
+# Safe range
+safe_ok(v : bv[32]) := v <= max_safe_32().
+
+# Params valid
+params_ok(input : bv[32], max_bps : bv[32]) := input_ok(input) && rate_ok(max_bps) && safe_ok(input).
+
+# Profit calculation: output - input (if output > input)
+# Profit bounded: (output - input) * 10000 <= input * max_bps
+profit_bounded(input : bv[32], output : bv[32], max_bps : bv[32]) := (output <= input) || (((output - input) * { #x00002710 }:bv[32]) <= (input * max_bps)).
+
+# Not arb OR profit bounded
+profit_ok(input : bv[32], output : bv[32], max_bps : bv[32], is_arb : sbf) := (is_arb = 0:sbf) || profit_bounded(input, output, max_bps).
+
+# Arb must not exceed pool depth fraction (sanity check)
+depth_ok(input : bv[32], depth : bv[32]) := input <= depth.
+
+# Full check
+arb_bounds_valid(input : bv[32], output : bv[32], max_bps : bv[32], is_arb : sbf, depth : bv[32]) := params_ok(input, max_bps) && profit_ok(input, output, max_bps, is_arb) && depth_ok(input, depth).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Profit check
+  (o2[t]:sbf = 1:sbf <-> profit_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf)) &&
+  # @section: Depth check
+  (o3[t]:sbf = 1:sbf <-> depth_ok(i1[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Aggregated arb bounds validity
+  (o4[t]:sbf = 1:sbf <-> arb_bounds_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf, i5[t]:bv[32])).

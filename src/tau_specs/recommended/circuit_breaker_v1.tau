@@ -1,0 +1,70 @@
+# Circuit Breaker v1 - Price Deviation Protection
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: max_deviation_bps (i3), cooldown requirement (i4)
+# IMMUTABLE_INVARIANTS: trading halts when price deviation exceeds threshold
+#
+# PURPOSE: Halt trading when price deviates beyond threshold from reference.
+# This is a safety mechanism to protect against flash crashes or manipulation.
+# No passive payouts - purely a safety gate.
+#
+# DbC Preconditions:
+# - All values are bv[32] (unsigned).
+# - max_deviation_bps <= 10000 (100%).
+# - Cooldown must have elapsed for trading to resume.
+#
+# DbC Postcondition:
+# - o4[t] = 1:sbf iff price deviation is within bounds AND cooldown satisfied.
+#
+# Stream mapping:
+# i1 = price_current (bv[32])
+# i2 = price_reference (bv[32])
+# i3 = max_deviation_bps (bv[32]) - max allowed deviation in bps
+# i4 = cooldown_elapsed (sbf) - 1 if cooldown period has passed
+# o1 = params_ok
+# o2 = deviation_within_bounds
+# o3 = cooldown_ok
+# o4 = circuit_breaker_ok
+# @rule o4: Price deviation within threshold AND cooldown satisfied.
+
+set charvar off
+
+# floor((2^32-1)/10000) for safe bps multiplication
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+# bps must be <= 10000
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+
+# Reference price must be positive
+ref_ok(ref : bv[32]) := ref > { #x00000000 }:bv[32].
+
+# Safe range for multiplication
+safe_range_ok(price : bv[32], ref : bv[32]) := (price <= max_safe_32()) && (ref <= max_safe_32()).
+
+# Deviation check: |current - reference| * 10000 <= reference * max_bps
+# Using absolute difference: if current >= ref, diff = current - ref, else diff = ref - current
+# Cross-multiply to avoid division: diff * 10000 <= ref * max_bps
+deviation_ok_ge(current : bv[32], ref : bv[32], max_bps : bv[32]) := ((current - ref) * { #x00002710 }:bv[32]) <= (ref * max_bps).
+
+deviation_ok_lt(current : bv[32], ref : bv[32], max_bps : bv[32]) := ((ref - current) * { #x00002710 }:bv[32]) <= (ref * max_bps).
+
+deviation_within_bounds(current : bv[32], ref : bv[32], max_bps : bv[32]) := ((current >= ref) && deviation_ok_ge(current, ref, max_bps)) || ((current < ref) && deviation_ok_lt(current, ref, max_bps)).
+
+# Cooldown must have elapsed
+cooldown_ok(elapsed : sbf) := elapsed = 1:sbf.
+
+# All parameters valid
+params_ok(max_bps : bv[32], ref : bv[32], current : bv[32]) := rate_ok(max_bps) && ref_ok(ref) && safe_range_ok(current, ref).
+
+# Full circuit breaker check
+circuit_breaker_valid(current : bv[32], ref : bv[32], max_bps : bv[32], cooldown : sbf) := params_ok(max_bps, ref, current) && deviation_within_bounds(current, ref, max_bps) && cooldown_ok(cooldown).
+
+always
+  # @section: Parameter validation
+  (o1[t]:sbf = 1:sbf <-> params_ok(i3[t]:bv[32], i2[t]:bv[32], i1[t]:bv[32])) &&
+  # @section: Deviation check
+  (o2[t]:sbf = 1:sbf <-> deviation_within_bounds(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Cooldown check
+  (o3[t]:sbf = 1:sbf <-> cooldown_ok(i4[t]:sbf)) &&
+  # @section: Aggregated circuit breaker validity
+  (o4[t]:sbf = 1:sbf <-> circuit_breaker_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf)).

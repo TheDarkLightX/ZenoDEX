@@ -1,0 +1,51 @@
+{
+  "synth_version": "1.1",
+  "backend": { "kind": "sygus", "solver": "cvc5", "timeout_ms": 30000 },
+  "scope": { "kind": "inductive", "domain_caps": "from_model" },
+  "holes": [
+    {
+      "hole_id": "volume_accum_expr",
+      "kind": "expr",
+      "type": "Int",
+      "used_in": [
+        { "action": "add_volume", "field": "volume_accumulated" },
+        { "action": "add_volume", "field": "volume_after" }
+      ],
+      "grammar_id": "G_volume",
+      "semantic_constraints": [
+        "result >= 0",
+        "result <= max_volume * 2",
+        "# If window expired, reset to volume; else accumulate"
+      ]
+    }
+  ],
+  "grammars": [
+    {
+      "grammar_id": "G_volume",
+      "start": "Expr",
+      "productions": {
+        "Const": ["0", "1", "10", "100"],
+        "PosConst": ["1", "10", "100"],
+        "Var": ["volume_accumulated", "volume", "current_time", "window_start", "window_duration"],
+        "Term": ["Var", "(* Var Const)", "(* Const Var)"],
+        "Lin": ["Const", "Term", "(+ Lin Lin)", "(- Lin Lin)"],
+        "TimeCheck": ["(> (- current_time window_start) window_duration)"],
+        "Expr": ["Lin", "(ite TimeCheck volume Lin)"]
+      }
+    }
+  ],
+  "style_profile": {
+    "max_nesting": 2,
+    "max_branches": 2,
+    "max_ast_nodes": 20,
+    "penalties": {
+      "branch": 5,
+      "nesting": 10,
+      "ast_node": 1
+    }
+  },
+  "objective": {
+    "kind": "lexicographic",
+    "goals": ["SATISFY", "MINIMIZE_COST"]
+  }
+}

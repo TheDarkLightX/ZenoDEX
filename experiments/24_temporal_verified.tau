@@ -1,0 +1,9 @@
+# Temporal stability spec - verifies price change < threshold (FIXED - proper base case)
+# o1 = 1 iff |price[t] - price[t-1]| < 500
+#
+# BASE CASE: t=0 has no i1[t-1], so o1[0]=0 (undefined -> assume unstable)
+# GENERAL CASE: t>=1, o1[t] = pricestable(i1[t], i1[t-1])
+
+pricestable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x01F4 }:bv[16])) || ((curr < prev) && (prev - curr < { #x01F4 }:bv[16])).
+
+always (o1[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> pricestable(i1[t]:bv[16], i1[t-1]:bv[16])).

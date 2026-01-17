@@ -1,0 +1,16 @@
+# Iteration 3: Sandwich attack detection using temporal pattern matching
+# Novel algorithm: Detect price spike pattern across 3 timesteps
+# Sandwich pattern: price[t-2] < price[t-1] AND price[t-1] > price[t]
+# This indicates: pump at t-1, dump at t (classic sandwich)
+
+# Detect spike: prev was higher than both before and after
+isspike(before : bv[16], peak : bv[16], after : bv[16]) := (peak > before) && (peak > after).
+
+# No sandwich if no spike detected
+nosandwich(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := !isspike(p0, p1, p2).
+
+# Intent match
+intentsmatch(bp : bv[16], sp : bv[16]) := bp >= sp.
+
+# Full validation: match AND no sandwich attack pattern
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> (intentsmatch(i1[t]:bv[16], i2[t]:bv[16]) && nosandwich(i3[t-2]:bv[16], i3[t-1]:bv[16], i3[t]:bv[16]))).

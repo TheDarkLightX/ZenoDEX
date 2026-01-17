@@ -1,0 +1,50 @@
+# Token V7 - Vesting Schedule Token with Cliff and Linear Release
+#
+# MUTABILITY: UPDATABLE (for new vestings only)
+# UPDATABLE_PARAMS: cliff_blocks (i2), vesting_duration (i3) - for NEW schedules
+# IMMUTABLE_INVARIANTS: existing vesting schedules, linear release formula
+#
+# ALGORITHM: Time-Locked Token Release
+# Tokens locked until cliff, then linear release over vesting period
+# Prevents early dumping while ensuring eventual full release
+#
+# Vesting Formula:
+# - Before cliff: releasable = 0
+# - After cliff: releasable = total * (elapsed - cliff) / (duration - cliff)
+# - After duration: releasable = total
+#
+# Inputs:
+# i1 = total_vested_amount
+# i2 = cliff_blocks
+# i3 = vesting_duration_blocks
+# i4 = current_block
+# i5 = already_claimed
+# Outputs:
+# o1 = cliff_passed
+# o2 = vesting_active
+# o3 = fully_vested
+# o4 = claim_valid
+
+# Cliff passed: current_block >= cliff_blocks
+cliffpassed(currentblock : bv[16], cliff : bv[16]) := currentblock >= cliff.
+
+# Vesting active: past cliff but not fully vested
+vestingactive(currentblock : bv[16], cliff : bv[16], duration : bv[16]) := cliffpassed(currentblock, cliff) && (currentblock < duration).
+
+# Fully vested: current_block >= vesting_duration
+fullyvested(currentblock : bv[16], duration : bv[16]) := currentblock >= duration.
+
+# Calculate vested amount (linear after cliff)
+# vested = total * (current - cliff) / (duration - cliff)
+vestedamount(total : bv[16], currentblock : bv[16], cliff : bv[16], duration : bv[16]) := (currentblock < cliff) -> { #x0000 }:bv[16] | (currentblock >= duration) -> total | (total * (currentblock - cliff)) / (duration - cliff).
+
+# Claimable: vested - already_claimed
+claimable(total : bv[16], currentblock : bv[16], cliff : bv[16], duration : bv[16], claimed : bv[16]) := ((currentblock >= duration) && (total > claimed)) || ((currentblock >= cliff) && (currentblock < duration) && ((total * (currentblock - cliff)) / (duration - cliff) > claimed)).
+
+# Claim valid: claimable amount > 0 AND not over-claiming
+claimvalid(total : bv[16], currentblock : bv[16], cliff : bv[16], duration : bv[16], claimed : bv[16]) := cliffpassed(currentblock, cliff) && (claimed < total).
+
+# Vesting schedule healthy: cliff < duration AND total > 0
+vestinghealthy(cliff : bv[16], duration : bv[16], total : bv[16]) := (cliff < duration) && (total > { #x0000 }:bv[16]).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> cliffpassed(i4[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> vestingactive(i4[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> fullyvested(i4[t]:bv[16], i3[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> claimvalid(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i5[t]:bv[16])).

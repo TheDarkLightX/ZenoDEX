@@ -1,0 +1,33 @@
+# TDEX Buyback + Burn (PulseX-style)
+# Assumes a 0.29% swap fee and 21% of fees routed to buy-and-burn.
+# Inputs:
+# i1 = trade_amount (basis for fee calculation)
+# i2 = fee_charged
+# i3 = buyback_amount (portion of fee used to buy token)
+# i4 = burned_amount (tokens burned from buyback)
+# Outputs:
+# o1 = fee_rate_ok
+# o2 = buyback_share_ok
+# o3 = burn_ok
+# o4 = buyback_ok (all gates)
+# @rule o4: Fee rate, buyback share, and burn equality must all pass.
+
+set charvar off
+
+# Fee = floor(amount * 29 / 10000). Allow rounding by <= 9999/10000.
+fee_rate_ok(amount : bv[16], fee : bv[16]) := (fee * { #x2710 }:bv[16] >= amount * { #x001D }:bv[16]) && (fee * { #x2710 }:bv[16] <= (amount * { #x001D }:bv[16]) + { #x270F }:bv[16]).
+
+# Buyback = floor(fee * 21 / 100). Allow rounding by <= 99/100.
+buyback_share_ok(fee : bv[16], bb : bv[16]) := (bb * { #x0064 }:bv[16] >= fee * { #x0015 }:bv[16]) && (bb * { #x0064 }:bv[16] <= (fee * { #x0015 }:bv[16]) + { #x0063 }:bv[16]).
+
+burn_ok(bb : bv[16], burned : bv[16]) := bb = burned.
+
+always
+  # fee rate check (0.29% with rounding tolerance)
+  (o1[t]:sbf = 1:sbf <-> fee_rate_ok(i1[t]:bv[16], i2[t]:bv[16])) &&
+  # buyback share check (21% of fee)
+  (o2[t]:sbf = 1:sbf <-> buyback_share_ok(i2[t]:bv[16], i3[t]:bv[16])) &&
+  # burn amount matches buyback amount
+  (o3[t]:sbf = 1:sbf <-> burn_ok(i3[t]:bv[16], i4[t]:bv[16])) &&
+  # final gate
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).

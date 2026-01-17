@@ -1,0 +1,7 @@
+# Testable spec with simpler I/O for verification
+# Tests: intent matching + price stability
+
+intentsmatch(bp : bv[16], sp : bv[16]) := bp >= sp.
+pricestable(curr : bv[16], prev : bv[16]) := (curr >= prev) ? (curr - prev < { #x01F4 }:bv[16]) : (prev - curr < { #x01F4 }:bv[16]).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> intentsmatch(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> pricestable(i1[t]:bv[16], i1[t-1]:bv[16])).

@@ -1,0 +1,52 @@
+# [FORGE] Simple Fee Accumulator (Synthesizable)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fee_accumulator_simple_hole"
+  created_by: "cgs"
+  notes: |
+    Simple fee accumulator matching the reference pattern.
+    Synthesize: accumulated + fee_amount
+
+observables:
+  state_vars: ["accumulated"]
+  effects: []
+
+types: []
+
+state_vars:
+  - id: "accumulated"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+init:
+  - var: "accumulated"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_accumulated_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "accumulated" }, { const: 0 }]
+
+actions:
+  - id: "add_fee"
+    params:
+      - id: "fee_amount"
+        type: { kind: "int", min: 1, max: 1000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ param: "fee_amount" }, { const: 0 }] }
+        - {
+            op: "<=",
+            args:
+              [
+                { op: "+", args: [{ var: "accumulated" }, { param: "fee_amount" }] },
+                { const: 1000000 },
+              ],
+          }
+    updates:
+      - var: "accumulated"
+        expr: { const: 0 }  # HOLE: accumulated + fee_amount
+    effects: {}

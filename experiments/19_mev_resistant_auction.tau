@@ -1,0 +1,47 @@
+# ============================================================================
+# MEV-RESISTANT BATCH AUCTION - Complete Tau Specification
+# Novel Algorithm combining: temporal analysis, intent matching, attack detection
+# ============================================================================
+# INPUTS:
+#   i1 = buy_max_price    i2 = sell_min_price   i3 = oracle_price
+#   i4 = buy_intent_id    i5 = sell_intent_id   i6 = exec_first_id  i7 = exec_second_id
+# OUTPUTS:
+#   o1 = match_valid      o2 = price_stable     o3 = order_canonical
+#   o4 = no_sandwich      o5 = all_valid        o6 = risk_level (0=safe,1=warn,2=danger)
+# ============================================================================
+
+# === CORE PREDICATES ===
+
+# Intent matching: buyer willing to pay >= seller minimum
+intentsmatch(buymax : bv[16], sellmin : bv[16]) := buymax >= sellmin.
+
+# Price stability: change < 5% (500 bps = 0x01F4)
+pricestable(curr : bv[16], prev : bv[16]) := (curr >= prev) ? (curr - prev < { #x01F4 }:bv[16]) : (prev - curr < { #x01F4 }:bv[16]).
+
+# === NOVEL: SANDWICH ATTACK DETECTION ===
+# Pattern: price spikes at t-1 then drops at t (pump-dump)
+isspike(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 > p0) && (p1 > p2).
+nosandwich(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := !isspike(p0, p1, p2).
+
+# === CANONICAL ORDERING (MEV-resistant) ===
+# Lower ID always executes first - deterministic, no front-running
+iscanonical(ida : bv[16], idb : bv[16], first : bv[16], second : bv[16]) := (ida <= idb && first = ida && second = idb) || (idb < ida && first = idb && second = ida).
+
+# === NOVEL: THREE-TIER RISK CLASSIFICATION ===
+# Uses temporal volatility to classify risk level
+# SAFE (0): change < 2% (200 bps)  WARN (1): change < 5%  DANGER (2): change >= 5%
+issafe(curr : bv[16], prev : bv[16]) := (curr >= prev) ? (curr - prev < { #x00C8 }:bv[16]) : (prev - curr < { #x00C8 }:bv[16]).
+iswarn(curr : bv[16], prev : bv[16]) := (curr >= prev) ? (curr - prev < { #x01F4 }:bv[16]) : (prev - curr < { #x01F4 }:bv[16]).
+
+# === NOVEL: TREND DETECTION (2-step momentum) ===
+# Uptrend: p[t-1] > p[t-2] AND p[t] > p[t-1]
+# Downtrend: p[t-1] < p[t-2] AND p[t] < p[t-1]
+isuptrend(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 > p0) && (p2 > p1).
+isdowntrend(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 < p0) && (p2 < p1).
+
+# === COMBINED VALIDATION ===
+allcheckspass(bmatch : bv[16], smatch : bv[16], pcurr : bv[16], pprev : bv[16], p2ago : bv[16], ida : bv[16], idb : bv[16], f : bv[16], s : bv[16]) := intentsmatch(bmatch, smatch) && pricestable(pcurr, pprev) && iscanonical(ida, idb, f, s) && nosandwich(p2ago, pprev, pcurr).
+
+# === MAIN SPECIFICATION ===
+# o1=match, o2=stable, o3=canonical, o4=nosandwich, o5=allvalid, o6=safe, o7=warn
+always (o1[t]:sbf = 1:sbf <-> intentsmatch(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> pricestable(i3[t]:bv[16], i3[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> iscanonical(i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> nosandwich(i3[t-2]:bv[16], i3[t-1]:bv[16], i3[t]:bv[16])) && (o5[t]:sbf = 1:sbf <-> allcheckspass(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i3[t-1]:bv[16], i3[t-2]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) && (o6[t]:sbf = 1:sbf <-> issafe(i3[t]:bv[16], i3[t-1]:bv[16])) && (o7[t]:sbf = 1:sbf <-> iswarn(i3[t]:bv[16], i3[t-1]:bv[16])).

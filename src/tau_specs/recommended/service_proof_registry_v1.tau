@@ -1,0 +1,51 @@
+# Service Proof Registry v1 - Whitelisted Verifier Validation
+#
+# MUTABILITY: UPDATABLE (verifier list)
+# UPDATABLE_PARAMS: verifier whitelist encoded in inputs
+# IMMUTABLE_INVARIANTS: proofs must come from whitelisted verifiers
+#
+# PURPOSE: Validate that service proofs are from whitelisted verifiers.
+# Prevents spoofed "service" claims from unauthorized sources.
+# No passive payouts - purely a proof validation gate.
+#
+# Stream mapping:
+# i1 = verifier_id (bv[32]) - ID of the verifier
+# i2 = proof_signature_valid (sbf) - 1 if signature verified
+# i3 = verifier_1_id (bv[32]) - whitelisted verifier 1
+# i4 = verifier_2_id (bv[32]) - whitelisted verifier 2
+# i5 = verifier_3_id (bv[32]) - whitelisted verifier 3
+# i6 = proof_timestamp (bv[32]) - when proof was issued
+# i7 = current_timestamp (bv[32]) - current time
+# i8 = max_proof_age (bv[32]) - max allowed proof age
+# o1 = verifier_ok
+# o2 = sig_ok
+# o3 = freshness_ok
+# o4 = service_proof_ok
+# @rule o4: Verifier whitelisted AND signature valid AND proof fresh.
+
+set charvar off
+
+# Verifier in whitelist
+verifier_ok(v : bv[32], v1 : bv[32], v2 : bv[32], v3 : bv[32]) := (v = v1) || (v = v2) || (v = v3).
+
+# Signature valid
+sig_ok(valid : sbf) := valid = 1:sbf.
+
+# Timestamp order
+ts_ok(proof_ts : bv[32], current_ts : bv[32]) := current_ts >= proof_ts.
+
+# Proof fresh
+freshness_ok(proof_ts : bv[32], current_ts : bv[32], max_age : bv[32]) := ts_ok(proof_ts, current_ts) && ((current_ts - proof_ts) <= max_age).
+
+# Full check
+service_proof_valid(v : bv[32], sig : sbf, v1 : bv[32], v2 : bv[32], v3 : bv[32], proof_ts : bv[32], current_ts : bv[32], max_age : bv[32]) := verifier_ok(v, v1, v2, v3) && sig_ok(sig) && freshness_ok(proof_ts, current_ts, max_age).
+
+always
+  # @section: Verifier whitelist check
+  (o1[t]:sbf = 1:sbf <-> verifier_ok(i1[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  # @section: Signature check
+  (o2[t]:sbf = 1:sbf <-> sig_ok(i2[t]:sbf)) &&
+  # @section: Freshness check
+  (o3[t]:sbf = 1:sbf <-> freshness_ok(i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])) &&
+  # @section: Aggregated service proof validity
+  (o4[t]:sbf = 1:sbf <-> service_proof_valid(i1[t]:bv[32], i2[t]:sbf, i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])).

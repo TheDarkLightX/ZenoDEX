@@ -1,0 +1,1066 @@
+diff --git a/README.md b/README.md
+index 5650f67..56490b1 100644
+--- a/README.md
++++ b/README.md
+@@ -50,6 +50,26 @@ When enabled, the node:
+ 
+ The TCP command `getappstate [full]` returns the current `app_hash` and (with `full`) the decoded snapshot.
+ 
++## Optional State Proofs (`state_proof:<state_hash>`)
++
++Tau Testnet can also (optionally) publish a per-block "state proof" artifact to the DHT, keyed by the block's committed `state_hash`:
++
++*   DHT key: `state_proof:<state_hash>`
++*   Value: JSON envelope with schema `tau_state_proof` (see `state_proof.py`)
++
++This is **opt-in** and does not change block format or the consensus state hash. It is intended as plumbing for ZK systems (e.g. Risc0) where proof artifacts are large and best stored in the DHT.
++
++Enable proof generation on the mining node:
++
++*   `TAU_STATE_PROOF_GENERATE_CMD="<command ...>"` (generator returns a `tau_state_proof` envelope JSON)
++
++Optionally require and verify proofs on followers (fail-closed when enabled):
++
++*   `TAU_STATE_PROOF_REQUIRE=1`
++*   `TAU_STATE_PROOF_VERIFY_CMD="<command ...>"`
++
++The TCP command `getstateproof [full]` reports whether a proof envelope is present and returns basic metadata.
++
+ ## Features
+ 
+ *   **TCP Server**: Handles client connections and commands.
+diff --git a/app/container.py b/app/container.py
+index 74e5f75..0a69e0e 100644
+--- a/app/container.py
++++ b/app/container.py
+@@ -20,6 +20,7 @@ from commands import (
+     getbalance,
+     getblocks,
+     getappstate,
++    getstateproof,
+     getmempool,
+     getsequence,
+     gettimestamp,
+@@ -68,6 +69,7 @@ class ServiceContainer:
+             "getblocks": getblocks,
+             "getallaccounts": getallaccounts,
+             "getappstate": getappstate,
++            "getstateproof": getstateproof,
+         }
+ 
+         mempool = override_map.get("mempool") or []
+diff --git a/chain_state.py b/chain_state.py
+index 1789e3d..1846ccd 100644
+--- a/chain_state.py
++++ b/chain_state.py
+@@ -1,11 +1,13 @@
+ import threading
+ import json
+ import logging
++import os
+ from typing import Dict, List, Optional
+ import db
+ import tau_manager
+ import config
+ import app_bridge
++import state_proof
+ from poa import PoATauEngine, TauStateSnapshot, compute_state_hash
+ from block import Block
+ import hashlib
+@@ -58,6 +60,9 @@ _current_app_state_json = ""
+ # Defined as sha256(UTF-8 bytes of the canonical app_state JSON string), hex-encoded (no 0x prefix).
+ _app_state_hash = ""
+ 
++# Optional: canonical JSON envelope for `state_proof:<state_hash>` associated with the current `_tau_engine_state_hash`.
++_current_state_proof_json = ""
++
+ # DHT Client for storing formulas
+ _dht_client = None
+ 
+@@ -85,7 +90,7 @@ def _republish_state_to_dht():
+     This ensures that on node startup, the DHT is populated with the state loaded from DB,
+     allowing the node to advertise these keys during handshake.
+     """
+-    global _last_processed_block_hash, _current_rules_state, _tau_engine_state_hash, _current_app_state_json, _app_state_hash
++    global _last_processed_block_hash, _current_rules_state, _tau_engine_state_hash, _current_app_state_json, _app_state_hash, _current_state_proof_json
+     
+     if not _last_processed_block_hash:
+         return
+@@ -123,6 +128,14 @@ def _republish_state_to_dht():
+     if app_hash_hex and canonical_app_json:
+         publish_app_state_snapshot(app_hash_hex, canonical_app_json)
+ 
++    # 3. Publish optional state proof
++    if _current_state_proof_json:
++        try:
++            publish_state_proof_snapshot(state_hash, _current_state_proof_json)
++        except Exception:
++            # Best-effort hydration only.
++            pass
++
+ 
+ 
+ def publish_tau_state_snapshot(
+@@ -325,6 +338,71 @@ def fetch_app_state_snapshot(app_hash: str) -> Optional[str]:
+         return None
+ 
+ 
++def publish_state_proof_snapshot(state_hash: str, proof_envelope_json: str) -> bool:
++    """
++    Publish a state proof envelope JSON into the DHT under `state_proof:<state_hash>`.
++
++    The value is canonical JSON bytes (UTF-8), validated to match the key suffix.
++    """
++    if not state_hash or not isinstance(state_hash, str):
++        return False
++    if not isinstance(proof_envelope_json, str) or not proof_envelope_json.strip():
++        return False
++    if not _dht_client or not getattr(_dht_client, "dht", None):
++        return False
++
++    try:
++        normalized = state_proof.canonicalize_state_proof_envelope(
++            proof_envelope_json,
++            expected_state_hash=state_hash,
++        )
++        canonical = json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode("utf-8")
++        key = f"state_proof:{state_proof.normalize_state_hash_hex(state_hash)}".encode("ascii")
++    except Exception:
++        return False
++
++    try:
++        if hasattr(_dht_client, "put_record_sync"):
++            return bool(_dht_client.put_record_sync(key, canonical))
++        _dht_client.dht.value_store.put(key, canonical)
++        return True
++    except Exception as exc:
++        print(f"[WARN][chain_state] Failed to publish state proof to DHT: {exc}")
++        return False
++
++
++def fetch_state_proof_snapshot(state_hash: str) -> Optional[str]:
++    """
++    Fetch a state proof envelope JSON from the DHT `state_proof:<state_hash>`.
++    """
++    if not state_hash or not isinstance(state_hash, str):
++        return None
++    if not _dht_client or not getattr(_dht_client, "dht", None):
++        return None
++
++    try:
++        h = state_proof.normalize_state_hash_hex(state_hash)
++        key = f"state_proof:{h}".encode("ascii")
++    except Exception:
++        return None
++
++    try:
++        if hasattr(_dht_client, "get_record_sync"):
++            val_bytes = _dht_client.get_record_sync(key, timeout=2.0)
++        else:
++            val = _dht_client.dht.value_store.get(key)
++            val_bytes = getattr(val, "value", val) if val else None
++        if val_bytes is None:
++            return None
++
++        decoded = val_bytes.decode("utf-8")
++        normalized = state_proof.canonicalize_state_proof_envelope(decoded, expected_state_hash=h)
++        return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
++    except Exception as exc:
++        print(f"[WARN][chain_state] Failed to fetch state proof from DHT: {exc}")
++        return None
++
++
+ def publish_accounts_snapshot(block_hash: str) -> bool:
+     """
+     Publish the resulting account table (balances + sequence numbers) for a block
+@@ -471,6 +549,13 @@ def process_new_block(block: Block) -> bool:
+ 
+     import time
+ 
++    require_state_proof = str(os.environ.get("TAU_STATE_PROOF_REQUIRE", "")).strip().lower() in {
++        "1",
++        "true",
++        "yes",
++        "on",
++    }
++
+     deadline = time.time() + 5.0
+     balances_snapshot: Optional[Dict[str, int]] = None
+     sequences_snapshot: Optional[Dict[str, int]] = None
+@@ -478,6 +563,7 @@ def process_new_block(block: Block) -> bool:
+     accounts_hash_hex_from_dht = ""
+     app_hash_hex = ""
+     app_state_json: Optional[str] = None
++    state_proof_json: Optional[str] = None
+ 
+     while time.time() < deadline:
+         accounts_result = fetch_accounts_snapshot(block.block_hash)
+@@ -505,10 +591,16 @@ def process_new_block(block: Block) -> bool:
+             app_hash_hex = ""
+             app_state_json = ""
+ 
++        if require_state_proof and expected_state_hash and expected_state_hash != ("0" * 64):
++            state_proof_json = fetch_state_proof_snapshot(expected_state_hash)
++        else:
++            state_proof_json = ""
++
+         have_accounts = balances_snapshot is not None and sequences_snapshot is not None
+         have_rules = rules_from_dht is not None
+         have_app = (not app_hash_hex) or (app_state_json is not None)
+-        if have_accounts and have_rules and have_app:
++        have_proof = (not require_state_proof) or (state_proof_json is not None and state_proof_json != "")
++        if have_accounts and have_rules and have_app and have_proof:
+             break
+         time.sleep(0.2)
+ 
+@@ -521,6 +613,9 @@ def process_new_block(block: Block) -> bool:
+     if app_hash_hex and app_state_json is None:
+         print(f"[ERROR][chain_state] Missing app snapshot in DHT for app_hash {app_hash_hex[:12]}...")
+         return False
++    if require_state_proof and (state_proof_json is None or not str(state_proof_json).strip()):
++        print(f"[ERROR][chain_state] Missing state proof in DHT for state_hash {expected_state_hash[:12]}...")
++        return False
+ 
+     # Best-effort: cache fetched snapshots to local DHT store to help propagation.
+     try:
+@@ -563,6 +658,14 @@ def process_new_block(block: Block) -> bool:
+                     _dht_client.put_record_sync(app_key, app_payload)
+                 else:
+                     _dht_client.dht.value_store.put(app_key, app_payload)
++
++            if state_proof_json and isinstance(state_proof_json, str) and state_proof_json.strip():
++                proof_key = f"state_proof:{state_proof.normalize_state_hash_hex(expected_state_hash)}".encode("ascii")
++                proof_payload = state_proof_json.encode("utf-8")
++                if hasattr(_dht_client, "put_record_sync"):
++                    _dht_client.put_record_sync(proof_key, proof_payload)
++                else:
++                    _dht_client.dht.value_store.put(proof_key, proof_payload)
+     except Exception as exc:
+         print(f"[WARN][chain_state] Failed to cache snapshots to local DHT: {exc}")
+ 
+@@ -614,7 +717,31 @@ def process_new_block(block: Block) -> bool:
+         print("[ERROR][chain_state] app_state hash mismatch")
+         return False
+ 
+-    global _tau_engine_state_hash, _current_rules_state, _last_processed_block_hash, _current_app_state_json, _app_state_hash
++    canonical_state_proof_json = ""
++    if require_state_proof:
++        try:
++            proof_obj = json.loads(state_proof_json or "")
++        except Exception as exc:
++            print(f"[ERROR][chain_state] state_proof must be valid JSON: {exc}")
++            return False
++        ok, err = state_proof.verify_state_proof_envelope(
++            state_hash=expected_state_hash,
++            proof_envelope_obj=proof_obj,
++            block=block.to_dict() if hasattr(block, "to_dict") else None,
++            tau_state={
++                "rules": applied_rules,
++                "accounts_hash": accounts_hash_hex_from_dht,
++                "app_hash": app_hash_hex or "",
++            },
++            context={
++                "block_timestamp": int(getattr(block.header, "timestamp", 0)),
++                "app_hash_pre": get_app_hash() or "",
++            },
++        )
++        if not ok:
++            print(f"[ERROR][chain_state] state_proof verification failed: {err or 'rejected'}")
++            return False
++        try:
++            normalized = state_proof.canonicalize_state_proof_envelope(
++                proof_obj,
++                expected_state_hash=expected_state_hash,
++            )
++            canonical_state_proof_json = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
++        except Exception as exc:
++            print(f"[ERROR][chain_state] failed to normalize verified state_proof: {exc}")
++            return False
++
++    global _tau_engine_state_hash, _current_rules_state, _last_processed_block_hash, _current_app_state_json, _app_state_hash, _current_state_proof_json
+     with get_all_state_locks():
+         _balances.clear()
+         _balances.update(balances_snapshot)
+@@ -624,6 +751,7 @@ def process_new_block(block: Block) -> bool:
+         _last_processed_block_hash = block.block_hash
+         _current_app_state_json = canonical_app_json
+         _app_state_hash = computed_app_hash_hex
++        _current_state_proof_json = canonical_state_proof_json
+         _tau_engine_state_hash = expected_state_hash
+ 
+     db.add_block(block)
+@@ -634,7 +762,14 @@ def process_new_block(block: Block) -> bool:
+         last_block_hash=block.block_hash,
+     )
+     try:
+-        db.save_chain_state_kv({"app_state": _current_app_state_json, "app_hash": _app_state_hash})
++        db.save_chain_state_kv(
++            {
++                "app_state": _current_app_state_json,
++                "app_hash": _app_state_hash,
++                "state_proof": _current_state_proof_json,
++                "state_proof_state_hash": _tau_engine_state_hash,
++            }
++        )
+     except Exception:
+         pass
+ 
+@@ -657,9 +792,10 @@ def rebuild_state_from_blockchain(start_block=0):
+             _balances.clear()
+             _sequence_numbers.clear()
+             _current_rules_state = ""
+-            global _current_app_state_json, _app_state_hash
++            global _current_app_state_json, _app_state_hash, _current_state_proof_json
+             _current_app_state_json = ""
+             _app_state_hash = ""
++            _current_state_proof_json = ""
+             global _tau_engine_state_hash
+             _tau_engine_state_hash = ""
+             _last_processed_block_hash = ''
+@@ -825,7 +961,7 @@ def save_rules_state(rules_content: str):
+     Saves the rules state from Tau's o000 output stream.
+     This represents the current rules state that should be persisted for chain state reconstruction.
+     """
+-    global _current_rules_state, _tau_engine_state_hash
++    global _current_rules_state, _tau_engine_state_hash, _current_state_proof_json
+     candidate = rules_content or ""
+     if not candidate:
+         logger.warning("Saving empty Tau rules state.")
+@@ -848,6 +984,9 @@ def save_rules_state(rules_content: str):
+         _tau_engine_state_hash = compute_consensus_state_hash(rules_bytes, accounts_hash, app_hash_b)
+         state_hash = _tau_engine_state_hash
+ 
++        # Any previously cached proof envelope is now stale (different state_hash).
++        _current_state_proof_json = ""
++
+     print(f"[INFO][chain_state] Rules state updated. Length: {len(_current_rules_state)} characters")
+     logger.debug("Rules state saved (len=%s).", len(_current_rules_state))
+ 
+@@ -916,6 +1055,19 @@ def get_rules_state() -> str:
+         return _current_rules_state
+ 
+ 
++def get_state_hash() -> str:
++    """
++    Return the last known consensus state_hash (best-effort).
++    """
++    with get_all_state_locks():
++        return _tau_engine_state_hash
++
++
++def get_state_proof_json() -> str:
++    with _app_lock:
++        return _current_state_proof_json
++
++
+ def get_app_state_json() -> str:
+     with _app_lock:
+         return _current_app_state_json
+@@ -930,7 +1082,7 @@ def set_app_state(*, app_state_json: str, app_hash_hex: str) -> None:
+     """
+     Replace the in-memory application snapshot and its hash.
+     """
+-    global _current_app_state_json, _app_state_hash
++    global _current_app_state_json, _app_state_hash, _current_state_proof_json
+     with _app_lock:
+         canonical, computed = _canonical_app_state_and_hash(app_state_json)
+         provided = str(app_hash_hex or "").strip()
+@@ -940,6 +1092,7 @@ def set_app_state(*, app_state_json: str, app_hash_hex: str) -> None:
+             logger.warning("set_app_state: provided app_hash mismatch; using computed hash")
+         _current_app_state_json = canonical
+         _app_state_hash = computed
++        _current_state_proof_json = ""
+ 
+ 
+ def load_state_from_db() -> bool:
+@@ -950,7 +1103,7 @@ def load_state_from_db() -> bool:
+     import db
+     
+     balances, sequences, current_rules, last_processed_block_hash = db.load_chain_state()
+-    extras = db.load_chain_state_kv(["app_state", "app_hash"])
++    extras = db.load_chain_state_kv(["app_state", "app_hash", "state_proof", "state_proof_state_hash"])
+     
+     if not balances:
+         return False
+@@ -963,7 +1116,7 @@ def load_state_from_db() -> bool:
+         
+         global _current_rules_state
+         _current_rules_state = current_rules
+-        global _current_app_state_json, _app_state_hash
++        global _current_app_state_json, _app_state_hash, _current_state_proof_json
+         raw_app_json = str(extras.get("app_state") or "")
+         canonical_app_json, computed_hash = _canonical_app_state_and_hash(raw_app_json)
+ 
+@@ -976,6 +1129,21 @@ def load_state_from_db() -> bool:
+         _current_app_state_json = canonical_app_json
+         _app_state_hash = computed_hash
+ 
++        # Optional: load a persisted state_proof envelope (best-effort).
++        raw_proof = str(extras.get("state_proof") or "")
++        raw_proof_state_hash = str(extras.get("state_proof_state_hash") or "")
++        try:
++            if raw_proof.strip() and raw_proof_state_hash.strip():
++                normalized = state_proof.canonicalize_state_proof_envelope(
++                    raw_proof,
++                    expected_state_hash=raw_proof_state_hash,
++                )
++                _current_state_proof_json = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
++            else:
++                _current_state_proof_json = ""
++        except Exception:
++            _current_state_proof_json = ""
++
+         # We loaded rules state from persistence, but Tau engine has not necessarily
+         # been updated yet (it restarts fresh). Treat engine state as unknown until
+         # we explicitly apply a snapshot to Tau.
+@@ -998,10 +1166,19 @@ def commit_state_to_db(block_hash: str):
+         sequences_snapshot = _sequence_numbers.copy()
+         rules_snapshot = _current_rules_state
+         app_snapshot_json, app_hash_hex = _canonical_app_state_and_hash(_current_app_state_json)
++        proof_snapshot_json = _current_state_proof_json
++        state_hash_snapshot = _tau_engine_state_hash
+         
+     db.save_chain_state(balances_snapshot, sequences_snapshot, rules_snapshot, block_hash)
+     try:
+-        db.save_chain_state_kv({"app_state": app_snapshot_json, "app_hash": app_hash_hex})
++        db.save_chain_state_kv(
++            {
++                "app_state": app_snapshot_json,
++                "app_hash": app_hash_hex,
++                "state_proof": proof_snapshot_json,
++                "state_proof_state_hash": state_hash_snapshot,
++            }
++        )
+     except Exception:
+         pass
+ 
+diff --git a/commands/createblock.py b/commands/createblock.py
+index 61a9114..af654ea 100644
+--- a/commands/createblock.py
++++ b/commands/createblock.py
+@@ -14,6 +14,7 @@ import block
+ import chain_state
+ import config
+ import app_bridge
++import state_proof
+ 
+ 
+ import tau_manager
+@@ -490,6 +491,28 @@ def create_block_from_mempool() -> Dict[str, Any]:
+         timestamp=block_timestamp,
+     )
+ 
++    # Optional: generate a per-block state proof envelope, bound to `state_hash`.
++    proof_envelope_json: Optional[str] = None
++    require_proof_on_miner = _bool_env("TAU_STATE_PROOF_GENERATE_REQUIRE")
++    if require_proof_on_miner and not os.environ.get("TAU_STATE_PROOF_GENERATE_CMD", "").strip():
++        db.unreserve_mempool_txs(reserved_ids)
++        return {"error": "TAU_STATE_PROOF_GENERATE_REQUIRE=1 but TAU_STATE_PROOF_GENERATE_CMD is not set"}
++    try:
++        pre_app_state_json = chain_state.get_app_state_json() if hasattr(chain_state, "get_app_state_json") else ""
++        pre_app_hash_hex = chain_state.get_app_hash() if hasattr(chain_state, "get_app_hash") else ""
++
++        proof_envelope_json = state_proof.maybe_generate_state_proof_envelope_json(
++            state_hash=state_hash,
++            block=new_block.to_dict(),
++            tau_state={
++                "rules": final_rules,
++                "accounts_hash": accounts_hash.hex(),
++                "app_hash": final_app_hash_hex or "",
++            },
++            context={
++                "block_timestamp": int(block_timestamp),
++                "app_state_pre": pre_app_state_json or "",
++                "app_hash_pre": pre_app_hash_hex or "",
++                "chain_balances_post": dict(final_balances),
++            },
++        )
++    except Exception as exc:
++        if require_proof_on_miner:
++            db.unreserve_mempool_txs(reserved_ids)
++            return {"error": f"state proof generation failed: {exc}"}
++        print(f"[WARN][createblock] state proof generation failed (continuing): {exc}")
++
+     print(
+         f"[INFO][createblock] Committing block #{new_block.header.block_number}, state, and clearing mempool in a single transaction..."
+     )
+@@ -524,6 +547,14 @@ def create_block_from_mempool() -> Dict[str, Any]:
+             "INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)",
+             ("app_hash", final_app_hash_hex or ""),
+         )
++        conn.execute(
++            "INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)",
++            ("state_proof", proof_envelope_json or ""),
++        )
++        conn.execute(
++            "INSERT OR REPLACE INTO chain_state (key, value) VALUES (?, ?)",
++            ("state_proof_state_hash", state_hash),
++        )
+         for addr, bal in final_balances.items():
+             seq = final_sequences.get(addr, 0)
+             conn.execute(
+@@ -546,6 +577,7 @@ def create_block_from_mempool() -> Dict[str, Any]:
+             chain_state._current_rules_state = final_rules
+             chain_state._current_app_state_json = final_app_state_json or ""
+             chain_state._app_state_hash = final_app_hash_hex or ""
++            chain_state._current_state_proof_json = proof_envelope_json or ""
+             chain_state._tau_engine_state_hash = state_hash
+             chain_state._last_processed_block_hash = new_block.block_hash
+     except Exception as exc:
+@@ -588,6 +620,18 @@ def create_block_from_mempool() -> Dict[str, Any]:
+         except Exception as exc:
+             print(f"[WARN][createblock] Failed to publish app state snapshot to DHT: {exc}")
+ 
++    if proof_envelope_json:
++        try:
++            published_proof = False
++            if hasattr(chain_state, "publish_state_proof_snapshot"):
++                published_proof = bool(chain_state.publish_state_proof_snapshot(state_hash, proof_envelope_json))
++            if published_proof:
++                print(f"[INFO][createblock] Published state proof to DHT: state_proof:{state_hash}")
++            else:
++                print("[DEBUG][createblock] State proof not published to DHT (no DHT client?)")
++        except Exception as exc:
++            print(f"[WARN][createblock] Failed to publish state proof to DHT: {exc}")
++
+     try:
+         published_accounts = False
+         if hasattr(chain_state, "publish_accounts_snapshot"):
+diff --git b/commands/getstateproof.py b/commands/getstateproof.py
+new file mode 100644
+index 0000000..65974be
+--- /dev/null
++++ b/commands/getstateproof.py
+@@ -0,0 +1,49 @@
++import hashlib
++import json
++import logging
++
++import chain_state
++import state_proof
++
++
++logger = logging.getLogger(__name__)
++
++
++def execute(raw_command: str, container):
++    """
++    getstateproof [full]
++
++    - Default: returns `STATE_PROOF_PRESENT: 0|1`
++    - `full`: returns JSON with basic metadata about the current proof envelope
++      (does not return raw proof bytes).
++    """
++    parts = (raw_command or "").strip().split()
++    full = len(parts) > 1 and parts[1].lower() == "full"
++
++    state_hash = chain_state.get_state_hash() or ""
++    proof_json = chain_state.get_state_proof_json() or ""
++    present = bool(str(proof_json).strip())
++
++    if not full:
++        return f"STATE_PROOF_PRESENT: {1 if present else 0}\r\n"
++
++    payload = {"state_hash": state_hash, "present": present}
++
++    if present:
++        try:
++            obj = json.loads(proof_json)
++            normalized = state_proof.canonicalize_state_proof_envelope(
++                obj,
++                expected_state_hash=state_hash or obj.get("state_hash", ""),
++            )
++            payload["proof_type"] = normalized.get("proof_type")
++
++            # Best-effort metadata. Avoid returning the base64 itself over TCP.
++            proof_bytes = state_proof.decode_proof_bytes_from_envelope(normalized, max_bytes=2_000_000)
++            payload["proof_bytes"] = len(proof_bytes)
++            payload["proof_sha256"] = hashlib.sha256(proof_bytes).hexdigest()
++        except Exception as exc:
++            payload["error"] = f"failed to decode state proof envelope: {exc}"
++
++    return json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\r\n"
++
+diff --git a/network/dht_manager.py b/network/dht_manager.py
+index 7162ac3..9f17604 100644
+--- a/network/dht_manager.py
++++ b/network/dht_manager.py
+@@ -231,6 +231,7 @@ class DHTManager:
+         self.register_validator("state", self._validate_state_record)
+         self.register_validator("tau_state", self._validate_tau_state_record)
+         self.register_validator("app_state", self._validate_app_state_record)
++        self.register_validator("state_proof", self._validate_state_proof_record)
+         self.register_validator("formula", self._validate_formula_record)
+ 
+     def _validate_block_record(self, key: bytes, value: bytes) -> bool:
+@@ -373,6 +374,43 @@ class DHTManager:
+         except Exception:
+             return False
+ 
++    def _validate_state_proof_record(self, key: bytes, value: bytes) -> bool:
++        """
++        Validate a `state_proof:<state_hash>` record.
++
++        The record is a JSON envelope bound to the key suffix (state_hash).
++        This validator checks:
++          - key namespace and suffix format
++          - value is UTF-8 JSON object
++          - envelope.state_hash matches the key suffix
++        """
++        import json
++
++        decoded = self._decode_dht_key(key)
++        if not decoded:
++            return False
++        namespace, state_hash = decoded
++        if namespace != "state_proof":
++            return False
++
++        # DoS guard: large proofs should be optional and size-bounded.
++        if not isinstance(value, (bytes, bytearray)) or len(value) == 0:
++            return False
++        if len(value) > 2_000_000:
++            return False
++
++        try:
++            data = json.loads(value.decode("utf-8"))
++        except Exception:
++            return False
++
++        try:
++            import state_proof  # pylint: disable=import-outside-toplevel
++
++            return state_proof.is_valid_state_proof_envelope(data, expected_state_hash=state_hash)
++        except Exception:
++            return False
++
+     def put_record_sync(self, key: bytes, value: bytes, timeout: float = 5.0) -> bool:
+         """
+         Best-effort synchronous DHT publish helper.
+@@ -420,7 +458,7 @@ class DHTManager:
+         if self._dht and getattr(self._dht, "provider_store", None):
+             try:
+                 ns = self._extract_dht_namespace(encoded_key)
+-                if ns in ("state", "tau_state", "app_state"):
++                if ns in ("state", "tau_state", "app_state", "state_proof"):
+                      from libp2p.peer.peerinfo import PeerInfo
+                      
+                      # Add self as provider
+diff --git b/state_proof.py b/state_proof.py
+new file mode 100644
+index 0000000..a611f71
+--- /dev/null
++++ b/state_proof.py
+@@ -0,0 +1,322 @@
++"""
++Optional per-block state proof plumbing for Tau Testnet Alpha.
++
++This module defines a small DHT-bound proof envelope:
++  key:   state_proof:<state_hash>
++  value: JSON bytes (UTF-8) with schema "tau_state_proof"
++
++The proof is OPTIONAL by default. When enabled via env, a node can:
++  - Generate and publish a proof (mining node)
++  - Require and verify a proof (followers)
++
++This is intentionally generic:
++  - No DEX naming
++  - No assumption about the proving system (Risc0, etc.)
++"""
++
++from __future__ import annotations
++
++import base64
++import json
++import os
++import shlex
++import subprocess
++from dataclasses import dataclass
++from typing import Any, Dict, List, Optional, Tuple
++
++
++class StateProofError(RuntimeError):
++    pass
++
++
++STATE_PROOF_SCHEMA = "tau_state_proof"
++STATE_PROOF_SCHEMA_VERSION = 1
++
++STATE_PROOF_REQUEST_SCHEMA = "tau_state_proof_request"
++STATE_PROOF_REQUEST_SCHEMA_VERSION = 1
++
++STATE_PROOF_VERIFY_SCHEMA = "tau_state_proof_verify"
++STATE_PROOF_VERIFY_SCHEMA_VERSION = 1
++
++
++def _bool_env(name: str, *, default: bool) -> bool:
++    raw = os.environ.get(name)
++    if raw is None:
++        return bool(default)
++    v = raw.strip().lower()
++    if v in {"1", "true", "yes", "on"}:
++        return True
++    if v in {"0", "false", "no", "off"}:
++        return False
++    return bool(default)
++
++
++def _float_env(name: str, *, default: float) -> float:
++    raw = os.environ.get(name)
++    if raw is None or not str(raw).strip():
++        return float(default)
++    try:
++        v = float(str(raw).strip())
++    except Exception as exc:  # pragma: no cover
++        raise StateProofError(f"{name} must be a float") from exc
++    if v <= 0:
++        raise StateProofError(f"{name} must be positive")
++    return v
++
++
++def _parse_cmd_env(name: str) -> Optional[List[str]]:
++    raw = os.environ.get(name, "").strip()
++    if not raw:
++        return None
++    try:
++        parts = shlex.split(raw)
++    except Exception as exc:
++        raise StateProofError(f"{name} must be a valid shell-like command string") from exc
++    if not parts:
++        return None
++    return parts
++
++
++def _enforce_cmd_path_policy(cmd: List[str]) -> None:
++    if not cmd:
++        raise StateProofError("internal error: cmd must be non-empty")
++    allow_path = _bool_env("TAU_STATE_PROOF_ALLOW_PATH_LOOKUP", default=False)
++    if allow_path:
++        return
++    exe = cmd[0]
++    # Fail-closed: avoid PATH injection by requiring an absolute path unless explicitly allowed.
++    if not os.path.isabs(exe):
++        raise StateProofError(
++            "state proof command must use an absolute executable path "
++            "(set TAU_STATE_PROOF_ALLOW_PATH_LOOKUP=1 to allow PATH lookup)"
++        )
++    if not (os.path.isfile(exe) and os.access(exe, os.X_OK)):
++        raise StateProofError(f"state proof command not executable: {exe}")
++
++
++def _is_hex_64(s: str) -> bool:
++    if not isinstance(s, str) or len(s) != 64:
++        return False
++    try:
++        _ = bytes.fromhex(s)
++        return True
++    except Exception:
++        return False
++
++
++def _canonical_json(obj: Any) -> str:
++    if not isinstance(obj, (dict, list)):
++        raise StateProofError("value must be a JSON object or array")
++    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
++
++
++def normalize_state_hash_hex(state_hash: str) -> str:
++    if not isinstance(state_hash, str):
++        raise StateProofError("state_hash must be a string")
++    h = state_hash.strip()
++    if h.lower().startswith("0x"):
++        h = h[2:]
++    if not _is_hex_64(h):
++        raise StateProofError("state_hash must be 64 hex chars")
++    return h.lower()
++
++
++def _parse_envelope_obj(obj: Any) -> Dict[str, Any]:
++    if isinstance(obj, str):
++        try:
++            parsed = json.loads(obj)
++        except Exception as exc:
++            raise StateProofError(f"proof envelope must be valid JSON: {exc}") from exc
++        obj = parsed
++    if not isinstance(obj, dict):
++        raise StateProofError("proof envelope must be a JSON object")
++    return obj
++
++
++def _require_schema_fields(envelope: Dict[str, Any]) -> None:
++    if envelope.get("schema") != STATE_PROOF_SCHEMA:
++        raise StateProofError("proof envelope schema mismatch")
++    if envelope.get("schema_version") != STATE_PROOF_SCHEMA_VERSION:
++        raise StateProofError("proof envelope schema_version mismatch")
++
++
++def _normalize_proof_type(proof_type: Any) -> str:
++    if not isinstance(proof_type, str) or not proof_type.strip():
++        raise StateProofError("proof_type must be a non-empty string")
++    pt = proof_type.strip()
++    if len(pt) > 256:
++        raise StateProofError("proof_type too long")
++    return pt
++
++
++def _normalize_proof_b64(proof_b64: Any) -> str:
++    if not isinstance(proof_b64, str):
++        raise StateProofError("proof must be a base64 string")
++    # Don't decode here; verifier may handle. Still defend against absurd sizes.
++    if len(proof_b64) > 8_000_000:
++        raise StateProofError("proof base64 too large")
++    return proof_b64
++
++
++def _normalize_optional_meta(meta: Any) -> Optional[Dict[str, Any]]:
++    if meta is None:
++        return None
++    if not isinstance(meta, dict):
++        raise StateProofError("meta must be an object if present")
++    return meta or None
++
++
++def is_valid_state_proof_envelope(obj: Any, *, expected_state_hash: str) -> bool:
++    try:
++        _ = canonicalize_state_proof_envelope(obj, expected_state_hash=expected_state_hash)
++        return True
++    except Exception:
++        return False
++
++
++def canonicalize_state_proof_envelope(obj: Any, *, expected_state_hash: str) -> Dict[str, Any]:
++    """
++    Validate and normalize a state proof envelope.
++
++    Returns a normalized dict. Use `_canonical_json` to serialize.
++    """
++    expected = normalize_state_hash_hex(expected_state_hash)
++    envelope = _parse_envelope_obj(obj)
++    _require_schema_fields(envelope)
++
++    state_hash_n = normalize_state_hash_hex(envelope.get("state_hash") or "")
++    if state_hash_n != expected:
++        raise StateProofError("proof envelope state_hash does not match expected")
++
++    proof_type = _normalize_proof_type(envelope.get("proof_type"))
++    proof_b64 = _normalize_proof_b64(envelope.get("proof"))
++    meta = _normalize_optional_meta(envelope.get("meta"))
++
++    normalized: Dict[str, Any] = {
++        "schema": STATE_PROOF_SCHEMA,
++        "schema_version": STATE_PROOF_SCHEMA_VERSION,
++        "state_hash": expected,
++        "proof_type": proof_type,
++        "proof": proof_b64,
++    }
++    if meta is not None:
++        normalized["meta"] = meta
++    return normalized
++
++
++def decode_proof_bytes_from_envelope(envelope: Dict[str, Any], *, max_bytes: int) -> bytes:
++    proof_b64 = envelope.get("proof", "")
++    if not isinstance(proof_b64, str):
++        raise StateProofError("proof must be a base64 string")
++    # Quick length guard before decode: base64 inflates by ~4/3.
++    if len(proof_b64) > (max_bytes * 4 // 3) + 16:
++        raise StateProofError("proof too large")
++    try:
++        proof_bytes = base64.b64decode(proof_b64.encode("ascii"), validate=True)
++    except Exception as exc:
++        raise StateProofError(f"invalid base64 proof: {exc}") from exc
++    if len(proof_bytes) > max_bytes:
++        raise StateProofError("proof too large")
++    return proof_bytes
++
++
++@dataclass(frozen=True)
++class StateProofSubprocessConfig:
++    timeout_s: float = 10.0
++    max_stdout_bytes: int = 2_000_000
++    max_stderr_bytes: int = 16_000
++
++
++def _subprocess_config() -> StateProofSubprocessConfig:
++    return StateProofSubprocessConfig(
++        timeout_s=_float_env("TAU_STATE_PROOF_SUBPROCESS_TIMEOUT_S", default=10.0),
++        max_stdout_bytes=int(os.environ.get("TAU_STATE_PROOF_MAX_STDOUT_BYTES", "2000000")),
++        max_stderr_bytes=int(os.environ.get("TAU_STATE_PROOF_MAX_STDERR_BYTES", "16000")),
++    )
++
++
++def _run_cmd_json(*, cmd: List[str], input_obj: Dict[str, Any]) -> Dict[str, Any]:
++    _enforce_cmd_path_policy(cmd)
++    cfg = _subprocess_config()
++    payload = _canonical_json(input_obj).encode("utf-8")
++    try:
++        proc = subprocess.run(
++            cmd,
++            input=payload,
++            capture_output=True,
++            timeout=cfg.timeout_s,
++            check=False,
++        )
++    except subprocess.TimeoutExpired as exc:
++        raise StateProofError("state proof subprocess timed out") from exc
++    except Exception as exc:
++        raise StateProofError(f"state proof subprocess error: {exc}") from exc
++
++    out = proc.stdout or b""
++    err = proc.stderr or b""
++    if len(out) > cfg.max_stdout_bytes:
++        raise StateProofError("state proof subprocess stdout too large")
++    if len(err) > cfg.max_stderr_bytes:
++        raise StateProofError("state proof subprocess stderr too large")
++    if proc.returncode != 0:
++        msg = err.decode("utf-8", errors="replace").strip()
++        raise StateProofError(f"state proof subprocess failed (exit {proc.returncode}): {msg or 'no stderr'}")
++    try:
++        decoded = json.loads(out.decode("utf-8"))
++    except Exception as exc:
++        raise StateProofError(f"state proof subprocess returned invalid JSON: {exc}") from exc
++    if not isinstance(decoded, dict):
++        raise StateProofError("state proof subprocess output must be a JSON object")
++    return decoded
++
++
++def maybe_generate_state_proof_envelope_json(
++    *,
++    state_hash: str,
++    block: Dict[str, Any],
++    tau_state: Dict[str, Any],
++    context: Optional[Dict[str, Any]] = None,
++) -> Optional[str]:
++    """
++    If configured, run a generator command and return a canonical proof envelope JSON string.
++
++    Env:
++      - TAU_STATE_PROOF_GENERATE_CMD: command line (shlex-split)
++    """
++    cmd = _parse_cmd_env("TAU_STATE_PROOF_GENERATE_CMD")
++    if not cmd:
++        return None
++
++    expected = normalize_state_hash_hex(state_hash)
++    req: Dict[str, Any] = {
++        "schema": STATE_PROOF_REQUEST_SCHEMA,
++        "schema_version": STATE_PROOF_REQUEST_SCHEMA_VERSION,
++        "state_hash": expected,
++        "block": block,
++        "tau_state": tau_state,
++    }
++    if context is not None:
++        req["context"] = context
++    out_obj = _run_cmd_json(cmd=cmd, input_obj=req)
++    normalized = canonicalize_state_proof_envelope(out_obj, expected_state_hash=expected)
++    return _canonical_json(normalized)
++
++
++def verify_state_proof_envelope(
++    *,
++    state_hash: str,
++    proof_envelope_obj: Any,
++    block: Optional[Dict[str, Any]] = None,
++    tau_state: Optional[Dict[str, Any]] = None,
++    context: Optional[Dict[str, Any]] = None,
++) -> Tuple[bool, Optional[str]]:
++    """
++    Verify a proof envelope via an external verifier command.
++
++    Env:
++      - TAU_STATE_PROOF_VERIFY_CMD: command line (shlex-split)
++
++    stdout protocol:
++      - {"ok": true}
++      - {"ok": false, "error": "..."}
++    """
++    cmd = _parse_cmd_env("TAU_STATE_PROOF_VERIFY_CMD")
++    if not cmd:
++        return False, "state proof verifier not configured (missing TAU_STATE_PROOF_VERIFY_CMD)"
++
++    expected = normalize_state_hash_hex(state_hash)
++    normalized = canonicalize_state_proof_envelope(proof_envelope_obj, expected_state_hash=expected)
++    req: Dict[str, Any] = {
++        "schema": STATE_PROOF_VERIFY_SCHEMA,
++        "schema_version": STATE_PROOF_VERIFY_SCHEMA_VERSION,
++        "state_hash": expected,
++        "proof": normalized,
++    }
++    if block is not None:
++        req["block"] = block
++    if tau_state is not None:
++        req["tau_state"] = tau_state
++    if context is not None:
++        req["context"] = context
++    out_obj = _run_cmd_json(cmd=cmd, input_obj=req)
++    ok = out_obj.get("ok")
++    if ok is True:
++        return True, None
++    if ok is False:
++        err = out_obj.get("error")
++        if isinstance(err, str) and err:
++            return False, err
++        return False, "state proof rejected"
++    return False, "invalid verifier output (missing ok)"
+diff --git b/tests/test_state_proof.py b/tests/test_state_proof.py
+new file mode 100644
+index 0000000..d53cf7b
+--- /dev/null
++++ b/tests/test_state_proof.py
+@@ -0,0 +1,56 @@
++import base64
++
++import pytest
++
++import state_proof
++
++
++def _b64(b: bytes) -> str:
++    return base64.b64encode(b).decode("ascii")
++
++
++def test_canonicalize_state_proof_envelope_ok():
++    state_hash = "ab" * 32
++    env = {
++        "schema": "tau_state_proof",
++        "schema_version": 1,
++        "state_hash": state_hash,
++        "proof_type": "debug.v1",
++        "proof": _b64(b"hello"),
++        "meta": {"note": "ok"},
++    }
++    out = state_proof.canonicalize_state_proof_envelope(env, expected_state_hash=state_hash)
++    assert out["state_hash"] == state_hash
++    assert out["proof_type"] == "debug.v1"
++    assert out["proof"] == _b64(b"hello")
++
++
++def test_canonicalize_state_proof_envelope_rejects_mismatch():
++    state_hash = "ab" * 32
++    env = {
++        "schema": "tau_state_proof",
++        "schema_version": 1,
++        "state_hash": "cd" * 32,
++        "proof_type": "debug.v1",
++        "proof": _b64(b"hello"),
++    }
++    with pytest.raises(state_proof.StateProofError):
++        state_proof.canonicalize_state_proof_envelope(env, expected_state_hash=state_hash)
++
++
++def test_decode_proof_bytes_from_envelope_respects_max():
++    state_hash = "ab" * 32
++    env = state_proof.canonicalize_state_proof_envelope(
++        {
++            "schema": "tau_state_proof",
++            "schema_version": 1,
++            "state_hash": state_hash,
++            "proof_type": "debug.v1",
++            "proof": _b64(b"hello"),
++        },
++        expected_state_hash=state_hash,
++    )
++    assert state_proof.decode_proof_bytes_from_envelope(env, max_bytes=5) == b"hello"
++    with pytest.raises(state_proof.StateProofError):
++        state_proof.decode_proof_bytes_from_envelope(env, max_bytes=4)
++

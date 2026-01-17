@@ -1,0 +1,22 @@
+# Spec 99: Oracle Price Staleness Detector
+# NOVEL: Detects stale oracle prices that could cause bad trades
+# Validates oracle data freshness before use
+# Temporal: tracks last update time and staleness thresholds
+#
+# Inputs: i1 = oracle_price, i2 = last_update_block, i3 = current_block,
+#         i4 = max_staleness_blocks, i5 = price_heartbeat
+# Outputs: o1 = price_fresh, o2 = within_heartbeat, o3 = oracle_healthy, o4 = safe_to_use
+
+# Price fresh: current_block - last_update <= max_staleness
+pricefresh(lastupdate : bv[16], currblock : bv[16], maxstale : bv[16]) := (currblock >= lastupdate) && ((currblock - lastupdate) <= maxstale).
+
+# Within heartbeat: price updated recently (within heartbeat interval)
+withinheartbeat(lastupdate : bv[16], currblock : bv[16], heartbeat : bv[16]) := (currblock >= lastupdate) && ((currblock - lastupdate) <= heartbeat).
+
+# Oracle healthy: fresh AND heartbeat maintained
+oraclehealthy(lastupdate : bv[16], currblock : bv[16], maxstale : bv[16], heartbeat : bv[16]) := pricefresh(lastupdate, currblock, maxstale) && withinheartbeat(lastupdate, currblock, heartbeat).
+
+# Safe to use: oracle is healthy AND price is non-zero
+safetouse(price : bv[16], lastupdate : bv[16], currblock : bv[16], maxstale : bv[16], heartbeat : bv[16]) := (price > { #x0000 }:bv[16]) && oraclehealthy(lastupdate, currblock, maxstale, heartbeat).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> pricefresh(i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> withinheartbeat(i2[t]:bv[16], i3[t]:bv[16], i5[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> oraclehealthy(i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> safetouse(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

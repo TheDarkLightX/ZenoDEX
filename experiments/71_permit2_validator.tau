@@ -1,0 +1,22 @@
+# Spec 71: Permit2 Signature and Authorization Validator
+# NOVEL: Validates gasless token approvals via off-chain signatures
+# Ensures signatures are fresh, nonces prevent replay, amounts are valid
+# Critical for secure gasless DEX interactions
+#
+# Inputs: i1 = signature_deadline, i2 = current_timestamp, i3 = nonce,
+#         i4 = amount_requested, i5 = amount_permitted
+# Outputs: o1 = not_expired, o2 = nonce_valid, o3 = amount_valid, o4 = permit_authorized
+
+# Signature not expired: deadline >= current_timestamp
+notexpired(deadline : bv[16], currentts : bv[16]) := deadline >= currentts.
+
+# Nonce valid: current nonce > previous nonce (strictly increasing)
+noncevalid(currnonce : bv[16], prevnonce : bv[16]) := currnonce > prevnonce.
+
+# Amount valid: requested <= permitted
+amountvalid(requested : bv[16], permitted : bv[16]) := requested <= permitted.
+
+# Permit authorized: all conditions met
+permitauthorized(deadline : bv[16], currentts : bv[16], currnonce : bv[16], prevnonce : bv[16], requested : bv[16], permitted : bv[16]) := notexpired(deadline, currentts) && noncevalid(currnonce, prevnonce) && amountvalid(requested, permitted).
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> notexpired(i1[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> noncevalid(i3[t]:bv[16], i3[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> amountvalid(i4[t]:bv[16], i5[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> permitauthorized(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i3[t-1]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

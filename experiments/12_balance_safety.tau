@@ -1,0 +1,9 @@
+# Experiment 12: Balance safety constraints
+# Ensures balance inputs are non-negative (proper fix for balance_safety_v1.tau)
+
+is_non_negative(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo >= { #x0000 }:bv[16]).
+
+balance_inputs_non_negative(bal_hi : bv[16], bal_lo : bv[16], add_hi : bv[16], add_lo : bv[16], sub_hi : bv[16], sub_lo : bv[16]) := is_non_negative(bal_hi, bal_lo) && is_non_negative(add_hi, add_lo) && is_non_negative(sub_hi, sub_lo).
+
+# i1:i2 = balance_before, i3:i4 = delta_add, i5:i6 = delta_sub
+always (o1[t]:sbf = 1:sbf <-> balance_inputs_non_negative(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16])).

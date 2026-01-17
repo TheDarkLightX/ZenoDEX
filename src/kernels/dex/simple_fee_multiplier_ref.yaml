@@ -1,0 +1,34 @@
+# Reference for simple fee multiplier
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "simple_fee_multiplier_ref"
+
+observables:
+  state_vars: []
+  effects: ["fee_result"]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "calculate"
+    params:
+      - id: "fee_amount"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "fee_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+    guard: { bool: true }
+    updates: []
+    effects:
+      fee_result:
+        op: "div"
+        args:
+          [
+            { op: "*", args: [{ param: "fee_amount" }, { param: "fee_bps" }] },
+            { const: 10000 },
+          ]

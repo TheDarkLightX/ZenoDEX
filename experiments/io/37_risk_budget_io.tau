@@ -1,0 +1,30 @@
+# Experiment 37: Risk budget state machine (sbf-only, 2-bit budget)
+# Budget starts at 3 (b1=1,b0=1), decrements on trade (saturating), resets on epoch.
+
+# Inputs
+# i1 trade_req, i2 risk_ok, i3 reset_epoch
+
+i1 : sbf = in file("experiments/io/inputs/trade_req.in")
+i2 : sbf = in file("experiments/io/inputs/risk_ok_budget.in")
+i3 : sbf = in file("experiments/io/inputs/reset_epoch_budget.in")
+
+# Outputs
+# o1 b0, o2 b1, o3 can_trade, o4 trade_fire, o5 cooldown1, o6 cooldown2, o7 cooldown_active
+
+o1 : sbf = out file("experiments/io/outputs/budget_b0.out")
+o2 : sbf = out file("experiments/io/outputs/budget_b1.out")
+o3 : sbf = out file("experiments/io/outputs/can_trade.out")
+o4 : sbf = out file("experiments/io/outputs/trade_fire.out")
+o5 : sbf = out file("experiments/io/outputs/cooldown1.out")
+o6 : sbf = out file("experiments/io/outputs/cooldown2.out")
+o7 : sbf = out file("experiments/io/outputs/cooldown_active_budget.out")
+
+r (o1[0] = 1:sbf) && (o2[0] = 1:sbf) && (o5[0] = 0:sbf) && (o6[0] = 0:sbf) && (o7[0] = 0:sbf) &&
+  (o3[t] = (i1[t] & i2[t] & o7[t-1]' & (o1[t-1] | o2[t-1]))) &&
+  (o4[t] = (i1[t] & o3[t])) &&
+  (o1[t] = (i3[t] | (o4[t]' & o1[t-1]) | (o4[t] & o2[t-1] & o1[t-1]'))) &&
+  (o2[t] = (i3[t] | (o4[t]' & o2[t-1]) | (o4[t] & o2[t-1] & o1[t-1]))) &&
+  (o5[t] = i3[t]' & o4[t]) &&
+  (o6[t] = i3[t]' & o5[t-1]) &&
+  (o7[t] = i3[t]' & (o5[t-1] | o6[t-1]))
+q

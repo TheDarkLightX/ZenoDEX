@@ -1,0 +1,14 @@
+# Experiment 13: Complete DEX specification
+# Combines CPMM, batching, and balance safety
+
+# === CPMM Core ===
+fee_bps_valid(fee : bv[16]) := (fee >= { #x0000 }:bv[16]) && (fee <= { #x2710 }:bv[16]).
+
+is_positive_32(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+
+value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > hi2) || (hi1 = hi2 && lo1 >= lo2).
+
+swap_valid(res_in_hi : bv[16], res_in_lo : bv[16], res_out_hi : bv[16], res_out_lo : bv[16], amt_in_hi : bv[16], amt_in_lo : bv[16], fee : bv[16], amt_out_hi : bv[16], amt_out_lo : bv[16]) := is_positive_32(res_in_hi, res_in_lo) && is_positive_32(res_out_hi, res_out_lo) && is_positive_32(amt_in_hi, amt_in_lo) && fee_bps_valid(fee) && is_positive_32(amt_out_hi, amt_out_lo) && value_gte_32(res_out_hi, res_out_lo, amt_out_hi, amt_out_lo).
+
+# Swap validation: i1-i9 map to reserves, amounts, fee
+always (o1[t]:sbf = 1:sbf <-> swap_valid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16])).

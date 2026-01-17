@@ -1,0 +1,26 @@
+# Spec 63: Price Impact Bound Enforcer
+# NOVEL: Enforces maximum price impact per trade to protect traders
+# Rejects trades that would cause excessive slippage
+# Uses constant product invariant to bound price movement
+#
+# Inputs: i1 = reserve_a, i2 = reserve_b, i3 = amount_in, i4 = max_impact_pct
+# Outputs: o1 = impact_calculated, o2 = impact_acceptable, o3 = trade_allowed, o4 = reserves_healthy
+
+# Price impact approximation for constant product AMM:
+# impact % ≈ amount_in / reserve_in * 100
+# Cross-mult: impact_acceptable if amount_in * 100 / max_impact <= reserve_a
+
+# Impact acceptable: amount_in * 100 < reserve_a * max_impact
+impactacceptable(amountin : bv[16], reservea : bv[16], maximpact : bv[16]) := amountin * { #x0064 }:bv[16] < reservea * maximpact.
+
+# Reserves healthy: both reserves above minimum threshold (100 units)
+reserveshealthy(resa : bv[16], resb : bv[16]) := (resa > { #x0064 }:bv[16]) && (resb > { #x0064 }:bv[16]).
+
+# Trade allowed: impact acceptable AND reserves healthy
+tradeallowed(amountin : bv[16], resa : bv[16], resb : bv[16], maximpact : bv[16]) := impactacceptable(amountin, resa, maximpact) && reserveshealthy(resa, resb).
+
+# Impact calculated: simplified impact indicator
+# High impact if amount > 5% of reserve
+highimpact(amountin : bv[16], reserve : bv[16]) := amountin * { #x0014 }:bv[16] > reserve.
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> highimpact(i3[t]:bv[16], i1[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> impactacceptable(i3[t]:bv[16], i1[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> tradeallowed(i3[t]:bv[16], i1[t]:bv[16], i2[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> reserveshealthy(i1[t]:bv[16], i2[t]:bv[16])).

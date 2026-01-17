@@ -1,0 +1,10 @@
+# Spec 106: Ecosystem Composite Gate
+# Pattern: AND-composition of module validity flags
+# Inputs: i1=dex_ok, i2=fee_split_ok, i3=burn_ok, i4=stake_ok, i5=tier_ok, i6=discount_ok, i7=buffer_ok
+# Output: o1=ecosystem_ok
+
+is_true(x : sbf) := x = 1:sbf.
+
+ecosystem_ok(dex_ok : sbf, fee_ok : sbf, burn_ok : sbf, stake_ok : sbf, tier_ok : sbf, discount_ok : sbf, buffer_ok : sbf) := is_true(dex_ok) && is_true(fee_ok) && is_true(burn_ok) && is_true(stake_ok) && is_true(tier_ok) && is_true(discount_ok) && is_true(buffer_ok).
+
+always (o1[t]:sbf = 1:sbf <-> ecosystem_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf)).

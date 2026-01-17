@@ -1,0 +1,49 @@
+{
+  "synth_version": "1.1",
+  "backend": { "kind": "sygus", "solver": "cvc5", "timeout_ms": 60000 },
+  "scope": { "kind": "inductive", "domain_caps": "from_model" },
+  "holes": [
+    {
+      "hole_id": "fee_calc_expr",
+      "kind": "expr",
+      "type": "Int",
+      "used_in": [
+        { "action": "calculate_and_collect", "field": "total_fees_collected" },
+        { "action": "calculate_and_collect", "field": "fee_calculated" }
+      ],
+      "grammar_id": "G_fee",
+      "semantic_constraints": [
+        "result >= 0",
+        "result <= fee_amount"
+      ]
+    }
+  ],
+  "grammars": [
+    {
+      "grammar_id": "G_fee",
+      "start": "Expr",
+      "productions": {
+        "Const": ["0", "1", "10", "100", "1000", "10000"],
+        "PosConst": ["1", "10", "100", "1000", "10000"],
+        "Term": ["fee_amount", "fee_bps", "(* fee_amount Const)", "(* Const fee_bps)", "(* fee_amount fee_bps)"],
+        "Lin": ["Const", "Term", "(+ Lin Term)", "(- Lin Term)"],
+        "Guard": ["(<= Lin Lin)", "(and Guard Guard)"],
+        "Expr": ["Lin", "(safe_div Lin PosConst)", "(ite Guard Expr Expr)"]
+      }
+    }
+  ],
+  "style_profile": {
+    "max_nesting": 2,
+    "max_branches": 1,
+    "max_ast_nodes": 8,
+    "penalties": {
+      "branch": 5,
+      "nesting": 10,
+      "ast_node": 1
+    }
+  },
+  "objective": {
+    "kind": "lexicographic",
+    "goals": ["SATISFY", "MINIMIZE_COST"]
+  }
+}

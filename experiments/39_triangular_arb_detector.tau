@@ -1,0 +1,35 @@
+# Spec 39: Triangular Arbitrage Detector
+# NOVEL: Enforces no-arbitrage invariant across 3 trading pairs simultaneously
+# Given pairs A/B, B/C, A/C: if price_AB * price_BC != price_AC (within tolerance), arbitrage exists
+# Uses cross-multiplication to avoid division: p_AB * p_BC * scale vs p_AC * scale^2
+#
+# Inputs: i1 = price_AB (A per B), i2 = price_BC (B per C), i3 = price_AC (A per C)
+# All prices scaled by 1000 (e.g., 1.5 = 1500)
+# Outputs: o1 = arb_exists, o2 = arb_direction (0=buy_path, 1=sell_path), o3 = magnitude
+
+# Cross-multiplication: p_AB * p_BC should equal p_AC * 1000 (scale factor)
+# Tolerance: 1% = 10 in scaled units
+# arb_exists if |p_AB * p_BC - p_AC * 1000| > tolerance * p_AC
+
+# Product of two prices (watch for overflow - use smaller scale)
+# p_AB * p_BC gives price of A per C via B path
+
+# Arbitrage check: compare direct path vs indirect path
+# Direct: p_AC (A per C directly)
+# Indirect: p_AB * p_BC / 1000 (A per C via B)
+# Cross-mult: p_AB * p_BC vs p_AC * 1000
+
+# Difference check with 1% tolerance
+# |indirect - direct| > 0.01 * direct
+# |p_AB * p_BC - p_AC * 1000| > p_AC * 10
+
+arbexists(pab : bv[16], pbc : bv[16], pac : bv[16]) := (pab * pbc > pac * { #x03E8 }:bv[16] + pac * { #x000A }:bv[16]) || (pab * pbc + pac * { #x000A }:bv[16] < pac * { #x03E8 }:bv[16]).
+
+# Direction: 0 = indirect path cheaper (buy via B), 1 = direct path cheaper (sell via B)
+arbdir(pab : bv[16], pbc : bv[16], pac : bv[16]) := pab * pbc > pac * { #x03E8 }:bv[16].
+
+# Magnitude: |indirect - direct| / 1000 (approximate profit in scaled units)
+# We output a boolean flag for "large arb" (> 2% profit)
+largearb(pab : bv[16], pbc : bv[16], pac : bv[16]) := (pab * pbc > pac * { #x03E8 }:bv[16] + pac * { #x0014 }:bv[16]) || (pab * pbc + pac * { #x0014 }:bv[16] < pac * { #x03E8 }:bv[16]).
+
+always (o1[t]:sbf = 1:sbf <-> arbexists(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> arbdir(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> largearb(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

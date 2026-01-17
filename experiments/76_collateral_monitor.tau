@@ -1,0 +1,27 @@
+# Spec 76: Collateral Ratio Health Monitor
+# NOVEL: Monitors collateralization ratio for lending positions
+# Detects undercollateralization before liquidation threshold
+# Uses temporal analysis to detect deteriorating positions
+#
+# Inputs: i1 = collateral_value, i2 = debt_value, i3 = min_ratio_pct (e.g., 150 = 150%)
+# Outputs: o1 = ratio_healthy, o2 = ratio_warning, o3 = ratio_critical, o4 = position_deteriorating
+
+# Collateral ratio = collateral_value * 100 / debt_value
+# Healthy: ratio >= min_ratio (e.g., >= 150%)
+# collateral * 100 >= debt * min_ratio
+ratiohealthy(collateral : bv[16], debt : bv[16], minratio : bv[16]) := (debt = { #x0000 }:bv[16]) || (collateral * { #x0064 }:bv[16] >= debt * minratio).
+
+# Warning: ratio between 100% and min_ratio (undercollateralized but not liquidatable)
+# collateral * 100 >= debt * 100 AND collateral * 100 < debt * min_ratio
+ratiowarning(collateral : bv[16], debt : bv[16], minratio : bv[16]) := (debt > { #x0000 }:bv[16]) && (collateral * { #x0064 }:bv[16] >= debt * { #x0064 }:bv[16]) && (collateral * { #x0064 }:bv[16] < debt * minratio).
+
+# Critical: ratio below 100% (underwater, immediate liquidation)
+# collateral * 100 < debt * 100
+ratiocritical(collateral : bv[16], debt : bv[16]) := (debt > { #x0000 }:bv[16]) && (collateral < debt).
+
+# Position deteriorating: ratio decreased from previous step
+# (collateral[t] / debt[t]) < (collateral[t-1] / debt[t-1])
+# Cross-mult: collateral[t] * debt[t-1] < collateral[t-1] * debt[t]
+positiondeteriorating(currcoll : bv[16], currdebt : bv[16], prevcoll : bv[16], prevdebt : bv[16]) := currcoll * prevdebt < prevcoll * currdebt.
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> ratiohealthy(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> ratiowarning(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> ratiocritical(i1[t]:bv[16], i2[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> positiondeteriorating(i1[t]:bv[16], i2[t]:bv[16], i1[t-1]:bv[16], i2[t-1]:bv[16])).

@@ -1,0 +1,26 @@
+# Spec 80: Protocol Fee Distribution Validator
+# NOVEL: Validates fair distribution of trading fees to stakeholders
+# Ensures fee splits match protocol rules (LP/Treasury/Stakers)
+# Detects fee leakage or manipulation over time
+#
+# Inputs: i1 = total_fees, i2 = lp_share, i3 = treasury_share, 
+#         i4 = staker_share, i5 = lp_pct (expected LP percentage)
+# Outputs: o1 = shares_sum_valid, o2 = lp_share_correct, o3 = no_leakage, o4 = distribution_fair
+
+# Shares sum to total: lp + treasury + staker = total_fees
+sharessumvalid(total : bv[16], lp : bv[16], treasury : bv[16], staker : bv[16]) := lp + treasury + staker = total.
+
+# LP share correct: LP gets expected percentage
+# lp_share * 100 >= total * lp_pct AND lp_share * 100 <= total * (lp_pct + 1)
+lpsharecorrect(total : bv[16], lpshare : bv[16], lppct : bv[16]) := (lpshare * { #x0064 }:bv[16] >= total * lppct) && (lpshare * { #x0064 }:bv[16] <= total * (lppct + { #x0001 }:bv[16])).
+
+# No leakage: all fees accounted for (sum equals total)
+noleakage(total : bv[16], lp : bv[16], treasury : bv[16], staker : bv[16]) := lp + treasury + staker = total.
+
+# Distribution fair: all conditions met
+distributionfair(total : bv[16], lp : bv[16], treasury : bv[16], staker : bv[16], lppct : bv[16]) := sharessumvalid(total, lp, treasury, staker) && lpsharecorrect(total, lp, lppct).
+
+# Treasury capped: treasury takes max 20% of fees
+treasurycapped(total : bv[16], treasury : bv[16]) := treasury * { #x0005 }:bv[16] <= total.
+
+always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> sharessumvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> lpsharecorrect(i1[t]:bv[16], i2[t]:bv[16], i5[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> noleakage(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> distributionfair(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).

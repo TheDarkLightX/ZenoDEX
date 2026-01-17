@@ -1,0 +1,57 @@
+# Spec 40: Volatility Bucket Gate (auction + median + drift + breaker + fee tiers + sandwich + CPMM + nonce + risk)
+# Inputs:
+# i1..i4 = batch IDs (canonical order)
+# i5..i8 = bid1, bid2, ask1, ask2
+# i9 = clearing price
+# i10 = price stream (curr, prev, prev2 via t-1, t-2)
+# i11..i13 = oracle1, oracle2, oracle3
+# i14 = claimed_median
+# i15 = drift_delta
+# i16 = nonce
+# i17 = fee
+# i18..i21 = cpmm_rx, cpmm_ry, cpmm_net, cpmm_out
+# i22 = trade_req (sbf), i23 = risk_ok (sbf), i24 = reset (sbf), i25 = debit
+# Outputs:
+# o1=canonical_ok o2=auction_ok o3=median_ok o4=drift_ok o5..o7=breaker_chain o8=fee_ok o9=no_sandwich
+# o10=cpmm_ok o11=nonce_ok o12=budget o13=trade_ok o14=exec o15..o17=cooldown o18=all_valid
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d).
+auction_ok(b1 : bv[16], b2 : bv[16], a1 : bv[16], a2 : bv[16], clear : bv[16]) := ((b1 >= a1) && (clear >= a1) && (clear <= b1)) || ((b1 >= a2) && (clear >= a2) && (clear <= b1)) || ((b2 >= a1) && (clear >= a1) && (clear <= b2)) || ((b2 >= a2) && (clear >= a2) && (clear <= b2)).
+between(x : bv[16], a : bv[16], b : bv[16]) := ((a <= x) && (x <= b)) || ((b <= x) && (x <= a)).
+ismedian(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := between(m, a, b) && between(m, b, c) && between(m, a, c).
+equalsinput(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := (m = a) || (m = b) || (m = c).
+median_valid(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := ismedian(a, b, c, m) && equalsinput(a, b, c, m).
+diff_lt(curr : bv[16], prev : bv[16], thr : bv[16]) := ((curr >= prev) && (curr - prev < thr)) || ((curr < prev) && (prev - curr < thr)).
+diff_le(curr : bv[16], prev : bv[16], thr : bv[16]) := ((curr >= prev) && (curr - prev <= thr)) || ((curr < prev) && (prev - curr <= thr)).
+low(curr : bv[16], prev : bv[16]) := diff_lt(curr, prev, { #x0032 }:bv[16]).
+mid(curr : bv[16], prev : bv[16]) := (!low(curr, prev)) && diff_le(curr, prev, { #x00C8 }:bv[16]).
+high(curr : bv[16], prev : bv[16]) := !diff_le(curr, prev, { #x00C8 }:bv[16]).
+feeok(curr : bv[16], prev : bv[16], fee : bv[16]) := (low(curr, prev) && fee >= { #x000A }:bv[16]) || (mid(curr, prev) && fee >= { #x0019 }:bv[16]) || (high(curr, prev) && fee >= { #x0032 }:bv[16]).
+drift_ok(price : bv[16], med : bv[16], delta : bv[16]) := diff_le(price, med, delta).
+isspike(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 > p0) && (p1 > p2).
+nosandwich(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := !isspike(p0, p1, p2).
+cpmm_ok(rx : bv[16], ry : bv[16], net : bv[16], out : bv[16]) := (out * (rx + net) <= net * ry).
+nonce_ok(curr : bv[16], prev : bv[16]) := curr > prev.
+cantrade(req : sbf, risk : sbf, cd : sbf, bal : bv[16], debit : bv[16]) := (req = 1:sbf) && (risk = 1:sbf) && (cd = 0:sbf) && (bal >= debit).
+
+always (o1[t]:sbf = 1:sbf <-> canonical(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> auction_ok(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> median_valid(i11[t]:bv[16], i12[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> drift_ok(i10[t]:bv[16], i14[t]:bv[16], i15[t]:bv[16])) &&
+  (o5[0]:sbf = 0:sbf) && (o6[0]:sbf = 0:sbf) && (o7[0]:sbf = 0:sbf) &&
+  (o5[t]:sbf = 1:sbf <-> low(i10[t]:bv[16], i10[t-1]:bv[16])) &&
+  (o6[t]:sbf = o5[t-1]:sbf) && (o7[t]:sbf = o5[t] & o6[t]) &&
+  (o8[t]:sbf = 1:sbf <-> feeok(i10[t]:bv[16], i10[t-1]:bv[16], i17[t]:bv[16])) &&
+  (o9[t]:sbf = 1:sbf <-> nosandwich(i10[t-2]:bv[16], i10[t-1]:bv[16], i10[t]:bv[16])) &&
+  (o10[t]:sbf = 1:sbf <-> cpmm_ok(i18[t]:bv[16], i19[t]:bv[16], i20[t]:bv[16], i21[t]:bv[16])) &&
+  (o11[0]:sbf = 0:sbf) && (o11[t]:sbf = 1:sbf <-> nonce_ok(i16[t]:bv[16], i16[t-1]:bv[16])) &&
+  (o12[0]:bv[16] = { #x0064 }:bv[16]) && (o15[0]:sbf = 0:sbf) && (o16[0]:sbf = 0:sbf) && (o17[0]:sbf = 0:sbf) &&
+  (o13[t]:sbf = 1:sbf <-> cantrade(i22[t]:sbf, i23[t]:sbf, o17[t-1]:sbf, o12[t-1]:bv[16], i25[t]:bv[16])) &&
+  (o14[t]:sbf = i22[t]:sbf & o13[t]:sbf) &&
+  (((i24[t]:sbf = 1:sbf) && (o12[t]:bv[16] = { #x0064 }:bv[16])) ||
+   ((i24[t]:sbf = 0:sbf) && (o14[t]:sbf = 1:sbf) && (o12[t]:bv[16] = o12[t-1]:bv[16] - i25[t]:bv[16])) ||
+   ((i24[t]:sbf = 0:sbf) && (o14[t]:sbf = 0:sbf) && (o12[t]:bv[16] = o12[t-1]:bv[16]))) &&
+  (((i24[t]:sbf = 1:sbf) && (o15[t]:sbf = 0:sbf)) || ((i24[t]:sbf = 0:sbf) && (o15[t]:sbf = o14[t]:sbf))) &&
+  (((i24[t]:sbf = 1:sbf) && (o16[t]:sbf = 0:sbf)) || ((i24[t]:sbf = 0:sbf) && (o16[t]:sbf = o15[t-1]:sbf))) &&
+  (((i24[t]:sbf = 1:sbf) && (o17[t]:sbf = 0:sbf)) || ((i24[t]:sbf = 0:sbf) && (o17[t]:sbf = o15[t-1]:sbf | o16[t-1]:sbf))) &&
+  (o18[t]:sbf = o1[t] & o2[t] & o3[t] & o4[t] & o7[t] & o8[t] & o9[t] & o10[t] & o11[t] & o13[t]).

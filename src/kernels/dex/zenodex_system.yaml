@@ -1,0 +1,23 @@
+# [FORGE] system spec v1
+schema: system-spec/v1
+system_id: zenodex_core
+system_version: 1.0.0
+
+modules:
+  - req_id: cpmm_swap
+    req_version: 1.0.0
+    alias: swap
+  - req_id: liquidity_pool
+    req_version: 1.0.0
+    alias: lp
+  - req_id: vault_manager
+    req_version: 1.0.0
+    alias: vault
+
+global_invariants:
+  - name: stake_consistency
+    expr: "vault.staked_lp_shares <= lp.total_lp_shares"
+  - name: value_preservation
+    # NOTE: This file is a non-normative system sketch (system-spec schema), not a kernel spec file.
+    # Keep invariants consistent with the currently exported module interfaces.
+    expr: "0 < swap.reserve_x * swap.reserve_y"

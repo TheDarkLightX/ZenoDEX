@@ -1,0 +1,84 @@
+# [FORGE] ZenoDEX oracle freshness guard kernel spec
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "oracle_freshness"
+  notes: "Oracle staleness guard for ZenoDEX"
+observables:
+  state_vars: ["price_timestamp", "current_timestamp", "max_staleness_seconds"]
+  effects: ["is_fresh"]
+types: []
+state_vars:
+  - id: "price_timestamp"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2147483648 }
+  - id: "current_timestamp"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2147483648 }
+  - id: "max_staleness_seconds"
+    role: "control"
+    type: { kind: "int", min: 1, max: 86400 }
+invariants:
+  - id: "inv_price_timestamp_le_current"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "price_timestamp" }, { var: "current_timestamp" }]
+init:
+  - var: "price_timestamp"
+    expr: { const: 0 }
+  - var: "current_timestamp"
+    expr: { const: 0 }
+  - var: "max_staleness_seconds"
+    expr: { const: 300 }
+actions:
+  - id: "advance_time"
+    params:
+      - id: "delta_seconds"
+        type: { kind: "int", min: 1, max: 86400 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "current_timestamp" }, { param: "delta_seconds" }]
+        - { const: 2147483648 }
+    updates:
+      - var: "current_timestamp"
+        expr:
+          op: "+"
+          args: [{ var: "current_timestamp" }, { param: "delta_seconds" }]
+    effects:
+      is_fresh:
+        op: "<="
+        args:
+          - op: "-"
+            args: [{ var: "current_timestamp" }, { var: "price_timestamp" }]
+          - { var: "max_staleness_seconds" }
+  - id: "check_freshness"
+    params: []
+    guard:
+      op: "<="
+      args:
+        - op: "-"
+          args: [{ var: "current_timestamp" }, { var: "price_timestamp" }]
+        - { var: "max_staleness_seconds" }
+    updates: []
+    effects:
+      is_fresh:
+        op: "<="
+        args:
+          - op: "-"
+            args: [{ var: "current_timestamp" }, { var: "price_timestamp" }]
+          - { var: "max_staleness_seconds" }
+  - id: "update_price"
+    params: []
+    guard: { bool: true }
+    updates:
+      - var: "price_timestamp"
+        expr: { var: "current_timestamp" }
+    effects:
+      is_fresh:
+        op: "<="
+        args:
+          - op: "-"
+            args: [{ var: "current_timestamp" }, { var: "price_timestamp" }]
+          - { var: "max_staleness_seconds" }

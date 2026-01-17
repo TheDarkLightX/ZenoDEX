@@ -1,0 +1,64 @@
+# Tokenomics Transfer-Tax Split v1 - 32-bit safe variant
+#
+# MUTABILITY: UPDATABLE
+# UPDATABLE_PARAMS: tax_rate_bps (i2), tax_rate_cap_bps (i11), share_bps (i4..i6)
+# IMMUTABLE_INVARIANTS: net + tax = amount, split_sum ~= tax, shares sum to 10000
+#
+# PURPOSE: Validate externally-computed transfer tax, and its split into
+# burn/treasury/reflection buckets using bv[32] amounts with safe-range guards.
+#
+# Stream mapping:
+# i1  = transfer_amount (bv[32])
+# i2  = tax_rate_bps (bv[32])
+# i3  = tax_amount (bv[32])
+# i4  = burn_share_bps (bv[32])
+# i5  = treasury_share_bps (bv[32])
+# i6  = reflection_share_bps (bv[32])
+# i7  = burn_amount (bv[32])
+# i8  = treasury_amount (bv[32])
+# i9  = reflection_amount (bv[32])
+# i10 = net_amount (bv[32])
+# i11 = tax_rate_cap_bps (bv[32])
+# o1  = tax_ok
+# o2  = share_bps_ok
+# o3  = split_ok
+# o4  = tax_split_ok
+# @rule o4: Tax math, share sum, split components, and rounding bounds all pass.
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+rate_ok(rate : bv[32], cap : bv[32]) := (rate <= { #x00002710 }:bv[32]) && (rate <= cap).
+
+safe_range_ok(amount : bv[32], tax : bv[32], net : bv[32], burn : bv[32], treas : bv[32], refl : bv[32]) := (amount <= max_safe_32()) && (tax <= max_safe_32()) && (net <= max_safe_32()) && (burn <= max_safe_32()) && (treas <= max_safe_32()) && (refl <= max_safe_32()).
+
+# out = floor(base * rate / 10000) with rounding tolerance <= 9999/10000
+bps_floor_ok(base : bv[32], rate : bv[32], out : bv[32]) := (out * { #x00002710 }:bv[32] >= base * rate) && (out * { #x00002710 }:bv[32] <= (base * rate) + { #x0000270F }:bv[32]).
+
+shares_sum_ok(b1 : bv[32], b2 : bv[32], b3 : bv[32]) := (b1 + b2 + b3) = { #x00002710 }:bv[32].
+
+# component = floor(tax * share / 10000) with tolerance
+component_ok(tax : bv[32], share : bv[32], component : bv[32]) := (component * { #x00002710 }:bv[32] >= tax * share) && (component * { #x00002710 }:bv[32] <= (tax * share) + { #x0000270F }:bv[32]).
+
+# At most 2 units total rounding loss across 3 components.
+split_sum_ok(burn : bv[32], treas : bv[32], refl : bv[32], tax : bv[32]) := ((burn + treas + refl) <= tax) && ((burn + treas + refl + { #x00000002 }:bv[32]) >= tax).
+
+net_ok(amount : bv[32], tax : bv[32], net : bv[32]) := (amount >= tax) && (net = (amount - tax)).
+
+always
+  # @section: Tax calculation + net
+  (o1[t]:sbf = 1:sbf <-> (rate_ok(i2[t]:bv[32], i11[t]:bv[32]) &&
+    bps_floor_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]) &&
+    net_ok(i1[t]:bv[32], i3[t]:bv[32], i10[t]:bv[32]))) &&
+  # @section: Share math
+  (o2[t]:sbf = 1:sbf <-> (shares_sum_ok(i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32]) &&
+    component_ok(i3[t]:bv[32], i4[t]:bv[32], i7[t]:bv[32]) &&
+    component_ok(i3[t]:bv[32], i5[t]:bv[32], i8[t]:bv[32]) &&
+    component_ok(i3[t]:bv[32], i6[t]:bv[32], i9[t]:bv[32]))) &&
+  # @section: Split sum rounding bounds
+  (o3[t]:sbf = 1:sbf <-> split_sum_ok(i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32], i3[t]:bv[32])) &&
+  # @section: Full module check (includes safe-range guard)
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t] &
+    safe_range_ok(i1[t]:bv[32], i3[t]:bv[32], i10[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32])).

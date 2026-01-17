@@ -1,0 +1,5 @@
+# Experiment 01: Basic echo - output mirrors input
+# This is the simplest possible Tau spec
+# i1 is input, o1 is output
+
+always o1[t] = i1[t].

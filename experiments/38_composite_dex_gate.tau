@@ -1,0 +1,31 @@
+# Spec 38: Composite DEX Gate - Ultimate Protection
+# Combines: Circuit Breaker + Median Oracle + Adaptive Fee + Sandwich Detection
+# Novel: Multi-layer defense with spec-to-spec composition pattern
+# Inputs: i1=price, i2=oracle1, i3=oracle2, i4=oracle3, i5=claimed_median, i6=fee
+# Outputs: o1=breaker_ok, o2=median_ok, o3=fee_ok, o4=no_sandwich, o5=all_valid
+
+# === Layer 1: Circuit Breaker (3-step hysteresis) ===
+calm(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr < { #x0032 }:bv[16])).
+
+# === Layer 2: Median Oracle Validation ===
+between(x : bv[16], a : bv[16], b : bv[16]) := ((a <= x) && (x <= b)) || ((b <= x) && (x <= a)).
+ismedian(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := between(m, a, b) && between(m, b, c) && between(m, a, c).
+equalsinput(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := (m = a) || (m = b) || (m = c).
+median_valid(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := ismedian(a, b, c, m) && equalsinput(a, b, c, m).
+
+# === Layer 3: Adaptive Fee ===
+stable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr < { #x0032 }:bv[16])).
+feeok(curr : bv[16], prev : bv[16], fee : bv[16]) := (stable(curr, prev) && fee >= { #x000A }:bv[16]) || (!stable(curr, prev) && fee >= { #x0032 }:bv[16]).
+
+# === Layer 4: Sandwich Detection ===
+isspike(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 > p0) && (p1 > p2).
+nosandwich(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := !isspike(p0, p1, p2).
+
+# === Composite Output ===
+# o1: breaker open (3 consecutive calm steps)
+# o2: median oracle valid
+# o3: fee appropriate for volatility
+# o4: no sandwich attack detected
+# o5: ALL gates pass (trade allowed)
+
+always (o1[0]:sbf = 0:sbf) && (o1[1]:sbf = o6[1]:sbf & o7[1]:sbf & o8[1]:sbf) && (o2[0]:sbf = 0:sbf) && (o2[1]:sbf = 1:sbf <-> median_valid(i2[1]:bv[16], i3[1]:bv[16], i4[1]:bv[16], i5[1]:bv[16])) && (o3[0]:sbf = 0:sbf) && (o3[1]:sbf = 1:sbf <-> feeok(i1[1]:bv[16], i1[0]:bv[16], i6[1]:bv[16])) && (o4[0]:sbf = 0:sbf) && (o4[1]:sbf = 0:sbf) && (o5[0]:sbf = 0:sbf) && (o5[1]:sbf = 0:sbf) && (o6[0]:sbf = 0:sbf) && (o6[1]:sbf = 1:sbf <-> calm(i1[1]:bv[16], i1[0]:bv[16])) && (o7[0]:sbf = 0:sbf) && (o7[1]:sbf = o6[0]:sbf) && (o8[0]:sbf = 0:sbf) && (o8[1]:sbf = o7[0]:sbf) && (o6[t]:sbf = 1:sbf <-> calm(i1[t]:bv[16], i1[t-1]:bv[16])) && (o7[t]:sbf = o6[t-1]:sbf) && (o8[t]:sbf = o7[t-1]:sbf) && (o1[t]:sbf = o6[t] & o7[t] & o8[t]) && (o2[t]:sbf = 1:sbf <-> median_valid(i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> feeok(i1[t]:bv[16], i1[t-1]:bv[16], i6[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> nosandwich(i1[t-2]:bv[16], i1[t-1]:bv[16], i1[t]:bv[16])) && (o5[t]:sbf = o1[t] & o2[t] & o3[t] & o4[t]).

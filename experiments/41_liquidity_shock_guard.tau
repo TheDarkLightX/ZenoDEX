@@ -1,0 +1,46 @@
+# Spec 41: Liquidity Shock Guard (canonical + CPMM hi/lo + reserve shock + median + stability + fee + sandwich + risk)
+# Inputs:
+# i1..i4 = batch IDs (canonical order)
+# i5..i12 = resx_hi, resx_lo, resy_hi, resy_lo, net_hi, net_lo, out_hi, out_lo
+# i13 = price stream (curr, prev, prev2 via t-1, t-2)
+# i14..i16 = oracle1, oracle2, oracle3
+# i17 = claimed_median
+# i18 = fee
+# i19 = trade_req (sbf), i20 = risk_ok (sbf), i21 = reset (sbf), i22 = debit
+# Outputs:
+# o1=canonical_ok o2=cpmm_ok o3=shock_ok o4=stable o5=median_ok o6=fee_ok o7=no_sandwich
+# o8=budget o9=trade_ok o10=exec o11..o13=cooldown o14=all_valid
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d).
+hiok(h : bv[16]) := h = { #x0000 }:bv[16].
+ispos(hi : bv[16], lo : bv[16]) := (hi > { #x0000 }:bv[16]) || (hi = { #x0000 }:bv[16] && lo > { #x0000 }:bv[16]).
+cpmm_valid(resx_hi : bv[16], resx_lo : bv[16], resy_hi : bv[16], resy_lo : bv[16], net_hi : bv[16], net_lo : bv[16], out_hi : bv[16], out_lo : bv[16]) := hiok(resx_hi) && hiok(resy_hi) && hiok(net_hi) && hiok(out_hi) && ispos(resx_hi, resx_lo) && ispos(resy_hi, resy_lo) && ispos(net_hi, net_lo) && ispos(out_hi, out_lo) && (out_lo * (resx_lo + net_lo) <= net_lo * resy_lo).
+half_ok(res : bv[16], amt : bv[16]) := (amt + amt) <= res.
+shock_ok(resx_lo : bv[16], resy_lo : bv[16], net_lo : bv[16], out_lo : bv[16]) := half_ok(resx_lo, net_lo) && half_ok(resy_lo, out_lo).
+between(x : bv[16], a : bv[16], b : bv[16]) := ((a <= x) && (x <= b)) || ((b <= x) && (x <= a)).
+ismedian(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := between(m, a, b) && between(m, b, c) && between(m, a, c).
+equalsinput(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := (m = a) || (m = b) || (m = c).
+median_valid(a : bv[16], b : bv[16], c : bv[16], m : bv[16]) := ismedian(a, b, c, m) && equalsinput(a, b, c, m).
+stable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr < { #x0032 }:bv[16])).
+feeok(curr : bv[16], prev : bv[16], fee : bv[16]) := (stable(curr, prev) && fee >= { #x000A }:bv[16]) || (!stable(curr, prev) && fee >= { #x0032 }:bv[16]).
+isspike(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := (p1 > p0) && (p1 > p2).
+nosandwich(p0 : bv[16], p1 : bv[16], p2 : bv[16]) := !isspike(p0, p1, p2).
+cantrade(req : sbf, risk : sbf, cd : sbf, bal : bv[16], debit : bv[16]) := (req = 1:sbf) && (risk = 1:sbf) && (cd = 0:sbf) && (bal >= debit).
+
+always (o1[t]:sbf = 1:sbf <-> canonical(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> cpmm_valid(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> shock_ok(i6[t]:bv[16], i8[t]:bv[16], i10[t]:bv[16], i12[t]:bv[16])) &&
+  (o4[t]:sbf = 1:sbf <-> stable(i13[t]:bv[16], i13[t-1]:bv[16])) &&
+  (o5[t]:sbf = 1:sbf <-> median_valid(i14[t]:bv[16], i15[t]:bv[16], i16[t]:bv[16], i17[t]:bv[16])) &&
+  (o6[t]:sbf = 1:sbf <-> feeok(i13[t]:bv[16], i13[t-1]:bv[16], i18[t]:bv[16])) &&
+  (o7[t]:sbf = 1:sbf <-> nosandwich(i13[t-2]:bv[16], i13[t-1]:bv[16], i13[t]:bv[16])) &&
+  (o8[0]:bv[16] = { #x0064 }:bv[16]) && (o11[0]:sbf = 0:sbf) && (o12[0]:sbf = 0:sbf) && (o13[0]:sbf = 0:sbf) &&
+  (o9[t]:sbf = 1:sbf <-> cantrade(i19[t]:sbf, i20[t]:sbf, o13[t-1]:sbf, o8[t-1]:bv[16], i22[t]:bv[16])) &&
+  (o10[t]:sbf = i19[t]:sbf & o9[t]:sbf) &&
+  (((i21[t]:sbf = 1:sbf) && (o8[t]:bv[16] = { #x0064 }:bv[16])) ||
+   ((i21[t]:sbf = 0:sbf) && (o10[t]:sbf = 1:sbf) && (o8[t]:bv[16] = o8[t-1]:bv[16] - i22[t]:bv[16])) ||
+   ((i21[t]:sbf = 0:sbf) && (o10[t]:sbf = 0:sbf) && (o8[t]:bv[16] = o8[t-1]:bv[16]))) &&
+  (((i21[t]:sbf = 1:sbf) && (o11[t]:sbf = 0:sbf)) || ((i21[t]:sbf = 0:sbf) && (o11[t]:sbf = o10[t]:sbf))) &&
+  (((i21[t]:sbf = 1:sbf) && (o12[t]:sbf = 0:sbf)) || ((i21[t]:sbf = 0:sbf) && (o12[t]:sbf = o11[t-1]:sbf))) &&
+  (((i21[t]:sbf = 1:sbf) && (o13[t]:sbf = 0:sbf)) || ((i21[t]:sbf = 0:sbf) && (o13[t]:sbf = o11[t-1]:sbf | o12[t-1]:sbf))) &&
+  (o14[t]:sbf = o1[t] & o2[t] & o3[t] & o4[t] & o5[t] & o6[t] & o7[t] & o9[t]).
