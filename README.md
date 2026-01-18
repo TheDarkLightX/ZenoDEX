@@ -172,7 +172,7 @@ Cryptography provides authenticity and tamper evidence. Verification can be:
 In Tau Testnet Alpha, the main integrity anchors are:
 - **Signed blocks (PoA)**: block signatures can be verified with BLS keys.
 - **State commitments**: `header.state_hash` commits to rules text and an accounts snapshot hash, and may include an application `app_hash`.
-- **Optional state proofs**: a DHT record `state_proof:<state_hash>` can carry a ZK proof of the DEX transition (opt-in, fail-closed).
+- **Optional state proofs**: a DHT record `state_proof:<state_hash>` can carry a ZK proof of the DEX transition (opt-in, fail-closed). In this repo, "state proof" means a proof of correct state transition, not a Merkle inclusion proof.
 
 ### What “verified computation” looks like on Tau Testnet Alpha (today)
 Tau Testnet Alpha (`external/tau-testnet`) is a hybrid system:
