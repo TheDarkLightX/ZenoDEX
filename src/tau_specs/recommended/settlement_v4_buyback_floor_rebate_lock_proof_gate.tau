@@ -1,0 +1,42 @@
+# Settlement v4 buyback floor rebate lock-weight (proof-gated)
+#
+# Extends settlement v1 rails with externally verified buyback, fixed-point, rebate,
+# and lock-weight checks.
+#
+# Inputs:
+# i1..i7 = same as settlement v1 proof gate
+# i8 = cpmm_ok (sbf)
+# i9 = balance_ok (sbf)
+# i10 = token_ok (sbf)
+# i11 = buyback_floor_ok (sbf)
+# i12 = buyback_floor_fixedpoint_ok (sbf)
+# i13 = rebate_ok (sbf)
+# i14 = lock_weight_ok (sbf)
+# i15 = proof_ok (sbf)
+# i16 = binding_ok (sbf)
+# Outputs:
+# o1..o10 = component checks
+# o11 = settlement_ok
+
+set charvar off
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d).
+no_sandwich(pp : bv[16], p : bv[16], c : bv[16]) := ((pp <= p) && (p <= c)) || ((pp >= p) && (p >= c)).
+stable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr < { #x0032 }:bv[16])).
+
+always
+  (o1[t]:sbf = 1:sbf <-> canonical(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> no_sandwich(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> stable(i7[t]:bv[16], i6[t]:bv[16])) &&
+
+  # externally verified checks
+  (o4[t]:sbf = i8[t]:sbf) &&
+  (o5[t]:sbf = i9[t]:sbf) &&
+  (o6[t]:sbf = i10[t]:sbf) &&
+  (o7[t]:sbf = i11[t]:sbf) &&
+  (o8[t]:sbf = i12[t]:sbf) &&
+  (o9[t]:sbf = i13[t]:sbf) &&
+  (o10[t]:sbf = i14[t]:sbf) &&
+
+  # final gate
+  (o11[t]:sbf = o1[t]:sbf & o2[t]:sbf & o3[t]:sbf & o4[t]:sbf & o5[t]:sbf & o6[t]:sbf & o7[t]:sbf & o8[t]:sbf & o9[t]:sbf & o10[t]:sbf & i15[t]:sbf & i16[t]:sbf).

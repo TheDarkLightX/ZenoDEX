@@ -22,8 +22,7 @@
 
 set charvar off
 
-# floor((2^32-1)/10000)
-max_safe_32() := { #x00068DB8 }:bv[32].
+# max_safe_32 = floor((2^32-1)/10000) = 0x00068DB8
 
 shares_sum_ok(b1 : bv[32], b2 : bv[32], b3 : bv[32]) := (b1 + b2 + b3) = { #x00002710 }:bv[32].
 
@@ -33,7 +32,7 @@ component_ok(fee : bv[32], share : bv[32], component : bv[32]) := (component * {
 # At most 2 units total rounding loss across 3 components.
 split_sum_ok(buyback : bv[32], treas : bv[32], rewards : bv[32], fee : bv[32]) := ((buyback + treas + rewards) <= fee) && ((buyback + treas + rewards + { #x00000002 }:bv[32]) >= fee).
 
-safe_range_ok(fee : bv[32], buyback : bv[32], treas : bv[32], rewards : bv[32]) := (fee <= max_safe_32()) && (buyback <= max_safe_32()) && (treas <= max_safe_32()) && (rewards <= max_safe_32()).
+safe_range_ok(fee : bv[32], buyback : bv[32], treas : bv[32], rewards : bv[32]) := (fee <= { #x00068DB8 }:bv[32]) && (buyback <= { #x00068DB8 }:bv[32]) && (treas <= { #x00068DB8 }:bv[32]) && (rewards <= { #x00068DB8 }:bv[32]).
 
 always
   # @section: Share sum + per-component math
@@ -41,4 +40,5 @@ always
   (o2[t]:sbf = 1:sbf <-> (component_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32]) && component_ok(i1[t]:bv[32], i3[t]:bv[32], i6[t]:bv[32]) && component_ok(i1[t]:bv[32], i4[t]:bv[32], i7[t]:bv[32]))) &&
   # @section: Split sum + safe-range guard
   (o3[t]:sbf = 1:sbf <-> split_sum_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i1[t]:bv[32])) &&
-  (o4[t]:sbf = o1[t] & o2[t] & o3[t] & safe_range_ok(i1[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])).
+  # NOTE: `safe_range_ok` is a wff, so we keep the final gate purely in wff space.
+  (o4[t]:sbf = 1:sbf <-> (o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && (o3[t]:sbf = 1:sbf) && safe_range_ok(i1[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])).

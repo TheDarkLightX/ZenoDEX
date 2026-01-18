@@ -30,6 +30,9 @@
 
 # Calculate expected burn from transfers: transfer_volume * burn_rate / 10000
 # Simplified: volume * 50 / 10000 = volume / 200
+
+set charvar off
+
 transferburn(volume : bv[16], burn : bv[16]) := (burn * { #x00C8 }:bv[16] <= volume) && (volume < burn * { #x00C8 }:bv[16] + { #x00C8 }:bv[16]).
 
 # Supply above floor
@@ -48,4 +51,5 @@ economicsvalid(supply : bv[16], minsupply : bv[16], transfervol : bv[16]) := sup
 # Burn rate should be less than supply - floor
 tokenomicssustainable(supply : bv[16], minsupply : bv[16], transfervol : bv[16], swapvol : bv[16]) := (supply > minsupply) && ((transfervol + swapvol) / { #x00C8 }:bv[16] < supply - minsupply).
 
-always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> economicsvalid(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> deflationactive(i1[t]:bv[16], i1[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> supplyhealthy(i1[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> tokenomicssustainable(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).
+always
+  (o1[t]:sbf = 1:sbf <-> economicsvalid(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16])) && (o2[t]:sbf = 1:sbf <-> deflationactive(i1[t]:bv[16], i1[t-1]:bv[16])) && (o3[t]:sbf = 1:sbf <-> supplyhealthy(i1[t]:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> tokenomicssustainable(i1[t]:bv[16], i4[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])).

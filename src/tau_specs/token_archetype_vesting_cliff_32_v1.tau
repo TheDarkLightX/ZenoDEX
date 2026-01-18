@@ -20,8 +20,7 @@
 
 set charvar off
 
-# floor((2^32-1)/10000)
-max_safe_32() := { #x00068DB8 }:bv[32].
+# max_safe_32 = floor((2^32-1)/10000) = 0x00068DB8
 
 rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
 
@@ -31,11 +30,12 @@ bounds_ok(total : bv[32], vested : bv[32], claim : bv[32]) := (vested <= total) 
 
 cap_ok(total : bv[32], cap_amount : bv[32], cap_bps : bv[32]) := rate_ok(cap_bps) && (cap_amount * { #x00002710 }:bv[32] <= (total * cap_bps) + { #x0000270F }:bv[32]).
 
-safe_range_ok(total : bv[32], vested : bv[32], claim : bv[32], cap_amount : bv[32]) := (total <= max_safe_32()) && (vested <= max_safe_32()) && (claim <= max_safe_32()) && (cap_amount <= max_safe_32()).
+safe_range_ok(total : bv[32], vested : bv[32], claim : bv[32], cap_amount : bv[32]) := (total <= { #x00068DB8 }:bv[32]) && (vested <= { #x00068DB8 }:bv[32]) && (claim <= { #x00068DB8 }:bv[32]) && (cap_amount <= { #x00068DB8 }:bv[32]).
 
 always
   # @section: Cliff gate + bounds
   (o1[t]:sbf = 1:sbf <-> cliff_ok(i4[t]:sbf, i2[t]:bv[32], i3[t]:bv[32])) &&
   (o2[t]:sbf = 1:sbf <-> (bounds_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]) && cap_ok(i1[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32]))) &&
   # @section: Full module check (includes safe-range guard)
-  (o3[t]:sbf = o1[t] & o2[t] & safe_range_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32])).
+  # FIX: Changed from bitwise & to logical && with biconditional
+  (o3[t]:sbf = 1:sbf <-> (o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && safe_range_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32])).

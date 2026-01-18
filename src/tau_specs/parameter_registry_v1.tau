@@ -34,22 +34,22 @@ always
   (o1[t]:sbf = 1:sbf <-> gate_ok(i1[t]:sbf, i2[t]:sbf)) &&
 
   # economic rates
-  apply_param(o1[t], i3[t]:bv[16], i4[t]:bv[16], o2[t]) &&
-  apply_param(o1[t], i5[t]:bv[16], i6[t]:bv[16], o3[t]) &&
-  apply_param(o1[t], i7[t]:bv[16], i8[t]:bv[16], o4[t]) &&
+  apply_param(o1[t]:sbf, i3[t]:bv[16], i4[t]:bv[16], o2[t]:bv[16]) &&
+  apply_param(o1[t]:sbf, i5[t]:bv[16], i6[t]:bv[16], o3[t]:bv[16]) &&
+  apply_param(o1[t]:sbf, i7[t]:bv[16], i8[t]:bv[16], o4[t]:bv[16]) &&
 
   # supply floor (hi/lo)
-  apply_param(o1[t], i9[t]:bv[16], i11[t]:bv[16], o5[t]) &&
-  apply_param(o1[t], i10[t]:bv[16], i12[t]:bv[16], o6[t]) &&
+  apply_param(o1[t]:sbf, i9[t]:bv[16], i11[t]:bv[16], o5[t]:bv[16]) &&
+  apply_param(o1[t]:sbf, i10[t]:bv[16], i12[t]:bv[16], o6[t]:bv[16]) &&
 
   # fixed-point unit scale
-  apply_param(o1[t], i13[t]:bv[16], i14[t]:bv[16], o7[t]) &&
+  apply_param(o1[t]:sbf, i13[t]:bv[16], i14[t]:bv[16], o7[t]:bv[16]) &&
 
   # lock tiers
-  apply_param(o1[t], i15[t]:bv[16], i16[t]:bv[16], o8[t]) &&
-  apply_param(o1[t], i17[t]:bv[16], i18[t]:bv[16], o9[t]) &&
+  apply_param(o1[t]:sbf, i15[t]:bv[16], i16[t]:bv[16], o8[t]:bv[16]) &&
+  apply_param(o1[t]:sbf, i17[t]:bv[16], i18[t]:bv[16], o9[t]:bv[16]) &&
 
   # lock weights
-  apply_param(o1[t], i19[t]:bv[16], i20[t]:bv[16], o10[t]) &&
-  apply_param(o1[t], i21[t]:bv[16], i22[t]:bv[16], o11[t]) &&
-  apply_param(o1[t], i23[t]:bv[16], i24[t]:bv[16], o12[t]).
+  apply_param(o1[t]:sbf, i19[t]:bv[16], i20[t]:bv[16], o10[t]:bv[16]) &&
+  apply_param(o1[t]:sbf, i21[t]:bv[16], i22[t]:bv[16], o11[t]:bv[16]) &&
+  apply_param(o1[t]:sbf, i23[t]:bv[16], i24[t]:bv[16], o12[t]:bv[16]).

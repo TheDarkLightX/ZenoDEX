@@ -9,16 +9,18 @@
 # moves involving itself.
 #
 # Stream mapping:
-# i1 = from_id
-# i2 = to_id
-# i3 = issuer_id
-# i4 = do_transfer
-# i5 = do_mint
-# i6 = do_burn
+# i1 = from_id (bv[16])
+# i2 = to_id (bv[16])
+# i3 = issuer_id (bv[16])
+# i4 = do_transfer (sbf)
+# i5 = do_mint (sbf)
+# i6 = do_burn (sbf)
 # o1 = transfer_allowed
 # o2 = mint_allowed
 # o3 = burn_allowed
 # o4 = soulbound_ok
+
+set charvar off
 
 one_hot_3(a : sbf, b : sbf, c : sbf) := ((a = 1:sbf) && (b = 0:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 1:sbf) && (c = 0:sbf)) || ((a = 0:sbf) && (b = 0:sbf) && (c = 1:sbf)).
 
@@ -30,7 +32,8 @@ mint_allowed(do_mint : sbf, from : bv[16], issuer : bv[16]) := (do_mint = 0:sbf)
 
 burn_allowed(do_burn : sbf, to : bv[16], issuer : bv[16]) := (do_burn = 0:sbf) || (to = issuer).
 
-soulbound_ok(from : bv[16], to : bv[16], issuer : bv[16], a : sbf, b : sbf, c : sbf) := (one_hot_3(a, b, c) = 1:sbf) && transfer_allowed(a, from, to, issuer) && mint_allowed(b, from, issuer) && burn_allowed(c, to, issuer).
+# FIX: Changed from (one_hot_3(a, b, c) = 1:sbf) to just one_hot_3(a, b, c)
+soulbound_ok(from : bv[16], to : bv[16], issuer : bv[16], a : sbf, b : sbf, c : sbf) := one_hot_3(a, b, c) && transfer_allowed(a, from, to, issuer) && mint_allowed(b, from, issuer) && burn_allowed(c, to, issuer).
 
 always (o1[t]:sbf = 1:sbf <-> transfer_allowed(i4[t]:sbf, i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16])) &&
   (o2[t]:sbf = 1:sbf <-> mint_allowed(i5[t]:sbf, i1[t]:bv[16], i3[t]:bv[16])) &&

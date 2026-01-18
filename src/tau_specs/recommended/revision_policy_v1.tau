@@ -49,7 +49,31 @@ ge_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := (a_hi > b_h
 le_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16]) := ge_32(b_hi, b_lo, a_hi, a_lo).
 
 floor_bounds_ok(n_hi : bv[16], n_lo : bv[16], min_hi : bv[16], min_lo : bv[16], max_hi : bv[16], max_lo : bv[16]) := ge_32(n_hi, n_lo, min_hi, min_lo) && le_32(n_hi, n_lo, max_hi, max_lo).
-floor_step_ok(c_hi : bv[16], c_lo : bv[16], n_hi : bv[16], n_lo : bv[16], step_hi : bv[16], step_lo : bv[16]) := abs_diff_ok(c_hi, n_hi, step_hi) && abs_diff_ok(c_lo, n_lo, step_lo).
+
+# Floor step check:
+# Original v1 checked abs_diff_ok per limb, which incorrectly rejects cross-carry
+# increments for small step sizes (e.g. 0x0000FFFF -> 0x00010000 with step=1).
+#
+# This corrected check is still bounded and Tau-executable without introducing
+# auxiliary witness variables:
+# - If hi differs within step_hi AND lo differs within step_lo, accept (original behavior).
+# - Additionally, when step_hi=0, allow a single-limb carry across the 16-bit boundary:
+#   hi differs by exactly 1 and the wrapped low-limb delta is within step_lo.
+floor_step_ok(c_hi : bv[16], c_lo : bv[16], n_hi : bv[16], n_lo : bv[16], step_hi : bv[16], step_lo : bv[16]) :=
+  (
+    (abs_diff_ok(c_hi, n_hi, step_hi) && abs_diff_ok(c_lo, n_lo, step_lo))
+    ||
+    (
+      (step_hi = { #x0000 }:bv[16]) &&
+      (
+        # increasing across carry: c=...FFFF, n=...0000, hi+1
+        ((n_hi = (c_hi + { #x0001 }:bv[16])) && ((n_lo - c_lo) <= step_lo))
+        ||
+        # decreasing across borrow: c=...0000, n=...FFFF, hi-1
+        ((c_hi = (n_hi + { #x0001 }:bv[16])) && ((c_lo - n_lo) <= step_lo))
+      )
+    )
+  ).
 
 # Governance / timelock
 delay_ok(proposal_ts : bv[16], current_ts : bv[16], min_delay : bv[16]) := current_ts >= (proposal_ts + min_delay).

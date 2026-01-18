@@ -1,0 +1,46 @@
+# TDEX buyback + burn with minimum supply floor (v2)
+#
+# Purpose: make Tau enforcement tractable by avoiding expensive arithmetic (mul/mod).
+# - Tau enforces the supply floor logic deterministically.
+# - Host/verifier supplies rate/share checks as sbf flags.
+#
+# Stream mapping:
+# i1 = trade_amount (bv[32])        # optional binding input
+# i2 = fee_charged (bv[32])         # optional binding input
+# i3 = buyback_amount (bv[32])
+# i4 = burned_amount (bv[32])
+# i5 = supply_before (bv[32])
+# i6 = supply_after (bv[32])
+# i7 = supply_floor (bv[32])
+# i8 = fee_rate_ok (sbf)            # externally verified
+# i9 = buyback_share_ok (sbf)       # externally verified
+# o1 = fee_rate_ok
+# o2 = buyback_share_ok
+# o3 = burn_floor_ok
+# o4 = buyback_ok
+
+set charvar off
+
+floor_reached(supply_before : bv[32], floor : bv[32]) := (supply_before <= floor).
+
+burn_floor_ok(
+  supply_before : bv[32],
+  supply_after : bv[32],
+  floor : bv[32],
+  buyback_amount : bv[32],
+  burned_amount : bv[32]
+) :=
+  (floor_reached(supply_before, floor) ->
+   ((burned_amount = { #x00000000 }:bv[32]) &&
+    (supply_after = supply_before))) &&
+  (!floor_reached(supply_before, floor) ->
+   ((burned_amount = buyback_amount) &&
+    (burned_amount <= supply_before) &&
+    (supply_after = supply_before - burned_amount) &&
+    (supply_after >= floor))).
+
+always
+  (o1[t]:sbf = i8[t]:sbf) &&
+  (o2[t]:sbf = i9[t]:sbf) &&
+  (o3[t]:sbf = 1:sbf <-> burn_floor_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o4[t]:sbf = o1[t] & o2[t] & o3[t]).
