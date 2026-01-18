@@ -1,0 +1,76 @@
+{
+  "determinism_trials": 20,
+  "kernels": [
+    {
+      "ce_corpus_path": "src/kernels/dex/ce_corpus_cpmm_swap.jsonl",
+      "expected_ce_corpus_sha256": "0a97f7a5ebe6843e2071e9d11227173cee0e4493b37f7a07a453c6b49ab2bd76",
+      "expected_ir_hash": "sha256:95dd8740ce38b990736bdf59d060104a5626f429181a3414b0a6085101f71d73",
+      "kernel_path": "src/kernels/dex/cpmm_swap.yaml",
+      "min_boundary_per_action": 10,
+      "min_corpus_total": 200,
+      "min_per_action": 50,
+      "model_id": "cpmm_swap",
+      "required_actions": [
+        "swap_x_for_y",
+        "swap_y_for_x"
+      ],
+      "required_invariants": [
+        "inv_reserve_x_bounded",
+        "inv_reserve_y_bounded",
+        "inv_k_non_decreasing"
+      ],
+      "required_reference_checks": [
+        "cpmm_swap_python_core_parity"
+      ],
+      "solvers": [
+        "cvc5"
+      ]
+    },
+    {
+      "ce_corpus_path": "src/kernels/dex/ce_corpus_liquidity_pool.jsonl",
+      "expected_ce_corpus_sha256": "46c87303844550abf4179d3b2e1f075ec8478e893940c73cf9ce27cdb100e37b",
+      "expected_ir_hash": "sha256:3db4b93a7dec89a2d5b84b76997eec165d03f2b6c74033185a1f15a12471cc46",
+      "kernel_path": "src/kernels/dex/liquidity_pool.yaml",
+      "min_boundary_per_action": 10,
+      "min_corpus_total": 200,
+      "min_per_action": 50,
+      "model_id": "liquidity_pool",
+      "required_actions": [
+        "add_liquidity",
+        "remove_liquidity"
+      ],
+      "required_invariants": [
+        "inv_lp_supply_positive_when_reserves_positive",
+        "inv_reserve_a_bounded",
+        "inv_reserve_b_bounded"
+      ],
+      "required_reference_checks": [
+        "liquidity_pool_python_core_parity"
+      ],
+      "solvers": [
+        "cvc5"
+      ]
+    }
+  ],
+  "manifest_version": 1,
+  "notes": "Normative, fail-closed kernel assurance manifest for ZenoDEX. toolchain.esso_code_hash is the git commit of external/ESSO used for verification; update it only alongside a successful `python3 tools/dex_kernel_assurance.py` run. Any change to kernels/corpora requires updating this file alongside regenerated artifacts.",
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "solvers": [
+    "z3",
+    "cvc5"
+  ],
+  "timeout_ms": 30000,
+  "toolchain": {
+    "esso_code_hash": "b851d1de990ca3dfc61a940dedaac492a1c8b9a0",
+    "solvers": {
+      "cvc5": "This is cvc5 version 1.1.2",
+      "z3": "4.15.4"
+    }
+  }
+}
