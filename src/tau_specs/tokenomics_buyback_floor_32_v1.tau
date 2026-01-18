@@ -22,8 +22,7 @@
 
 set charvar off
 
-# floor((2^32-1)/10000)
-max_safe_32() := { #x00068DB8 }:bv[32].
+# max_safe_32 = floor((2^32-1)/10000) = 0x00068DB8
 
 # buyback = floor(fee * share / 10000) with tolerance
 buyback_calc_ok(fee : bv[32], share : bv[32], buyback : bv[32]) := (buyback * { #x00002710 }:bv[32] >= fee * share) && (buyback * { #x00002710 }:bv[32] <= (fee * share) + { #x0000270F }:bv[32]).
@@ -34,7 +33,7 @@ supply_update_ok(s_before : bv[32], s_after : bv[32], burn : bv[32]) := (s_befor
 
 floor_ok(s_after : bv[32], floor : bv[32]) := s_after >= floor.
 
-safe_range_ok(fee : bv[32], buyback : bv[32]) := (fee <= max_safe_32()) && (buyback <= max_safe_32()).
+safe_range_ok(fee : bv[32], buyback : bv[32]) := (fee <= { #x00068DB8 }:bv[32]) && (buyback <= { #x00068DB8 }:bv[32]).
 
 always
   # @section: Buyback allocation
@@ -43,4 +42,5 @@ always
   (o2[t]:sbf = 1:sbf <-> burn_amount_ok(i4[t]:bv[32], i3[t]:bv[32])) &&
   (o3[t]:sbf = 1:sbf <-> (supply_update_ok(i5[t]:bv[32], i6[t]:bv[32], i4[t]:bv[32]) && floor_ok(i6[t]:bv[32], i7[t]:bv[32]))) &&
   # @section: Full module check (includes safe-range guard)
-  (o4[t]:sbf = o1[t] & o2[t] & o3[t] & safe_range_ok(i1[t]:bv[32], i3[t]:bv[32])).
+  # FIX: Changed from bitwise & to logical && with biconditional
+  (o4[t]:sbf = 1:sbf <-> (o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && (o3[t]:sbf = 1:sbf) && safe_range_ok(i1[t]:bv[32], i3[t]:bv[32])).

@@ -1,0 +1,45 @@
+#
+# token_archetype_vesting_cliff_32_v2.tau
+#
+# Purpose:
+# - Fast, trace-executable vesting+cliff gate.
+# - Heavy arithmetic (e.g., cap derivation / proportional claim checks) is done
+#   outside Tau and attested via proof_ok + binding_ok (hybrid design).
+#
+# Inputs:
+#   i1: total_allocation (bv[16])     -- bounded to avoid Tau BDD blowups/crashes
+#   i2: vested_amount (bv[16])
+#   i3: claim_amount (bv[16])
+#   i4: cliff_reached (sbf)
+#   i5: claim_cap_amount (bv[16])    -- externally derived cap for this claim
+#   i6: max_claim_bps (bv[16])       -- policy knob, expected <= 10000
+#   i7: proof_ok (sbf)
+#   i8: binding_ok (sbf)
+#
+# Outputs:
+#   o1: cliff_ok
+#   o2: bounds_ok
+#   o3: vesting_ok (full gate)
+#
+
+always
+  # o1: cliff reached and claim <= vested
+  (o1[t]:sbf = 1:sbf <-> ((i4[t]:sbf = 1:sbf) && (i3[t]:bv[16] <= i2[t]:bv[16]))) &&
+  # o2: bounds + cap (cap math attested externally; we only enforce claim<=cap and max_bps<=10000)
+  (o2[t]:sbf = 1:sbf <->
+    ((i2[t]:bv[16] <= i1[t]:bv[16]) &&
+     (i3[t]:bv[16] <= i1[t]:bv[16]) &&
+     (i6[t]:bv[16] <= { 10000 }:bv[16]) &&
+     (i3[t]:bv[16] <= i5[t]:bv[16]))) &&
+  (o3[t]:sbf = 1:sbf <->
+    ((o1[t]:sbf = 1:sbf) &&
+     (o2[t]:sbf = 1:sbf) &&
+     # trace-safe bounds
+     ((i1[t]:bv[16]) <= { 65534 }:bv[16]) &&
+     ((i2[t]:bv[16]) <= { 65534 }:bv[16]) &&
+     ((i3[t]:bv[16]) <= { 65534 }:bv[16]) &&
+     ((i5[t]:bv[16]) <= { 65534 }:bv[16]) &&
+     # hybrid attestation
+     (i7[t]:sbf = 1:sbf) &&
+     (i8[t]:sbf = 1:sbf))).
+

@@ -44,18 +44,20 @@ add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[1
 
 sub_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], diff_hi : bv[16], diff_lo : bv[16]) := (diff_lo = (a_lo - b_lo)) && (((a_lo < b_lo) -> (diff_hi = (a_hi - b_hi - { #x0001 }:bv[16]))) && (!(a_lo < b_lo) -> (diff_hi = (a_hi - b_hi)))).
 
-supply_eq() := (i13[t]:bv[16] = i5[t]:bv[16]) && (i14[t]:bv[16] = i6[t]:bv[16]).
+token_supply_eq(s_hi : bv[16], s_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := (s2_hi = s_hi) && (s2_lo = s_lo).
 
-supply_inc_by_amount() := add_32(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16]).
+token_supply_inc(s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := add_32(s_hi, s_lo, a_hi, a_lo, s2_hi, s2_lo).
 
-supply_dec_by_amount() := sub_32(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16]).
+token_supply_dec(s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := sub_32(s_hi, s_lo, a_hi, a_lo, s2_hi, s2_lo).
 
-transfer_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && sub_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16]) && add_32(i3[t]:bv[16], i4[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && supply_eq().
+token_transfer_valid(f_hi : bv[16], f_lo : bv[16], t_hi : bv[16], t_lo : bv[16], s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], f2_hi : bv[16], f2_lo : bv[16], t2_hi : bv[16], t2_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := is_positive_32(a_hi, a_lo) && sub_32(f_hi, f_lo, a_hi, a_lo, f2_hi, f2_lo) && add_32(t_hi, t_lo, a_hi, a_lo, t2_hi, t2_lo) && token_supply_eq(s_hi, s_lo, s2_hi, s2_lo).
 
-mint_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && (i9[t]:bv[16] = i1[t]:bv[16]) && (i10[t]:bv[16] = i2[t]:bv[16]) && add_32(i3[t]:bv[16], i4[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && supply_inc_by_amount().
+token_mint_valid(f_hi : bv[16], f_lo : bv[16], t_hi : bv[16], t_lo : bv[16], s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], f2_hi : bv[16], f2_lo : bv[16], t2_hi : bv[16], t2_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := is_positive_32(a_hi, a_lo) && (f2_hi = f_hi) && (f2_lo = f_lo) && add_32(t_hi, t_lo, a_hi, a_lo, t2_hi, t2_lo) && token_supply_inc(s_hi, s_lo, a_hi, a_lo, s2_hi, s2_lo).
 
-burn_valid() := is_positive_32(i7[t]:bv[16], i8[t]:bv[16]) && sub_32(i1[t]:bv[16], i2[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16]) && (i11[t]:bv[16] = i3[t]:bv[16]) && (i12[t]:bv[16] = i4[t]:bv[16]) && supply_dec_by_amount().
+token_burn_valid(f_hi : bv[16], f_lo : bv[16], t_hi : bv[16], t_lo : bv[16], s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], f2_hi : bv[16], f2_lo : bv[16], t2_hi : bv[16], t2_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16]) := is_positive_32(a_hi, a_lo) && sub_32(f_hi, f_lo, a_hi, a_lo, f2_hi, f2_lo) && (t2_hi = t_hi) && (t2_lo = t_lo) && token_supply_dec(s_hi, s_lo, a_hi, a_lo, s2_hi, s2_lo).
+
+token_ok(f_hi : bv[16], f_lo : bv[16], t_hi : bv[16], t_lo : bv[16], s_hi : bv[16], s_lo : bv[16], a_hi : bv[16], a_lo : bv[16], f2_hi : bv[16], f2_lo : bv[16], t2_hi : bv[16], t2_lo : bv[16], s2_hi : bv[16], s2_lo : bv[16], do_tr : sbf, do_m : sbf, do_b : sbf) := one_hot_3(do_tr, do_m, do_b) && ((do_tr = 1:sbf && token_transfer_valid(f_hi, f_lo, t_hi, t_lo, s_hi, s_lo, a_hi, a_lo, f2_hi, f2_lo, t2_hi, t2_lo, s2_hi, s2_lo)) || (do_m = 1:sbf && token_mint_valid(f_hi, f_lo, t_hi, t_lo, s_hi, s_lo, a_hi, a_lo, f2_hi, f2_lo, t2_hi, t2_lo, s2_hi, s2_lo)) || (do_b = 1:sbf && token_burn_valid(f_hi, f_lo, t_hi, t_lo, s_hi, s_lo, a_hi, a_lo, f2_hi, f2_lo, t2_hi, t2_lo, s2_hi, s2_lo))).
 
 always
   # @section: Token transition validity
-  (o1[t]:sbf = 1:sbf <-> ((one_hot_3(i15[t]:sbf, i16[t]:sbf, i17[t]:sbf) = 1:sbf) && (((i15[t]:sbf = 1:sbf) && transfer_valid()) || ((i16[t]:sbf = 1:sbf) && mint_valid()) || ((i17[t]:sbf = 1:sbf) && burn_valid())))).
+  (o1[t]:sbf = 1:sbf <-> token_ok(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16], i13[t]:bv[16], i14[t]:bv[16], i15[t]:sbf, i16[t]:sbf, i17[t]:sbf)).

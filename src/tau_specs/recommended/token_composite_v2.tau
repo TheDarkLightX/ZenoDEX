@@ -1,0 +1,23 @@
+# Token composite v2 (proof-gated)
+#
+# Purpose: keep the on-chain Tau policy simple and deterministic.
+# Host/verifier supplies the feature evaluation flags and a proof binding flag.
+#
+# Stream mapping:
+# i1 = burn_allowed (sbf)
+# i2 = never_zero_guaranteed (sbf)
+# i3 = feature_config_valid (sbf)
+# i4 = proof_ok (sbf)
+# i5 = binding_ok (sbf)
+# o1 = burn_allowed
+# o2 = never_zero_guaranteed
+# o3 = feature_config_valid
+# o4 = composite_valid
+
+set charvar off
+
+always
+  (o1[t]:sbf = i1[t]:sbf) &&
+  (o2[t]:sbf = i2[t]:sbf) &&
+  (o3[t]:sbf = i3[t]:sbf) &&
+  (o4[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf).

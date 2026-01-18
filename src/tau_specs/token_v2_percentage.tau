@@ -32,6 +32,9 @@
 # Burn calculation: burn = amount * rate / 10000
 # For 0.5%: burn = amount * 50 / 10000
 # Implicit floor: burn = 0 when amount < 200
+
+set charvar off
+
 burnvalid(amount : bv[16], rate : bv[16], burn : bv[16]) := burn = (amount * rate) / { #x2710 }:bv[16].
 
 # Transfer valid: sender has sufficient balance
@@ -49,4 +52,5 @@ implicitfloorreached(amount : bv[16], rate : bv[16]) := (amount * rate) / { #x27
 # Supply decreasing: supply[t] < supply[t-1]
 supplydecreasing(curr : bv[16], prev : bv[16]) := curr < prev.
 
-always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> burnvalid(i1[t]:bv[16], i3[t]:bv[16], (i1[t]:bv[16] * i3[t]:bv[16]) / { #x2710 }:bv[16])) && (o2[t]:sbf = 1:sbf <-> transfervalid(i5[t]:bv[16], i1[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> floorprotected(i2[t]:bv[16], (i1[t]:bv[16] * i3[t]:bv[16]) / { #x2710 }:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> zenocomplete(i5[t]:bv[16], i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).
+always
+  (o1[t]:sbf = 1:sbf <-> burnvalid(i1[t]:bv[16], i3[t]:bv[16], (i1[t]:bv[16] * i3[t]:bv[16]) / { #x2710 }:bv[16])) && (o2[t]:sbf = 1:sbf <-> transfervalid(i5[t]:bv[16], i1[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> floorprotected(i2[t]:bv[16], (i1[t]:bv[16] * i3[t]:bv[16]) / { #x2710 }:bv[16], i4[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> zenocomplete(i5[t]:bv[16], i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])).

@@ -1,0 +1,41 @@
+# Settlement v1 (proof-gated)
+#
+# Purpose: provide a Tau-executable settlement gate that keeps expensive arithmetic
+# out of Tau. Tau enforces ordering and price rails; host/verifier supplies the
+# remaining checks as sbf flags (fail-closed).
+#
+# Inputs:
+# i1..i4 = order ids (canonical)
+# i5..i7 = price prevprev/prev/curr (binding inputs)
+# i8 = cpmm_ok (sbf)          # externally verified
+# i9 = balance_ok (sbf)       # externally verified
+# i10 = token_ok (sbf)        # externally verified
+# i11 = proof_ok (sbf)
+# i12 = binding_ok (sbf)
+# Outputs:
+# o1 = canonical_ok
+# o2 = no_sandwich_ok
+# o3 = stable_ok
+# o4 = cpmm_ok
+# o5 = balance_ok
+# o6 = token_ok
+# o7 = settlement_ok
+
+set charvar off
+
+canonical(a : bv[16], b : bv[16], c : bv[16], d : bv[16]) := (a < b) && (b < c) && (c < d).
+no_sandwich(pp : bv[16], p : bv[16], c : bv[16]) := ((pp <= p) && (p <= c)) || ((pp >= p) && (p >= c)).
+stable(curr : bv[16], prev : bv[16]) := ((curr >= prev) && (curr - prev < { #x0032 }:bv[16])) || ((curr < prev) && (prev - curr < { #x0032 }:bv[16])).
+
+always
+  (o1[t]:sbf = 1:sbf <-> canonical(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16])) &&
+  (o2[t]:sbf = 1:sbf <-> no_sandwich(i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <-> stable(i7[t]:bv[16], i6[t]:bv[16])) &&
+
+  # externally verified checks
+  (o4[t]:sbf = i8[t]:sbf) &&
+  (o5[t]:sbf = i9[t]:sbf) &&
+  (o6[t]:sbf = i10[t]:sbf) &&
+
+  # final gate (fail-closed on proof/binding)
+  (o7[t]:sbf = o1[t]:sbf & o2[t]:sbf & o3[t]:sbf & o4[t]:sbf & o5[t]:sbf & o6[t]:sbf & i11[t]:sbf & i12[t]:sbf).

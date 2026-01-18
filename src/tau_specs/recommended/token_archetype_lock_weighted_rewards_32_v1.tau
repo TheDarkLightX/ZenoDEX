@@ -35,4 +35,4 @@ always
   (o1[t]:sbf = 1:sbf <-> (rate_ok(i2[t]:bv[32]) && weight_calc_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))) &&
   # @section: Reward caps + safe-range guard
   (o2[t]:sbf = 1:sbf <-> reward_ok(i3[t]:bv[32], i4[t]:bv[32])) &&
-  (o3[t]:sbf = o1[t] & o2[t] & safe_range_ok(i1[t]:bv[32], i3[t]:bv[32])).
+  (o3[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && safe_range_ok(i1[t]:bv[32], i3[t]:bv[32]))).

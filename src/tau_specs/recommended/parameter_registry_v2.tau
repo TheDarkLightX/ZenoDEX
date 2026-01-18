@@ -1,0 +1,41 @@
+# Parameter registry v2 (proof-gated)
+#
+# Purpose: apply externally computed parameter updates under a simple Tau gate.
+# Detailed parameter transition validation is performed by the host/verifier (and
+# optionally backed by a proof); Tau requires fail-closed flags.
+#
+# Inputs:
+# i1 = exec_req (sbf)
+# i2 = revision_ok (sbf)
+# i3 = fee_applied (bv[16])
+# i4 = buyback_applied (bv[16])
+# i5 = rebate_applied (bv[16])
+# i6..i7 = floor_applied_hi/lo (bv[16])
+# i8 = unit_applied (bv[16])
+# i9 = tier1_applied (bv[16])
+# i10 = tier2_applied (bv[16])
+# i11 = weight1_applied (bv[16])
+# i12 = weight2_applied (bv[16])
+# i13 = weight3_applied (bv[16])
+# i14 = proof_ok (sbf)
+# i15 = binding_ok (sbf)
+#
+# Outputs:
+# o1 = gate_ok
+# o2..o12 = applied values (echoed)
+
+set charvar off
+
+always
+  (o1[t]:sbf = i1[t]:sbf & i2[t]:sbf & i14[t]:sbf & i15[t]:sbf) &&
+  (o2[t]:bv[16] = i3[t]:bv[16]) &&
+  (o3[t]:bv[16] = i4[t]:bv[16]) &&
+  (o4[t]:bv[16] = i5[t]:bv[16]) &&
+  (o5[t]:bv[16] = i6[t]:bv[16]) &&
+  (o6[t]:bv[16] = i7[t]:bv[16]) &&
+  (o7[t]:bv[16] = i8[t]:bv[16]) &&
+  (o8[t]:bv[16] = i9[t]:bv[16]) &&
+  (o9[t]:bv[16] = i10[t]:bv[16]) &&
+  (o10[t]:bv[16] = i11[t]:bv[16]) &&
+  (o11[t]:bv[16] = i12[t]:bv[16]) &&
+  (o12[t]:bv[16] = i13[t]:bv[16]).

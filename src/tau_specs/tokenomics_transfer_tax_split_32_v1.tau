@@ -27,12 +27,11 @@
 
 set charvar off
 
-# floor((2^32-1)/10000)
-max_safe_32() := { #x00068DB8 }:bv[32].
+# max_safe_32 = floor((2^32-1)/10000) = 0x00068DB8
 
 rate_ok(rate : bv[32], cap : bv[32]) := (rate <= { #x00002710 }:bv[32]) && (rate <= cap).
 
-safe_range_ok(amount : bv[32], tax : bv[32], net : bv[32], burn : bv[32], treas : bv[32], refl : bv[32]) := (amount <= max_safe_32()) && (tax <= max_safe_32()) && (net <= max_safe_32()) && (burn <= max_safe_32()) && (treas <= max_safe_32()) && (refl <= max_safe_32()).
+safe_range_ok(amount : bv[32], tax : bv[32], net : bv[32], burn : bv[32], treas : bv[32], refl : bv[32]) := (amount <= { #x00068DB8 }:bv[32]) && (tax <= { #x00068DB8 }:bv[32]) && (net <= { #x00068DB8 }:bv[32]) && (burn <= { #x00068DB8 }:bv[32]) && (treas <= { #x00068DB8 }:bv[32]) && (refl <= { #x00068DB8 }:bv[32]).
 
 # out = floor(base * rate / 10000) with rounding tolerance <= 9999/10000
 bps_floor_ok(base : bv[32], rate : bv[32], out : bv[32]) := (out * { #x00002710 }:bv[32] >= base * rate) && (out * { #x00002710 }:bv[32] <= (base * rate) + { #x0000270F }:bv[32]).
@@ -60,5 +59,6 @@ always
   # @section: Split sum rounding bounds
   (o3[t]:sbf = 1:sbf <-> split_sum_ok(i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32], i3[t]:bv[32])) &&
   # @section: Full module check (includes safe-range guard)
-  (o4[t]:sbf = o1[t] & o2[t] & o3[t] &
+  # NOTE: `safe_range_ok` is a wff, so we keep the final gate purely in wff space.
+  (o4[t]:sbf = 1:sbf <-> (o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && (o3[t]:sbf = 1:sbf) &&
     safe_range_ok(i1[t]:bv[32], i3[t]:bv[32], i10[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32], i9[t]:bv[32])).

@@ -1,0 +1,30 @@
+# Revision policy v2 (proof-gated)
+#
+# Purpose: keep the on-chain Tau policy simple and deterministic. The host/verifier
+# computes the detailed policy checks (bounds, step sizes, delays) and supplies:
+# - governance_ok (sbf)
+# - revision_ok (sbf)
+# - proof_ok (sbf)
+# - binding_ok (sbf)
+#
+# Stream mapping:
+# i1 = approved (sbf)
+# i2 = exec_req (sbf)
+# i3 = governance_ok (sbf)
+# i4 = revision_ok (sbf)
+# i5 = proof_ok (sbf)
+# i6 = binding_ok (sbf)
+# o1 = approved
+# o2 = exec_req
+# o3 = governance_ok
+# o4 = revision_ok
+# o10 = revision_policy_ok
+
+set charvar off
+
+always
+  (o1[t]:sbf = i1[t]:sbf) &&
+  (o2[t]:sbf = i2[t]:sbf) &&
+  (o3[t]:sbf = i3[t]:sbf) &&
+  (o4[t]:sbf = i4[t]:sbf) &&
+  (o10[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf).

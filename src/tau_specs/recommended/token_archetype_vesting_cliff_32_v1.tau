@@ -38,4 +38,4 @@ always
   (o1[t]:sbf = 1:sbf <-> cliff_ok(i4[t]:sbf, i2[t]:bv[32], i3[t]:bv[32])) &&
   (o2[t]:sbf = 1:sbf <-> (bounds_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]) && cap_ok(i1[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32]))) &&
   # @section: Full module check (includes safe-range guard)
-  (o3[t]:sbf = o1[t] & o2[t] & safe_range_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32])).
+  (o3[t]:sbf = 1:sbf <-> ((o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && safe_range_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32]))).

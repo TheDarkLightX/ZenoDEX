@@ -57,7 +57,8 @@ delay_ok(proposal_ts : bv[16], current_ts : bv[16], min_delay : bv[16]) := curre
 always
   # governance + timelock
   (o1[t]:sbf = 1:sbf <-> delay_ok(i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])) &&
-  (o2[t]:sbf = (i2[t]:sbf = 0:sbf) || (i1[t]:sbf = 1:sbf && o1[t])) &&
+  # FIX: Changed from direct assignment to biconditional with proper logical &&
+  (o2[t]:sbf = 1:sbf <-> ((i2[t]:sbf = 0:sbf) || ((i1[t]:sbf = 1:sbf) && (o1[t]:sbf = 1:sbf)))) &&
 
   # rate caps + step bounds
   (o3[t]:sbf = 1:sbf <-> param_update_ok(i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16])) &&
@@ -75,4 +76,5 @@ always
   (o9[t]:sbf = 1:sbf <-> (param_update_ok(i46[t]:bv[16], i47[t]:bv[16], i48[t]:bv[16], i49[t]:bv[16], i50[t]:bv[16]) && param_update_ok(i51[t]:bv[16], i52[t]:bv[16], i53[t]:bv[16], i54[t]:bv[16], i55[t]:bv[16]) && param_update_ok(i56[t]:bv[16], i57[t]:bv[16], i58[t]:bv[16], i59[t]:bv[16], i60[t]:bv[16]) && (i47[t]:bv[16] <= i52[t]:bv[16]) && (i52[t]:bv[16] <= i57[t]:bv[16]))) &&
 
   # final revision gate
-  (o10[t]:sbf = (i2[t]:sbf = 0:sbf) || (o2[t] & o3[t] & o4[t] & o5[t] & o6[t] & o7[t] & o8[t] & o9[t])).
+  # FIX: Changed from bitwise & to logical && with biconditional
+  (o10[t]:sbf = 1:sbf <-> ((i2[t]:sbf = 0:sbf) || ((o2[t]:sbf = 1:sbf) && (o3[t]:sbf = 1:sbf) && (o4[t]:sbf = 1:sbf) && (o5[t]:sbf = 1:sbf) && (o6[t]:sbf = 1:sbf) && (o7[t]:sbf = 1:sbf) && (o8[t]:sbf = 1:sbf) && (o9[t]:sbf = 1:sbf)))).

@@ -18,8 +18,7 @@
 
 set charvar off
 
-# floor((2^32-1)/10000)
-max_safe_32() := { #x00068DB8 }:bv[32].
+# max_safe_32 = floor((2^32-1)/10000) = 0x00068DB8
 
 rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
 
@@ -28,11 +27,12 @@ weight_calc_ok(stake : bv[32], rate : bv[32], reward : bv[32]) := (reward * { #x
 
 reward_ok(reward : bv[32], cap : bv[32]) := reward <= cap.
 
-safe_range_ok(stake : bv[32], reward : bv[32]) := (stake <= max_safe_32()) && (reward <= max_safe_32()).
+safe_range_ok(stake : bv[32], reward : bv[32]) := (stake <= { #x00068DB8 }:bv[32]) && (reward <= { #x00068DB8 }:bv[32]).
 
 always
   # @section: Rate + weight math
   (o1[t]:sbf = 1:sbf <-> (rate_ok(i2[t]:bv[32]) && weight_calc_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))) &&
   # @section: Reward caps + safe-range guard
   (o2[t]:sbf = 1:sbf <-> reward_ok(i3[t]:bv[32], i4[t]:bv[32])) &&
-  (o3[t]:sbf = o1[t] & o2[t] & safe_range_ok(i1[t]:bv[32], i3[t]:bv[32])).
+  # FIX: Changed from bitwise & to logical && with biconditional
+  (o3[t]:sbf = 1:sbf <-> (o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && safe_range_ok(i1[t]:bv[32], i3[t]:bv[32])).

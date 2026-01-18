@@ -1,0 +1,50 @@
+# Tokenomics v2: protocol fee split + buyback-and-burn constraints (bv[32], bounded)
+#
+# This is a Tau-executable variant designed to avoid BDD blowups from limb carry logic.
+# It validates *structure*:
+# - fee_total equals the sum of fee components
+# - burn is zero unless buyback_triggered
+# - burn is positive and <= burn_limit when buyback_triggered
+#
+# IMPORTANT: Tau bitvectors are modular. To make + comparisons meaningful we bound all
+# quantities so bv[32] addition does not overflow.
+#
+# Stream mapping:
+# i1 = fee_total (bv[32])
+# i2 = fee_to_lp (bv[32])
+# i3 = fee_to_treasury (bv[32])
+# i4 = fee_to_burn (bv[32])
+# i5 = buyback_triggered (sbf)
+# i6 = burn_amount (bv[32])
+# i7 = burn_limit (bv[32])
+# o1 = tokenomics_valid
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    (
+      # Safe-range: keep all values <= 0xFFFF so bv[32] addition doesn't wrap.
+      (i1[t]:bv[32] <= { #x0000FFFF }:bv[32]) &&
+      (i2[t]:bv[32] <= { #x0000FFFF }:bv[32]) &&
+      (i3[t]:bv[32] <= { #x0000FFFF }:bv[32]) &&
+      (i4[t]:bv[32] <= { #x0000FFFF }:bv[32]) &&
+      (i6[t]:bv[32] <= { #x0000FFFF }:bv[32]) &&
+      (i7[t]:bv[32] <= { #x0000FFFF }:bv[32]) &&
+
+      # Fee sum identity
+      (i1[t]:bv[32] = (i2[t]:bv[32] + i3[t]:bv[32] + i4[t]:bv[32])) &&
+
+      # Burn gating / bounds
+      (
+        ((i5[t]:sbf = 0:sbf) -> (i6[t]:bv[32] = { #x00000000 }:bv[32])) &&
+        ((i5[t]:sbf = 1:sbf) ->
+          (
+            (i6[t]:bv[32] > { #x00000000 }:bv[32]) &&
+            (i7[t]:bv[32] >= i6[t]:bv[32])
+          )
+        )
+      )
+    )
+  ).
+
