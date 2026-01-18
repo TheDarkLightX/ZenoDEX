@@ -1,0 +1,193 @@
+{
+  "profiles": {
+    "fast_proof_gated": {
+      "risk_summary": "Fail-closed if the external verifier enforces proof_ok and binding_ok correctly; Tau stays small and predictable.",
+      "timeout_budget_s_on_dev_machine": 30
+    },
+    "tau_only_structural": {
+      "risk_summary": "Tau validates structural constraints and state transitions but may not validate full pricing math; use only with additional verification.",
+      "timeout_budget_s_on_dev_machine": 60
+    },
+    "tau_only_strict": {
+      "risk_summary": "Tau enforces stricter invariants (for example k-monotonicity with overflow guards). Trust-minimized but can be slower.",
+      "timeout_budget_s_on_dev_machine": 90
+    },
+    "tau_only_full_settlement": {
+      "risk_summary": "Tau validates many components end-to-end (settlement, token, tokenomics). Most complete, usually slowest.",
+      "timeout_budget_s_on_dev_machine": 90
+    }
+  },
+  "components": {
+    "swap_exact_in": {
+      "variants": [
+        {
+          "variant_id": "proof_gate_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/swap_exact_in_proof_gate_v1.tau"
+        },
+        {
+          "variant_id": "structural_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/swap_exact_in_v1.tau"
+        },
+        {
+          "variant_id": "strict_v4",
+          "profile": "tau_only_strict",
+          "spec_path": "src/tau_specs/swap_exact_in_v4.tau"
+        }
+      ]
+    },
+    "swap_exact_out": {
+      "variants": [
+        {
+          "variant_id": "proof_gate_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/swap_exact_out_proof_gate_v1.tau"
+        },
+        {
+          "variant_id": "structural_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/swap_exact_out_v1.tau"
+        },
+        {
+          "variant_id": "strict_v4",
+          "profile": "tau_only_strict",
+          "spec_path": "src/tau_specs/swap_exact_out_v4.tau"
+        }
+      ]
+    },
+    "settlement": {
+      "variants": [
+        {
+          "variant_id": "proof_gate_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_v1_proof_gate.tau"
+        },
+        {
+          "variant_id": "proof_gate_v2_buyback",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_v2_buyback_proof_gate.tau"
+        },
+        {
+          "variant_id": "proof_gate_v3_buyback_floor",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_v3_buyback_floor_proof_gate.tau"
+        },
+        {
+          "variant_id": "proof_gate_v4_buyback_floor_rebate_lock",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock_proof_gate.tau"
+        },
+        {
+          "variant_id": "full_v4_buyback_floor_rebate_lock",
+          "profile": "tau_only_full_settlement",
+          "spec_path": "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock.tau"
+        }
+      ]
+    },
+    "intent_guards": {
+      "variants": [
+        {
+          "variant_id": "nonce_replay_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau"
+        },
+        {
+          "variant_id": "intent_expiry_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/intent_expiry_guard_v1.tau"
+        }
+      ]
+    },
+    "parameter_registry": {
+      "variants": [
+        {
+          "variant_id": "tau_only_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/parameter_registry_v1.tau"
+        },
+        {
+          "variant_id": "proof_gated_v2",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/parameter_registry_v2.tau"
+        }
+      ]
+    },
+    "revision_policy": {
+      "variants": [
+        {
+          "variant_id": "tau_only_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/revision_policy_v1.tau"
+        },
+        {
+          "variant_id": "proof_gated_v2",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/revision_policy_v2.tau"
+        }
+      ]
+    },
+    "token_archetypes": {
+      "variants": [
+        {
+          "variant_id": "lock_weighted_rewards_32_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/token_archetype_lock_weighted_rewards_32_v1.tau"
+        },
+        {
+          "variant_id": "lock_weighted_rewards_32_v2",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/token_archetype_lock_weighted_rewards_32_v2.tau"
+        },
+        {
+          "variant_id": "vesting_cliff_32_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/token_archetype_vesting_cliff_32_v1.tau"
+        },
+        {
+          "variant_id": "vesting_cliff_32_v2",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/token_archetype_vesting_cliff_32_v2.tau"
+        },
+        {
+          "variant_id": "soulbound_v2",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/token_archetype_soulbound_v2.tau"
+        }
+      ]
+    },
+    "token_composite": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v2",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/token_composite_v2.tau"
+        }
+      ]
+    },
+    "tokenomics": {
+      "variants": [
+        {
+          "variant_id": "buyback_burn_v2",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/tokenomics_buyback_burn_v2.tau"
+        },
+        {
+          "variant_id": "tdex_fee_rebate_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/tdex_fee_rebate_v1.tau"
+        },
+        {
+          "variant_id": "tdex_buyback_floor_v2",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/tdex_buyback_floor_v2.tau"
+        },
+        {
+          "variant_id": "tdex_buyback_floor_fixedpoint_v2",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/tdex_buyback_floor_fixedpoint_v2.tau"
+        }
+      ]
+    }
+  }
+}
