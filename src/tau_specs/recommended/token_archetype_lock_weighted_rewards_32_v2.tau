@@ -1,0 +1,37 @@
+#
+# token_archetype_lock_weighted_rewards_32_v2.tau
+#
+# Purpose:
+# - Fast, trace-executable lock-weighted rewards guard.
+# - Moves the multiplication-heavy check (reward * 10000 <= stake * rate + 9999)
+#   out of Tau (hybrid design), and requires external attestation flags.
+#
+# Inputs:
+#   i1: stake_amount (bv[16])        -- bounded to avoid Tau BDD blowups/crashes
+#   i2: lock_weight_bps (bv[16])     -- basis points, expected <= 10000
+#   i3: reward_amount (bv[16])
+#   i4: reward_cap (bv[16])
+#   i5: proof_ok (sbf)            -- external proof verified off-chain/on-host
+#   i6: binding_ok (sbf)          -- binds proof to these inputs
+#
+# Outputs:
+#   o1: rate_ok
+#   o2: reward_ok
+#   o3: lock_weighted_ok (full gate)
+#
+
+always
+  # o1: rate within [0,10000]
+  (o1[t]:sbf = 1:sbf <-> (i2[t]:bv[16] <= { 10000 }:bv[16])) &&
+  # o2: reward is under cap
+  (o2[t]:sbf = 1:sbf <-> (i3[t]:bv[16] <= i4[t]:bv[16])) &&
+  (o3[t]:sbf = 1:sbf <->
+    ((o1[t]:sbf = 1:sbf) &&
+     (o2[t]:sbf = 1:sbf) &&
+     # trace-safe bounds
+     ((i1[t]:bv[16]) <= { 65534 }:bv[16]) &&
+     ((i3[t]:bv[16]) <= { 65534 }:bv[16]) &&
+     # hybrid attestation
+     (i5[t]:sbf = 1:sbf) &&
+     (i6[t]:sbf = 1:sbf))).
+

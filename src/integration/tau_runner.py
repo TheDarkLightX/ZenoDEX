@@ -22,6 +22,30 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
 
+
+class TauRunError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        rc: int,
+        stdout: str,
+        stderr: str,
+        repl_script: str,
+        mode: str = "repl",
+        spec_text: str = "",
+        input_text: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.rc = int(rc)
+        self.stdout = str(stdout)
+        self.stderr = str(stderr)
+        self.repl_script = str(repl_script)
+        self.mode = str(mode)
+        self.spec_text = str(spec_text)
+        self.input_text = str(input_text)
+
+
 def _run_subprocess_with_output_caps(
     cmd: Sequence[str],
     *,
@@ -493,10 +517,16 @@ def build_repl_script(
     input_paths: dict[str, Path],
     output_paths: dict[str, Path],
     always_exprs: list[str],
+    skip_definitions: bool = True,
 ) -> str:
     lines: list[str] = []
     lines.append("# Auto-generated Tau REPL harness")
     lines.append("")
+
+    # If we are skipping definitions (because we inline them into always-exprs),
+    # we must skip the *entire* definition block. Tau definitions commonly span
+    # multiple lines until a terminating '.'.
+    skipping_def_block = False
 
     for name in sorted(input_streams.keys(), key=lambda s: int(s[1:])):
         lines.append(f'{name} : {input_streams[name]} = in file("{input_paths[name]}")')
@@ -513,6 +543,18 @@ def build_repl_script(
             continue
         if re.match(r"^always\b", line.strip()):
             continue
+        # Optionally drop `:=` definitions (when we inline them into always-exprs).
+        # IMPORTANT: definitions may span multiple lines until a '.' terminator.
+        if skip_definitions:
+            if skipping_def_block:
+                if line.strip().endswith("."):
+                    skipping_def_block = False
+                continue
+            if ":=" in line:
+                # Begin skipping at the definition header line.
+                if not line.strip().endswith("."):
+                    skipping_def_block = True
+                continue
         # Avoid redeclaring streams: spec files typically include `iN[t]:...` / `oN[t]:...`.
         if _STREAM_DECL_RE.match(line):
             continue
@@ -595,6 +637,7 @@ def run_tau_spec_steps(
             input_paths=input_paths,
             output_paths=output_paths,
             always_exprs=expanded_always_exprs,
+            skip_definitions=True,
         )
 
         rc, out, err = _run_subprocess_with_output_caps(
@@ -634,21 +677,24 @@ def run_tau_spec_steps(
     return outputs_by_step
 
 
-def run_tau_spec_steps_spec_mode(
+def run_tau_spec_steps_with_trace(
     tau_bin: str,
     spec_path: Path,
     steps: List[Dict[str, int]],
     *,
     timeout_s: float = 2.0,
-) -> Dict[int, Dict[str, int]]:
+    severity: str = "trace",
+    inline_defs: bool = True,
+    experimental: bool = False,
+) -> Tuple[Dict[int, Dict[str, int]], str, str, str]:
     """
-    Run a Tau spec by invoking Tau in "spec mode" (`tau <file> -x`) and parse stdout.
-
-    This is useful for trace analysis when specs are known to be compatible with
-    Tau's file-runner (some specs rely on REPL-only directives like `set charvar`).
+    Like `run_tau_spec_steps`, but returns (outputs_by_step, stdout, stderr, repl_script)
+    so callers can archive execution traces for evidence/analysis.
     """
+    if severity not in {"trace", "debug", "info", "error"}:
+        raise ValueError(f"invalid severity: {severity!r}")
     if not steps:
-        return {}
+        return {}, "", "", ""
     if len(steps) > 10_000:
         raise ValueError(f"too many Tau steps: {len(steps)} > 10000")
     if not tau_bin:
@@ -656,13 +702,191 @@ def run_tau_spec_steps_spec_mode(
     if not spec_path.exists():
         raise FileNotFoundError(f"Tau spec not found: {spec_path}")
 
-    spec_text = spec_path.read_text(encoding="utf-8")
+    spec_text = normalize_spec_text(spec_path.read_text(encoding="utf-8"))
+    stream_types = extract_stream_types(spec_text)
+    input_streams = {k: v for k, v in stream_types.items() if k.startswith("i")}
+    output_streams = {k: v for k, v in stream_types.items() if k.startswith("o")}
+    always_exprs = extract_always_exprs(spec_text)
+
+    defs = parse_definitions(spec_text)
+    expanded_always_exprs = [inline_definitions(expr, defs) for expr in always_exprs] if inline_defs else list(always_exprs)
+
+    if not input_streams:
+        raise ValueError(f"No input streams detected in spec: {spec_path}")
+    if not output_streams:
+        raise ValueError(f"No output streams detected in spec: {spec_path}")
+    if not always_exprs:
+        raise ValueError(f"Missing always constraint in spec: {spec_path}")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        input_paths: dict[str, Path] = {}
+        output_paths: dict[str, Path] = {}
+
+        for name in sorted(input_streams.keys(), key=lambda s: int(s[1:])):
+            values: list[str] = []
+            for step in steps:
+                if name not in step:
+                    raise ValueError(f"Missing {name} in Tau inputs for spec {spec_path}")
+                v = step[name]
+                if not isinstance(v, int) or isinstance(v, bool):
+                    raise ValueError(f"{name} must be an int, got {v!r}")
+                values.append(str(v))
+            path = tmpdir_path / f"{name}.in"
+            path.write_text("\n".join(values) + "\n", encoding="utf-8")
+            input_paths[name] = path
+
+        for name in sorted(output_streams.keys(), key=lambda s: int(s[1:])):
+            output_paths[name] = tmpdir_path / f"{name}.out"
+
+        repl_script = build_repl_script(
+            spec_text=spec_text,
+            input_streams=input_streams,
+            output_streams=output_streams,
+            input_paths=input_paths,
+            output_paths=output_paths,
+            always_exprs=expanded_always_exprs,
+            skip_definitions=bool(inline_defs),
+        )
+
+        cmd = [tau_bin]
+        if experimental:
+            cmd.append("--experimental")
+        cmd += ["--severity", severity, "--charvar", "false"]
+
+        rc, out, err = _run_subprocess_with_output_caps(
+            cmd,
+            input_text=repl_script,
+            cwd=spec_path.parent,
+            timeout_s=timeout_s,
+            max_stdout_bytes=512_000,
+            max_stderr_bytes=128_000,
+        )
+        if rc != 0:
+            detail = (err or out or "unknown error").strip()
+            raise TauRunError(
+                f"tau failed (rc={rc}): {detail[:400]}",
+                rc=rc,
+                stdout=out,
+                stderr=err,
+                repl_script=repl_script,
+            )
+
+        outputs_by_step: Dict[int, Dict[str, int]] = {}
+        for name, path in output_paths.items():
+            if not path.exists():
+                raise TauRunError(
+                    f"tau did not create output file: {name}",
+                    rc=rc,
+                    stdout=out,
+                    stderr=err,
+                    repl_script=repl_script,
+                )
+            max_bytes = (len(steps) * 64) + 1024
+            try:
+                if path.stat().st_size > max_bytes:
+                    raise TauRunError(
+                        f"{name} output file too large: {path.stat().st_size} > {max_bytes} bytes",
+                        rc=rc,
+                        stdout=out,
+                        stderr=err,
+                        repl_script=repl_script,
+                    )
+            except OSError:
+                raise TauRunError(
+                    f"could not stat tau output file: {name}",
+                    rc=rc,
+                    stdout=out,
+                    stderr=err,
+                    repl_script=repl_script,
+                )
+            values = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            if len(values) != len(steps):
+                raise TauRunError(
+                    f"{name} output length mismatch: expected {len(steps)} line(s), got {len(values)}",
+                    rc=rc,
+                    stdout=out,
+                    stderr=err,
+                    repl_script=repl_script,
+                )
+            for idx, raw in enumerate(values):
+                try:
+                    value = int(raw)
+                except ValueError as exc:
+                    raise TauRunError(
+                        f"{name} output non-integer value: {raw!r}",
+                        rc=rc,
+                        stdout=out,
+                        stderr=err,
+                        repl_script=repl_script,
+                    ) from exc
+                outputs_by_step.setdefault(idx, {})[name] = value
+
+        return outputs_by_step, out, err, repl_script
+
+
+def run_tau_spec_steps_spec_mode(
+    tau_bin: str,
+    spec_path: Path,
+    steps: List[Dict[str, int]],
+    *,
+    timeout_s: float = 2.0,
+    severity: str = "error",
+    experimental: bool = False,
+) -> Dict[int, Dict[str, int]]:
+    """
+    Run a Tau spec by invoking Tau in "spec mode" (`tau <file> -x`) and parse stdout.
+
+    This is useful for trace analysis when specs are known to be compatible with
+    Tau's file-runner. We normalize the spec text into a temp file to avoid
+    REPL-only directives (e.g. `set charvar ...`) and to collapse multi-line
+    `always` blocks into the single-line form that Tau's file-runner is stricter about.
+    """
+    outputs, _, _, _, _ = run_tau_spec_steps_spec_mode_with_trace(
+        tau_bin=tau_bin,
+        spec_path=spec_path,
+        steps=steps,
+        timeout_s=timeout_s,
+        severity=severity,
+        experimental=experimental,
+    )
+    return outputs
+
+
+def run_tau_spec_steps_spec_mode_with_trace(
+    tau_bin: str,
+    spec_path: Path,
+    steps: List[Dict[str, int]],
+    *,
+    timeout_s: float = 2.0,
+    severity: str = "error",
+    experimental: bool = False,
+) -> Tuple[Dict[int, Dict[str, int]], str, str, str, str]:
+    """
+    Spec-mode runner with trace capture.
+
+    Returns:
+      (outputs_by_step, stdout, stderr, normalized_spec_text, input_text)
+    """
+    if not steps:
+        return {}, "", "", "", ""
+    if len(steps) > 10_000:
+        raise ValueError(f"too many Tau steps: {len(steps)} > 10000")
+    if not tau_bin:
+        raise ValueError("tau_bin must be provided")
+    if not spec_path.exists():
+        raise FileNotFoundError(f"Tau spec not found: {spec_path}")
+
+    raw_spec_text = spec_path.read_text(encoding="utf-8")
+    spec_text = normalize_spec_text(raw_spec_text)
     stream_types = extract_stream_types(spec_text)
     input_streams = {k: v for k, v in stream_types.items() if k.startswith("i")}
     if not input_streams:
         raise ValueError(f"No input streams detected in spec: {spec_path}")
 
-    input_names = sorted(input_streams.keys(), key=lambda s: int(s[1:]))
+    # Tau's file-runner prompts in lexicographic order (i1, i10, i11, ..., i2, ...),
+    # so we must feed inputs in that same order.
+    input_names = sorted(input_streams.keys())
     lines: list[str] = []
     for step in steps:
         for name in input_names:
@@ -673,14 +897,45 @@ def run_tau_spec_steps_spec_mode(
                 raise ValueError(f"{name} must be an int, got {v!r}")
             lines.append(str(v))
 
-    rc, out, err = _run_subprocess_with_output_caps(
-        [tau_bin, str(spec_path), "--severity", "error", "--charvar", "false", "-x"],
-        input_text="\n".join(lines) + "\n",
-        cwd=spec_path.parent,
-        timeout_s=timeout_s,
-        max_stdout_bytes=256_000,
-        max_stderr_bytes=32_000,
-    )
+    if severity not in {"trace", "debug", "info", "error"}:
+        raise ValueError(f"invalid severity: {severity!r}")
+
+    # Tau's `-x` runner is interactive: after consuming the requested values for the
+    # last step, it will prompt again. Sending a final blank line terminates cleanly.
+    input_text = "\n".join(lines) + "\n\n"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_path = Path(tmpdir)
+        tmp_spec_path = tmpdir_path / spec_path.name
+        tmp_spec_path.write_text(spec_text, encoding="utf-8")
+
+        cmd = [tau_bin, str(tmp_spec_path)]
+        if experimental:
+            cmd.append("--experimental")
+        cmd += ["--severity", severity, "--charvar", "false", "-x"]
+
+        rc, out, err = _run_subprocess_with_output_caps(
+            cmd,
+            input_text=input_text,
+            cwd=tmpdir_path,
+            timeout_s=timeout_s,
+            max_stdout_bytes=256_000,
+            max_stderr_bytes=32_000,
+        )
+
+    if rc != 0:
+        detail = (err or out or "unknown error").strip()
+        raise TauRunError(
+            f"tau failed (rc={rc}): {detail[:400]}",
+            rc=rc,
+            stdout=out,
+            stderr=err,
+            repl_script="",
+            mode="spec",
+            spec_text=spec_text,
+            input_text=input_text,
+        )
+
     output_text = out + ("\n" + err if err else "")
     outputs_by_step: Dict[int, Dict[str, int]] = {}
     for line in output_text.splitlines():
@@ -690,12 +945,7 @@ def run_tau_spec_steps_spec_mode(
             value = int(match.group(3))
             outputs_by_step.setdefault(idx, {})[name] = value
 
-    if outputs_by_step:
-        return outputs_by_step
-    if rc != 0:
-        detail = (err or out or "unknown error").strip()
-        raise RuntimeError(f"tau failed (rc={rc}): {detail[:400]}")
-    return outputs_by_step
+    return outputs_by_step, out, err, spec_text, input_text
 
 
 def split_u32(x: int) -> tuple[int, int]:

@@ -1,0 +1,76 @@
+# Protocol token v2 (Tau-executable, bounded bv[32])
+#
+# Purpose: Validate a single token state transition (transfer OR mint OR burn)
+# with native bv[32] arithmetic under a safe-range to avoid modular wrap.
+#
+# DbC Preconditions:
+# - Exactly one of i8/i9/i10 is set (transfer/mint/burn)
+# - All values are <= 0xFFFF so + does not overflow in bv[32]
+#
+# Stream mapping:
+# i1 = from_before (bv[32])
+# i2 = to_before (bv[32])
+# i3 = supply_before (bv[32])
+# i4 = amount (bv[32])
+# i5 = from_after (bv[32])
+# i6 = to_after (bv[32])
+# i7 = supply_after (bv[32])
+# i8 = do_transfer (sbf)
+# i9 = do_mint (sbf)
+# i10 = do_burn (sbf)
+# o1 = token_transition_valid
+
+set charvar off
+
+one_hot_3(a : sbf, b : sbf, c : sbf) :=
+  ((a = 1:sbf) && (b = 0:sbf) && (c = 0:sbf)) ||
+  ((a = 0:sbf) && (b = 1:sbf) && (c = 0:sbf)) ||
+  ((a = 0:sbf) && (b = 0:sbf) && (c = 1:sbf)).
+
+safe_u32(x : bv[32]) := x <= { #x0000FFFF }:bv[32].
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    (
+      # Safe-range (pre + post + amount)
+      safe_u32(i1[t]:bv[32]) && safe_u32(i2[t]:bv[32]) && safe_u32(i3[t]:bv[32]) && safe_u32(i4[t]:bv[32]) &&
+      safe_u32(i5[t]:bv[32]) && safe_u32(i6[t]:bv[32]) && safe_u32(i7[t]:bv[32]) &&
+
+      # One-hot action
+      one_hot_3(i8[t]:sbf, i9[t]:sbf, i10[t]:sbf) &&
+
+      # Amount must be positive
+      (i4[t]:bv[32] > { #x00000000 }:bv[32]) &&
+
+      (
+        # Transfer: from decreases, to increases, supply unchanged
+        ((i8[t]:sbf = 0:sbf) ||
+          (
+            (i1[t]:bv[32] >= i4[t]:bv[32]) &&
+            (i5[t]:bv[32] = (i1[t]:bv[32] - i4[t]:bv[32])) &&
+            (i6[t]:bv[32] = (i2[t]:bv[32] + i4[t]:bv[32])) &&
+            (i7[t]:bv[32] = i3[t]:bv[32])
+          )
+        ) &&
+        # Mint: to increases, supply increases, from unchanged
+        ((i9[t]:sbf = 0:sbf) ||
+          (
+            (i5[t]:bv[32] = i1[t]:bv[32]) &&
+            (i6[t]:bv[32] = (i2[t]:bv[32] + i4[t]:bv[32])) &&
+            (i7[t]:bv[32] = (i3[t]:bv[32] + i4[t]:bv[32]))
+          )
+        ) &&
+        # Burn: from decreases, supply decreases, to unchanged
+        ((i10[t]:sbf = 0:sbf) ||
+          (
+            (i1[t]:bv[32] >= i4[t]:bv[32]) &&
+            (i3[t]:bv[32] >= i4[t]:bv[32]) &&
+            (i5[t]:bv[32] = (i1[t]:bv[32] - i4[t]:bv[32])) &&
+            (i6[t]:bv[32] = i2[t]:bv[32]) &&
+            (i7[t]:bv[32] = (i3[t]:bv[32] - i4[t]:bv[32]))
+          )
+        )
+      )
+    )
+  ).
+

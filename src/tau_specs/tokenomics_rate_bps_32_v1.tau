@@ -13,7 +13,7 @@
 # i3 = out_amount (bv[32])
 # i4 = out_cap (bv[32])
 # i5 = rate_cap_bps (bv[32])
-# o1 = rate_in_range
+# o1 = rate_in_range_ok
 # o2 = rate_calc_ok
 # o3 = caps_ok
 # o4 = rate_module_ok
@@ -21,12 +21,10 @@
 
 set charvar off
 
-# floor((2^32-1)/10000)
-max_safe_32() := { #x00068DB8 }:bv[32].
-
 rate_in_range(rate : bv[32], cap : bv[32]) := (rate <= { #x00002710 }:bv[32]) && (rate <= cap).
 
-safe_range_ok(base : bv[32], out : bv[32]) := (base <= max_safe_32()) && (out <= max_safe_32()).
+# max_safe_32 = floor((2^32-1)/10000) = 0x00068DB8
+safe_range_ok(base : bv[32], out : bv[32]) := (base <= { #x00068DB8 }:bv[32]) && (out <= { #x00068DB8 }:bv[32]).
 
 # out = floor(base * rate / 10000) with rounding tolerance <= 9999/10000
 rate_calc_ok(base : bv[32], rate : bv[32], out : bv[32]) := (out * { #x00002710 }:bv[32] >= base * rate) && (out * { #x00002710 }:bv[32] <= (base * rate) + { #x0000270F }:bv[32]).
@@ -40,4 +38,5 @@ always
   (o2[t]:sbf = 1:sbf <-> rate_calc_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
   (o3[t]:sbf = 1:sbf <-> caps_ok(i1[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
   # @section: Full module check (includes safe-range guard)
-  (o4[t]:sbf = o1[t] & o2[t] & o3[t] & (safe_range_ok(i1[t]:bv[32], i3[t]:bv[32]))).
+  # FIX: Changed from bitwise & to logical && with biconditional
+  (o4[t]:sbf = 1:sbf <-> (o1[t]:sbf = 1:sbf) && (o2[t]:sbf = 1:sbf) && (o3[t]:sbf = 1:sbf) && safe_range_ok(i1[t]:bv[32], i3[t]:bv[32])).

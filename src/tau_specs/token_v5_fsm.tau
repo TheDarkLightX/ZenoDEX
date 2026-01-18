@@ -48,6 +48,9 @@
 # o4 = fsm_consistent
 
 # State constants
+
+set charvar off
+
 stategenesis() := { #x0000 }:bv[16].
 stateactive() := { #x0001 }:bv[16].
 statevesting() := { #x0002 }:bv[16].
@@ -90,4 +93,5 @@ isterminal(state : bv[16]) := state = stateburned().
 # FSM consistent: valid state AND valid transition
 fsmconsistent(state : bv[16], tx : bv[16], elapsed : bv[16], required : bv[16], govapproved : sbf) := (state <= stateburned()) && ((tx = txnone()) || transitionvalid(state, tx, elapsed, required, govapproved)).
 
-always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> transitionvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> isactive(i1[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> isterminal(i1[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> fsmconsistent(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:sbf)).
+always
+  (o1[t]:sbf = 1:sbf <-> transitionvalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> isactive(i1[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> isterminal(i1[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> fsmconsistent(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:sbf)).

@@ -31,8 +31,8 @@ value_gte_32(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := (hi1 > h
 
 add_32(a_hi : bv[16], a_lo : bv[16], b_hi : bv[16], b_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := (sum_lo = (a_lo + b_lo)) && (((sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi + { #x0001 }:bv[16]))) && (!(sum_lo < a_lo) -> (sum_hi = (a_hi + b_hi)))).
 
-fee_sum_matches_total() := add_32(i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16]) && add_32(i9[t]:bv[16], i10[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && (i1[t]:bv[16] = i11[t]:bv[16]) && (i2[t]:bv[16] = i12[t]:bv[16]).
+fee_sum_matches_total(f_total_hi : bv[16], f_total_lo : bv[16], lp_hi : bv[16], lp_lo : bv[16], treas_hi : bv[16], treas_lo : bv[16], burn_hi : bv[16], burn_lo : bv[16], lp_tre_hi : bv[16], lp_tre_lo : bv[16], sum_hi : bv[16], sum_lo : bv[16]) := add_32(lp_hi, lp_lo, treas_hi, treas_lo, lp_tre_hi, lp_tre_lo) && add_32(lp_tre_hi, lp_tre_lo, burn_hi, burn_lo, sum_hi, sum_lo) && (f_total_hi = sum_hi) && (f_total_lo = sum_lo).
 
-burn_bounded() := ((i13[t]:sbf = 1:sbf) -> (is_positive_32(i14[t]:bv[16], i15[t]:bv[16]) && value_gte_32(i16[t]:bv[16], i17[t]:bv[16], i14[t]:bv[16], i15[t]:bv[16]))) && ((i13[t]:sbf = 0:sbf) -> is_zero_32(i14[t]:bv[16], i15[t]:bv[16])).
+burn_bounded(triggered : sbf, burn_hi : bv[16], burn_lo : bv[16], limit_hi : bv[16], limit_lo : bv[16]) := ((triggered = 1:sbf) -> (is_positive_32(burn_hi, burn_lo) && value_gte_32(limit_hi, limit_lo, burn_hi, burn_lo))) && ((triggered = 0:sbf) -> is_zero_32(burn_hi, burn_lo)).
 
-always (o1[t]:sbf = 1:sbf <-> (fee_sum_matches_total() && burn_bounded())).
+always (o1[t]:sbf = 1:sbf <-> (fee_sum_matches_total(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16], i10[t]:bv[16], i11[t]:bv[16], i12[t]:bv[16]) && burn_bounded(i13[t]:sbf, i14[t]:bv[16], i15[t]:bv[16], i16[t]:bv[16], i17[t]:bv[16]))).

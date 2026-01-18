@@ -41,6 +41,9 @@
 # Simplified: check flag value ranges
 
 # Percentage burn enabled: flag bit 0
+
+set charvar off
+
 percentageenabled(flags : bv[16]) := (flags / { #x0001 }:bv[16]) - ((flags / { #x0002 }:bv[16]) * { #x0002 }:bv[16]) = { #x0001 }:bv[16].
 
 # Adaptive burn enabled: flag bit 1
@@ -67,6 +70,7 @@ neverzeroguaranteed(supply : bv[16], floor : bv[16], flooron : sbf, amount : bv[
 featureconfigvalid(flags : bv[16]) := flags > { #x0000 }:bv[16].
 
 # Composite valid: all enabled features pass validation
-compositevalid(flags : bv[16], supply : bv[16], amount : bv[16], rate : bv[16], floor : bv[16]) := featureconfigvalid(flags) && burnallowed(supply, percentageburn(amount, rate), floor, floorenabled(flags) = 1:sbf) && neverzeroguaranteed(supply, floor, floorenabled(flags) = 1:sbf, amount, rate).
+compositevalid(flags : bv[16], supply : bv[16], amount : bv[16], rate : bv[16], floor : bv[16]) := featureconfigvalid(flags) && burnallowed(supply, percentageburn(amount, rate), floor, floorenabled(flags)) && neverzeroguaranteed(supply, floor, floorenabled(flags), amount, rate).
 
-always (o1[0]:sbf = 0:sbf) && (o2[0]:sbf = 0:sbf) && (o3[0]:sbf = 0:sbf) && (o4[0]:sbf = 0:sbf) && (o1[t]:sbf = 1:sbf <-> burnallowed(i2[t]:bv[16], percentageburn(i3[t]:bv[16], i4[t]:bv[16]), i5[t]:bv[16], floorenabled(i1[t]:bv[16]) = 1:sbf)) && (o2[t]:sbf = 1:sbf <-> neverzeroguaranteed(i2[t]:bv[16], i5[t]:bv[16], floorenabled(i1[t]:bv[16]) = 1:sbf, i3[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> featureconfigvalid(i1[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> compositevalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).
+always
+  (o1[t]:sbf = 1:sbf <-> burnallowed(i2[t]:bv[16], percentageburn(i3[t]:bv[16], i4[t]:bv[16]), i5[t]:bv[16], floorenabled(i1[t]:bv[16]))) && (o2[t]:sbf = 1:sbf <-> neverzeroguaranteed(i2[t]:bv[16], i5[t]:bv[16], floorenabled(i1[t]:bv[16]), i3[t]:bv[16], i4[t]:bv[16])) && (o3[t]:sbf = 1:sbf <-> featureconfigvalid(i1[t]:bv[16])) && (o4[t]:sbf = 1:sbf <-> compositevalid(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16])).
