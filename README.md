@@ -205,6 +205,7 @@ state commitments**. This repo additionally proposes an opt-in, DHT-bound state 
   - Protocol: `docs/tau_state_proof_v1.md`
   - Tau Testnet patch (local, PR-ready): `docs/tau_testnet_state_proof_patch.md`
   - Risc0 implementation for TauSwap transitions (v1 scope): `docs/tau_state_proof_risc0_tauswap_v1.md` and `zk/state_proof_risc0/`
+  - Local demo (requires Rust + Risc0 toolchain): `TAU_STATE_PROOF_RISC0=1 bash tools/run_tau_testnet_local_smoke.sh`
 
 ## Spec Risk Profiles
 ZenoDex organizes specs into **risk-based profiles** so communities can choose the level of exposure they are comfortable with.
