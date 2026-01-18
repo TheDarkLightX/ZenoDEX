@@ -152,6 +152,28 @@ The system is a **graph of validators** rather than a single monolithic spec. Ea
 ## Trust Model / Verification (How users know nodes are honest)
 The goal is **don’t trust a computer, verify a transition**.
 
+### What "formally guaranteed" means in this repo
+ZenoDex treats specs as the source of truth.
+
+- **Formal specification**: DEX-critical rules are encoded as executable Tau specs (swap, settlement rails, tokenomics gates).
+- **Evidence that specs execute**: we run trace-level execution tests against production spec sets (not just parsing).
+  - Trace harness: `tools/tau_trace_harness.py`
+  - Production trace test: `tests/tau/test_production_tau_traces.py`
+- **Multiple versions with explicit tradeoffs**: some checks are Tau-only (more trust-minimized, can be slower), while others are proof-gated (small Tau gate plus external verified computation).
+  - Profiles and budgets: `docs/TAU_SPECS_PROFILES.md`
+  - Machine-readable mapping: `src/tau_specs/recommended/spec_profiles.json`
+
+### What "cryptographically guaranteed" means in this repo
+Cryptography provides authenticity and tamper evidence. Verification can be:
+
+- **By replay**: verify signed headers and recompute the committed hashes by re-executing.
+- **By proof**: verify a succinct proof bound to the committed state.
+
+In Tau Testnet Alpha, the main integrity anchors are:
+- **Signed blocks (PoA)**: block signatures can be verified with BLS keys.
+- **State commitments**: `header.state_hash` commits to rules text and an accounts snapshot hash, and may include an application `app_hash`.
+- **Optional state proofs**: a DHT record `state_proof:<state_hash>` can carry a ZK proof of the DEX transition (opt-in, fail-closed).
+
 ### What “verified computation” looks like on Tau Testnet Alpha (today)
 Tau Testnet Alpha (`external/tau-testnet`) is a hybrid system:
 - A Python node handles networking/storage and “extralogical” work (e.g., signature verification).
@@ -176,8 +198,13 @@ The testnet provides integrity anchors a verifier can check:
 
 ### What we still need for “light client” verification
 If you want a browser/phone client to verify correctness without replaying execution, you typically need a proof
-mechanism (e.g., fraud proofs or zk validity proofs). Tau Testnet Alpha currently offers **replicable verification and
-state commitments**, not succinct ZK proofs.
+mechanism (e.g., fraud proofs or zk validity proofs). Tau Testnet Alpha mainline offers **replicable verification and
+state commitments**. This repo additionally proposes an opt-in, DHT-bound state proof mechanism:
+
+- **State proofs (optional)**: publish a proof envelope to the DHT under `state_proof:<state_hash>` and fail-closed when enabled.
+  - Protocol: `docs/tau_state_proof_v1.md`
+  - Tau Testnet patch (local, PR-ready): `docs/tau_testnet_state_proof_patch.md`
+  - Risc0 implementation for TauSwap transitions (v1 scope): `docs/tau_state_proof_risc0_tauswap_v1.md` and `zk/state_proof_risc0/`
 
 ## Spec Risk Profiles
 ZenoDex organizes specs into **risk-based profiles** so communities can choose the level of exposure they are comfortable with.
