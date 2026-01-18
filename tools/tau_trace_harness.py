@@ -15,6 +15,7 @@ import argparse
 import json
 import shutil
 import sys
+import time
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
@@ -156,12 +157,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if str(args.severity) in {"trace", "debug"} and per_timeout < 30.0:
             per_timeout = 30.0
 
+        start = time.perf_counter()
         ok, outputs, out, err_text, repl, spec_text, input_text, err = _run_case(
             tau_bin=tau_bin,
             case=case,
             timeout_s=per_timeout,
             severity=str(args.severity),
         )
+        elapsed_s = time.perf_counter() - start
         ok_all = ok_all and ok
 
         case_dir = artifacts_root / case.case_id
@@ -194,6 +197,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 "expected": case.expected,
                 "mode": case.mode,
                 "timeout_s": per_timeout,
+                "elapsed_s": elapsed_s,
                 "inline_defs": case.inline_defs,
                 "experimental": case.experimental,
                 "artifacts_dir": str(case_dir),
@@ -201,7 +205,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
 
         status = "PASS" if ok else "FAIL"
-        print(f"[{status}] {case.case_id} ({case.spec.spec_id}) timeout_s={per_timeout} severity={args.severity}")
+        print(
+            f"[{status}] {case.case_id} ({case.spec.spec_id}) "
+            f"elapsed_s={elapsed_s:.2f} timeout_s={per_timeout} severity={args.severity}"
+        )
         if err:
             print(f"  {err}")
 
