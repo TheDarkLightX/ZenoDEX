@@ -27,7 +27,10 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool
-from ..core.split_routing_dispatch import best_split_two_pools_exact_in_for_pools
+from ..core.split_routing_dispatch import (
+    best_split_many_pools_exact_in_for_pools,
+    best_split_two_pools_exact_in_for_pools,
+)
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
 
@@ -165,7 +168,7 @@ def best_route_exact_in_2hop(
             ):
                 best = q
 
-    # 1-hop split routing across parallel pools (2 legs).
+    # 1-hop split routing across parallel pools (N legs).
     direct_pools: List[Tuple[Amount, PoolState]] = []
     for p in pools:
         out = _pool_quote_exact_in(p, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
@@ -176,13 +179,52 @@ def best_route_exact_in_2hop(
 
     if len(direct_pools) >= 2:
         direct_pools.sort(key=lambda t: (-int(t[0]), t[1].pool_id))
-        # Limit pair enumeration to the best K pools by single-pool quote.
-        k = min(12, len(direct_pools))
+        # Limit split search to the best K pools by single-pool quote.
+        k = min(16, len(direct_pools))
         candidates = [p for _out, p in direct_pools[:k]]
-        for i in range(k):
-            for j in range(i + 1, k):
-                p0 = candidates[i]
-                p1 = candidates[j]
+
+        # N-way split (bounded legs).
+        try:
+            splitN = best_split_many_pools_exact_in_for_pools(
+                candidates,
+                asset_in=asset_in,
+                asset_out=asset_out,
+                amount_in_total=amount_in,
+                max_legs=4,
+                max_candidates=k,
+                max_iters=4096,
+            )
+        except Exception:
+            splitN = None
+        if splitN is not None and splitN.amount_out_total > 0:
+            legs: List[RouteLeg] = []
+            for leg in splitN.legs:
+                legs.append(
+                    RouteLeg(
+                        hops=(RouteHop(leg.pool_id, asset_in, asset_out, leg.amount_in, leg.amount_out),),
+                        amount_in=leg.amount_in,
+                        amount_out=leg.amount_out,
+                    )
+                )
+            q = RouteQuote(
+                asset_in=asset_in,
+                asset_out=asset_out,
+                amount_in=amount_in,
+                amount_out=splitN.amount_out_total,
+                legs=tuple(legs),
+            )
+            if best is None or (q.amount_out > best.amount_out) or (
+                q.amount_out == best.amount_out and _quote_key(q) < _quote_key(best)
+            ):
+                best = q
+
+        # 2-way split pair search (strong baseline on small K).
+        k2 = min(12, k)
+        candidates2 = candidates[:k2]
+        for i in range(k2):
+            for j in range(i + 1, k2):
+                p0 = candidates2[i]
+                p1 = candidates2[j]
                 try:
                     split = best_split_two_pools_exact_in_for_pools(
                         p0,

@@ -124,6 +124,21 @@ theorem kScaled_ge_of_minY_le {x1 yMax k0 c_num c_den m : Nat}
     kScaled_mono_y hm
   exact le_trans (minY_spec hyMax) hmono
 
+theorem minY_le_of_kScaled_ge {x1 yMax k0 c_num c_den m : Nat}
+    (hyMax : k0 ≤ kScaled x1 yMax c_num c_den)
+    (hm : k0 ≤ kScaled x1 m c_num c_den) :
+    minY x1 yMax k0 c_num c_den hyMax ≤ m := by
+  -- `Nat.find` is the least witness of the predicate.
+  exact Nat.find_le (h := (⟨yMax, hyMax⟩ : ∃ y, k0 ≤ kScaled x1 y c_num c_den)) hm
+
+theorem minY_le_iff_kScaled_ge {x1 yMax k0 c_num c_den m : Nat}
+    (hyMax : k0 ≤ kScaled x1 yMax c_num c_den) :
+    (minY x1 yMax k0 c_num c_den hyMax ≤ m) ↔ (k0 ≤ kScaled x1 m c_num c_den) := by
+  constructor
+  · intro h
+    exact kScaled_ge_of_minY_le (x1 := x1) (yMax := yMax) (k0 := k0) (c_num := c_num) (c_den := c_den) hyMax h
+  · intro h
+    exact minY_le_of_kScaled_ge (x1 := x1) (yMax := yMax) (k0 := k0) (c_num := c_num) (c_den := c_den) (m := m) hyMax h
+
 end QuarticBlend
 end TauSwap
-
