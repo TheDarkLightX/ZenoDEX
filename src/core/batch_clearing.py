@@ -23,7 +23,8 @@ from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState, PoolStatus
 from ..state.balances import BalanceTable, PubKey, AssetId, Amount
 from ..state.lp import LPTable
-from .cpmm import MIN_LP_LOCK, compute_fee_total, swap_exact_in, swap_exact_out
+from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from .cpmm import MIN_LP_LOCK, compute_fee_total
 from .liquidity import create_pool, add_liquidity, remove_liquidity
 from .settlement import (
     Settlement,
@@ -222,6 +223,8 @@ def _try_create_pool(
     amount0 = intent.get_field("amount0")
     amount1 = intent.get_field("amount1")
     created_at = intent.get_field("created_at", 0)
+    curve_tag = intent.get_field("curve_tag", None)
+    curve_params = intent.get_field("curve_params", None)
 
     if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
         return (
@@ -248,6 +251,8 @@ def _try_create_pool(
             fee_bps=fee_bps,
             creator_pubkey=sender,
             created_at=created_at,
+            curve_tag=curve_tag,
+            curve_params=curve_params,
         )
     except Exception as exc:
         return (
@@ -320,6 +325,8 @@ def _apply_create_pool_to_locals(
             "asset0": asset0,
             "asset1": asset1,
             "fee_bps": fee_bps,
+            "curve_tag": created_pool.curve_tag,
+            "curve_params": created_pool.curve_params,
             "status": PoolStatus.ACTIVE.value,
             "created_at": created_at,
         }
@@ -475,26 +482,34 @@ def clear_batch_single_pool(
             if asset_in == pool_state.asset0:
                 # Swapping asset0 -> asset1
                 if intent.kind == IntentKind.SWAP_EXACT_IN:
-                    _, (new_r0, new_r1) = swap_exact_in(
-                        current_reserves[0], current_reserves[1],
-                        fill.amount_in_filled, pool_state.fee_bps
+                    _, (new_r0, new_r1) = swap_exact_in_for_pool(
+                        pool_state,
+                        reserve_in=current_reserves[0],
+                        reserve_out=current_reserves[1],
+                        amount_in=fill.amount_in_filled or 0,
                     )
                 else:  # SWAP_EXACT_OUT
-                    _, (new_r0, new_r1) = swap_exact_out(
-                        current_reserves[0], current_reserves[1],
-                        fill.amount_out_filled, pool_state.fee_bps
+                    _, (new_r0, new_r1) = swap_exact_out_for_pool(
+                        pool_state,
+                        reserve_in=current_reserves[0],
+                        reserve_out=current_reserves[1],
+                        amount_out=fill.amount_out_filled or 0,
                     )
                 current_reserves = (new_r0, new_r1)
             else:  # asset_in == asset1, swapping asset1 -> asset0
                 if intent.kind == IntentKind.SWAP_EXACT_IN:
-                    _, (new_r1, new_r0) = swap_exact_in(
-                        current_reserves[1], current_reserves[0],
-                        fill.amount_in_filled, pool_state.fee_bps
+                    _, (new_r1, new_r0) = swap_exact_in_for_pool(
+                        pool_state,
+                        reserve_in=current_reserves[1],
+                        reserve_out=current_reserves[0],
+                        amount_in=fill.amount_in_filled or 0,
                     )
                 else:  # SWAP_EXACT_OUT
-                    _, (new_r1, new_r0) = swap_exact_out(
-                        current_reserves[1], current_reserves[0],
-                        fill.amount_out_filled, pool_state.fee_bps
+                    _, (new_r1, new_r0) = swap_exact_out_for_pool(
+                        pool_state,
+                        reserve_in=current_reserves[1],
+                        reserve_out=current_reserves[0],
+                        amount_out=fill.amount_out_filled or 0,
                     )
                 current_reserves = (new_r0, new_r1)
 
@@ -628,7 +643,12 @@ def _order_swaps_optimal_ab_bounded(
                 if bal_in.get(sender, 0) < amount_in:
                     continue
                 try:
-                    amount_out, (new_r_in, new_r_out) = swap_exact_in(r_in, r_out, amount_in, pool_state.fee_bps)
+                    amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
+                        pool_state,
+                        reserve_in=r_in,
+                        reserve_out=r_out,
+                        amount_in=amount_in,
+                    )
                 except Exception:
                     continue
                 if amount_out < min_amount_out:
@@ -648,7 +668,12 @@ def _order_swaps_optimal_ab_bounded(
                 if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
                     continue
                 try:
-                    amount_in, (new_r_in, new_r_out) = swap_exact_out(r_in, r_out, amount_out, pool_state.fee_bps)
+                    amount_in, (new_r_in, new_r_out) = swap_exact_out_for_pool(
+                        pool_state,
+                        reserve_in=r_in,
+                        reserve_out=r_out,
+                        amount_out=amount_out,
+                    )
                 except Exception:
                     continue
                 if amount_in > max_amount_in:
@@ -741,7 +766,12 @@ def _process_swap_intent(
             if balances.get(sender, asset_in) < amount_in:
                 return _reject("INSUFFICIENT_BALANCE")
             
-            amount_out, _new_reserves = swap_exact_in(reserve_in, reserve_out, amount_in, pool_state.fee_bps)
+            amount_out, _new_reserves = swap_exact_in_for_pool(
+                pool_state,
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_in=amount_in,
+            )
             
             # Check slippage constraint
             if amount_out < min_amount_out:
@@ -764,7 +794,12 @@ def _process_swap_intent(
             if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
                 return _reject("MISSING_PARAMS")
             
-            amount_in, _new_reserves = swap_exact_out(reserve_in, reserve_out, amount_out, pool_state.fee_bps)
+            amount_in, _new_reserves = swap_exact_out_for_pool(
+                pool_state,
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_out=amount_out,
+            )
 
             if balances.get(sender, asset_in) < amount_in:
                 return _reject("INSUFFICIENT_BALANCE")

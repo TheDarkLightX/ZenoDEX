@@ -2,9 +2,9 @@
 Liquidity management operations: create pool, add/remove liquidity.
 """
 
-from typing import Tuple
+from typing import Optional, Tuple
 
-from ..state.pools import PoolState, PoolStatus, compute_pool_id
+from ..state.pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
 from ..state.balances import AssetId, Amount
 from .cpmm import compute_lp_mint, compute_lp_burn, MIN_LP_LOCK
 from ..kernels.python.lp_math_v7 import optimal_liquidity
@@ -18,6 +18,9 @@ def create_pool(
     fee_bps: int,
     creator_pubkey: str,
     created_at: int = 0,
+    *,
+    curve_tag: Optional[str] = None,
+    curve_params: Optional[object] = None,
 ) -> Tuple[str, PoolState, Amount]:
     """
     Create a new CPMM pool.
@@ -25,7 +28,7 @@ def create_pool(
     Pool ID is deterministic:
         pool_id = H("TauSwapPool" || asset0 || asset1 || fee_bps || curve_tag || curve_params)
     
-    For v0.1 (CPMM only):
+    For v0.1 (default):
         curve_tag = "CPMM"
         curve_params = "" (no additional params)
     
@@ -57,7 +60,8 @@ def create_pool(
     if not (0 <= fee_bps <= 10000):
         raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
     
-    pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag="CPMM", curve_params="")
+    curve_tag_norm, curve_params_norm = normalize_curve_config(curve_tag=curve_tag, curve_params=curve_params)
+    pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag=curve_tag_norm, curve_params=curve_params_norm)
     
     # Compute LP to mint
     lp_minted = compute_lp_mint(amount0, amount1, amount0, amount1, 0)
@@ -70,6 +74,8 @@ def create_pool(
         reserve0=amount0,
         reserve1=amount1,
         fee_bps=fee_bps,
+        curve_tag=curve_tag_norm,
+        curve_params=curve_params_norm,
         lp_supply=lp_minted + MIN_LP_LOCK,  # Include locked LP
         status=PoolStatus.ACTIVE,
         created_at=created_at,

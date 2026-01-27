@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from ..core.cpmm import swap_exact_in
+from ..core.amm_dispatch import swap_exact_in_for_pool
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
 
@@ -63,7 +63,7 @@ def _pool_quote_exact_in(
     else:
         return None
     try:
-        amount_out, _ = swap_exact_in(rin, rout, amount_in, pool.fee_bps)
+        amount_out, _ = swap_exact_in_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_in=amount_in)
     except Exception:
         return None
     return amount_out, pool.pool_id
@@ -154,4 +154,3 @@ def best_route_exact_in_2hop(
                 best = q
 
     return best
-
