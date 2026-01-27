@@ -74,3 +74,29 @@ def test_best_route_can_split_across_parallel_pools():
     assert len(q.legs) == 2
     assert all(len(leg.hops) == 1 for leg in q.legs)
     assert q.amount_out > single.amount_out
+
+
+def test_best_route_can_split_across_three_parallel_pools():
+    pools = {
+        "p3": _pool("p3", "A", "B", 1000, 1000, 0),
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+    }
+    q3 = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=750)
+    assert q3 is not None
+    assert len(q3.legs) == 3
+
+    # Best we can do with only two pools is strictly worse for CPMM (concavity).
+    best2_out = -1
+    pool_items = list(pools.items())
+    for i in range(len(pool_items)):
+        for j in range(i + 1, len(pool_items)):
+            pid_i, pi = pool_items[i]
+            pid_j, pj = pool_items[j]
+            q2 = best_route_exact_in_2hop(
+                pools_by_id={pid_i: pi, pid_j: pj}, asset_in="A", asset_out="B", amount_in=750
+            )
+            assert q2 is not None
+            best2_out = max(best2_out, q2.amount_out)
+
+    assert q3.amount_out > best2_out

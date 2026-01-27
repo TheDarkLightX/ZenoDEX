@@ -16,7 +16,7 @@ Notes:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from ..state.balances import Amount, AssetId
 from ..state.pools import CURVE_TAG_CPMM, PoolState
@@ -34,6 +34,20 @@ class SplitTwoPoolsQuote:
     amount_out_0: Amount
     amount_in_1: Amount
     amount_out_1: Amount
+
+
+@dataclass(frozen=True)
+class SplitLegQuote:
+    pool_id: str
+    amount_in: Amount
+    amount_out: Amount
+
+
+@dataclass(frozen=True)
+class SplitManyPoolsQuote:
+    amount_in_total: Amount
+    amount_out_total: Amount
+    legs: Tuple[SplitLegQuote, ...]
 
 
 def _reserves_for(pool: PoolState, *, asset_in: AssetId, asset_out: AssetId) -> Optional[Tuple[int, int]]:
@@ -300,3 +314,252 @@ def best_split_two_pools_exact_in_for_pools(
         amount_out_1=int(out1),
     )
 
+
+def best_split_many_pools_exact_in_for_pools(
+    pools: Sequence[PoolState],
+    *,
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_in_total: Amount,
+    max_legs: int = 4,
+    max_candidates: int = 16,
+    max_iters: int = 4096,
+) -> SplitManyPoolsQuote:
+    """
+    Deterministic N-way split router for *parallel* pools on the same asset pair direction.
+
+    This is an execution improvement over "pick best single pool" and "split across two pools" in
+    fragmented liquidity regimes.
+
+    Approach:
+    - Treat each pool as an exact-in oracle `f_i(a)`.
+    - Solve `max Σ f_i(a_i)` s.t. `Σ a_i = D`, `a_i ∈ ℕ`.
+    - Use a bounded multi-stage greedy allocator (marginal-output-per-input), with deterministic tie-breaks.
+    - Limit to at most `max_legs` non-zero legs and `max_candidates` candidate pools.
+    """
+    if amount_in_total <= 0:
+        raise ValueError("amount_in_total must be positive")
+    if max_legs <= 0:
+        raise ValueError("max_legs must be positive")
+    if max_candidates <= 0:
+        raise ValueError("max_candidates must be positive")
+    if max_iters <= 0:
+        raise ValueError("max_iters must be positive")
+
+    # Filter to feasible direct pools (direction + active + nonzero output at full amount).
+    feasible: List[PoolState] = []
+    for p in pools:
+        if p.status.value != "ACTIVE":
+            continue
+        if _reserves_for(p, asset_in=asset_in, asset_out=asset_out) is None:
+            continue
+        if not _is_valid(p, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in_total):
+            continue
+        feasible.append(p)
+
+    if not feasible:
+        raise ValueError("no feasible pools for split")
+
+    # Rank pools by single-pool output at full amount (desc), then pool_id (asc).
+    ranked: List[Tuple[int, PoolState]] = []
+    for p in feasible:
+        try:
+            out_full = _quote_exact_in(p, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in_total)
+        except Exception:
+            continue
+        ranked.append((int(out_full), p))
+    if not ranked:
+        raise ValueError("no feasible pools for split")
+    ranked.sort(key=lambda t: (-int(t[0]), t[1].pool_id))
+    candidates: List[PoolState] = [p for _out, p in ranked[: min(int(max_candidates), len(ranked))]]
+
+    # Canonicalize pool order for deterministic tie-breaks.
+    candidates.sort(key=lambda p: p.pool_id)
+
+    min_valid: Dict[str, int] = {}
+    for p in candidates:
+        mv = _min_valid_amount(p, asset_in=asset_in, asset_out=asset_out, amount_in_total=amount_in_total)
+        if mv is None:
+            continue
+        min_valid[p.pool_id] = int(mv)
+    if not min_valid:
+        raise ValueError("no feasible pools for split")
+
+    pools_by_id: Dict[str, PoolState] = {p.pool_id: p for p in candidates if p.pool_id in min_valid}
+
+    quote_cache: Dict[Tuple[str, int], int] = {}
+
+    def quote(pid: str, amt: int) -> Optional[int]:
+        if amt < 0:
+            return None
+        if amt == 0:
+            return 0
+        mv = min_valid.get(pid)
+        if mv is None or amt < mv:
+            return None
+        key = (pid, int(amt))
+        if key in quote_cache:
+            return quote_cache[key]
+        out = _quote_exact_in(pools_by_id[pid], asset_in=asset_in, asset_out=asset_out, amount_in=int(amt))
+        quote_cache[key] = int(out)
+        return int(out)
+
+    def greedy_allocate(step: int) -> Dict[str, int]:
+        if step <= 0:
+            raise ValueError("step must be positive")
+
+        alloc: Dict[str, int] = {pid: 0 for pid in pools_by_id.keys()}
+        used: set[str] = set()
+        remaining = int(amount_in_total)
+
+        # Seed: allocate min_valid to the best-looking pools first to allow splitting.
+        seed_order = sorted(
+            pools_by_id.keys(),
+            key=lambda pid: (-int(quote(pid, int(amount_in_total)) or 0), pid),
+        )
+        for pid in seed_order:
+            if remaining <= 0:
+                break
+            if len(used) >= int(max_legs):
+                break
+            mv = int(min_valid[pid])
+            if mv <= 0 or mv > remaining:
+                continue
+            alloc[pid] = mv
+            remaining -= mv
+            used.add(pid)
+
+        # If seeding chose nothing (should be rare), start with the best pool.
+        if not used:
+            pid0 = seed_order[0]
+            mv0 = int(min_valid[pid0])
+            inc0 = mv0 if mv0 <= remaining else remaining
+            if inc0 <= 0:
+                raise ValueError("no feasible allocation")
+            alloc[pid0] = inc0
+            remaining -= inc0
+            used.add(pid0)
+
+        # Greedy remainder allocation.
+        while remaining > 0:
+            base = min(int(step), int(remaining))
+            best_pid: Optional[str] = None
+            best_delta = -1
+            best_inc = 1
+            best_curr = 0
+
+            for pid in pools_by_id.keys():
+                curr = int(alloc.get(pid, 0))
+                if curr == 0 and pid not in used and len(used) >= int(max_legs):
+                    continue
+
+                inc = int(base)
+                if curr == 0:
+                    mv = int(min_valid[pid])
+                    if mv > inc:
+                        inc = mv
+                if inc <= 0 or inc > remaining:
+                    continue
+
+                out_before = quote(pid, curr) or 0
+                out_after = quote(pid, curr + inc)
+                if out_after is None:
+                    continue
+                delta = int(out_after - out_before)
+                if delta < 0:
+                    continue
+
+                if best_pid is None:
+                    best_pid, best_delta, best_inc, best_curr = pid, delta, inc, curr
+                    continue
+
+                # Compare marginal efficiency delta/inc as rationals: delta*best_inc ? best_delta*inc.
+                lhs = int(delta) * int(best_inc)
+                rhs = int(best_delta) * int(inc)
+                if lhs > rhs:
+                    best_pid, best_delta, best_inc, best_curr = pid, delta, inc, curr
+                    continue
+                if lhs < rhs:
+                    continue
+
+                # Tie-break: higher delta, then smaller current allocation (encourage splitting), then pool_id.
+                if delta > best_delta:
+                    best_pid, best_delta, best_inc, best_curr = pid, delta, inc, curr
+                    continue
+                if delta < best_delta:
+                    continue
+                if curr < best_curr:
+                    best_pid, best_delta, best_inc, best_curr = pid, delta, inc, curr
+                    continue
+                if curr > best_curr:
+                    continue
+                if pid < best_pid:
+                    best_pid, best_delta, best_inc, best_curr = pid, delta, inc, curr
+
+            if best_pid is None:
+                raise ValueError("no feasible allocation step (unexpected)")
+
+            was_zero = alloc[best_pid] == 0
+            alloc[best_pid] = int(alloc[best_pid] + best_inc)
+            remaining -= int(best_inc)
+            if was_zero:
+                used.add(best_pid)
+
+        return alloc
+
+    # Multi-stage schedule: start coarse, refine until step yields <= max_iters increments.
+    D = int(amount_in_total)
+    step_min = max(1, D // int(max_iters))
+    step = max(step_min, max(1, D // 256))
+
+    best_alloc: Optional[Dict[str, int]] = None
+    best_out = -1
+
+    while True:
+        alloc = greedy_allocate(int(step))
+        total_out = 0
+        legs_tmp: List[Tuple[str, int, int]] = []
+        for pid, amt in alloc.items():
+            if amt <= 0:
+                continue
+            out_amt = quote(pid, int(amt))
+            if out_amt is None:
+                continue
+            total_out += int(out_amt)
+            legs_tmp.append((pid, int(amt), int(out_amt)))
+
+        legs_tmp.sort(key=lambda t: t[0])
+        if total_out > best_out:
+            best_out = int(total_out)
+            best_alloc = alloc
+        elif total_out == best_out and best_alloc is not None:
+            # Deterministic tie-break: fewer legs, then lexicographic (pool_id, amount_in) sequence.
+            best_legs = sorted([(pid, int(a)) for pid, a in best_alloc.items() if int(a) > 0], key=lambda t: t[0])
+            cur_legs = sorted([(pid, int(a)) for pid, a in alloc.items() if int(a) > 0], key=lambda t: t[0])
+            if len(cur_legs) < len(best_legs) or (len(cur_legs) == len(best_legs) and cur_legs < best_legs):
+                best_alloc = alloc
+
+        if step <= step_min:
+            break
+        step = max(step_min, step // 2)
+
+    assert best_alloc is not None
+    legs: List[SplitLegQuote] = []
+    out_total = 0
+    in_total = 0
+    for pid in sorted(best_alloc.keys()):
+        amt = int(best_alloc[pid])
+        if amt <= 0:
+            continue
+        out_amt = quote(pid, amt)
+        if out_amt is None:
+            continue
+        legs.append(SplitLegQuote(pool_id=pid, amount_in=int(amt), amount_out=int(out_amt)))
+        in_total += int(amt)
+        out_total += int(out_amt)
+
+    # All input must be allocated.
+    if in_total != int(amount_in_total):
+        raise ValueError("split allocation did not consume full input (unexpected)")
+
+    return SplitManyPoolsQuote(amount_in_total=int(amount_in_total), amount_out_total=int(out_total), legs=tuple(legs))
