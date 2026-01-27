@@ -14,7 +14,10 @@ if str(ROOT) not in sys.path:
 
 from src.core import cpmm
 from src.core import cubic_sum_amm
+from src.core import quartic_blend_amm
 from src.core import quadratic_cpmm
+from src.core import quintic_blend_amm
+from src.core import sum_boost_amm
 
 
 @dataclass(frozen=True)
@@ -36,6 +39,10 @@ class ExactOutMetrics:
     k_after: int
 
 
+def _raise_unknown_curve(name: str) -> None:
+    raise ValueError(f"unknown curve: {name}")
+
+
 def _k_cpmm(x: int, y: int) -> int:
     return int(x) * int(y)
 
@@ -46,6 +53,22 @@ def _k_quadratic(x: int, y: int) -> int:
 
 def _k_cubic_sum(x: int, y: int, *, p: int = 1, q: int = 1) -> int:
     return int(x) * int(y) * (int(p) * int(x) + int(q) * int(y))
+
+
+def _k_sum_boost(x: int, y: int, *, mu_num: int, mu_den: int) -> int:
+    s = int(x) + int(y)
+    return int(x) * int(y) * s * (int(mu_den) + int(mu_num) * s)
+
+
+def _k_quartic_blend(x: int, y: int, *, c_num: int, c_den: int) -> int:
+    quad_scaled = int(c_den) * (int(x) * int(x) + int(y) * int(y)) + int(c_num) * int(x) * int(y)
+    return int(x) * int(y) * quad_scaled
+
+
+def _k_quintic_blend(x: int, y: int, *, c_num: int, c_den: int) -> int:
+    s = int(x) + int(y)
+    quad_scaled = int(c_den) * (int(x) * int(x) + int(y) * int(y)) + int(c_num) * int(x) * int(y)
+    return int(x) * int(y) * s * quad_scaled
 
 
 def _iter_pairs_grid(*, min_r: int, max_r: int, step: int) -> Iterator[tuple[int, int]]:
@@ -74,6 +97,12 @@ def _safe_exact_in(
     dx: int,
     p: int,
     q: int,
+    sum_boost_mu_num: int,
+    sum_boost_mu_den: int,
+    quartic_c_num: int,
+    quartic_c_den: int,
+    quintic_c_num: int,
+    quintic_c_den: int,
 ) -> ExactInMetrics:
     try:
         if name == "cpmm":
@@ -88,6 +117,24 @@ def _safe_exact_in(
             k0 = _k_cubic_sum(x, y, p=p, q=q)
             out, (x1, y1) = cubic_sum_amm.swap_exact_in_cubic_sum(x, y, dx, p=p, q=q)
             k1 = _k_cubic_sum(int(x1), int(y1), p=p, q=q)
+        elif name == "sum_boost":
+            k0 = _k_sum_boost(x, y, mu_num=sum_boost_mu_num, mu_den=sum_boost_mu_den)
+            out, (x1, y1) = sum_boost_amm.swap_exact_in_sum_boost(
+                x, y, dx, mu_num=sum_boost_mu_num, mu_den=sum_boost_mu_den, fee_bps=0
+            )
+            k1 = _k_sum_boost(int(x1), int(y1), mu_num=sum_boost_mu_num, mu_den=sum_boost_mu_den)
+        elif name == "quartic_blend":
+            k0 = _k_quartic_blend(x, y, c_num=quartic_c_num, c_den=quartic_c_den)
+            out, (x1, y1) = quartic_blend_amm.swap_exact_in_quartic_blend(
+                x, y, dx, c_num=quartic_c_num, c_den=quartic_c_den, fee_bps=0
+            )
+            k1 = _k_quartic_blend(int(x1), int(y1), c_num=quartic_c_num, c_den=quartic_c_den)
+        elif name == "quintic_blend":
+            k0 = _k_quintic_blend(x, y, c_num=quintic_c_num, c_den=quintic_c_den)
+            out, (x1, y1) = quintic_blend_amm.swap_exact_in_quintic_blend(
+                x, y, dx, c_num=quintic_c_num, c_den=quintic_c_den, fee_bps=0
+            )
+            k1 = _k_quintic_blend(int(x1), int(y1), c_num=quintic_c_num, c_den=quintic_c_den)
         else:
             raise ValueError(f"unknown curve: {name}")
         return ExactInMetrics(ok=True, amount_out=int(out), k_before=int(k0), k_after=int(k1))
@@ -103,6 +150,12 @@ def _safe_exact_out(
     dy: int,
     p: int,
     q: int,
+    sum_boost_mu_num: int,
+    sum_boost_mu_den: int,
+    quartic_c_num: int,
+    quartic_c_den: int,
+    quintic_c_num: int,
+    quintic_c_den: int,
 ) -> ExactOutMetrics:
     try:
         if name == "cpmm":
@@ -120,6 +173,33 @@ def _safe_exact_out(
             dx, (x1, y1) = cubic_sum_amm.swap_exact_out_cubic_sum(x, y, dy, p=p, q=q)
             out_exec, _ = cubic_sum_amm.swap_exact_in_cubic_sum(x, y, dx, p=p, q=q)
             k1 = _k_cubic_sum(int(x1), int(y1), p=p, q=q)
+        elif name == "sum_boost":
+            k0 = _k_sum_boost(x, y, mu_num=sum_boost_mu_num, mu_den=sum_boost_mu_den)
+            dx, (x1, y1) = sum_boost_amm.swap_exact_out_sum_boost(
+                x, y, dy, mu_num=sum_boost_mu_num, mu_den=sum_boost_mu_den, fee_bps=0
+            )
+            out_exec, _ = sum_boost_amm.swap_exact_in_sum_boost(
+                x, y, dx, mu_num=sum_boost_mu_num, mu_den=sum_boost_mu_den, fee_bps=0
+            )
+            k1 = _k_sum_boost(int(x1), int(y1), mu_num=sum_boost_mu_num, mu_den=sum_boost_mu_den)
+        elif name == "quartic_blend":
+            k0 = _k_quartic_blend(x, y, c_num=quartic_c_num, c_den=quartic_c_den)
+            dx, (x1, y1) = quartic_blend_amm.swap_exact_out_quartic_blend(
+                x, y, dy, c_num=quartic_c_num, c_den=quartic_c_den, fee_bps=0
+            )
+            out_exec, _ = quartic_blend_amm.swap_exact_in_quartic_blend(
+                x, y, dx, c_num=quartic_c_num, c_den=quartic_c_den, fee_bps=0
+            )
+            k1 = _k_quartic_blend(int(x1), int(y1), c_num=quartic_c_num, c_den=quartic_c_den)
+        elif name == "quintic_blend":
+            k0 = _k_quintic_blend(x, y, c_num=quintic_c_num, c_den=quintic_c_den)
+            dx, (x1, y1) = quintic_blend_amm.swap_exact_out_quintic_blend(
+                x, y, dy, c_num=quintic_c_num, c_den=quintic_c_den, fee_bps=0
+            )
+            out_exec, _ = quintic_blend_amm.swap_exact_in_quintic_blend(
+                x, y, dx, c_num=quintic_c_num, c_den=quintic_c_den, fee_bps=0
+            )
+            k1 = _k_quintic_blend(int(x1), int(y1), c_num=quintic_c_num, c_den=quintic_c_den)
         else:
             raise ValueError(f"unknown curve: {name}")
 
@@ -135,6 +215,20 @@ def _safe_exact_out(
                     else quadratic_cpmm.swap_exact_in_quadratic(x, y, int(dx) - 1, fee_bps=0)
                     if name == "quadratic"
                     else cubic_sum_amm.swap_exact_in_cubic_sum(x, y, int(dx) - 1, p=p, q=q)
+                    if name == "cubic_sum"
+                    else sum_boost_amm.swap_exact_in_sum_boost(
+                        x, y, int(dx) - 1, mu_num=sum_boost_mu_num, mu_den=sum_boost_mu_den, fee_bps=0
+                    )
+                    if name == "sum_boost"
+                    else quartic_blend_amm.swap_exact_in_quartic_blend(
+                        x, y, int(dx) - 1, c_num=quartic_c_num, c_den=quartic_c_den, fee_bps=0
+                    )
+                    if name == "quartic_blend"
+                    else quintic_blend_amm.swap_exact_in_quintic_blend(
+                        x, y, int(dx) - 1, c_num=quintic_c_num, c_den=quintic_c_den, fee_bps=0
+                    )
+                    if name == "quintic_blend"
+                    else (_raise_unknown_curve(name))
                 )
                 non_minimal = int(out_prev) >= int(dy)
             except Exception:
@@ -259,9 +353,26 @@ def run_sweep(
     p: int,
     q: int,
     include_quadratic: bool,
+    include_sum_boost: bool,
+    include_quartic_blend: bool,
+    include_quintic_blend: bool,
+    sum_boost_mu_num: int,
+    sum_boost_mu_den: int,
+    quartic_c_num: int,
+    quartic_c_den: int,
+    quintic_c_num: int,
+    quintic_c_den: int,
     progress_every: int = 0,
 ) -> dict[str, object]:
-    curves = ["cpmm", "cubic_sum"] + (["quadratic"] if include_quadratic else [])
+    curves = ["cpmm", "cubic_sum"]
+    if include_quadratic:
+        curves.append("quadratic")
+    if include_sum_boost:
+        curves.append("sum_boost")
+    if include_quartic_blend:
+        curves.append("quartic_blend")
+    if include_quintic_blend:
+        curves.append("quintic_blend")
 
     exact_in: dict[str, Agg] = {c: Agg() for c in curves}
     exact_out: dict[str, Agg] = {c: Agg() for c in curves}
@@ -308,7 +419,20 @@ def run_sweep(
         marginal_dx_for_one_out: dict[str, int] = {}
         if y > 1:
             for c in curves:
-                m1 = _safe_exact_out(c, x=x, y=y, dy=1, p=p, q=q)
+                m1 = _safe_exact_out(
+                    c,
+                    x=x,
+                    y=y,
+                    dy=1,
+                    p=p,
+                    q=q,
+                    sum_boost_mu_num=sum_boost_mu_num,
+                    sum_boost_mu_den=sum_boost_mu_den,
+                    quartic_c_num=quartic_c_num,
+                    quartic_c_den=quartic_c_den,
+                    quintic_c_num=quintic_c_num,
+                    quintic_c_den=quintic_c_den,
+                )
                 if m1.ok and m1.amount_in > 0:
                     marginal_dx_for_one_out[c] = int(m1.amount_in)
 
@@ -317,7 +441,20 @@ def run_sweep(
             cpmm_out = None
             cubic_out = None
             for c in curves:
-                m = _safe_exact_in(c, x=x, y=y, dx=dx, p=p, q=q)
+                m = _safe_exact_in(
+                    c,
+                    x=x,
+                    y=y,
+                    dx=dx,
+                    p=p,
+                    q=q,
+                    sum_boost_mu_num=sum_boost_mu_num,
+                    sum_boost_mu_den=sum_boost_mu_den,
+                    quartic_c_num=quartic_c_num,
+                    quartic_c_den=quartic_c_den,
+                    quintic_c_num=quintic_c_num,
+                    quintic_c_den=quintic_c_den,
+                )
                 prev_k_inc_max = int(exact_in[c].k_inc_max)
                 exact_in[c].add_exact_in(m)
                 if m.ok:
@@ -375,7 +512,20 @@ def run_sweep(
         marginal_in: dict[str, int] = {}
         if y > 1 and 1 in dy_list:
             for c in curves:
-                mout1 = _safe_exact_out(c, x=x, y=y, dy=1, p=p, q=q)
+                mout1 = _safe_exact_out(
+                    c,
+                    x=x,
+                    y=y,
+                    dy=1,
+                    p=p,
+                    q=q,
+                    sum_boost_mu_num=sum_boost_mu_num,
+                    sum_boost_mu_den=sum_boost_mu_den,
+                    quartic_c_num=quartic_c_num,
+                    quartic_c_den=quartic_c_den,
+                    quintic_c_num=quintic_c_num,
+                    quintic_c_den=quintic_c_den,
+                )
                 if mout1.ok and mout1.amount_in > 0:
                     marginal_in[c] = int(mout1.amount_in)
 
@@ -388,7 +538,20 @@ def run_sweep(
             cpmm_gap = None
             cubic_gap = None
             for c in curves:
-                m = _safe_exact_out(c, x=x, y=y, dy=dy, p=p, q=q)
+                m = _safe_exact_out(
+                    c,
+                    x=x,
+                    y=y,
+                    dy=dy,
+                    p=p,
+                    q=q,
+                    sum_boost_mu_num=sum_boost_mu_num,
+                    sum_boost_mu_den=sum_boost_mu_den,
+                    quartic_c_num=quartic_c_num,
+                    quartic_c_den=quartic_c_den,
+                    quintic_c_num=quintic_c_num,
+                    quintic_c_den=quintic_c_den,
+                )
                 prev_gap_max = int(exact_out[c].gap_max)
                 prev_k_inc_max = int(exact_out[c].k_inc_max)
                 exact_out[c].add_exact_out(m)
@@ -568,7 +731,9 @@ def _parse_int_list(csv: str) -> list[int]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Deterministic curve comparison sweep (CPMM vs cubic-sum vs quadratic)")
+    ap = argparse.ArgumentParser(
+        description="Deterministic curve comparison sweep (CPMM vs cubic-sum vs quadratic vs sum-boost vs quartic-blend vs quintic-blend)"
+    )
     ap.add_argument("--grid-min", type=int, default=5)
     ap.add_argument("--grid-max", type=int, default=50)
     ap.add_argument("--grid-step", type=int, default=1)
@@ -579,6 +744,15 @@ def main() -> int:
     ap.add_argument("--p", type=int, default=1)
     ap.add_argument("--q", type=int, default=1)
     ap.add_argument("--no-quadratic", action="store_true")
+    ap.add_argument("--no-sum-boost", action="store_true")
+    ap.add_argument("--no-quartic-blend", action="store_true")
+    ap.add_argument("--no-quintic-blend", action="store_true")
+    ap.add_argument("--sum-boost-mu-num", type=int, default=200)
+    ap.add_argument("--sum-boost-mu-den", type=int, default=10_000)
+    ap.add_argument("--quartic-c-num", type=int, default=8)
+    ap.add_argument("--quartic-c-den", type=int, default=1)
+    ap.add_argument("--quintic-c-num", type=int, default=2)
+    ap.add_argument("--quintic-c-den", type=int, default=1)
     ap.add_argument("--progress-every", type=int, default=0)
     ap.add_argument("--out", type=str, default="")
     args = ap.parse_args()
@@ -596,6 +770,16 @@ def main() -> int:
         raise SystemExit("p and q must be positive")
 
     include_quadratic = not args.no_quadratic
+    include_sum_boost = not args.no_sum_boost
+    include_quartic_blend = not args.no_quartic_blend
+    include_quintic_blend = not args.no_quintic_blend
+
+    if args.sum_boost_mu_num < 0 or args.sum_boost_mu_den <= 0:
+        raise SystemExit("sum-boost mu params must satisfy mu_num>=0, mu_den>0")
+    if args.quartic_c_num < 0 or args.quartic_c_den <= 0:
+        raise SystemExit("quartic c params must satisfy c_num>=0, c_den>0")
+    if args.quintic_c_num < 0 or args.quintic_c_den <= 0:
+        raise SystemExit("quintic c params must satisfy c_num>=0, c_den>0")
     start = time.perf_counter()
 
     grid_pairs = list(_iter_pairs_grid(min_r=args.grid_min, max_r=args.grid_max, step=args.grid_step))
@@ -619,6 +803,15 @@ def main() -> int:
                 p=args.p,
                 q=args.q,
                 include_quadratic=include_quadratic,
+                include_sum_boost=include_sum_boost,
+                include_quartic_blend=include_quartic_blend,
+                include_quintic_blend=include_quintic_blend,
+                sum_boost_mu_num=int(args.sum_boost_mu_num),
+                sum_boost_mu_den=int(args.sum_boost_mu_den),
+                quartic_c_num=int(args.quartic_c_num),
+                quartic_c_den=int(args.quartic_c_den),
+                quintic_c_num=int(args.quintic_c_num),
+                quintic_c_den=int(args.quintic_c_den),
                 progress_every=int(args.progress_every),
             ),
             "balanced": run_sweep(
@@ -628,6 +821,15 @@ def main() -> int:
                 p=args.p,
                 q=args.q,
                 include_quadratic=include_quadratic,
+                include_sum_boost=include_sum_boost,
+                include_quartic_blend=include_quartic_blend,
+                include_quintic_blend=include_quintic_blend,
+                sum_boost_mu_num=int(args.sum_boost_mu_num),
+                sum_boost_mu_den=int(args.sum_boost_mu_den),
+                quartic_c_num=int(args.quartic_c_num),
+                quartic_c_den=int(args.quartic_c_den),
+                quintic_c_num=int(args.quintic_c_num),
+                quintic_c_den=int(args.quintic_c_den),
                 progress_every=0,
             ),
             "ratio_lines": run_sweep(
@@ -637,6 +839,15 @@ def main() -> int:
                 p=args.p,
                 q=args.q,
                 include_quadratic=include_quadratic,
+                include_sum_boost=include_sum_boost,
+                include_quartic_blend=include_quartic_blend,
+                include_quintic_blend=include_quintic_blend,
+                sum_boost_mu_num=int(args.sum_boost_mu_num),
+                sum_boost_mu_den=int(args.sum_boost_mu_den),
+                quartic_c_num=int(args.quartic_c_num),
+                quartic_c_den=int(args.quartic_c_den),
+                quintic_c_num=int(args.quintic_c_num),
+                quintic_c_den=int(args.quintic_c_den),
                 progress_every=0,
             ),
         },
