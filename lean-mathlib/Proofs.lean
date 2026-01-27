@@ -2,6 +2,7 @@ import Proofs.BatchAuctionCanonical
 import Proofs.CubicSumRatio
 import Proofs.CpmmSwapV8ExactOutMinimality
 import Proofs.ImpossibilityTheorem
+import Proofs.QuarticBlendK
 import Proofs.TauSafeMul32
 
 /-!
