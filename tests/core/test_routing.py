@@ -27,8 +27,9 @@ def test_best_route_picks_direct_if_best():
     }
     q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
     assert q is not None
-    assert len(q.hops) == 1
-    assert q.hops[0].pool_id == "p_ab"
+    assert len(q.legs) == 1
+    assert len(q.legs[0].hops) == 1
+    assert q.legs[0].hops[0].pool_id == "p_ab"
 
 
 def test_best_route_uses_2hop_when_better():
@@ -40,9 +41,10 @@ def test_best_route_uses_2hop_when_better():
     }
     q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
     assert q is not None
-    assert len(q.hops) == 2
-    assert q.hops[0].asset_in == "A"
-    assert q.hops[-1].asset_out == "B"
+    assert len(q.legs) == 1
+    assert len(q.legs[0].hops) == 2
+    assert q.legs[0].hops[0].asset_in == "A"
+    assert q.legs[0].hops[-1].asset_out == "B"
 
 
 def test_tie_break_is_deterministic():
@@ -53,6 +55,22 @@ def test_tie_break_is_deterministic():
     }
     q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=10)
     assert q is not None
-    assert len(q.hops) == 1
-    assert q.hops[0].pool_id == "p1"
+    assert len(q.legs) == 1
+    assert len(q.legs[0].hops) == 1
+    assert q.legs[0].hops[0].pool_id == "p1"
 
+
+def test_best_route_can_split_across_parallel_pools():
+    # Two identical pools: splitting strictly improves output vs using only one pool.
+    pools = {
+        "p2": _pool("p2", "A", "B", 1000, 1000, 0),
+        "p1": _pool("p1", "A", "B", 1000, 1000, 0),
+    }
+    single = best_route_exact_in_2hop(pools_by_id={"p1": pools["p1"]}, asset_in="A", asset_out="B", amount_in=500)
+    assert single is not None
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=500)
+    assert q is not None
+    # Split route => 2 legs, each a direct hop.
+    assert len(q.legs) == 2
+    assert all(len(leg.hops) == 1 for leg in q.legs)
+    assert q.amount_out > single.amount_out

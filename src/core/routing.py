@@ -4,6 +4,7 @@ Deterministic swap routing (state-of-the-art, certifiable baseline).
 We start with a **2-hop exact-in router**:
 - Enumerate best direct swap.
 - Enumerate best 2-hop swap via an intermediate asset.
+- Optionally consider **1-hop split routing** across parallel pools (2 legs, 1 hop each).
 
 Why 2-hop first?
 - It captures most real routing wins in early DEX deployments.
@@ -23,9 +24,10 @@ Complexity:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool
+from ..core.split_routing_dispatch import best_split_two_pools_exact_in_for_pools
 from ..state.balances import Amount, AssetId
 from ..state.pools import PoolState
 
@@ -40,12 +42,19 @@ class RouteHop:
 
 
 @dataclass(frozen=True)
+class RouteLeg:
+    hops: Tuple[RouteHop, ...]
+    amount_in: Amount
+    amount_out: Amount
+
+
+@dataclass(frozen=True)
 class RouteQuote:
     asset_in: AssetId
     asset_out: AssetId
     amount_in: Amount
     amount_out: Amount
-    hops: Tuple[RouteHop, ...]
+    legs: Tuple[RouteLeg, ...]
 
 
 def _pool_quote_exact_in(
@@ -69,12 +78,15 @@ def _pool_quote_exact_in(
     return amount_out, pool.pool_id
 
 
-def _quote_key(q: RouteQuote) -> Tuple[int, str, str, str]:
-    # Prefer fewer hops, then lexicographic pool_id sequence, then mid asset (if any).
-    hop_count = len(q.hops)
-    pool_seq = ",".join(h.pool_id for h in q.hops)
-    mid = q.hops[0].asset_out if hop_count == 2 else ""
-    return (hop_count, pool_seq, mid, q.asset_out)
+def _quote_key(q: RouteQuote) -> Tuple[int, int, str, str, str]:
+    # Prefer fewer sequential hops, then fewer legs, then lexicographic pool_id sequence.
+    hop_count = sum(len(leg.hops) for leg in q.legs)
+    leg_count = len(q.legs)
+    pool_seq = ";".join(",".join(h.pool_id for h in leg.hops) for leg in q.legs)
+    mid = ""
+    if leg_count == 1 and hop_count == 2:
+        mid = q.legs[0].hops[0].asset_out
+    return (int(hop_count), int(leg_count), pool_seq, mid, q.asset_out)
 
 
 def best_route_exact_in_2hop(
@@ -104,12 +116,13 @@ def best_route_exact_in_2hop(
         if out is None:
             continue
         amount_out, _pid = out
+        hop = RouteHop(p.pool_id, asset_in, asset_out, amount_in, amount_out)
         q = RouteQuote(
             asset_in=asset_in,
             asset_out=asset_out,
             amount_in=amount_in,
             amount_out=amount_out,
-            hops=(RouteHop(p.pool_id, asset_in, asset_out, amount_in, amount_out),),
+            legs=(RouteLeg(hops=(hop,), amount_in=amount_in, amount_out=amount_out),),
         )
         if best is None or (q.amount_out > best.amount_out) or (
             q.amount_out == best.amount_out and _quote_key(q) < _quote_key(best)
@@ -138,19 +151,70 @@ def best_route_exact_in_2hop(
             if out2 is None:
                 continue
             amt_out, _ = out2
+            hop1 = RouteHop(p1.pool_id, asset_in, mid, amount_in, amt_mid)
+            hop2 = RouteHop(p2.pool_id, mid, asset_out, amt_mid, amt_out)
             q = RouteQuote(
                 asset_in=asset_in,
                 asset_out=asset_out,
                 amount_in=amount_in,
                 amount_out=amt_out,
-                hops=(
-                    RouteHop(p1.pool_id, asset_in, mid, amount_in, amt_mid),
-                    RouteHop(p2.pool_id, mid, asset_out, amt_mid, amt_out),
-                ),
+                legs=(RouteLeg(hops=(hop1, hop2), amount_in=amount_in, amount_out=amt_out),),
             )
             if best is None or (q.amount_out > best.amount_out) or (
                 q.amount_out == best.amount_out and _quote_key(q) < _quote_key(best)
             ):
                 best = q
+
+    # 1-hop split routing across parallel pools (2 legs).
+    direct_pools: List[Tuple[Amount, PoolState]] = []
+    for p in pools:
+        out = _pool_quote_exact_in(p, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
+        if out is None:
+            continue
+        amount_out, _ = out
+        direct_pools.append((amount_out, p))
+
+    if len(direct_pools) >= 2:
+        direct_pools.sort(key=lambda t: (-int(t[0]), t[1].pool_id))
+        # Limit pair enumeration to the best K pools by single-pool quote.
+        k = min(12, len(direct_pools))
+        candidates = [p for _out, p in direct_pools[:k]]
+        for i in range(k):
+            for j in range(i + 1, k):
+                p0 = candidates[i]
+                p1 = candidates[j]
+                try:
+                    split = best_split_two_pools_exact_in_for_pools(
+                        p0,
+                        p1,
+                        asset_in=asset_in,
+                        asset_out=asset_out,
+                        amount_in_total=amount_in,
+                    )
+                except Exception:
+                    continue
+                if split.amount_out_total <= 0:
+                    continue
+                leg0 = RouteLeg(
+                    hops=(RouteHop(split.pool0_id, asset_in, asset_out, split.amount_in_0, split.amount_out_0),),
+                    amount_in=split.amount_in_0,
+                    amount_out=split.amount_out_0,
+                )
+                leg1 = RouteLeg(
+                    hops=(RouteHop(split.pool1_id, asset_in, asset_out, split.amount_in_1, split.amount_out_1),),
+                    amount_in=split.amount_in_1,
+                    amount_out=split.amount_out_1,
+                )
+                q = RouteQuote(
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_in=amount_in,
+                    amount_out=split.amount_out_total,
+                    legs=(leg0, leg1),
+                )
+                if best is None or (q.amount_out > best.amount_out) or (
+                    q.amount_out == best.amount_out and _quote_key(q) < _quote_key(best)
+                ):
+                    best = q
 
     return best
