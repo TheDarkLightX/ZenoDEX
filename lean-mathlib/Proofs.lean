@@ -1,4 +1,9 @@
 import Proofs.BatchAuctionCanonical
+import Proofs.SettlementAlgebra
+import Proofs.BatchOptimality
+import Proofs.CPMMInvariants
+import Proofs.CPMMSettlement
+import Proofs.BatchCPMMUnification
 import Proofs.CubicSumRatio
 import Proofs.CpmmSwapV8ExactOutMinimality
 import Proofs.ImpossibilityTheorem
