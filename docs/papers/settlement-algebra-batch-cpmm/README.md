@@ -13,14 +13,14 @@ model and mechanized Lean proofs in:
 
 ```bash
 cd docs/papers/settlement-algebra-batch-cpmm
-latexmk -pdf main.tex
+latexmk -pdf -jobname=settlement-algebra-batch-cpmm main.tex
 ```
 
 If `latexmk` is unavailable:
 
 ```bash
-pdflatex main.tex
-bibtex main
-pdflatex main.tex
-pdflatex main.tex
+pdflatex -jobname=settlement-algebra-batch-cpmm main.tex
+bibtex settlement-algebra-batch-cpmm
+pdflatex -jobname=settlement-algebra-batch-cpmm main.tex
+pdflatex -jobname=settlement-algebra-batch-cpmm main.tex
 ```
