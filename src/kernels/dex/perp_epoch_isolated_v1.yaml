@@ -1,0 +1,892 @@
+# [FORGE] Perp Epoch Isolated v1 (Safety-first perp risk engine)
+#
+# Purpose:
+# - Minimal isolated-margin linear perpetual risk engine with epoch-based ("European-style") updates.
+# - Deterministic mark-to-market on oracle updates, with a bounded-move oracle gate.
+# - Fail-closed invariants suitable for SMT/ESSO verification.
+#
+# Units:
+# - `index_price_e8` is quote-per-base scaled by 1e8.
+# - `position_base` is signed base units.
+# - `collateral_quote` is quote units.
+# - margin ratios are in bps (1/10_000).
+#
+# Key safety knob:
+# - We enforce `maintenance_margin_bps >= max_oracle_move_bps`.
+#   Combined with the bounded-move oracle gate and auto-liquidation, this prevents negative collateral
+#   under the model assumptions.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_epoch_isolated_v1"
+  created_by: "zenodex-forge"
+  notes: |
+    Epoch-based isolated-margin perp risk engine (single-market, single-account model).
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "clearing_price_seen",
+      "clearing_price_epoch",
+      "clearing_price_e8",
+      "oracle_seen",
+      "oracle_last_update_epoch",
+      "index_price_e8",
+      "max_oracle_staleness_epochs",
+      "max_oracle_move_bps",
+      "initial_margin_bps",
+      "maintenance_margin_bps",
+      "liquidation_penalty_bps",
+      "max_position_abs",
+      "position_base",
+      "entry_price_e8",
+      "collateral_quote",
+    ]
+  effects:
+    [
+      "event",
+      "oracle_fresh",
+      "notional_quote",
+      "maint_req_quote",
+      "init_req_quote",
+      "margin_ok",
+      "liquidated",
+      "collateral_after",
+    ]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "EpochAdvanced",
+          "ClearingPricePublished",
+          "EpochSettled",
+          "OracleObserved",
+          "CollateralDeposited",
+          "CollateralWithdrawn",
+          "PositionSet",
+        ]
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Deterministic on-chain oracle source: publish a single clearing price per epoch,
+  # then settle the epoch by marking-to-market at that price.
+  - id: "clearing_price_seen"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "clearing_price_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "clearing_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  - id: "oracle_seen"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Index / mark price for risk (quote-per-base scaled by 1e8)
+  - id: "index_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  - id: "max_oracle_staleness_epochs"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000000 }
+
+  # Bounded oracle move per update (bps). 10000 = 100%.
+  - id: "max_oracle_move_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "initial_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "maintenance_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "liquidation_penalty_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "max_position_abs"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000000 }
+
+  # Signed base position (long > 0, short < 0)
+  - id: "position_base"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+
+  # Marked-to-market entry: invariant keeps this == index_price_e8 when pos != 0.
+  - id: "entry_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  # Quote collateral (realized). Always nonnegative.
+  - id: "collateral_quote"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "clearing_price_seen"
+    expr: { bool: false }
+  - var: "clearing_price_epoch"
+    expr: { const: 0 }
+  - var: "clearing_price_e8"
+    expr: { const: 0 }
+  - var: "oracle_seen"
+    expr: { bool: false }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+  - var: "index_price_e8"
+    expr: { const: 0 }
+
+  - var: "max_oracle_staleness_epochs"
+    expr: { const: 100 }
+  - var: "max_oracle_move_bps"
+    expr: { const: 500 } # 5% per update (conservative)
+
+  - var: "initial_margin_bps"
+    expr: { const: 1000 } # 10%
+  - var: "maintenance_margin_bps"
+    expr: { const: 600 } # 6%
+  - var: "liquidation_penalty_bps"
+    expr: { const: 50 } # 0.5%
+
+  - var: "max_position_abs"
+    expr: { const: 1000000 }
+
+  - var: "position_base"
+    expr: { const: 0 }
+  - var: "entry_price_e8"
+    expr: { const: 0 }
+  - var: "collateral_quote"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_clearing_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_clearing_seen_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args: [{ var: "clearing_price_seen" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "clearing_price_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "clearing_price_e8" }, { const: 0 }] }
+
+  - id: "inv_oracle_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_oracle_seen_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args: [{ var: "oracle_seen" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "oracle_last_update_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "index_price_e8" }, { const: 0 }] }
+
+  - id: "inv_margin_params_ordered"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ var: "maintenance_margin_bps" }, { var: "initial_margin_bps" }] }
+        - { op: "<=", args: [{ var: "max_oracle_move_bps" }, { var: "maintenance_margin_bps" }] }
+
+  - id: "inv_entry_zero_when_flat"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "position_base" }, { const: 0 }]
+        - op: "="
+          args: [{ var: "entry_price_e8" }, { const: 0 }]
+
+  - id: "inv_entry_matches_price_when_open"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "position_base" }, { const: 0 }]
+        - op: "="
+          args: [{ var: "entry_price_e8" }, { var: "index_price_e8" }]
+
+  # Maintenance safety: if position is open, collateral meets maintenance requirement.
+  - id: "inv_maint_margin_ok"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "position_base" }, { const: 0 }]
+        - op: ">="
+          args:
+            - { var: "collateral_quote" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: ">="
+                                args: [{ var: "position_base" }, { const: 0 }]
+                              then: { var: "position_base" }
+                              else:
+                                op: "-"
+                                args: [{ const: 0 }, { var: "position_base" }]
+                            - { var: "index_price_e8" }
+                        - { const: 100000000 }
+                    - { var: "maintenance_margin_bps" }
+                - { const: 10000 }
+
+actions:
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "now_epoch" }, { param: "delta" }]
+        - { const: 1000000 }
+    updates:
+      - var: "now_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "now_epoch" }, { param: "delta" }]
+    effects:
+      event: { enum: "EpochAdvanced" }
+      oracle_fresh:
+        op: "and"
+        args:
+          - { var: "oracle_seen" }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      notional_quote: { const: 0 }
+      maint_req_quote: { const: 0 }
+      init_req_quote: { const: 0 }
+      margin_ok: { bool: true }
+      liquidated: { bool: false }
+      collateral_after: { var: "collateral_quote" }
+
+  - id: "publish_clearing_price"
+    params:
+      - id: "price_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        # one clearing price per epoch
+        - op: "<"
+          args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }]
+        # bounded move if seen: |new-old| * 10000 <= max_oracle_move_bps * old
+        - op: "ite"
+          cond: { var: "clearing_price_seen" }
+          then:
+            op: "<="
+            args:
+              - op: "*"
+                args:
+                  - op: "ite"
+                    cond: { op: ">=", args: [{ param: "price_e8" }, { var: "clearing_price_e8" }] }
+                    then:
+                      op: "-"
+                      args: [{ param: "price_e8" }, { var: "clearing_price_e8" }]
+                    else:
+                      op: "-"
+                      args: [{ var: "clearing_price_e8" }, { param: "price_e8" }]
+                  - { const: 10000 }
+              - op: "*"
+                args: [{ var: "max_oracle_move_bps" }, { var: "clearing_price_e8" }]
+          else: { bool: true }
+    updates:
+      - var: "clearing_price_seen"
+        expr: { bool: true }
+      - var: "clearing_price_epoch"
+        expr: { var: "now_epoch" }
+      - var: "clearing_price_e8"
+        expr: { param: "price_e8" }
+    effects:
+      event: { enum: "ClearingPricePublished" }
+      oracle_fresh: { var: "oracle_seen" }
+      notional_quote:
+        { const: 0 }
+      maint_req_quote:
+        { const: 0 }
+      init_req_quote:
+        { const: 0 }
+      margin_ok: { bool: true }
+      liquidated: { bool: false }
+      collateral_after: { var: "collateral_quote" }
+
+  - id: "settle_epoch"
+    guard:
+      op: "and"
+      args:
+        - { var: "clearing_price_seen" }
+        - { op: "=", args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }] }
+        - op: "<"
+          args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+        # bounded move if oracle seen: |new-old| * 10000 <= max_oracle_move_bps * old
+        - op: "ite"
+          cond: { var: "oracle_seen" }
+          then:
+            op: "<="
+            args:
+              - op: "*"
+                args:
+                  - op: "ite"
+                    cond: { op: ">=", args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }] }
+                    then:
+                      op: "-"
+                      args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                    else:
+                      op: "-"
+                      args: [{ var: "index_price_e8" }, { var: "clearing_price_e8" }]
+                  - { const: 10000 }
+              - op: "*"
+                args: [{ var: "max_oracle_move_bps" }, { var: "index_price_e8" }]
+          else: { bool: true }
+        # fail-closed collateral bounds after mark-to-market:
+        - op: ">="
+          args:
+            - op: "+"
+              args:
+                - { var: "collateral_quote" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - { var: "position_base" }
+                        - op: "-"
+                          args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                    - { const: 100000000 }
+            - { const: 0 }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "collateral_quote" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - { var: "position_base" }
+                        - op: "-"
+                          args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                    - { const: 100000000 }
+            - { const: 1000000000000000 }
+    updates:
+      - var: "oracle_last_update_epoch"
+        expr: { var: "now_epoch" }
+      - var: "oracle_seen"
+        expr: { bool: true }
+
+      # price updates first
+      - var: "index_price_e8"
+        expr: { var: "clearing_price_e8" }
+
+      # mark-to-market collateral (based on old price delta), and liquidate if below maintenance at the new price.
+      - var: "collateral_quote"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "not"
+                args:
+                  - op: "="
+                    args: [{ var: "position_base" }, { const: 0 }]
+              - op: "<"
+                args:
+                  - op: "+"
+                    args:
+                      - { var: "collateral_quote" }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - { var: "position_base" }
+                              - op: "-"
+                                args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                          - { const: 100000000 }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - { var: "clearing_price_e8" }
+                              - { const: 100000000 }
+                          - { var: "maintenance_margin_bps" }
+                      - { const: 10000 }
+          then:
+            # liquidated collateral = mtm collateral - min(mtm collateral, penalty)
+            op: "-"
+            args:
+              - op: "+"
+                args:
+                  - { var: "collateral_quote" }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - { var: "position_base" }
+                          - op: "-"
+                            args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                      - { const: 100000000 }
+              - op: "min"
+                args:
+                  - op: "+"
+                    args:
+                      - { var: "collateral_quote" }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - { var: "position_base" }
+                              - op: "-"
+                                args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                          - { const: 100000000 }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - { var: "clearing_price_e8" }
+                              - { const: 100000000 }
+                          - { var: "liquidation_penalty_bps" }
+                      - { const: 10000 }
+          else:
+            op: "+"
+            args:
+              - { var: "collateral_quote" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - { var: "position_base" }
+                      - op: "-"
+                        args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                  - { const: 100000000 }
+
+      - var: "position_base"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "not"
+                args:
+                  - op: "="
+                    args: [{ var: "position_base" }, { const: 0 }]
+              - op: "<"
+                args:
+                  - op: "+"
+                    args:
+                      - { var: "collateral_quote" }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - { var: "position_base" }
+                              - op: "-"
+                                args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                          - { const: 100000000 }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - { var: "clearing_price_e8" }
+                              - { const: 100000000 }
+                          - { var: "maintenance_margin_bps" }
+                      - { const: 10000 }
+          then: { const: 0 }
+          else: { var: "position_base" }
+
+      - var: "entry_price_e8"
+        expr:
+          op: "ite"
+          cond:
+            op: "or"
+            args:
+              - op: "="
+                args: [{ var: "position_base" }, { const: 0 }]
+              - op: "and"
+                args:
+                  - op: "not"
+                    args:
+                      - op: "="
+                        args: [{ var: "position_base" }, { const: 0 }]
+                  - op: "<"
+                    args:
+                      - op: "+"
+                        args:
+                          - { var: "collateral_quote" }
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - { var: "position_base" }
+                                  - op: "-"
+                                    args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                              - { const: 100000000 }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "div"
+                                args:
+                                  - op: "*"
+                                    args:
+                                      - op: "ite"
+                                        cond:
+                                          op: ">="
+                                          args: [{ var: "position_base" }, { const: 0 }]
+                                        then: { var: "position_base" }
+                                        else:
+                                          op: "-"
+                                          args: [{ const: 0 }, { var: "position_base" }]
+                                      - { var: "clearing_price_e8" }
+                                  - { const: 100000000 }
+                              - { var: "maintenance_margin_bps" }
+                          - { const: 10000 }
+          then: { const: 0 }
+          else: { var: "clearing_price_e8" }
+    effects:
+      event: { enum: "EpochSettled" }
+      oracle_fresh: { bool: true }
+      notional_quote:
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "ite"
+                cond:
+                  op: ">="
+                  args: [{ var: "position_base" }, { const: 0 }]
+                then: { var: "position_base" }
+                else:
+                  op: "-"
+                  args: [{ const: 0 }, { var: "position_base" }]
+              - { var: "index_price_e8" }
+          - { const: 100000000 }
+      maint_req_quote:
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: ">="
+                          args: [{ var: "position_base" }, { const: 0 }]
+                        then: { var: "position_base" }
+                        else:
+                          op: "-"
+                          args: [{ const: 0 }, { var: "position_base" }]
+                      - { var: "index_price_e8" }
+                  - { const: 100000000 }
+              - { var: "maintenance_margin_bps" }
+          - { const: 10000 }
+      init_req_quote:
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: ">="
+                          args: [{ var: "position_base" }, { const: 0 }]
+                        then: { var: "position_base" }
+                        else:
+                          op: "-"
+                          args: [{ const: 0 }, { var: "position_base" }]
+                      - { var: "index_price_e8" }
+                  - { const: 100000000 }
+              - { var: "initial_margin_bps" }
+          - { const: 10000 }
+      margin_ok:
+        op: "ite"
+        cond:
+          op: "="
+          args: [{ var: "position_base" }, { const: 0 }]
+        then: { bool: true }
+        else:
+          op: ">="
+          args:
+            - { var: "collateral_quote" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: ">="
+                                args: [{ var: "position_base" }, { const: 0 }]
+                              then: { var: "position_base" }
+                              else:
+                                op: "-"
+                                args: [{ const: 0 }, { var: "position_base" }]
+                            - { var: "index_price_e8" }
+                        - { const: 100000000 }
+                    - { var: "maintenance_margin_bps" }
+                - { const: 10000 }
+      liquidated: { bool: false }
+      collateral_after: { var: "collateral_quote" }
+
+  - id: "deposit_collateral"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "collateral_quote" }, { param: "amount" }]
+            - { const: 1000000000000000 }
+    updates:
+      - var: "collateral_quote"
+        expr:
+          op: "+"
+          args: [{ var: "collateral_quote" }, { param: "amount" }]
+    effects:
+      event: { enum: "CollateralDeposited" }
+      oracle_fresh: { var: "oracle_seen" }
+      notional_quote: { const: 0 }
+      maint_req_quote: { const: 0 }
+      init_req_quote: { const: 0 }
+      margin_ok: { bool: true }
+      liquidated: { bool: false }
+      collateral_after: { var: "collateral_quote" }
+
+  - id: "withdraw_collateral"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - { op: "<=", args: [{ param: "amount" }, { var: "collateral_quote" }] }
+        # Must remain above maintenance if position open (using current price).
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "position_base" }, { const: 0 }]
+          then: { bool: true }
+          else:
+            op: ">="
+            args:
+              - op: "-"
+                args: [{ var: "collateral_quote" }, { param: "amount" }]
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "ite"
+                                cond:
+                                  op: ">="
+                                  args: [{ var: "position_base" }, { const: 0 }]
+                                then: { var: "position_base" }
+                                else:
+                                  op: "-"
+                                  args: [{ const: 0 }, { var: "position_base" }]
+                              - { var: "index_price_e8" }
+                          - { const: 100000000 }
+                      - { var: "maintenance_margin_bps" }
+                  - { const: 10000 }
+    updates:
+      - var: "collateral_quote"
+        expr:
+          op: "-"
+          args: [{ var: "collateral_quote" }, { param: "amount" }]
+    effects:
+      event: { enum: "CollateralWithdrawn" }
+      oracle_fresh: { var: "oracle_seen" }
+      notional_quote: { const: 0 }
+      maint_req_quote: { const: 0 }
+      init_req_quote: { const: 0 }
+      margin_ok: { bool: true }
+      liquidated: { bool: false }
+      collateral_after: { var: "collateral_quote" }
+
+  - id: "set_position"
+    params:
+      - id: "new_position_base"
+        type: { kind: "int", min: -1000000, max: 1000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - { var: "oracle_seen" }
+        # oracle freshness for trading
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+            - { var: "max_oracle_staleness_epochs" }
+        - op: "<="
+          args:
+            - op: "ite"
+              cond:
+                op: ">="
+                args: [{ param: "new_position_base" }, { const: 0 }]
+              then: { param: "new_position_base" }
+              else:
+                op: "-"
+                args: [{ const: 0 }, { param: "new_position_base" }]
+            - { var: "max_position_abs" }
+        # Must satisfy initial margin at current price.
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "new_position_base" }, { const: 0 }]
+          then: { bool: true }
+          else:
+            op: ">="
+            args:
+              - { var: "collateral_quote" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "ite"
+                                cond:
+                                  op: ">="
+                                  args: [{ param: "new_position_base" }, { const: 0 }]
+                                then: { param: "new_position_base" }
+                                else:
+                                  op: "-"
+                                  args: [{ const: 0 }, { param: "new_position_base" }]
+                              - { var: "index_price_e8" }
+                          - { const: 100000000 }
+                      - { var: "initial_margin_bps" }
+                  - { const: 10000 }
+    updates:
+      - var: "position_base"
+        expr: { param: "new_position_base" }
+      - var: "entry_price_e8"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "new_position_base" }, { const: 0 }]
+          then: { const: 0 }
+          else: { var: "index_price_e8" }
+    effects:
+      event: { enum: "PositionSet" }
+      oracle_fresh: { var: "oracle_seen" }
+      notional_quote: { const: 0 }
+      maint_req_quote: { const: 0 }
+      init_req_quote: { const: 0 }
+      margin_ok: { bool: true }
+      liquidated: { bool: false }
+      collateral_after: { var: "collateral_quote" }
