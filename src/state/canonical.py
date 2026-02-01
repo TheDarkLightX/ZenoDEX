@@ -250,3 +250,25 @@ def hex_to_bytes_fixed(hex_str: str, *, nbytes: int, name: str) -> bytes:
     if len(out) != nbytes:
         raise ValueError(f"{name} must decode to exactly {nbytes} bytes")
     return out
+
+
+def canonical_hex_fixed_allow_0x(hex_str: str, *, nbytes: int, name: str) -> str:
+    """
+    Canonicalize a fixed-size hex string (lowercase, 0x-prefixed).
+
+    Accepts either 0x-prefixed or raw hex input.
+    """
+    if not isinstance(hex_str, str):
+        raise TypeError(f"{name} must be a str")
+    if not isinstance(nbytes, int) or isinstance(nbytes, bool) or nbytes <= 0:
+        raise ValueError("nbytes must be a positive int")
+
+    s = hex_str.strip()
+    if s.lower().startswith("0x"):
+        s = s[2:]
+    expected_len = 2 * nbytes
+    if len(s) != expected_len:
+        raise ValueError(f"{name} must be {nbytes} bytes (hex length {expected_len})")
+    if not _HEX_CHARS_RE.fullmatch(s):
+        raise ValueError(f"{name} must be valid hex")
+    return "0x" + s.lower()

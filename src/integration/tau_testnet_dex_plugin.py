@@ -107,6 +107,7 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
         balances=balances_copy,
         pools=state.pools,
         lp_balances=state.lp_balances,
+        nonces=state.nonces,
         vault=state.vault,
         oracle=state.oracle,
         fee_accumulator=state.fee_accumulator,

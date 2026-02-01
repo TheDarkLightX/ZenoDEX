@@ -23,6 +23,7 @@ from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
+    canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
     domain_sep_bytes,
     sha256_hex,
@@ -30,6 +31,7 @@ from ..state.canonical import (
 from ..state.intents import Intent
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
+from ..state.nonces import NonceTable
 from .operations import (
     SignedIntentEnvelope,
     SettlementEnvelope,
@@ -51,6 +53,61 @@ except Exception:  # pragma: no cover - optional dependency
     _BLS_AVAILABLE = False
 
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+_U32_MAX = 0xFFFFFFFF
+
+
+def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
+    copied = NonceTable()
+    for pk, last in nonces.get_all().items():
+        copied.set_last(pk, int(last))
+    return copied
+
+
+def _require_int_u32_pos(value: Any, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{name} must be an int")
+    if value <= 0:
+        raise ValueError(f"{name} must be a positive int")
+    if value > _U32_MAX:
+        raise ValueError(f"{name} must fit in u32")
+    return int(value)
+
+
+def _validate_and_apply_nonce_batch(*, nonces: NonceTable, intents: list[Intent]) -> tuple[bool, str | None, NonceTable | None]:
+    """
+    Replay protection policy (v1):
+    - Every intent must include a positive u32 nonce under `intent.fields["nonce"]`.
+    - Per sender, the batch nonces must be a contiguous range:
+        {last+1, ..., last+k}
+      where `last` is the sender's last accepted nonce.
+    - Input order may be arbitrary (we validate as a set).
+    """
+    per_sender: dict[str, list[int]] = {}
+    for intent in intents:
+        fields = intent.fields or {}
+        nonce_raw = fields.get("nonce") if isinstance(fields, dict) else None
+        try:
+            nonce = _require_int_u32_pos(nonce_raw, name="nonce")
+        except Exception:
+            return False, "Missing/invalid nonce", None
+        try:
+            sender = canonical_hex_fixed_allow_0x(intent.sender_pubkey, nbytes=48, name="sender_pubkey")
+        except Exception as exc:
+            return False, f"invalid sender_pubkey for nonce accounting: {exc}", None
+        per_sender.setdefault(sender, []).append(int(nonce))
+
+    updated = _copy_nonce_table(nonces)
+    for sender, nonce_list in per_sender.items():
+        if len(nonce_list) != len(set(nonce_list)):
+            return False, "duplicate nonce in batch", None
+        nonce_list_sorted = sorted(nonce_list)
+        last = int(updated.get_last(sender))
+        expected = list(range(last + 1, last + 1 + len(nonce_list_sorted)))
+        if nonce_list_sorted != expected:
+            return False, "nonce sequence invalid", None
+        updated.set_last(sender, expected[-1])
+    return True, None, updated
 
 
 @dataclass(frozen=True)
@@ -435,6 +492,11 @@ def apply_ops(
                 return DexTxResult(ok=False, error="total intent payload too large")
 
         intents = [env.intent for env in signed_intents]
+
+        ok, err, next_nonces = _validate_and_apply_nonce_batch(nonces=state.nonces, intents=intents)
+        if not ok:
+            return DexTxResult(ok=False, error=err or "nonce policy rejected")
+
         try:
             settlement_env = parse_settlement_envelope(operations)
         except ValueError as exc:
@@ -618,6 +680,7 @@ def apply_ops(
             balances=next_balances,
             pools=next_pools,
             lp_balances=next_lp,
+            nonces=next_nonces or state.nonces,
             vault=state.vault,
             oracle=state.oracle,
             fee_accumulator=next_fee_state,

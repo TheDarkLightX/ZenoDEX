@@ -9,12 +9,13 @@ This module wires the verified kernels into a single pure step:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
+from ..state.nonces import NonceTable
 from ..state.pools import PoolState
 from .batch_clearing import compute_settlement, validate_settlement, apply_settlement_pure
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
@@ -35,6 +36,7 @@ class DexState:
     balances: BalanceTable
     pools: Dict[str, PoolState]
     lp_balances: LPTable
+    nonces: NonceTable = field(default_factory=NonceTable)
 
     # Optional modules (can be unused in early deployments).
     vault: Optional[VaultState] = None
@@ -101,6 +103,7 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             balances=next_balances,
             pools=next_pools,
             lp_balances=next_lp,
+            nonces=state.nonces,
             vault=state.vault,
             oracle=state.oracle,
             fee_accumulator=next_fee_state,
@@ -117,4 +120,3 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
         )
     except Exception as exc:
         return DexStepResult(ok=False, error=str(exc))
-

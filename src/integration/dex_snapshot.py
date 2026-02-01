@@ -20,6 +20,7 @@ from ..core.vault import VaultState
 from ..state.balances import BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from ..state.lp import LPTable
+from ..state.nonces import NonceTable
 from ..state.pools import PoolState, PoolStatus
 
 
@@ -100,6 +101,9 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
     ]
     lp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
 
+    nonce_entries = [{"pubkey": pk, "last_nonce": int(last)} for pk, last in state.nonces.get_all().items()]
+    nonce_entries.sort(key=lambda e: e["pubkey"])
+
     fee_acc = state.fee_accumulator
     fee_acc_obj: Dict[str, Any] = {"dust": int(getattr(fee_acc, "dust", 0))}
 
@@ -124,6 +128,7 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         "balances": balances_entries,
         "pools": pools_entries,
         "lp_balances": lp_entries,
+        "nonces": nonce_entries,
         "fee_accumulator": fee_acc_obj,
         "vault": vault_obj,
         "oracle": oracle_obj,
@@ -138,6 +143,7 @@ def state_from_snapshot(
     max_balances: int = 200_000,
     max_pools: int = 50_000,
     max_lp_balances: int = 200_000,
+    max_nonces: int = 200_000,
     max_str_len: int = 4096,
 ) -> DexState:
     if not isinstance(snapshot, Mapping):
@@ -150,6 +156,7 @@ def state_from_snapshot(
         ("max_balances", max_balances),
         ("max_pools", max_pools),
         ("max_lp_balances", max_lp_balances),
+        ("max_nonces", max_nonces),
         ("max_str_len", max_str_len),
     ):
         if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
@@ -254,6 +261,29 @@ def state_from_snapshot(
         seen_lp.add(key)
         lp_balances.set(pk_s, pool_id_s, amount)
 
+    nonces = NonceTable()
+    nonce_entries = snapshot.get("nonces")
+    if nonce_entries is None:
+        nonce_entries = []
+    if not isinstance(nonce_entries, list):
+        raise TypeError("snapshot.nonces must be a list")
+    if len(nonce_entries) > max_nonces:
+        raise ValueError(f"too many nonces entries: {len(nonce_entries)} > {max_nonces}")
+    seen_nonce_pks: set[str] = set()
+    for entry in nonce_entries:
+        if not isinstance(entry, Mapping):
+            raise TypeError("snapshot.nonces entries must be objects")
+        pk = _require_str(entry.get("pubkey"), name="nonce.pubkey", non_empty=True, max_len=min(512, max_str_len))
+        last_nonce = entry.get("last_nonce", 0)
+        if not isinstance(last_nonce, int) or isinstance(last_nonce, bool) or last_nonce < 0:
+            raise ValueError("invalid nonce entry (last_nonce)")
+        if last_nonce > 0xFFFFFFFF:
+            raise ValueError("invalid nonce entry (last_nonce out of u32 range)")
+        if pk in seen_nonce_pks:
+            raise ValueError("duplicate nonce entry (pubkey)")
+        seen_nonce_pks.add(pk)
+        nonces.set_last(pk, int(last_nonce))
+
     missing = object()
     fee_acc_obj = snapshot.get("fee_accumulator", missing)
     if fee_acc_obj is missing:
@@ -290,6 +320,7 @@ def state_from_snapshot(
         balances=balances,
         pools=pools,
         lp_balances=lp_balances,
+        nonces=nonces,
         vault=vault,
         oracle=oracle,
         fee_accumulator=fee_acc,
