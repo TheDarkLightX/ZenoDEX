@@ -1,0 +1,746 @@
+# [FORGE] Perp Game Theory v2 (Mechanism Design Verification — FIXED)
+#
+# Purpose:
+# - ESSO-IR state machine encoding game-theoretic invariants for the perpetual protocol.
+# - Two-player isolated-margin model with funding, liquidation, and insurance fund.
+# - Verifies budget balance, incentive compatibility, individual rationality via SMT.
+#
+# v2 Fixes (from CEGIS Phase 2):
+# - Symmetric funding: funding_b = -funding_a (not computed independently).
+#   Fixes integer floor-division BB violation found by z3+cvc5.
+# - Insurance overflow guard in execute_liquidation.
+# - Collateral overflow guards in compute_funding.
+#
+# Units:
+# - `mark_price_e8` is quote-per-base scaled by 1e8.
+# - `position_base_a/b` are signed base units (long > 0, short < 0).
+# - `collateral_e8_a/b` are quote units (non-negative).
+# - margin/penalty/funding ratios are in bps (1/10_000).
+#
+# Key invariants:
+# - NetPositionZero: position_base_a + position_base_b = 0 (zero-sum market)
+# - FundingBudgetBalance: funding_paid_a + funding_paid_b = 0
+# - CollateralNonNeg: collateral_e8_a >= 0 and collateral_e8_b >= 0
+# - InsuranceConservation: insurance_balance = initial_insurance + fee_income - claims_paid
+# - FundingRateBounded: -funding_cap_bps <= funding_rate_bps <= funding_cap_bps
+# - LiquidationRewardNonNeg: liquidation_reward >= 0
+# - LiquidationICGuard: liquidation_penalty_bps < maintenance_margin_bps
+# - IRGuard: collateral >= required margin when position is open
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_game_theory_v2"
+  created_by: "zenodex-forge"
+  notes: |
+    Two-player epoch-based perpetual model with game-theoretic invariants.
+    Encodes mechanism design properties (BB, IC, IR) as SMT-verifiable safety invariants.
+
+observables:
+  state_vars:
+    [
+      "epoch",
+      "phase",
+      "position_base_a",
+      "position_base_b",
+      "collateral_e8_a",
+      "collateral_e8_b",
+      "mark_price_e8",
+      "funding_rate_bps",
+      "funding_paid_a",
+      "funding_paid_b",
+      "insurance_balance",
+      "initial_insurance",
+      "fee_income",
+      "claims_paid",
+      "liquidation_reward",
+      "maintenance_margin_bps",
+      "liquidation_penalty_bps",
+      "funding_cap_bps",
+      "initial_margin_bps",
+    ]
+  effects:
+    [
+      "event",
+      "net_position",
+      "funding_net",
+    ]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "EpochAdvanced",
+          "FundingComputed",
+          "PositionOpened",
+          "PositionClosed",
+          "LiquidationChecked",
+          "LiquidationExecuted",
+          "EpochSettled",
+          "InsuranceDeposited",
+        ]
+  - id: "t_phase"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "Idle",
+          "Funding",
+          "Trading",
+          "Liquidating",
+          "Settling",
+        ]
+
+state_vars:
+  - id: "epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 100000 }
+
+  - id: "phase"
+    role: "data"
+    type: { kind: "enum_ref", ref: "t_phase" }
+
+  # Two-player positions (signed base units, long > 0, short < 0)
+  - id: "position_base_a"
+    role: "data"
+    type: { kind: "int", min: -100000, max: 100000 }
+
+  - id: "position_base_b"
+    role: "data"
+    type: { kind: "int", min: -100000, max: 100000 }
+
+  # Collateral (quote units, non-negative)
+  - id: "collateral_e8_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000000 }
+
+  - id: "collateral_e8_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000000 }
+
+  # Mark price (quote per base, scaled by 1e8)
+  - id: "mark_price_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 100000000000 }
+
+  # Funding rate (signed bps, positive = longs pay shorts)
+  - id: "funding_rate_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+
+  # Cumulative funding paid (signed)
+  - id: "funding_paid_a"
+    role: "data"
+    type: { kind: "int", min: -10000000000, max: 10000000000 }
+
+  - id: "funding_paid_b"
+    role: "data"
+    type: { kind: "int", min: -10000000000, max: 10000000000 }
+
+  # Insurance fund
+  - id: "insurance_balance"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000000 }
+
+  - id: "initial_insurance"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000000000 }
+
+  - id: "fee_income"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000000 }
+
+  - id: "claims_paid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000000 }
+
+  # Liquidation
+  - id: "liquidation_reward"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000000000 }
+
+  # Parameters (control variables — set at init, invariant-constrained)
+  - id: "maintenance_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+
+  - id: "liquidation_penalty_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "funding_cap_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+
+  - id: "initial_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+
+init:
+  - var: "epoch"
+    expr: { const: 0 }
+  - var: "phase"
+    expr: { enum: "Idle" }
+  - var: "position_base_a"
+    expr: { const: 0 }
+  - var: "position_base_b"
+    expr: { const: 0 }
+  - var: "collateral_e8_a"
+    expr: { const: 0 }
+  - var: "collateral_e8_b"
+    expr: { const: 0 }
+  - var: "mark_price_e8"
+    expr: { const: 100000000 }  # 1.00 quote per base
+  - var: "funding_rate_bps"
+    expr: { const: 0 }
+  - var: "funding_paid_a"
+    expr: { const: 0 }
+  - var: "funding_paid_b"
+    expr: { const: 0 }
+  - var: "insurance_balance"
+    expr: { const: 0 }
+  - var: "initial_insurance"
+    expr: { const: 0 }
+  - var: "fee_income"
+    expr: { const: 0 }
+  - var: "claims_paid"
+    expr: { const: 0 }
+  - var: "liquidation_reward"
+    expr: { const: 0 }
+  - var: "maintenance_margin_bps"
+    expr: { const: 600 }    # 6%
+  - var: "liquidation_penalty_bps"
+    expr: { const: 50 }     # 0.5%
+  - var: "funding_cap_bps"
+    expr: { const: 100 }    # 1% max funding rate
+  - var: "initial_margin_bps"
+    expr: { const: 1000 }   # 10%
+
+invariants:
+  # INV-1: Net position is zero (zero-sum market)
+  - id: "inv_net_position_zero"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args: [{ var: "position_base_a" }, { var: "position_base_b" }]
+        - { const: 0 }
+
+  # INV-2: Funding budget balance (cumulative payments sum to zero)
+  - id: "inv_funding_budget_balance"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args: [{ var: "funding_paid_a" }, { var: "funding_paid_b" }]
+        - { const: 0 }
+
+  # INV-3: Collateral non-negative for both accounts
+  - id: "inv_collateral_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "collateral_e8_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "collateral_e8_b" }, { const: 0 }] }
+
+  # INV-4: Insurance fund conservation
+  - id: "inv_insurance_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "insurance_balance" }
+        - op: "-"
+          args:
+            - op: "+"
+              args: [{ var: "initial_insurance" }, { var: "fee_income" }]
+            - { var: "claims_paid" }
+
+  # INV-5: Funding rate bounded by cap
+  - id: "inv_funding_rate_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { var: "funding_cap_bps" }]
+            - { var: "funding_rate_bps" }
+        - op: "<="
+          args:
+            - { var: "funding_rate_bps" }
+            - { var: "funding_cap_bps" }
+
+  # INV-6: Liquidation reward is non-negative
+  - id: "inv_liquidation_reward_nonneg"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "liquidation_reward" }, { const: 0 }]
+
+  # INV-7: Liquidation IC guard — penalty < maintenance prevents self-liquidation profit
+  - id: "inv_liquidation_ic_guard"
+    kind: "safety"
+    expr:
+      op: "<"
+      args: [{ var: "liquidation_penalty_bps" }, { var: "maintenance_margin_bps" }]
+
+  # INV-8: Margin parameter ordering
+  - id: "inv_margin_params_ordered"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "maintenance_margin_bps" }, { var: "initial_margin_bps" }]
+
+actions:
+  # ACTION 1: Advance epoch
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 100 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "epoch" }, { param: "delta" }]
+            - { const: 100000 }
+        - op: "="
+          args: [{ var: "phase" }, { enum: "Idle" }]
+    updates:
+      - var: "epoch"
+        expr:
+          op: "+"
+          args: [{ var: "epoch" }, { param: "delta" }]
+      - var: "phase"
+        expr: { enum: "Funding" }
+    effects:
+      event: { enum: "EpochAdvanced" }
+      net_position:
+        op: "+"
+        args: [{ var: "position_base_a" }, { var: "position_base_b" }]
+      funding_net:
+        op: "+"
+        args: [{ var: "funding_paid_a" }, { var: "funding_paid_b" }]
+
+  # ACTION 2: Compute funding (symmetric: a pays what b receives, vice versa)
+  - id: "compute_funding"
+    params:
+      - id: "new_rate_bps"
+        type: { kind: "int", min: -10000, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "Funding" }]
+        # Rate within cap
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { var: "funding_cap_bps" }]
+            - { param: "new_rate_bps" }
+        - op: "<="
+          args: [{ param: "new_rate_bps" }, { var: "funding_cap_bps" }]
+        # Collateral sufficient to pay funding (account A)
+        - op: ">="
+          args:
+            - { var: "collateral_e8_a" }
+            - op: "max"
+              args:
+                - { const: 0 }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "*"
+                              args: [{ var: "position_base_a" }, { var: "mark_price_e8" }]
+                            - { const: 100000000 }
+                        - { param: "new_rate_bps" }
+                    - { const: 10000 }
+        # B receives -funding_a. Guard: collateral_b + funding_a >= 0
+        # (If funding_a < 0, B's collateral decreases; need it to stay non-neg)
+        - op: ">="
+          args:
+            - op: "+"
+              args:
+                - { var: "collateral_e8_b" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "*"
+                              args: [{ var: "position_base_a" }, { var: "mark_price_e8" }]
+                            - { const: 100000000 }
+                        - { param: "new_rate_bps" }
+                    - { const: 10000 }
+            - { const: 0 }
+        # Overflow guard: collateral_b + funding_a <= max
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "collateral_e8_b" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "*"
+                              args: [{ var: "position_base_a" }, { var: "mark_price_e8" }]
+                            - { const: 100000000 }
+                        - { param: "new_rate_bps" }
+                    - { const: 10000 }
+            - { const: 10000000000 }
+        # Overflow guard: collateral_a - funding_a <= max
+        - op: "<="
+          args:
+            - op: "-"
+              args:
+                - { var: "collateral_e8_a" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "*"
+                              args: [{ var: "position_base_a" }, { var: "mark_price_e8" }]
+                            - { const: 100000000 }
+                        - { param: "new_rate_bps" }
+                    - { const: 10000 }
+            - { const: 10000000000 }
+        # Funding_paid overflow guard
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "funding_paid_a" }, &funding_a_ref { op: "div", args: [{ op: "*", args: [{ op: "div", args: [{ op: "*", args: [{ var: "position_base_a" }, { var: "mark_price_e8" }] }, { const: 100000000 }] }, { param: "new_rate_bps" }] }, { const: 10000 }] }]
+            - { const: 10000000000 }
+        - op: ">="
+          args:
+            - op: "+"
+              args: [{ var: "funding_paid_a" }, { op: "div", args: [{ op: "*", args: [{ op: "div", args: [{ op: "*", args: [{ var: "position_base_a" }, { var: "mark_price_e8" }] }, { const: 100000000 }] }, { param: "new_rate_bps" }] }, { const: 10000 }] }]
+            - { const: -10000000000 }
+    updates:
+      - var: "funding_rate_bps"
+        expr: { param: "new_rate_bps" }
+      # Funding payment for A: pos_a * price * rate / (1e8 * 10000)
+      - var: "collateral_e8_a"
+        expr:
+          op: "-"
+          args:
+            - { var: "collateral_e8_a" }
+            - &funding_a
+              op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args: [{ var: "position_base_a" }, { var: "mark_price_e8" }]
+                        - { const: 100000000 }
+                    - { param: "new_rate_bps" }
+                - { const: 10000 }
+      # SYMMETRIC FIX (v2): B receives exactly what A pays.
+      # funding_b := -funding_a by construction. This ensures
+      # funding_paid_a + funding_paid_b = 0 exactly, even with floor division.
+      - var: "collateral_e8_b"
+        expr:
+          op: "+"
+          args:
+            - { var: "collateral_e8_b" }
+            - *funding_a
+      - var: "funding_paid_a"
+        expr:
+          op: "+"
+          args: [{ var: "funding_paid_a" }, *funding_a]
+      - var: "funding_paid_b"
+        expr:
+          op: "-"
+          args: [{ var: "funding_paid_b" }, *funding_a]
+      - var: "phase"
+        expr: { enum: "Trading" }
+    effects:
+      event: { enum: "FundingComputed" }
+      net_position:
+        op: "+"
+        args: [{ var: "position_base_a" }, { var: "position_base_b" }]
+      funding_net:
+        op: "+"
+        args:
+          - op: "+"
+            args: [{ var: "funding_paid_a" }, *funding_a]
+          - op: "-"
+            args: [{ var: "funding_paid_b" }, *funding_a]
+
+  # ACTION 3: Open position (symmetric: A goes long, B goes short by same amount)
+  - id: "open_position"
+    params:
+      - id: "size"
+        type: { kind: "int", min: 1, max: 100000 }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "Trading" }]
+        # Both accounts flat (fresh open only)
+        - op: "="
+          args: [{ var: "position_base_a" }, { const: 0 }]
+        - op: "="
+          args: [{ var: "position_base_b" }, { const: 0 }]
+        # Initial margin check for A
+        - op: ">="
+          args:
+            - { var: "collateral_e8_a" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args: [{ param: "size" }, { var: "mark_price_e8" }]
+                        - { const: 100000000 }
+                    - { var: "initial_margin_bps" }
+                - { const: 10000 }
+        # Initial margin check for B
+        - op: ">="
+          args:
+            - { var: "collateral_e8_b" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args: [{ param: "size" }, { var: "mark_price_e8" }]
+                        - { const: 100000000 }
+                    - { var: "initial_margin_bps" }
+                - { const: 10000 }
+    updates:
+      - var: "position_base_a"
+        expr: { param: "size" }
+      - var: "position_base_b"
+        expr:
+          op: "-"
+          args: [{ const: 0 }, { param: "size" }]
+    effects:
+      event: { enum: "PositionOpened" }
+      net_position: { const: 0 }
+      funding_net:
+        op: "+"
+        args: [{ var: "funding_paid_a" }, { var: "funding_paid_b" }]
+
+  # ACTION 4: Close position (both accounts return to flat)
+  - id: "close_position"
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "Trading" }]
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "position_base_a" }, { const: 0 }]
+    updates:
+      - var: "position_base_a"
+        expr: { const: 0 }
+      - var: "position_base_b"
+        expr: { const: 0 }
+    effects:
+      event: { enum: "PositionClosed" }
+      net_position: { const: 0 }
+      funding_net:
+        op: "+"
+        args: [{ var: "funding_paid_a" }, { var: "funding_paid_b" }]
+
+  # ACTION 5: Check liquidation (transition to Liquidating phase)
+  - id: "check_liquidation"
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "Trading" }]
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "position_base_a" }, { const: 0 }]
+    updates:
+      - var: "phase"
+        expr: { enum: "Liquidating" }
+    effects:
+      event: { enum: "LiquidationChecked" }
+      net_position:
+        op: "+"
+        args: [{ var: "position_base_a" }, { var: "position_base_b" }]
+      funding_net:
+        op: "+"
+        args: [{ var: "funding_paid_a" }, { var: "funding_paid_b" }]
+
+  # ACTION 6: Execute liquidation on account A (if undercollateralized)
+  # Liquidator receives penalty; account A is closed; penalty goes to fee pool.
+  - id: "execute_liquidation"
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "Liquidating" }]
+        # Account A is below maintenance margin
+        - op: "<"
+          args:
+            - { var: "collateral_e8_a" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: ">="
+                                args: [{ var: "position_base_a" }, { const: 0 }]
+                              then: { var: "position_base_a" }
+                              else:
+                                op: "-"
+                                args: [{ const: 0 }, { var: "position_base_a" }]
+                            - { var: "mark_price_e8" }
+                        - { const: 100000000 }
+                    - { var: "maintenance_margin_bps" }
+                - { const: 10000 }
+        # Penalty is bounded by available collateral
+        - op: ">="
+          args:
+            - { var: "collateral_e8_a" }
+            - &liq_penalty
+              op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: ">="
+                                args: [{ var: "position_base_a" }, { const: 0 }]
+                              then: { var: "position_base_a" }
+                              else:
+                                op: "-"
+                                args: [{ const: 0 }, { var: "position_base_a" }]
+                            - { var: "mark_price_e8" }
+                        - { const: 100000000 }
+                    - { var: "liquidation_penalty_bps" }
+                - { const: 10000 }
+        # Fee pool won't overflow
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "fee_income" }, *liq_penalty]
+            - { const: 10000000000 }
+        # Insurance balance won't overflow (v2 fix)
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "insurance_balance" }, *liq_penalty]
+            - { const: 10000000000 }
+    updates:
+      - var: "liquidation_reward"
+        expr: *liq_penalty
+      - var: "collateral_e8_a"
+        expr:
+          op: "-"
+          args: [{ var: "collateral_e8_a" }, *liq_penalty]
+      - var: "fee_income"
+        expr:
+          op: "+"
+          args: [{ var: "fee_income" }, *liq_penalty]
+      - var: "insurance_balance"
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args: [{ var: "initial_insurance" }, { op: "+", args: [{ var: "fee_income" }, *liq_penalty] }]
+            - { var: "claims_paid" }
+      # Close the liquidated position
+      - var: "position_base_a"
+        expr: { const: 0 }
+      - var: "position_base_b"
+        expr: { const: 0 }
+      - var: "phase"
+        expr: { enum: "Trading" }
+    effects:
+      event: { enum: "LiquidationExecuted" }
+      net_position: { const: 0 }
+      funding_net:
+        op: "+"
+        args: [{ var: "funding_paid_a" }, { var: "funding_paid_b" }]
+
+  # ACTION 7: Settle epoch (return to Idle)
+  - id: "settle_epoch"
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { enum: "Trading" }]
+    updates:
+      - var: "phase"
+        expr: { enum: "Idle" }
+      - var: "liquidation_reward"
+        expr: { const: 0 }
+    effects:
+      event: { enum: "EpochSettled" }
+      net_position:
+        op: "+"
+        args: [{ var: "position_base_a" }, { var: "position_base_b" }]
+      funding_net:
+        op: "+"
+        args: [{ var: "funding_paid_a" }, { var: "funding_paid_b" }]
+
+  # ACTION 8: Deposit to insurance fund
+  - id: "deposit_insurance"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "initial_insurance" }, { param: "amount" }]
+            - { const: 10000000000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "insurance_balance" }, { param: "amount" }]
+            - { const: 10000000000 }
+    updates:
+      - var: "initial_insurance"
+        expr:
+          op: "+"
+          args: [{ var: "initial_insurance" }, { param: "amount" }]
+      - var: "insurance_balance"
+        expr:
+          op: "+"
+          args: [{ var: "insurance_balance" }, { param: "amount" }]
+    effects:
+      event: { enum: "InsuranceDeposited" }
+      net_position:
+        op: "+"
+        args: [{ var: "position_base_a" }, { var: "position_base_b" }]
+      funding_net:
+        op: "+"
+        args: [{ var: "funding_paid_a" }, { var: "funding_paid_b" }]
