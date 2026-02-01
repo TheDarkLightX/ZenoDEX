@@ -19,7 +19,7 @@ We model the incentive layer as:
 - `α` (abstraction): the games we care about (oracle manipulation, keeper liveness, LP depth, liquidation behavior).
 - `Δ` (constraints): protocol invariants + accounting conservation + explicit bounds/caps.
 - `G` (goals): manipulation is unprofitable; liveness is rational; depth is rewarded; protocol is solvent.
-- `V` (validation): adversarial simulation, property-based tests, and (where feasible) formal checks of invariants.
+- `V` (validation): adversarial simulation, property-based tests, and (where feasible) mechanized proofs of invariants (see Lean section below).
 
 ## 2) Roles and “critical actions”
 
@@ -155,3 +155,35 @@ a = floor(x / denom)
 b = -a
 ```
 If you need “closer to zero” behavior, do it explicitly (e.g., by using a symmetric rounding rule), but keep the accounting identity true by construction.
+
+## 9) Lean proof artifacts (mechanized invariants)
+
+Lean is not an internal tool — it’s an independent proof assistant. We use Lean4 + mathlib to mechanize the most consensus-critical incentive/accounting lemmas so they are:
+- explicit about assumptions (domains, bounds, rounding rules),
+- checkable by anyone, and
+- stable under refactors.
+
+### Coverage snapshot
+
+- Perp-related Lean files live in `lean-mathlib/Proofs/Perp*.lean` (8 files, **1,212 lines** total).
+- The broader proof library lives in `lean-mathlib/Proofs/` (36 files, **6,805 lines** total).
+
+### Perp proof map (what is proved where)
+
+| Lean file | Lines | Selected theorems | Plain-English meaning |
+|---|---:|---|---|
+| `lean-mathlib/Proofs/PerpMechanismDesign.lean` | 145 | `dominant_implies_nash`, `ic_iff_dominant`, `witness_two_player_game` | Core game-theory building blocks used to state incentive-compatibility and equilibrium claims precisely. |
+| `lean-mathlib/Proofs/PerpGameTheory.lean` | 286 | `funding_budget_balance`, `no_profitable_self_liquidation`, `liquidation_dominant_strategy` | Canonical “toy games” for funding/liquidation and proofs of basic safety incentives under assumptions. |
+| `lean-mathlib/Proofs/PerpProtocolSafety.lean` | 155 | `no_value_creation`, `unified_perp_safety`, `unified_perp_safety_clamped` | Protocol-level conservation/safety theorems (and clamped variants). |
+| `lean-mathlib/Proofs/PerpFundingRateSafety.lean` | 183 | `funding_budget_balance_rat`, `int_fdiv_neg_gap`, `int_multi_epoch_funding_gap` | Budget-balance + integer rounding-gap bounds for funding-like flows. |
+| `lean-mathlib/Proofs/PerpIntegerBridge.lean` | 81 | `int_div_conservative`, `int_single_div_gap`, `int_symmetric_div_gap` | Reusable integer-division/rounding lemmas (used to avoid asymmetric rounding bugs). |
+| `lean-mathlib/Proofs/PerpInsuranceSafety.lean` | 121 | `insurance_accounting`, `insurance_multi_epoch_solvent`, `insurance_depletion_bounded` | Insurance pool accounting and multi-epoch solvency under stated conditions. |
+| `lean-mathlib/Proofs/PerpCascadeSafety.lean` | 103 | `isolated_margin_independence`, `cascade_impossible_isolated` | “No cascade” / isolation-style safety results under simplified models. |
+| `lean-mathlib/Proofs/PerpEpochSafety.lean` | 138 | `collateral_nonneg_after_bounded_move`, `collateral_nonneg_after_clamped_move` | Epoch-step safety lemmas tying bounded oracle moves to collateral non-negativity. |
+
+### How to check the proofs locally
+
+```bash
+cd lean-mathlib
+lake build
+```
