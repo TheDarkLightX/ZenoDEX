@@ -6,12 +6,16 @@ ZenoDEX style: deterministic state machines with explicit, verifiable invariants
 We call it “European-style” because all economically relevant transitions are **epoch-based**
 (batch/epoch boundaries): oracle update, mark-to-market, margin check, and (if needed) liquidation.
 
+**Recommendation:** use the **v1.1 kernel** (`perp_epoch_isolated_v1_1.yaml`) as the default posture.
+It enforces the bounded-move condition by **clamping** out-of-bounds updates and entering a
+**reduce-only circuit-breaker** mode until the market is fully closed and the breaker is cleared.
+
 ## 1. Scope (MVP)
 
 **Market model**
 - **Linear** perp: position is in base units; collateral and PnL are in quote units.
 - **Cash-settled** in a single quote collateral asset.
-  - **Tau Net v1 recommendation:** use **AGRS** (native) or a wrapped form (e.g., `wAGRS`) as the quote collateral asset.
+  - **Tau Net v1 recommendation:** use the chain’s **native asset** (the always-available quote unit) as collateral.
   - Later upgrade: list a stable collateral asset via the token registry once that listing path is proven safe.
 - **Isolated margin** (no cross-margin in v1).
 - **One market** per kernel instance.
@@ -34,7 +38,9 @@ We call it “European-style” because all economically relevant transitions ar
 **Mitigations:**
 - Freshness gate: `now_epoch - oracle_last_update_epoch <= max_oracle_staleness_epochs`.
 - **Bounded move** gate per update: new price must be within `max_oracle_move_bps` of last price.
-- If bounded-move fails, the safe default is **fail-closed** (no state transition).
+- If bounded-move fails:
+  - v1: **fail-closed** (no state transition).
+  - v1.1: **clamp + breaker**: settle at the clamped boundary price and enter a reduce-only posture until cleared.
 
 ### T2: Liquidation liquidity failure (dYdX-style insurance drain)
 **Risk:** liquidations can’t execute fast enough; bad debt socialized to insurance.
@@ -43,22 +49,35 @@ We call it “European-style” because all economically relevant transitions ar
 - Safety proofs do **not** assume external liquidity exists.
 - Parameters are chosen so that under the oracle’s bounded-move assumption, **equity cannot go negative between oracle updates**.
 
-### T3: MEV / execution discretion
+### T3: “Market-maker of last resort” backstops (HLP/insurance/ADL)
+**Risk:** if liquidations depend on external liquidity, protocols often add layered backstops:
+forced protocol counterparties, insurance fund drains, and finally profit-haircut mechanisms
+(ADL / socialized loss) that punish winners to keep the system solvent.
+
+**Mitigation (v1 posture):**
+- We do **not** rely on “someone must buy the liquidation” as a safety assumption.
+- We aim to make **insolvency structurally impossible** under explicit model assumptions:
+  bounded per-epoch price movement and conservative margin parameters.
+- In v1.1, if the raw oracle move violates the configured bound, we **clamp** the effective settlement
+  move and enter **reduce-only** mode until the market is closed and the breaker is cleared.
+
+### T4: MEV / execution discretion
 **Risk:** execution ordering or discretionary matching causes unfair fills.
 **Mitigation (MVP posture):**
 - This v1 kernel models the **risk engine** (margin/solvency) rather than the full matching engine.
 - When we add matching, we use **batch auction / canonical tie-breaking** (see existing `batch_auction_settler_v1.yaml`).
 
-### T4: Arithmetic/overflow
+### T5: Arithmetic/overflow
 **Risk:** integer overflow breaks invariants.
 **Mitigation:**
 - Fixed-point integer math with explicit scales (`price_e8`, `bps`).
 - Bounded domains in the ESSO kernel (and later, overflow-aware implementation constraints).
 
-## 3. Core Safety Claims (mathematical invariants)
+## 3. Core Safety Properties (mechanized invariants)
 
-This section states the **precise invariants** we intend the protocol to enforce.
-They are “claims” only in the sense that they are *statements to be mechanically checked*.
+This section states the **precise properties** the protocol is intended to enforce.
+They are “mechanized” in the sense that they are written as statements to be checked by tools
+(Lean for the math lemma(s), and SMT/ESSO for the executable kernel invariants).
 
 ### 3.1 Units and notation
 
@@ -109,7 +128,7 @@ Trading (`set_position`) is allowed only when the oracle is fresh.
 **Key parameter relationship (safety knob):**
 - `maint_bps >= m_bps`.
 
-### 3.3 One-step solvency under bounded move
+### 3.3 One-step solvency under bounded move (v1)
 
 Assume the bounded-move oracle gate enforces:
 \[
@@ -128,6 +147,24 @@ then a single epoch’s mark-to-market cannot drive collateral negative:
 This inequality is mechanized as `Proofs.PerpEpochSafety.collateral_nonneg_after_bounded_move`
 and is reflected operationally by fail-closed guards in the epoch settlement transition.
 
+### 3.4 Clamping makes the bounded-move guarantee enforceable (v1.1)
+
+In v1.1 we do not assume the raw clearing price update satisfies the bounded-move inequality.
+Instead we define an **effective settlement price** \(\widehat{P}'\) by clamping the raw update \(P'\)
+into the allowed band around \(P\):
+\[
+  \widehat{P}' \;:=\; \mathrm{clamp}\!\left(P',\; P\!\left(1-\frac{m_{\mathrm{bps}}}{10{,}000}\right),\;
+  P\!\left(1+\frac{m_{\mathrm{bps}}}{10{,}000}\right)\right).
+\]
+Then, by construction,
+\[
+  \bigl|\widehat{P}' - P\bigr| \le \frac{m_{\mathrm{bps}}}{10{,}000}\,P,
+\]
+so the v1 solvency lemma applies verbatim with \(P'\) replaced by \(\widehat{P}'\).
+Operationally, v1.1 marks-to-market using \(\widehat{P}'\) and sets a breaker flag if clamping occurred.
+This reduction is mechanized in Lean as `Proofs.PerpEpochSafety.abs_clamp_move_sub_le` and
+`Proofs.PerpEpochSafety.collateral_nonneg_after_clamped_move`.
+
 ### 3.4 What this does *not* claim yet
 
 - It does not claim anything about how the clearing price is produced (that is the matching module).
@@ -136,17 +173,21 @@ and is reflected operationally by fail-closed guards in the epoch settlement tra
 
 ## 4. Artifacts
 
-- ESSO kernel (MVP): `src/kernels/dex/perp_epoch_isolated_v1.yaml`
-  - This is the executable spec we gate with `python3 -m ESSO verify-multi ...`.
+- ESSO kernels (MVP):
+  - v1: `src/kernels/dex/perp_epoch_isolated_v1.yaml` (strict bounded-move; fail-closed on violation)
+  - v1.1: `src/kernels/dex/perp_epoch_isolated_v1_1.yaml` (clamp + breaker; reduce-only while breaker is active)
+  - These are the executable specs we gate with `python3 -m ESSO verify-multi ...`.
   - Oracle posture: publish an epoch clearing price (`publish_clearing_price`), then settle the epoch at that price (`settle_epoch`).
 
 ## 5. Next steps (after the MVP kernel verifies)
 
 1) Add an explicit **matching module**:
    - batch auction per epoch (canonical, deterministic).
-2) Replace “bounded move” with a **circuit breaker**:
-   - when violated: halt opens; only reduce-only; deterministic resolution path.
-3) Upgrade oracle to 2-of-2 composition:
+2) Upgrade oracle to 2-of-2 composition:
    - on-chain TWAP + signed quorum feed, with deviation checks.
-4) Add “bad debt” module only if needed:
-   - and cap it; prefer ADL over insurance drains.
+3) Extend the v1.1 breaker into a complete **resolution protocol**:
+   - deterministic “walk” the index price toward the raw oracle price in bounded steps,
+     while permitting only reduce-only account actions.
+4) Add “bad debt” layers only if required by a future, strictly wider model:
+   - treat any such mechanism as a separate module with explicit caps and explicit victim sets;
+     do not silently socialize losses.

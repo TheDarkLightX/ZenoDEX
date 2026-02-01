@@ -65,6 +65,51 @@ theorem collateral_nonneg_after_bounded_move
   have : 0 ≤ C + pos * δ := le_trans hC_sub hbridge
   simpa [δ, mul_assoc, mul_left_comm, mul_comm] using this
 
+/-!
+v1.1 clamp lemma.
+
+The v1 kernel assumes the oracle update satisfies a bounded-move inequality.
+The v1.1 kernel enforces the same bound by clamping the raw update into the admissible band.
+The lemmas below make that reduction explicit: once the move is clamped, the v1 solvency lemma
+applies verbatim with `P' := clamp_move P P_raw m`.
+-/
+
+def clamp_move (P P_raw m : ℚ) : ℚ :=
+  let δ := m * P / 10000
+  max (P - δ) (min (P + δ) P_raw)
+
+theorem abs_clamp_move_sub_le
+    (P P_raw m : ℚ)
+    (hP : 0 ≤ P)
+    (hm : 0 ≤ m) :
+    |clamp_move P P_raw m - P| ≤ m * P / 10000 := by
+  set δ : ℚ := m * P / 10000
+  have h10000_pos : 0 < (10000 : ℚ) := by norm_num
+  have hδ : 0 ≤ δ := by
+    have : 0 ≤ m * P := mul_nonneg hm hP
+    exact div_nonneg this (le_of_lt h10000_pos)
+  have hlohi : P - δ ≤ P + δ := by linarith
+  have hlo : P - δ ≤ max (P - δ) (min (P + δ) P_raw) := le_max_left _ _
+  have hhi : max (P - δ) (min (P + δ) P_raw) ≤ P + δ := by
+    exact (max_le_iff).2 ⟨hlohi, min_le_left _ _⟩
+
+  have h_lower : -δ ≤ max (P - δ) (min (P + δ) P_raw) - P := by linarith [hlo]
+  have h_upper : max (P - δ) (min (P + δ) P_raw) - P ≤ δ := by linarith [hhi]
+  have habs : |max (P - δ) (min (P + δ) P_raw) - P| ≤ δ :=
+    (abs_le).2 ⟨h_lower, h_upper⟩
+  -- Rewrite back to the `clamp_move` form.
+  simpa [clamp_move, δ, sub_eq_add_neg, add_comm, add_left_comm, add_assoc] using habs
+
+theorem collateral_nonneg_after_clamped_move
+    (pos P P_raw C m maint : ℚ)
+    (hP : 0 ≤ P)
+    (hm : 0 ≤ m)
+    (hmaint : m ≤ maint)
+    (hC : |pos| * P * maint / 10000 ≤ C) :
+    0 ≤ C + pos * (clamp_move P P_raw m - P) := by
+  refine collateral_nonneg_after_bounded_move pos P (clamp_move P P_raw m) C m maint hP hmaint ?_ hC
+  exact abs_clamp_move_sub_le P P_raw m hP hm
+
 end PerpEpochSafety
 
 end Proofs

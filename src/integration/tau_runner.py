@@ -881,6 +881,7 @@ def run_tau_spec_steps_spec_mode_with_trace(
     spec_text = normalize_spec_text(raw_spec_text)
     stream_types = extract_stream_types(spec_text)
     input_streams = {k: v for k, v in stream_types.items() if k.startswith("i")}
+    output_streams = {k: v for k, v in stream_types.items() if k.startswith("o")}
     if not input_streams:
         raise ValueError(f"No input streams detected in spec: {spec_path}")
 
@@ -914,16 +915,48 @@ def run_tau_spec_steps_spec_mode_with_trace(
             cmd.append("--experimental")
         cmd += ["--severity", severity, "--charvar", "false", "-x"]
 
+        # Some Tau builds do not terminate cleanly in `-x` mode on EOF and will keep
+        # producing outputs indefinitely. Cap stdout to a budget that should contain
+        # at least the requested trace length, then accept truncated runs as long as
+        # we observed all requested outputs.
+        out_names = sorted(output_streams.keys())
+        est_line_bytes = 96
+        stdout_budget = 16_384 + len(steps) * max(1, len(out_names)) * est_line_bytes
+
         rc, out, err = _run_subprocess_with_output_caps(
             cmd,
             input_text=input_text,
             cwd=tmpdir_path,
             timeout_s=timeout_s,
-            max_stdout_bytes=256_000,
+            max_stdout_bytes=min(256_000, max(32_000, int(stdout_budget))),
             max_stderr_bytes=32_000,
         )
 
+    output_text = out + ("\n" + err if err else "")
+    outputs_by_step: Dict[int, Dict[str, int]] = {}
+    for line in output_text.splitlines():
+        for match in re.finditer(r"\b(o\d+)\[(\d+)\]:[^\s:=]+\s*:=\s*(-?\d+)", line):
+            name = match.group(1)
+            idx = int(match.group(2))
+            value = int(match.group(3))
+            outputs_by_step.setdefault(idx, {})[name] = value
+
     if rc != 0:
+        # Accept truncated stdout if we still captured the requested outputs.
+        want_steps = range(len(steps))
+        want_outs = out_names
+        ok_complete = True
+        for idx in want_steps:
+            got = outputs_by_step.get(idx, {})
+            for out_name in want_outs:
+                if out_name not in got:
+                    ok_complete = False
+                    break
+            if not ok_complete:
+                break
+        if ok_complete and (err or "").strip() == "tau stdout too large":
+            return outputs_by_step, out, err, spec_text, input_text
+
         detail = (err or out or "unknown error").strip()
         raise TauRunError(
             f"tau failed (rc={rc}): {detail[:400]}",
@@ -935,15 +968,6 @@ def run_tau_spec_steps_spec_mode_with_trace(
             spec_text=spec_text,
             input_text=input_text,
         )
-
-    output_text = out + ("\n" + err if err else "")
-    outputs_by_step: Dict[int, Dict[str, int]] = {}
-    for line in output_text.splitlines():
-        for match in re.finditer(r"\b(o\d+)\[(\d+)\]:[^\s:=]+\s*:=\s*(-?\d+)", line):
-            name = match.group(1)
-            idx = int(match.group(2))
-            value = int(match.group(3))
-            outputs_by_step.setdefault(idx, {})[name] = value
 
     return outputs_by_step, out, err, spec_text, input_text
 

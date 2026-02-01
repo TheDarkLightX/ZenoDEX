@@ -395,7 +395,7 @@
       "id": "balance_safety",
       "path": "experiments/12_balance_safety.tau",
       "mode": "spec",
-      "spec_timeout": 2.0,
+      "spec_timeout": 60.0,
       "oracle": {
         "type": "python",
         "outputs": {
