@@ -9,6 +9,7 @@
 # - `index_price_e8` is quote-per-base scaled by 1e8.
 # - `position_base` is signed base units.
 # - `collateral_quote` is quote units.
+# - `fee_pool_quote` is quote units (liquidation penalties accrue here).
 # - margin ratios are in bps (1/10_000).
 #
 # Key safety knob:
@@ -46,6 +47,7 @@ observables:
       "position_base",
       "entry_price_e8",
       "collateral_quote",
+      "fee_pool_quote",
     ]
   effects:
     [
@@ -57,6 +59,7 @@ observables:
       "margin_ok",
       "liquidated",
       "collateral_after",
+      "fee_pool_after",
     ]
 
 types:
@@ -156,6 +159,11 @@ state_vars:
     role: "data"
     type: { kind: "int", min: 0, max: 1000000000000000 }
 
+  # Liquidation penalties are transferred into the fee pool.
+  - id: "fee_pool_quote"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+
 init:
   - var: "now_epoch"
     expr: { const: 0 }
@@ -196,6 +204,8 @@ init:
   - var: "entry_price_e8"
     expr: { const: 0 }
   - var: "collateral_quote"
+    expr: { const: 0 }
+  - var: "fee_pool_quote"
     expr: { const: 0 }
 
 invariants:
@@ -348,6 +358,7 @@ actions:
       margin_ok: { bool: true }
       liquidated: { bool: false }
       collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
 
   - id: "publish_clearing_price"
     params:
@@ -380,6 +391,7 @@ actions:
       margin_ok: { bool: true }
       liquidated: { bool: false }
       collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
 
   - id: "settle_epoch"
     guard:
@@ -464,6 +476,89 @@ actions:
                           args: [*settle_price_e8, { var: "index_price_e8" }]
                     - { const: 100000000 }
             - { const: 1000000000000000 }
+        # Fail-closed on fee-pool bounds: liquidation penalties must not overflow the fee pool.
+        - op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "not"
+                args:
+                  - op: "="
+                    args: [{ var: "position_base" }, { const: 0 }]
+              - op: "<"
+                args:
+                  - op: "+"
+                    args:
+                      - { var: "collateral_quote" }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - { var: "position_base" }
+                              - op: "-"
+                                args: [*settle_price_e8, { var: "index_price_e8" }]
+                          - { const: 100000000 }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - *settle_price_e8
+                              - { const: 100000000 }
+                          - { var: "maintenance_margin_bps" }
+                      - { const: 10000 }
+          then:
+            op: "<="
+            args:
+              - op: "+"
+                args:
+                  - { var: "fee_pool_quote" }
+                  - op: "min"
+                    args:
+                      - op: "+"
+                        args:
+                          - { var: "collateral_quote" }
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - { var: "position_base" }
+                                  - op: "-"
+                                    args: [*settle_price_e8, { var: "index_price_e8" }]
+                              - { const: 100000000 }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "div"
+                                args:
+                                  - op: "*"
+                                    args:
+                                      - op: "ite"
+                                        cond:
+                                          op: ">="
+                                          args: [{ var: "position_base" }, { const: 0 }]
+                                        then: { var: "position_base" }
+                                        else:
+                                          op: "-"
+                                          args: [{ const: 0 }, { var: "position_base" }]
+                                      - *settle_price_e8
+                                  - { const: 100000000 }
+                              - { var: "liquidation_penalty_bps" }
+                          - { const: 10000 }
+              - { const: 1000000000000000 }
+          else: { bool: true }
     updates:
       - var: "oracle_last_update_epoch"
         expr: { var: "now_epoch" }
@@ -593,6 +688,88 @@ actions:
                       - op: "-"
                         args: [*settle_price_e8, { var: "index_price_e8" }]
                   - { const: 100000000 }
+
+      - var: "fee_pool_quote"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "not"
+                args:
+                  - op: "="
+                    args: [{ var: "position_base" }, { const: 0 }]
+              - op: "<"
+                args:
+                  - op: "+"
+                    args:
+                      - { var: "collateral_quote" }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - { var: "position_base" }
+                              - op: "-"
+                                args: [*settle_price_e8, { var: "index_price_e8" }]
+                          - { const: 100000000 }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - *settle_price_e8
+                              - { const: 100000000 }
+                          - { var: "maintenance_margin_bps" }
+                      - { const: 10000 }
+          then:
+            op: "+"
+            args:
+              - { var: "fee_pool_quote" }
+              - op: "min"
+                args:
+                  - op: "+"
+                    args:
+                      - { var: "collateral_quote" }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - { var: "position_base" }
+                              - op: "-"
+                                args: [*settle_price_e8, { var: "index_price_e8" }]
+                          - { const: 100000000 }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - *settle_price_e8
+                              - { const: 100000000 }
+                          - { var: "liquidation_penalty_bps" }
+                      - { const: 10000 }
+          else: { var: "fee_pool_quote" }
 
       - var: "position_base"
         expr:
@@ -781,6 +958,7 @@ actions:
                 - { const: 10000 }
       liquidated: { bool: false }
       collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
 
   - id: "deposit_collateral"
     params:
@@ -811,6 +989,7 @@ actions:
       margin_ok: { bool: true }
       liquidated: { bool: false }
       collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
 
   - id: "withdraw_collateral"
     params:
@@ -868,6 +1047,7 @@ actions:
       margin_ok: { bool: true }
       liquidated: { bool: false }
       collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
 
   - id: "set_position"
     params:
@@ -988,6 +1168,7 @@ actions:
       margin_ok: { bool: true }
       liquidated: { bool: false }
       collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
 
   - id: "clear_breaker"
     params:
@@ -1013,3 +1194,4 @@ actions:
       margin_ok: { bool: true }
       liquidated: { bool: false }
       collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }

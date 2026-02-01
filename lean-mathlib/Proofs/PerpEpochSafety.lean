@@ -65,6 +65,29 @@ theorem collateral_nonneg_after_bounded_move
   have : 0 ≤ C + pos * δ := le_trans hC_sub hbridge
   simpa [δ, mul_assoc, mul_left_comm, mul_comm] using this
 
+theorem collateral_nonneg_after_bounded_move_with_abs_bound
+    (pos P P' C m maint B : ℚ)
+    (hP : 0 ≤ P)
+    (hm : 0 ≤ m)
+    (hmaint : m ≤ maint)
+    (hmove : |P' - P| ≤ m * P / 10000)
+    (hpos : |pos| ≤ B)
+    (hC : B * P * maint / 10000 ≤ C) :
+    0 ≤ C + pos * (P' - P) := by
+  have hmaint0 : 0 ≤ maint := le_trans hm hmaint
+  have h10000_pos : 0 < (10000 : ℚ) := by norm_num
+  have hfactor : 0 ≤ P * maint / 10000 := by
+    have : 0 ≤ P * maint := mul_nonneg hP hmaint0
+    exact div_nonneg this (le_of_lt h10000_pos)
+
+  have hbound_scaled : |pos| * P * maint / 10000 ≤ B * P * maint / 10000 := by
+    have h1 : |pos| * (P * maint / 10000) ≤ B * (P * maint / 10000) :=
+      mul_le_mul_of_nonneg_right hpos hfactor
+    simpa [mul_assoc, mul_left_comm, mul_comm, div_eq_mul_inv] using h1
+
+  refine collateral_nonneg_after_bounded_move pos P P' C m maint hP hmaint hmove ?_
+  exact le_trans hbound_scaled hC
+
 /-!
 v1.1 clamp lemma.
 
