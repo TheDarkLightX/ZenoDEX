@@ -6,6 +6,8 @@ ZenoDEX style: deterministic state machines with explicit, verifiable invariants
 We call it “European-style” because all economically relevant transitions are **epoch-based**
 (batch/epoch boundaries): oracle update, mark-to-market, margin check, and (if needed) liquidation.
 
+For the complementary **game theory / incentive layer**, see `docs/derivatives/PERP_INCENTIVES_V1.md`.
+
 **Recommendation:** use the **v1.1 kernel** (`perp_epoch_isolated_v1_1.yaml`) as the default posture.
 It enforces the bounded-move condition by **clamping** out-of-bounds updates and entering a
 **reduce-only circuit-breaker** mode until the market is fully closed and the breaker is cleared.
@@ -19,6 +21,7 @@ It enforces the bounded-move condition by **clamping** out-of-bounds updates and
   - Later upgrade: list a stable collateral asset via the token registry once that listing path is proven safe.
 - **Isolated margin** (no cross-margin in v1).
 - **One market** per kernel instance.
+- Liquidation penalties flow into an explicit **fee pool** (`fee_pool_quote`) rather than an implicit insurance/backstop layer.
 
 **Execution model**
 - Deterministic, epoch-based processing:
@@ -60,6 +63,7 @@ forced protocol counterparties, insurance fund drains, and finally profit-haircu
   bounded per-epoch price movement and conservative margin parameters.
 - In v1.1, if the raw oracle move violates the configured bound, we **clamp** the effective settlement
   move and enter **reduce-only** mode until the market is closed and the breaker is cleared.
+- Any liquidation penalty is an explicit transfer from the liquidated account into `fee_pool_quote` (no hidden “insurance fund” accounting).
 
 ### T4: MEV / execution discretion
 **Risk:** execution ordering or discretionary matching causes unfair fills.
@@ -128,6 +132,14 @@ Trading (`set_position`) is allowed only when the oracle is fresh.
 **Key parameter relationship (safety knob):**
 - `maint_bps >= m_bps`.
 
+**Accounting note (scope).**
+- The isolated-margin kernel is a *per-account* risk engine: it does not explicitly model counterparties.
+  Mark-to-market PnL changes an account’s collateral, but the offsetting PnL lives “elsewhere” (in other accounts)
+  and is not tracked in this single-account abstraction.
+- For closed-system conservation (no mint/burn across the whole venue), use the multi-account clearinghouse kernels
+  (tracked internally in `internal/kernels/`), which explicitly represent counterparties and can enforce total
+  conservation with a deterministic remainder/dust policy.
+
 ### 3.3 One-step solvency under bounded move (v1)
 
 Assume the bounded-move oracle gate enforces:
@@ -178,6 +190,7 @@ This reduction is mechanized in Lean as `Proofs.PerpEpochSafety.abs_clamp_move_s
   - v1.1: `src/kernels/dex/perp_epoch_isolated_v1_1.yaml` (clamp + breaker; reduce-only while breaker is active)
   - These are the executable specs we gate with `python3 -m ESSO verify-multi ...`.
   - Oracle posture: publish an epoch clearing price (`publish_clearing_price`), then settle the epoch at that price (`settle_epoch`).
+  - v1.1 additionally maintains a `fee_pool_quote` and fail-closes if a liquidation would overflow the finite-domain fee pool.
 
 ## 5. Next steps (after the MVP kernel verifies)
 
