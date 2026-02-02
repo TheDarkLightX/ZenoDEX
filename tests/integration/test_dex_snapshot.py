@@ -142,10 +142,18 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
         "max_oracle_staleness_epochs": 100,
         "max_oracle_move_bps": 500,
         "initial_margin_bps": 1000,
-        "maintenance_margin_bps": 600,
+        "maintenance_margin_bps": 500,
+        "depeg_buffer_bps": 100,
         "liquidation_penalty_bps": 50,
         "max_position_abs": 1000000,
         "fee_pool_quote": 0,
+        "funding_rate_bps": 0,
+        "funding_cap_bps": 100,
+        "insurance_balance": 0,
+        "initial_insurance": 0,
+        "fee_income": 0,
+        "claims_paid": 0,
+        "min_notional_for_bounty": 100000000,
     }
     perps = PerpsState(
         version=PERPS_STATE_VERSION,
@@ -154,7 +162,14 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
                 quote_asset="0x" + "33" * 32,
                 global_state=perps_global,
                 accounts={
-                    "alice": PerpAccountState(position_base=0, entry_price_e8=0, collateral_quote=0),
+                    "alice": PerpAccountState(
+                        position_base=0,
+                        entry_price_e8=0,
+                        collateral_quote=0,
+                        funding_paid_cumulative=0,
+                        funding_last_applied_epoch=0,
+                        liquidated_this_step=False,
+                    ),
                 },
             )
         },

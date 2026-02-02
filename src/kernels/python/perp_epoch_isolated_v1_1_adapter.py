@@ -6,7 +6,7 @@ from typing import Any, Callable, Mapping
 
 # Bound to the ESSO-IR hash of `src/kernels/dex/perp_epoch_isolated_v1_1.yaml`.
 # This is checked by `python3 -m ESSO shell-lint ...` (fail-closed by default).
-IR_HASH = "sha256:68a1b7b181ba824a80956372a7769a873371b10312dcaec7463621023df47421"
+IR_HASH = "sha256:d85e41c05f9ebbd26334ea5c6c7aebfa2760b79f460e919596d6c410e149d86d"
 
 
 def _kernel_step(*, state: Mapping[str, Any], command: Any, ir: Any) -> Any:
@@ -112,4 +112,3 @@ EFFECT_HANDLERS: dict[str, Callable[[PerpEpochIsolatedV1_1Adapter, str, Any], No
 
 def make_adapter(ir: Any) -> PerpEpochIsolatedV1_1Adapter:
     return PerpEpochIsolatedV1_1Adapter(ir=ir)
-

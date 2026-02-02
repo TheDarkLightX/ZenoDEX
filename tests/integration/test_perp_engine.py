@@ -131,15 +131,15 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
     # Fund both traders so they can deposit collateral.
     funded = BalanceTable()
     for (pk, asset), amt in state.balances.get_all_balances().items():
         funded.set(pk, asset, int(amt))
-    funded.set(alice, quote_asset, 1_000_000)
-    funded.set(bob, quote_asset, 1_000_000)
+    funded.set(alice, quote_asset, 1_000_000_000)
+    funded.set(bob, quote_asset, 1_000_000_000)
     state = replace(state, balances=funded)
 
     # Open positions (trader-authenticated).
@@ -149,18 +149,24 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
         state=state,
         tx_sender_pubkey=alice,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", account_pubkey=alice, amount=100), _op(market_id, "set_position", account_pubkey=alice, new_position_base=1000)],
+        ops=[
+            _op(market_id, "deposit_collateral", account_pubkey=alice, amount=100_000_000),
+            _op(market_id, "set_position", account_pubkey=alice, new_position_base=1_000_000),
+        ],
     )
     state = _apply(
         state=state,
         tx_sender_pubkey=bob,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", account_pubkey=bob, amount=100), _op(market_id, "set_position", account_pubkey=bob, new_position_base=-1000)],
+        ops=[
+            _op(market_id, "deposit_collateral", account_pubkey=bob, amount=100_000_000),
+            _op(market_id, "set_position", account_pubkey=bob, new_position_base=-1_000_000),
+        ],
     )
 
     # Epoch 2: publish a new clearing price (pre-settle state).
     pre = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
-    pre = _apply(state=pre, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000)])
+    pre = _apply(state=pre, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000_000)])
 
     # Construct an equivalent state but with reversed account insertion order.
     assert pre.perps is not None
@@ -177,7 +183,9 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
 
     assert post.perps is not None
     m = post.perps.markets[market_id]
-    assert int(m.global_state["fee_pool_quote"]) == 4
+    assert int(m.global_state["fee_pool_quote"]) == 4_750_000
+    assert int(m.global_state["fee_income"]) == 4_750_000
+    assert int(m.global_state["insurance_balance"]) == 4_750_000
 
     acct_alice = m.accounts[alice]
     acct_bob = m.accounts[bob]
@@ -185,12 +193,12 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
     # Alice: liquidated (position forced to 0) with penalty collected into fee pool.
     assert acct_alice.position_base == 0
     assert acct_alice.entry_price_e8 == 0
-    assert acct_alice.collateral_quote == 46
+    assert acct_alice.collateral_quote == 45_250_000
 
     # Bob: remains open and gains PnL from the price move.
-    assert acct_bob.position_base == -1000
-    assert acct_bob.entry_price_e8 == 95_000_000
-    assert acct_bob.collateral_quote == 150
+    assert acct_bob.position_base == -1_000_000
+    assert acct_bob.entry_price_e8 == 95_000_000_000
+    assert acct_bob.collateral_quote == 150_000_000
 
 
 def test_breaker_reduce_only_and_clear() -> None:
