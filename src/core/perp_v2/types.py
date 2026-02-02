@@ -18,7 +18,7 @@ from enum import Enum, unique
 
 @unique
 class Action(Enum):
-    """One member per ESSO action id."""
+    """One member per action id in the kernel spec."""
     ADVANCE_EPOCH = "advance_epoch"
     PUBLISH_CLEARING_PRICE = "publish_clearing_price"
     SETTLE_EPOCH = "settle_epoch"
@@ -33,7 +33,7 @@ class Action(Enum):
 
 @unique
 class Event(Enum):
-    """One member per ESSO effect event type."""
+    """One member per effect event enum in the kernel spec."""
     EPOCH_ADVANCED = "EpochAdvanced"
     CLEARING_PRICE_PUBLISHED = "ClearingPricePublished"
     EPOCH_SETTLED = "EpochSettled"
@@ -105,7 +105,14 @@ class PerpState:
 
 @dataclass(frozen=True)
 class ActionParams:
-    """Parameters for an action. Unused fields default to 0/False."""
+    """Parameters for an action.
+
+    Unused fields default to 0/False.
+
+    `auth_ok` is an authorization bit supplied by the caller after performing any
+    signature/permission checks. The risk kernel itself does not do cryptography;
+    guards fail closed when `auth_ok` is false.
+    """
 
     action: Action
     delta: int = 0                # advance_epoch

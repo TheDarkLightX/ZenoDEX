@@ -1,6 +1,6 @@
 """Guard functions for `perp_v2`.
 
-One pure function per ESSO action. Each returns True iff the action is allowed
+One pure function per kernel action id. Each returns True iff the action is allowed
 in the given PRE-state with the given parameters.
 
 These are direct translations of the guard blocks in

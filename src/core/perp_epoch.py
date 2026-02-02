@@ -1,12 +1,22 @@
 """
-Epoch-based perpetuals: isolated-margin linear perp risk engine.
+Epoch-based perpetuals: isolated-margin linear perp risk engine (wrapper).
 
-Provides three backend implementations:
-- v1 / v1.1: ESSO kernel interpreter (requires external/ESSO)
-- v2 ESSO: ESSO kernel interpreter for v2 (requires external/ESSO)
-- v2 native: hand-written Python in ``src/core/perp_v2/`` (no ESSO dependency)
+This module provides a stable `initial_state` / `apply` interface for the rest
+of the codebase.
 
-Default posture: v2 native (oracle-equivalence tested against ESSO reference).
+Two “sources of truth” coexist:
+- A formal YAML state-machine specification (“kernel”) under `src/kernels/dex/`.
+- A hand-written Python implementation under `src/core/perp_v2/`.
+
+Backends:
+- Spec interpreter (optional): uses the `external/ESSO` toolchain to interpret the
+  YAML kernel directly. ESSO (“Evolutionary State Space Optimizer”) is the verifier/
+  interpreter/codegen tool used in this repo for kernel specs.
+- Native (default): executes `src/core/perp_v2/`, which is kept equivalent to the
+  YAML spec via parity tests against a generated Python reference model under
+  `generated/perp_python/`.
+
+Default posture: v2 native.
 """
 
 from __future__ import annotations
@@ -26,7 +36,8 @@ except Exception:  # pragma: no cover - optional dependency in some environments
     _YAML_AVAILABLE = False
 
 
-# NOTE: ESSO defines Value = bool|int|str for kernel states/effects.
+# Kernel values are JSON-like scalars used by both the spec interpreter backend
+# and the generated reference models.
 Value = bool | int | str
 
 
@@ -56,7 +67,7 @@ def _model_path_v2() -> Path:
 
 def _load_yaml_model(path: Path):
     if not _YAML_AVAILABLE:
-        raise RuntimeError("PyYAML is required to load ESSO-IR YAML models (pip install pyyaml)")
+        raise RuntimeError("PyYAML is required to load kernel YAML models (pip install pyyaml)")
     from ESSO.ir.schema import CandidateIR  # type: ignore
 
     obj = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -223,7 +234,7 @@ def perp_epoch_isolated_v2_fee_pool_max_quote() -> int:
 
 
 # ---------------------------------------------------------------------------
-# v2 native backend: uses hand-written src/core/perp_v2 (no ESSO dependency)
+# v2 native backend: uses hand-written src/core/perp_v2 (no external toolchain dependency)
 # ---------------------------------------------------------------------------
 
 def perp_epoch_isolated_v2_native_initial_state() -> dict[str, Value]:
@@ -236,9 +247,13 @@ def perp_epoch_isolated_v2_native_initial_state() -> dict[str, Value]:
 def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
     """Translate (action_str, params_dict) to a perp_v2 ActionParams.
 
-    Uses a table-driven approach: each action maps to a list of
-    (ActionParams_field, params_dict_key) pairs for int extraction.
-    Actions that need ``auth_ok`` are in ``_auth_actions``.
+    This is deliberately strict/fail-closed:
+    - unknown actions raise ValueError
+    - missing required keys raise KeyError
+    - type mismatches raise TypeError/ValueError
+
+    Note: unexpected keys are ignored here because the integration layer
+    (`src/integration/perp_engine.py`) rejects unknown fields at the API boundary.
     """
     from .perp_v2.types import Action, ActionParams
 
@@ -275,7 +290,7 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
 
 
 def _effect_to_dict(effect) -> dict[str, Value]:
-    """Convert a perp_v2 Effect to a plain dict matching ESSO effect format."""
+    """Convert a perp_v2 Effect to a plain dict matching kernel effect keys."""
     return {
         "event": effect.event.value,
         "oracle_fresh": effect.oracle_fresh,
@@ -320,7 +335,7 @@ def perp_epoch_isolated_v2_native_fee_pool_max_quote() -> int:
     return MAX_COLLATERAL
 
 
-# Default posture: v2 native (oracle-equivalence tested, no ESSO dependency).
+# Default posture: v2 native (oracle-equivalence tested, no external toolchain dependency).
 perp_epoch_isolated_default_initial_state = perp_epoch_isolated_v2_native_initial_state
 perp_epoch_isolated_default_apply = perp_epoch_isolated_v2_native_apply
 perp_epoch_isolated_default_fee_pool_max_quote = perp_epoch_isolated_v2_native_fee_pool_max_quote

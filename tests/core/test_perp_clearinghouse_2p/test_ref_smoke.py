@@ -1,4 +1,4 @@
-"""Smoke tests for the ESSO-generated reference model of the 2-party clearinghouse perp kernel."""
+"""Smoke tests for the generated reference model of the 2-party clearinghouse perp kernel."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import sys
 from pathlib import Path
 
 
-# Import the ESSO-generated reference oracle.
+# Import the generated reference oracle (produced from the YAML kernel spec).
+# We load it by path so the test does not depend on any packaging/install step.
 _REF_DIR = Path(__file__).resolve().parents[3] / "generated" / "perp_python"
 if str(_REF_DIR) not in sys.path:
     sys.path.insert(0, str(_REF_DIR))
@@ -66,4 +67,3 @@ def test_settlement_can_trigger_deterministic_liquidation_and_penalty():
     assert s.collateral_e8_b == 4_475_000_000
     assert s.fee_pool_e8 == 525_000_000
     assert s.collateral_e8_a + s.collateral_e8_b + s.fee_pool_e8 == s.net_deposited_e8
-

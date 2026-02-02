@@ -25,7 +25,7 @@ def initial_state() -> PerpState:
 
 
 def state_to_dict(state: PerpState) -> dict[str, bool | int]:
-    """Serialize a PerpState to a plain dict (ESSO kernel format)."""
+    """Serialize a PerpState to a plain dict (kernel-state dict format)."""
     return {name: getattr(state, name) for name in STATE_VAR_NAMES}
 
 

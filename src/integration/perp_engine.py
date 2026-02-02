@@ -8,7 +8,8 @@ fail-closed way. It is intentionally conservative:
 - unknown fields/actions are rejected
 
 Perp risk logic is delegated to `src/core/perp_epoch.py`, which defaults to
-the native v2 backend (`src/core/perp_v2/`) — no ESSO runtime dependency.
+the native v2 backend (`src/core/perp_v2/`) and does not require the kernel-spec
+toolchain at runtime.
 """
 
 from __future__ import annotations

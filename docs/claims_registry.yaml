@@ -31,8 +31,6 @@ claims:
     statement: >
       Settling an epoch across multiple accounts is deterministic and independent of account
       table iteration order (global post-state is consistent across accounts).
-    assumptions:
-      - Requires ESSO installed (kernel interpreter) to execute the perp epoch risk kernel.
     evidence:
       kind: pytest
       check:
@@ -49,8 +47,6 @@ claims:
       When some (but not all) accounts liquidate during settle_epoch, the per-market fee pool
       increases by the sum of per-account liquidation penalties, and the transition remains
       deterministic and independent of account insertion order.
-    assumptions:
-      - Requires ESSO installed (kernel interpreter) to execute the perp epoch risk kernel.
     evidence:
       kind: pytest
       check:
@@ -66,8 +62,6 @@ claims:
       Under the clamp+breaker posture, an out-of-bounds clearing price update deterministically
       triggers the breaker, clamps the mark price, enforces reduce-only position updates while active,
       and allows operator clear only after all positions are closed.
-    assumptions:
-      - Requires ESSO installed (kernel interpreter) to execute the perp epoch risk kernel.
     evidence:
       kind: pytest
       check:
@@ -83,8 +77,6 @@ claims:
     statement: >
       Operator epoch advancement is fail-closed: the engine rejects advancing again until the
       current epoch has been settled (prevents skipping settlement epochs).
-    assumptions:
-      - Requires ESSO installed (kernel interpreter) to execute the perp epoch risk kernel.
     evidence:
       kind: pytest
       check:
@@ -98,7 +90,7 @@ claims:
     layer: spec
     statement: >
       The default epoch-perp risk kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under ESSO's fail-closed verification model.
+      under the kernel verifier's fail-closed verification model (tool: ESSO).
     evidence:
       kind: esso
       check:
@@ -111,7 +103,7 @@ claims:
     layer: spec
     statement: >
       The 2-party clearinghouse epoch-perp kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under ESSO's fail-closed verification model.
+      under the kernel verifier's fail-closed verification model (tool: ESSO).
     evidence:
       kind: esso
       check:
@@ -265,7 +257,7 @@ claims:
       (oracle_last_update_epoch = 2) via the canonical advance/publish/settle cycle. This is a bounded,
       executable complement to the infinite-trace TLA+ liveness check.
     assumptions:
-      - Requires ESSO installed (LTLf synthesis gate).
+      - Requires the kernel toolchain installed (Python package `ESSO`) for the LTLf synthesis gate.
     evidence:
       kind: pytest
       check:

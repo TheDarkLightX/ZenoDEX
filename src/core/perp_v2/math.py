@@ -3,7 +3,8 @@
 Every function is stateless and operates on plain Python ints.
 
 This module is intentionally explicit about rounding: it uses Python's `//`
-for integer division (floor toward -∞), matching ESSO's semantics for `div`.
+for integer division (floor toward -∞). This matches the kernel interpreter and
+the generated reference models used by parity tests.
 """
 
 from __future__ import annotations
