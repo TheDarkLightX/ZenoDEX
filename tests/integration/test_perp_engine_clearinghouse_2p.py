@@ -50,7 +50,7 @@ def test_init_market_2p_is_strict_about_prefix_and_operator() -> None:
             _op(
                 bad_market_id,
                 "init_market_2p",
-                version="0.2",
+                version="1.0",
                 quote_asset=quote_asset,
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
@@ -69,7 +69,7 @@ def test_init_market_2p_is_strict_about_prefix_and_operator() -> None:
             _op(
                 market_id,
                 "init_market_2p",
-                version="0.2",
+                version="1.0",
                 quote_asset=quote_asset,
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
@@ -97,7 +97,7 @@ def test_set_position_pair_requires_net_zero() -> None:
             _op(
                 market_id,
                 "init_market_2p",
-                version="0.2",
+                version="1.0",
                 quote_asset=quote_asset,
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
@@ -106,14 +106,14 @@ def test_set_position_pair_requires_net_zero() -> None:
     )
 
     # Establish oracle/index so set_position guards can run.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="0.2", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)])
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", version="0.2", price_e8=100_000_000)],
+        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=100_000_000)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="0.2")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
 
     res = _apply_result(
         state=state,
@@ -123,7 +123,7 @@ def test_set_position_pair_requires_net_zero() -> None:
             _op(
                 market_id,
                 "set_position_pair",
-                version="0.2",
+                version="1.0",
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
                 new_position_base_a=1,
@@ -152,7 +152,7 @@ def test_settle_epoch_2p_uses_dust_allocator_to_avoid_rounding_leak() -> None:
             _op(
                 market_id,
                 "init_market_2p",
-                version="0.2",
+                version="1.0",
                 quote_asset=quote_asset,
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
@@ -161,14 +161,14 @@ def test_settle_epoch_2p_uses_dust_allocator_to_avoid_rounding_leak() -> None:
     )
 
     # Epoch 1: initialize index price at 1.00.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="0.2", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)])
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", version="0.2", price_e8=100_000_000)],
+        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=100_000_000)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="0.2")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
 
     # Open a tiny matched pair position (net-zero).
     state = _apply(
@@ -179,7 +179,7 @@ def test_settle_epoch_2p_uses_dust_allocator_to_avoid_rounding_leak() -> None:
             _op(
                 market_id,
                 "set_position_pair",
-                version="0.2",
+                version="1.0",
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
                 new_position_base_a=1,
@@ -191,14 +191,14 @@ def test_settle_epoch_2p_uses_dust_allocator_to_avoid_rounding_leak() -> None:
     # Epoch 2: a +1 tick move in price_e8 creates xs=[+1, -1] at settlement.
     # Naive floor-div on signed products would produce [0, -1] and violate conservation;
     # the clearinghouse uses a deterministic dust allocator so the step remains safe.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="0.2", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)])
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", version="0.2", price_e8=100_000_001)],
+        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=100_000_001)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="0.2")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
 
     assert state.perps is not None
     m = state.perps.markets[market_id]
@@ -230,7 +230,7 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
             _op(
                 market_id,
                 "init_market_2p",
-                version="0.2",
+                version="1.0",
                 quote_asset=quote_asset,
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
@@ -239,27 +239,27 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
     )
 
     # Epoch 1: establish index price.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="0.2", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)])
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", version="0.2", price_e8=100_000_000_000)],
+        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=100_000_000_000)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="0.2")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
 
     # Deposit collateral for both sides (user-authenticated).
     state = _apply(
         state=state,
         tx_sender_pubkey=alice,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", version="0.2", account_pubkey=alice, amount=100_000_000)],
+        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=alice, amount=100_000_000)],
     )
     state = _apply(
         state=state,
         tx_sender_pubkey=bob,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", version="0.2", account_pubkey=bob, amount=100_000_000)],
+        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=bob, amount=100_000_000)],
     )
 
     # Open a matched pair position.
@@ -271,7 +271,7 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
             _op(
                 market_id,
                 "set_position_pair",
-                version="0.2",
+                version="1.0",
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
                 new_position_base_a=1_000_000,
@@ -281,14 +281,14 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
     )
 
     # Epoch 2: a -5% move makes Alice (long) under maintenance; pair liquidation closes both positions.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="0.2", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)])
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", version="0.2", price_e8=95_000_000_000)],
+        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=95_000_000_000)],
     )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="0.2")])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
 
     assert state.perps is not None
     m = state.perps.markets[market_id]
@@ -306,4 +306,3 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
     assert acct_bob.position_base == 0
     assert acct_bob.entry_price_e8 == 0
     assert acct_bob.collateral_quote == 150_000_000
-
