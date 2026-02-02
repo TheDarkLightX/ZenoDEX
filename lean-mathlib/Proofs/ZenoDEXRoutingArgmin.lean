@@ -13,6 +13,8 @@ This is intentionally minimal (no Mathlib dependencies) so it can be typechecked
 in lightweight environments.
 -/
 
+namespace Proofs
+
 namespace ZenoDEX
 
 def argminStep {α : Type} (key : α → Nat) (best a : α) : α :=
@@ -73,3 +75,5 @@ theorem foldl_argmin_key_le_all {α : Type} (key : α → Nat) :
             simpa [List.foldl] using hbest_le_x
 
 end ZenoDEX
+
+end Proofs

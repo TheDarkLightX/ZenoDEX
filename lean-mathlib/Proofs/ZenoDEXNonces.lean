@@ -14,6 +14,8 @@ This is intentionally minimal (no Mathlib dependencies) so it can be typechecked
 in lightweight environments.
 -/
 
+namespace Proofs
+
 namespace ZenoDEX
 
 def lastAfterBatch (last m : Nat) : Nat :=
@@ -43,3 +45,4 @@ theorem no_replay_in_later_valid_seq (last m i j : Nat) (hi : i < m) :
 
 end ZenoDEX
 
+end Proofs

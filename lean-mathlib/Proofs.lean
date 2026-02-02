@@ -18,6 +18,9 @@ import Proofs.PerpFundingRateSafety
 import Proofs.PerpCascadeSafety
 import Proofs.PerpInsuranceSafety
 import Proofs.PerpIntegerBridge
+import Proofs.ZenoDEXNonces
+import Proofs.ZenoDEXRoutingArgmin
+import Proofs.ZenoDEXRounding
 
 /-!
 Proofs library root.

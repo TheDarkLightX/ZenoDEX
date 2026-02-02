@@ -222,7 +222,7 @@ def apply_perp_ops(
         if market is None:
             return PerpTxResult(ok=False, error="unknown market_id")
 
-        if action in ("advance_epoch", "publish_clearing_price", "settle_epoch"):
+        if action in ("advance_epoch", "publish_clearing_price", "settle_epoch", "clear_breaker"):
             err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
             if err is not None:
                 return PerpTxResult(ok=False, error=err)
@@ -231,6 +231,8 @@ def apply_perp_ops(
             allowed = {"module", "version", "market_id", "action", "delta"}
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="advance_epoch has unknown fields")
+            if int(market.global_state.get("oracle_last_update_epoch", 0)) != int(market.global_state.get("now_epoch", 0)):
+                return PerpTxResult(ok=False, error="cannot advance epoch before settling current epoch")
             delta = _require_int(data.get("delta"), name="delta", non_negative=True)
 
             dummy = _kernel_initial_account_state()
@@ -325,6 +327,33 @@ def apply_perp_ops(
                 global_state=expected_global,
                 accounts=new_accounts,
             )
+            continue
+
+        if action == "clear_breaker":
+            allowed = {"module", "version", "market_id", "action"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="clear_breaker has unknown fields")
+            if any(int(acct.position_base) != 0 for acct in market.accounts.values()):
+                return PerpTxResult(ok=False, error="cannot clear breaker while positions are open")
+
+            dummy = _kernel_initial_account_state()
+            res = perp_epoch_isolated_default_apply(
+                state=market.kernel_state_for_account(dummy),
+                action="clear_breaker",
+                params={"auth_ok": True},
+            )
+            if not res.ok or res.state is None:
+                return PerpTxResult(ok=False, error=res.error or "clear_breaker rejected")
+            new_global, new_dummy = _split_kernel_state(res.state)
+            if new_dummy != dummy:
+                return PerpTxResult(ok=False, error="internal error: clear_breaker mutated dummy account state")
+
+            markets[market_id] = PerpMarketState(
+                quote_asset=market.quote_asset,
+                global_state=new_global,
+                accounts=dict(market.accounts),
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": dict(res.effects or {})})
             continue
 
         if action in ("deposit_collateral", "withdraw_collateral", "set_position"):
