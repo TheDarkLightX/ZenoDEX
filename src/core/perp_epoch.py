@@ -103,6 +103,25 @@ def perp_epoch_isolated_v1_apply(
     return PerpStepResult(ok=True, state=dict(res.state), effects=dict(res.effects))
 
 
+def _state_var_int_max(ir, *, var_id: str) -> int:
+    for v in ir.state_vars:
+        if getattr(v, "id", None) != var_id:
+            continue
+        t = getattr(v, "type", None)
+        if getattr(t, "kind", None) != "int":
+            raise TypeError(f"{var_id} is not an int state var")
+        mx = getattr(t, "max", None)
+        if not isinstance(mx, int) or isinstance(mx, bool):
+            raise TypeError(f"{var_id}.max is not an int")
+        return int(mx)
+    raise KeyError(f"state var not found: {var_id}")
+
+
+def perp_epoch_isolated_v1_fee_pool_max_quote() -> int:
+    ir, _ctx = _kernel_ctx_v1()
+    return _state_var_int_max(ir, var_id="fee_pool_quote")
+
+
 @lru_cache(maxsize=1)
 def _kernel_ctx_v1_1():
     from ESSO.evolve import ir_hash  # type: ignore
@@ -145,6 +164,12 @@ def perp_epoch_isolated_v1_1_apply(
     return PerpStepResult(ok=True, state=dict(res.state), effects=dict(res.effects))
 
 
+def perp_epoch_isolated_v1_1_fee_pool_max_quote() -> int:
+    ir, _ctx = _kernel_ctx_v1_1()
+    return _state_var_int_max(ir, var_id="fee_pool_quote")
+
+
 # Default posture: v1.1 (clamp + breaker).
 perp_epoch_isolated_default_initial_state = perp_epoch_isolated_v1_1_initial_state
 perp_epoch_isolated_default_apply = perp_epoch_isolated_v1_1_apply
+perp_epoch_isolated_default_fee_pool_max_quote = perp_epoch_isolated_v1_1_fee_pool_max_quote
