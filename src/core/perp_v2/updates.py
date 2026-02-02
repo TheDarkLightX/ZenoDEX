@@ -1,11 +1,11 @@
 """State transition functions for `perp_v2`.
 
-One pure function per ESSO action. Each returns a new `PerpState` with the
+One pure function per kernel action id. Each returns a new `PerpState` with the
 action's updates applied.
 
 Semantics:
 - updates evaluate against the PRE-state,
-- updates are simultaneous (ESSO style),
+- updates are simultaneous (all RHS read from the same pre-state),
 - we implement updates via `dataclasses.replace()` on frozen dataclasses.
 """
 

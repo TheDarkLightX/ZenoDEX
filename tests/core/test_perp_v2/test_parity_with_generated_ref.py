@@ -1,8 +1,12 @@
-"""Parity check: `src/core/perp_v2` vs ESSO-generated Python ref for the YAML spec.
+"""Parity check: `src/core/perp_v2` vs a generated Python reference model for the YAML spec.
 
-This is the strongest, CI-friendly regression test we can have without running the
-ESSO interpreter:
-- the generated ref is derived directly from `src/kernels/dex/perp_epoch_isolated_v2.yaml`
+The reference model is generated from `src/kernels/dex/perp_epoch_isolated_v2.yaml`
+by the optional kernel-spec toolchain (validator/verifier/codegen; see `external/ESSO`).
+The generated file is standalone and has no runtime toolchain dependency.
+
+This is the strongest CI-friendly regression test we can have without invoking the
+spec interpreter:
+- the reference is derived directly from the spec
 - `src/core/perp_v2` is the hand-maintained "production" implementation
 
 If this test fails, it indicates a semantic drift between the implementation and
