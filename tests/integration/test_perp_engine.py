@@ -112,6 +112,87 @@ def test_settle_epoch_is_order_independent() -> None:
     assert post.perps == post_rev.perps
 
 
+def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
+    market_id = "perp:liq"
+    quote_asset = "0x" + "44" * 32
+    operator = "00" * 48
+    alice = "aa" * 48
+    bob = "bb" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    # Init market (operator).
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+
+    # Epoch 1: establish an oracle/index price (no accounts yet).
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+
+    # Fund both traders so they can deposit collateral.
+    funded = BalanceTable()
+    for (pk, asset), amt in state.balances.get_all_balances().items():
+        funded.set(pk, asset, int(amt))
+    funded.set(alice, quote_asset, 1_000_000)
+    funded.set(bob, quote_asset, 1_000_000)
+    state = replace(state, balances=funded)
+
+    # Open positions (trader-authenticated).
+    # Use a configuration where Alice becomes under-maintenance after a 5% price drop
+    # but still has positive collateral, so a nonzero liquidation penalty is collected.
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=alice,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "deposit_collateral", account_pubkey=alice, amount=100), _op(market_id, "set_position", account_pubkey=alice, new_position_base=1000)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=bob,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "deposit_collateral", account_pubkey=bob, amount=100), _op(market_id, "set_position", account_pubkey=bob, new_position_base=-1000)],
+    )
+
+    # Epoch 2: publish a new clearing price (pre-settle state).
+    pre = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    pre = _apply(state=pre, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=95_000_000)])
+
+    # Construct an equivalent state but with reversed account insertion order.
+    assert pre.perps is not None
+    market = pre.perps.markets[market_id]
+    reversed_accounts = dict(reversed(list(market.accounts.items())))
+    market_rev = type(market)(quote_asset=market.quote_asset, global_state=dict(market.global_state), accounts=reversed_accounts)
+    perps_rev = type(pre.perps)(version=pre.perps.version, markets={market_id: market_rev})
+    pre_rev = replace(pre, perps=perps_rev)
+
+    post = _apply(state=pre, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+    post_rev = _apply(state=pre_rev, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
+
+    assert post.perps == post_rev.perps
+
+    assert post.perps is not None
+    m = post.perps.markets[market_id]
+    assert int(m.global_state["fee_pool_quote"]) == 4
+
+    acct_alice = m.accounts[alice]
+    acct_bob = m.accounts[bob]
+
+    # Alice: liquidated (position forced to 0) with penalty collected into fee pool.
+    assert acct_alice.position_base == 0
+    assert acct_alice.entry_price_e8 == 0
+    assert acct_alice.collateral_quote == 46
+
+    # Bob: remains open and gains PnL from the price move.
+    assert acct_bob.position_base == -1000
+    assert acct_bob.entry_price_e8 == 95_000_000
+    assert acct_bob.collateral_quote == 150
+
+
 def test_breaker_reduce_only_and_clear() -> None:
     market_id = "perp:demo"
     quote_asset = "0x" + "44" * 32

@@ -16,7 +16,12 @@ from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Mapping, Optional
 
 from ..core.dex import DexState
-from ..core.perp_epoch import PerpStepResult, perp_epoch_isolated_default_apply, perp_epoch_isolated_default_initial_state
+from ..core.perp_epoch import (
+    PerpStepResult,
+    perp_epoch_isolated_default_apply,
+    perp_epoch_isolated_default_fee_pool_max_quote,
+    perp_epoch_isolated_default_initial_state,
+)
 from ..core.perps import (
     PERP_ACCOUNT_KEYS,
     PERP_GLOBAL_KEYS,
@@ -284,48 +289,77 @@ def apply_perp_ops(
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="settle_epoch has unknown fields")
 
-            expected_global: Optional[Dict[str, Any]] = None
-            new_accounts: Dict[str, PerpAccountState] = {}
-
-            # Deterministic: settle each account against the *same* pre-global state.
             pre_market = market
-            if not pre_market.accounts:
-                # Still update global oracle/index state for empty markets.
-                dummy = _kernel_initial_account_state()
-                res0 = perp_epoch_isolated_default_apply(
-                    state=pre_market.kernel_state_for_account(dummy),
+            pre_fee_pool = int(pre_market.global_state.get("fee_pool_quote", 0))
+
+            # Phase 1: compute the post-epoch *global* update that must be identical across all accounts
+            # (oracle/index, breaker flags, clearing-price bookkeeping). This is computed against a dummy
+            # account so it cannot depend on account-specific liquidation events.
+            dummy = _kernel_initial_account_state()
+            res0 = perp_epoch_isolated_default_apply(
+                state=pre_market.kernel_state_for_account(dummy),
+                action="settle_epoch",
+                params={},
+            )
+            if not res0.ok or res0.state is None:
+                return PerpTxResult(ok=False, error=res0.error or "settle_epoch rejected")
+            base_global, new_dummy = _split_kernel_state(res0.state)
+            if new_dummy != dummy:
+                return PerpTxResult(ok=False, error="internal error: settle_epoch mutated dummy account state")
+
+            # Phase 2: settle each account against the *same* pre-global state, but accumulate the
+            # liquidation penalty deltas into the global fee pool deterministically (sorted account keys).
+            expected_global_no_pool = dict(base_global)
+            expected_global_no_pool["fee_pool_quote"] = pre_fee_pool
+
+            total_fee_pool_delta = 0
+            new_accounts: Dict[str, PerpAccountState] = {}
+            for pk in sorted(pre_market.accounts.keys()):
+                acct = pre_market.accounts[pk]
+                res = perp_epoch_isolated_default_apply(
+                    state=pre_market.kernel_state_for_account(acct),
                     action="settle_epoch",
                     params={},
                 )
-                if not res0.ok or res0.state is None:
-                    return PerpTxResult(ok=False, error=res0.error or "settle_epoch rejected")
-                expected_global, new_dummy = _split_kernel_state(res0.state)
-                if new_dummy != dummy:
-                    return PerpTxResult(ok=False, error="internal error: settle_epoch mutated dummy account state")
-                effects.append({"i": i, "market_id": market_id, "action": action, "effects": dict(res0.effects or {})})
-            else:
-                for pk, acct in pre_market.accounts.items():
-                    res = perp_epoch_isolated_default_apply(
-                        state=pre_market.kernel_state_for_account(acct),
-                        action="settle_epoch",
-                        params={},
+                if not res.ok or res.state is None:
+                    return PerpTxResult(
+                        ok=False,
+                        error=f"settle_epoch rejected for account {pk}: {res.error or ''}".strip(),
                     )
-                    if not res.ok or res.state is None:
-                        return PerpTxResult(ok=False, error=f"settle_epoch rejected for account {pk}: {res.error or ''}".strip())
-                    post_global, post_acct = _split_kernel_state(res.state)
-                    if expected_global is None:
-                        expected_global = post_global
-                    elif post_global != expected_global:
-                        return PerpTxResult(ok=False, error="internal error: inconsistent global settle across accounts")
-                    new_accounts[str(pk)] = post_acct
-                # Record a single representative effects payload (first account order is deterministic via dict insertion).
-                effects.append({"i": i, "market_id": market_id, "action": action})
+                post_global, post_acct = _split_kernel_state(res.state)
 
-            assert expected_global is not None
+                # All global fields except fee_pool_quote must match the dummy-derived post-global.
+                post_global_no_pool = dict(post_global)
+                post_global_no_pool["fee_pool_quote"] = pre_fee_pool
+                if post_global_no_pool != expected_global_no_pool:
+                    return PerpTxResult(ok=False, error="internal error: global settle depended on account state")
+
+                post_fee_pool = int(post_global.get("fee_pool_quote", 0))
+                delta = post_fee_pool - pre_fee_pool
+                if delta < 0:
+                    return PerpTxResult(ok=False, error="internal error: fee pool decreased during settle_epoch")
+                total_fee_pool_delta += delta
+                new_accounts[str(pk)] = post_acct
+
+            # Fail-closed on fee-pool overflow beyond the kernel's finite-domain bound.
+            next_fee_pool = pre_fee_pool + total_fee_pool_delta
+            if next_fee_pool > perp_epoch_isolated_default_fee_pool_max_quote():
+                return PerpTxResult(ok=False, error="fee pool overflow (post-settle)")
+
+            expected_global_no_pool["fee_pool_quote"] = int(next_fee_pool)
             markets[market_id] = PerpMarketState(
                 quote_asset=market.quote_asset,
-                global_state=expected_global,
+                global_state=expected_global_no_pool,
                 accounts=new_accounts,
+            )
+            effects.append(
+                {
+                    "i": i,
+                    "market_id": market_id,
+                    "action": action,
+                    "fee_pool_delta": int(total_fee_pool_delta),
+                    "effects": dict(res0.effects or {}),
+                }
             )
             continue
 

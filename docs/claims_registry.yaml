@@ -42,6 +42,23 @@ claims:
         - src/integration/perp_engine.py
         - src/core/perp_epoch.py
 
+  - id: py:perp_engine:settle_epoch_fee_pool_accumulates_across_accounts
+    status: supported
+    layer: implementation
+    statement: >
+      When some (but not all) accounts liquidate during settle_epoch, the per-market fee pool
+      increases by the sum of per-account liquidation penalties, and the transition remains
+      deterministic and independent of account insertion order.
+    assumptions:
+      - Requires ESSO installed (kernel interpreter) to execute the perp epoch risk kernel.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_perp_engine.py::test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation
+      files:
+        - tests/integration/test_perp_engine.py
+        - src/integration/perp_engine.py
+
   - id: py:perp_engine:breaker_reduce_only_and_clear_v1_1
     status: supported
     layer: implementation
