@@ -1,0 +1,120 @@
+# ESSO/LTLf micro-kernel: Perp epoch scheduler (finite-trace reachability)
+#
+# Goal:
+# - Provide a tiny, finite-state model suitable for ESSO's LTLf synthesis gate.
+# - This complements the TLA+ scheduler model in `formal/tla/` (infinite-trace liveness).
+#
+# Model intuition:
+# - `now_epoch` advances monotonically.
+# - Publishing a clearing price sets `clearing_price_seen=true` for the current epoch.
+# - Settling clears `clearing_price_seen` and sets `oracle_last_update_epoch = now_epoch`.
+#
+# This kernel is *not* used for execution; it's a formal artifact to run bounded LTLf checks.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_epoch_scheduler_ltlf_v1"
+  created_by: "zenodex"
+  notes: "Finite-trace scheduler model for ESSO LTLf synthesis."
+
+observables:
+  state_vars: ["now_epoch", "clearing_price_seen", "oracle_last_update_epoch"]
+  effects: ["event"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["EpochAdvanced", "ClearingPublished", "EpochSettled", "End"]
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+
+  - id: "clearing_price_seen"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "clearing_price_seen"
+    expr: { bool: false }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_oracle_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_seen_implies_unsettled"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "clearing_price_seen" }
+        - op: "<"
+          args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+
+actions:
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 1 }
+    guard:
+      op: "and"
+      args:
+        # Only advance when the current epoch is already settled.
+        - { op: "=", args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }] }
+        - { op: "not", args: [{ var: "clearing_price_seen" }] }
+        - op: "<"
+          args: [{ var: "now_epoch" }, { const: 2 }]
+    updates:
+      - var: "now_epoch"
+        expr: { op: "+", args: [{ var: "now_epoch" }, { param: "delta" }] }
+    effects:
+      event: { enum: "EpochAdvanced" }
+
+  - id: "publish_clearing_price"
+    guard:
+      op: "and"
+      args:
+        - { op: "not", args: [{ var: "clearing_price_seen" }] }
+        - op: "<"
+          args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+    updates:
+      - var: "clearing_price_seen"
+        expr: { bool: true }
+    effects:
+      event: { enum: "ClearingPublished" }
+
+  - id: "settle_epoch"
+    guard:
+      op: "and"
+      args:
+        - { var: "clearing_price_seen" }
+        - op: "<"
+          args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+    updates:
+      - var: "clearing_price_seen"
+        expr: { bool: false }
+      - var: "oracle_last_update_epoch"
+        expr: { var: "now_epoch" }
+    effects:
+      event: { enum: "EpochSettled" }
+
+  # Optional explicit end action (useful for termination="explicit_end_action" in the LTLf gate).
+  - id: "end"
+    guard: { bool: true }
+    updates: []
+    effects:
+      event: { enum: "End" }
+

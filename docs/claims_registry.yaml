@@ -91,6 +91,52 @@ claims:
       theorems:
         - Proofs.PerpEpochSafety.collateral_nonneg_after_clamped_move
 
+  - id: py:perp_math:rounding_leak_witness_under_euclidean_division
+    status: supported
+    layer: math
+    statement: >
+      Per-account Euclidean division can violate global conservation even under net-zero exposure
+      (Σpos=0 does not imply Σpnl=0 when pnl_i := (pos_i·ΔP_e8) div 1e8).
+      A minimal witness is captured as a deterministic pytest.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_perp_math_hazards.py::test_rounding_leak_witness_under_euclidean_division
+      files:
+        - tests/core/test_perp_math_hazards.py
+        - internal/popperpad_mcp/bootstrap_zenodex_pad.py
+
+  - id: py:perp_math:largest_remainder_dust_allocator_restores_conservation
+    status: supported
+    layer: implementation
+    statement: >
+      The deterministic "largest remainder" dust allocator restores conservation under net-zero sums:
+      given xs with Σxs=0, it returns integer adjustments whose sum is 0 and each element differs from
+      floor(xs_i/d) by at most +1, with deterministic tie-breaking by account key.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_perp_math_hazards.py::test_largest_remainder_dust_allocator_restores_net_zero_conservation
+      files:
+        - tests/core/test_perp_math_hazards.py
+        - src/core/perp_rounding.py
+        - internal/popperpad_mcp/bootstrap_zenodex_pad.py
+
+  - id: py:perp_math:breaker_quantization_can_stall_witness
+    status: supported
+    layer: math
+    statement: >
+      Clamp/breaker bounded-step enforcement can stall when integer quantization yields δ=0
+      (δ := floor(P*m_bps/10000)), while the raw oracle price is out of bounds.
+      A minimal witness is captured as a deterministic pytest.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_perp_math_hazards.py::test_breaker_quantization_can_stall_witness
+      files:
+        - tests/core/test_perp_math_hazards.py
+        - internal/popperpad_mcp/bootstrap_zenodex_pad.py
+
   - id: lean:zenodex_nonces:no_replay_in_later_valid_seq
     status: proved
     layer: math
@@ -151,3 +197,20 @@ claims:
       files:
         - formal/tla/PerpEpochScheduler.tla
         - formal/tla/PerpEpochScheduler.cfg
+
+  - id: esso:ltlf:perp_epoch_scheduler:settle_epoch2_reachable
+    status: supported
+    layer: liveness
+    statement: >
+      In the finite-trace scheduler micro-model, the operator can reach a state where epoch 2 is settled
+      (oracle_last_update_epoch = 2) via the canonical advance/publish/settle cycle. This is a bounded,
+      executable complement to the infinite-trace TLA+ liveness check.
+    assumptions:
+      - Requires ESSO installed (LTLf synthesis gate).
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/formal/test_perp_epoch_scheduler_ltlf.py::test_ltlf_scheduler_can_reach_epoch_2_settled
+      files:
+        - tests/formal/test_perp_epoch_scheduler_ltlf.py
+        - formal/ltlf/perp_epoch_scheduler_ltlf_v1.yaml
