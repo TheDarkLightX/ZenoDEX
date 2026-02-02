@@ -19,13 +19,11 @@ from typing import Any, Dict, List, Mapping, Optional
 
 from ..core.dex import DexState
 from ..core.perp_epoch import (
-    PerpStepResult,
     perp_epoch_isolated_default_apply,
     perp_epoch_isolated_default_fee_pool_max_quote,
     perp_epoch_isolated_default_initial_state,
 )
 from ..core.perps import (
-    PERP_ACCOUNT_KEYS,
     PERP_GLOBAL_KEYS,
     PERPS_STATE_VERSION,
     PerpAccountState,
