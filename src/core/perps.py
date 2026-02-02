@@ -18,12 +18,14 @@ from typing import Dict, Mapping
 Value = bool | int | str
 
 
-PERPS_STATE_VERSION = 1
+PERPS_STATE_VERSION = 2
 
-# Per `src/kernels/dex/perp_epoch_isolated_v1.yaml`
+# Per `src/kernels/dex/perp_epoch_isolated_v1_1.yaml` (default posture).
 PERP_ACCOUNT_KEYS: set[str] = {"position_base", "entry_price_e8", "collateral_quote"}
 PERP_GLOBAL_KEYS: set[str] = {
     "now_epoch",
+    "breaker_active",
+    "breaker_last_trigger_epoch",
     "clearing_price_seen",
     "clearing_price_epoch",
     "clearing_price_e8",
@@ -36,6 +38,7 @@ PERP_GLOBAL_KEYS: set[str] = {
     "maintenance_margin_bps",
     "liquidation_penalty_bps",
     "max_position_abs",
+    "fee_pool_quote",
 }
 
 
@@ -120,4 +123,3 @@ class PerpsState:
 
     def get_market(self, market_id: str) -> PerpMarketState | None:
         return self.markets.get(market_id)
-

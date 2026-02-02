@@ -24,7 +24,7 @@ def test_apply_app_tx_sync_only(monkeypatch):
 
     parsed = json.loads(app_state_json)
     assert isinstance(parsed, dict)
-    assert parsed.get("version") == 1
+    assert parsed.get("version") == 2
 
 
 def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):

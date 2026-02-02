@@ -8,6 +8,7 @@ It applies DEX operations from a Tau transaction's `operations` dict:
   - "2": intents (list)
   - "3": settlement (object) [optional if allow_missing_settlement]
   - "4": faucet (object) [optional, test-only; requires TAU_DEX_FAUCET=1]
+  - "5": perps (list) [optional; requires operator key for admin actions]
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from ..state.balances import BalanceTable, NATIVE_ASSET
 from ..state.lp import LPTable
 from .dex_engine import DexEngineConfig, apply_ops
 from .dex_snapshot import snapshot_from_state, state_from_snapshot
+from .perp_engine import PerpEngineConfig, apply_perp_ops
 
 
 def _bool_env(name: str, *, default: bool) -> bool:
@@ -111,6 +113,7 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
         vault=state.vault,
         oracle=state.oracle,
         fee_accumulator=state.fee_accumulator,
+        perps=state.perps,
     )
 
 
@@ -191,28 +194,47 @@ def apply_app_tx(
     if "3" in operations:
         dex_ops["3"] = operations.get("3")
 
-    # Sync-only call: no DEX ops, but we still update the snapshot/hash so native balances stay consistent.
-    if not dex_ops:
+    perp_ops: Dict[str, Any] = {}
+    if "5" in operations:
+        perp_ops["5"] = operations.get("5")
+
+    # Sync-only call: no ops, but we still update the snapshot/hash so native balances stay consistent.
+    if not dex_ops and not perp_ops:
         snap = snapshot_from_state(state)
         canonical = snap.canonical_bytes()
         return True, canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest(), None, None
 
-    engine_cfg = DexEngineConfig(
-        allow_missing_settlement=bool(allow_missing_settlement),
-        require_intent_signatures=bool(require_intent_sigs),
-        chain_id=chain_id,
-    )
-    res = apply_ops(
-        config=engine_cfg,
-        state=state,
-        operations=dex_ops,
-        block_timestamp=int(block_timestamp),
-        tx_sender_pubkey=tx_sender_pubkey,
-    )
-    if not res.ok or res.state is None:
-        return False, app_state_json, "", None, res.error or "DEX rejected"
+    next_state = state
+    if dex_ops:
+        engine_cfg = DexEngineConfig(
+            allow_missing_settlement=bool(allow_missing_settlement),
+            require_intent_signatures=bool(require_intent_sigs),
+            chain_id=chain_id,
+        )
+        res = apply_ops(
+            config=engine_cfg,
+            state=next_state,
+            operations=dex_ops,
+            block_timestamp=int(block_timestamp),
+            tx_sender_pubkey=tx_sender_pubkey,
+        )
+        if not res.ok or res.state is None:
+            return False, app_state_json, "", None, res.error or "DEX rejected"
+        next_state = res.state
 
-    next_state = res.state
+    if perp_ops:
+        operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
+        perp_cfg = PerpEngineConfig(operator_pubkey=(operator_pubkey or "").strip() or None)
+        perp_res = apply_perp_ops(
+            config=perp_cfg,
+            state=next_state,
+            operations=perp_ops,
+            tx_sender_pubkey=tx_sender_pubkey,
+        )
+        if not perp_res.ok or perp_res.state is None:
+            return False, app_state_json, "", None, perp_res.error or "PERP rejected"
+        next_state = perp_res.state
+
     balances_patch = _balances_patch_for_native(before=chain_balances, after_state=next_state)
     snap = snapshot_from_state(next_state)
     canonical = snap.canonical_bytes()

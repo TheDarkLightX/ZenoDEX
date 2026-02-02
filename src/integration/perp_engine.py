@@ -16,7 +16,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Mapping, Optional
 
 from ..core.dex import DexState
-from ..core.perp_epoch import PerpStepResult, perp_epoch_isolated_v1_apply, perp_epoch_isolated_v1_initial_state
+from ..core.perp_epoch import PerpStepResult, perp_epoch_isolated_default_apply, perp_epoch_isolated_default_initial_state
 from ..core.perps import (
     PERP_ACCOUNT_KEYS,
     PERP_GLOBAL_KEYS,
@@ -130,12 +130,12 @@ def parse_perp_ops(
 
 
 def _kernel_initial_global_state() -> Dict[str, Any]:
-    st = perp_epoch_isolated_v1_initial_state()
+    st = perp_epoch_isolated_default_initial_state()
     return {k: st[k] for k in sorted(PERP_GLOBAL_KEYS)}
 
 
 def _kernel_initial_account_state() -> PerpAccountState:
-    st = perp_epoch_isolated_v1_initial_state()
+    st = perp_epoch_isolated_default_initial_state()
     return PerpAccountState(
         position_base=int(st.get("position_base", 0)),
         entry_price_e8=int(st.get("entry_price_e8", 0)),
@@ -234,7 +234,7 @@ def apply_perp_ops(
             delta = _require_int(data.get("delta"), name="delta", non_negative=True)
 
             dummy = _kernel_initial_account_state()
-            res = perp_epoch_isolated_v1_apply(
+            res = perp_epoch_isolated_default_apply(
                 state=market.kernel_state_for_account(dummy),
                 action="advance_epoch",
                 params={"delta": delta},
@@ -259,7 +259,7 @@ def apply_perp_ops(
             price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
 
             dummy = _kernel_initial_account_state()
-            res = perp_epoch_isolated_v1_apply(
+            res = perp_epoch_isolated_default_apply(
                 state=market.kernel_state_for_account(dummy),
                 action="publish_clearing_price",
                 params={"price_e8": price_e8},
@@ -290,7 +290,7 @@ def apply_perp_ops(
             if not pre_market.accounts:
                 # Still update global oracle/index state for empty markets.
                 dummy = _kernel_initial_account_state()
-                res0 = perp_epoch_isolated_v1_apply(
+                res0 = perp_epoch_isolated_default_apply(
                     state=pre_market.kernel_state_for_account(dummy),
                     action="settle_epoch",
                     params={},
@@ -303,7 +303,7 @@ def apply_perp_ops(
                 effects.append({"i": i, "market_id": market_id, "action": action, "effects": dict(res0.effects or {})})
             else:
                 for pk, acct in pre_market.accounts.items():
-                    res = perp_epoch_isolated_v1_apply(
+                    res = perp_epoch_isolated_default_apply(
                         state=pre_market.kernel_state_for_account(acct),
                         action="settle_epoch",
                         params={},
@@ -348,7 +348,7 @@ def apply_perp_ops(
                 if balances.get(account_pubkey, market.quote_asset) < amount:
                     return PerpTxResult(ok=False, error="insufficient balance for deposit")
 
-                res = perp_epoch_isolated_v1_apply(
+                res = perp_epoch_isolated_default_apply(
                     state=market.kernel_state_for_account(acct),
                     action="deposit_collateral",
                     params={"amount": amount, "auth_ok": True},
@@ -378,7 +378,7 @@ def apply_perp_ops(
 
             if action == "withdraw_collateral":
                 amount = _require_int(data.get("amount"), name="amount", non_negative=True)
-                res = perp_epoch_isolated_v1_apply(
+                res = perp_epoch_isolated_default_apply(
                     state=market.kernel_state_for_account(acct),
                     action="withdraw_collateral",
                     params={"amount": amount, "auth_ok": True},
@@ -408,7 +408,7 @@ def apply_perp_ops(
 
             if action == "set_position":
                 new_pos = _require_int(data.get("new_position_base"), name="new_position_base", non_negative=False)
-                res = perp_epoch_isolated_v1_apply(
+                res = perp_epoch_isolated_default_apply(
                     state=market.kernel_state_for_account(acct),
                     action="set_position",
                     params={"new_position_base": new_pos, "auth_ok": True},
@@ -440,4 +440,3 @@ def apply_perp_ops(
     next_perps = PerpsState(version=perps.version, markets=markets) if markets else None
     next_state = replace(state, balances=balances, perps=next_perps)
     return PerpTxResult(ok=True, state=next_state, effects=effects)
-

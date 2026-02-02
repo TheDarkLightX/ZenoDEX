@@ -684,6 +684,7 @@ def apply_ops(
             vault=state.vault,
             oracle=state.oracle,
             fee_accumulator=next_fee_state,
+            perps=state.perps,
         )
         return DexTxResult(ok=True, state=next_state, settlement=settlement)
     except Exception as exc:
