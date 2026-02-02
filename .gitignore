@@ -48,6 +48,7 @@ ENV/
 
 # Testing
 .pytest_cache/
+.hypothesis/
 .coverage
 htmlcov/
 .tox/
@@ -62,6 +63,12 @@ Thumbs.db
 
 # Local runs / reports
 runs/
+
+# Local agent scratch (do not commit)
+.codex_peer_review/
+.rlm_collab/
+$tmp
+${tmp}
 
 # Temporary / Scratch
 tmp_*
