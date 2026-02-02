@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from src.core.dex import DexState
+from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
@@ -111,7 +112,7 @@ def test_state_from_snapshot_requires_fee_accumulator() -> None:
 
 def test_state_from_snapshot_rejects_unknown_version() -> None:
     snap = {
-        "version": 2,
+        "version": 3,
         "balances": [],
         "pools": [],
         "lp_balances": [],
@@ -121,6 +122,50 @@ def test_state_from_snapshot_rejects_unknown_version() -> None:
     }
     with pytest.raises(ValueError):
         state_from_snapshot(snap)
+
+
+def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
+    balances = BalanceTable()
+    lp = LPTable()
+    pools = {}
+
+    perps_global = {
+        "now_epoch": 0,
+        "breaker_active": False,
+        "breaker_last_trigger_epoch": 0,
+        "clearing_price_seen": False,
+        "clearing_price_epoch": 0,
+        "clearing_price_e8": 0,
+        "oracle_seen": False,
+        "oracle_last_update_epoch": 0,
+        "index_price_e8": 0,
+        "max_oracle_staleness_epochs": 100,
+        "max_oracle_move_bps": 500,
+        "initial_margin_bps": 1000,
+        "maintenance_margin_bps": 600,
+        "liquidation_penalty_bps": 50,
+        "max_position_abs": 1000000,
+        "fee_pool_quote": 0,
+    }
+    perps = PerpsState(
+        version=PERPS_STATE_VERSION,
+        markets={
+            "perp:demo": PerpMarketState(
+                quote_asset="0x" + "33" * 32,
+                global_state=perps_global,
+                accounts={
+                    "alice": PerpAccountState(position_base=0, entry_price_e8=0, collateral_quote=0),
+                },
+            )
+        },
+    )
+
+    state = DexState(balances=balances, pools=pools, lp_balances=lp, perps=perps)
+    snap1 = snapshot_from_state(state)
+    state2 = state_from_snapshot(snap1.data)
+    snap2 = snapshot_from_state(state2)
+
+    assert snap1.canonical_bytes() == snap2.canonical_bytes()
 
 
 def test_state_from_snapshot_rejects_too_many_balance_entries_when_limited() -> None:

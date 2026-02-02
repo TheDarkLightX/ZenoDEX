@@ -16,6 +16,7 @@ from typing import Any, Dict, Mapping, Optional
 from ..core.dex import DexState
 from ..core.fees import FeeAccumulatorState
 from ..core.oracle import OracleState
+from ..core.perps import PerpAccountState, PerpMarketState, PerpsState
 from ..core.vault import VaultState
 from ..state.balances import BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes, domain_sep_bytes, sha256_hex
@@ -24,7 +25,7 @@ from ..state.nonces import NonceTable
 from ..state.pools import PoolState, PoolStatus
 
 
-DEX_SNAPSHOT_VERSION = 1
+DEX_SNAPSHOT_VERSION = 2
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -123,6 +124,33 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         o = state.oracle
         oracle_obj = {"price_timestamp": int(o.price_timestamp), "max_staleness_seconds": int(o.max_staleness_seconds)}
 
+    perps_obj: Optional[Dict[str, Any]] = None
+    if int(version) >= 2 and state.perps is not None:
+        perps = state.perps
+        markets_entries = []
+        for market_id, market in perps.markets.items():
+            acct_entries = []
+            for pk, acct in market.accounts.items():
+                acct_entries.append(
+                    {
+                        "pubkey": str(pk),
+                        "position_base": int(acct.position_base),
+                        "entry_price_e8": int(acct.entry_price_e8),
+                        "collateral_quote": int(acct.collateral_quote),
+                    }
+                )
+            acct_entries.sort(key=lambda e: e["pubkey"])
+            markets_entries.append(
+                {
+                    "market_id": str(market_id),
+                    "quote_asset": str(market.quote_asset),
+                    "global_state": dict(market.global_state),
+                    "accounts": acct_entries,
+                }
+            )
+        markets_entries.sort(key=lambda e: e["market_id"])
+        perps_obj = {"version": int(perps.version), "markets": markets_entries}
+
     data: Dict[str, Any] = {
         "version": int(version),
         "balances": balances_entries,
@@ -133,6 +161,8 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         "vault": vault_obj,
         "oracle": oracle_obj,
     }
+    if int(version) >= 2:
+        data["perps"] = perps_obj
     return DexSnapshot(version=version, data=data)
 
 
@@ -144,6 +174,8 @@ def state_from_snapshot(
     max_pools: int = 50_000,
     max_lp_balances: int = 200_000,
     max_nonces: int = 200_000,
+    max_perp_markets: int = 10_000,
+    max_perp_accounts: int = 200_000,
     max_str_len: int = 4096,
 ) -> DexState:
     if not isinstance(snapshot, Mapping):
@@ -157,6 +189,8 @@ def state_from_snapshot(
         ("max_pools", max_pools),
         ("max_lp_balances", max_lp_balances),
         ("max_nonces", max_nonces),
+        ("max_perp_markets", max_perp_markets),
+        ("max_perp_accounts", max_perp_accounts),
         ("max_str_len", max_str_len),
     ):
         if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
@@ -170,7 +204,7 @@ def state_from_snapshot(
     version = snapshot.get("version", DEX_SNAPSHOT_VERSION)
     if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
         raise ValueError("snapshot.version must be a positive int")
-    if version != DEX_SNAPSHOT_VERSION:
+    if version not in (1, 2):
         raise ValueError(f"unsupported snapshot version: {version}")
 
     balances = BalanceTable()
@@ -316,6 +350,66 @@ def state_from_snapshot(
             max_staleness_seconds=_require_int(oracle_obj.get("max_staleness_seconds", 300), name="oracle.max_staleness_seconds"),
         )
 
+    perps = None
+    if version >= 2:
+        perps_obj = snapshot.get("perps")
+        if perps_obj is not None:
+            if not isinstance(perps_obj, Mapping):
+                raise TypeError("snapshot.perps must be an object or null")
+            perps_version = perps_obj.get("version", 0)
+            if not isinstance(perps_version, int) or isinstance(perps_version, bool) or perps_version <= 0:
+                raise ValueError("snapshot.perps.version must be a positive int")
+
+            markets_entries = perps_obj.get("markets")
+            if markets_entries is None:
+                markets_entries = []
+            if not isinstance(markets_entries, list):
+                raise TypeError("snapshot.perps.markets must be a list")
+            if len(markets_entries) > max_perp_markets:
+                raise ValueError(f"too many perps markets: {len(markets_entries)} > {max_perp_markets}")
+
+            markets: Dict[str, PerpMarketState] = {}
+            for entry in markets_entries:
+                if not isinstance(entry, Mapping):
+                    raise TypeError("snapshot.perps.markets entries must be objects")
+                market_id = _require_str(entry.get("market_id"), name="perps.market_id", non_empty=True, max_len=min(256, max_str_len))
+                if market_id in markets:
+                    raise ValueError("duplicate perps market_id")
+                quote_asset = _require_str(entry.get("quote_asset"), name="perps.quote_asset", non_empty=True, max_len=min(256, max_str_len))
+                global_state = entry.get("global_state")
+                if not isinstance(global_state, Mapping):
+                    raise TypeError("perps.global_state must be an object")
+                global_state_dict: Dict[str, Any] = dict(global_state)
+
+                acct_entries = entry.get("accounts")
+                if acct_entries is None:
+                    acct_entries = []
+                if not isinstance(acct_entries, list):
+                    raise TypeError("perps.accounts must be a list")
+                if len(acct_entries) > max_perp_accounts:
+                    raise ValueError(f"too many perps accounts in market {market_id}: {len(acct_entries)} > {max_perp_accounts}")
+
+                accounts: Dict[str, PerpAccountState] = {}
+                for acct in acct_entries:
+                    if not isinstance(acct, Mapping):
+                        raise TypeError("perps.accounts entries must be objects")
+                    pk = _require_str(acct.get("pubkey"), name="perps.account.pubkey", non_empty=True, max_len=min(512, max_str_len))
+                    if pk in accounts:
+                        raise ValueError("duplicate perps account pubkey in market")
+                    accounts[pk] = PerpAccountState(
+                        position_base=_require_int(acct.get("position_base", 0), name="perps.account.position_base", non_negative=False),
+                        entry_price_e8=_require_int(acct.get("entry_price_e8", 0), name="perps.account.entry_price_e8"),
+                        collateral_quote=_require_int(acct.get("collateral_quote", 0), name="perps.account.collateral_quote"),
+                    )
+
+                markets[market_id] = PerpMarketState(
+                    quote_asset=quote_asset,
+                    global_state=global_state_dict,
+                    accounts=accounts,
+                )
+
+            perps = PerpsState(version=int(perps_version), markets=markets)
+
     return DexState(
         balances=balances,
         pools=pools,
@@ -324,4 +418,5 @@ def state_from_snapshot(
         vault=vault,
         oracle=oracle,
         fee_accumulator=fee_acc,
+        perps=perps,
     )

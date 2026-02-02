@@ -20,6 +20,7 @@ from ..state.pools import PoolState
 from .batch_clearing import compute_settlement, validate_settlement, apply_settlement_pure
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
+from .perps import PerpsState
 from .settlement import Settlement
 from .vault import VaultState
 
@@ -42,6 +43,7 @@ class DexState:
     vault: Optional[VaultState] = None
     oracle: Optional[OracleState] = None
     fee_accumulator: FeeAccumulatorState = FeeAccumulatorState()
+    perps: Optional[PerpsState] = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +109,7 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             vault=state.vault,
             oracle=state.oracle,
             fee_accumulator=next_fee_state,
+            perps=state.perps,
         )
 
         return DexStepResult(
