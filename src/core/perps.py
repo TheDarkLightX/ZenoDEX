@@ -11,7 +11,7 @@ The actual risk-engine step logic is implemented separately (see
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Mapping
+from typing import Dict
 
 
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
