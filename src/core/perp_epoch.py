@@ -9,9 +9,9 @@ Two “sources of truth” coexist:
 - A hand-written Python implementation under `src/core/perp_v2/`.
 
 Backends:
-- Spec interpreter (optional): uses the `external/ESSO` toolchain to interpret the
-  YAML kernel directly. ESSO (“Evolutionary State Space Optimizer”) is the verifier/
-  interpreter/codegen tool used in this repo for kernel specs.
+- Spec interpreter (optional): uses the repo's kernel toolchain in `external/ESSO`
+  to load and step the YAML model directly. This is mainly used for verification
+  and for generating reference implementations used in parity tests.
 - Native (default): executes `src/core/perp_v2/`, which is kept equivalent to the
   YAML spec via parity tests against a generated Python reference model under
   `generated/perp_python/`.

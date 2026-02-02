@@ -1,14 +1,15 @@
 """
 Perpetuals rounding helpers (deterministic, integer-only).
 
-This module captures a consensus-critical fact recorded in PopperPad:
+This module exists because a naive implementation of "global PnL" can break
+conservation under integer division:
 
-- Per-account Euclidean division of PnL can violate conservation even when net exposure is zero.
-- Under net-zero exposure, conservation can be restored deterministically by a "largest remainder" dust allocator.
+- Per-account floor division on signed values can leak units even when net exposure is zero.
+- Under net-zero exposure, conservation can be restored deterministically by a
+  "largest remainder" dust allocator with a fixed tie-break rule.
 
-See: `internal/popperpad_mcp/bootstrap_zenodex_pad.py`:
-- H_perp_rounding_leak_exists_under_euclidean_div
-- H_perp_rounding_fix_largest_remainder_net_zero
+This repo keeps small counterexamples and checks under:
+`internal/popperpad_mcp/bootstrap_zenodex_pad.py`.
 """
 
 from __future__ import annotations
@@ -111,4 +112,3 @@ def mul_sum(xs: Iterable[int]) -> int:
             raise TypeError("mul_sum expects ints")
         total += x
     return total
-

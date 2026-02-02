@@ -85,6 +85,24 @@ claims:
         - tests/integration/test_perp_engine.py
         - src/integration/perp_engine.py
 
+  - id: py:perp_engine_ch2p:net_zero_and_pair_liquidation
+    status: supported
+    layer: implementation
+    statement: >
+      The perps tx adapter supports a minimal 2-party clearinghouse posture (perps.version=0.2)
+      that is fail-closed and deterministic: markets are initialized with exactly two accounts,
+      position updates are set as a matched net-zero pair, settlement uses deterministic dust
+      allocation to preserve net-zero PnL under integer division, and liquidation closes the pair
+      while accumulating penalties into the fee pool.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py
+      files:
+        - tests/integration/test_perp_engine_clearinghouse_2p.py
+        - src/integration/perp_engine.py
+        - src/core/perp_rounding.py
+
   - id: esso:perp_epoch_isolated_v2:verify_multi_z3_cvc5
     status: supported
     layer: spec
