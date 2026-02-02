@@ -1,0 +1,153 @@
+schema: zenodex/claims-registry/v1
+meta:
+  project: ZenoDEX (Autonomous Tau DEX)
+  purpose: >
+    Machine-readable index of *promoted* safety/liveness claims with replayable checks.
+    This is intentionally tool-agnostic: it can point to PopperPad objects, Lean theorems,
+    tests, TLC configs, etc.
+  note: >
+    PopperPad is the recommended *internal* source-of-truth ledger for hypotheses + evidence.
+    This registry is the curated/public-facing subset that can be validated in CI without
+    requiring PopperPad.
+
+claims:
+  - id: py:snapshot:v2_perps_roundtrip_deterministic
+    status: supported
+    layer: implementation
+    statement: >
+      Serializing then decoding a DEX snapshot (v2) that includes a non-empty perps state
+      yields identical canonical bytes (deterministic round-trip).
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_dex_snapshot.py::test_snapshot_roundtrip_with_perps_is_deterministic
+      files:
+        - tests/integration/test_dex_snapshot.py
+        - src/integration/dex_snapshot.py
+
+  - id: py:perp_engine:settle_epoch_order_independent
+    status: supported
+    layer: implementation
+    statement: >
+      Settling an epoch across multiple accounts is deterministic and independent of account
+      table iteration order (global post-state is consistent across accounts).
+    assumptions:
+      - Requires ESSO installed (kernel interpreter) to execute the perp epoch risk kernel.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_perp_engine.py::test_settle_epoch_is_order_independent
+      files:
+        - tests/integration/test_perp_engine.py
+        - src/integration/perp_engine.py
+        - src/core/perp_epoch.py
+
+  - id: py:perp_engine:breaker_reduce_only_and_clear_v1_1
+    status: supported
+    layer: implementation
+    statement: >
+      Under the v1.1 clamp+breaker posture, an out-of-bounds clearing price update deterministically
+      triggers the breaker, clamps the mark price, enforces reduce-only position updates while active,
+      and allows operator clear only after all positions are closed.
+    assumptions:
+      - Requires ESSO installed (kernel interpreter) to execute the perp epoch risk kernel.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_perp_engine.py::test_breaker_reduce_only_and_clear
+      files:
+        - tests/integration/test_perp_engine.py
+        - src/integration/perp_engine.py
+        - src/kernels/dex/perp_epoch_isolated_v1_1.yaml
+
+  - id: py:perp_engine:advance_requires_prior_settlement_v1_1
+    status: supported
+    layer: implementation
+    statement: >
+      Operator epoch advancement is fail-closed: the engine rejects advancing again until the
+      current epoch has been settled (prevents skipping settlement epochs).
+    assumptions:
+      - Requires ESSO installed (kernel interpreter) to execute the perp epoch risk kernel.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_perp_engine.py::test_operator_cannot_skip_settlement
+      files:
+        - tests/integration/test_perp_engine.py
+        - src/integration/perp_engine.py
+
+  - id: lean:perp_epoch_safety:collateral_nonneg_after_clamped_move
+    status: proved
+    layer: math
+    statement: >
+      Under the bounded-move oracle assumption, and with maintenance margin ≥ max oracle move,
+      one clamped price update cannot drive collateral negative (math-only statement over ℚ).
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.PerpEpochSafety"
+      files:
+        - lean-mathlib/Proofs/PerpEpochSafety.lean
+      theorems:
+        - Proofs.PerpEpochSafety.collateral_nonneg_after_clamped_move
+
+  - id: lean:zenodex_nonces:no_replay_in_later_valid_seq
+    status: proved
+    layer: math
+    statement: >
+      Sequential nonce batches cannot be replayed: a nonce from an accepted batch cannot
+      appear in any later valid sequential batch for the same sender.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoDEXNonces"
+      files:
+        - lean-mathlib/Proofs/ZenoDEXNonces.lean
+      theorems:
+        - Proofs.ZenoDEX.no_replay_in_later_valid_seq
+
+  - id: lean:zenodex_routing:foldl_argmin_key_le_all
+    status: proved
+    layer: math
+    statement: >
+      Folding a finite candidate list with an argmin-step returns an element whose key is
+      ≤ every candidate key (deterministic tie behavior from the step definition).
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoDEXRoutingArgmin"
+      files:
+        - lean-mathlib/Proofs/ZenoDEXRoutingArgmin.lean
+      theorems:
+        - Proofs.ZenoDEX.foldl_argmin_key_le_all
+
+  - id: lean:zenodex_rounding:ceilDiv_mul_ge
+    status: proved
+    layer: math
+    statement: >
+      Standard ceil-division bound: for b>0, a ≤ ceilDiv(a,b)*b + (b-1).
+      Used to bound integer rounding error in kernel-style arithmetic.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoDEXRounding"
+      files:
+        - lean-mathlib/Proofs/ZenoDEXRounding.lean
+      theorems:
+        - Proofs.ZenoDEX.ceilDiv_mul_ge
+
+  - id: tla:perp_epoch_scheduler:terminates_each_epoch
+    status: proposed
+    layer: liveness
+    statement: >
+      Under weak fairness of operator actions, every epoch that gets a clearing-price published
+      is eventually settled (no deadlock / no stuck-between-phases scheduler behavior).
+    evidence:
+      kind: tla
+      note: >
+        Requires TLA+ tools (TLC). This check is optional in CI unless the toolchain is installed.
+      check:
+        - cmd: tlc -config formal/tla/PerpEpochScheduler.cfg formal/tla/PerpEpochScheduler.tla
+      files:
+        - formal/tla/PerpEpochScheduler.tla
+        - formal/tla/PerpEpochScheduler.cfg
