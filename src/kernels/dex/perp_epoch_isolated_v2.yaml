@@ -4,7 +4,7 @@
 # - Extends v1.1 with: symmetric funding mechanism, insurance fund with claims,
 #   depeg buffer, anti-bounty-farming guard, epoch-gated funding.
 # - Deterministic mark-to-market on oracle updates, with bounded-move enforcement (clamp + breaker).
-# - Fail-closed invariants suitable for SMT/ESSO verification.
+# - Fail-closed invariants suitable for SMT verification (see `docs/derivatives/PERP_SOTA_ROADMAP.md`).
 #
 # Model Scope & Boundaries:
 # - SINGLE-ACCOUNT model: captures one trader's interaction with the protocol.
@@ -24,7 +24,7 @@
 # - Insurance fund: conservation invariant (balance = initial + fees - claims) WITH claims action.
 #   Insight PI-I-05: per-step safety ≠ trajectory safety. Multi-epoch insurance tracking.
 # - Depeg buffer: effective_maint = maintenance_margin_bps + depeg_buffer_bps.
-#   Quantifies collateral depeg risk within the ESSO model.
+#   Quantifies collateral depeg risk within the kernel spec.
 # - Anti-bounty-farming: liquidation bounty requires min_notional_for_bounty.
 #   Insight PI-I-03: unconditional minimums are exploitable.
 # - Fee pool overflow guard strengthened with insurance overflow guard.
