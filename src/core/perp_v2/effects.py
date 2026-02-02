@@ -1,7 +1,7 @@
 """Effect functions for the perp_v2 risk engine.
 
-One pure function per ESSO action. Each computes the ``Effect`` from the
-POST-state (ESSO semantics: effects evaluate on the state *after* updates).
+One pure function per kernel action id. Each computes the ``Effect`` from the
+POST-state (effects evaluate on the state *after* updates).
 """
 
 from __future__ import annotations

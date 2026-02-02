@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Dict, Mapping
 
 
-# Kernel value domain (ESSO): bool | int | str
+# Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
 Value = bool | int | str
 
 
@@ -59,7 +59,7 @@ PERP_GLOBAL_KEYS: set[str] = {
 
 @dataclass(frozen=True)
 class PerpAccountState:
-    """Per-account isolated margin state for the epoch-perp v1 market."""
+    """Per-account isolated margin state for the epoch-perp kernel (v2 default)."""
 
     position_base: int
     entry_price_e8: int

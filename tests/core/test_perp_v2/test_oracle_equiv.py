@@ -1,4 +1,4 @@
-"""Oracle equivalence tests: perp_v2 hand-written engine vs ESSO-generated reference.
+"""Oracle equivalence tests: perp_v2 hand-written engine vs generated reference model.
 
 Uses Hypothesis to fuzz random action sequences and verify that both engines
 agree on accept/reject, post-state, and effects for every step.
@@ -24,7 +24,7 @@ from src.core.perp_v2 import Action, ActionParams, initial_state, step
 from src.core.perp_v2.state import state_to_dict
 
 # ---------------------------------------------------------------------------
-# Import the ESSO-generated reference oracle (importlib, no sys.path mutation)
+# Import the generated reference oracle (importlib, no sys.path mutation)
 # ---------------------------------------------------------------------------
 
 
