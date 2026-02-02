@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 from dataclasses import replace
 
 import pytest
@@ -8,10 +7,6 @@ import pytest
 from src.core.dex import DexState
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
-
-
-if importlib.util.find_spec("ESSO") is None:  # pragma: no cover
-    pytest.skip("ESSO not installed (expected via external/ESSO or site package)", allow_module_level=True)
 
 
 def _op(market_id: str, action: str, **kwargs: object) -> dict[str, object]:

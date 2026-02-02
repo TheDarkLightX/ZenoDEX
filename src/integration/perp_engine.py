@@ -7,7 +7,8 @@ fail-closed way. It is intentionally conservative:
 - operator actions require an explicit operator pubkey configured
 - unknown fields/actions are rejected
 
-Perp risk logic is delegated to the ESSO kernel wrapper in `src/core/perp_epoch.py`.
+Perp risk logic is delegated to `src/core/perp_epoch.py`, which defaults to
+the native v2 backend (`src/core/perp_v2/`) — no ESSO runtime dependency.
 """
 
 from __future__ import annotations

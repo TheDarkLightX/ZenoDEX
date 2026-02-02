@@ -1,12 +1,12 @@
 """
 Epoch-based perpetuals: isolated-margin linear perp risk engine.
 
-This module is a thin, deterministic wrapper around the ESSO kernel:
-`src/kernels/dex/perp_epoch_isolated_v1.yaml`, `src/kernels/dex/perp_epoch_isolated_v1_1.yaml`,
-and `src/kernels/dex/perp_epoch_isolated_v2.yaml`.
+Provides three backend implementations:
+- v1 / v1.1: ESSO kernel interpreter (requires external/ESSO)
+- v2 ESSO: ESSO kernel interpreter for v2 (requires external/ESSO)
+- v2 native: hand-written Python in ``src/core/perp_v2/`` (no ESSO dependency)
 
-The kernel is the source of truth for guards/invariants; this file provides a
-Python-friendly interface and stable loading/caching.
+Default posture: v2 native (oracle-equivalence tested against ESSO reference).
 """
 
 from __future__ import annotations
@@ -222,7 +222,105 @@ def perp_epoch_isolated_v2_fee_pool_max_quote() -> int:
     return _state_var_int_max(ir, var_id="fee_pool_quote")
 
 
-# Default posture: v2 (multi-solver verified, hardened knobs).
-perp_epoch_isolated_default_initial_state = perp_epoch_isolated_v2_initial_state
-perp_epoch_isolated_default_apply = perp_epoch_isolated_v2_apply
-perp_epoch_isolated_default_fee_pool_max_quote = perp_epoch_isolated_v2_fee_pool_max_quote
+# ---------------------------------------------------------------------------
+# v2 native backend: uses hand-written src/core/perp_v2 (no ESSO dependency)
+# ---------------------------------------------------------------------------
+
+def perp_epoch_isolated_v2_native_initial_state() -> dict[str, Value]:
+    from .perp_v2 import initial_state
+    from .perp_v2.state import state_to_dict
+
+    return state_to_dict(initial_state())
+
+
+def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
+    """Translate (action_str, params_dict) to a perp_v2 ActionParams.
+
+    Uses a table-driven approach: each action maps to a list of
+    (ActionParams_field, params_dict_key) pairs for int extraction.
+    Actions that need ``auth_ok`` are in ``_auth_actions``.
+    """
+    from .perp_v2.types import Action, ActionParams
+
+    _field_map: dict[Action, list[tuple[str, str]]] = {
+        Action.ADVANCE_EPOCH: [("delta", "delta")],
+        Action.PUBLISH_CLEARING_PRICE: [("price_e8", "price_e8")],
+        Action.SETTLE_EPOCH: [],
+        Action.DEPOSIT_COLLATERAL: [("amount", "amount")],
+        Action.WITHDRAW_COLLATERAL: [("amount", "amount")],
+        Action.SET_POSITION: [("new_position_base", "new_position_base")],
+        Action.CLEAR_BREAKER: [],
+        Action.APPLY_FUNDING: [("new_rate_bps", "new_rate_bps")],
+        Action.DEPOSIT_INSURANCE: [("amount", "amount")],
+        Action.APPLY_INSURANCE_CLAIM: [("claim_amount", "claim_amount")],
+    }
+    _auth_actions = frozenset({
+        Action.DEPOSIT_COLLATERAL, Action.WITHDRAW_COLLATERAL,
+        Action.SET_POSITION, Action.CLEAR_BREAKER,
+        Action.APPLY_FUNDING, Action.APPLY_INSURANCE_CLAIM,
+    })
+
+    p = dict(params or {})
+    act = Action(action)
+    fields = _field_map.get(act)
+    if fields is None:
+        raise ValueError(f"unknown action: {action}")
+
+    kwargs: dict[str, Any] = {"action": act}
+    for field_name, dict_key in fields:
+        kwargs[field_name] = int(p[dict_key])
+    if act in _auth_actions:
+        kwargs["auth_ok"] = bool(p.get("auth_ok", False))
+    return ActionParams(**kwargs)
+
+
+def _effect_to_dict(effect) -> dict[str, Value]:
+    """Convert a perp_v2 Effect to a plain dict matching ESSO effect format."""
+    return {
+        "event": effect.event.value,
+        "oracle_fresh": effect.oracle_fresh,
+        "notional_quote": effect.notional_quote,
+        "effective_maint_bps": effect.effective_maint_bps,
+        "maint_req_quote": effect.maint_req_quote,
+        "init_req_quote": effect.init_req_quote,
+        "margin_ok": effect.margin_ok,
+        "liquidated": effect.liquidated,
+        "collateral_after": effect.collateral_after,
+        "fee_pool_after": effect.fee_pool_after,
+        "insurance_after": effect.insurance_after,
+    }
+
+
+def perp_epoch_isolated_v2_native_apply(
+    *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
+) -> PerpStepResult:
+    from .perp_v2 import step
+    from .perp_v2.state import state_from_dict, state_to_dict
+
+    try:
+        perp_state = state_from_dict(state)
+        action_params = _action_params_from_dict(action, params)
+    except (KeyError, TypeError, ValueError) as exc:
+        return PerpStepResult(ok=False, error=str(exc))
+
+    result = step(perp_state, action_params)
+    if not result.accepted:
+        return PerpStepResult(ok=False, error=result.rejection)
+
+    return PerpStepResult(
+        ok=True,
+        state=state_to_dict(result.state),
+        effects=_effect_to_dict(result.effect),
+    )
+
+
+def perp_epoch_isolated_v2_native_fee_pool_max_quote() -> int:
+    from .perp_v2.math import MAX_COLLATERAL
+
+    return MAX_COLLATERAL
+
+
+# Default posture: v2 native (oracle-equivalence tested, no ESSO dependency).
+perp_epoch_isolated_default_initial_state = perp_epoch_isolated_v2_native_initial_state
+perp_epoch_isolated_default_apply = perp_epoch_isolated_v2_native_apply
+perp_epoch_isolated_default_fee_pool_max_quote = perp_epoch_isolated_v2_native_fee_pool_max_quote

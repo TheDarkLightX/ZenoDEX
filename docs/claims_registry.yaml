@@ -106,6 +106,35 @@ claims:
       files:
         - src/kernels/dex/perp_epoch_isolated_v2.yaml
 
+  - id: esso:perp_epoch_clearinghouse_2p_v0_1:verify_multi_z3_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The 2-party clearinghouse epoch-perp kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
+      under ESSO's fail-closed verification model.
+    evidence:
+      kind: esso
+      check:
+        - cmd: python3 -m ESSO verify-multi src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+      files:
+        - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
+
+  - id: py:perp_clearinghouse_2p:liquidation_penalty_conservation
+    status: supported
+    layer: spec
+    statement: >
+      In the 2-party clearinghouse reference model, a +5% settlement move can deterministically liquidate
+      the under-margined side, apply a liquidation penalty into the fee pool, and preserve exact quote-e8
+      conservation (net_deposited = collateral_a + collateral_b + fee_pool).
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_perp_clearinghouse_2p/test_ref_smoke.py
+      files:
+        - tests/core/test_perp_clearinghouse_2p/test_ref_smoke.py
+        - generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py
+        - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
+
   - id: lean:perp_epoch_safety:collateral_nonneg_after_clamped_move
     status: proved
     layer: math
