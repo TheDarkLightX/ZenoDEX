@@ -13,6 +13,8 @@ Lean role in the workflow:
 - Counterexample mining (with shrinking) is useful when a conjecture is misstated.
 -/
 
+namespace Proofs
+
 namespace ZenoDEX
 
 def ceilDiv (a b : Nat) : Nat :=
@@ -37,3 +39,5 @@ theorem ceilDiv_mul_ge (a b : Nat) (hb : 0 < b) : a ≤ ceilDiv a b * b + (b - 1
   simpa [hadd] using hmul
 
 end ZenoDEX
+
+end Proofs
