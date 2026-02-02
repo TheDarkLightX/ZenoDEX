@@ -11,8 +11,8 @@ set -euo pipefail
 #
 # Notes:
 # - This script is fail-closed: missing toolchains are treated as errors.
-# - For the kernel verifier, this repo expects the Python package `ESSO` to be available
-#   (typically via `external/ESSO`).
+# - For the kernel verifier and reference-model generation, this repo expects the kernel toolchain
+#   package to be available (typically via `external/ESSO`).
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 PY="${PYTHON:-python3}"
@@ -25,7 +25,8 @@ echo "== perps: pytest =="
   "$ROOT_DIR/tests/core/test_perp_v2" \
   "$ROOT_DIR/tests/core/test_perp_math_hazards.py" \
   "$ROOT_DIR/tests/core/test_perp_clearinghouse_2p" \
-  "$ROOT_DIR/tests/integration/test_perp_engine.py::test_settle_epoch_is_order_independent"
+  "$ROOT_DIR/tests/integration/test_perp_engine.py::test_settle_epoch_is_order_independent" \
+  "$ROOT_DIR/tests/integration/test_perp_engine_clearinghouse_2p.py"
 
 if [[ ! -d "$ROOT_DIR/external/ESSO" ]]; then
   echo "error: missing external toolchain at $ROOT_DIR/external/ESSO" >&2
