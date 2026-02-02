@@ -1,8 +1,9 @@
 """
-Epoch-based perpetuals (v1): isolated-margin linear perp risk engine.
+Epoch-based perpetuals: isolated-margin linear perp risk engine.
 
 This module is a thin, deterministic wrapper around the ESSO kernel:
-`src/kernels/dex/perp_epoch_isolated_v1.yaml` and `src/kernels/dex/perp_epoch_isolated_v1_1.yaml`.
+`src/kernels/dex/perp_epoch_isolated_v1.yaml`, `src/kernels/dex/perp_epoch_isolated_v1_1.yaml`,
+and `src/kernels/dex/perp_epoch_isolated_v2.yaml`.
 
 The kernel is the source of truth for guards/invariants; this file provides a
 Python-friendly interface and stable loading/caching.
@@ -46,6 +47,11 @@ def _model_path_v1() -> Path:
 def _model_path_v1_1() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v1_1.yaml
     return Path(__file__).resolve().parents[1] / "kernels" / "dex" / "perp_epoch_isolated_v1_1.yaml"
+
+
+def _model_path_v2() -> Path:
+    # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v2.yaml
+    return Path(__file__).resolve().parents[1] / "kernels" / "dex" / "perp_epoch_isolated_v2.yaml"
 
 
 def _load_yaml_model(path: Path):
@@ -169,7 +175,54 @@ def perp_epoch_isolated_v1_1_fee_pool_max_quote() -> int:
     return _state_var_int_max(ir, var_id="fee_pool_quote")
 
 
-# Default posture: v1.1 (clamp + breaker).
-perp_epoch_isolated_default_initial_state = perp_epoch_isolated_v1_1_initial_state
-perp_epoch_isolated_default_apply = perp_epoch_isolated_v1_1_apply
-perp_epoch_isolated_default_fee_pool_max_quote = perp_epoch_isolated_v1_1_fee_pool_max_quote
+@lru_cache(maxsize=1)
+def _kernel_ctx_v2():
+    from ESSO.evolve import ir_hash  # type: ignore
+    from ESSO.kernel.interpreter import StepError, prepare_step_context  # type: ignore
+
+    path = _model_path_v2()
+    ir = _load_yaml_model(path)
+    ctx = prepare_step_context(ir)
+    if isinstance(ctx, StepError):
+        raise RuntimeError(f"perp kernel invalid: {ctx.code}: {ctx.message}")
+
+    try:
+        from ..kernels.python.perp_epoch_isolated_v2_adapter import IR_HASH as expected_hash
+
+        if isinstance(expected_hash, str) and expected_hash and expected_hash != ir_hash(ir):
+            raise RuntimeError(f"perp kernel IR hash mismatch: adapter={expected_hash} model={ir_hash(ir)}")
+    except Exception:
+        pass
+
+    return ir, ctx
+
+
+def perp_epoch_isolated_v2_initial_state() -> dict[str, Value]:
+    from ESSO.kernel.simulate import initial_state  # type: ignore
+
+    ir, _ctx = _kernel_ctx_v2()
+    return dict(initial_state(ir))
+
+
+def perp_epoch_isolated_v2_apply(
+    *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
+) -> PerpStepResult:
+    from ESSO.kernel.interpreter import Command, StepError, step_ctx  # type: ignore
+
+    _ir, ctx = _kernel_ctx_v2()
+    cmd = Command(tag=str(action), args=dict(params or {}))
+    res = step_ctx(dict(state), cmd, ctx)
+    if isinstance(res, StepError):
+        return PerpStepResult(ok=False, error=res.message, code=res.code)
+    return PerpStepResult(ok=True, state=dict(res.state), effects=dict(res.effects))
+
+
+def perp_epoch_isolated_v2_fee_pool_max_quote() -> int:
+    ir, _ctx = _kernel_ctx_v2()
+    return _state_var_int_max(ir, var_id="fee_pool_quote")
+
+
+# Default posture: v2 (multi-solver verified, hardened knobs).
+perp_epoch_isolated_default_initial_state = perp_epoch_isolated_v2_initial_state
+perp_epoch_isolated_default_apply = perp_epoch_isolated_v2_apply
+perp_epoch_isolated_default_fee_pool_max_quote = perp_epoch_isolated_v2_fee_pool_max_quote

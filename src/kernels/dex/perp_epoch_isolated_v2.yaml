@@ -1,0 +1,1631 @@
+# [FORGE] Perp Epoch Isolated v2 (Hardened isolated-margin perp risk engine)
+#
+# Purpose:
+# - Extends v1.1 with: symmetric funding mechanism, insurance fund with claims,
+#   depeg buffer, anti-bounty-farming guard, epoch-gated funding.
+# - Deterministic mark-to-market on oracle updates, with bounded-move enforcement (clamp + breaker).
+# - Fail-closed invariants suitable for SMT/ESSO verification.
+#
+# Model Scope & Boundaries:
+# - SINGLE-ACCOUNT model: captures one trader's interaction with the protocol.
+#   Funding budget-balance (BB) requires the TWO-PLAYER companion model
+#   (perp_game_theory_v2.yaml) where funding_b := -funding_a by construction.
+# - Funding rate (`new_rate_bps`) is an ENVIRONMENT parameter, not attacker-controlled.
+#   In production, the rate is set by protocol logic (e.g., mark-index divergence).
+#   The game-theory model proves BB under this assumption.
+# - Oracle clearing price is an ENVIRONMENT input. Oracle auth/dispute is outside
+#   this kernel's threat model. The clamp + breaker bound worst-case oracle moves.
+# - Insurance claims model bad-debt socialization. Claims are bounded by insurance_balance
+#   (fail-closed: no negative insurance).
+#
+# v2 Changes (from CEGIS Phase 2 + deep incentive research):
+# - Funding rate mechanism: epoch-gated, single-account payments bounded by cap.
+#   Insight PI-I-07: construction > cancellation. Funding computed once, applied symmetrically.
+# - Insurance fund: conservation invariant (balance = initial + fees - claims) WITH claims action.
+#   Insight PI-I-05: per-step safety ≠ trajectory safety. Multi-epoch insurance tracking.
+# - Depeg buffer: effective_maint = maintenance_margin_bps + depeg_buffer_bps.
+#   Quantifies collateral depeg risk within the ESSO model.
+# - Anti-bounty-farming: liquidation bounty requires min_notional_for_bounty.
+#   Insight PI-I-03: unconditional minimums are exploitable.
+# - Fee pool overflow guard strengthened with insurance overflow guard.
+# - Fee pool / fee income synchronization invariant (fee_pool_quote = fee_income).
+#
+# Units:
+# - `index_price_e8` is quote-per-base scaled by 1e8.
+# - `position_base` is signed base units.
+# - `collateral_quote` is quote units.
+# - `fee_pool_quote` is quote units (liquidation penalties accrue here).
+# - `insurance_balance` is quote units.
+# - margin ratios and funding rates are in bps (1/10_000).
+#
+# Key safety knobs:
+# - `maintenance_margin_bps + depeg_buffer_bps >= max_oracle_move_bps`
+# - `|funding_rate_bps| <= funding_cap_bps`
+# - `insurance_balance = initial_insurance + fee_income - claims_paid`
+# - `fee_pool_quote = fee_income` (synchronized accounting)
+# - `liquidation bounty = 0 when notional < min_notional_for_bounty`
+# - `funding applied at most once per epoch`
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_epoch_isolated_v2"
+  created_by: "zenodex-forge"
+  notes: |
+    Epoch-based isolated-margin perp risk engine (single-market, single-account model).
+    v2 adds: funding rate mechanism (bounded, single-computation),
+    insurance fund with conservation invariant, depeg buffer on maintenance margin,
+    and anti-bounty-farming guard (min notional threshold).
+    Based on deep incentive research insights PI-I-01 through PI-I-10.
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "breaker_active",
+      "breaker_last_trigger_epoch",
+      "clearing_price_seen",
+      "clearing_price_epoch",
+      "clearing_price_e8",
+      "oracle_seen",
+      "oracle_last_update_epoch",
+      "index_price_e8",
+      "max_oracle_staleness_epochs",
+      "max_oracle_move_bps",
+      "initial_margin_bps",
+      "maintenance_margin_bps",
+      "depeg_buffer_bps",
+      "liquidation_penalty_bps",
+      "max_position_abs",
+      "position_base",
+      "entry_price_e8",
+      "collateral_quote",
+      "fee_pool_quote",
+      "funding_rate_bps",
+      "funding_cap_bps",
+      "funding_paid_cumulative",
+      "insurance_balance",
+      "initial_insurance",
+      "fee_income",
+      "claims_paid",
+      "min_notional_for_bounty",
+      "funding_last_applied_epoch",
+      "liquidated_this_step",
+    ]
+  effects:
+    [
+      "event",
+      "oracle_fresh",
+      "notional_quote",
+      "effective_maint_bps",
+      "maint_req_quote",
+      "init_req_quote",
+      "margin_ok",
+      "liquidated",
+      "collateral_after",
+      "fee_pool_after",
+      "insurance_after",
+    ]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "EpochAdvanced",
+          "ClearingPricePublished",
+          "EpochSettled",
+          "CollateralDeposited",
+          "CollateralWithdrawn",
+          "PositionSet",
+          "BreakerCleared",
+          "FundingApplied",
+          "InsuranceDeposited",
+          "InsuranceClaimPaid",
+        ]
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Circuit breaker: once triggered, only reduce-only position updates are permitted until cleared.
+  - id: "breaker_active"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "breaker_last_trigger_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Deterministic on-chain oracle source: publish a single clearing price per epoch,
+  # then settle the epoch by marking-to-market at that price.
+  - id: "clearing_price_seen"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "clearing_price_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "clearing_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  - id: "oracle_seen"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Index / mark price for risk (quote-per-base scaled by 1e8)
+  - id: "index_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  - id: "max_oracle_staleness_epochs"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000000 }
+
+  # Bounded oracle move per update (bps). 10000 = 100%.
+  - id: "max_oracle_move_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "initial_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "maintenance_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  # v2: depeg buffer added to maintenance margin for collateral depeg protection
+  - id: "depeg_buffer_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 5000 }
+
+  - id: "liquidation_penalty_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "max_position_abs"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000000 }
+
+  # Signed base position (long > 0, short < 0)
+  - id: "position_base"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+
+  # Marked-to-market entry: invariant keeps this == index_price_e8 when pos != 0.
+  - id: "entry_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  # Quote collateral (realized). Always nonnegative.
+  - id: "collateral_quote"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+
+  # Liquidation penalties are transferred into the fee pool.
+  - id: "fee_pool_quote"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+
+  # v2: Funding rate (signed bps, positive = longs pay, negative = shorts pay)
+  - id: "funding_rate_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+
+  # v2: Funding rate cap (absolute bound on funding_rate_bps)
+  - id: "funding_cap_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+
+  # v2: Cumulative funding paid by this account (signed; positive = net paid out)
+  - id: "funding_paid_cumulative"
+    role: "data"
+    type: { kind: "int", min: -1000000000000000, max: 1000000000000000 }
+
+  # v2: Insurance fund
+  - id: "insurance_balance"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+
+  - id: "initial_insurance"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+
+  - id: "fee_income"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+
+  - id: "claims_paid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+
+  # v2: Anti-bounty-farming guard — minimum notional for liquidation bounty
+  - id: "min_notional_for_bounty"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+  # v2: epoch gate for funding — prevents double-application within same epoch
+  - id: "funding_last_applied_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # v2: tracks whether current step caused a liquidation (for trace/ABI)
+  - id: "liquidated_this_step"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "breaker_active"
+    expr: { bool: false }
+  - var: "breaker_last_trigger_epoch"
+    expr: { const: 0 }
+  - var: "clearing_price_seen"
+    expr: { bool: false }
+  - var: "clearing_price_epoch"
+    expr: { const: 0 }
+  - var: "clearing_price_e8"
+    expr: { const: 0 }
+  - var: "oracle_seen"
+    expr: { bool: false }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+  - var: "index_price_e8"
+    expr: { const: 0 }
+
+  - var: "max_oracle_staleness_epochs"
+    expr: { const: 100 }
+  - var: "max_oracle_move_bps"
+    expr: { const: 500 }  # 5% per update (conservative)
+
+  - var: "initial_margin_bps"
+    expr: { const: 1000 }  # 10%
+  - var: "maintenance_margin_bps"
+    expr: { const: 500 }   # 5% (base, before depeg buffer)
+  - var: "depeg_buffer_bps"
+    expr: { const: 100 }   # 1% depeg buffer → effective maintenance = 6%
+  - var: "liquidation_penalty_bps"
+    expr: { const: 50 }    # 0.5%
+
+  - var: "max_position_abs"
+    expr: { const: 1000000 }
+
+  - var: "position_base"
+    expr: { const: 0 }
+  - var: "entry_price_e8"
+    expr: { const: 0 }
+  - var: "collateral_quote"
+    expr: { const: 0 }
+  - var: "fee_pool_quote"
+    expr: { const: 0 }
+
+  # v2 funding
+  - var: "funding_rate_bps"
+    expr: { const: 0 }
+  - var: "funding_cap_bps"
+    expr: { const: 100 }   # 1% max funding rate per epoch
+  - var: "funding_paid_cumulative"
+    expr: { const: 0 }
+
+  # v2 insurance
+  - var: "insurance_balance"
+    expr: { const: 0 }
+  - var: "initial_insurance"
+    expr: { const: 0 }
+  - var: "fee_income"
+    expr: { const: 0 }
+  - var: "claims_paid"
+    expr: { const: 0 }
+
+  # v2 anti-bounty-farming
+  - var: "min_notional_for_bounty"
+    expr: { const: 100000000 }  # 1e8 quote-scaled (notional = |pos|*price_e8/1e8, same units as collateral_quote)
+
+  # v2 funding epoch gate
+  - var: "funding_last_applied_epoch"
+    expr: { const: 0 }
+
+  # v2 liquidation tracking
+  - var: "liquidated_this_step"
+    expr: { bool: false }
+
+invariants:
+  # --- v1.1 invariants (preserved) ---
+
+  - id: "inv_clearing_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_clearing_seen_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args: [{ var: "clearing_price_seen" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "clearing_price_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "clearing_price_e8" }, { const: 0 }] }
+
+  - id: "inv_oracle_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_oracle_seen_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args: [{ var: "oracle_seen" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "oracle_last_update_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "index_price_e8" }, { const: 0 }] }
+
+  - id: "inv_breaker_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "breaker_last_trigger_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_breaker_inactive_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args: [{ var: "breaker_active" }]
+        - op: "="
+          args: [{ var: "breaker_last_trigger_epoch" }, { const: 0 }]
+
+  # v2: margin params ordered with depeg buffer
+  # effective_maint = maintenance_margin_bps + depeg_buffer_bps
+  - id: "inv_margin_params_ordered"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+            - { var: "initial_margin_bps" }
+        - op: "<="
+          args:
+            - { var: "max_oracle_move_bps" }
+            - op: "+"
+              args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+
+  - id: "inv_entry_zero_when_flat"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "position_base" }, { const: 0 }]
+        - op: "="
+          args: [{ var: "entry_price_e8" }, { const: 0 }]
+
+  - id: "inv_entry_matches_price_when_open"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "position_base" }, { const: 0 }]
+        - op: "="
+          args: [{ var: "entry_price_e8" }, { var: "index_price_e8" }]
+
+  # v2: Maintenance safety uses effective_maint = maintenance_margin_bps + depeg_buffer_bps
+  - id: "inv_maint_margin_ok"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "position_base" }, { const: 0 }]
+        - op: ">="
+          args:
+            - { var: "collateral_quote" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: ">="
+                                args: [{ var: "position_base" }, { const: 0 }]
+                              then: { var: "position_base" }
+                              else:
+                                op: "-"
+                                args: [{ const: 0 }, { var: "position_base" }]
+                            - { var: "index_price_e8" }
+                        - { const: 100000000 }
+                    - op: "+"
+                      args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                - { const: 10000 }
+
+  # --- v2 new invariants ---
+
+  # INV-v2-1: Funding rate bounded by cap
+  - id: "inv_funding_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { var: "funding_cap_bps" }]
+            - { var: "funding_rate_bps" }
+        - op: "<="
+          args:
+            - { var: "funding_rate_bps" }
+            - { var: "funding_cap_bps" }
+
+  # INV-v2-2: Insurance fund non-negative
+  - id: "inv_insurance_nonneg"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "insurance_balance" }, { const: 0 }]
+
+  # INV-v2-3: Insurance fund conservation (accounting identity)
+  - id: "inv_insurance_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "insurance_balance" }
+        - op: "-"
+          args:
+            - op: "+"
+              args: [{ var: "initial_insurance" }, { var: "fee_income" }]
+            - { var: "claims_paid" }
+
+  # INV-v2-4: Liquidation penalty < effective maintenance (prevents self-liquidation profit)
+  - id: "inv_liquidation_ic_guard"
+    kind: "safety"
+    expr:
+      op: "<"
+      args:
+        - { var: "liquidation_penalty_bps" }
+        - op: "+"
+          args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+
+  # INV-v2-5: Funding epoch tracking is monotonic and bounded by now_epoch
+  - id: "inv_funding_epoch_gated"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "funding_last_applied_epoch" }, { var: "now_epoch" }]
+
+  # INV-v2-6: Fee pool equals cumulative fee income (synchronized accounting)
+  - id: "inv_fee_pool_eq_fee_income"
+    kind: "safety"
+    expr:
+      op: "="
+      args: [{ var: "fee_pool_quote" }, { var: "fee_income" }]
+
+actions:
+  # ---- ACTION: advance_epoch ----
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "now_epoch" }, { param: "delta" }]
+        - { const: 1000000 }
+    updates:
+      - var: "now_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "now_epoch" }, { param: "delta" }]
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "EpochAdvanced" }
+      oracle_fresh: &eff_oracle_fresh
+        op: "and"
+        args:
+          - { var: "oracle_seen" }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      # v2: Anchored post-state effect computations (defined here, shared across all actions)
+      notional_quote: &eff_notional
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "ite"
+                cond:
+                  op: ">="
+                  args: [{ var: "position_base" }, { const: 0 }]
+                then: { var: "position_base" }
+                else:
+                  op: "-"
+                  args: [{ const: 0 }, { var: "position_base" }]
+              - { var: "index_price_e8" }
+          - { const: 100000000 }
+      effective_maint_bps: &eff_maint_bps
+        op: "+"
+        args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+      maint_req_quote: &eff_maint_req
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: ">="
+                          args: [{ var: "position_base" }, { const: 0 }]
+                        then: { var: "position_base" }
+                        else:
+                          op: "-"
+                          args: [{ const: 0 }, { var: "position_base" }]
+                      - { var: "index_price_e8" }
+                  - { const: 100000000 }
+              - op: "+"
+                args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+          - { const: 10000 }
+      init_req_quote: &eff_init_req
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: ">="
+                          args: [{ var: "position_base" }, { const: 0 }]
+                        then: { var: "position_base" }
+                        else:
+                          op: "-"
+                          args: [{ const: 0 }, { var: "position_base" }]
+                      - { var: "index_price_e8" }
+                  - { const: 100000000 }
+              - { var: "initial_margin_bps" }
+          - { const: 10000 }
+      margin_ok: &eff_margin_ok
+        op: "ite"
+        cond:
+          op: "="
+          args: [{ var: "position_base" }, { const: 0 }]
+        then: { bool: true }
+        else:
+          op: ">="
+          args:
+            - { var: "collateral_quote" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: ">="
+                                args: [{ var: "position_base" }, { const: 0 }]
+                              then: { var: "position_base" }
+                              else:
+                                op: "-"
+                                args: [{ const: 0 }, { var: "position_base" }]
+                            - { var: "index_price_e8" }
+                        - { const: 100000000 }
+                    - op: "+"
+                      args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                - { const: 10000 }
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- ACTION: publish_clearing_price ----
+  - id: "publish_clearing_price"
+    params:
+      - id: "price_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+    guard:
+      # one clearing price per epoch
+      op: "<"
+      args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }]
+    updates:
+      - var: "clearing_price_seen"
+        expr: { bool: true }
+      - var: "clearing_price_epoch"
+        expr: { var: "now_epoch" }
+      - var: "clearing_price_e8"
+        expr: { param: "price_e8" }
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "ClearingPricePublished" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- ACTION: settle_epoch ----
+  # v2: Uses effective_maint = maintenance_margin_bps + depeg_buffer_bps.
+  #     Anti-bounty-farming: penalty = 0 when notional < min_notional_for_bounty.
+  - id: "settle_epoch"
+    guard:
+      op: "and"
+      args:
+        - { var: "clearing_price_seen" }
+        - { op: "=", args: [{ var: "clearing_price_epoch" }, { var: "now_epoch" }] }
+        - op: "<"
+          args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+        # Collateral after MTM must be non-negative
+        - op: ">="
+          args:
+            - op: "+"
+              args:
+                - { var: "collateral_quote" }
+                - &pnl_quote
+                  # v2: Symmetric MTM PnL — magnitude from abs values avoids
+                  # Euclidean div rounding asymmetry between long and short.
+                  # pnl > 0 when position and price change have same sign (profit).
+                  op: "ite"
+                  cond:
+                    # same_sign: position direction matches price change direction
+                    op: "="
+                    args:
+                      - op: ">="
+                        args: [{ var: "position_base" }, { const: 0 }]
+                      - op: ">="
+                        args:
+                          - &settle_price_e8
+                            op: "ite"
+                            cond: &oracle_move_violated
+                              op: "and"
+                              args:
+                                - { var: "oracle_seen" }
+                                - op: ">"
+                                  args:
+                                    - op: "*"
+                                      args:
+                                        - op: "ite"
+                                          cond: { op: ">=", args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }] }
+                                          then:
+                                            op: "-"
+                                            args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }]
+                                          else:
+                                            op: "-"
+                                            args: [{ var: "index_price_e8" }, { var: "clearing_price_e8" }]
+                                        - { const: 10000 }
+                                    - op: "*"
+                                      args: [{ var: "max_oracle_move_bps" }, { var: "index_price_e8" }]
+                            then:
+                              # Clamp to the max allowed move.
+                              op: "ite"
+                              cond: { op: ">=", args: [{ var: "clearing_price_e8" }, { var: "index_price_e8" }] }
+                              then:
+                                op: "+"
+                                args:
+                                  - { var: "index_price_e8" }
+                                  - op: "div"
+                                    args:
+                                      - op: "*"
+                                        args: [{ var: "index_price_e8" }, { var: "max_oracle_move_bps" }]
+                                      - { const: 10000 }
+                              else:
+                                op: "-"
+                                args:
+                                  - { var: "index_price_e8" }
+                                  - op: "div"
+                                    args:
+                                      - op: "*"
+                                        args: [{ var: "index_price_e8" }, { var: "max_oracle_move_bps" }]
+                                      - { const: 10000 }
+                            else: { var: "clearing_price_e8" }
+                          - { var: "index_price_e8" }
+                  then: &pnl_magnitude
+                    op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "ite"
+                            cond: { op: ">=", args: [{ var: "position_base" }, { const: 0 }] }
+                            then: { var: "position_base" }
+                            else: { op: "-", args: [{ const: 0 }, { var: "position_base" }] }
+                          - op: "ite"
+                            cond: { op: ">=", args: [*settle_price_e8, { var: "index_price_e8" }] }
+                            then: { op: "-", args: [*settle_price_e8, { var: "index_price_e8" }] }
+                            else: { op: "-", args: [{ var: "index_price_e8" }, *settle_price_e8] }
+                      - { const: 100000000 }
+                  else:
+                    op: "-"
+                    args:
+                      - { const: 0 }
+                      - *pnl_magnitude
+            - { const: 0 }
+        # Upper bound on collateral after MTM
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "collateral_quote" }
+                - *pnl_quote
+            - { const: 1000000000000000 }
+        # Fee-pool overflow guard (when liquidation occurs)
+        - op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "not"
+                args:
+                  - op: "="
+                    args: [{ var: "position_base" }, { const: 0 }]
+              - op: "<"
+                args:
+                  - op: "+"
+                    args:
+                      - { var: "collateral_quote" }
+                      - *pnl_quote
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - *settle_price_e8
+                              - { const: 100000000 }
+                          - op: "+"
+                            args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                      - { const: 10000 }
+          then:
+            op: "<="
+            args:
+              - op: "+"
+                args:
+                  - { var: "fee_pool_quote" }
+                  - &liq_penalty_v2
+                    # v2: penalty = 0 if notional < min_notional_for_bounty (anti-farming)
+                    op: "ite"
+                    cond:
+                      op: ">="
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "*"
+                              args:
+                                - op: "ite"
+                                  cond:
+                                    op: ">="
+                                    args: [{ var: "position_base" }, { const: 0 }]
+                                  then: { var: "position_base" }
+                                  else:
+                                    op: "-"
+                                    args: [{ const: 0 }, { var: "position_base" }]
+                                - *settle_price_e8
+                            - { const: 100000000 }
+                        - { var: "min_notional_for_bounty" }
+                    then:
+                      op: "min"
+                      args:
+                          - op: "+"
+                            args:
+                              - { var: "collateral_quote" }
+                              - *pnl_quote
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "div"
+                                    args:
+                                      - op: "*"
+                                        args:
+                                          - op: "ite"
+                                            cond:
+                                              op: ">="
+                                              args: [{ var: "position_base" }, { const: 0 }]
+                                            then: { var: "position_base" }
+                                            else:
+                                              op: "-"
+                                              args: [{ const: 0 }, { var: "position_base" }]
+                                          - *settle_price_e8
+                                      - { const: 100000000 }
+                                  - { var: "liquidation_penalty_bps" }
+                              - { const: 10000 }
+                    else: { const: 0 }
+              - { const: 1000000000000000 }
+          else: { bool: true }
+        # fee_income overflow guard (when liquidation occurs)
+        - op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "not"
+                args:
+                  - op: "="
+                    args: [{ var: "position_base" }, { const: 0 }]
+              - op: "<"
+                args:
+                  - op: "+"
+                    args:
+                      - { var: "collateral_quote" }
+                      - *pnl_quote
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - *settle_price_e8
+                              - { const: 100000000 }
+                          - op: "+"
+                            args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                      - { const: 10000 }
+          then:
+            op: "and"
+            args:
+              # fee_income won't overflow
+              - op: "<="
+                args:
+                  - op: "+"
+                    args: [{ var: "fee_income" }, *liq_penalty_v2]
+                  - { const: 1000000000000000 }
+              # insurance_balance (= initial + new_fee_income - claims) won't overflow
+              - op: "<="
+                args:
+                  - op: "-"
+                    args:
+                      - op: "+"
+                        args:
+                          - { var: "initial_insurance" }
+                          - op: "+"
+                            args: [{ var: "fee_income" }, *liq_penalty_v2]
+                      - { var: "claims_paid" }
+                  - { const: 1000000000000000 }
+          else: { bool: true }
+    updates:
+      - var: "oracle_last_update_epoch"
+        expr: { var: "now_epoch" }
+      - var: "oracle_seen"
+        expr: { bool: true }
+
+      # v2: track whether this settle triggers liquidation
+      - var: "liquidated_this_step"
+        expr: &liq_cond
+          op: "and"
+          args:
+            - op: "not"
+              args:
+                - op: "="
+                  args: [{ var: "position_base" }, { const: 0 }]
+            - op: "<"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "collateral_quote" }
+                    - *pnl_quote
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "*"
+                              args:
+                                - op: "ite"
+                                  cond:
+                                    op: ">="
+                                    args: [{ var: "position_base" }, { const: 0 }]
+                                  then: { var: "position_base" }
+                                  else:
+                                    op: "-"
+                                    args: [{ const: 0 }, { var: "position_base" }]
+                                - *settle_price_e8
+                            - { const: 100000000 }
+                        - op: "+"
+                          args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                    - { const: 10000 }
+
+      # price updates first
+      - var: "index_price_e8"
+        expr: *settle_price_e8
+
+      # breaker triggers iff the oracle move exceeded the configured bound
+      - var: "breaker_active"
+        expr:
+          op: "or"
+          args:
+            - { var: "breaker_active" }
+            - *oracle_move_violated
+
+      - var: "breaker_last_trigger_epoch"
+        expr:
+          op: "ite"
+          cond: *oracle_move_violated
+          then: { var: "now_epoch" }
+          else: { var: "breaker_last_trigger_epoch" }
+
+      # mark-to-market collateral (based on old price delta), and liquidate if below
+      # effective maintenance (maintenance_margin_bps + depeg_buffer_bps) at new price.
+      - var: "collateral_quote"
+        expr:
+          op: "ite"
+          cond: *liq_cond
+          then:
+            # liquidated: collateral = mtm_collateral - penalty
+            op: "-"
+            args:
+              - op: "+"
+                args:
+                  - { var: "collateral_quote" }
+                  - *pnl_quote
+              - *liq_penalty_v2
+          else:
+            op: "+"
+            args:
+              - { var: "collateral_quote" }
+              - *pnl_quote
+
+      - var: "fee_pool_quote"
+        expr:
+          op: "ite"
+          cond: *liq_cond
+          then:
+            op: "+"
+            args:
+              - { var: "fee_pool_quote" }
+              - *liq_penalty_v2
+          else: { var: "fee_pool_quote" }
+
+      # Insurance: penalty goes to fee_income, updates insurance_balance
+      - var: "fee_income"
+        expr:
+          op: "ite"
+          cond: *liq_cond
+          then:
+            op: "+"
+            args: [{ var: "fee_income" }, *liq_penalty_v2]
+          else: { var: "fee_income" }
+
+      - var: "insurance_balance"
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args:
+                - { var: "initial_insurance" }
+                - op: "ite"
+                  cond: *liq_cond
+                  then:
+                    op: "+"
+                    args: [{ var: "fee_income" }, *liq_penalty_v2]
+                  else: { var: "fee_income" }
+            - { var: "claims_paid" }
+
+      - var: "position_base"
+        expr:
+          op: "ite"
+          cond: *liq_cond
+          then: { const: 0 }
+          else: { var: "position_base" }
+
+      - var: "entry_price_e8"
+        expr:
+          op: "ite"
+          cond:
+            op: "or"
+            args:
+              - op: "="
+                args: [{ var: "position_base" }, { const: 0 }]
+              - *liq_cond
+          then: { const: 0 }
+          else: *settle_price_e8
+    effects:
+      event: { enum: "EpochSettled" }
+      oracle_fresh: { bool: true }
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      # v2: liquidated_this_step is set in updates; effects read post-state.
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- ACTION: deposit_collateral ----
+  - id: "deposit_collateral"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "collateral_quote" }, { param: "amount" }]
+            - { const: 1000000000000000 }
+    updates:
+      - var: "collateral_quote"
+        expr:
+          op: "+"
+          args: [{ var: "collateral_quote" }, { param: "amount" }]
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "CollateralDeposited" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- ACTION: withdraw_collateral ----
+  # v2: Uses effective_maint = maintenance_margin_bps + depeg_buffer_bps
+  - id: "withdraw_collateral"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - { op: "<=", args: [{ param: "amount" }, { var: "collateral_quote" }] }
+        # Must remain above effective maintenance if position open;
+        # oracle freshness required when position is open (margin check uses index_price_e8)
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "position_base" }, { const: 0 }]
+          then: { bool: true }
+          else:
+            op: "and"
+            args:
+              # Oracle freshness for margin-dependent withdrawal
+              - { var: "oracle_seen" }
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                  - { var: "max_oracle_staleness_epochs" }
+              - op: ">="
+                args:
+                  - op: "-"
+                    args: [{ var: "collateral_quote" }, { param: "amount" }]
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond:
+                                      op: ">="
+                                      args: [{ var: "position_base" }, { const: 0 }]
+                                    then: { var: "position_base" }
+                                    else:
+                                      op: "-"
+                                      args: [{ const: 0 }, { var: "position_base" }]
+                                  - { var: "index_price_e8" }
+                              - { const: 100000000 }
+                          - op: "+"
+                            args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                      - { const: 10000 }
+    updates:
+      - var: "collateral_quote"
+        expr:
+          op: "-"
+          args: [{ var: "collateral_quote" }, { param: "amount" }]
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "CollateralWithdrawn" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- ACTION: set_position ----
+  # v2: Uses initial_margin_bps for opening margin check; breaker enforces reduce-only
+  - id: "set_position"
+    params:
+      - id: "new_position_base"
+        type: { kind: "int", min: -1000000, max: 1000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - { var: "oracle_seen" }
+        - op: "<="
+          args:
+            - op: "ite"
+              cond:
+                op: ">="
+                args: [{ param: "new_position_base" }, { const: 0 }]
+              then: { param: "new_position_base" }
+              else:
+                op: "-"
+                args: [{ const: 0 }, { param: "new_position_base" }]
+            - { var: "max_position_abs" }
+        # v1.1 breaker logic: reduce-only when breaker active
+        - op: "ite"
+          cond: { var: "breaker_active" }
+          then:
+            op: "and"
+            args:
+              # no opening while breaker is active
+              - op: "ite"
+                cond: { op: "=", args: [{ var: "position_base" }, { const: 0 }] }
+                then: { op: "=", args: [{ param: "new_position_base" }, { const: 0 }] }
+                else: { bool: true }
+              # must not increase absolute exposure
+              - op: "<="
+                args:
+                  - op: "ite"
+                    cond: { op: ">=", args: [{ param: "new_position_base" }, { const: 0 }] }
+                    then: { param: "new_position_base" }
+                    else:
+                      op: "-"
+                      args: [{ const: 0 }, { param: "new_position_base" }]
+                  - op: "ite"
+                    cond: { op: ">=", args: [{ var: "position_base" }, { const: 0 }] }
+                    then: { var: "position_base" }
+                    else:
+                      op: "-"
+                      args: [{ const: 0 }, { var: "position_base" }]
+              # no sign flip unless closing to zero
+              - op: "or"
+                args:
+                  - { op: "=", args: [{ param: "new_position_base" }, { const: 0 }] }
+                  - op: "and"
+                    args:
+                      - { op: ">=", args: [{ var: "position_base" }, { const: 0 }] }
+                      - { op: ">=", args: [{ param: "new_position_base" }, { const: 0 }] }
+                  - op: "and"
+                    args:
+                      - { op: "<=", args: [{ var: "position_base" }, { const: 0 }] }
+                      - { op: "<=", args: [{ param: "new_position_base" }, { const: 0 }] }
+          else:
+            op: "and"
+            args:
+              # oracle freshness for trading
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                  - { var: "max_oracle_staleness_epochs" }
+              # Must satisfy initial margin at current price.
+              - op: "ite"
+                cond:
+                  op: "="
+                  args: [{ param: "new_position_base" }, { const: 0 }]
+                then: { bool: true }
+                else:
+                  op: ">="
+                  args:
+                    - { var: "collateral_quote" }
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "div"
+                              args:
+                                - op: "*"
+                                  args:
+                                    - op: "ite"
+                                      cond:
+                                        op: ">="
+                                        args: [{ param: "new_position_base" }, { const: 0 }]
+                                      then: { param: "new_position_base" }
+                                      else:
+                                        op: "-"
+                                        args: [{ const: 0 }, { param: "new_position_base" }]
+                                    - { var: "index_price_e8" }
+                                - { const: 100000000 }
+                            - { var: "initial_margin_bps" }
+                        - { const: 10000 }
+    updates:
+      - var: "position_base"
+        expr: { param: "new_position_base" }
+      - var: "entry_price_e8"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "new_position_base" }, { const: 0 }]
+          then: { const: 0 }
+          else: { var: "index_price_e8" }
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "PositionSet" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- ACTION: clear_breaker ----
+  - id: "clear_breaker"
+    params:
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - { var: "breaker_active" }
+        - { op: "=", args: [{ var: "position_base" }, { const: 0 }] }
+    updates:
+      - var: "breaker_active"
+        expr: { bool: false }
+      - var: "breaker_last_trigger_epoch"
+        expr: { const: 0 }
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "BreakerCleared" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- v2 ACTION: apply_funding ----
+  # Applies funding payment to account based on position direction and rate.
+  # funding = pos * price * rate / (1e8 * 10000)
+  # Positive rate: longs pay (pos > 0 means account pays).
+  # Guard: requires auth_ok; collateral must remain above effective maintenance after funding deduction.
+  - id: "apply_funding"
+    params:
+      - id: "new_rate_bps"
+        type: { kind: "int", min: -10000, max: 10000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        # Privileged action: rate is protocol-set, not user-controlled
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - { var: "oracle_seen" }
+        # Oracle freshness: funding requires non-stale price
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+            - { var: "max_oracle_staleness_epochs" }
+        # Epoch gate: funding can only be applied once per epoch
+        - op: "<"
+          args: [{ var: "funding_last_applied_epoch" }, { var: "now_epoch" }]
+        # Rate within cap
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { var: "funding_cap_bps" }]
+            - { param: "new_rate_bps" }
+        - op: "<="
+          args: [{ param: "new_rate_bps" }, { var: "funding_cap_bps" }]
+        # Position must be open (funding on flat position is zero, no-op)
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "position_base" }, { const: 0 }]
+        # Collateral after funding must remain non-negative
+        - op: ">="
+          args:
+            - op: "-"
+              args:
+                - { var: "collateral_quote" }
+                - &funding_payment
+                  # v2: Symmetric funding — magnitude from abs values avoids
+                  # Euclidean div rounding asymmetry (which could mint collateral).
+                  # payment > 0 when pos and rate same sign (payer), < 0 otherwise.
+                  op: "ite"
+                  cond:
+                    # same_sign: payer when both non-negative or both negative
+                    op: "="
+                    args:
+                      - op: ">="
+                        args: [{ var: "position_base" }, { const: 0 }]
+                      - op: ">="
+                        args: [{ param: "new_rate_bps" }, { const: 0 }]
+                  then: &funding_magnitude
+                    # magnitude = floor(floor(abs(pos)*price / 1e8) * abs(rate) / 10000)
+                    op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "*"
+                                args:
+                                  - op: "ite"
+                                    cond: { op: ">=", args: [{ var: "position_base" }, { const: 0 }] }
+                                    then: { var: "position_base" }
+                                    else: { op: "-", args: [{ const: 0 }, { var: "position_base" }] }
+                                  - { var: "index_price_e8" }
+                              - { const: 100000000 }
+                          - op: "ite"
+                            cond: { op: ">=", args: [{ param: "new_rate_bps" }, { const: 0 }] }
+                            then: { param: "new_rate_bps" }
+                            else: { op: "-", args: [{ const: 0 }, { param: "new_rate_bps" }] }
+                      - { const: 10000 }
+                  else:
+                    # payee receives: -magnitude
+                    op: "-"
+                    args:
+                      - { const: 0 }
+                      - *funding_magnitude
+            - { const: 0 }
+        # Collateral after funding must be within bounds
+        - op: "<="
+          args:
+            - op: "-"
+              args:
+                - { var: "collateral_quote" }
+                - *funding_payment
+            - { const: 1000000000000000 }
+        # Collateral after funding must meet effective maintenance
+        - op: ">="
+          args:
+            - op: "-"
+              args:
+                - { var: "collateral_quote" }
+                - *funding_payment
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: ">="
+                                args: [{ var: "position_base" }, { const: 0 }]
+                              then: { var: "position_base" }
+                              else:
+                                op: "-"
+                                args: [{ const: 0 }, { var: "position_base" }]
+                            - { var: "index_price_e8" }
+                        - { const: 100000000 }
+                    - op: "+"
+                      args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                - { const: 10000 }
+        # Cumulative funding overflow guard
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "funding_paid_cumulative" }, *funding_payment]
+            - { const: 1000000000000000 }
+        - op: ">="
+          args:
+            - op: "+"
+              args: [{ var: "funding_paid_cumulative" }, *funding_payment]
+            - { const: -1000000000000000 }
+    updates:
+      - var: "funding_rate_bps"
+        expr: { param: "new_rate_bps" }
+      - var: "funding_last_applied_epoch"
+        expr: { var: "now_epoch" }
+      - var: "collateral_quote"
+        expr:
+          op: "-"
+          args:
+            - { var: "collateral_quote" }
+            - *funding_payment
+      - var: "funding_paid_cumulative"
+        expr:
+          op: "+"
+          args: [{ var: "funding_paid_cumulative" }, *funding_payment]
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "FundingApplied" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- v2 ACTION: deposit_insurance ----
+  # Deposits funds to the insurance pool.
+  - id: "deposit_insurance"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "initial_insurance" }, { param: "amount" }]
+            - { const: 1000000000000000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "insurance_balance" }, { param: "amount" }]
+            - { const: 1000000000000000 }
+    updates:
+      - var: "initial_insurance"
+        expr:
+          op: "+"
+          args: [{ var: "initial_insurance" }, { param: "amount" }]
+      - var: "insurance_balance"
+        expr:
+          op: "+"
+          args: [{ var: "insurance_balance" }, { param: "amount" }]
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "InsuranceDeposited" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }
+
+  # ---- v2 ACTION: apply_insurance_claim ----
+  # Pays out a claim from the insurance fund (e.g., bad debt socialization).
+  # Guard: requires auth_ok; claim must not exceed current insurance balance (fail-closed: no negative insurance).
+  - id: "apply_insurance_claim"
+    params:
+      - id: "claim_amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        # Privileged action: requires authorization
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        # Claim must not exceed current insurance balance
+        - op: "<="
+          args: [{ param: "claim_amount" }, { var: "insurance_balance" }]
+        # claims_paid overflow guard
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "claims_paid" }, { param: "claim_amount" }]
+            - { const: 1000000000000000 }
+        # Resulting insurance_balance must be non-negative (redundant but explicit)
+        - op: ">="
+          args:
+            - op: "-"
+              args:
+                - op: "+"
+                  args: [{ var: "initial_insurance" }, { var: "fee_income" }]
+                - op: "+"
+                  args: [{ var: "claims_paid" }, { param: "claim_amount" }]
+            - { const: 0 }
+    updates:
+      - var: "claims_paid"
+        expr:
+          op: "+"
+          args: [{ var: "claims_paid" }, { param: "claim_amount" }]
+      - var: "insurance_balance"
+        expr:
+          op: "-"
+          args:
+            - op: "+"
+              args: [{ var: "initial_insurance" }, { var: "fee_income" }]
+            - op: "+"
+              args: [{ var: "claims_paid" }, { param: "claim_amount" }]
+      - var: "liquidated_this_step"
+        expr: { bool: false }
+    effects:
+      event: { enum: "InsuranceClaimPaid" }
+      oracle_fresh: *eff_oracle_fresh
+      notional_quote: *eff_notional
+      effective_maint_bps: *eff_maint_bps
+      maint_req_quote: *eff_maint_req
+      init_req_quote: *eff_init_req
+      margin_ok: *eff_margin_ok
+      liquidated: { var: "liquidated_this_step" }
+      collateral_after: { var: "collateral_quote" }
+      fee_pool_after: { var: "fee_pool_quote" }
+      insurance_after: { var: "insurance_balance" }

@@ -46,6 +46,12 @@ def _require_int(value: Any, *, name: str, non_negative: bool = True) -> int:
     return int(value)
 
 
+def _require_bool(value: Any, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
+
+
 @dataclass(frozen=True)
 class DexSnapshot:
     """
@@ -137,6 +143,9 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                         "position_base": int(acct.position_base),
                         "entry_price_e8": int(acct.entry_price_e8),
                         "collateral_quote": int(acct.collateral_quote),
+                        "funding_paid_cumulative": int(acct.funding_paid_cumulative),
+                        "funding_last_applied_epoch": int(acct.funding_last_applied_epoch),
+                        "liquidated_this_step": bool(acct.liquidated_this_step),
                     }
                 )
             acct_entries.sort(key=lambda e: e["pubkey"])
@@ -400,6 +409,15 @@ def state_from_snapshot(
                         position_base=_require_int(acct.get("position_base", 0), name="perps.account.position_base", non_negative=False),
                         entry_price_e8=_require_int(acct.get("entry_price_e8", 0), name="perps.account.entry_price_e8"),
                         collateral_quote=_require_int(acct.get("collateral_quote", 0), name="perps.account.collateral_quote"),
+                        funding_paid_cumulative=_require_int(
+                            acct.get("funding_paid_cumulative", 0), name="perps.account.funding_paid_cumulative", non_negative=False
+                        ),
+                        funding_last_applied_epoch=_require_int(
+                            acct.get("funding_last_applied_epoch", 0), name="perps.account.funding_last_applied_epoch", non_negative=True
+                        ),
+                        liquidated_this_step=_require_bool(
+                            acct.get("liquidated_this_step", False), name="perps.account.liquidated_this_step"
+                        ),
                     )
 
                 markets[market_id] = PerpMarketState(

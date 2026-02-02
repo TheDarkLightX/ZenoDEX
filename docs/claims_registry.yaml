@@ -59,11 +59,11 @@ claims:
         - tests/integration/test_perp_engine.py
         - src/integration/perp_engine.py
 
-  - id: py:perp_engine:breaker_reduce_only_and_clear_v1_1
+  - id: py:perp_engine:breaker_reduce_only_and_clear
     status: supported
     layer: implementation
     statement: >
-      Under the v1.1 clamp+breaker posture, an out-of-bounds clearing price update deterministically
+      Under the clamp+breaker posture, an out-of-bounds clearing price update deterministically
       triggers the breaker, clamps the mark price, enforces reduce-only position updates while active,
       and allows operator clear only after all positions are closed.
     assumptions:
@@ -75,9 +75,9 @@ claims:
       files:
         - tests/integration/test_perp_engine.py
         - src/integration/perp_engine.py
-        - src/kernels/dex/perp_epoch_isolated_v1_1.yaml
+        - src/kernels/dex/perp_epoch_isolated_v2.yaml
 
-  - id: py:perp_engine:advance_requires_prior_settlement_v1_1
+  - id: py:perp_engine:advance_requires_prior_settlement
     status: supported
     layer: implementation
     statement: >
@@ -92,6 +92,19 @@ claims:
       files:
         - tests/integration/test_perp_engine.py
         - src/integration/perp_engine.py
+
+  - id: esso:perp_epoch_isolated_v2:verify_multi_z3_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The default epoch-perp risk kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
+      under ESSO's fail-closed verification model.
+    evidence:
+      kind: esso
+      check:
+        - cmd: python3 -m ESSO verify-multi src/kernels/dex/perp_epoch_isolated_v2.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+      files:
+        - src/kernels/dex/perp_epoch_isolated_v2.yaml
 
   - id: lean:perp_epoch_safety:collateral_nonneg_after_clamped_move
     status: proved

@@ -8,9 +8,10 @@ We call it “European-style” because all economically relevant transitions ar
 
 For the complementary **game theory / incentive layer**, see `docs/derivatives/PERP_INCENTIVES_V1.md`.
 
-**Recommendation:** use the **v1.1 kernel** (`perp_epoch_isolated_v1_1.yaml`) as the default posture.
-It enforces the bounded-move condition by **clamping** out-of-bounds updates and entering a
-**reduce-only circuit-breaker** mode until the market is fully closed and the breaker is cleared.
+**Recommendation (current default posture):** use the **v2 kernel** (`perp_epoch_isolated_v2.yaml`) as the default posture.
+It preserves the v1.1 clamp+breaker safety posture and adds hardened accounting knobs (depeg buffer, explicit
+fee/insurance tracking, anti-bounty-farming threshold). The v1.1 kernel remains as a reference posture, but
+it currently does not pass strict multi-solver `python3 -m ESSO verify-multi ... --solvers z3,cvc5` gates.
 
 ## 1. Scope (MVP)
 
@@ -188,6 +189,7 @@ This reduction is mechanized in Lean as `Proofs.PerpEpochSafety.abs_clamp_move_s
 - ESSO kernels (MVP):
   - v1: `src/kernels/dex/perp_epoch_isolated_v1.yaml` (strict bounded-move; fail-closed on violation)
   - v1.1: `src/kernels/dex/perp_epoch_isolated_v1_1.yaml` (clamp + breaker; reduce-only while breaker is active)
+  - v2: `src/kernels/dex/perp_epoch_isolated_v2.yaml` (v1.1 + depeg buffer, insurance accounting, anti-bounty-farming)
   - These are the executable specs we gate with `python3 -m ESSO verify-multi ...`.
   - Oracle posture: publish an epoch clearing price (`publish_clearing_price`), then settle the epoch at that price (`settle_epoch`).
   - v1.1 additionally maintains a `fee_pool_quote` and fail-closes if a liquidation would overflow the finite-domain fee pool.

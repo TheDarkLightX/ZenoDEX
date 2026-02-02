@@ -5,7 +5,7 @@ This file defines the *persistent* perps state that lives inside `DexState` and 
 encoded/decoded by `src/integration/dex_snapshot.py`.
 
 The actual risk-engine step logic is implemented separately (see
-`src/core/perp_epoch.py` + `src/kernels/dex/perp_epoch_isolated_v1.yaml`).
+`src/core/perp_epoch.py` + `src/kernels/dex/perp_epoch_isolated_v2.yaml`).
 """
 
 from __future__ import annotations
@@ -18,10 +18,17 @@ from typing import Dict, Mapping
 Value = bool | int | str
 
 
-PERPS_STATE_VERSION = 2
+PERPS_STATE_VERSION = 4
 
-# Per `src/kernels/dex/perp_epoch_isolated_v1_1.yaml` (default posture).
-PERP_ACCOUNT_KEYS: set[str] = {"position_base", "entry_price_e8", "collateral_quote"}
+# Per `src/kernels/dex/perp_epoch_isolated_v2.yaml` (default posture).
+PERP_ACCOUNT_KEYS: set[str] = {
+    "position_base",
+    "entry_price_e8",
+    "collateral_quote",
+    "funding_paid_cumulative",
+    "funding_last_applied_epoch",
+    "liquidated_this_step",
+}
 PERP_GLOBAL_KEYS: set[str] = {
     "now_epoch",
     "breaker_active",
@@ -36,9 +43,17 @@ PERP_GLOBAL_KEYS: set[str] = {
     "max_oracle_move_bps",
     "initial_margin_bps",
     "maintenance_margin_bps",
+    "depeg_buffer_bps",
     "liquidation_penalty_bps",
     "max_position_abs",
     "fee_pool_quote",
+    "funding_rate_bps",
+    "funding_cap_bps",
+    "insurance_balance",
+    "initial_insurance",
+    "fee_income",
+    "claims_paid",
+    "min_notional_for_bounty",
 }
 
 
@@ -49,6 +64,9 @@ class PerpAccountState:
     position_base: int
     entry_price_e8: int
     collateral_quote: int
+    funding_paid_cumulative: int
+    funding_last_applied_epoch: int
+    liquidated_this_step: bool
 
     def __post_init__(self) -> None:
         if not isinstance(self.position_base, int) or isinstance(self.position_base, bool):
@@ -57,16 +75,27 @@ class PerpAccountState:
             raise TypeError("entry_price_e8 must be an int")
         if not isinstance(self.collateral_quote, int) or isinstance(self.collateral_quote, bool):
             raise TypeError("collateral_quote must be an int")
+        if not isinstance(self.funding_paid_cumulative, int) or isinstance(self.funding_paid_cumulative, bool):
+            raise TypeError("funding_paid_cumulative must be an int")
+        if not isinstance(self.funding_last_applied_epoch, int) or isinstance(self.funding_last_applied_epoch, bool):
+            raise TypeError("funding_last_applied_epoch must be an int")
+        if not isinstance(self.liquidated_this_step, bool):
+            raise TypeError("liquidated_this_step must be a bool")
         if self.entry_price_e8 < 0:
             raise ValueError("entry_price_e8 must be non-negative")
         if self.collateral_quote < 0:
             raise ValueError("collateral_quote must be non-negative")
+        if self.funding_last_applied_epoch < 0:
+            raise ValueError("funding_last_applied_epoch must be non-negative")
 
     def to_kernel_state(self) -> dict[str, Value]:
         return {
             "position_base": int(self.position_base),
             "entry_price_e8": int(self.entry_price_e8),
             "collateral_quote": int(self.collateral_quote),
+            "funding_paid_cumulative": int(self.funding_paid_cumulative),
+            "funding_last_applied_epoch": int(self.funding_last_applied_epoch),
+            "liquidated_this_step": bool(self.liquidated_this_step),
         }
 
 
