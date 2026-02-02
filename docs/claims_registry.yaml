@@ -89,7 +89,7 @@ claims:
     status: supported
     layer: implementation
     statement: >
-      The perps tx adapter supports a minimal 2-party clearinghouse posture (perps.version=0.2)
+      The perps tx adapter supports a minimal 2-party clearinghouse posture (perps.version=1.0; legacy 0.2)
       that is fail-closed and deterministic: markets are initialized with exactly two accounts,
       position updates are set as a matched net-zero pair, settlement uses deterministic dust
       allocation to preserve net-zero PnL under integer division, and liquidation closes the pair

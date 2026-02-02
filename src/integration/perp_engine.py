@@ -9,7 +9,7 @@ fail-closed way. It is intentionally conservative:
 
 Two perps operation versions are supported:
 - v0.1: isolated-margin per-account execution (default posture).
-- v0.2: a minimal 2-party clearinghouse posture with enforced net-zero exposure.
+- v1.0 (and legacy v0.2): a minimal 2-party clearinghouse posture with enforced net-zero exposure.
   - Markets are namespaced with a `perp:ch2p:` prefix to avoid mixing semantics.
   - Position updates are operator-authorized and must be set as a matched pair.
   - Settlement uses a deterministic dust allocator to preserve net-zero PnL under integer division.
@@ -51,7 +51,11 @@ from ..state.canonical import bounded_json_utf8_size
 
 PERP_OP_MODULE = "TauPerp"
 PERP_OP_VERSION_V0_1 = "0.1"
-PERP_OP_VERSION_V0_2 = "0.2"
+# Clearinghouse (2-party) posture versions:
+# - 0.2: initial rollout (kept for compatibility)
+# - 1.0: "production" tag for the same semantics
+PERP_OP_VERSION_CH2P_V0_2 = "0.2"
+PERP_OP_VERSION_CH2P_V1_0 = "1.0"
 
 # v0.2 markets are explicitly namespaced to avoid mixing semantics without a snapshot schema change.
 # This is a fail-closed API convention, not a security boundary.
@@ -145,13 +149,14 @@ def parse_perp_ops(
         if module != PERP_OP_MODULE:
             raise ValueError(f"invalid perps module: {module}")
         version = _require_str(op_obj.get("version"), name="perps.version", non_empty=True, max_len=64)
-        if version not in (PERP_OP_VERSION_V0_1, PERP_OP_VERSION_V0_2):
+        if version not in (PERP_OP_VERSION_V0_1, PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
             raise ValueError(f"invalid perps version: {version}")
 
         market_id = _require_str(op_obj.get("market_id"), name="perps.market_id", non_empty=True, max_len=256)
-        if version == PERP_OP_VERSION_V0_2 and not market_id.startswith(PERP_CH2P_MARKET_PREFIX):
-            raise ValueError(f"v0.2 markets must start with {PERP_CH2P_MARKET_PREFIX!r}")
-        if version == PERP_OP_VERSION_V0_1 and market_id.startswith(PERP_CH2P_MARKET_PREFIX):
+        is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+        if is_ch2p and not market_id.startswith(PERP_CH2P_MARKET_PREFIX):
+            raise ValueError(f"clearinghouse markets must start with {PERP_CH2P_MARKET_PREFIX!r}")
+        if not is_ch2p and market_id.startswith(PERP_CH2P_MARKET_PREFIX):
             raise ValueError(f"v0.1 markets cannot start with {PERP_CH2P_MARKET_PREFIX!r}")
 
         action = _require_str(op_obj.get("action"), name="perps.action", non_empty=True, max_len=64)
@@ -259,8 +264,8 @@ def apply_perp_ops(
             continue
 
         if action == "init_market_2p":
-            if version != PERP_OP_VERSION_V0_2:
-                return PerpTxResult(ok=False, error="init_market_2p requires perps.version=0.2")
+            if version not in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
+                return PerpTxResult(ok=False, error="init_market_2p requires perps.version=0.2 or 1.0")
             err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
             if err is not None:
                 return PerpTxResult(ok=False, error=err)
@@ -368,7 +373,7 @@ def apply_perp_ops(
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="settle_epoch has unknown fields")
 
-            if version == PERP_OP_VERSION_V0_2:
+            if version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
                 if len(market.accounts) != 2:
                     return PerpTxResult(ok=False, error="clearinghouse_2p requires exactly 2 accounts")
 
@@ -639,7 +644,7 @@ def apply_perp_ops(
                 return PerpTxResult(ok=False, error="account_pubkey must match tx sender")
 
             accounts = dict(market.accounts)
-            if version == PERP_OP_VERSION_V0_2 and account_pubkey not in accounts:
+            if version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0) and account_pubkey not in accounts:
                 return PerpTxResult(ok=False, error="unknown account_pubkey for this clearinghouse_2p market")
             acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
 
@@ -750,8 +755,8 @@ def apply_perp_ops(
             continue
 
         if action == "set_position_pair":
-            if version != PERP_OP_VERSION_V0_2:
-                return PerpTxResult(ok=False, error="set_position_pair requires perps.version=0.2")
+            if version not in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
+                return PerpTxResult(ok=False, error="set_position_pair requires perps.version=0.2 or 1.0")
             if len(market.accounts) != 2:
                 return PerpTxResult(ok=False, error="clearinghouse_2p requires exactly 2 accounts")
 
