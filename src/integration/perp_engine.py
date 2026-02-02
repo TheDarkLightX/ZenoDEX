@@ -145,6 +145,9 @@ def _kernel_initial_account_state() -> PerpAccountState:
         position_base=int(st.get("position_base", 0)),
         entry_price_e8=int(st.get("entry_price_e8", 0)),
         collateral_quote=int(st.get("collateral_quote", 0)),
+        funding_paid_cumulative=int(st.get("funding_paid_cumulative", 0)),
+        funding_last_applied_epoch=int(st.get("funding_last_applied_epoch", 0)),
+        liquidated_this_step=bool(st.get("liquidated_this_step", False)),
     )
 
 
@@ -154,6 +157,9 @@ def _split_kernel_state(state: Mapping[str, Any]) -> tuple[Dict[str, Any], PerpA
         position_base=int(state.get("position_base", 0)),
         entry_price_e8=int(state.get("entry_price_e8", 0)),
         collateral_quote=int(state.get("collateral_quote", 0)),
+        funding_paid_cumulative=int(state.get("funding_paid_cumulative", 0)),
+        funding_last_applied_epoch=int(state.get("funding_last_applied_epoch", 0)),
+        liquidated_this_step=bool(state.get("liquidated_this_step", False)),
     )
     return global_state, acct
 
@@ -291,6 +297,10 @@ def apply_perp_ops(
 
             pre_market = market
             pre_fee_pool = int(pre_market.global_state.get("fee_pool_quote", 0))
+            pre_fee_income = int(pre_market.global_state.get("fee_income", 0))
+            pre_initial_insurance = int(pre_market.global_state.get("initial_insurance", 0))
+            pre_claims_paid = int(pre_market.global_state.get("claims_paid", 0))
+            pre_insurance_balance = int(pre_market.global_state.get("insurance_balance", 0))
 
             # Phase 1: compute the post-epoch *global* update that must be identical across all accounts
             # (oracle/index, breaker flags, clearing-price bookkeeping). This is computed against a dummy
@@ -308,11 +318,14 @@ def apply_perp_ops(
                 return PerpTxResult(ok=False, error="internal error: settle_epoch mutated dummy account state")
 
             # Phase 2: settle each account against the *same* pre-global state, but accumulate the
-            # liquidation penalty deltas into the global fee pool deterministically (sorted account keys).
-            expected_global_no_pool = dict(base_global)
-            expected_global_no_pool["fee_pool_quote"] = pre_fee_pool
+            # liquidation penalty deltas into the global fee/insurance state deterministically
+            # (sorted account keys).
+            expected_global_no_accum = dict(base_global)
+            expected_global_no_accum["fee_pool_quote"] = pre_fee_pool
+            expected_global_no_accum["fee_income"] = pre_fee_income
+            expected_global_no_accum["insurance_balance"] = pre_insurance_balance
 
-            total_fee_pool_delta = 0
+            total_penalty_delta = 0
             new_accounts: Dict[str, PerpAccountState] = {}
             for pk in sorted(pre_market.accounts.keys()):
                 acct = pre_market.accounts[pk]
@@ -328,28 +341,46 @@ def apply_perp_ops(
                     )
                 post_global, post_acct = _split_kernel_state(res.state)
 
-                # All global fields except fee_pool_quote must match the dummy-derived post-global.
-                post_global_no_pool = dict(post_global)
-                post_global_no_pool["fee_pool_quote"] = pre_fee_pool
-                if post_global_no_pool != expected_global_no_pool:
+                # All global fields except fee/insurance accumulators must match the dummy-derived post-global.
+                post_global_no_accum = dict(post_global)
+                post_global_no_accum["fee_pool_quote"] = pre_fee_pool
+                post_global_no_accum["fee_income"] = pre_fee_income
+                post_global_no_accum["insurance_balance"] = pre_insurance_balance
+                if post_global_no_accum != expected_global_no_accum:
                     return PerpTxResult(ok=False, error="internal error: global settle depended on account state")
 
                 post_fee_pool = int(post_global.get("fee_pool_quote", 0))
-                delta = post_fee_pool - pre_fee_pool
-                if delta < 0:
+                post_fee_income = int(post_global.get("fee_income", 0))
+                post_insurance = int(post_global.get("insurance_balance", 0))
+
+                fee_pool_delta = post_fee_pool - pre_fee_pool
+                fee_income_delta = post_fee_income - pre_fee_income
+                insurance_delta = post_insurance - pre_insurance_balance
+
+                if fee_pool_delta < 0 or fee_income_delta < 0 or insurance_delta < 0:
                     return PerpTxResult(ok=False, error="internal error: fee pool decreased during settle_epoch")
-                total_fee_pool_delta += delta
+                if fee_pool_delta != fee_income_delta or fee_pool_delta != insurance_delta:
+                    return PerpTxResult(ok=False, error="internal error: fee/insurance deltas inconsistent")
+
+                total_penalty_delta += fee_pool_delta
                 new_accounts[str(pk)] = post_acct
 
             # Fail-closed on fee-pool overflow beyond the kernel's finite-domain bound.
-            next_fee_pool = pre_fee_pool + total_fee_pool_delta
-            if next_fee_pool > perp_epoch_isolated_default_fee_pool_max_quote():
-                return PerpTxResult(ok=False, error="fee pool overflow (post-settle)")
+            max_fee_pool = perp_epoch_isolated_default_fee_pool_max_quote()
+            next_fee_pool = pre_fee_pool + total_penalty_delta
+            next_fee_income = pre_fee_income + total_penalty_delta
+            next_insurance = pre_initial_insurance + next_fee_income - pre_claims_paid
+            if next_fee_pool > max_fee_pool or next_fee_income > max_fee_pool or next_insurance > max_fee_pool:
+                return PerpTxResult(ok=False, error="fee/insurance overflow (post-settle)")
+            if next_insurance < 0:
+                return PerpTxResult(ok=False, error="insurance negative (post-settle)")
 
-            expected_global_no_pool["fee_pool_quote"] = int(next_fee_pool)
+            expected_global_no_accum["fee_pool_quote"] = int(next_fee_pool)
+            expected_global_no_accum["fee_income"] = int(next_fee_income)
+            expected_global_no_accum["insurance_balance"] = int(next_insurance)
             markets[market_id] = PerpMarketState(
                 quote_asset=market.quote_asset,
-                global_state=expected_global_no_pool,
+                global_state=expected_global_no_accum,
                 accounts=new_accounts,
             )
             effects.append(
@@ -357,7 +388,7 @@ def apply_perp_ops(
                     "i": i,
                     "market_id": market_id,
                     "action": action,
-                    "fee_pool_delta": int(total_fee_pool_delta),
+                    "fee_pool_delta": int(total_penalty_delta),
                     "effects": dict(res0.effects or {}),
                 }
             )
