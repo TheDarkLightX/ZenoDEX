@@ -18,9 +18,14 @@ import Proofs.PerpFundingRateSafety
 import Proofs.PerpCascadeSafety
 import Proofs.PerpInsuranceSafety
 import Proofs.PerpIntegerBridge
+import Proofs.FundingRateMarketSafety
+import Proofs.ILFuturesSafety
+import Proofs.VolatilityTierSafety
+import Proofs.CurveSelectionSafety
 import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
 import Proofs.ZenoDEXRounding
+import Proofs.BatchApproximation
 
 /-!
 Proofs library root.
