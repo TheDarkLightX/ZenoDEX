@@ -1,17 +1,21 @@
-# Perp DEX v1: Safety-First “European-Style” (Epoch) Perpetuals
+# Perp DEX v1: Safety-First European-Style (Epoch) Perpetuals
 
 This document is a **safety-first** design spec for a minimal perpetuals venue built in the
 ZenoDEX style: deterministic state machines with explicit, verifiable invariants.
 
-We call it “European-style” because all economically relevant transitions are **epoch-based**
+We call it European-style because all economically relevant transitions are **epoch-based**
 (batch/epoch boundaries): oracle update, mark-to-market, margin check, and (if needed) liquidation.
 
 For the complementary **game theory / incentive layer**, see `docs/derivatives/PERP_INCENTIVES_V1.md`.
 
 **Recommendation (current default posture):** use the **v2 kernel** (`perp_epoch_isolated_v2.yaml`) as the default posture.
 It preserves the v1.1 clamp+breaker safety posture and adds hardened accounting knobs (depeg buffer, explicit
-fee/insurance tracking, anti-bounty-farming threshold). The v1.1 kernel remains as a reference posture, but
-it currently does not pass strict multi-solver `python3 -m ESSO verify-multi ... --solvers z3,cvc5` gates.
+fee/insurance tracking, anti-bounty-farming threshold).
+
+Reproducible verification snapshot (2026-02-03):
+- `perp_epoch_isolated_v2.yaml` is **VERIFIED** under strict `verify-multi` cross-check (`--solvers z3,cvc5`).
+- `perp_epoch_isolated_v1_1.yaml` is **REVIEW_NEEDED** under strict cross-check: `inductive_settle_epoch` is UNSAT
+  in CVC5 but returns UNKNOWN in Z3 at a 60s per-query timeout.
 
 ## 1. Scope (MVP)
 
@@ -81,14 +85,14 @@ forced protocol counterparties, insurance fund drains, and finally profit-haircu
 ## 3. Core Safety Properties (mechanized invariants)
 
 This section states the **precise properties** the protocol is intended to enforce.
-They are “mechanized” in the sense that they are written as statements to be checked by tools
-(Lean for the math lemma(s), and SMT/ESSO for the executable kernel invariants).
+They are mechanized: written as statements to be checked by tools (Lean for math lemmas, and SMT/ESSO for
+the executable kernel invariants).
 
 ### 3.1 Units and notation
 
 All quantities are integer/fixed-point in the executable kernel.
-For readability, we write the math below in real-number form, with the understanding that the
-kernel computes the same expressions with explicit scaling and rounding.
+For readability, we write the math below in real-number form; the mechanized statements are in integer /
+fixed-point arithmetic (with explicit floor division) matching the kernel.
 
 Let:
 - `pos ∈ ℤ` be the signed base position (long positive, short negative).
@@ -106,7 +110,8 @@ Define (conceptually):
   - For a short (`pos < 0`): price up ⇒ `ΔC < 0`; price down ⇒ `ΔC > 0`.
 
 In the kernel, `ΔC` is computed with fixed-point arithmetic as:
-`floor(pos * (P'_e8 - P_e8) / 1e8)`, with explicit bounded domains to avoid overflow.
+`floor(pos * (P'_e8 - P_e8) / 1e8)`, with explicit bounded domains to avoid overflow. The Lean artifact
+`Proofs.PerpEpochSafety` is stated in the same integer form (not just the real-number restatement).
 
 ### 3.2 Execution interface (epoch posture)
 
@@ -178,7 +183,7 @@ Operationally, v1.1 marks-to-market using \(\widehat{P}'\) and sets a breaker fl
 This reduction is mechanized in Lean as `Proofs.PerpEpochSafety.abs_clamp_move_sub_le` and
 `Proofs.PerpEpochSafety.collateral_nonneg_after_clamped_move`.
 
-### 3.4 What this does *not* claim yet
+### 3.5 What this does *not* claim yet
 
 - It does not claim anything about how the clearing price is produced (that is the matching module).
 - It does not model funding (v1 can run without funding; later versions can add epoch funding as an explicit transition).
