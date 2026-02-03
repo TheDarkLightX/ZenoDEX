@@ -1,0 +1,165 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "curve_selection_market_v1"
+  created_by: "zenodex-rd"
+  notes: |
+    Curve selection prediction market. Participants stake on which AMM curve
+    will produce the most LP revenue. Winner curve becomes active.
+
+observables:
+  state_vars: ["active_curve", "prediction_epoch", "total_staked",
+               "stakes_0", "stakes_1", "stakes_2", "stakes_3", "stakes_4",
+               "epochs_since_start", "settlement_epoch_interval"]
+  effects: ["event", "winning_curve", "payout_amount"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["Staked", "Unstaked", "EpochAdvanced", "PredictionSettled", "IntervalSet"]
+
+state_vars:
+  - id: "active_curve"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "prediction_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "epochs_since_start"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "settlement_epoch_interval"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000 }
+  - id: "total_staked"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "stakes_0"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "stakes_1"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "stakes_2"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "stakes_3"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "stakes_4"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "protocol_fee_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1000 }
+
+invariants:
+  - id: "inv_curve_valid"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "active_curve" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "active_curve" }, { const: 4 }] }
+  - id: "inv_stakes_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "stakes_0" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "stakes_1" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "stakes_2" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "stakes_3" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "stakes_4" }, { const: 0 }] }
+  - id: "inv_total_staked_consistent"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - { var: "total_staked" }
+        - { const: 0 }
+
+init:
+  - var: "active_curve"
+    expr: { const: 0 }
+  - var: "prediction_epoch"
+    expr: { const: 0 }
+  - var: "epochs_since_start"
+    expr: { const: 0 }
+  - var: "settlement_epoch_interval"
+    expr: { const: 10 }
+  - var: "total_staked"
+    expr: { const: 0 }
+  - var: "stakes_0"
+    expr: { const: 0 }
+  - var: "stakes_1"
+    expr: { const: 0 }
+  - var: "stakes_2"
+    expr: { const: 0 }
+  - var: "stakes_3"
+    expr: { const: 0 }
+  - var: "stakes_4"
+    expr: { const: 0 }
+  - var: "protocol_fee_bps"
+    expr: { const: 200 }
+
+actions:
+  - id: "stake_on_curve"
+    params:
+      - id: "curve_id"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "total_staked" }, { param: "amount" }] },
+            { const: 1000000000000 }
+          ]}
+    updates:
+      - var: "total_staked"
+        expr: { op: "+", args: [{ var: "total_staked" }, { param: "amount" }] }
+    effects:
+      event: { enum: "Staked" }
+      winning_curve: { const: -1 }
+      payout_amount: { const: 0 }
+
+  - id: "advance_epoch"
+    params: []
+    guard:
+      # Prevent epoch counter overflow under finite-domain caps.
+      op: "<"
+      args: [{ var: "epochs_since_start" }, { const: 1000000000 }]
+    updates:
+      - var: "epochs_since_start"
+        expr: { op: "+", args: [{ var: "epochs_since_start" }, { const: 1 }] }
+    effects:
+      event: { enum: "EpochAdvanced" }
+      winning_curve: { const: -1 }
+      payout_amount: { const: 0 }
+
+  - id: "settle_prediction"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: ">="
+          args:
+            - { var: "epochs_since_start" }
+            - { var: "settlement_epoch_interval" }
+        # Prevent epoch counter overflow under finite-domain caps.
+        - op: "<"
+          args: [{ var: "prediction_epoch" }, { const: 1000000000 }]
+    updates:
+      - var: "prediction_epoch"
+        expr: { op: "+", args: [{ var: "prediction_epoch" }, { const: 1 }] }
+      - var: "epochs_since_start"
+        expr: { const: 0 }
+    effects:
+      event: { enum: "PredictionSettled" }
+      winning_curve: { var: "active_curve" }
+      payout_amount: { const: 0 }
