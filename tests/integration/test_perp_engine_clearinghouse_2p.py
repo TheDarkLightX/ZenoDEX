@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from src.core.dex import DexState
+from src.core.perps import PerpClearinghouse2pMarketState
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 
@@ -105,16 +106,6 @@ def test_set_position_pair_requires_net_zero() -> None:
         ],
     )
 
-    # Establish oracle/index so set_position guards can run.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)])
-    state = _apply(
-        state=state,
-        tx_sender_pubkey=operator,
-        operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=100_000_000)],
-    )
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
-
     res = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -135,14 +126,17 @@ def test_set_position_pair_requires_net_zero() -> None:
     assert res.error == "clearinghouse_2p requires net position == 0"
 
 
-def test_settle_epoch_2p_uses_dust_allocator_to_avoid_rounding_leak() -> None:
+def test_settle_epoch_2p_preserves_exact_conservation_in_quote_e8() -> None:
     market_id = "perp:ch2p:dust"
     quote_asset = "0x" + "55" * 32
     operator = "00" * 48
     alice = "aa" * 48
     bob = "bb" * 48
 
-    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    funded = BalanceTable()
+    funded.set(alice, quote_asset, 10)
+    funded.set(bob, quote_asset, 10)
+    state = DexState(balances=funded, pools={}, lp_balances=LPTable())
 
     state = _apply(
         state=state,
@@ -170,7 +164,21 @@ def test_settle_epoch_2p_uses_dust_allocator_to_avoid_rounding_leak() -> None:
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
 
-    # Open a tiny matched pair position (net-zero).
+    # Minimal collateral so the initial-margin guard is satisfiable.
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=alice,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=alice, amount=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=bob,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=bob, amount=1)],
+    )
+
+    # Open a tiny matched pair position (net-zero, quote-e8 accounting).
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
@@ -189,8 +197,7 @@ def test_settle_epoch_2p_uses_dust_allocator_to_avoid_rounding_leak() -> None:
     )
 
     # Epoch 2: a +1 tick move in price_e8 creates xs=[+1, -1] at settlement.
-    # Naive floor-div on signed products would produce [0, -1] and violate conservation;
-    # the clearinghouse uses a deterministic dust allocator so the step remains safe.
+    # With quote-e8 collateral, this is exact and must conserve total deposits.
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)])
     state = _apply(
         state=state,
@@ -202,9 +209,12 @@ def test_settle_epoch_2p_uses_dust_allocator_to_avoid_rounding_leak() -> None:
 
     assert state.perps is not None
     m = state.perps.markets[market_id]
-    assert set(m.accounts.keys()) == {alice, bob}
-    assert m.accounts[alice].collateral_quote == 0
-    assert m.accounts[bob].collateral_quote == 0
+    assert isinstance(m, PerpClearinghouse2pMarketState)
+    assert m.account_a_pubkey == alice
+    assert m.account_b_pubkey == bob
+    assert int(m.state["collateral_e8_a"]) + int(m.state["collateral_e8_b"]) + int(m.state["fee_pool_e8"]) == int(
+        m.state["net_deposited_e8"]
+    )
 
 
 def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
@@ -218,8 +228,8 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
 
     # Seed balances (collateral deposits draw from balances).
     funded = BalanceTable()
-    funded.set(alice, quote_asset, 1_000_000_000)
-    funded.set(bob, quote_asset, 1_000_000_000)
+    funded.set(alice, quote_asset, 1000)
+    funded.set(bob, quote_asset, 1000)
     state = replace(state, balances=funded)
 
     state = _apply(
@@ -244,7 +254,7 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=100_000_000_000)],
+        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=100_000_000)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
 
@@ -253,13 +263,13 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
         state=state,
         tx_sender_pubkey=alice,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=alice, amount=100_000_000)],
+        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=alice, amount=100)],
     )
     state = _apply(
         state=state,
         tx_sender_pubkey=bob,
         operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=bob, amount=100_000_000)],
+        ops=[_op(market_id, "deposit_collateral", version="1.0", account_pubkey=bob, amount=100)],
     )
 
     # Open a matched pair position.
@@ -274,35 +284,32 @@ def test_settle_epoch_2p_pair_liquidation_closes_both_positions() -> None:
                 version="1.0",
                 account_a_pubkey=alice,
                 account_b_pubkey=bob,
-                new_position_base_a=1_000_000,
-                new_position_base_b=-1_000_000,
+                new_position_base_a=1000,
+                new_position_base_b=-1000,
             )
         ],
     )
 
-    # Epoch 2: a -5% move makes Alice (long) under maintenance; pair liquidation closes both positions.
+    # Epoch 2: a +5% move makes the short side under maintenance; pair liquidation closes both positions.
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.0", delta=1)])
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
-        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=95_000_000_000)],
+        ops=[_op(market_id, "publish_clearing_price", version="1.0", price_e8=105_000_000)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.0")])
 
     assert state.perps is not None
     m = state.perps.markets[market_id]
-    assert int(m.global_state["fee_pool_quote"]) == 4_750_000
-    assert int(m.global_state["fee_income"]) == 4_750_000
-    assert int(m.global_state["insurance_balance"]) == 4_750_000
-
-    acct_alice = m.accounts[alice]
-    acct_bob = m.accounts[bob]
-
-    assert acct_alice.position_base == 0
-    assert acct_alice.entry_price_e8 == 0
-    assert acct_alice.collateral_quote == 45_250_000
-
-    assert acct_bob.position_base == 0
-    assert acct_bob.entry_price_e8 == 0
-    assert acct_bob.collateral_quote == 150_000_000
+    assert isinstance(m, PerpClearinghouse2pMarketState)
+    assert int(m.state["fee_pool_e8"]) == 525_000_000
+    assert int(m.state["collateral_e8_a"]) == 15_000_000_000
+    assert int(m.state["collateral_e8_b"]) == 4_475_000_000
+    assert int(m.state["position_base_a"]) == 0
+    assert int(m.state["position_base_b"]) == 0
+    assert int(m.state["entry_price_e8_a"]) == 0
+    assert int(m.state["entry_price_e8_b"]) == 0
+    assert int(m.state["collateral_e8_a"]) + int(m.state["collateral_e8_b"]) + int(m.state["fee_pool_e8"]) == int(
+        m.state["net_deposited_e8"]
+    )

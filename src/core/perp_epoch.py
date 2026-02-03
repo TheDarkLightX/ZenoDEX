@@ -9,9 +9,10 @@ Two “sources of truth” coexist:
 - A hand-written Python implementation under `src/core/perp_v2/`.
 
 Backends:
-- Spec interpreter (optional): uses the repo's kernel toolchain in `external/ESSO`
-  to load and step the YAML model directly. This is mainly used for verification
-  and for generating reference implementations used in parity tests.
+- Spec interpreter (optional): uses an optional kernel toolchain vendored under
+  `external/ESSO/` to load and step the YAML model directly. That toolchain is a
+  deterministic verifier/interpreter/codegen suite for kernel specs; it is not
+  required in production runtime, but it is used by evidence gates.
 - Native (default): executes `src/core/perp_v2/`, which is kept equivalent to the
   YAML spec via parity tests against a generated Python reference model under
   `generated/perp_python/`.
@@ -87,7 +88,8 @@ def _kernel_ctx_v1():
     if isinstance(ctx, StepError):
         raise RuntimeError(f"perp kernel invalid: {ctx.code}: {ctx.message}")
 
-    # Keep adapter IR_HASH binding honest if present.
+    # Adapters pin the expected spec hash so regenerated artifacts cannot drift
+    # silently from the checked/verified model.
     try:
         from ..kernels.python.perp_epoch_isolated_v1_adapter import IR_HASH as expected_hash
 
