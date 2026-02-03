@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
 
 
+def _maybe_add_external_toolchain() -> None:
+    root = Path(__file__).resolve().parents[2]
+    toolchain_dir = root / "external" / "ESSO"
+    if toolchain_dir.is_dir() and str(toolchain_dir) not in sys.path:
+        sys.path.insert(0, str(toolchain_dir))
+
+
+_maybe_add_external_toolchain()
+
 if importlib.util.find_spec("ESSO") is None:  # pragma: no cover
-    pytest.skip("ESSO not installed (expected via external/ESSO or site package)", allow_module_level=True)
+    pytest.skip("verification toolchain not installed", allow_module_level=True)
 
 
 def test_ltlf_scheduler_can_reach_epoch_2_settled() -> None:
@@ -33,4 +43,3 @@ def test_ltlf_scheduler_can_reach_epoch_2_settled() -> None:
     report = synthesize_ltlf_reachability(ir=ir, formula="F state.oracle_last_update_epoch.2", cfg=cfg)
     assert not isinstance(report, LTLFSynthFail), getattr(report, "message", "LTLf synthesis failed")
     assert bool(report.get("ok")) is True
-
