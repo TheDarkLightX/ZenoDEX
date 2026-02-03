@@ -1,0 +1,192 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "il_futures_market_v1"
+  created_by: "zenodex-rd"
+  notes: |
+    Two-sided IL futures market. LPs buy protection, speculators sell it.
+    Epoch-based settlement from reserve snapshots.
+
+observables:
+  state_vars: ["epoch", "long_exposure", "short_exposure", "premium_pool",
+               "margin_pool", "realized_il_bps", "settled_this_epoch",
+               "snapshot_taken", "protocol_fee_pool"]
+  effects: ["event", "il_bps_out", "payout_out"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["LongOpened", "ShortOpened", "PositionClosed",
+                "EpochSnapshotted", "EpochSettled", "EpochAdvanced"]
+
+state_vars:
+  - id: "epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "settled_this_epoch"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "snapshot_taken"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "long_exposure"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "short_exposure"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "premium_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "margin_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "protocol_fee_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "realized_il_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "pool_snapshot_reserve_x"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "pool_snapshot_reserve_y"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_leverage_bps"
+    role: "control"
+    type: { kind: "int", min: 10000, max: 50000 }
+  - id: "protocol_fee_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "coverage_ratio_bps"
+    role: "control"
+    type: { kind: "int", min: 1000, max: 10000 }
+
+invariants:
+  - id: "inv_exposure_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "long_exposure" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "short_exposure" }, { const: 0 }] }
+  - id: "inv_pools_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "premium_pool" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "margin_pool" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "protocol_fee_pool" }, { const: 0 }] }
+
+init:
+  - var: "epoch"
+    expr: { const: 0 }
+  - var: "settled_this_epoch"
+    expr: { bool: false }
+  - var: "snapshot_taken"
+    expr: { bool: false }
+  - var: "long_exposure"
+    expr: { const: 0 }
+  - var: "short_exposure"
+    expr: { const: 0 }
+  - var: "premium_pool"
+    expr: { const: 0 }
+  - var: "margin_pool"
+    expr: { const: 0 }
+  - var: "protocol_fee_pool"
+    expr: { const: 0 }
+  - var: "realized_il_bps"
+    expr: { const: 0 }
+  - var: "pool_snapshot_reserve_x"
+    expr: { const: 0 }
+  - var: "pool_snapshot_reserve_y"
+    expr: { const: 0 }
+  - var: "max_leverage_bps"
+    expr: { const: 20000 }
+  - var: "protocol_fee_bps"
+    expr: { const: 100 }
+  - var: "coverage_ratio_bps"
+    expr: { const: 8000 }
+
+actions:
+  - id: "open_long_il"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "premium_amount"
+        type: { kind: "int", min: 1, max: 100000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "long_exposure" }, { param: "amount" }] },
+            { const: 1000000000000 }
+          ]}
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "premium_pool" }, { param: "premium_amount" }] },
+            { const: 1000000000000 }
+          ]}
+    updates:
+      - var: "long_exposure"
+        expr: { op: "+", args: [{ var: "long_exposure" }, { param: "amount" }] }
+      - var: "premium_pool"
+        expr: { op: "+", args: [{ var: "premium_pool" }, { param: "premium_amount" }] }
+    effects:
+      event: { enum: "LongOpened" }
+      il_bps_out: { const: 0 }
+      payout_out: { const: 0 }
+
+  - id: "open_short_il"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "short_exposure" }, { param: "amount" }] },
+            { const: 1000000000000 }
+          ]}
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "margin_pool" }, { param: "amount" }] },
+            { const: 1000000000000 }
+          ]}
+    updates:
+      - var: "short_exposure"
+        expr: { op: "+", args: [{ var: "short_exposure" }, { param: "amount" }] }
+      - var: "margin_pool"
+        expr: { op: "+", args: [{ var: "margin_pool" }, { param: "amount" }] }
+    effects:
+      event: { enum: "ShortOpened" }
+      il_bps_out: { const: 0 }
+      payout_out: { const: 0 }
+
+  - id: "advance_epoch"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "settled_this_epoch" }, { bool: true }] }
+        # Prevent epoch counter overflow under finite-domain caps.
+        - { op: "<", args: [{ var: "epoch" }, { const: 1000000000 }] }
+    updates:
+      - var: "epoch"
+        expr: { op: "+", args: [{ var: "epoch" }, { const: 1 }] }
+      - var: "settled_this_epoch"
+        expr: { bool: false }
+      - var: "snapshot_taken"
+        expr: { bool: false }
+      - var: "realized_il_bps"
+        expr: { const: 0 }
+    effects:
+      event: { enum: "EpochAdvanced" }
+      il_bps_out: { const: 0 }
+      payout_out: { const: 0 }

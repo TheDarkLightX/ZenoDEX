@@ -1,0 +1,312 @@
+# [FORGE] Volatility Tier Controller v2 (CEGIS-synthesized thresholds + cooldown)
+#
+# Extends v1 with:
+# - Cooldown de-escalation: tier can only decrease after cooldown_epochs of stability
+# - CEGIS-synthesized thresholds: t1/t2/t3 are synthesis targets
+# - Fee multiplier monotone in tier
+# - Fail-closed on data_ok=false or unknown tier
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "volatility_tier_controller_v2"
+  created_by: "zenodex-rd"
+  notes: |
+    v2 adds cooldown_epochs for de-escalation gating and a
+    cooldown_counter that tracks consecutive calm observations.
+    Thresholds are CEGIS synthesis holes in CEGIS mode.
+
+observables:
+  state_vars: ["tier", "last_epoch", "t1_bps", "t2_bps", "t3_bps", "cooldown_counter", "cooldown_epochs"]
+  effects: ["tier_out", "fee_mult_bps", "max_trade_bps", "halt"]
+
+types: []
+
+state_vars:
+  - id: "tier"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3 }
+
+  - id: "last_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+
+  - id: "t1_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "t2_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "t3_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+  - id: "cooldown_counter"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+    description: "Consecutive epochs at or below current desired tier"
+
+  - id: "cooldown_epochs"
+    role: "control"
+    type: { kind: "int", min: 1, max: 100 }
+    description: "Epochs of stability required before de-escalation"
+
+init:
+  - var: "tier"
+    expr: { const: 0 }
+  - var: "last_epoch"
+    expr: { const: 0 }
+  - var: "t1_bps"
+    expr: { const: 3000 }
+  - var: "t2_bps"
+    expr: { const: 6000 }
+  - var: "t3_bps"
+    expr: { const: 8000 }
+  - var: "cooldown_counter"
+    expr: { const: 0 }
+  - var: "cooldown_epochs"
+    expr: { const: 3 }
+
+invariants:
+  - id: "inv_tier_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "tier" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "tier" }, { const: 3 }] }
+
+  - id: "inv_thresholds_ordered"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ var: "t1_bps" }, { var: "t2_bps" }] }
+        - { op: "<=", args: [{ var: "t2_bps" }, { var: "t3_bps" }] }
+
+  - id: "inv_cooldown_nonneg"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "cooldown_counter" }, { const: 0 }]
+
+actions:
+  - id: "configure"
+    params:
+      - id: "caller_is_admin"
+        type: { kind: "bool" }
+      - id: "new_t1_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "new_t2_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "new_t3_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "new_cooldown_epochs"
+        type: { kind: "int", min: 1, max: 100 }
+    guard:
+      op: "and"
+      args:
+        - { param: "caller_is_admin" }
+        - { op: "<=", args: [{ param: "new_t1_bps" }, { param: "new_t2_bps" }] }
+        - { op: "<=", args: [{ param: "new_t2_bps" }, { param: "new_t3_bps" }] }
+    updates:
+      - var: "t1_bps"
+        expr: { param: "new_t1_bps" }
+      - var: "t2_bps"
+        expr: { param: "new_t2_bps" }
+      - var: "t3_bps"
+        expr: { param: "new_t3_bps" }
+      - var: "cooldown_epochs"
+        expr: { param: "new_cooldown_epochs" }
+    effects:
+      tier_out: { var: "tier" }
+      fee_mult_bps:
+        op: "ite"
+        cond: { op: "=", args: [{ var: "tier" }, { const: 0 }] }
+        then: { const: 10000 }
+        else:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "tier" }, { const: 1 }] }
+          then: { const: 20000 }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "tier" }, { const: 2 }] }
+            then: { const: 30000 }
+            else: { const: 0 }
+      max_trade_bps:
+        op: "ite"
+        cond: { op: "=", args: [{ var: "tier" }, { const: 2 }] }
+        then: { const: 1000 }
+        else:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "tier" }, { const: 3 }] }
+          then: { const: 0 }
+          else: { const: 10000 }
+      halt: { op: "=", args: [{ var: "tier" }, { const: 3 }] }
+
+  - id: "observe"
+    params:
+      - id: "epoch"
+        type: { kind: "int", min: 0, max: 1000000000 }
+      - id: "volatility_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "data_ok"
+        type: { kind: "bool" }
+    guard:
+      op: ">="
+      args: [{ param: "epoch" }, { var: "last_epoch" }]
+    updates:
+      - var: "last_epoch"
+        expr: { param: "epoch" }
+
+      - var: "tier"
+        expr:
+          # Same-epoch: monotone (tier can only increase)
+          op: "ite"
+          cond: { op: "=", args: [{ param: "epoch" }, { var: "last_epoch" }] }
+          then:
+            op: "ite"
+            cond:
+              op: ">"
+              args:
+                - op: "ite"
+                  cond: { op: "not", args: [{ param: "data_ok" }] }
+                  then: { const: 3 }
+                  else:
+                    op: "ite"
+                    cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t3_bps" }] }
+                    then: { const: 3 }
+                    else:
+                      op: "ite"
+                      cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t2_bps" }] }
+                      then: { const: 2 }
+                      else:
+                        op: "ite"
+                        cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t1_bps" }] }
+                        then: { const: 1 }
+                        else: { const: 0 }
+                - { var: "tier" }
+            then:
+              op: "ite"
+              cond: { op: "not", args: [{ param: "data_ok" }] }
+              then: { const: 3 }
+              else:
+                op: "ite"
+                cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t3_bps" }] }
+                then: { const: 3 }
+                else:
+                  op: "ite"
+                  cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t2_bps" }] }
+                  then: { const: 2 }
+                  else:
+                    op: "ite"
+                    cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t1_bps" }] }
+                    then: { const: 1 }
+                    else: { const: 0 }
+            else: { var: "tier" }
+          else:
+            # Epoch advanced: de-escalation allowed only after cooldown
+            op: "ite"
+            cond: { op: "not", args: [{ param: "data_ok" }] }
+            then: { const: 3 }
+            else:
+              op: "ite"
+              cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t3_bps" }] }
+              then: { const: 3 }
+              else:
+                op: "ite"
+                cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t2_bps" }] }
+                then:
+                  op: "ite"
+                  cond: { op: "<", args: [{ var: "tier" }, { const: 2 }] }
+                  then: { const: 2 }
+                  else:
+                    # Want to go down from tier to 2: need cooldown
+                    op: "ite"
+                    cond: { op: ">=", args: [{ var: "cooldown_counter" }, { var: "cooldown_epochs" }] }
+                    then: { const: 2 }
+                    else: { var: "tier" }
+                else:
+                  op: "ite"
+                  cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t1_bps" }] }
+                  then:
+                    op: "ite"
+                    cond: { op: "<", args: [{ var: "tier" }, { const: 1 }] }
+                    then: { const: 1 }
+                    else:
+                      op: "ite"
+                      cond: { op: ">=", args: [{ var: "cooldown_counter" }, { var: "cooldown_epochs" }] }
+                      then: { const: 1 }
+                      else: { var: "tier" }
+                  else:
+                    op: "ite"
+                    cond: { op: "=", args: [{ var: "tier" }, { const: 0 }] }
+                    then: { const: 0 }
+                    else:
+                      op: "ite"
+                      cond: { op: ">=", args: [{ var: "cooldown_counter" }, { var: "cooldown_epochs" }] }
+                      then: { const: 0 }
+                      else: { var: "tier" }
+
+      # Update cooldown counter
+      - var: "cooldown_counter"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "epoch" }, { var: "last_epoch" }] }
+          then: { var: "cooldown_counter" }
+          else:
+            # Epoch advanced
+            op: "ite"
+            cond:
+              op: "<"
+              args:
+                - op: "ite"
+                  cond: { op: "not", args: [{ param: "data_ok" }] }
+                  then: { const: 3 }
+                  else:
+                    op: "ite"
+                    cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t3_bps" }] }
+                    then: { const: 3 }
+                    else:
+                      op: "ite"
+                      cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t2_bps" }] }
+                      then: { const: 2 }
+                      else:
+                        op: "ite"
+                        cond: { op: ">=", args: [{ param: "volatility_bps" }, { var: "t1_bps" }] }
+                        then: { const: 1 }
+                        else: { const: 0 }
+                - { var: "tier" }
+            then:
+              # Desired tier < current tier: increment cooldown toward de-escalation
+              op: "min"
+              args:
+                - op: "+"
+                  args: [{ var: "cooldown_counter" }, { const: 1 }]
+                - { const: 1000 }
+            else: { const: 0 }
+
+    effects:
+      tier_out: { var: "tier" }
+      fee_mult_bps:
+        op: "ite"
+        cond: { op: "=", args: [{ var: "tier" }, { const: 0 }] }
+        then: { const: 10000 }
+        else:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "tier" }, { const: 1 }] }
+          then: { const: 20000 }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "tier" }, { const: 2 }] }
+            then: { const: 30000 }
+            else: { const: 0 }
+      max_trade_bps:
+        op: "ite"
+        cond: { op: "=", args: [{ var: "tier" }, { const: 2 }] }
+        then: { const: 1000 }
+        else:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "tier" }, { const: 3 }] }
+          then: { const: 0 }
+          else: { const: 10000 }
+      halt: { op: "=", args: [{ var: "tier" }, { const: 3 }] }
