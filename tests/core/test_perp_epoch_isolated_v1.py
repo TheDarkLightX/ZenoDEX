@@ -1,21 +1,32 @@
 """Tests for the v1 kernel via the spec-interpreter backend.
 
-These tests are optional and only run when the kernel-spec toolchain is available
-(Python package `ESSO`, either installed or present under `external/ESSO`).
+These tests are optional and only run when the spec-interpreter toolchain is available.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import sys
 
 import pytest
 
 from src.core.perp_epoch import perp_epoch_isolated_v1_apply, perp_epoch_isolated_v1_initial_state
 
 
+def _maybe_add_external_toolchain() -> None:
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    toolchain_dir = root / "external" / "ESSO"
+    if toolchain_dir.is_dir() and str(toolchain_dir) not in sys.path:
+        sys.path.insert(0, str(toolchain_dir))
+
+
+_maybe_add_external_toolchain()
+
 if importlib.util.find_spec("ESSO") is None:  # pragma: no cover
     pytest.skip(
-        "kernel toolchain package not installed (Python package `ESSO`; expected via external/ESSO or site package)",
+        "kernel toolchain package not installed (expected via external/ or a site-installed package)",
         allow_module_level=True,
     )
 
