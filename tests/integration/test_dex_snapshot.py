@@ -5,7 +5,14 @@ from __future__ import annotations
 import pytest
 
 from src.core.dex import DexState
-from src.core.perps import PERPS_STATE_VERSION, PerpAccountState, PerpMarketState, PerpsState
+from src.core.perps import (
+    PERP_CLEARINGHOUSE_2P_STATE_KEYS,
+    PERPS_STATE_VERSION,
+    PerpAccountState,
+    PerpClearinghouse2pMarketState,
+    PerpMarketState,
+    PerpsState,
+)
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
@@ -171,7 +178,25 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
                         liquidated_this_step=False,
                     ),
                 },
-            )
+            ),
+            "perp:ch2p:demo": PerpClearinghouse2pMarketState(
+                quote_asset="0x" + "44" * 32,
+                account_a_pubkey="alice",
+                account_b_pubkey="bob",
+                state={
+                    **{k: 0 for k in PERP_CLEARINGHOUSE_2P_STATE_KEYS},
+                    "breaker_active": False,
+                    "clearing_price_seen": False,
+                    "oracle_seen": False,
+                    "liquidated_this_step": False,
+                    "initial_margin_bps": 1000,
+                    "maintenance_margin_bps": 600,
+                    "liquidation_penalty_bps": 50,
+                    "max_oracle_move_bps": 500,
+                    "max_oracle_staleness_epochs": 100,
+                    "max_position_abs": 1000000,
+                },
+            ),
         },
     )
 

@@ -12,7 +12,8 @@ Two perps operation versions are supported:
 - v1.0 (and legacy v0.2): a minimal 2-party clearinghouse posture with enforced net-zero exposure.
   - Markets are namespaced with a `perp:ch2p:` prefix to avoid mixing semantics.
   - Position updates are operator-authorized and must be set as a matched pair.
-  - Settlement uses a deterministic dust allocator to preserve net-zero PnL under integer division.
+  - Clearinghouse collateral is tracked internally in quote-e8 units so epoch PnL is exact and conserved.
+  - The clearinghouse state transition is spec-driven: the persistent market state stores a kernel-state dict.
 
 Per-account risk checks (guards/limits) reuse the epoch-perp risk kernel wrapper in
 `src/core/perp_epoch.py` (native Python implementation by default). The optional
@@ -22,7 +23,11 @@ not required at runtime.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
+from functools import lru_cache
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
+import sys
 from typing import Any, Dict, List, Mapping, Optional
 
 from ..core.dex import DexState
@@ -31,16 +36,12 @@ from ..core.perp_epoch import (
     perp_epoch_isolated_default_fee_pool_max_quote,
     perp_epoch_isolated_default_initial_state,
 )
-from ..core.perp_rounding import largest_remainder_adjust_net_zero
-from ..core.perp_v2.math import (
-    MAX_COLLATERAL,
-    PRICE_SCALE,
-    is_liquidatable,
-    liq_penalty_capped,
-)
 from ..core.perps import (
+    PERP_CLEARINGHOUSE_2P_STATE_KEYS,
     PERP_GLOBAL_KEYS,
     PERPS_STATE_VERSION,
+    PERPS_STATE_VERSION_V5,
+    PerpClearinghouse2pMarketState,
     PerpAccountState,
     PerpMarketState,
     PerpsState,
@@ -60,6 +61,72 @@ PERP_OP_VERSION_CH2P_V1_0 = "1.0"
 # v0.2 markets are explicitly namespaced to avoid mixing semantics without a snapshot schema change.
 # This is a fail-closed API convention, not a security boundary.
 PERP_CH2P_MARKET_PREFIX = "perp:ch2p:"
+
+_E8_SCALE = 100_000_000
+
+
+@lru_cache
+def _load_ch2p_ref_model():
+    """Load the generated Python reference model for the clearinghouse kernel.
+
+    This is a deterministic, dependency-free reference implementation generated
+    from the YAML kernel spec and committed into this repo under `generated/`.
+    We load it by file path so this module does not depend on any packaging or
+    import-path configuration.
+    """
+
+    root = Path(__file__).resolve().parents[2]
+    ref_path = root / "generated" / "perp_python" / "perp_epoch_clearinghouse_2p_v0_1_ref.py"
+    if not ref_path.is_file():
+        raise FileNotFoundError(
+            f"missing generated clearinghouse ref model at {ref_path}; run tools/export_kernel_artifacts.py"
+        )
+    spec = spec_from_file_location("perp_epoch_clearinghouse_2p_v0_1_ref", ref_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"failed to load module spec for {ref_path}")
+    module = module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    field_names = [f.name for f in fields(module.State)]
+    if set(field_names) != set(PERP_CLEARINGHOUSE_2P_STATE_KEYS):
+        raise RuntimeError(
+            "clearinghouse ref model state fields do not match PERP_CLEARINGHOUSE_2P_STATE_KEYS; "
+            "regenerate artifacts and update src/core/perps.py"
+        )
+    return module
+
+
+def _ch2p_state_from_dict(state: Mapping[str, Any]):
+    ref = _load_ch2p_ref_model()
+    kwargs = {name: state[name] for name in (f.name for f in fields(ref.State))}
+    s = ref.State(**kwargs)
+    ok, failed = ref.check_invariants(s)
+    if not ok:
+        raise ValueError(f"invalid clearinghouse state (invariant {failed})")
+    return s
+
+
+def _ch2p_state_to_dict(state) -> Dict[str, Any]:
+    ref = _load_ch2p_ref_model()
+    return {f.name: getattr(state, f.name) for f in fields(ref.State)}
+
+
+def _ch2p_init_state_dict() -> Dict[str, Any]:
+    ref = _load_ch2p_ref_model()
+    return _ch2p_state_to_dict(ref.init_state())
+
+
+def _ch2p_step(state_dict: Mapping[str, Any], *, tag: str, args: Mapping[str, Any]) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    ref = _load_ch2p_ref_model()
+    cmd = ref.Command(tag=tag, args=dict(args))
+    res = ref.step(_ch2p_state_from_dict(state_dict), cmd)
+    if not res.ok or res.state is None:
+        raise ValueError(res.error or f"{tag} rejected")
+    ok, failed = ref.check_invariants(res.state)
+    if not ok:
+        raise ValueError(f"post-invariant violated: {failed}")
+    return _ch2p_state_to_dict(res.state), dict(res.effects or {})
 
 
 @dataclass(frozen=True)
@@ -228,10 +295,17 @@ def apply_perp_ops(
     balances = _copy_balance_table(state.balances)
 
     perps = state.perps
+    perps_version = PERPS_STATE_VERSION
     if perps is None:
         perps = PerpsState(version=PERPS_STATE_VERSION, markets={})
+    else:
+        perps_version = int(perps.version)
 
     markets = dict(perps.markets)
+    # Perps state v5 is a strict superset of v4 (adds per-market kind tags). If
+    # any op uses the clearinghouse posture, upgrade in-memory to v5.
+    if any(op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0) for op in ops):
+        perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
     effects: List[Dict[str, Any]] = []
 
     for i, op in enumerate(ops):
@@ -287,14 +361,17 @@ def apply_perp_ops(
             if extra:
                 return PerpTxResult(ok=False, error="init_market_2p has unknown fields")
 
-            accounts: Dict[str, PerpAccountState] = {
-                account_a_pubkey: _kernel_initial_account_state(),
-                account_b_pubkey: _kernel_initial_account_state(),
-            }
-            markets[market_id] = PerpMarketState(
+            # Clearinghouse markets require perps state v5+ (market kind tags).
+            perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
+            try:
+                init_state = _ch2p_init_state_dict()
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse2pMarketState(
                 quote_asset=quote_asset,
-                global_state=_kernel_initial_global_state(),
-                accounts=accounts,
+                account_a_pubkey=account_a_pubkey,
+                account_b_pubkey=account_b_pubkey,
+                state=init_state,
             )
             effects.append(
                 {
@@ -307,14 +384,203 @@ def apply_perp_ops(
             )
             continue
 
-        market = markets.get(market_id)
-        if market is None:
+        market_any = markets.get(market_id)
+        if market_any is None:
             return PerpTxResult(ok=False, error="unknown market_id")
 
         if action in ("advance_epoch", "publish_clearing_price", "settle_epoch", "clear_breaker", "set_position_pair"):
             err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
             if err is not None:
                 return PerpTxResult(ok=False, error=err)
+
+        is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+        if is_ch2p:
+            if not isinstance(market_any, PerpClearinghouse2pMarketState):
+                return PerpTxResult(ok=False, error="market kind mismatch for clearinghouse operation")
+            ch2p_market = market_any
+        else:
+            if not isinstance(market_any, PerpMarketState):
+                return PerpTxResult(ok=False, error="market kind mismatch for isolated operation")
+            market = market_any
+
+        if is_ch2p and action == "advance_epoch":
+            allowed = {"module", "version", "market_id", "action", "delta"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="advance_epoch has unknown fields")
+            # Scheduler rule: only advance when the current epoch is settled.
+            if int(ch2p_market.state.get("oracle_last_update_epoch", 0)) != int(ch2p_market.state.get("now_epoch", 0)):
+                return PerpTxResult(ok=False, error="cannot advance epoch before settling current epoch")
+            delta = _require_int(data.get("delta"), name="delta", non_negative=True)
+            try:
+                next_state, eff = _ch2p_step(ch2p_market.state, tag="advance_epoch", args={"delta": delta})
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse2pMarketState(
+                quote_asset=ch2p_market.quote_asset,
+                account_a_pubkey=ch2p_market.account_a_pubkey,
+                account_b_pubkey=ch2p_market.account_b_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch2p and action == "publish_clearing_price":
+            allowed = {"module", "version", "market_id", "action", "price_e8"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="publish_clearing_price has unknown fields")
+            price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
+            try:
+                next_state, eff = _ch2p_step(ch2p_market.state, tag="publish_clearing_price", args={"price_e8": price_e8})
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse2pMarketState(
+                quote_asset=ch2p_market.quote_asset,
+                account_a_pubkey=ch2p_market.account_a_pubkey,
+                account_b_pubkey=ch2p_market.account_b_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch2p and action == "settle_epoch":
+            allowed = {"module", "version", "market_id", "action"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="settle_epoch has unknown fields")
+            try:
+                next_state, eff = _ch2p_step(ch2p_market.state, tag="settle_epoch", args={})
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse2pMarketState(
+                quote_asset=ch2p_market.quote_asset,
+                account_a_pubkey=ch2p_market.account_a_pubkey,
+                account_b_pubkey=ch2p_market.account_b_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch2p and action == "clear_breaker":
+            allowed = {"module", "version", "market_id", "action"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="clear_breaker has unknown fields")
+            if int(ch2p_market.state.get("position_base_a", 0)) != 0 or int(ch2p_market.state.get("position_base_b", 0)) != 0:
+                return PerpTxResult(ok=False, error="cannot clear breaker while positions are open")
+            try:
+                next_state, eff = _ch2p_step(ch2p_market.state, tag="clear_breaker", args={"auth_ok": True})
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse2pMarketState(
+                quote_asset=ch2p_market.quote_asset,
+                account_a_pubkey=ch2p_market.account_a_pubkey,
+                account_b_pubkey=ch2p_market.account_b_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch2p and action in ("deposit_collateral", "withdraw_collateral"):
+            allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
+            allowed = allowed_common | {"amount"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error=f"{action} has unknown fields")
+
+            account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
+            if account_pubkey != tx_sender_pubkey:
+                return PerpTxResult(ok=False, error="account_pubkey must match tx sender")
+
+            role = ch2p_market.role_for_pubkey(account_pubkey)
+            if role is None:
+                return PerpTxResult(ok=False, error="unknown account_pubkey for this clearinghouse_2p market")
+
+            amount = _require_int(data.get("amount"), name="amount", non_negative=True)
+            # Protocol balances are in quote units; the clearinghouse kernel tracks quote-e8 for exact PnL.
+            amount_e8 = int(amount) * _E8_SCALE
+
+            if action == "deposit_collateral":
+                if balances.get(account_pubkey, ch2p_market.quote_asset) < amount:
+                    return PerpTxResult(ok=False, error="insufficient balance for deposit")
+                tag = "deposit_collateral_a" if role == "a" else "deposit_collateral_b"
+                try:
+                    next_state, eff = _ch2p_step(
+                        ch2p_market.state,
+                        tag=tag,
+                        args={"amount_e8": amount_e8, "auth_ok": True},
+                    )
+                except Exception as exc:
+                    return PerpTxResult(ok=False, error=str(exc))
+                balances.subtract(account_pubkey, ch2p_market.quote_asset, amount)
+            else:
+                tag = "withdraw_collateral_a" if role == "a" else "withdraw_collateral_b"
+                try:
+                    next_state, eff = _ch2p_step(
+                        ch2p_market.state,
+                        tag=tag,
+                        args={"amount_e8": amount_e8, "auth_ok": True},
+                    )
+                except Exception as exc:
+                    return PerpTxResult(ok=False, error=str(exc))
+                balances.add(account_pubkey, ch2p_market.quote_asset, amount)
+
+            markets[market_id] = PerpClearinghouse2pMarketState(
+                quote_asset=ch2p_market.quote_asset,
+                account_a_pubkey=ch2p_market.account_a_pubkey,
+                account_b_pubkey=ch2p_market.account_b_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff})
+            continue
+
+        if is_ch2p and action == "set_position_pair":
+            if version not in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
+                return PerpTxResult(ok=False, error="set_position_pair requires perps.version=0.2 or 1.0")
+
+            allowed = {
+                "module",
+                "version",
+                "market_id",
+                "action",
+                "account_a_pubkey",
+                "account_b_pubkey",
+                "new_position_base_a",
+                "new_position_base_b",
+            }
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="set_position_pair has unknown fields")
+
+            account_a_pubkey = _require_str(
+                data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
+            )
+            account_b_pubkey = _require_str(
+                data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
+            )
+            if account_a_pubkey != ch2p_market.account_a_pubkey or account_b_pubkey != ch2p_market.account_b_pubkey:
+                return PerpTxResult(ok=False, error="accounts do not match this market")
+
+            new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
+            new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
+            if new_b != -new_a:
+                return PerpTxResult(ok=False, error="clearinghouse_2p requires net position == 0")
+
+            try:
+                next_state, eff = _ch2p_step(
+                    ch2p_market.state,
+                    tag="set_position_pair",
+                    args={"new_position_base_a": new_a, "auth_ok": True},
+                )
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+
+            markets[market_id] = PerpClearinghouse2pMarketState(
+                quote_asset=ch2p_market.quote_asset,
+                account_a_pubkey=ch2p_market.account_a_pubkey,
+                account_b_pubkey=ch2p_market.account_b_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch2p:
+            return PerpTxResult(ok=False, error=f"unknown perps action: {action}")
 
         if action == "advance_epoch":
             allowed = {"module", "version", "market_id", "action", "delta"}
@@ -372,140 +638,6 @@ def apply_perp_ops(
             allowed = {"module", "version", "market_id", "action"}
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="settle_epoch has unknown fields")
-
-            if version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
-                if len(market.accounts) != 2:
-                    return PerpTxResult(ok=False, error="clearinghouse_2p requires exactly 2 accounts")
-
-                pks = sorted(market.accounts.keys())
-                acct0 = market.accounts[pks[0]]
-                acct1 = market.accounts[pks[1]]
-                pos0 = int(acct0.position_base)
-                pos1 = int(acct1.position_base)
-                if pos0 + pos1 != 0:
-                    return PerpTxResult(ok=False, error="clearinghouse_2p requires net position == 0")
-
-                pre_market = market
-                pre_fee_pool = int(pre_market.global_state.get("fee_pool_quote", 0))
-                pre_fee_income = int(pre_market.global_state.get("fee_income", 0))
-                pre_initial_insurance = int(pre_market.global_state.get("initial_insurance", 0))
-                pre_claims_paid = int(pre_market.global_state.get("claims_paid", 0))
-
-                # Phase 1: compute the post-epoch global update (oracle/index/clamp/breaker bookkeeping)
-                # against a dummy account so it cannot depend on account-specific liquidation.
-                dummy = _kernel_initial_account_state()
-                res0 = perp_epoch_isolated_default_apply(
-                    state=pre_market.kernel_state_for_account(dummy),
-                    action="settle_epoch",
-                    params={},
-                )
-                if not res0.ok or res0.state is None:
-                    return PerpTxResult(ok=False, error=res0.error or "settle_epoch rejected")
-                base_global, new_dummy = _split_kernel_state(res0.state)
-                if new_dummy != dummy:
-                    return PerpTxResult(ok=False, error="internal error: settle_epoch mutated dummy account state")
-
-                pre_index_e8 = int(pre_market.global_state.get("index_price_e8", 0))
-                sp = int(base_global.get("index_price_e8", 0))
-                delta_e8 = sp - pre_index_e8
-
-                # Phase 2: net-zero settlement across the 2 accounts.
-                # We compute xs_i = pos_i * ΔP_e8, then allocate PnL in quote units as:
-                # pnl_i := (xs_i div 1e8) with deterministic dust allocation that enforces Σpnl = 0.
-                xs = [pos0 * delta_e8, pos1 * delta_e8]
-                pnls = largest_remainder_adjust_net_zero(xs=xs, keys=pks, d=PRICE_SCALE)
-
-                coll0_after_pnl = int(acct0.collateral_quote) + pnls[0]
-                coll1_after_pnl = int(acct1.collateral_quote) + pnls[1]
-                if coll0_after_pnl < 0 or coll1_after_pnl < 0:
-                    return PerpTxResult(ok=False, error="collateral negative (post-pnl)")
-                if coll0_after_pnl > MAX_COLLATERAL or coll1_after_pnl > MAX_COLLATERAL:
-                    return PerpTxResult(ok=False, error="collateral overflow (post-pnl)")
-
-                maint_bps = int(pre_market.global_state.get("maintenance_margin_bps", 0))
-                depeg_bps = int(pre_market.global_state.get("depeg_buffer_bps", 0))
-                liq_penalty_bps = int(pre_market.global_state.get("liquidation_penalty_bps", 0))
-                min_notional_for_bounty = int(pre_market.global_state.get("min_notional_for_bounty", 0))
-
-                liq0 = is_liquidatable(pos0, coll0_after_pnl, sp, maint_bps, depeg_bps)
-                liq1 = is_liquidatable(pos1, coll1_after_pnl, sp, maint_bps, depeg_bps)
-                any_liq = liq0 or liq1
-
-                total_penalty_delta = 0
-                if any_liq:
-                    if liq0 and pos0 != 0:
-                        penalty0 = liq_penalty_capped(
-                            coll0_after_pnl, pos0, sp, liq_penalty_bps, min_notional_for_bounty
-                        )
-                        coll0_after_pnl -= penalty0
-                        total_penalty_delta += int(penalty0)
-                    if liq1 and pos1 != 0:
-                        penalty1 = liq_penalty_capped(
-                            coll1_after_pnl, pos1, sp, liq_penalty_bps, min_notional_for_bounty
-                        )
-                        coll1_after_pnl -= penalty1
-                        total_penalty_delta += int(penalty1)
-
-                # Update global fee/insurance accumulators deterministically.
-                max_fee_pool = perp_epoch_isolated_default_fee_pool_max_quote()
-                next_fee_pool = pre_fee_pool + total_penalty_delta
-                next_fee_income = pre_fee_income + total_penalty_delta
-                next_insurance = pre_initial_insurance + next_fee_income - pre_claims_paid
-                if next_fee_pool > max_fee_pool or next_fee_income > max_fee_pool or next_insurance > max_fee_pool:
-                    return PerpTxResult(ok=False, error="fee/insurance overflow (post-settle)")
-                if next_insurance < 0:
-                    return PerpTxResult(ok=False, error="insurance negative (post-settle)")
-
-                next_global = dict(base_global)
-                next_global["fee_pool_quote"] = int(next_fee_pool)
-                next_global["fee_income"] = int(next_fee_income)
-                next_global["insurance_balance"] = int(next_insurance)
-
-                # Positions: keep matched pair open when both are maintenance-safe; otherwise close both.
-                if any_liq:
-                    post_pos0 = 0
-                    post_pos1 = 0
-                    post_entry0 = 0
-                    post_entry1 = 0
-                else:
-                    post_pos0 = pos0
-                    post_pos1 = pos1
-                    post_entry0 = 0 if pos0 == 0 else sp
-                    post_entry1 = 0 if pos1 == 0 else sp
-
-                new_accounts = dict(pre_market.accounts)
-                new_accounts[pks[0]] = replace(
-                    acct0,
-                    collateral_quote=int(coll0_after_pnl),
-                    position_base=int(post_pos0),
-                    entry_price_e8=int(post_entry0),
-                    liquidated_this_step=bool(any_liq),
-                )
-                new_accounts[pks[1]] = replace(
-                    acct1,
-                    collateral_quote=int(coll1_after_pnl),
-                    position_base=int(post_pos1),
-                    entry_price_e8=int(post_entry1),
-                    liquidated_this_step=bool(any_liq),
-                )
-                markets[market_id] = PerpMarketState(
-                    quote_asset=market.quote_asset,
-                    global_state=next_global,
-                    accounts=new_accounts,
-                )
-                effects.append(
-                    {
-                        "i": i,
-                        "market_id": market_id,
-                        "action": action,
-                        "version": version,
-                        "pnl_quote": {pks[0]: int(pnls[0]), pks[1]: int(pnls[1])},
-                        "fee_pool_delta": int(total_penalty_delta),
-                        "liquidated": bool(any_liq),
-                        "effects": dict(res0.effects or {}),
-                    }
-                )
-                continue
 
             pre_market = market
             pre_fee_pool = int(pre_market.global_state.get("fee_pool_quote", 0))
@@ -644,8 +776,6 @@ def apply_perp_ops(
                 return PerpTxResult(ok=False, error="account_pubkey must match tx sender")
 
             accounts = dict(market.accounts)
-            if version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0) and account_pubkey not in accounts:
-                return PerpTxResult(ok=False, error="unknown account_pubkey for this clearinghouse_2p market")
             acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
 
             if action == "deposit_collateral":
@@ -835,6 +965,6 @@ def apply_perp_ops(
 
         return PerpTxResult(ok=False, error=f"unknown perps action: {action}")
 
-    next_perps = PerpsState(version=perps.version, markets=markets) if markets else None
+    next_perps = PerpsState(version=perps_version, markets=markets) if markets else None
     next_state = replace(state, balances=balances, perps=next_perps)
     return PerpTxResult(ok=True, state=next_state, effects=effects)
