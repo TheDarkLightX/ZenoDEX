@@ -5,18 +5,22 @@ meta:
   notes: |
     Two-sided IL futures market. LPs buy protection, speculators sell it.
     Epoch-based settlement from reserve snapshots.
+    Phase-gated: opens/closes blocked when snapshot_taken, closes allowed
+    after settlement for margin withdrawal.
+    IL value is an environment input (computed externally via isqrt).
 
 observables:
   state_vars: ["epoch", "long_exposure", "short_exposure", "premium_pool",
                "margin_pool", "realized_il_bps", "settled_this_epoch",
-               "snapshot_taken", "protocol_fee_pool"]
+               "snapshot_taken", "protocol_fee_pool",
+               "pool_snapshot_reserve_x", "pool_snapshot_reserve_y"]
   effects: ["event", "il_bps_out", "payout_out"]
 
 types:
   - id: "t_event"
     type:
       kind: "enum"
-      symbols: ["LongOpened", "ShortOpened", "PositionClosed",
+      symbols: ["LongOpened", "ShortOpened", "LongClosed", "ShortClosed",
                 "EpochSnapshotted", "EpochSettled", "EpochAdvanced"]
 
 state_vars:
@@ -55,13 +59,13 @@ state_vars:
     type: { kind: "int", min: 0, max: 1000000000000 }
   - id: "max_leverage_bps"
     role: "control"
-    type: { kind: "int", min: 10000, max: 50000 }
+    type: { kind: "int", min: 1, max: 50000 }
   - id: "protocol_fee_bps"
     role: "control"
-    type: { kind: "int", min: 0, max: 1000 }
+    type: { kind: "int", min: 0, max: 10000 }
   - id: "coverage_ratio_bps"
     role: "control"
-    type: { kind: "int", min: 1000, max: 10000 }
+    type: { kind: "int", min: 0, max: 10000 }
 
 invariants:
   - id: "inv_exposure_nonneg"
@@ -79,6 +83,13 @@ invariants:
         - { op: ">=", args: [{ var: "premium_pool" }, { const: 0 }] }
         - { op: ">=", args: [{ var: "margin_pool" }, { const: 0 }] }
         - { op: ">=", args: [{ var: "protocol_fee_pool" }, { const: 0 }] }
+  - id: "inv_margin_short_consistent"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "margin_pool" }
+        - { var: "short_exposure" }
 
 init:
   - var: "epoch"
@@ -111,6 +122,11 @@ init:
     expr: { const: 8000 }
 
 actions:
+  # -----------------------------------------------------------------------
+  # open_long_il: LP buys IL protection
+  # Phase-gated: blocked when snapshot_taken (exposure frozen)
+  # Leverage-guarded: requires shorts > 0, long <= short * max_leverage / 10000
+  # -----------------------------------------------------------------------
   - id: "open_long_il"
     params:
       - id: "amount"
@@ -123,6 +139,8 @@ actions:
       op: "and"
       args:
         - { param: "auth_ok" }
+        - { op: "=", args: [{ var: "snapshot_taken" }, { bool: false }] }
+        - { op: ">", args: [{ var: "short_exposure" }, { const: 0 }] }
         - { op: "<=", args: [
             { op: "+", args: [{ var: "long_exposure" }, { param: "amount" }] },
             { const: 1000000000000 }
@@ -130,6 +148,14 @@ actions:
         - { op: "<=", args: [
             { op: "+", args: [{ var: "premium_pool" }, { param: "premium_amount" }] },
             { const: 1000000000000 }
+          ]}
+        # Leverage: (long + amount) * 10000 <= short * max_leverage
+        - { op: "<=", args: [
+            { op: "*", args: [
+              { op: "+", args: [{ var: "long_exposure" }, { param: "amount" }] },
+              { const: 10000 }
+            ]},
+            { op: "*", args: [{ var: "short_exposure" }, { var: "max_leverage_bps" }] }
           ]}
     updates:
       - var: "long_exposure"
@@ -141,6 +167,10 @@ actions:
       il_bps_out: { const: 0 }
       payout_out: { const: 0 }
 
+  # -----------------------------------------------------------------------
+  # open_short_il: Speculator sells IL protection
+  # Phase-gated: blocked when snapshot_taken
+  # -----------------------------------------------------------------------
   - id: "open_short_il"
     params:
       - id: "amount"
@@ -151,6 +181,7 @@ actions:
       op: "and"
       args:
         - { param: "auth_ok" }
+        - { op: "=", args: [{ var: "snapshot_taken" }, { bool: false }] }
         - { op: "<=", args: [
             { op: "+", args: [{ var: "short_exposure" }, { param: "amount" }] },
             { const: 1000000000000 }
@@ -169,13 +200,181 @@ actions:
       il_bps_out: { const: 0 }
       payout_out: { const: 0 }
 
+  # -----------------------------------------------------------------------
+  # close_long: Close long position (reduce exposure)
+  # Blocked between snapshot and settlement. Allowed after settlement.
+  # -----------------------------------------------------------------------
+  - id: "close_long"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - { op: "<=", args: [{ param: "amount" }, { var: "long_exposure" }] }
+        # Phase gate: blocked if snapshot taken but not yet settled
+        - { op: "or", args: [
+            { op: "=", args: [{ var: "snapshot_taken" }, { bool: false }] },
+            { op: "=", args: [{ var: "settled_this_epoch" }, { bool: true }] }
+          ]}
+    updates:
+      - var: "long_exposure"
+        expr: { op: "-", args: [{ var: "long_exposure" }, { param: "amount" }] }
+    effects:
+      event: { enum: "LongClosed" }
+      il_bps_out: { const: 0 }
+      payout_out: { const: 0 }
+
+  # -----------------------------------------------------------------------
+  # close_short: Close short position (reduce exposure + margin)
+  # Blocked between snapshot and settlement. Allowed after settlement.
+  # -----------------------------------------------------------------------
+  - id: "close_short"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - { op: "<=", args: [{ param: "amount" }, { var: "short_exposure" }] }
+        # Phase gate: blocked if snapshot taken but not yet settled
+        - { op: "or", args: [
+            { op: "=", args: [{ var: "snapshot_taken" }, { bool: false }] },
+            { op: "=", args: [{ var: "settled_this_epoch" }, { bool: true }] }
+          ]}
+    updates:
+      - var: "short_exposure"
+        expr: { op: "-", args: [{ var: "short_exposure" }, { param: "amount" }] }
+      - var: "margin_pool"
+        expr: { op: "-", args: [{ var: "margin_pool" }, { param: "amount" }] }
+    effects:
+      event: { enum: "ShortClosed" }
+      il_bps_out: { const: 0 }
+      payout_out: { const: 0 }
+
+  # -----------------------------------------------------------------------
+  # snapshot_epoch_start: Record pool reserves at epoch boundary
+  # Requires auth_ok. Can only be taken once per epoch.
+  # -----------------------------------------------------------------------
+  - id: "snapshot_epoch_start"
+    params:
+      - id: "reserve_x"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "reserve_y"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - { op: "=", args: [{ var: "snapshot_taken" }, { bool: false }] }
+    updates:
+      - var: "snapshot_taken"
+        expr: { bool: true }
+      - var: "pool_snapshot_reserve_x"
+        expr: { param: "reserve_x" }
+      - var: "pool_snapshot_reserve_y"
+        expr: { param: "reserve_y" }
+    effects:
+      event: { enum: "EpochSnapshotted" }
+      il_bps_out: { const: 0 }
+      payout_out: { const: 0 }
+
+  # -----------------------------------------------------------------------
+  # settle_il_epoch: Compute realized IL, distribute payoffs
+  # IL value is environment input (computed externally via isqrt).
+  # capped_payout and protocol_fee are environment inputs (floor division
+  # computed off-chain, same pattern as WS3 funding rate settlement).
+  # Conservation: capped_payout <= premium_pool + margin_pool.
+  # Margin deducted first, then premium. short_exposure = remaining margin.
+  # Settlement zeroes long_exposure (positions fully settled).
+  # -----------------------------------------------------------------------
+  - id: "settle_il_epoch"
+    params:
+      - id: "il_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "capped_payout"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "protocol_fee"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - { op: "=", args: [{ var: "snapshot_taken" }, { bool: true }] }
+        - { op: "=", args: [{ var: "settled_this_epoch" }, { bool: false }] }
+        # Protocol fee must not exceed capped payout
+        - { op: "<=", args: [{ param: "protocol_fee" }, { param: "capped_payout" }] }
+        # Conservation: total deduction bounded by available pools
+        - { op: "<=", args: [
+            { param: "capped_payout" },
+            { op: "+", args: [{ var: "premium_pool" }, { var: "margin_pool" }] }
+          ]}
+        # Protocol fee pool overflow guard
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "protocol_fee_pool" }, { param: "protocol_fee" }] },
+            { const: 1000000000000 }
+          ]}
+    updates:
+      - var: "settled_this_epoch"
+        expr: { bool: true }
+      - var: "realized_il_bps"
+        expr: { param: "il_bps" }
+      # Settlement zeroes long exposure (positions fully settled)
+      - var: "long_exposure"
+        expr: { const: 0 }
+      # Margin deducted first: margin_deduct = min(capped_payout, margin_pool)
+      # new_margin = margin_pool - min(capped_payout, margin_pool)
+      - var: "margin_pool"
+        expr:
+          op: "-"
+          args:
+            - { var: "margin_pool" }
+            - { op: "min", args: [{ param: "capped_payout" }, { var: "margin_pool" }] }
+      # Premium absorbs remainder: premium_deduct = capped_payout - margin_deduct
+      # new_premium = premium_pool - (capped_payout - min(capped_payout, margin_pool))
+      - var: "premium_pool"
+        expr:
+          op: "-"
+          args:
+            - { var: "premium_pool" }
+            - op: "-"
+              args:
+                - { param: "capped_payout" }
+                - { op: "min", args: [{ param: "capped_payout" }, { var: "margin_pool" }] }
+      # short_exposure = remaining margin (margin_short_consistent invariant)
+      - var: "short_exposure"
+        expr:
+          op: "-"
+          args:
+            - { var: "margin_pool" }
+            - { op: "min", args: [{ param: "capped_payout" }, { var: "margin_pool" }] }
+      # Protocol fee accumulated
+      - var: "protocol_fee_pool"
+        expr: { op: "+", args: [{ var: "protocol_fee_pool" }, { param: "protocol_fee" }] }
+    effects:
+      event: { enum: "EpochSettled" }
+      il_bps_out: { param: "il_bps" }
+      payout_out: { op: "-", args: [{ param: "capped_payout" }, { param: "protocol_fee" }] }
+
+  # -----------------------------------------------------------------------
+  # advance_epoch: Move to next epoch. Requires settlement first.
+  # -----------------------------------------------------------------------
   - id: "advance_epoch"
     params: []
     guard:
       op: "and"
       args:
         - { op: "=", args: [{ var: "settled_this_epoch" }, { bool: true }] }
-        # Prevent epoch counter overflow under finite-domain caps.
         - { op: "<", args: [{ var: "epoch" }, { const: 1000000000 }] }
     updates:
       - var: "epoch"
