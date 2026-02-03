@@ -5,11 +5,19 @@ meta:
   notes: |
     Curve selection prediction market. Participants stake on which AMM curve
     will produce the most LP revenue. Winner curve becomes active.
+    5 curves: CPMM (0), cubic_sum (1), sum_boost (2), quartic (3), quintic (4).
+    Per-curve stakes modelled via 5-way ITE dispatch (the kernel spec format is
+    intentionally array-free).
+    Revenue deltas and winning_curve_id are environment inputs (argmax
+    computed off-chain, same pattern as il_bps in il_futures_market_v1).
+    penalty_amount is an environment input (floor division off-chain).
 
 observables:
   state_vars: ["active_curve", "prediction_epoch", "total_staked",
                "stakes_0", "stakes_1", "stakes_2", "stakes_3", "stakes_4",
-               "epochs_since_start", "settlement_epoch_interval"]
+               "revenue_0", "revenue_1", "revenue_2", "revenue_3", "revenue_4",
+               "epochs_since_start", "settlement_epoch_interval",
+               "winner_payout_pool", "protocol_fee_pool"]
   effects: ["event", "winning_curve", "payout_amount"]
 
 types:
@@ -49,9 +57,30 @@ state_vars:
   - id: "stakes_4"
     role: "data"
     type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "revenue_0"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "revenue_1"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "revenue_2"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "revenue_3"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "revenue_4"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "winner_payout_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "protocol_fee_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
   - id: "protocol_fee_bps"
     role: "control"
-    type: { kind: "int", min: 0, max: 1000 }
+    type: { kind: "int", min: 0, max: 10000 }
 
 invariants:
   - id: "inv_curve_valid"
@@ -74,10 +103,26 @@ invariants:
   - id: "inv_total_staked_consistent"
     kind: "safety"
     expr:
-      op: ">="
+      op: "="
       args:
         - { var: "total_staked" }
-        - { const: 0 }
+        - { op: "+", args: [
+            { op: "+", args: [
+              { op: "+", args: [
+                { op: "+", args: [{ var: "stakes_0" }, { var: "stakes_1" }] },
+                { var: "stakes_2" }
+              ]},
+              { var: "stakes_3" }
+            ]},
+            { var: "stakes_4" }
+          ]}
+  - id: "inv_pools_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "winner_payout_pool" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "protocol_fee_pool" }, { const: 0 }] }
 
 init:
   - var: "active_curve"
@@ -100,10 +145,28 @@ init:
     expr: { const: 0 }
   - var: "stakes_4"
     expr: { const: 0 }
+  - var: "revenue_0"
+    expr: { const: 0 }
+  - var: "revenue_1"
+    expr: { const: 0 }
+  - var: "revenue_2"
+    expr: { const: 0 }
+  - var: "revenue_3"
+    expr: { const: 0 }
+  - var: "revenue_4"
+    expr: { const: 0 }
+  - var: "winner_payout_pool"
+    expr: { const: 0 }
+  - var: "protocol_fee_pool"
+    expr: { const: 0 }
   - var: "protocol_fee_bps"
     expr: { const: 200 }
 
 actions:
+  # -----------------------------------------------------------------------
+  # stake_on_curve: Place prediction bet on a curve family
+  # Auth-gated. Overflow-bounded. Per-curve stake via 5-way ITE.
+  # -----------------------------------------------------------------------
   - id: "stake_on_curve"
     params:
       - id: "curve_id"
@@ -123,43 +186,357 @@ actions:
     updates:
       - var: "total_staked"
         expr: { op: "+", args: [{ var: "total_staked" }, { param: "amount" }] }
+      # Per-curve ITE dispatch
+      - var: "stakes_0"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 0 }] }
+          then: { op: "+", args: [{ var: "stakes_0" }, { param: "amount" }] }
+          else: { var: "stakes_0" }
+      - var: "stakes_1"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 1 }] }
+          then: { op: "+", args: [{ var: "stakes_1" }, { param: "amount" }] }
+          else: { var: "stakes_1" }
+      - var: "stakes_2"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 2 }] }
+          then: { op: "+", args: [{ var: "stakes_2" }, { param: "amount" }] }
+          else: { var: "stakes_2" }
+      - var: "stakes_3"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 3 }] }
+          then: { op: "+", args: [{ var: "stakes_3" }, { param: "amount" }] }
+          else: { var: "stakes_3" }
+      - var: "stakes_4"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 4 }] }
+          then: { op: "+", args: [{ var: "stakes_4" }, { param: "amount" }] }
+          else: { var: "stakes_4" }
     effects:
       event: { enum: "Staked" }
       winning_curve: { const: -1 }
       payout_amount: { const: 0 }
 
-  - id: "advance_epoch"
-    params: []
+  # -----------------------------------------------------------------------
+  # unstake: Withdraw stake with early-exit penalty
+  # Auth-gated. penalty_amount is env input (floor division off-chain).
+  # Conservation: penalty goes to protocol_fee_pool.
+  # -----------------------------------------------------------------------
+  - id: "unstake"
+    params:
+      - id: "curve_id"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "penalty_amount"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
     guard:
-      # Prevent epoch counter overflow under finite-domain caps.
-      op: "<"
-      args: [{ var: "epochs_since_start" }, { const: 1000000000 }]
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        # Penalty must not exceed amount
+        - { op: "<=", args: [{ param: "penalty_amount" }, { param: "amount" }] }
+        # Per-curve amount bound via 5-way ITE (amount <= stakes_N for matching curve)
+        - { op: "<=", args: [
+            { param: "amount" },
+            { op: "ite",
+              cond: { op: "=", args: [{ param: "curve_id" }, { const: 0 }] },
+              then: { var: "stakes_0" },
+              else: { op: "ite",
+                cond: { op: "=", args: [{ param: "curve_id" }, { const: 1 }] },
+                then: { var: "stakes_1" },
+                else: { op: "ite",
+                  cond: { op: "=", args: [{ param: "curve_id" }, { const: 2 }] },
+                  then: { var: "stakes_2" },
+                  else: { op: "ite",
+                    cond: { op: "=", args: [{ param: "curve_id" }, { const: 3 }] },
+                    then: { var: "stakes_3" },
+                    else: { var: "stakes_4" }
+                  }
+                }
+              }
+            }
+          ]}
+        # Protocol fee pool overflow guard
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "protocol_fee_pool" }, { param: "penalty_amount" }] },
+            { const: 1000000000000 }
+          ]}
+    updates:
+      - var: "total_staked"
+        expr: { op: "-", args: [{ var: "total_staked" }, { param: "amount" }] }
+      - var: "protocol_fee_pool"
+        expr: { op: "+", args: [{ var: "protocol_fee_pool" }, { param: "penalty_amount" }] }
+      # Per-curve ITE dispatch for subtraction
+      - var: "stakes_0"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 0 }] }
+          then: { op: "-", args: [{ var: "stakes_0" }, { param: "amount" }] }
+          else: { var: "stakes_0" }
+      - var: "stakes_1"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 1 }] }
+          then: { op: "-", args: [{ var: "stakes_1" }, { param: "amount" }] }
+          else: { var: "stakes_1" }
+      - var: "stakes_2"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 2 }] }
+          then: { op: "-", args: [{ var: "stakes_2" }, { param: "amount" }] }
+          else: { var: "stakes_2" }
+      - var: "stakes_3"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 3 }] }
+          then: { op: "-", args: [{ var: "stakes_3" }, { param: "amount" }] }
+          else: { var: "stakes_3" }
+      - var: "stakes_4"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "curve_id" }, { const: 4 }] }
+          then: { op: "-", args: [{ var: "stakes_4" }, { param: "amount" }] }
+          else: { var: "stakes_4" }
+    effects:
+      event: { enum: "Unstaked" }
+      winning_curve: { const: -1 }
+      payout_amount: { const: 0 }
+
+  # -----------------------------------------------------------------------
+  # advance_epoch: Accumulate revenue metrics
+  # Revenue deltas are environment inputs (per-curve revenue computed off-chain).
+  # -----------------------------------------------------------------------
+  - id: "advance_epoch"
+    params:
+      - id: "revenue_delta_0"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "revenue_delta_1"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "revenue_delta_2"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "revenue_delta_3"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "revenue_delta_4"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        # Prevent epoch counter overflow
+        - { op: "<", args: [{ var: "epochs_since_start" }, { const: 1000000000 }] }
+        # Revenue overflow guards
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "revenue_0" }, { param: "revenue_delta_0" }] },
+            { const: 1000000000000 }
+          ]}
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "revenue_1" }, { param: "revenue_delta_1" }] },
+            { const: 1000000000000 }
+          ]}
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "revenue_2" }, { param: "revenue_delta_2" }] },
+            { const: 1000000000000 }
+          ]}
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "revenue_3" }, { param: "revenue_delta_3" }] },
+            { const: 1000000000000 }
+          ]}
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "revenue_4" }, { param: "revenue_delta_4" }] },
+            { const: 1000000000000 }
+          ]}
     updates:
       - var: "epochs_since_start"
         expr: { op: "+", args: [{ var: "epochs_since_start" }, { const: 1 }] }
+      - var: "revenue_0"
+        expr: { op: "+", args: [{ var: "revenue_0" }, { param: "revenue_delta_0" }] }
+      - var: "revenue_1"
+        expr: { op: "+", args: [{ var: "revenue_1" }, { param: "revenue_delta_1" }] }
+      - var: "revenue_2"
+        expr: { op: "+", args: [{ var: "revenue_2" }, { param: "revenue_delta_2" }] }
+      - var: "revenue_3"
+        expr: { op: "+", args: [{ var: "revenue_3" }, { param: "revenue_delta_3" }] }
+      - var: "revenue_4"
+        expr: { op: "+", args: [{ var: "revenue_4" }, { param: "revenue_delta_4" }] }
     effects:
       event: { enum: "EpochAdvanced" }
       winning_curve: { const: -1 }
       payout_amount: { const: 0 }
 
+  # -----------------------------------------------------------------------
+  # settle_prediction: Determine winner, distribute payoffs, switch curve
+  # winning_curve_id is env input (argmax of revenue, computed off-chain).
+  # protocol_fee is env input (floor division of losing_stakes).
+  # Conservation: protocol_fee <= total_staked - winner_stake.
+  # Losing stakes zeroed, winner stake retained.
+  # -----------------------------------------------------------------------
   - id: "settle_prediction"
-    params: []
+    params:
+      - id: "winning_curve_id"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "protocol_fee"
+        type: { kind: "int", min: 0, max: 1000000000000 }
     guard:
       op: "and"
       args:
-        - op: ">="
-          args:
-            - { var: "epochs_since_start" }
-            - { var: "settlement_epoch_interval" }
-        # Prevent epoch counter overflow under finite-domain caps.
-        - op: "<"
-          args: [{ var: "prediction_epoch" }, { const: 1000000000 }]
+        # Must have waited long enough
+        - { op: ">=", args: [{ var: "epochs_since_start" }, { var: "settlement_epoch_interval" }] }
+        # Prevent epoch counter overflow
+        - { op: "<", args: [{ var: "prediction_epoch" }, { const: 1000000000 }] }
+        # Conservation: protocol_fee <= total_staked - winner_stake
+        # (winner_stake selected via ITE)
+        - { op: "<=", args: [
+            { param: "protocol_fee" },
+            { op: "-", args: [
+              { var: "total_staked" },
+              { op: "ite",
+                cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 0 }] },
+                then: { var: "stakes_0" },
+                else: { op: "ite",
+                  cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 1 }] },
+                  then: { var: "stakes_1" },
+                  else: { op: "ite",
+                    cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 2 }] },
+                    then: { var: "stakes_2" },
+                    else: { op: "ite",
+                      cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 3 }] },
+                      then: { var: "stakes_3" },
+                      else: { var: "stakes_4" }
+                    }
+                  }
+                }
+              }
+            ]}
+          ]}
+        # Protocol fee pool overflow guard
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "protocol_fee_pool" }, { param: "protocol_fee" }] },
+            { const: 1000000000000 }
+          ]}
     updates:
+      - var: "active_curve"
+        expr: { param: "winning_curve_id" }
       - var: "prediction_epoch"
         expr: { op: "+", args: [{ var: "prediction_epoch" }, { const: 1 }] }
       - var: "epochs_since_start"
         expr: { const: 0 }
+      # total_staked = winner_stake only (losers zeroed)
+      - var: "total_staked"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 0 }] }
+          then: { var: "stakes_0" }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 1 }] }
+            then: { var: "stakes_1" }
+            else:
+              op: "ite"
+              cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 2 }] }
+              then: { var: "stakes_2" }
+              else:
+                op: "ite"
+                cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 3 }] }
+                then: { var: "stakes_3" }
+                else: { var: "stakes_4" }
+      # winner_payout_pool = losing_stakes - protocol_fee
+      - var: "winner_payout_pool"
+        expr:
+          op: "-"
+          args:
+            - { op: "-", args: [
+                { var: "total_staked" },
+                { op: "ite",
+                  cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 0 }] },
+                  then: { var: "stakes_0" },
+                  else: { op: "ite",
+                    cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 1 }] },
+                    then: { var: "stakes_1" },
+                    else: { op: "ite",
+                      cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 2 }] },
+                      then: { var: "stakes_2" },
+                      else: { op: "ite",
+                        cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 3 }] },
+                        then: { var: "stakes_3" },
+                        else: { var: "stakes_4" }
+                      }
+                    }
+                  }
+                }
+              ]}
+            - { param: "protocol_fee" }
+      - var: "protocol_fee_pool"
+        expr: { op: "+", args: [{ var: "protocol_fee_pool" }, { param: "protocol_fee" }] }
+      # Zero losing stakes, keep winner
+      - var: "stakes_0"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 0 }] }
+          then: { var: "stakes_0" }
+          else: { const: 0 }
+      - var: "stakes_1"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 1 }] }
+          then: { var: "stakes_1" }
+          else: { const: 0 }
+      - var: "stakes_2"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 2 }] }
+          then: { var: "stakes_2" }
+          else: { const: 0 }
+      - var: "stakes_3"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 3 }] }
+          then: { var: "stakes_3" }
+          else: { const: 0 }
+      - var: "stakes_4"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "winning_curve_id" }, { const: 4 }] }
+          then: { var: "stakes_4" }
+          else: { const: 0 }
+      # Zero all revenue counters
+      - var: "revenue_0"
+        expr: { const: 0 }
+      - var: "revenue_1"
+        expr: { const: 0 }
+      - var: "revenue_2"
+        expr: { const: 0 }
+      - var: "revenue_3"
+        expr: { const: 0 }
+      - var: "revenue_4"
+        expr: { const: 0 }
     effects:
       event: { enum: "PredictionSettled" }
-      winning_curve: { var: "active_curve" }
+      winning_curve: { param: "winning_curve_id" }
+      payout_amount: { const: 0 }
+
+  # -----------------------------------------------------------------------
+  # admin_set_interval: Governance sets prediction duration
+  # Auth-gated.
+  # -----------------------------------------------------------------------
+  - id: "admin_set_interval"
+    params:
+      - id: "new_interval"
+        type: { kind: "int", min: 1, max: 1000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      { param: "auth_ok" }
+    updates:
+      - var: "settlement_epoch_interval"
+        expr: { param: "new_interval" }
+    effects:
+      event: { enum: "IntervalSet" }
+      winning_curve: { const: -1 }
       payout_amount: { const: 0 }

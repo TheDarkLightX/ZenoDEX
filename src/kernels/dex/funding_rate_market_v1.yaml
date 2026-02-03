@@ -6,12 +6,17 @@ meta:
     Endogenous funding rate market. Traders buy "rate-up" or "rate-down"
     positions. The equilibrium price becomes the perp funding rate.
     Epoch-based settlement from mark/index price basis.
+    realized_rate_bps is an environment input (computed externally from
+    mark/index prices, same pattern as il_bps in il_futures_market_v1).
+    Payoff distribution (long_payout, short_payout, protocol_fee) are
+    environment inputs with conservation guard.
+    Phase-gated: frozen blocks opens; settle requires !frozen + !settled.
 
 observables:
   state_vars: ["rate_long_exposure", "rate_short_exposure", "implied_rate_bps",
                "realized_rate_bps", "settlement_epoch", "rate_market_epoch",
-               "settled_this_epoch", "premium_pool", "payout_pool",
-               "protocol_fee_pool", "frozen"]
+               "settled_this_epoch", "premium_pool", "long_payout", "short_payout",
+               "protocol_fee_pool", "frozen", "mark_price_e8", "index_price_e8"]
   effects: ["event", "implied_rate_out", "realized_rate_out"]
 
 types:
@@ -46,7 +51,10 @@ state_vars:
   - id: "premium_pool"
     role: "data"
     type: { kind: "int", min: 0, max: 1000000000000 }
-  - id: "payout_pool"
+  - id: "long_payout"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "short_payout"
     role: "data"
     type: { kind: "int", min: 0, max: 1000000000000 }
   - id: "protocol_fee_pool"
@@ -55,12 +63,18 @@ state_vars:
   - id: "frozen"
     role: "data"
     type: { kind: "bool" }
+  - id: "mark_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "index_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
   - id: "funding_cap_bps"
     role: "control"
     type: { kind: "int", min: 1, max: 10000 }
   - id: "protocol_fee_bps"
     role: "control"
-    type: { kind: "int", min: 0, max: 1000 }
+    type: { kind: "int", min: 0, max: 10000 }
 
 invariants:
   - id: "inv_exposure_nonneg"
@@ -76,14 +90,18 @@ invariants:
       op: "and"
       args:
         - { op: ">=", args: [{ var: "premium_pool" }, { const: 0 }] }
-        - { op: ">=", args: [{ var: "payout_pool" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "long_payout" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "short_payout" }, { const: 0 }] }
         - { op: ">=", args: [{ var: "protocol_fee_pool" }, { const: 0 }] }
   - id: "inv_rate_bounded"
     kind: "safety"
     expr:
       op: "and"
       args:
-        - { op: ">=", args: [{ var: "implied_rate_bps" }, { op: "-", args: [{ const: 0 }, { var: "funding_cap_bps" }] }] }
+        - { op: ">=", args: [
+            { var: "implied_rate_bps" },
+            { op: "-", args: [{ const: 0 }, { var: "funding_cap_bps" }] }
+          ]}
         - { op: "<=", args: [{ var: "implied_rate_bps" }, { var: "funding_cap_bps" }] }
 
 init:
@@ -103,22 +121,36 @@ init:
     expr: { bool: false }
   - var: "premium_pool"
     expr: { const: 0 }
-  - var: "payout_pool"
+  - var: "long_payout"
+    expr: { const: 0 }
+  - var: "short_payout"
     expr: { const: 0 }
   - var: "protocol_fee_pool"
     expr: { const: 0 }
   - var: "frozen"
     expr: { bool: false }
+  - var: "mark_price_e8"
+    expr: { const: 0 }
+  - var: "index_price_e8"
+    expr: { const: 0 }
   - var: "funding_cap_bps"
     expr: { const: 100 }
   - var: "protocol_fee_bps"
     expr: { const: 100 }
 
 actions:
+  # -----------------------------------------------------------------------
+  # open_rate_long: Bet that funding rate will be high
+  # Auth-gated. Blocked when frozen. Overflow-bounded.
+  # implied_rate_bps updated as environment input (requires division,
+  # computed off-chain: (long-short)/(long+short)*cap, clamped).
+  # -----------------------------------------------------------------------
   - id: "open_rate_long"
     params:
       - id: "amount"
         type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "new_implied_rate_bps"
+        type: { kind: "int", min: -10000, max: 10000 }
       - id: "auth_ok"
         type: { kind: "bool" }
     guard:
@@ -126,6 +158,8 @@ actions:
       args:
         - { param: "auth_ok" }
         - { op: "=", args: [{ var: "frozen" }, { bool: false }] }
+        # Phase gate: block opens after settlement (before advance)
+        - { op: "=", args: [{ var: "settled_this_epoch" }, { bool: false }] }
         - { op: "<=", args: [
             { op: "+", args: [{ var: "rate_long_exposure" }, { param: "amount" }] },
             { const: 1000000000000 }
@@ -134,20 +168,34 @@ actions:
             { op: "+", args: [{ var: "premium_pool" }, { param: "amount" }] },
             { const: 1000000000000 }
           ]}
+        # New implied rate must be bounded by cap
+        - { op: ">=", args: [
+            { param: "new_implied_rate_bps" },
+            { op: "-", args: [{ const: 0 }, { var: "funding_cap_bps" }] }
+          ]}
+        - { op: "<=", args: [{ param: "new_implied_rate_bps" }, { var: "funding_cap_bps" }] }
     updates:
       - var: "rate_long_exposure"
         expr: { op: "+", args: [{ var: "rate_long_exposure" }, { param: "amount" }] }
       - var: "premium_pool"
         expr: { op: "+", args: [{ var: "premium_pool" }, { param: "amount" }] }
+      - var: "implied_rate_bps"
+        expr: { param: "new_implied_rate_bps" }
     effects:
       event: { enum: "RateLongOpened" }
-      implied_rate_out: { const: 0 }
+      implied_rate_out: { param: "new_implied_rate_bps" }
       realized_rate_out: { const: 0 }
 
+  # -----------------------------------------------------------------------
+  # open_rate_short: Bet that funding rate will be low
+  # Auth-gated. Blocked when frozen and after settlement. Overflow-bounded.
+  # -----------------------------------------------------------------------
   - id: "open_rate_short"
     params:
       - id: "amount"
         type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "new_implied_rate_bps"
+        type: { kind: "int", min: -10000, max: 10000 }
       - id: "auth_ok"
         type: { kind: "bool" }
     guard:
@@ -155,6 +203,8 @@ actions:
       args:
         - { param: "auth_ok" }
         - { op: "=", args: [{ var: "frozen" }, { bool: false }] }
+        # Phase gate: block opens after settlement (before advance)
+        - { op: "=", args: [{ var: "settled_this_epoch" }, { bool: false }] }
         - { op: "<=", args: [
             { op: "+", args: [{ var: "rate_short_exposure" }, { param: "amount" }] },
             { const: 1000000000000 }
@@ -163,23 +213,110 @@ actions:
             { op: "+", args: [{ var: "premium_pool" }, { param: "amount" }] },
             { const: 1000000000000 }
           ]}
+        # New implied rate must be bounded by cap
+        - { op: ">=", args: [
+            { param: "new_implied_rate_bps" },
+            { op: "-", args: [{ const: 0 }, { var: "funding_cap_bps" }] }
+          ]}
+        - { op: "<=", args: [{ param: "new_implied_rate_bps" }, { var: "funding_cap_bps" }] }
     updates:
       - var: "rate_short_exposure"
         expr: { op: "+", args: [{ var: "rate_short_exposure" }, { param: "amount" }] }
       - var: "premium_pool"
         expr: { op: "+", args: [{ var: "premium_pool" }, { param: "amount" }] }
+      - var: "implied_rate_bps"
+        expr: { param: "new_implied_rate_bps" }
     effects:
       event: { enum: "RateShortOpened" }
-      implied_rate_out: { const: 0 }
+      implied_rate_out: { param: "new_implied_rate_bps" }
       realized_rate_out: { const: 0 }
 
+  # -----------------------------------------------------------------------
+  # settle_rate_epoch: Compute realized rate, distribute payoffs
+  # realized_rate_bps is environment input (computed from mark/index prices).
+  # long_payout, short_payout, protocol_fee are environment inputs with
+  # conservation guard: long_payout + short_payout + protocol_fee = premium_pool.
+  # Phase-gated: requires !frozen, !settled_this_epoch, exposure > 0.
+  # -----------------------------------------------------------------------
+  - id: "settle_rate_epoch"
+    params:
+      - id: "realized_rate_bps"
+        type: { kind: "int", min: -10000, max: 10000 }
+      - id: "settle_long_payout"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "settle_short_payout"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "settle_protocol_fee"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "settle_mark_price_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "settle_index_price_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "frozen" }, { bool: false }] }
+        - { op: "=", args: [{ var: "settled_this_epoch" }, { bool: false }] }
+        # Need exposure for meaningful settlement
+        - { op: ">", args: [
+            { op: "+", args: [{ var: "rate_long_exposure" }, { var: "rate_short_exposure" }] },
+            { const: 0 }
+          ]}
+        # Realized rate bounded by cap
+        - { op: ">=", args: [
+            { param: "realized_rate_bps" },
+            { op: "-", args: [{ const: 0 }, { var: "funding_cap_bps" }] }
+          ]}
+        - { op: "<=", args: [{ param: "realized_rate_bps" }, { var: "funding_cap_bps" }] }
+        # Conservation: payouts + fee = premium pool (exact, not <=)
+        - { op: "=", args: [
+            { op: "+", args: [
+              { op: "+", args: [{ param: "settle_long_payout" }, { param: "settle_short_payout" }] },
+              { param: "settle_protocol_fee" }
+            ]},
+            { var: "premium_pool" }
+          ]}
+        # Settlement epoch overflow guard
+        - { op: "<", args: [{ var: "settlement_epoch" }, { const: 1000000000 }] }
+        # Protocol fee pool overflow guard
+        - { op: "<=", args: [
+            { op: "+", args: [{ var: "protocol_fee_pool" }, { param: "settle_protocol_fee" }] },
+            { const: 1000000000000 }
+          ]}
+    updates:
+      - var: "realized_rate_bps"
+        expr: { param: "realized_rate_bps" }
+      - var: "settled_this_epoch"
+        expr: { bool: true }
+      - var: "settlement_epoch"
+        expr: { op: "+", args: [{ var: "settlement_epoch" }, { const: 1 }] }
+      - var: "long_payout"
+        expr: { param: "settle_long_payout" }
+      - var: "short_payout"
+        expr: { param: "settle_short_payout" }
+      - var: "premium_pool"
+        expr: { const: 0 }
+      - var: "protocol_fee_pool"
+        expr: { op: "+", args: [{ var: "protocol_fee_pool" }, { param: "settle_protocol_fee" }] }
+      - var: "mark_price_e8"
+        expr: { param: "settle_mark_price_e8" }
+      - var: "index_price_e8"
+        expr: { param: "settle_index_price_e8" }
+    effects:
+      event: { enum: "RateEpochSettled" }
+      implied_rate_out: { var: "implied_rate_bps" }
+      realized_rate_out: { param: "realized_rate_bps" }
+
+  # -----------------------------------------------------------------------
+  # advance_rate_epoch: Reset for next epoch
+  # Requires settlement first. Zeroes exposures, rates, payouts, premium.
+  # -----------------------------------------------------------------------
   - id: "advance_rate_epoch"
     params: []
     guard:
       op: "and"
       args:
         - { op: "=", args: [{ var: "settled_this_epoch" }, { bool: true }] }
-        # Prevent epoch counter overflow under finite-domain caps.
         - { op: "<", args: [{ var: "rate_market_epoch" }, { const: 1000000000 }] }
     updates:
       - var: "rate_market_epoch"
@@ -194,13 +331,21 @@ actions:
         expr: { const: 0 }
       - var: "realized_rate_bps"
         expr: { const: 0 }
-      - var: "payout_pool"
+      - var: "long_payout"
+        expr: { const: 0 }
+      - var: "short_payout"
+        expr: { const: 0 }
+      - var: "premium_pool"
         expr: { const: 0 }
     effects:
       event: { enum: "RateEpochAdvanced" }
       implied_rate_out: { const: 0 }
       realized_rate_out: { const: 0 }
 
+  # -----------------------------------------------------------------------
+  # emergency_freeze: Circuit breaker for rate market
+  # Auth-gated. One-way (no unfreeze in this model).
+  # -----------------------------------------------------------------------
   - id: "emergency_freeze"
     params:
       - id: "auth_ok"
