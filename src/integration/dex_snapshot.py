@@ -16,7 +16,17 @@ from typing import Any, Dict, Mapping, Optional
 from ..core.dex import DexState
 from ..core.fees import FeeAccumulatorState
 from ..core.oracle import OracleState
-from ..core.perps import PerpAccountState, PerpMarketState, PerpsState
+from ..core.perps import (
+    PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1,
+    PERP_MARKET_KIND_ISOLATED_V2,
+    PERPS_STATE_VERSION_V4,
+    PERPS_STATE_VERSION_V5,
+    PerpAnyMarketState,
+    PerpAccountState,
+    PerpClearinghouse2pMarketState,
+    PerpMarketState,
+    PerpsState,
+)
 from ..core.vault import VaultState
 from ..state.balances import BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes, domain_sep_bytes, sha256_hex
@@ -135,28 +145,45 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         perps = state.perps
         markets_entries = []
         for market_id, market in perps.markets.items():
-            acct_entries = []
-            for pk, acct in market.accounts.items():
-                acct_entries.append(
-                    {
-                        "pubkey": str(pk),
-                        "position_base": int(acct.position_base),
-                        "entry_price_e8": int(acct.entry_price_e8),
-                        "collateral_quote": int(acct.collateral_quote),
-                        "funding_paid_cumulative": int(acct.funding_paid_cumulative),
-                        "funding_last_applied_epoch": int(acct.funding_last_applied_epoch),
-                        "liquidated_this_step": bool(acct.liquidated_this_step),
-                    }
-                )
-            acct_entries.sort(key=lambda e: e["pubkey"])
-            markets_entries.append(
-                {
+            if isinstance(market, PerpMarketState):
+                acct_entries = []
+                for pk, acct in market.accounts.items():
+                    acct_entries.append(
+                        {
+                            "pubkey": str(pk),
+                            "position_base": int(acct.position_base),
+                            "entry_price_e8": int(acct.entry_price_e8),
+                            "collateral_quote": int(acct.collateral_quote),
+                            "funding_paid_cumulative": int(acct.funding_paid_cumulative),
+                            "funding_last_applied_epoch": int(acct.funding_last_applied_epoch),
+                            "liquidated_this_step": bool(acct.liquidated_this_step),
+                        }
+                    )
+                acct_entries.sort(key=lambda e: e["pubkey"])
+                out_entry: Dict[str, Any] = {
                     "market_id": str(market_id),
                     "quote_asset": str(market.quote_asset),
                     "global_state": dict(market.global_state),
                     "accounts": acct_entries,
                 }
-            )
+                if int(perps.version) >= PERPS_STATE_VERSION_V5:
+                    out_entry["kind"] = str(getattr(market, "kind", PERP_MARKET_KIND_ISOLATED_V2))
+                markets_entries.append(out_entry)
+                continue
+
+            if isinstance(market, PerpClearinghouse2pMarketState):
+                out_entry = {
+                    "market_id": str(market_id),
+                    "kind": str(getattr(market, "kind", PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1)),
+                    "quote_asset": str(market.quote_asset),
+                    "account_a_pubkey": str(market.account_a_pubkey),
+                    "account_b_pubkey": str(market.account_b_pubkey),
+                    "state": dict(market.state),
+                }
+                markets_entries.append(out_entry)
+                continue
+
+            raise TypeError(f"unsupported perps market type: {type(market)}")
         markets_entries.sort(key=lambda e: e["market_id"])
         perps_obj = {"version": int(perps.version), "markets": markets_entries}
 
@@ -377,54 +404,158 @@ def state_from_snapshot(
             if len(markets_entries) > max_perp_markets:
                 raise ValueError(f"too many perps markets: {len(markets_entries)} > {max_perp_markets}")
 
-            markets: Dict[str, PerpMarketState] = {}
+            markets: Dict[str, PerpAnyMarketState] = {}
             for entry in markets_entries:
                 if not isinstance(entry, Mapping):
                     raise TypeError("snapshot.perps.markets entries must be objects")
                 market_id = _require_str(entry.get("market_id"), name="perps.market_id", non_empty=True, max_len=min(256, max_str_len))
                 if market_id in markets:
                     raise ValueError("duplicate perps market_id")
-                quote_asset = _require_str(entry.get("quote_asset"), name="perps.quote_asset", non_empty=True, max_len=min(256, max_str_len))
-                global_state = entry.get("global_state")
-                if not isinstance(global_state, Mapping):
-                    raise TypeError("perps.global_state must be an object")
-                global_state_dict: Dict[str, Any] = dict(global_state)
+                if int(perps_version) < PERPS_STATE_VERSION_V5:
+                    # v4 snapshot: isolated markets only, legacy schema without `kind`.
+                    quote_asset = _require_str(entry.get("quote_asset"), name="perps.quote_asset", non_empty=True, max_len=min(256, max_str_len))
+                    global_state = entry.get("global_state")
+                    if not isinstance(global_state, Mapping):
+                        raise TypeError("perps.global_state must be an object")
+                    global_state_dict: Dict[str, Any] = dict(global_state)
 
-                acct_entries = entry.get("accounts")
-                if acct_entries is None:
-                    acct_entries = []
-                if not isinstance(acct_entries, list):
-                    raise TypeError("perps.accounts must be a list")
-                if len(acct_entries) > max_perp_accounts:
-                    raise ValueError(f"too many perps accounts in market {market_id}: {len(acct_entries)} > {max_perp_accounts}")
+                    acct_entries = entry.get("accounts")
+                    if acct_entries is None:
+                        acct_entries = []
+                    if not isinstance(acct_entries, list):
+                        raise TypeError("perps.accounts must be a list")
+                    if len(acct_entries) > max_perp_accounts:
+                        raise ValueError(
+                            f"too many perps accounts in market {market_id}: {len(acct_entries)} > {max_perp_accounts}"
+                        )
 
-                accounts: Dict[str, PerpAccountState] = {}
-                for acct in acct_entries:
-                    if not isinstance(acct, Mapping):
-                        raise TypeError("perps.accounts entries must be objects")
-                    pk = _require_str(acct.get("pubkey"), name="perps.account.pubkey", non_empty=True, max_len=min(512, max_str_len))
-                    if pk in accounts:
-                        raise ValueError("duplicate perps account pubkey in market")
-                    accounts[pk] = PerpAccountState(
-                        position_base=_require_int(acct.get("position_base", 0), name="perps.account.position_base", non_negative=False),
-                        entry_price_e8=_require_int(acct.get("entry_price_e8", 0), name="perps.account.entry_price_e8"),
-                        collateral_quote=_require_int(acct.get("collateral_quote", 0), name="perps.account.collateral_quote"),
-                        funding_paid_cumulative=_require_int(
-                            acct.get("funding_paid_cumulative", 0), name="perps.account.funding_paid_cumulative", non_negative=False
-                        ),
-                        funding_last_applied_epoch=_require_int(
-                            acct.get("funding_last_applied_epoch", 0), name="perps.account.funding_last_applied_epoch", non_negative=True
-                        ),
-                        liquidated_this_step=_require_bool(
-                            acct.get("liquidated_this_step", False), name="perps.account.liquidated_this_step"
-                        ),
+                    accounts: Dict[str, PerpAccountState] = {}
+                    for acct in acct_entries:
+                        if not isinstance(acct, Mapping):
+                            raise TypeError("perps.accounts entries must be objects")
+                        pk = _require_str(
+                            acct.get("pubkey"), name="perps.account.pubkey", non_empty=True, max_len=min(512, max_str_len)
+                        )
+                        if pk in accounts:
+                            raise ValueError("duplicate perps account pubkey in market")
+                        accounts[pk] = PerpAccountState(
+                            position_base=_require_int(
+                                acct.get("position_base", 0), name="perps.account.position_base", non_negative=False
+                            ),
+                            entry_price_e8=_require_int(acct.get("entry_price_e8", 0), name="perps.account.entry_price_e8"),
+                            collateral_quote=_require_int(
+                                acct.get("collateral_quote", 0), name="perps.account.collateral_quote"
+                            ),
+                            funding_paid_cumulative=_require_int(
+                                acct.get("funding_paid_cumulative", 0),
+                                name="perps.account.funding_paid_cumulative",
+                                non_negative=False,
+                            ),
+                            funding_last_applied_epoch=_require_int(
+                                acct.get("funding_last_applied_epoch", 0),
+                                name="perps.account.funding_last_applied_epoch",
+                                non_negative=True,
+                            ),
+                            liquidated_this_step=_require_bool(
+                                acct.get("liquidated_this_step", False), name="perps.account.liquidated_this_step"
+                            ),
+                        )
+
+                    markets[market_id] = PerpMarketState(
+                        kind=PERP_MARKET_KIND_ISOLATED_V2,
+                        quote_asset=quote_asset,
+                        global_state=global_state_dict,
+                        accounts=accounts,
                     )
+                    continue
 
-                markets[market_id] = PerpMarketState(
-                    quote_asset=quote_asset,
-                    global_state=global_state_dict,
-                    accounts=accounts,
-                )
+                # v5 snapshot: per-market kind tags.
+                kind = _require_str(entry.get("kind"), name="perps.market.kind", non_empty=True, max_len=64)
+                if kind == PERP_MARKET_KIND_ISOLATED_V2:
+                    quote_asset = _require_str(entry.get("quote_asset"), name="perps.quote_asset", non_empty=True, max_len=min(256, max_str_len))
+                    global_state = entry.get("global_state")
+                    if not isinstance(global_state, Mapping):
+                        raise TypeError("perps.global_state must be an object")
+                    global_state_dict = dict(global_state)
+
+                    acct_entries = entry.get("accounts")
+                    if acct_entries is None:
+                        acct_entries = []
+                    if not isinstance(acct_entries, list):
+                        raise TypeError("perps.accounts must be a list")
+                    if len(acct_entries) > max_perp_accounts:
+                        raise ValueError(
+                            f"too many perps accounts in market {market_id}: {len(acct_entries)} > {max_perp_accounts}"
+                        )
+
+                    accounts = {}
+                    for acct in acct_entries:
+                        if not isinstance(acct, Mapping):
+                            raise TypeError("perps.accounts entries must be objects")
+                        pk = _require_str(
+                            acct.get("pubkey"), name="perps.account.pubkey", non_empty=True, max_len=min(512, max_str_len)
+                        )
+                        if pk in accounts:
+                            raise ValueError("duplicate perps account pubkey in market")
+                        accounts[pk] = PerpAccountState(
+                            position_base=_require_int(
+                                acct.get("position_base", 0), name="perps.account.position_base", non_negative=False
+                            ),
+                            entry_price_e8=_require_int(acct.get("entry_price_e8", 0), name="perps.account.entry_price_e8"),
+                            collateral_quote=_require_int(
+                                acct.get("collateral_quote", 0), name="perps.account.collateral_quote"
+                            ),
+                            funding_paid_cumulative=_require_int(
+                                acct.get("funding_paid_cumulative", 0),
+                                name="perps.account.funding_paid_cumulative",
+                                non_negative=False,
+                            ),
+                            funding_last_applied_epoch=_require_int(
+                                acct.get("funding_last_applied_epoch", 0),
+                                name="perps.account.funding_last_applied_epoch",
+                                non_negative=True,
+                            ),
+                            liquidated_this_step=_require_bool(
+                                acct.get("liquidated_this_step", False), name="perps.account.liquidated_this_step"
+                            ),
+                        )
+
+                    markets[market_id] = PerpMarketState(
+                        kind=PERP_MARKET_KIND_ISOLATED_V2,
+                        quote_asset=quote_asset,
+                        global_state=global_state_dict,
+                        accounts=accounts,
+                    )
+                    continue
+
+                if kind == PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1:
+                    quote_asset = _require_str(entry.get("quote_asset"), name="perps.quote_asset", non_empty=True, max_len=min(256, max_str_len))
+                    account_a = _require_str(
+                        entry.get("account_a_pubkey"),
+                        name="perps.ch2p.account_a_pubkey",
+                        non_empty=True,
+                        max_len=min(512, max_str_len),
+                    )
+                    account_b = _require_str(
+                        entry.get("account_b_pubkey"),
+                        name="perps.ch2p.account_b_pubkey",
+                        non_empty=True,
+                        max_len=min(512, max_str_len),
+                    )
+                    state_obj = entry.get("state")
+                    if not isinstance(state_obj, Mapping):
+                        raise TypeError("perps.ch2p.state must be an object")
+                    state_dict = dict(state_obj)
+                    markets[market_id] = PerpClearinghouse2pMarketState(
+                        kind=PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1,
+                        quote_asset=quote_asset,
+                        account_a_pubkey=account_a,
+                        account_b_pubkey=account_b,
+                        state=state_dict,
+                    )
+                    continue
+
+                raise ValueError(f"unsupported perps market kind: {kind}")
 
             perps = PerpsState(version=int(perps_version), markets=markets)
 

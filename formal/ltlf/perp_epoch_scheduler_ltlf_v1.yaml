@@ -1,7 +1,8 @@
-# ESSO/LTLf micro-kernel: Perp epoch scheduler (finite-trace reachability)
+# LTLf micro-kernel: Perp epoch scheduler (finite-trace reachability)
 #
 # Goal:
-# - Provide a tiny, finite-state model suitable for ESSO's LTLf synthesis gate.
+# - Provide a tiny, finite-state model suitable for the repo's LTLf synthesis gate
+#   (run via the optional kernel toolchain vendored under `external/ESSO/`).
 # - This complements the TLA+ scheduler model in `formal/tla/` (infinite-trace liveness).
 #
 # Model intuition:
@@ -15,7 +16,7 @@ ir_version: "esso-ir/v1"
 meta:
   model_id: "perp_epoch_scheduler_ltlf_v1"
   created_by: "zenodex"
-  notes: "Finite-trace scheduler model for ESSO LTLf synthesis."
+  notes: "Finite-trace scheduler model for LTLf synthesis gate."
 
 observables:
   state_vars: ["now_epoch", "clearing_price_seen", "oracle_last_update_epoch"]
@@ -117,4 +118,3 @@ actions:
     updates: []
     effects:
       event: { enum: "End" }
-
