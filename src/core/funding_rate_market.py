@@ -165,6 +165,8 @@ def _guard_open_long(state: FRMState, params: FRMActionParams) -> bool:
         return False
     if state.frozen:
         return False
+    if state.settled_this_epoch:
+        return False
     if params.amount <= 0:
         return False
     if state.rate_long_exposure + params.amount > MAX_AMOUNT:
@@ -178,6 +180,8 @@ def _guard_open_short(state: FRMState, params: FRMActionParams) -> bool:
     if not params.auth_ok:
         return False
     if state.frozen:
+        return False
+    if state.settled_this_epoch:
         return False
     if params.amount <= 0:
         return False
@@ -299,6 +303,7 @@ def _update_advance(state: FRMState, params: FRMActionParams) -> FRMState:
         realized_rate_bps=0,
         long_payout=0,
         short_payout=0,
+        premium_pool=0,
     )
 
 
