@@ -39,10 +39,16 @@ LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
 _SWAP_ORDERING_LIMIT_PRICE = "limit_price"
 _SWAP_ORDERING_OPTIMAL_AB_BOUNDED = "optimal_ab_bounded"
-_SWAP_ORDERING_CHOICES = frozenset({_SWAP_ORDERING_LIMIT_PRICE, _SWAP_ORDERING_OPTIMAL_AB_BOUNDED})
+_SWAP_ORDERING_GREEDY_AB = "greedy_ab"
+_SWAP_ORDERING_CHOICES = frozenset({
+    _SWAP_ORDERING_LIMIT_PRICE,
+    _SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
+    _SWAP_ORDERING_GREEDY_AB,
+})
 
 # Bounded brute-force safety cap for AB-optimal ordering.
-_MAX_SWAP_ORDERING_BRUTE_FORCE_N = 7
+# For N > this limit, greedy_ab should be used instead.
+_MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
 
 
 def compute_settlement(
@@ -467,6 +473,12 @@ def clear_batch_single_pool(
             swap_intents,
             pool_state=pool_state,
             balances=balances_scratch,
+            reserves=current_reserves,
+        )
+    elif swap_ordering == _SWAP_ORDERING_GREEDY_AB:
+        sorted_swaps = _order_swaps_greedy_ab(
+            swap_intents,
+            pool_state=pool_state,
             reserves=current_reserves,
         )
     else:
@@ -1151,3 +1163,193 @@ def apply_settlement_pure(
 
     apply_settlement(settlement, balances_copy, pools_copy, lp_copy)
     return balances_copy, pools_copy, lp_copy
+
+
+# ---------------------------------------------------------------------------
+# Greedy AB-optimal ordering (WS5)
+# ---------------------------------------------------------------------------
+
+def _simulate_swap_reserves(
+    intent: Intent,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> Tuple[Amount, Amount, Tuple[Amount, Amount]]:
+    """Simulate a single swap and return (A_contrib, B_contrib, new_reserves).
+
+    A = amount_in executed
+    B = amount_out - min_amount_out (surplus)
+
+    NOTE: This simulator evaluates AMM executability only (reserves, slippage).
+    It does not check user balance sufficiency; a swap ordered by greedy may
+    fail during actual execution if a prior swap consumed the user's balance.
+    Non-executable swaps are appended in limit-price order by the caller.
+
+    Returns (0, 0, reserves) if swap cannot execute.
+    """
+    if intent.kind != IntentKind.SWAP_EXACT_IN:
+        return 0, 0, reserves
+
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    reserve0, reserve1 = reserves
+
+    if asset_in == pool_state.asset0 and asset_out == pool_state.asset1:
+        reserve_in, reserve_out = reserve0, reserve1
+    elif asset_in == pool_state.asset1 and asset_out == pool_state.asset0:
+        reserve_in, reserve_out = reserve1, reserve0
+    else:
+        return 0, 0, reserves
+
+    amount_in = intent.get_field("amount_in")
+    min_amount_out = intent.get_field("min_amount_out", 0)
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+        return 0, 0, reserves
+    if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool):
+        return 0, 0, reserves
+    if min_amount_out < 0:
+        return 0, 0, reserves
+
+    try:
+        amount_out, (new_r_in, new_r_out) = swap_exact_in_for_pool(
+            pool_state,
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_in=amount_in,
+        )
+    except Exception:
+        return 0, 0, reserves
+
+    if amount_out < min_amount_out:
+        return 0, 0, reserves
+
+    surplus = amount_out - min_amount_out
+
+    # Reconstruct full reserves tuple
+    if asset_in == pool_state.asset0:
+        new_reserves = (new_r_in, new_r_out)
+    else:
+        new_reserves = (new_r_out, new_r_in)
+
+    return amount_in, surplus, new_reserves
+
+
+def _eval_ordering_ab(
+    ordering: List[Intent],
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> Tuple[Amount, Amount]:
+    """Simulate an ordering and return total (A, B) achieved."""
+    total_a: Amount = 0
+    total_b: Amount = 0
+    current_reserves = reserves
+    for intent in ordering:
+        a, b, new_r = _simulate_swap_reserves(intent, pool_state, current_reserves)
+        if a > 0:
+            total_a += a
+            total_b += b
+            current_reserves = new_r
+    return total_a, total_b
+
+
+def _greedy_marginal_ab(
+    remaining: List[Intent],
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> Tuple[int, Amount, Amount, Tuple[Amount, Amount]]:
+    """Find the swap with tightest slippage that is still executable.
+
+    Prefers swaps with the lowest absolute surplus (amount_out - min_amount_out)
+    so that slippage-sensitive swaps execute while reserves are favorable.
+    Ties broken by (amount_in desc, intent_id asc) for determinism.
+
+    Returns (best_index, best_a, best_b, new_reserves).
+    Returns (-1, 0, 0, reserves) if no swap can execute.
+    """
+    best_idx = -1
+    best_a: Amount = 0
+    best_b: Amount = 0
+    best_id: str = ""
+    best_tightness: int = -1  # surplus; lower = tighter
+    best_new_reserves = reserves
+
+    for i, intent in enumerate(remaining):
+        a, b, new_r = _simulate_swap_reserves(intent, pool_state, reserves)
+        if a == 0:
+            continue
+        iid = intent.intent_id
+        # Tightest first: lowest absolute surplus (b), then highest A, then lowest id.
+        is_better = False
+        if best_idx == -1:
+            is_better = True
+        elif b < best_tightness:
+            is_better = True
+        elif b == best_tightness:
+            if a > best_a:
+                is_better = True
+            elif a == best_a and iid < best_id:
+                is_better = True
+
+        if is_better:
+            best_idx = i
+            best_a = a
+            best_b = b
+            best_id = iid
+            best_tightness = b
+            best_new_reserves = new_r
+
+    return best_idx, best_a, best_b, best_new_reserves
+
+
+def _order_swaps_greedy_ab(
+    intents: List[Intent],
+    *,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> List[Intent]:
+    """Greedy O(n^2) swap ordering that approximates AB-optimal.
+
+    At each step, picks the swap with tightest slippage (lowest surplus)
+    so slippage-sensitive swaps execute while reserves are favorable.
+    Falls back to limit_price for mixed-direction batches.
+
+    Reserve-level guarantee: the returned ordering has (A, B) >= limit_price
+    ordering when evaluated against pool reserves only (SWAP_EXACT_IN).
+    If the greedy ordering is worse, limit_price ordering is returned instead.
+
+    Limitation: this ordering does not model sender balance constraints.
+    A swap ordered first by greedy may consume a shared sender's balance,
+    causing a later swap to be rejected at execution time. The caller
+    (clear_batch_single_pool) handles such rejections via its own
+    balance-checking loop.
+    """
+    if len(intents) <= 1:
+        return list(intents)
+
+    # Check all same direction
+    first_asset_in = intents[0].get_field("asset_in")
+    first_asset_out = intents[0].get_field("asset_out")
+    for it in intents[1:]:
+        if it.get_field("asset_in") != first_asset_in or it.get_field("asset_out") != first_asset_out:
+            return _order_swaps_limit_price(intents)
+
+    remaining = list(intents)
+    greedy_ordered: List[Intent] = []
+    current_reserves = reserves
+
+    while remaining:
+        idx, a, b, new_r = _greedy_marginal_ab(remaining, pool_state, current_reserves)
+        if idx == -1:
+            # No more executable swaps; append rest in limit-price order
+            greedy_ordered.extend(_order_swaps_limit_price(remaining))
+            break
+        greedy_ordered.append(remaining.pop(idx))
+        current_reserves = new_r
+
+    # Guarantee: greedy >= limit_price. Compare and take the better.
+    limit_ordered = _order_swaps_limit_price(intents)
+    greedy_ab = _eval_ordering_ab(greedy_ordered, pool_state, reserves)
+    limit_ab = _eval_ordering_ab(limit_ordered, pool_state, reserves)
+
+    if greedy_ab >= limit_ab:
+        return greedy_ordered
+    return limit_ordered
