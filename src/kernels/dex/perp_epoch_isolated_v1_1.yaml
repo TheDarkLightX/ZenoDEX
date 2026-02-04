@@ -3,7 +3,7 @@
 # Purpose:
 # - Minimal isolated-margin linear perpetual risk engine with epoch-based ("European-style") updates.
 # - Deterministic mark-to-market on oracle updates, with bounded-move enforcement (clamp + breaker).
-# - Fail-closed invariants suitable for SMT/ESSO verification.
+# - Fail-closed invariants suitable for SMT-based verification (via the optional kernel toolchain).
 #
 # Units:
 # - `index_price_e8` is quote-per-base scaled by 1e8.

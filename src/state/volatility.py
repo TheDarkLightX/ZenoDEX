@@ -22,7 +22,7 @@ BPS_DENOM = 10_000
 
 @dataclass(frozen=True)
 class TierState:
-    """Immutable volatility tier state matching ESSO model state vars."""
+    """Immutable volatility tier state matching the kernel spec state vars."""
 
     tier: int = 0
     last_epoch: int = 0

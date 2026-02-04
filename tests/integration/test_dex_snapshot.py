@@ -208,6 +208,48 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
     assert snap1.canonical_bytes() == snap2.canonical_bytes()
 
 
+def test_state_from_snapshot_rejects_invalid_clearinghouse_conservation() -> None:
+    snap = {
+        "version": 2,
+        "balances": [],
+        "pools": [],
+        "lp_balances": [],
+        "nonces": [],
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
+        "perps": {
+            "version": PERPS_STATE_VERSION,
+            "markets": [
+                {
+                    "market_id": "perp:ch2p:bad",
+                    "kind": "clearinghouse_2p_v1",
+                    "quote_asset": "0x" + "44" * 32,
+                    "account_a_pubkey": "alice",
+                    "account_b_pubkey": "bob",
+                    "state": {
+                        **{k: 0 for k in PERP_CLEARINGHOUSE_2P_STATE_KEYS},
+                        "breaker_active": False,
+                        "clearing_price_seen": False,
+                        "oracle_seen": False,
+                        "liquidated_this_step": False,
+                        "initial_margin_bps": 1000,
+                        "maintenance_margin_bps": 600,
+                        "liquidation_penalty_bps": 50,
+                        "max_oracle_move_bps": 500,
+                        "max_oracle_staleness_epochs": 100,
+                        "max_position_abs": 1000000,
+                        # Violates net_deposited_e8 == collateral_a + collateral_b + fee_pool.
+                        "net_deposited_e8": 1,
+                    },
+                }
+            ],
+        },
+    }
+    with pytest.raises(ValueError):
+        state_from_snapshot(snap)
+
+
 def test_state_from_snapshot_rejects_too_many_balance_entries_when_limited() -> None:
     snap = {
         "version": 1,

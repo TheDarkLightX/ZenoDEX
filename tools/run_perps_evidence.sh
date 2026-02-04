@@ -13,7 +13,13 @@ set -euo pipefail
 # - This script is fail-closed: missing toolchains are treated as errors.
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-PY="${PYTHON:-python3}"
+if [[ -n "${PYTHON:-}" ]]; then
+  PY="$PYTHON"
+elif [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+  PY="$ROOT_DIR/.venv/bin/python"
+else
+  PY="python3"
+fi
 
 if [[ ! -d "$ROOT_DIR/external/ESSO" ]]; then
   echo "error: missing external toolchain at $ROOT_DIR/external/ESSO" >&2

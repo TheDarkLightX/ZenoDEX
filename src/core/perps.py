@@ -6,6 +6,12 @@ encoded/decoded by `src/integration/dex_snapshot.py`.
 
 The actual risk-engine step logic is implemented separately (see
 `src/core/perp_epoch.py` + `src/kernels/dex/perp_epoch_isolated_v2.yaml`).
+
+Units note:
+- Isolated markets (`kind="isolated_v2"`) track collateral in *quote units* (`collateral_quote`).
+- Clearinghouse markets (`kind="clearinghouse_2p_v1"`) track quote amounts in *quote-e8*
+  (`collateral_e8_*`, `fee_pool_e8`, `net_deposited_e8`) so epoch PnL updates are exact integers
+  (no division / rounding dust).
 """
 
 from __future__ import annotations
@@ -90,6 +96,13 @@ PERP_CLEARINGHOUSE_2P_STATE_KEYS: set[str] = {
     "position_base_b",
     "entry_price_e8_b",
     "collateral_e8_b",
+}
+
+PERP_CLEARINGHOUSE_2P_BOOL_KEYS: set[str] = {
+    "breaker_active",
+    "clearing_price_seen",
+    "oracle_seen",
+    "liquidated_this_step",
 }
 
 
@@ -180,6 +193,10 @@ class PerpClearinghouse2pMarketState:
 
     The clearinghouse kernel does not store pubkeys; we bind two pubkeys to its
     A/B account roles at the protocol layer.
+
+    All quote amounts inside `state` are quote-e8 integers. This keeps settlement
+    exact and makes the closed-system invariant checkable:
+      net_deposited_e8 = collateral_e8_a + collateral_e8_b + fee_pool_e8.
     """
 
     quote_asset: str
@@ -210,11 +227,31 @@ class PerpClearinghouse2pMarketState:
         if missing:
             raise ValueError(f"state missing required keys: {sorted(missing)[:8]}")
         for k, v in self.state.items():
-            if isinstance(v, bool):
+            if k in PERP_CLEARINGHOUSE_2P_BOOL_KEYS:
+                if not isinstance(v, bool):
+                    raise TypeError(f"state[{k!r}] must be a bool")
                 continue
             if isinstance(v, int) and not isinstance(v, bool):
                 continue
-            raise TypeError(f"state[{k!r}] must be bool|int")
+            raise TypeError(f"state[{k!r}] must be an int")
+
+        # Critical clearinghouse invariants (fail-closed on invalid snapshots):
+        # - net exposure is structurally zero for the two-party market
+        # - total quote-e8 is conserved across the two accounts + fee pool
+        pos_a = int(self.state["position_base_a"])
+        pos_b = int(self.state["position_base_b"])
+        if pos_a + pos_b != 0:
+            raise ValueError("clearinghouse state must satisfy position_base_a + position_base_b == 0")
+
+        coll_a = int(self.state["collateral_e8_a"])
+        coll_b = int(self.state["collateral_e8_b"])
+        fee_pool = int(self.state["fee_pool_e8"])
+        net_deposited = int(self.state["net_deposited_e8"])
+        if net_deposited != coll_a + coll_b + fee_pool:
+            raise ValueError(
+                "clearinghouse state must satisfy "
+                "net_deposited_e8 == collateral_e8_a + collateral_e8_b + fee_pool_e8"
+            )
 
     def role_for_pubkey(self, pubkey: str) -> Literal["a", "b"] | None:
         if pubkey == self.account_a_pubkey:
