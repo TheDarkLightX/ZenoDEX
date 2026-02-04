@@ -1,10 +1,8 @@
 """Tests for src/core/perp_v2/math.py — pure arithmetic functions."""
 
 from src.core.perp_v2.math import (
-    BPS_SCALE,
     PRICE_SCALE,
     abs_val,
-    funding_magnitude,
     funding_payment,
     funding_same_sign,
     init_margin_req,

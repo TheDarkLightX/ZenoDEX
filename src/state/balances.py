@@ -5,7 +5,6 @@ Implements BalanceTable[PubKey, AssetId] -> Amount
 """
 
 from typing import Dict, Tuple
-from collections import OrderedDict
 
 
 # Type aliases
@@ -21,13 +20,14 @@ class BalanceTable:
     """
     Deterministic balance table mapping (pubkey, asset) -> amount.
     
-    Uses OrderedDict with sorted keys to ensure deterministic iteration
-    for consensus-critical operations.
+    Note: this class stores balances in a plain dict. Do not rely on dict
+    iteration order for consensus-critical logic; callers should sort keys
+    explicitly at serialization / hashing boundaries (see `src/integration/dex_snapshot.py`).
     """
     
     def __init__(self):
         """Initialize empty balance table."""
-        # Use tuple keys (pubkey, asset) with deterministic ordering
+        # Use tuple keys (pubkey, asset). Deterministic ordering is enforced at call sites via sorting.
         self._balances: Dict[Tuple[PubKey, AssetId], Amount] = {}
     
     def get(self, pubkey: PubKey, asset: AssetId) -> Amount:
@@ -126,4 +126,3 @@ class BalanceTable:
     
     def __repr__(self) -> str:
         return f"BalanceTable({len(self._balances)} entries)"
-

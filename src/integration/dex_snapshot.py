@@ -19,7 +19,6 @@ from ..core.oracle import OracleState
 from ..core.perps import (
     PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1,
     PERP_MARKET_KIND_ISOLATED_V2,
-    PERPS_STATE_VERSION_V4,
     PERPS_STATE_VERSION_V5,
     PerpAnyMarketState,
     PerpAccountState,

@@ -27,7 +27,7 @@ import tempfile
 import subprocess
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import List, Dict, Set, Tuple, Optional
+from typing import List, Dict, Set, Tuple
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -126,7 +126,7 @@ def analyze_spec_deep(path: Path) -> StateMachineAnalysis:
 
 def _check_state_machine_completeness(analysis: StateMachineAnalysis, lines: List[str]) -> None:
     """Check if the state machine is formally complete and generate fixes."""
-    non_comment_lines = [(i, l) for i, l in enumerate(lines, 1) if not l.lstrip().startswith("#")]
+    non_comment_lines = [(i, line_text) for i, line_text in enumerate(lines, 1) if not line_text.lstrip().startswith("#")]
     
     # Check 1: Must have 'always' constraint
     if not any("always" in line for _, line in non_comment_lines):

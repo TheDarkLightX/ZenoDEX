@@ -7,7 +7,6 @@ from src.core.curve_selection import (
     CSActionParams,
     CSEvent,
     CSState,
-    CSStepResult,
     BPS_DENOM,
     EARLY_EXIT_PENALTY_BPS,
     NUM_CURVES,

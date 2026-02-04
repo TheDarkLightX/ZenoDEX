@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from src.state.volatility import TierState, TierEffects, tier_effects
+from src.state.volatility import TierState, tier_effects
 from src.core.volatility_tier import (
     TierAction,
     TierActionParams,
-    TierStepResult,
     effective_fee_bps,
     max_trade_amount,
     step,

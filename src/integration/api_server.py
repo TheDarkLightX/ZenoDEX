@@ -19,7 +19,7 @@ import os
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Optional, Sequence, Set, Tuple
+from typing import Optional, Sequence, Set
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:

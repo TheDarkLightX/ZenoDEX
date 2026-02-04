@@ -14,7 +14,6 @@ from src.core.perp_v2 import (
     PerpInvariantError,
     PerpOverflowError,
     PerpState,
-    StepResult,
     initial_state,
     step,
     step_or_raise,

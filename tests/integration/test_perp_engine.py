@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pytest
 
 from src.core.dex import DexState
 from src.state.balances import BalanceTable

@@ -197,7 +197,6 @@ def _update_stake(state: CSState, params: CSActionParams) -> CSState:
 def _update_unstake(state: CSState, params: CSActionParams) -> CSState:
     old = state.get_stake(params.curve_id)
     penalty = (params.amount * EARLY_EXIT_PENALTY_BPS) // BPS_DENOM
-    returned = params.amount - penalty
     s = _set_stake(state, params.curve_id, old - params.amount)
     return replace(
         s,

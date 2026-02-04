@@ -258,7 +258,6 @@ def test_greedy_insufficient_balance_skips() -> None:
         intents, pool, balances, LPTable(), swap_ordering=_SWAP_ORDERING_GREEDY_AB,
     )
     filled = [f for f in fills if f.action == FillAction.FILL]
-    rejected = [f for f in fills if f.action == FillAction.REJECT]
     assert len(filled) == 1
     assert "s1" in filled[0].intent_id
 
