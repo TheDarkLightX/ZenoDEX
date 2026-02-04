@@ -17,7 +17,7 @@ from typing import Any, Callable, Mapping
 
 # Bind this adapter to the exact kernel spec version (fail-closed by default).
 # Checked by the toolchain's adapter lint step (fail-closed by default).
-IR_HASH = "sha256:11530562918cd1aaa048d9e999143f9cf2bb51aa70dc0dfcfece689a89c0ead4"
+IR_HASH = "sha256:9ee41ddd9919f6695fb116f03ba87d802e007bac0f441546513a958bbd8ff38b"
 
 
 def _prepare_ctx(ir: Any) -> Any:

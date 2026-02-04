@@ -55,6 +55,7 @@ DEFAULT_EXPORTS: tuple[KernelExport, ...] = (
     KernelExport(KERNEL_DIR / "vault_manager.yaml", GENERATED_DIR / "vault_python"),
     KernelExport(KERNEL_DIR / "perp_epoch_isolated_v2.yaml", GENERATED_DIR / "perp_python"),
     KernelExport(KERNEL_DIR / "perp_epoch_clearinghouse_2p_v0_1.yaml", GENERATED_DIR / "perp_python"),
+    KernelExport(KERNEL_DIR / "perp_epoch_clearinghouse_3p_transfer_v0_1.yaml", GENERATED_DIR / "perp_python"),
     KernelExport(KERNEL_DIR / "funding_rate_market_v1.yaml", GENERATED_DIR / "derivatives_python"),
     KernelExport(KERNEL_DIR / "funding_rate_market_v1_1.yaml", GENERATED_DIR / "derivatives_python"),
     KernelExport(KERNEL_DIR / "il_futures_market_v1.yaml", GENERATED_DIR / "derivatives_python"),

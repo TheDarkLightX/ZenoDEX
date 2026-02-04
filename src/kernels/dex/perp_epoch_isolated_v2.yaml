@@ -750,8 +750,11 @@ actions:
                                   - { var: "index_price_e8" }
                                   - op: "div"
                                     args:
-                                      - op: "*"
-                                        args: [{ var: "index_price_e8" }, { var: "max_oracle_move_bps" }]
+                                      - op: "+"
+                                        args:
+                                          - op: "*"
+                                            args: [{ var: "index_price_e8" }, { var: "max_oracle_move_bps" }]
+                                          - { const: 9999 }
                                       - { const: 10000 }
                               else:
                                 op: "-"
@@ -759,8 +762,11 @@ actions:
                                   - { var: "index_price_e8" }
                                   - op: "div"
                                     args:
-                                      - op: "*"
-                                        args: [{ var: "index_price_e8" }, { var: "max_oracle_move_bps" }]
+                                      - op: "+"
+                                        args:
+                                          - op: "*"
+                                            args: [{ var: "index_price_e8" }, { var: "max_oracle_move_bps" }]
+                                          - { const: 9999 }
                                       - { const: 10000 }
                             else: { var: "clearing_price_e8" }
                           - { var: "index_price_e8" }
