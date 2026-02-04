@@ -1,9 +1,9 @@
 """Adapter for the `perp_epoch_clearinghouse_2p_v0_1` kernel spec.
 
-This module is used by the optional kernel-spec toolchain in `external/ESSO`
-(verifier/interpreter/codegen) to run shell-level checks such as:
-- `python3 -m ESSO shell-lint ...` (adapter ↔ spec surface compatibility)
-- `python3 -m ESSO verify-shell ...` (random-trace adapter ↔ interpreter consistency)
+This module is used by an optional kernel toolchain (vendored under
+`external/ESSO/`) to run shell-level checks such as:
+- adapter ↔ spec surface compatibility (e.g. `python3 -m ESSO shell-lint ...`)
+- adapter ↔ interpreter consistency on random traces (e.g. `python3 -m ESSO verify-shell ...`)
 
 The adapter is intentionally thin: it delegates semantics to the interpreter and
 only manages state/effect plumbing for deterministic stepping.
@@ -16,7 +16,7 @@ from typing import Any, Callable, Mapping
 
 
 # Bind this adapter to the exact kernel spec version (fail-closed by default).
-# Checked by `python3 -m ESSO shell-lint ...`.
+# Checked by the toolchain's adapter lint step (e.g. `python3 -m ESSO shell-lint ...`).
 IR_HASH = "sha256:11530562918cd1aaa048d9e999143f9cf2bb51aa70dc0dfcfece689a89c0ead4"
 
 

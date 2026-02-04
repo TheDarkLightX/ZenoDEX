@@ -9,13 +9,13 @@ Two “sources of truth” coexist:
 - A hand-written Python implementation under `src/core/perp_v2/`.
 
 Backends:
-- Spec interpreter (optional): uses an optional kernel toolchain vendored under
-  `external/ESSO/` to load and step the YAML model directly. That toolchain is a
-  deterministic verifier/interpreter/codegen suite for kernel specs; it is not
-  required in production runtime, but it is used by evidence gates.
+- Spec interpreter (optional): loads and steps the YAML kernel directly using an
+  optional kernel toolchain (vendored under `external/ESSO/`). The toolchain is a
+  deterministic verifier + interpreter + code generator for YAML kernels. It is
+  not required at production runtime, but it is used by evidence gates.
 - Native (default): executes `src/core/perp_v2/`, which is kept equivalent to the
-  YAML spec via parity tests against a generated Python reference model under
-  `generated/perp_python/`.
+  YAML kernel via parity tests against a generated, dependency-free Python
+  reference model committed under `generated/perp_python/`.
 
 Default posture: v2 native.
 """
