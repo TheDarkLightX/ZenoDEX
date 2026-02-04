@@ -3,12 +3,11 @@ meta:
   project: ZenoDEX (Autonomous Tau DEX)
   purpose: >
     Machine-readable index of *promoted* safety/liveness claims with replayable checks.
-    This is intentionally tool-agnostic: it can point to PopperPad objects, Lean theorems,
-    tests, TLC configs, etc.
+    This is intentionally tool-agnostic: it can point to private evidence objects,
+    theorem statements, tests, and model-checking configs.
   note: >
-    PopperPad is the recommended *internal* source-of-truth ledger for hypotheses + evidence.
-    This registry is the curated/public-facing subset that can be validated in CI without
-    requiring PopperPad.
+    This registry is the curated subset that can be validated in CI without requiring any
+    private evidence ledger.
 
 claims:
   - id: py:snapshot:v2_perps_roundtrip_deterministic
@@ -132,6 +131,19 @@ claims:
       files:
         - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
 
+  - id: esso:perp_game_theory_v2:verify_multi_z3_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The 2-party epoch-perp game-theory kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
+      under the kernel verifier's fail-closed verification model (tool: ESSO).
+    evidence:
+      kind: esso
+      check:
+        - cmd: python3 -m ESSO verify-multi src/kernels/dex/perp_game_theory_v2.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+      files:
+        - src/kernels/dex/perp_game_theory_v2.yaml
+
   - id: py:perp_clearinghouse_2p:liquidation_penalty_conservation
     status: supported
     layer: spec
@@ -176,7 +188,6 @@ claims:
         - cmd: pytest -q tests/core/test_perp_math_hazards.py::test_rounding_leak_witness_under_euclidean_division
       files:
         - tests/core/test_perp_math_hazards.py
-        - internal/popperpad_mcp/bootstrap_zenodex_pad.py
 
   - id: py:perp_math:largest_remainder_dust_allocator_restores_conservation
     status: supported
@@ -192,7 +203,6 @@ claims:
       files:
         - tests/core/test_perp_math_hazards.py
         - src/core/perp_rounding.py
-        - internal/popperpad_mcp/bootstrap_zenodex_pad.py
 
   - id: py:perp_math:breaker_quantization_can_stall_witness
     status: supported
@@ -207,7 +217,6 @@ claims:
         - cmd: pytest -q tests/core/test_perp_math_hazards.py::test_breaker_quantization_can_stall_witness
       files:
         - tests/core/test_perp_math_hazards.py
-        - internal/popperpad_mcp/bootstrap_zenodex_pad.py
 
   - id: lean:zenodex_nonces:no_replay_in_later_valid_seq
     status: proved
