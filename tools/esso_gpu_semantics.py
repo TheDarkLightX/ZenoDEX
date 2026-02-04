@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shared GPU semantics helpers for ESSO kernels (Torch MPS/CUDA).
+Shared GPU semantics helpers for private-toolchain kernels (Torch MPS/CUDA).
 
 This module powers `tools/esso_gpu_semantic_check.py` and can be imported by other
 tools (e.g., hint ranking) to evaluate many candidate terms against a reference
@@ -27,7 +27,7 @@ def _require(cond: bool, msg: str) -> None:
 
 def ensure_esso_on_path() -> None:
     if not ESSO_ROOT.exists():
-        raise FileNotFoundError(f"ESSO not found at {ESSO_ROOT} (clone/update external/ESSO).")
+        raise FileNotFoundError(f"toolchain not found at {ESSO_ROOT} (clone/update external/ESSO).")
     esso_str = str(ESSO_ROOT)
     if esso_str not in sys.path:
         sys.path.insert(0, esso_str)
@@ -109,7 +109,7 @@ def torch_mod(be: TorchBackend, n: Any, d: Any) -> Any:
 
 def torch_eval_expr(be: TorchBackend, expr: Any, *, batch: int, state: Mapping[str, Any], params: Mapping[str, Any]) -> Any:
     """
-    Evaluate an ESSO `Expr` over a batch of environments.
+    Evaluate a toolchain `Expr` over a batch of environments.
 
     Supported subset (DEX kernels):
     - literals, vars, params
@@ -335,7 +335,7 @@ def self_check_against_esso_interpreter(
         p = {k: int(v[i].detach().to("cpu").item()) for k, v in params_t.items()}
         out = esso_eval_expr(expr, state=s, params=p, ir=model, expected=None)
         if getattr(out, "code", None) is not None:
-            raise RuntimeError(f"ESSO interpreter error during self-check at i={i}: {out.code} {out.message}")
+            raise RuntimeError(f"toolchain interpreter error during self-check at i={i}: {out.code} {out.message}")
         want = int(expected_out_t[i].detach().to("cpu").item())
         got = int(out)  # type: ignore[arg-type]
         if got != want:
@@ -573,4 +573,3 @@ def semantic_check_single(
         mismatch_rate=term_res.mismatch_rate,
         counterexample=ce,
     )
-

@@ -9,8 +9,8 @@ epoch-perp risk engine: if the oracle price can move by at most `m` bps per epoc
 maintenance margin is at least `m` bps, then a position that is maintenance-safe at the old
 price cannot be driven to negative collateral by a single oracle update.
 
-This is intentionally stated over `ℚ` to avoid rounding subtleties; the ESSO kernel uses
-integer fixed-point arithmetic and is independently verified by SMT.
+This is intentionally stated over `ℚ` to avoid rounding subtleties; the production kernel
+uses integer fixed-point arithmetic and is independently verified by SMT.
 -/
 
 namespace Proofs

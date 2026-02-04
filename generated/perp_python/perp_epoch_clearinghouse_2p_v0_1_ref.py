@@ -2,7 +2,7 @@
 Auto-generated Python reference model for: perp_epoch_clearinghouse_2p_v0_1
 IR hash: sha256:11530562918cd1aaa048d9e999143f9cf2bb51aa70dc0dfcfece689a89c0ead4
 
-Generated from the YAML kernel spec by the repo's optional spec toolchain (ESSO: Evolutionary State Space Optimizer).
+Generated from the YAML kernel spec by the repo's optional private toolchain.
 
 This file is standalone and has no runtime dependency on the generator/toolchain.
 """

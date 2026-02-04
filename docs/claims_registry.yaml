@@ -90,7 +90,8 @@ claims:
     statement: >
       The perps tx adapter supports a minimal 2-party clearinghouse posture (perps.version=1.0; legacy 0.2)
       that is fail-closed and deterministic: markets are initialized with exactly two accounts,
-      position updates are set as a matched net-zero pair, and settlement/liquidation is executed by
+      market init and matched position updates are jointly authorized by per-operation signatures from
+      both accounts, clearing-price publication is oracle-authorized when configured, and settlement/liquidation is executed by
       a spec-derived, deterministic reference implementation while persisting the clearinghouse kernel
       state inside snapshots (perps state v5). Collateral accounting is maintained in quote-e8 units so
       the closed-system invariant holds exactly (net_deposited = collateral_a + collateral_b + fee_pool).
@@ -111,7 +112,9 @@ claims:
     statement: >
       The perps tx adapter supports a 3-party transfer clearinghouse posture (perps.version=1.1)
       that is fail-closed and deterministic: markets bind exactly three accounts (A,B,C),
-      position updates keep net position == 0 with at least one idle account, and settlement can
+      market init and matched position updates are jointly authorized by per-operation signatures from
+      the three accounts, clearing-price publication is oracle-authorized when configured, position updates keep net position == 0
+      with at least one idle account, and settlement can
       transfer a distressed position to the idle account when it satisfies initial margin.
       Quote-e8 accounting preserves the closed-system invariant exactly:
       net_deposited = collateral_a + collateral_b + collateral_c + fee_pool.

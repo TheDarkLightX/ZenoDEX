@@ -14,7 +14,7 @@ import Proofs.PerpFundingRateSafety
 
 ## Key insight
 
-The ESSO model uses bounded integer arithmetic while Lean proofs work over ℚ.
+The production kernel uses bounded integer arithmetic while Lean proofs work over ℚ.
 Floor division in ℤ creates a gap of at most 1 unit compared to exact ℚ
 division. For non-negative quantities, integer division is conservative
 (rounds down), providing a built-in safety margin.

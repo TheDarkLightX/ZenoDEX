@@ -2,7 +2,7 @@
 Auto-generated Python reference model for: curve_selection_market_v1
 IR hash: sha256:be93044dc15dfdafb8c13c2fe3a3be1bfd7c4abac1be3b2f4155b142044397c3
 
-Generated from the YAML kernel spec by the repo's optional spec toolchain (ESSO: Evolutionary State Space Optimizer).
+Generated from the YAML kernel spec by the repo's optional private toolchain.
 
 This file is standalone and has no runtime dependency on the generator/toolchain.
 """

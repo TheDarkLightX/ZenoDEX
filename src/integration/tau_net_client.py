@@ -192,6 +192,38 @@ def sign_dex_intent_for_engine(
     return "0x" + sig_bytes.hex()
 
 
+def sign_perp_op_for_engine(
+    op_dict: Mapping[str, Any],
+    *,
+    privkey: str | int | bytes | bytearray,
+    chain_id: str,
+    signer_pubkey: str,
+    nonce: int,
+) -> str:
+    """
+    Sign a perps operation according to `src.integration.perp_engine` signature policy.
+
+    Returns a hex signature string with a `0x` prefix.
+    """
+    _require_bls()
+    sk_int = _parse_privkey_to_int(privkey)
+    if not isinstance(chain_id, str) or not chain_id:
+        raise ValueError("chain_id must be a non-empty string")
+    if not isinstance(signer_pubkey, str) or not signer_pubkey:
+        raise ValueError("signer_pubkey must be a non-empty string")
+    if not isinstance(nonce, int) or isinstance(nonce, bool) or nonce <= 0:
+        raise ValueError("nonce must be a positive int")
+
+    from .perp_engine import _perp_op_signing_dict
+
+    signing_dict = _perp_op_signing_dict(dict(op_dict), signer_pubkey=signer_pubkey, nonce=int(nonce))
+    signing_payload = canonical_json_bytes(signing_dict)
+    msg = domain_sep_bytes(f"perp_op_sig:{chain_id}", version=1) + signing_payload
+    msg_hash = hashlib.sha256(msg).digest()
+    sig_bytes = G2Basic.Sign(sk_int, msg_hash)  # type: ignore[union-attr]
+    return "0x" + sig_bytes.hex()
+
+
 class TauNetTcpClient:
     def __init__(self, config: TauNetTcpConfig = TauNetTcpConfig()) -> None:
         if not isinstance(config.port, int) or not (0 <= config.port <= 65535):

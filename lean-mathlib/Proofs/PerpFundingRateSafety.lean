@@ -158,7 +158,7 @@ theorem witness_multi_epoch_bb :
     rcases hp with rfl | rfl | rfl <;> norm_num
   · norm_num
 
-/-- Witness: integer gap is exactly -1 for a specific case (matching ESSO CE). -/
+/-- Witness: integer gap is exactly -1 for a specific case (matching a discovered counterexample). -/
 theorem witness_int_gap :
     (1 : ℤ) * 1 * 1 / 10000 + (-1 : ℤ) * 1 * 1 / 10000 = -1 := by
   native_decide

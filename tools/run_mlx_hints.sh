@@ -22,7 +22,7 @@ SYNTH_JSON="$2"
 OUTPUT="${3:-runs/mlx_hints_$(basename "$HOLE_YAML" .yaml).json}"
 VALIDATE="${4:-none}"
 
-echo "=== ESSO MLX Hint Generator ==="
+echo "=== MLX Hint Generator ==="
 echo "Model: Qwen3-Next-80B-A3B-Instruct (49GB)"
 echo "Hole:  $HOLE_YAML"
 echo "Synth: $SYNTH_JSON"
