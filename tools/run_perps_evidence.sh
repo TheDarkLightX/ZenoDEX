@@ -36,6 +36,7 @@ echo "== perps: pytest =="
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/core/test_perp_v2" \
   "$ROOT_DIR/tests/core/test_perp_math_hazards.py" \
+  "$ROOT_DIR/tests/core/test_perp_incentive_hazards.py" \
   "$ROOT_DIR/tests/core/test_perp_clearinghouse_2p" \
   "$ROOT_DIR/tests/formal/test_perp_epoch_scheduler_ltlf.py::test_ltlf_scheduler_can_reach_epoch_2_settled" \
   "$ROOT_DIR/tests/integration/test_perp_engine.py::test_settle_epoch_is_order_independent" \
