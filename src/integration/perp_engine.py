@@ -822,6 +822,10 @@ def apply_perp_ops(
             if int(ch2p_market.state.get("oracle_last_update_epoch", 0)) != int(ch2p_market.state.get("now_epoch", 0)):
                 return PerpTxResult(ok=False, error="cannot advance epoch before settling current epoch")
             delta = _require_int(data.get("delta"), name="delta", non_negative=True)
+            # Hard cap: prevent relayers from jumping many epochs in a single call.
+            # This keeps the price publication cadence predictable and avoids "stale by epoch" freezes.
+            if delta != 1:
+                return PerpTxResult(ok=False, error="advance_epoch delta must be 1 for clearinghouse markets")
             try:
                 next_state, eff = _ch2p_step(ch2p_market.state, tag="advance_epoch", args={"delta": delta})
             except Exception as exc:
@@ -1053,6 +1057,8 @@ def apply_perp_ops(
             if int(ch3p_market.state.get("oracle_last_update_epoch", 0)) != int(ch3p_market.state.get("now_epoch", 0)):
                 return PerpTxResult(ok=False, error="cannot advance epoch before settling current epoch")
             delta = _require_int(data.get("delta"), name="delta", non_negative=True)
+            if delta != 1:
+                return PerpTxResult(ok=False, error="advance_epoch delta must be 1 for clearinghouse markets")
             try:
                 next_state, eff = _ch3p_step(ch3p_market.state, tag="advance_epoch", args={"delta": delta})
             except Exception as exc:

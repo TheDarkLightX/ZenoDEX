@@ -35,6 +35,15 @@ def guard_publish_clearing_price(state: PerpState, params: ActionParams) -> bool
 
 
 def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
+    """Settle the current epoch (PnL realization + optional liquidation).
+
+    Preconditions (high-level):
+    - A clearing price has been published for the current `now_epoch`.
+    - This epoch has not already been settled.
+    - Post-PnL collateral stays within integer bounds.
+    - If the position becomes liquidatable at settlement, liquidation accounting
+      must not overflow fee/insurance tracking variables.
+    """
     if not state.clearing_price_seen:
         return False
     if state.clearing_price_epoch != state.now_epoch:
@@ -43,8 +52,10 @@ def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
         return False
 
     sp = settle_price(
-        state.clearing_price_e8, state.index_price_e8,
-        state.max_oracle_move_bps, state.oracle_seen,
+        state.clearing_price_e8,
+        state.index_price_e8,
+        state.max_oracle_move_bps,
+        state.oracle_seen,
     )
     pnl = pnl_quote(state.position_base, sp, state.index_price_e8)
     coll_after_pnl = state.collateral_quote + pnl
@@ -62,13 +73,18 @@ def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
     return True
 
 
-def _settle_liq_overflow_ok(
-    state: PerpState, coll_after_pnl: int, sp: int,
-) -> bool:
-    """Check fee-pool / fee-income / insurance overflow during liquidation."""
+def _settle_liq_overflow_ok(state: PerpState, coll_after_pnl: int, sp: int) -> bool:
+    """Overflow checks for the liquidation path during settlement.
+
+    Liquidation may add a penalty into the fee pool and fee income; the derived
+    insurance reserve is `initial_insurance + fee_income - claims_paid`.
+    """
     penalty = liq_penalty_capped(
-        coll_after_pnl, state.position_base, sp,
-        state.liquidation_penalty_bps, state.min_notional_for_bounty,
+        coll_after_pnl,
+        state.position_base,
+        sp,
+        state.liquidation_penalty_bps,
+        state.min_notional_for_bounty,
     )
     if state.fee_pool_quote + penalty > MAX_COLLATERAL:
         return False
@@ -151,6 +167,14 @@ def guard_clear_breaker(state: PerpState, params: ActionParams) -> bool:
 
 
 def guard_apply_funding(state: PerpState, params: ActionParams) -> bool:
+    """Apply a funding-rate update (once per epoch, authorized).
+
+    Funding is only applied when:
+    - the oracle is fresh,
+    - the epoch has not already had funding applied,
+    - the funding rate is within the configured cap,
+    - and the resulting collateral still satisfies maintenance margin.
+    """
     if not params.auth_ok:
         return False
     if not is_oracle_fresh(
