@@ -265,11 +265,9 @@ def _update_settle(state: FRMState, params: FRMActionParams) -> FRMState:
         if clamped_realized >= implied:
             # Longs were correct (rate was indeed high)
             long_share = state.rate_long_exposure
-            short_share = state.rate_short_exposure
         else:
             # Shorts were correct (rate was low)
             long_share = state.rate_short_exposure
-            short_share = state.rate_long_exposure
 
         payout_long = (distributable * long_share) // total_exposure
         payout_short = distributable - payout_long

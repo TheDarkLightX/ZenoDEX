@@ -7,7 +7,6 @@ from src.core.funding_rate_market import (
     FRMActionParams,
     FRMEvent,
     FRMState,
-    BPS_DENOM,
     compute_implied_rate_bps,
     compute_basis_bps,
     step,
