@@ -7,7 +7,7 @@ In production, this would call the Tau Docker container to validate operations.
 
 from __future__ import annotations
 
-from typing import List, Dict, Any, Tuple, Optional, TYPE_CHECKING
+from typing import List, Dict, Tuple, Optional, TYPE_CHECKING
 
 from ..state.intents import Intent
 from ..core.settlement import Settlement

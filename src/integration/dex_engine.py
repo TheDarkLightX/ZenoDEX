@@ -687,5 +687,5 @@ def apply_ops(
             perps=state.perps,
         )
         return DexTxResult(ok=True, state=next_state, settlement=settlement)
-    except Exception as exc:
+    except Exception:
         return DexTxResult(ok=False, error="internal error")

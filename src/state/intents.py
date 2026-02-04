@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Dict, Any
 
-from .balances import PubKey, AssetId, Amount
+from .balances import PubKey
 
 
 class IntentKind(Enum):
@@ -92,6 +92,8 @@ class SwapIntent(Intent):
             raise ValueError("Missing required field: asset_in")
         if not asset_out:
             raise ValueError("Missing required field: asset_out")
+        if not isinstance(recipient, str) or not recipient:
+            raise ValueError("recipient must be a non-empty string")
         
         if self.kind == IntentKind.SWAP_EXACT_IN:
             amount_in = self.get_field("amount_in")
@@ -158,4 +160,3 @@ class SignedIntent:
         """Validate signature format."""
         if not self.signature.startswith("0x") or len(self.signature) < 130:
             raise ValueError(f"Invalid signature format: {self.signature}")
-

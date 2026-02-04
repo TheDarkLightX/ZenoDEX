@@ -31,7 +31,7 @@ def _signing_dict(*, intent_id: str, sender_pubkey: str) -> dict:
 
 
 def test_intent_signature_roundtrip_bls_g2basic() -> None:
-    py_ecc = pytest.importorskip("py_ecc")
+    pytest.importorskip("py_ecc")
     from py_ecc.bls import G2Basic
 
     # Deterministic keypair from fixed seed.
