@@ -231,29 +231,28 @@ claims:
         - generated/derivatives_python/il_futures_market_v1_ref.py
         - generated/derivatives_python/curve_selection_market_v1_ref.py
 
-  - id: esso:funding_rate_market_v1:verify_multi_z3_cvc5
+  - id: smt:funding_rate_market_v1:inductive_z3_cvc5
     status: supported
     layer: spec
     statement: >
       The funding-rate market kernel (v1) is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under the kernel verifier's fail-closed verification model.
+      under a fail-closed, multi-solver SMT verification model.
     evidence:
-      kind: esso
+      kind: smt
       check:
-        - cmd: python3 -m ESSO verify-multi src/kernels/dex/funding_rate_market_v1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+        - cmd: bash tools/run_derivatives_evidence.sh
       files:
         - src/kernels/dex/funding_rate_market_v1.yaml
 
-  - id: esso:funding_rate_market_v1_1:verify_multi_z3
+  - id: smt:funding_rate_market_v1_1:inductive_z3
     status: supported
     layer: spec
     statement: >
-      The funding-rate market kernel (v1.1) is inductive (k=1) under the kernel verifier's fail-closed
-      verification model (Z3).
+      The funding-rate market kernel (v1.1) is inductive (k=1) under a fail-closed SMT verification model (Z3).
     evidence:
-      kind: esso
+      kind: smt
       check:
-        - cmd: python3 -m ESSO verify-multi src/kernels/dex/funding_rate_market_v1_1.yaml --solvers z3 --timeout-ms 60000 --determinism-trials 2
+        - cmd: bash tools/run_derivatives_evidence.sh
       files:
         - src/kernels/dex/funding_rate_market_v1_1.yaml
 
@@ -273,29 +272,29 @@ claims:
         - generated/derivatives_python/funding_rate_market_v1_1_ref.py
         - src/kernels/dex/funding_rate_market_v1_1.yaml
 
-  - id: esso:il_futures_market_v1:verify_multi_z3_cvc5
+  - id: smt:il_futures_market_v1:inductive_z3_cvc5
     status: supported
     layer: spec
     statement: >
       The IL futures market kernel (v1) is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under the kernel verifier's fail-closed verification model.
+      under a fail-closed, multi-solver SMT verification model.
     evidence:
-      kind: esso
+      kind: smt
       check:
-        - cmd: python3 -m ESSO verify-multi src/kernels/dex/il_futures_market_v1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+        - cmd: bash tools/run_derivatives_evidence.sh
       files:
         - src/kernels/dex/il_futures_market_v1.yaml
 
-  - id: esso:curve_selection_market_v1:verify_multi_z3_cvc5
+  - id: smt:curve_selection_market_v1:inductive_z3_cvc5
     status: supported
     layer: spec
     statement: >
       The curve-selection market kernel (v1) is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under the kernel verifier's fail-closed verification model.
+      under a fail-closed, multi-solver SMT verification model.
     evidence:
-      kind: esso
+      kind: smt
       check:
-        - cmd: python3 -m ESSO verify-multi src/kernels/dex/curve_selection_market_v1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+        - cmd: bash tools/run_derivatives_evidence.sh
       files:
         - src/kernels/dex/curve_selection_market_v1.yaml
 
