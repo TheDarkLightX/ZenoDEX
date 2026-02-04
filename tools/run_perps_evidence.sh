@@ -54,6 +54,12 @@ echo "== perps: kernel inductiveness (verify-multi) =="
   --timeout-ms 60000 \
   --determinism-trials 2
 
+"$PY" -m ESSO verify-multi \
+  "$ROOT_DIR/src/kernels/dex/perp_game_theory_v2.yaml" \
+  --solvers z3,cvc5 \
+  --timeout-ms 60000 \
+  --determinism-trials 2
+
 if [[ ! -d "$ROOT_DIR/lean-mathlib" ]]; then
   echo "error: missing Lean workspace at $ROOT_DIR/lean-mathlib" >&2
   exit 2
