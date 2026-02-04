@@ -80,13 +80,13 @@ forced protocol counterparties, insurance fund drains, and finally profit-haircu
 **Risk:** integer overflow breaks invariants.
 **Mitigation:**
 - Fixed-point integer math with explicit scales (`price_e8`, `bps`).
-- Bounded domains in the ESSO kernel (and later, overflow-aware implementation constraints).
+- Bounded domains in the executable kernel spec (and later, overflow-aware implementation constraints).
 
 ## 3. Core Safety Properties (mechanized invariants)
 
 This section states the **precise properties** the protocol is intended to enforce.
-They are mechanized: written as statements to be checked by tools (Lean for math lemmas, and SMT/ESSO for
-the executable kernel invariants).
+They are mechanized: written as statements to be checked by tools (Lean for math lemmas, and SMT cross-checks
+for the executable kernel invariants).
 
 ### 3.1 Units and notation
 
@@ -142,9 +142,8 @@ Trading (`set_position`) is allowed only when the oracle is fresh.
 - The isolated-margin kernel is a *per-account* risk engine: it does not explicitly model counterparties.
   Mark-to-market PnL changes an account’s collateral, but the offsetting PnL lives “elsewhere” (in other accounts)
   and is not tracked in this single-account abstraction.
-- For closed-system conservation (no mint/burn across the whole venue), use the multi-account clearinghouse kernels
-  (tracked internally in `internal/kernels/`), which explicitly represent counterparties and can enforce total
-  conservation with a deterministic remainder/dust policy.
+- For closed-system conservation (no mint/burn across the whole venue), use a clearinghouse posture with explicit
+  counterparties and a deterministic remainder/dust policy.
 
 ### 3.3 One-step solvency under bounded move (v1)
 
@@ -191,11 +190,11 @@ This reduction is mechanized in Lean as `Proofs.PerpEpochSafety.abs_clamp_move_s
 
 ## 4. Artifacts
 
-- ESSO kernels (MVP):
+- Kernel specs (MVP):
   - v1: `src/kernels/dex/perp_epoch_isolated_v1.yaml` (strict bounded-move; fail-closed on violation)
   - v1.1: `src/kernels/dex/perp_epoch_isolated_v1_1.yaml` (clamp + breaker; reduce-only while breaker is active)
   - v2: `src/kernels/dex/perp_epoch_isolated_v2.yaml` (v1.1 + depeg buffer, insurance accounting, anti-bounty-farming)
-  - These are the executable specs we gate with `python3 -m ESSO verify-multi ...`.
+  - These specs are gated by the repo’s evidence runner (`tools/run_perps_evidence.sh`).
   - Oracle posture: publish an epoch clearing price (`publish_clearing_price`), then settle the epoch at that price (`settle_epoch`).
   - v1.1 additionally maintains a `fee_pool_quote` and fail-closes if a liquidation would overflow the finite-domain fee pool.
 
