@@ -203,6 +203,18 @@ def sign_perp_op_for_engine(
     """
     Sign a perps operation according to `src.integration.perp_engine` signature policy.
 
+    The per-op signature is used for peer-to-peer authorization in clearinghouse markets
+    (e.g. joint market init, matched position updates, oracle-authorized price publication).
+
+    The signed message is:
+    - domain-separated by `chain_id` (prevents cross-network replay),
+    - encoded as canonical JSON (stable hash),
+    - bound to `signer_pubkey` and a monotone `nonce` (replay protection).
+
+    The exact fields included in the signed payload depend on `op_dict["action"]`
+    and are defined by the engine's signing policy. This helper delegates to
+    `src.integration.perp_engine._perp_op_signing_dict` to ensure both sides stay in sync.
+
     Returns a hex signature string with a `0x` prefix.
     """
     _require_bls()

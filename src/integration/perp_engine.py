@@ -12,7 +12,7 @@ fail-closed way. It is intentionally conservative:
 - Unknown fields/actions are rejected.
 
 Two perps operation versions are supported:
-- v0.1: isolated-margin per-account execution (default posture).
+- v0.1: isolated-margin per-account execution (single-account abstraction; optional and disabled by default).
 - v1.0 (and legacy v0.2): a minimal 2-party clearinghouse posture with enforced net-zero exposure.
   - Markets are namespaced with a `perp:ch2p:` prefix to avoid mixing semantics.
   - Market init and matched position updates are jointly authorized by the two accounts.
@@ -223,6 +223,11 @@ class PerpEngineConfig:
     chain_id: str = "tau-net-alpha"
     # Optional oracle signer for clearing-price publication (recommended for clearinghouse markets).
     oracle_pubkey: Optional[str] = None
+    # Production posture: perps are intended to run peer-to-peer via clearinghouse kernels.
+    # Isolated markets are a single-account risk abstraction and are disabled by default to
+    # prevent accidental deployment of "protocol counterparty" semantics without an explicit
+    # balance sheet / loss-allocation design.
+    allow_isolated_markets: bool = False
     max_ops: int = 256
     max_op_bytes: int = 64_000
     max_total_ops_bytes: int = 512_000
@@ -445,7 +450,21 @@ _SIGNED_FIELD_KEYS: dict[str, tuple[str, ...]] = {
 
 
 def _perp_op_signing_dict(op: Mapping[str, Any], *, signer_pubkey: str, nonce: int) -> Dict[str, Any]:
-    """Canonical signing dict for per-op authorization (deterministic)."""
+    """Build the canonical dict that is signed for per-op authorization.
+
+    Security goals:
+    - Bind the signature to **which action** is being authorized and for **which market**
+      (`module`, `version`, `market_id`, `action`).
+    - Bind the signature to the **signer identity** (`signer_pubkey`).
+    - Provide **replay protection** via a per-signer monotone `nonce`.
+    - Avoid ambiguous encodings by signing a canonical JSON byte representation
+      (see `canonical_json_bytes` + `domain_sep_bytes`).
+
+    The signed payload intentionally includes only a small, action-specific subset of
+    fields (`_SIGNED_FIELD_KEYS[action]`). The API boundary rejects unknown fields,
+    and the signing payload acts as a second line of defense against "hidden field"
+    confusion.
+    """
     module = op.get("module")
     version = op.get("version")
     market_id = op.get("market_id")
@@ -490,7 +509,19 @@ def _verify_perp_op_signature(
     nonces: NonceTable,
     block_timestamp: int,
 ) -> Optional[str]:
-    """Verify and consume a per-op signature (fail-closed)."""
+    """Verify and consume a per-op signature (fail-closed).
+
+    Verification steps (in order):
+    1) Validate pubkey/signature encoding.
+    2) Check deadline against `block_timestamp`.
+    3) Enforce the expected next nonce (per signer).
+    4) Reconstruct the canonical signing dict and verify the BLS signature over
+       a domain-separated hash (bound to `config.chain_id`).
+    5) Consume the nonce **only after** successful signature verification.
+
+    Returns:
+        None on success, else a human-readable error string.
+    """
     if not _BLS_AVAILABLE:
         return "BLS verification not available (install py-ecc)"
 
@@ -552,6 +583,15 @@ def apply_perp_ops(
 
     if not ops:
         return PerpTxResult(ok=True, state=state, effects=[])
+
+    has_isolated = any(op.version == PERP_OP_VERSION_V0_1 for op in ops)
+    has_clearinghouse = any(
+        op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0, PERP_OP_VERSION_CH3P_V1_1) for op in ops
+    )
+    if has_isolated and has_clearinghouse:
+        return PerpTxResult(ok=False, error="cannot mix isolated and clearinghouse perps ops in one tx")
+    if has_isolated and not config.allow_isolated_markets:
+        return PerpTxResult(ok=False, error="isolated perps disabled by config (enable allow_isolated_markets)")
 
     # Work on copies; only commit to `DexState` if everything succeeds.
     balances = _copy_balance_table(state.balances)

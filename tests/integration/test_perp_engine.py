@@ -22,7 +22,7 @@ def _op(market_id: str, action: str, **kwargs: object) -> dict[str, object]:
 def _apply_result(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str):
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
-    cfg = PerpEngineConfig(operator_pubkey=operator_pubkey)
+    cfg = PerpEngineConfig(operator_pubkey=operator_pubkey, allow_isolated_markets=True)
     return apply_perp_ops(config=cfg, state=state, operations={"5": ops}, tx_sender_pubkey=tx_sender_pubkey, block_timestamp=0)
 
 
