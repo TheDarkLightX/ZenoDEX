@@ -56,6 +56,12 @@ echo "== perps: kernel inductiveness (verify-multi) =="
   --determinism-trials 2
 
 "$PY" -m ESSO verify-multi \
+  "$ROOT_DIR/src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml" \
+  --solvers cvc5 \
+  --timeout-ms 60000 \
+  --determinism-trials 2
+
+"$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/perp_game_theory_v2.yaml" \
   --solvers z3,cvc5 \
   --timeout-ms 60000 \

@@ -131,6 +131,19 @@ claims:
       files:
         - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
 
+  - id: smt:perp_epoch_clearinghouse_3p_transfer_v0_1:inductive_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The 3-party transfer clearinghouse epoch-perp kernel is inductive (k=1) and verified by CVC5
+      under a fail-closed SMT verification model.
+    evidence:
+      kind: smt
+      check:
+        - cmd: bash tools/run_perps_evidence.sh
+      files:
+        - src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml
+
   - id: smt:perp_game_theory_v2:inductive_z3_cvc5
     status: supported
     layer: spec
