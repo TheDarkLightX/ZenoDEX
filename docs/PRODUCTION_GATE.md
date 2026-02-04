@@ -3,7 +3,7 @@
 This repo includes a single “production gate” script that runs the same checks we treat as launch-blocking:
 
 - Python unit tests
-- ESSO kernel assurance (manifest-backed)
+- Kernel spec assurance (manifest-backed)
 - UI dependency audit (`npm audit`)
 - Build the production container image
 - Scan the built artifact with Trivy (HIGH/CRITICAL with fixes)
@@ -32,4 +32,3 @@ bash tools/prod_gate.sh --skip-ui
 
 - Docker builds are run with `docker build --network=host` to avoid DNS flakiness in some environments.
 - Trivy is downloaded into `tools/_secbin/` if not already present.
-
