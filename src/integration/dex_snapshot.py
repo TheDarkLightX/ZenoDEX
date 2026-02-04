@@ -18,11 +18,13 @@ from ..core.fees import FeeAccumulatorState
 from ..core.oracle import OracleState
 from ..core.perps import (
     PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1,
+    PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1,
     PERP_MARKET_KIND_ISOLATED_V2,
     PERPS_STATE_VERSION_V5,
     PerpAnyMarketState,
     PerpAccountState,
     PerpClearinghouse2pMarketState,
+    PerpClearinghouse3pTransferMarketState,
     PerpMarketState,
     PerpsState,
 )
@@ -177,6 +179,19 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                     "quote_asset": str(market.quote_asset),
                     "account_a_pubkey": str(market.account_a_pubkey),
                     "account_b_pubkey": str(market.account_b_pubkey),
+                    "state": dict(market.state),
+                }
+                markets_entries.append(out_entry)
+                continue
+
+            if isinstance(market, PerpClearinghouse3pTransferMarketState):
+                out_entry = {
+                    "market_id": str(market_id),
+                    "kind": str(getattr(market, "kind", PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1)),
+                    "quote_asset": str(market.quote_asset),
+                    "account_a_pubkey": str(market.account_a_pubkey),
+                    "account_b_pubkey": str(market.account_b_pubkey),
+                    "account_c_pubkey": str(market.account_c_pubkey),
                     "state": dict(market.state),
                 }
                 markets_entries.append(out_entry)
@@ -550,6 +565,40 @@ def state_from_snapshot(
                         quote_asset=quote_asset,
                         account_a_pubkey=account_a,
                         account_b_pubkey=account_b,
+                        state=state_dict,
+                    )
+                    continue
+
+                if kind == PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1:
+                    quote_asset = _require_str(entry.get("quote_asset"), name="perps.quote_asset", non_empty=True, max_len=min(256, max_str_len))
+                    account_a = _require_str(
+                        entry.get("account_a_pubkey"),
+                        name="perps.ch3p.account_a_pubkey",
+                        non_empty=True,
+                        max_len=min(512, max_str_len),
+                    )
+                    account_b = _require_str(
+                        entry.get("account_b_pubkey"),
+                        name="perps.ch3p.account_b_pubkey",
+                        non_empty=True,
+                        max_len=min(512, max_str_len),
+                    )
+                    account_c = _require_str(
+                        entry.get("account_c_pubkey"),
+                        name="perps.ch3p.account_c_pubkey",
+                        non_empty=True,
+                        max_len=min(512, max_str_len),
+                    )
+                    state_obj = entry.get("state")
+                    if not isinstance(state_obj, Mapping):
+                        raise TypeError("perps.ch3p.state must be an object")
+                    state_dict = dict(state_obj)
+                    markets[market_id] = PerpClearinghouse3pTransferMarketState(
+                        kind=PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1,
+                        quote_asset=quote_asset,
+                        account_a_pubkey=account_a,
+                        account_b_pubkey=account_b,
+                        account_c_pubkey=account_c,
                         state=state_dict,
                     )
                     continue

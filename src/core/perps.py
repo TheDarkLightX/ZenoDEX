@@ -30,6 +30,7 @@ PERPS_STATE_VERSION = PERPS_STATE_VERSION_V5
 
 PERP_MARKET_KIND_ISOLATED_V2: Literal["isolated_v2"] = "isolated_v2"
 PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1: Literal["clearinghouse_2p_v1"] = "clearinghouse_2p_v1"
+PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1: Literal["clearinghouse_3p_transfer_v1"] = "clearinghouse_3p_transfer_v1"
 
 # Per `src/kernels/dex/perp_epoch_isolated_v2.yaml` (default posture).
 PERP_ACCOUNT_KEYS: set[str] = {
@@ -99,6 +100,43 @@ PERP_CLEARINGHOUSE_2P_STATE_KEYS: set[str] = {
 }
 
 PERP_CLEARINGHOUSE_2P_BOOL_KEYS: set[str] = {
+    "breaker_active",
+    "clearing_price_seen",
+    "oracle_seen",
+    "liquidated_this_step",
+}
+
+PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS: set[str] = {
+    "now_epoch",
+    "breaker_active",
+    "breaker_last_trigger_epoch",
+    "clearing_price_seen",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "index_price_e8",
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "fee_pool_e8",
+    "liquidated_this_step",
+    "net_deposited_e8",
+    "position_base_a",
+    "entry_price_e8_a",
+    "collateral_e8_a",
+    "position_base_b",
+    "entry_price_e8_b",
+    "collateral_e8_b",
+    "position_base_c",
+    "entry_price_e8_c",
+    "collateral_e8_c",
+}
+
+PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS: set[str] = {
     "breaker_active",
     "clearing_price_seen",
     "oracle_seen",
@@ -261,7 +299,91 @@ class PerpClearinghouse2pMarketState:
         return None
 
 
-PerpAnyMarketState = PerpMarketState | PerpClearinghouse2pMarketState
+@dataclass(frozen=True)
+class PerpClearinghouse3pTransferMarketState:
+    """Three-party transfer clearinghouse market state (spec-driven kernel state).
+
+    A/B are the active matched pair, and C is a standby account that can take over a distressed
+    position if it meets initial margin.
+
+    All quote amounts inside `state` are quote-e8 integers. This keeps settlement exact and makes
+    the closed-system invariant checkable:
+      net_deposited_e8 = collateral_e8_a + collateral_e8_b + collateral_e8_c + fee_pool_e8.
+    """
+
+    quote_asset: str
+    account_a_pubkey: str
+    account_b_pubkey: str
+    account_c_pubkey: str
+    state: Dict[str, Value]
+    kind: Literal["clearinghouse_3p_transfer_v1"] = PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1
+
+    def __post_init__(self) -> None:
+        if self.kind != PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1:
+            raise ValueError(f"unsupported perps market kind: {self.kind}")
+        if not isinstance(self.quote_asset, str) or not self.quote_asset:
+            raise TypeError("quote_asset must be a non-empty string")
+        if not isinstance(self.account_a_pubkey, str) or not self.account_a_pubkey:
+            raise TypeError("account_a_pubkey must be a non-empty string")
+        if not isinstance(self.account_b_pubkey, str) or not self.account_b_pubkey:
+            raise TypeError("account_b_pubkey must be a non-empty string")
+        if not isinstance(self.account_c_pubkey, str) or not self.account_c_pubkey:
+            raise TypeError("account_c_pubkey must be a non-empty string")
+        if len({self.account_a_pubkey, self.account_b_pubkey, self.account_c_pubkey}) != 3:
+            raise ValueError("clearinghouse accounts must be distinct")
+        if not isinstance(self.state, dict):
+            raise TypeError("state must be a dict")
+
+        keys = set(self.state.keys())
+        extra = keys - PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS
+        missing = PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS - keys
+        if extra:
+            raise ValueError(f"state has unknown keys: {sorted(extra)[:8]}")
+        if missing:
+            raise ValueError(f"state missing required keys: {sorted(missing)[:8]}")
+        for k, v in self.state.items():
+            if k in PERP_CLEARINGHOUSE_3P_TRANSFER_BOOL_KEYS:
+                if not isinstance(v, bool):
+                    raise TypeError(f"state[{k!r}] must be a bool")
+                continue
+            if isinstance(v, int) and not isinstance(v, bool):
+                continue
+            raise TypeError(f"state[{k!r}] must be an int")
+
+        # Critical clearinghouse invariants (fail-closed on invalid snapshots):
+        # - net exposure is structurally zero across the three accounts
+        # - at least one account is flat (prevents 3-way open exposure)
+        # - total quote-e8 is conserved across the three accounts + fee pool
+        pos_a = int(self.state["position_base_a"])
+        pos_b = int(self.state["position_base_b"])
+        pos_c = int(self.state["position_base_c"])
+        if pos_a + pos_b + pos_c != 0:
+            raise ValueError("clearinghouse state must satisfy position_base_a + position_base_b + position_base_c == 0")
+        if not (pos_a == 0 or pos_b == 0 or pos_c == 0):
+            raise ValueError("clearinghouse state must satisfy at least one flat position")
+
+        coll_a = int(self.state["collateral_e8_a"])
+        coll_b = int(self.state["collateral_e8_b"])
+        coll_c = int(self.state["collateral_e8_c"])
+        fee_pool = int(self.state["fee_pool_e8"])
+        net_deposited = int(self.state["net_deposited_e8"])
+        if net_deposited != coll_a + coll_b + coll_c + fee_pool:
+            raise ValueError(
+                "clearinghouse state must satisfy "
+                "net_deposited_e8 == collateral_e8_a + collateral_e8_b + collateral_e8_c + fee_pool_e8"
+            )
+
+    def role_for_pubkey(self, pubkey: str) -> Literal["a", "b", "c"] | None:
+        if pubkey == self.account_a_pubkey:
+            return "a"
+        if pubkey == self.account_b_pubkey:
+            return "b"
+        if pubkey == self.account_c_pubkey:
+            return "c"
+        return None
+
+
+PerpAnyMarketState = PerpMarketState | PerpClearinghouse2pMarketState | PerpClearinghouse3pTransferMarketState
 
 
 @dataclass(frozen=True)

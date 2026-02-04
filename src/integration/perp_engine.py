@@ -14,6 +14,11 @@ Two perps operation versions are supported:
   - Position updates are operator-authorized and must be set as a matched pair.
   - Clearinghouse collateral is tracked internally in quote-e8 units so epoch PnL is exact and conserved.
   - The clearinghouse state transition is spec-driven: the persistent market state stores a kernel-state dict.
+- v1.1: a 3-party transfer clearinghouse posture with a standby account (A,B,C).
+  - Markets are namespaced with a `perp:ch3p:` prefix to avoid mixing semantics.
+  - Position updates are operator-authorized and must keep net position == 0 with at least one idle account.
+  - If exactly one account is below maintenance at settlement and the idle account can meet initial margin,
+    the distressed position is transferred to the idle account; otherwise positions close to flat.
 
 Per-account risk checks (guards/limits) reuse the epoch-perp risk kernel wrapper in
 `src/core/perp_epoch.py` (native Python implementation by default). The optional
@@ -38,10 +43,12 @@ from ..core.perp_epoch import (
 )
 from ..core.perps import (
     PERP_CLEARINGHOUSE_2P_STATE_KEYS,
+    PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
     PERP_GLOBAL_KEYS,
     PERPS_STATE_VERSION,
     PERPS_STATE_VERSION_V5,
     PerpClearinghouse2pMarketState,
+    PerpClearinghouse3pTransferMarketState,
     PerpAccountState,
     PerpMarketState,
     PerpsState,
@@ -57,10 +64,12 @@ PERP_OP_VERSION_V0_1 = "0.1"
 # - 1.0: "production" tag for the same semantics
 PERP_OP_VERSION_CH2P_V0_2 = "0.2"
 PERP_OP_VERSION_CH2P_V1_0 = "1.0"
+PERP_OP_VERSION_CH3P_V1_1 = "1.1"
 
 # v0.2 markets are explicitly namespaced to avoid mixing semantics without a snapshot schema change.
 # This is a fail-closed API convention, not a security boundary.
 PERP_CH2P_MARKET_PREFIX = "perp:ch2p:"
+PERP_CH3P_MARKET_PREFIX = "perp:ch3p:"
 
 _E8_SCALE = 100_000_000
 
@@ -127,6 +136,64 @@ def _ch2p_step(state_dict: Mapping[str, Any], *, tag: str, args: Mapping[str, An
     if not ok:
         raise ValueError(f"post-invariant violated: {failed}")
     return _ch2p_state_to_dict(res.state), dict(res.effects or {})
+
+
+@lru_cache
+def _load_ch3p_ref_model():
+    """Load the generated Python reference model for the 3-party transfer clearinghouse kernel."""
+
+    root = Path(__file__).resolve().parents[2]
+    ref_path = root / "generated" / "perp_python" / "perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py"
+    if not ref_path.is_file():
+        raise FileNotFoundError(
+            f"missing generated clearinghouse ref model at {ref_path}; run tools/export_kernel_artifacts.py"
+        )
+    spec = spec_from_file_location("perp_epoch_clearinghouse_3p_transfer_v0_1_ref", ref_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"failed to load module spec for {ref_path}")
+    module = module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    field_names = [f.name for f in fields(module.State)]
+    if set(field_names) != set(PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS):
+        raise RuntimeError(
+            "clearinghouse ref model state fields do not match PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS; "
+            "regenerate artifacts and update src/core/perps.py"
+        )
+    return module
+
+
+def _ch3p_state_from_dict(state: Mapping[str, Any]):
+    ref = _load_ch3p_ref_model()
+    kwargs = {name: state[name] for name in (f.name for f in fields(ref.State))}
+    s = ref.State(**kwargs)
+    ok, failed = ref.check_invariants(s)
+    if not ok:
+        raise ValueError(f"invalid clearinghouse state (invariant {failed})")
+    return s
+
+
+def _ch3p_state_to_dict(state) -> Dict[str, Any]:
+    ref = _load_ch3p_ref_model()
+    return {f.name: getattr(state, f.name) for f in fields(ref.State)}
+
+
+def _ch3p_init_state_dict() -> Dict[str, Any]:
+    ref = _load_ch3p_ref_model()
+    return _ch3p_state_to_dict(ref.init_state())
+
+
+def _ch3p_step(state_dict: Mapping[str, Any], *, tag: str, args: Mapping[str, Any]) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    ref = _load_ch3p_ref_model()
+    cmd = ref.Command(tag=tag, args=dict(args))
+    res = ref.step(_ch3p_state_from_dict(state_dict), cmd)
+    if not res.ok or res.state is None:
+        raise ValueError(res.error or f"{tag} rejected")
+    ok, failed = ref.check_invariants(res.state)
+    if not ok:
+        raise ValueError(f"post-invariant violated: {failed}")
+    return _ch3p_state_to_dict(res.state), dict(res.effects or {})
 
 
 @dataclass(frozen=True)
@@ -216,15 +283,25 @@ def parse_perp_ops(
         if module != PERP_OP_MODULE:
             raise ValueError(f"invalid perps module: {module}")
         version = _require_str(op_obj.get("version"), name="perps.version", non_empty=True, max_len=64)
-        if version not in (PERP_OP_VERSION_V0_1, PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
+        if version not in (
+            PERP_OP_VERSION_V0_1,
+            PERP_OP_VERSION_CH2P_V0_2,
+            PERP_OP_VERSION_CH2P_V1_0,
+            PERP_OP_VERSION_CH3P_V1_1,
+        ):
             raise ValueError(f"invalid perps version: {version}")
 
         market_id = _require_str(op_obj.get("market_id"), name="perps.market_id", non_empty=True, max_len=256)
         is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+        is_ch3p = version == PERP_OP_VERSION_CH3P_V1_1
         if is_ch2p and not market_id.startswith(PERP_CH2P_MARKET_PREFIX):
             raise ValueError(f"clearinghouse markets must start with {PERP_CH2P_MARKET_PREFIX!r}")
-        if not is_ch2p and market_id.startswith(PERP_CH2P_MARKET_PREFIX):
-            raise ValueError(f"v0.1 markets cannot start with {PERP_CH2P_MARKET_PREFIX!r}")
+        if is_ch3p and not market_id.startswith(PERP_CH3P_MARKET_PREFIX):
+            raise ValueError(f"clearinghouse markets must start with {PERP_CH3P_MARKET_PREFIX!r}")
+        if not (is_ch2p or is_ch3p) and (
+            market_id.startswith(PERP_CH2P_MARKET_PREFIX) or market_id.startswith(PERP_CH3P_MARKET_PREFIX)
+        ):
+            raise ValueError("isolated markets cannot start with clearinghouse prefixes")
 
         action = _require_str(op_obj.get("action"), name="perps.action", non_empty=True, max_len=64)
 
@@ -304,7 +381,7 @@ def apply_perp_ops(
     markets = dict(perps.markets)
     # Perps state v5 is a strict superset of v4 (adds per-market kind tags). If
     # any op uses the clearinghouse posture, upgrade in-memory to v5.
-    if any(op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0) for op in ops):
+    if any(op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0, PERP_OP_VERSION_CH3P_V1_1) for op in ops):
         perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
     effects: List[Dict[str, Any]] = []
 
@@ -384,20 +461,92 @@ def apply_perp_ops(
             )
             continue
 
+        if action == "init_market_3p":
+            if version != PERP_OP_VERSION_CH3P_V1_1:
+                return PerpTxResult(ok=False, error="init_market_3p requires perps.version=1.1")
+            err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
+            if err is not None:
+                return PerpTxResult(ok=False, error=err)
+            if market_id in markets:
+                return PerpTxResult(ok=False, error="market already exists")
+
+            quote_asset = _require_str(data.get("quote_asset"), name="quote_asset", non_empty=True, max_len=256)
+            account_a_pubkey = _require_str(
+                data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
+            )
+            account_b_pubkey = _require_str(
+                data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
+            )
+            account_c_pubkey = _require_str(
+                data.get("account_c_pubkey"), name="account_c_pubkey", non_empty=True, max_len=512
+            )
+            if len({account_a_pubkey, account_b_pubkey, account_c_pubkey}) != 3:
+                return PerpTxResult(ok=False, error="accounts must be distinct")
+
+            allowed = {
+                "module",
+                "version",
+                "market_id",
+                "action",
+                "quote_asset",
+                "account_a_pubkey",
+                "account_b_pubkey",
+                "account_c_pubkey",
+            }
+            extra = set(data.keys()) - allowed
+            if extra:
+                return PerpTxResult(ok=False, error="init_market_3p has unknown fields")
+
+            perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
+            try:
+                init_state = _ch3p_init_state_dict()
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse3pTransferMarketState(
+                quote_asset=quote_asset,
+                account_a_pubkey=account_a_pubkey,
+                account_b_pubkey=account_b_pubkey,
+                account_c_pubkey=account_c_pubkey,
+                state=init_state,
+            )
+            effects.append(
+                {
+                    "i": i,
+                    "market_id": market_id,
+                    "action": action,
+                    "account_a_pubkey": account_a_pubkey,
+                    "account_b_pubkey": account_b_pubkey,
+                    "account_c_pubkey": account_c_pubkey,
+                }
+            )
+            continue
+
         market_any = markets.get(market_id)
         if market_any is None:
             return PerpTxResult(ok=False, error="unknown market_id")
 
-        if action in ("advance_epoch", "publish_clearing_price", "settle_epoch", "clear_breaker", "set_position_pair"):
+        if action in (
+            "advance_epoch",
+            "publish_clearing_price",
+            "settle_epoch",
+            "clear_breaker",
+            "set_position_pair",
+            "set_position_triplet",
+        ):
             err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
             if err is not None:
                 return PerpTxResult(ok=False, error=err)
 
         is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+        is_ch3p = version == PERP_OP_VERSION_CH3P_V1_1
         if is_ch2p:
             if not isinstance(market_any, PerpClearinghouse2pMarketState):
-                return PerpTxResult(ok=False, error="market kind mismatch for clearinghouse operation")
+                return PerpTxResult(ok=False, error="market kind mismatch for clearinghouse_2p operation")
             ch2p_market = market_any
+        elif is_ch3p:
+            if not isinstance(market_any, PerpClearinghouse3pTransferMarketState):
+                return PerpTxResult(ok=False, error="market kind mismatch for clearinghouse_3p operation")
+            ch3p_market = market_any
         else:
             if not isinstance(market_any, PerpMarketState):
                 return PerpTxResult(ok=False, error="market kind mismatch for isolated operation")
@@ -579,7 +728,219 @@ def apply_perp_ops(
             effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
             continue
 
+        if is_ch3p and action == "advance_epoch":
+            allowed = {"module", "version", "market_id", "action", "delta"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="advance_epoch has unknown fields")
+            if int(ch3p_market.state.get("oracle_last_update_epoch", 0)) != int(ch3p_market.state.get("now_epoch", 0)):
+                return PerpTxResult(ok=False, error="cannot advance epoch before settling current epoch")
+            delta = _require_int(data.get("delta"), name="delta", non_negative=True)
+            try:
+                next_state, eff = _ch3p_step(ch3p_market.state, tag="advance_epoch", args={"delta": delta})
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse3pTransferMarketState(
+                quote_asset=ch3p_market.quote_asset,
+                account_a_pubkey=ch3p_market.account_a_pubkey,
+                account_b_pubkey=ch3p_market.account_b_pubkey,
+                account_c_pubkey=ch3p_market.account_c_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch3p and action == "publish_clearing_price":
+            allowed = {"module", "version", "market_id", "action", "price_e8"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="publish_clearing_price has unknown fields")
+            price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
+            try:
+                next_state, eff = _ch3p_step(ch3p_market.state, tag="publish_clearing_price", args={"price_e8": price_e8})
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse3pTransferMarketState(
+                quote_asset=ch3p_market.quote_asset,
+                account_a_pubkey=ch3p_market.account_a_pubkey,
+                account_b_pubkey=ch3p_market.account_b_pubkey,
+                account_c_pubkey=ch3p_market.account_c_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch3p and action == "settle_epoch":
+            allowed = {"module", "version", "market_id", "action"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="settle_epoch has unknown fields")
+            try:
+                next_state, eff = _ch3p_step(ch3p_market.state, tag="settle_epoch", args={})
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse3pTransferMarketState(
+                quote_asset=ch3p_market.quote_asset,
+                account_a_pubkey=ch3p_market.account_a_pubkey,
+                account_b_pubkey=ch3p_market.account_b_pubkey,
+                account_c_pubkey=ch3p_market.account_c_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch3p and action == "clear_breaker":
+            allowed = {"module", "version", "market_id", "action"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="clear_breaker has unknown fields")
+            if (
+                int(ch3p_market.state.get("position_base_a", 0)) != 0
+                or int(ch3p_market.state.get("position_base_b", 0)) != 0
+                or int(ch3p_market.state.get("position_base_c", 0)) != 0
+            ):
+                return PerpTxResult(ok=False, error="cannot clear breaker while positions are open")
+            try:
+                next_state, eff = _ch3p_step(ch3p_market.state, tag="clear_breaker", args={"auth_ok": True})
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+            markets[market_id] = PerpClearinghouse3pTransferMarketState(
+                quote_asset=ch3p_market.quote_asset,
+                account_a_pubkey=ch3p_market.account_a_pubkey,
+                account_b_pubkey=ch3p_market.account_b_pubkey,
+                account_c_pubkey=ch3p_market.account_c_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
+        if is_ch3p and action in ("deposit_collateral", "withdraw_collateral"):
+            allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
+            allowed = allowed_common | {"amount"}
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error=f"{action} has unknown fields")
+
+            account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
+            if account_pubkey != tx_sender_pubkey:
+                return PerpTxResult(ok=False, error="account_pubkey must match tx sender")
+
+            role = ch3p_market.role_for_pubkey(account_pubkey)
+            if role is None:
+                return PerpTxResult(ok=False, error="unknown account_pubkey for this clearinghouse_3p market")
+
+            amount = _require_int(data.get("amount"), name="amount", non_negative=True)
+            amount_e8 = int(amount) * _E8_SCALE
+
+            if action == "deposit_collateral":
+                if balances.get(account_pubkey, ch3p_market.quote_asset) < amount:
+                    return PerpTxResult(ok=False, error="insufficient balance for deposit")
+                tag = f"deposit_collateral_{role}"
+                try:
+                    next_state, eff = _ch3p_step(
+                        ch3p_market.state,
+                        tag=tag,
+                        args={"amount_e8": amount_e8, "auth_ok": True},
+                    )
+                except Exception as exc:
+                    return PerpTxResult(ok=False, error=str(exc))
+                balances.subtract(account_pubkey, ch3p_market.quote_asset, amount)
+            else:
+                tag = f"withdraw_collateral_{role}"
+                try:
+                    next_state, eff = _ch3p_step(
+                        ch3p_market.state,
+                        tag=tag,
+                        args={"amount_e8": amount_e8, "auth_ok": True},
+                    )
+                except Exception as exc:
+                    return PerpTxResult(ok=False, error=str(exc))
+                balances.add(account_pubkey, ch3p_market.quote_asset, amount)
+
+            markets[market_id] = PerpClearinghouse3pTransferMarketState(
+                quote_asset=ch3p_market.quote_asset,
+                account_a_pubkey=ch3p_market.account_a_pubkey,
+                account_b_pubkey=ch3p_market.account_b_pubkey,
+                account_c_pubkey=ch3p_market.account_c_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "account_pubkey": account_pubkey, "effects": eff})
+            continue
+
+        if is_ch3p and action == "set_position_triplet":
+            if version != PERP_OP_VERSION_CH3P_V1_1:
+                return PerpTxResult(ok=False, error="set_position_triplet requires perps.version=1.1")
+
+            allowed = {
+                "module",
+                "version",
+                "market_id",
+                "action",
+                "account_a_pubkey",
+                "account_b_pubkey",
+                "account_c_pubkey",
+                "new_position_base_a",
+                "new_position_base_b",
+                "new_position_base_c",
+            }
+            if set(data.keys()) - allowed:
+                return PerpTxResult(ok=False, error="set_position_triplet has unknown fields")
+
+            account_a_pubkey = _require_str(
+                data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
+            )
+            account_b_pubkey = _require_str(
+                data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
+            )
+            account_c_pubkey = _require_str(
+                data.get("account_c_pubkey"), name="account_c_pubkey", non_empty=True, max_len=512
+            )
+            if (
+                account_a_pubkey != ch3p_market.account_a_pubkey
+                or account_b_pubkey != ch3p_market.account_b_pubkey
+                or account_c_pubkey != ch3p_market.account_c_pubkey
+            ):
+                return PerpTxResult(ok=False, error="accounts do not match this market")
+
+            new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
+            new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
+            new_c = _require_int(data.get("new_position_base_c"), name="new_position_base_c", non_negative=False)
+            if new_a + new_b + new_c != 0:
+                return PerpTxResult(ok=False, error="clearinghouse_3p requires net position == 0")
+            if not (new_a == 0 or new_b == 0 or new_c == 0):
+                return PerpTxResult(ok=False, error="clearinghouse_3p requires at least one flat position")
+
+            # Exactly one account must be idle in the post-position vector; the kernel guards also require the
+            # idle account is already flat in the pre-state.
+            if new_c == 0:
+                if new_b != -new_a:
+                    return PerpTxResult(ok=False, error="clearinghouse_3p AB pair requires new_b == -new_a")
+                tag = "set_position_pair_ab"
+                args = {"new_position_base_a": new_a, "auth_ok": True}
+            elif new_b == 0:
+                if new_c != -new_a:
+                    return PerpTxResult(ok=False, error="clearinghouse_3p AC pair requires new_c == -new_a")
+                tag = "set_position_pair_ac"
+                args = {"new_position_base_a": new_a, "auth_ok": True}
+            else:
+                if new_c != -new_b:
+                    return PerpTxResult(ok=False, error="clearinghouse_3p BC pair requires new_c == -new_b")
+                tag = "set_position_pair_bc"
+                args = {"new_position_base_b": new_b, "auth_ok": True}
+
+            try:
+                next_state, eff = _ch3p_step(ch3p_market.state, tag=tag, args=args)
+            except Exception as exc:
+                return PerpTxResult(ok=False, error=str(exc))
+
+            markets[market_id] = PerpClearinghouse3pTransferMarketState(
+                quote_asset=ch3p_market.quote_asset,
+                account_a_pubkey=ch3p_market.account_a_pubkey,
+                account_b_pubkey=ch3p_market.account_b_pubkey,
+                account_c_pubkey=ch3p_market.account_c_pubkey,
+                state=next_state,
+            )
+            effects.append({"i": i, "market_id": market_id, "action": action, "effects": eff})
+            continue
+
         if is_ch2p:
+            return PerpTxResult(ok=False, error=f"unknown perps action: {action}")
+        if is_ch3p:
             return PerpTxResult(ok=False, error=f"unknown perps action: {action}")
 
         if action == "advance_epoch":
