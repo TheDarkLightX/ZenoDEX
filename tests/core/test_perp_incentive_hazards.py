@@ -83,3 +83,52 @@ def test_volume_rewards_can_subsidize_oracle_manipulation_witness() -> None:
     assert reward_quote == 10
     assert perp_pnl_quote == 0
     assert net_profit_quote == 1
+
+
+def test_cpmm_lp_fees_are_recapturable_for_full_lp_witness() -> None:
+    # If protocol fees are not extracted, all swap fees stay in the pool. A trader who is
+    # also 100% LP therefore recaptures the roundtrip loss via their pool ownership.
+    reserve_base = 10_000
+    reserve_quote = 10_000
+    fee_bps = 10
+    protocol_fee_share_bps = 0
+    trade_in_quote = 6674
+
+    wallet_base = 0
+    wallet_quote = trade_in_quote
+
+    pool_base = reserve_base
+    pool_quote = reserve_quote
+
+    t1 = swap_exact_in(
+        reserve_in=pool_quote,
+        reserve_out=pool_base,
+        amount_in=trade_in_quote,
+        fee_bps=fee_bps,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+    base_out = int(t1.amount_out)
+    wallet_quote -= trade_in_quote
+    wallet_base += base_out
+    pool_quote = int(t1.new_reserve_in)
+    pool_base = int(t1.new_reserve_out)
+
+    t2 = swap_exact_in(
+        reserve_in=pool_base,
+        reserve_out=pool_quote,
+        amount_in=base_out,
+        fee_bps=fee_bps,
+        protocol_fee_share_bps=protocol_fee_share_bps,
+    )
+    quote_back = int(t2.amount_out)
+    wallet_base -= base_out
+    wallet_quote += quote_back
+    pool_base = int(t2.new_reserve_in)
+    pool_quote = int(t2.new_reserve_out)
+
+    cost_quote = trade_in_quote - quote_back
+    assert wallet_base == 0
+    assert pool_base == reserve_base
+    assert pool_quote == reserve_quote + cost_quote
+    assert wallet_quote == quote_back
+    assert wallet_quote + pool_quote == trade_in_quote + reserve_quote
