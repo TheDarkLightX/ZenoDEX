@@ -132,3 +132,50 @@ def test_cpmm_lp_fees_are_recapturable_for_full_lp_witness() -> None:
     assert pool_quote == reserve_quote + cost_quote
     assert wallet_quote == quote_back
     assert wallet_quote + pool_quote == trade_in_quote + reserve_quote
+
+
+def test_protocol_fee_rebate_capped_by_extracted_fees_not_profitable_under_bounds() -> None:
+    # Bounded brute-force check: for this fixed configuration, rebating at most the extracted protocol
+    # fee does not make a quote->base->quote roundtrip profitable for a pure trader.
+    reserve_base = 10_000
+    reserve_quote = 10_000
+    fee_bps = 10
+    protocol_fee_share_bps = 10_000
+    rebate_share_bps = 10_000
+
+    price0_e8 = _spot_price_e8(reserve_base=reserve_base, reserve_quote=reserve_quote)
+
+    checked = 0
+    for trade_in_quote in range(1, 20_000):
+        try:
+            t1 = swap_exact_in(
+                reserve_in=reserve_quote,
+                reserve_out=reserve_base,
+                amount_in=trade_in_quote,
+                fee_bps=fee_bps,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+            )
+            base_out = int(t1.amount_out)
+            q1 = int(t1.new_reserve_in)
+            b1 = int(t1.new_reserve_out)
+
+            t2 = swap_exact_in(
+                reserve_in=b1,
+                reserve_out=q1,
+                amount_in=base_out,
+                fee_bps=fee_bps,
+                protocol_fee_share_bps=protocol_fee_share_bps,
+            )
+            quote_back = int(t2.amount_out)
+        except ValueError:
+            continue
+
+        cost_quote = trade_in_quote - quote_back
+        protocol_fee_total_quote = int(t1.protocol_fee + (int(t2.protocol_fee) * price0_e8) // E8)
+        reward_quote = (protocol_fee_total_quote * rebate_share_bps) // BPS_DENOM
+
+        net_profit_quote = reward_quote - cost_quote
+        assert net_profit_quote <= 0
+        checked += 1
+
+    assert checked == 19_996
