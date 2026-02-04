@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-GPU-accelerated semantic checker for ESSO hole expressions (Mac-friendly via Torch MPS).
+GPU-accelerated semantic checker for private-toolchain hole expressions (Mac-friendly via Torch MPS).
 
 This is a *fast refuter/ranker* for candidate hole terms:
 - Samples many random (state, params) environments within type bounds.
 - Filters to environments where the reference action is applicable (invariants + guard).
 - Evaluates the reference expression vs a candidate term in batch on the selected backend.
 
-It does NOT replace ESSO's SMT verification; it is meant to cut solver calls and
+It does NOT replace the toolchain's SMT verification; it is meant to cut solver calls and
 quickly reject obviously wrong hints/candidates.
 """
 
@@ -23,8 +23,8 @@ from esso_gpu_semantics import Counterexample, ensure_esso_on_path, semantic_che
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="GPU-accelerated semantic checker for ESSO hole expressions.")
-    ap.add_argument("--model", required=True, help="Path to hole model YAML (ESSO-IR).")
+    ap = argparse.ArgumentParser(description="GPU-accelerated semantic checker for hole expressions.")
+    ap.add_argument("--model", required=True, help="Path to hole model YAML (kernel IR).")
     ap.add_argument("--synth", required=True, help="Path to synth spec JSON.")
     ap.add_argument("--reference", required=True, help="Path to reference model YAML (same action/field).")
     ap.add_argument("--hole-id", required=True, help="Hole id from synth spec (for parsing term).")
@@ -35,7 +35,7 @@ def main() -> int:
     ap.add_argument("--chunk", type=int, default=200_000, help="Chunk size for sampling/filtering.")
     ap.add_argument("--prefer-gpu", action="store_true", help="Prefer GPU backend when available (MPS/CUDA).")
     ap.add_argument("--seed", type=int, default=0, help="PRNG seed (default: 0).")
-    ap.add_argument("--self-check", action="store_true", help="Cross-check a few samples against ESSO interpreter (slow).")
+    ap.add_argument("--self-check", action="store_true", help="Cross-check a few samples against toolchain interpreter (slow).")
     ap.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     args = ap.parse_args()
 

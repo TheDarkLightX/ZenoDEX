@@ -2,8 +2,24 @@ from __future__ import annotations
 
 from src.core.dex import DexState
 from src.core.perps import PerpClearinghouse3pTransferMarketState
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+
+
+_CHAIN_ID = "tau-test"
+_BLOCK_TIMESTAMP = 1
+_DEADLINE = 10_000
+
+_ALICE_SK = 1
+_BOB_SK = 2
+_CAROL_SK = 3
+_ORACLE_SK = 4
+
+_ALICE_PUBKEY = bls_pubkey_hex_from_privkey(_ALICE_SK)
+_BOB_PUBKEY = bls_pubkey_hex_from_privkey(_BOB_SK)
+_CAROL_PUBKEY = bls_pubkey_hex_from_privkey(_CAROL_SK)
+_ORACLE_PUBKEY = bls_pubkey_hex_from_privkey(_ORACLE_SK)
 
 
 def _op(market_id: str, action: str, *, version: str, **kwargs: object) -> dict[str, object]:
@@ -17,43 +33,114 @@ def _op(market_id: str, action: str, *, version: str, **kwargs: object) -> dict[
     return op
 
 
-def _apply_result(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str):
+def _apply_result(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], block_timestamp: int = _BLOCK_TIMESTAMP):
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
-    cfg = PerpEngineConfig(operator_pubkey=operator_pubkey)
-    return apply_perp_ops(config=cfg, state=state, operations={"5": ops}, tx_sender_pubkey=tx_sender_pubkey)
+    cfg = PerpEngineConfig(chain_id=_CHAIN_ID, oracle_pubkey=_ORACLE_PUBKEY)
+    return apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": ops},
+        tx_sender_pubkey=tx_sender_pubkey,
+        block_timestamp=int(block_timestamp),
+    )
 
 
-def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str) -> DexState:
-    res = _apply_result(state=state, tx_sender_pubkey=tx_sender_pubkey, operator_pubkey=operator_pubkey, ops=ops)
+def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], block_timestamp: int = _BLOCK_TIMESTAMP) -> DexState:
+    res = _apply_result(state=state, tx_sender_pubkey=tx_sender_pubkey, ops=ops, block_timestamp=block_timestamp)
     assert res.ok is True, res.error
     assert res.state is not None
     return res.state
 
 
-def test_init_market_3p_is_strict_about_prefix_and_operator() -> None:
+def _sign(op: dict[str, object], *, signer_privkey: int, signer_pubkey: str, nonce: int) -> str:
+    return sign_perp_op_for_engine(op, privkey=signer_privkey, chain_id=_CHAIN_ID, signer_pubkey=signer_pubkey, nonce=nonce)
+
+
+def _signed_init_market_3p(*, market_id: str, quote_asset: str, nonce_a: int, nonce_b: int, nonce_c: int, deadline: int) -> dict[str, object]:
+    base = _op(
+        market_id,
+        "init_market_3p",
+        version="1.1",
+        quote_asset=quote_asset,
+        account_a_pubkey=_ALICE_PUBKEY,
+        account_b_pubkey=_BOB_PUBKEY,
+        account_c_pubkey=_CAROL_PUBKEY,
+        deadline=int(deadline),
+        nonce_a=int(nonce_a),
+        nonce_b=int(nonce_b),
+        nonce_c=int(nonce_c),
+    )
+    base["sig_a"] = _sign(base, signer_privkey=_ALICE_SK, signer_pubkey=_ALICE_PUBKEY, nonce=nonce_a)
+    base["sig_b"] = _sign(base, signer_privkey=_BOB_SK, signer_pubkey=_BOB_PUBKEY, nonce=nonce_b)
+    base["sig_c"] = _sign(base, signer_privkey=_CAROL_SK, signer_pubkey=_CAROL_PUBKEY, nonce=nonce_c)
+    return base
+
+
+def _signed_set_position_triplet(
+    *,
+    market_id: str,
+    new_a: int,
+    new_b: int,
+    new_c: int,
+    nonce_a: int,
+    nonce_b: int,
+    nonce_c: int,
+    deadline: int,
+) -> dict[str, object]:
+    base = _op(
+        market_id,
+        "set_position_triplet",
+        version="1.1",
+        account_a_pubkey=_ALICE_PUBKEY,
+        account_b_pubkey=_BOB_PUBKEY,
+        account_c_pubkey=_CAROL_PUBKEY,
+        new_position_base_a=int(new_a),
+        new_position_base_b=int(new_b),
+        new_position_base_c=int(new_c),
+        deadline=int(deadline),
+        nonce_a=int(nonce_a),
+        nonce_b=int(nonce_b),
+        nonce_c=int(nonce_c),
+    )
+    base["sig_a"] = _sign(base, signer_privkey=_ALICE_SK, signer_pubkey=_ALICE_PUBKEY, nonce=nonce_a)
+    base["sig_b"] = _sign(base, signer_privkey=_BOB_SK, signer_pubkey=_BOB_PUBKEY, nonce=nonce_b)
+    base["sig_c"] = _sign(base, signer_privkey=_CAROL_SK, signer_pubkey=_CAROL_PUBKEY, nonce=nonce_c)
+    return base
+
+
+def _signed_publish_price(*, market_id: str, price_e8: int, oracle_nonce: int, deadline: int) -> dict[str, object]:
+    base = _op(
+        market_id,
+        "publish_clearing_price",
+        version="1.1",
+        price_e8=int(price_e8),
+        deadline=int(deadline),
+        oracle_nonce=int(oracle_nonce),
+    )
+    base["oracle_sig"] = _sign(base, signer_privkey=_ORACLE_SK, signer_pubkey=_ORACLE_PUBKEY, nonce=oracle_nonce)
+    return base
+
+
+def test_init_market_3p_is_strict_about_prefix_and_signatures() -> None:
     quote_asset = "0x" + "33" * 32
-    operator = "00" * 48
-    alice = "aa" * 48
-    bob = "bb" * 48
-    carol = "cc" * 48
+    relayer = "ff" * 48
 
     state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
 
     bad_market_id = "perp:demo"
     res = _apply_result(
         state=state,
-        tx_sender_pubkey=operator,
-        operator_pubkey=operator,
+        tx_sender_pubkey=relayer,
         ops=[
             _op(
                 bad_market_id,
                 "init_market_3p",
                 version="1.1",
                 quote_asset=quote_asset,
-                account_a_pubkey=alice,
-                account_b_pubkey=bob,
-                account_c_pubkey=carol,
+                account_a_pubkey=_ALICE_PUBKEY,
+                account_b_pubkey=_BOB_PUBKEY,
+                account_c_pubkey=_CAROL_PUBKEY,
             )
         ],
     )
@@ -61,67 +148,50 @@ def test_init_market_3p_is_strict_about_prefix_and_operator() -> None:
     assert res.error is not None and "perp:ch3p:" in res.error
 
     market_id = "perp:ch3p:demo"
-    res2 = _apply_result(
-        state=state,
-        tx_sender_pubkey="ff" * 48,
-        operator_pubkey=operator,
-        ops=[
-            _op(
-                market_id,
-                "init_market_3p",
-                version="1.1",
-                quote_asset=quote_asset,
-                account_a_pubkey=alice,
-                account_b_pubkey=bob,
-                account_c_pubkey=carol,
-            )
-        ],
-    )
+    op = _signed_init_market_3p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, nonce_c=1, deadline=_DEADLINE)
+    op_bad = dict(op)
+    op_bad["sig_c"] = "0x" + "00" * 96
+    res2 = _apply_result(state=state, tx_sender_pubkey=relayer, ops=[op_bad])
     assert not res2.ok
-    assert res2.error == "operator only"
+    assert res2.error is not None and res2.error.startswith("account_c signature invalid:")
+
+    res3 = _apply_result(state=state, tx_sender_pubkey=relayer, ops=[op])
+    assert res3.ok is True, res3.error
 
 
 def test_set_position_triplet_requires_net_zero_and_one_idle() -> None:
     market_id = "perp:ch3p:netzero"
     quote_asset = "0x" + "44" * 32
-    operator = "00" * 48
-    alice = "aa" * 48
-    bob = "bb" * 48
-    carol = "cc" * 48
+    relayer = "ff" * 48
 
     state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
     state = _apply(
         state=state,
-        tx_sender_pubkey=operator,
-        operator_pubkey=operator,
-        ops=[
-            _op(
-                market_id,
-                "init_market_3p",
-                version="1.1",
-                quote_asset=quote_asset,
-                account_a_pubkey=alice,
-                account_b_pubkey=bob,
-                account_c_pubkey=carol,
-            )
-        ],
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_3p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, nonce_c=1, deadline=_DEADLINE)],
     )
 
     res = _apply_result(
         state=state,
-        tx_sender_pubkey=operator,
-        operator_pubkey=operator,
+        tx_sender_pubkey=relayer,
         ops=[
             _op(
                 market_id,
                 "set_position_triplet",
                 version="1.1",
-                account_a_pubkey=alice,
-                account_b_pubkey=bob,
-                account_c_pubkey=carol,
+                account_a_pubkey=_ALICE_PUBKEY,
+                account_b_pubkey=_BOB_PUBKEY,
+                account_c_pubkey=_CAROL_PUBKEY,
                 new_position_base_a=1,
                 new_position_base_b=0,
                 new_position_base_c=0,
+                deadline=_DEADLINE,
+                nonce_a=2,
+                sig_a="0x" + "11" * 96,
+                nonce_b=2,
+                sig_b="0x" + "22" * 96,
+                nonce_c=2,
+                sig_c="0x" + "33" * 96,
             )
         ],
     )
@@ -130,19 +200,25 @@ def test_set_position_triplet_requires_net_zero_and_one_idle() -> None:
 
     res2 = _apply_result(
         state=state,
-        tx_sender_pubkey=operator,
-        operator_pubkey=operator,
+        tx_sender_pubkey=relayer,
         ops=[
             _op(
                 market_id,
                 "set_position_triplet",
                 version="1.1",
-                account_a_pubkey=alice,
-                account_b_pubkey=bob,
-                account_c_pubkey=carol,
+                account_a_pubkey=_ALICE_PUBKEY,
+                account_b_pubkey=_BOB_PUBKEY,
+                account_c_pubkey=_CAROL_PUBKEY,
                 new_position_base_a=1,
                 new_position_base_b=-2,
                 new_position_base_c=1,
+                deadline=_DEADLINE,
+                nonce_a=2,
+                sig_a="0x" + "11" * 96,
+                nonce_b=2,
+                sig_b="0x" + "22" * 96,
+                nonce_c=2,
+                sig_c="0x" + "33" * 96,
             )
         ],
     )
@@ -153,83 +229,53 @@ def test_set_position_triplet_requires_net_zero_and_one_idle() -> None:
 def test_settle_epoch_3p_can_transfer_distressed_side_and_preserve_conservation() -> None:
     market_id = "perp:ch3p:transfer"
     quote_asset = "0x" + "55" * 32
-    operator = "00" * 48
-    alice = "aa" * 48
-    bob = "bb" * 48
-    carol = "cc" * 48
+    relayer = "ff" * 48
 
     funded = BalanceTable()
-    funded.set(alice, quote_asset, 1000)
-    funded.set(bob, quote_asset, 1000)
-    funded.set(carol, quote_asset, 1000)
+    funded.set(_ALICE_PUBKEY, quote_asset, 1000)
+    funded.set(_BOB_PUBKEY, quote_asset, 1000)
+    funded.set(_CAROL_PUBKEY, quote_asset, 1000)
     state = DexState(balances=funded, pools={}, lp_balances=LPTable())
 
     state = _apply(
         state=state,
-        tx_sender_pubkey=operator,
-        operator_pubkey=operator,
-        ops=[
-            _op(
-                market_id,
-                "init_market_3p",
-                version="1.1",
-                quote_asset=quote_asset,
-                account_a_pubkey=alice,
-                account_b_pubkey=bob,
-                account_c_pubkey=carol,
-            )
-        ],
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_3p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, nonce_c=1, deadline=_DEADLINE)],
     )
 
     # Epoch 1: initialize index price at 1.00.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", version="1.1", price_e8=100_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.1")])
+    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1, deadline=_DEADLINE)])
+    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "settle_epoch", version="1.1")])
 
     # Fund all accounts (quote units; kernel stores quote-e8).
     state = _apply(
         state=state,
-        tx_sender_pubkey=alice,
-        operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", version="1.1", account_pubkey=alice, amount=100)],
+        tx_sender_pubkey=_ALICE_PUBKEY,
+        ops=[_op(market_id, "deposit_collateral", version="1.1", account_pubkey=_ALICE_PUBKEY, amount=100)],
     )
     state = _apply(
         state=state,
-        tx_sender_pubkey=bob,
-        operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", version="1.1", account_pubkey=bob, amount=100)],
+        tx_sender_pubkey=_BOB_PUBKEY,
+        ops=[_op(market_id, "deposit_collateral", version="1.1", account_pubkey=_BOB_PUBKEY, amount=100)],
     )
     state = _apply(
         state=state,
-        tx_sender_pubkey=carol,
-        operator_pubkey=operator,
-        ops=[_op(market_id, "deposit_collateral", version="1.1", account_pubkey=carol, amount=200)],
+        tx_sender_pubkey=_CAROL_PUBKEY,
+        ops=[_op(market_id, "deposit_collateral", version="1.1", account_pubkey=_CAROL_PUBKEY, amount=200)],
     )
 
     # Open a matched AB position pair (C idle).
     state = _apply(
         state=state,
-        tx_sender_pubkey=operator,
-        operator_pubkey=operator,
-        ops=[
-            _op(
-                market_id,
-                "set_position_triplet",
-                version="1.1",
-                account_a_pubkey=alice,
-                account_b_pubkey=bob,
-                account_c_pubkey=carol,
-                new_position_base_a=1000,
-                new_position_base_b=-1000,
-                new_position_base_c=0,
-            )
-        ],
+        tx_sender_pubkey=relayer,
+        ops=[_signed_set_position_triplet(market_id=market_id, new_a=1000, new_b=-1000, new_c=0, nonce_a=2, nonce_b=2, nonce_c=2, deadline=_DEADLINE)],
     )
 
     # Epoch 2: +5% move triggers maintenance breach for the short; its position is transferred to idle C.
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", version="1.1", price_e8=105_000_000)])
-    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch", version="1.1")])
+    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_signed_publish_price(market_id=market_id, price_e8=105_000_000, oracle_nonce=2, deadline=_DEADLINE)])
+    state = _apply(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "settle_epoch", version="1.1")])
 
     assert state.perps is not None
     m = state.perps.markets[market_id]

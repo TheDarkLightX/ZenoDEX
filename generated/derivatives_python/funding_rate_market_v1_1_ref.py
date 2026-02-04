@@ -2,7 +2,7 @@
 Auto-generated Python reference model for: funding_rate_market_v1_1
 IR hash: sha256:1d5fea50d2007ecdbb298464af5a56c8e5e395ca6d532de2fa613d9ec5711903
 
-Generated from the YAML kernel spec by the repo's optional spec toolchain (ESSO: Evolutionary State Space Optimizer).
+Generated from the YAML kernel spec by the repo's optional private toolchain.
 
 This file is standalone and has no runtime dependency on the generator/toolchain.
 """

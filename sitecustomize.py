@@ -6,9 +6,9 @@ from pathlib import Path
 
 def _maybe_add_external_esso_to_syspath() -> None:
     """
-    Make `python3 -m ESSO ...` work in this repo without requiring callers to set PYTHONPATH.
+    Make the optional private toolchain importable without requiring callers to set PYTHONPATH.
 
-    This is a no-op if `external/ESSO` is not present.
+    This is a no-op if the toolchain is not present under `external/` (git-ignored).
     """
 
     repo_root = Path(__file__).resolve().parent
@@ -22,4 +22,3 @@ def _maybe_add_external_esso_to_syspath() -> None:
 
 
 _maybe_add_external_esso_to_syspath()
-

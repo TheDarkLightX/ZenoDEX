@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ESSO Neural Hint Generator - MLX Edition (Apple Silicon)
+Neural Hint Generator - MLX Edition (Apple Silicon)
 
 Uses local MLX models (Qwen 7B/80B) to generate high-quality synthesis hints.
 Fully local, no API calls. Supports batch processing and two-stage model selection.
@@ -149,7 +149,7 @@ def extract_candidates(response: str) -> list[str]:
 
 
 def compute_esso_hashes(model_path: str, synth_path: str) -> tuple[str, str]:
-    """Compute ESSO model and synth hashes."""
+    """Compute toolchain model and synth hashes."""
     import yaml
     try:
         from ESSO.evolve import ir_hash
@@ -189,7 +189,7 @@ print(synth_hash(synth))
 
 def validate_cheap(term: str, model_path: str, synth_path: str, hole_id: str) -> tuple[bool, str]:
     """
-    Cheap validation: parse + grammar check via ESSO hint loader.
+    Cheap validation: parse + grammar check via the toolchain hint loader.
     Returns (valid, error_message).
     """
     esso_dir = Path(__file__).parent.parent / "external" / "ESSO"
@@ -240,7 +240,7 @@ print('OK' if hints else 'FAIL')
 def validate_full(term: str, model_path: str, synth_path: str, hole_id: str,
                   timeout_ms: int = 5000) -> tuple[bool, str]:
     """
-    Full validation: run ESSO synth in hint-only mode with limited search.
+    Full validation: run toolchain synthesis in hint-only mode with limited search.
     Returns (valid, error_message).
     """
     esso_dir = Path(__file__).parent.parent / "external" / "ESSO"
@@ -278,7 +278,7 @@ def validate_full(term: str, model_path: str, synth_path: str, hole_id: str,
                 return True, ""
             return False, result.stderr or result.stdout
         except subprocess.TimeoutExpired:
-            return False, "ESSO synth timeout"
+            return False, "toolchain synth timeout"
         except Exception as e:
             return False, str(e)
         finally:
@@ -363,7 +363,7 @@ def generate_hints_single(model_path: str, synth_path: str, mlx_model_name: str,
                           validate: str = "none") -> dict:
     """
     Generate hints for a single spec with optional multi-sampling.
-    Returns ESSO-compatible hints dict.
+    Returns toolchain-compatible hints dict.
     """
     with open(model_path) as f:
         model_yaml = f.read()
@@ -612,7 +612,7 @@ def run_batch(spec_dir: str, samples: int = 3, two_stage: bool = False,
 
 
 def run_esso_synth(model_path: str, synth_path: str, hints_path: str, output_dir: str) -> bool:
-    """Run ESSO synthesis with hints."""
+    """Run toolchain synthesis with hints."""
     esso_path = Path(__file__).parent.parent / "external" / "ESSO"
     venv_python = esso_path / ".venv" / "bin" / "python"
 
@@ -624,7 +624,7 @@ def run_esso_synth(model_path: str, synth_path: str, hints_path: str, output_dir
         "--output", output_dir,
     ]
 
-    print(f"\nRunning ESSO: {' '.join(cmd)}")
+    print(f"\nRunning toolchain: {' '.join(cmd)}")
     env = os.environ.copy()
     env["PYTHONPATH"] = str(esso_path)
 
@@ -673,7 +673,7 @@ def generate_report(run_dir: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ESSO MLX Hint Generator (Apple Silicon)",
+        description="MLX Hint Generator (Apple Silicon)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -701,7 +701,7 @@ Examples:
     hints_parser.add_argument("--hints-out", default=None)
 
     # synth command
-    synth_parser = subparsers.add_parser("synth", help="Generate hints and run ESSO synthesis")
+    synth_parser = subparsers.add_parser("synth", help="Generate hints and run toolchain synthesis")
     synth_parser.add_argument("model", help="Path to model.yaml")
     synth_parser.add_argument("synth", help="Path to synth.json")
     synth_parser.add_argument("--mlx-model", default=DEFAULT_MLX_MODEL)

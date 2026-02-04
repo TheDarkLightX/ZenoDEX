@@ -2,7 +2,7 @@
 #
 # Goal:
 # - Provide a tiny, finite-state model suitable for the repo's LTLf synthesis gate
-#   (run via the optional kernel toolchain vendored under `external/ESSO/`).
+#   (run via an optional private kernel toolchain vendored under `external/`).
 # - This complements the TLA+ scheduler model in `formal/tla/` (infinite-trace liveness).
 #
 # Model intuition:

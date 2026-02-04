@@ -3,20 +3,25 @@ Perpetuals execution adapter for Tau Net-style transactions.
 
 This module applies operation group "5" (perps) to `DexState` in a deterministic,
 fail-closed way. It is intentionally conservative:
-- user actions require tx_sender_pubkey == account_pubkey
-- operator actions require an explicit operator pubkey configured
-- unknown fields/actions are rejected
+- Account-scoped actions require tx_sender_pubkey == account_pubkey.
+- Isolated-market admin actions require an explicit operator pubkey configured (optional).
+- Clearinghouse market formation and matched position updates require per-operation
+  signatures from the participating accounts (replay-protected via nonces).
+- Clearing-price publication for clearinghouse markets is oracle-authorized when
+  `oracle_pubkey` is configured.
+- Unknown fields/actions are rejected.
 
 Two perps operation versions are supported:
 - v0.1: isolated-margin per-account execution (default posture).
 - v1.0 (and legacy v0.2): a minimal 2-party clearinghouse posture with enforced net-zero exposure.
   - Markets are namespaced with a `perp:ch2p:` prefix to avoid mixing semantics.
-  - Position updates are operator-authorized and must be set as a matched pair.
+  - Market init and matched position updates are jointly authorized by the two accounts.
   - Clearinghouse collateral is tracked internally in quote-e8 units so epoch PnL is exact and conserved.
   - The clearinghouse state transition is spec-driven: the persistent market state stores a kernel-state dict.
 - v1.1: a 3-party transfer clearinghouse posture with a standby account (A,B,C).
   - Markets are namespaced with a `perp:ch3p:` prefix to avoid mixing semantics.
-  - Position updates are operator-authorized and must keep net position == 0 with at least one idle account.
+  - Market init and matched position updates are jointly authorized by the three accounts and
+    must keep net position == 0 with at least one idle account.
   - If exactly one account is below maintenance at settlement and the idle account can meet initial margin,
     the distressed position is transferred to the idle account; otherwise positions close to flat.
 
@@ -30,8 +35,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields, replace
 from functools import lru_cache
+import hashlib
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+import re
 import sys
 from typing import Any, Dict, List, Mapping, Optional
 
@@ -54,7 +61,8 @@ from ..core.perps import (
     PerpsState,
 )
 from ..state.balances import BalanceTable
-from ..state.canonical import bounded_json_utf8_size
+from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
+from ..state.nonces import NonceTable
 
 
 PERP_OP_MODULE = "TauPerp"
@@ -72,6 +80,18 @@ PERP_CH2P_MARKET_PREFIX = "perp:ch2p:"
 PERP_CH3P_MARKET_PREFIX = "perp:ch3p:"
 
 _E8_SCALE = 100_000_000
+
+try:
+    from py_ecc.bls import G2Basic  # type: ignore
+
+    _BLS_AVAILABLE = True
+except Exception:  # pragma: no cover - optional dependency
+    G2Basic = None  # type: ignore[assignment]
+    _BLS_AVAILABLE = False
+
+_HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
+_U32_MAX = 0xFFFFFFFF
+
 
 
 @lru_cache
@@ -199,6 +219,10 @@ def _ch3p_step(state_dict: Mapping[str, Any], *, tag: str, args: Mapping[str, An
 @dataclass(frozen=True)
 class PerpEngineConfig:
     operator_pubkey: Optional[str] = None
+    # Signature domain separation for per-op authorization (bind to a specific network/deployment).
+    chain_id: str = "tau-net-alpha"
+    # Optional oracle signer for clearing-price publication (recommended for clearinghouse markets).
+    oracle_pubkey: Optional[str] = None
     max_ops: int = 256
     max_op_bytes: int = 64_000
     max_total_ops_bytes: int = 512_000
@@ -238,10 +262,53 @@ def _require_int(value: Any, *, name: str, non_negative: bool = False) -> int:
     return int(value)
 
 
+def _require_int_u32_pos(value: Any, *, name: str) -> int:
+    n = _require_int(value, name=name, non_negative=True)
+    if n <= 0:
+        raise ValueError(f"{name} must be a positive int")
+    if n > _U32_MAX:
+        raise ValueError(f"{name} must fit in u32")
+    return int(n)
+
+
+def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional[int] = None) -> bytes:
+    if not isinstance(hex_str, str):
+        raise TypeError(f"{name} must be a string")
+    s = hex_str[2:] if hex_str.startswith("0x") else hex_str
+    if not s:
+        raise ValueError(f"{name} must be non-empty hex")
+
+    if expected_nbytes is not None:
+        if not isinstance(expected_nbytes, int) or isinstance(expected_nbytes, bool) or expected_nbytes <= 0:
+            raise ValueError("expected_nbytes must be a positive int")
+        expected_hex_len = 2 * expected_nbytes
+        if len(s) != expected_hex_len:
+            raise ValueError(f"{name} must be {expected_nbytes} bytes (hex length {expected_hex_len})")
+
+    if len(s) % 2 != 0:
+        raise ValueError(f"{name} must have an even number of hex chars")
+    if not _HEX_CHARS_RE.fullmatch(s):
+        raise ValueError(f"{name} must be valid hex")
+    try:
+        out = bytes.fromhex(s)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be valid hex") from exc
+    if expected_nbytes is not None and len(out) != expected_nbytes:
+        raise ValueError(f"{name} must decode to exactly {expected_nbytes} bytes")
+    return out
+
+
 def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
     copied = BalanceTable()
     for (pubkey, asset), amount in balances.get_all_balances().items():
         copied.set(pubkey, asset, int(amount))
+    return copied
+
+
+def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
+    copied = NonceTable()
+    for pk, last in nonces.get_all().items():
+        copied.set_last(pk, int(last))
     return copied
 
 
@@ -348,12 +415,130 @@ def _require_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> Opt
     return None
 
 
+def _is_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> bool:
+    return _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
+
+
+_SIGNED_FIELD_KEYS: dict[str, tuple[str, ...]] = {
+    # Clearinghouse market formation / matched updates (P2P posture).
+    "init_market_2p": ("quote_asset", "account_a_pubkey", "account_b_pubkey", "deadline"),
+    "init_market_3p": ("quote_asset", "account_a_pubkey", "account_b_pubkey", "account_c_pubkey", "deadline"),
+    "set_position_pair": (
+        "account_a_pubkey",
+        "account_b_pubkey",
+        "new_position_base_a",
+        "new_position_base_b",
+        "deadline",
+    ),
+    "set_position_triplet": (
+        "account_a_pubkey",
+        "account_b_pubkey",
+        "account_c_pubkey",
+        "new_position_base_a",
+        "new_position_base_b",
+        "new_position_base_c",
+        "deadline",
+    ),
+    # Clearing price publication (oracle-signed by default for clearinghouse markets).
+    "publish_clearing_price": ("price_e8", "deadline"),
+}
+
+
+def _perp_op_signing_dict(op: Mapping[str, Any], *, signer_pubkey: str, nonce: int) -> Dict[str, Any]:
+    """Canonical signing dict for per-op authorization (deterministic)."""
+    module = op.get("module")
+    version = op.get("version")
+    market_id = op.get("market_id")
+    action = op.get("action")
+    if not isinstance(module, str) or not module:
+        raise ValueError("signing dict missing module")
+    if not isinstance(version, str) or not version:
+        raise ValueError("signing dict missing version")
+    if not isinstance(market_id, str) or not market_id:
+        raise ValueError("signing dict missing market_id")
+    if not isinstance(action, str) or not action:
+        raise ValueError("signing dict missing action")
+
+    keys = _SIGNED_FIELD_KEYS.get(action)
+    if keys is None:
+        raise ValueError(f"unsupported signed action: {action}")
+
+    fields: Dict[str, Any] = {}
+    for k in keys:
+        if k not in op:
+            raise ValueError(f"signing dict missing field: {k}")
+        fields[k] = op[k]
+
+    return {
+        "module": module,
+        "version": version,
+        "market_id": market_id,
+        "action": action,
+        "signer_pubkey": str(signer_pubkey),
+        "nonce": int(nonce),
+        "fields": fields,
+    }
+
+
+def _verify_perp_op_signature(
+    *,
+    config: PerpEngineConfig,
+    signer_pubkey: str,
+    nonce: int,
+    signature: str,
+    op: Mapping[str, Any],
+    nonces: NonceTable,
+    block_timestamp: int,
+) -> Optional[str]:
+    """Verify and consume a per-op signature (fail-closed)."""
+    if not _BLS_AVAILABLE:
+        return "BLS verification not available (install py-ecc)"
+
+    try:
+        signer_nonce_key = canonical_hex_fixed_allow_0x(signer_pubkey, nbytes=48, name="signer_pubkey")
+    except Exception as exc:
+        return str(exc)
+
+    # Deadline check first (cheap).
+    deadline = _require_int(op.get("deadline"), name="deadline", non_negative=True)
+    if int(block_timestamp) > int(deadline):
+        return "signature expired (deadline)"
+
+    # Nonce policy (cheap). We only commit after signature verification, but we
+    # validate expected value here to fail quickly.
+    expected = int(nonces.get_last(signer_nonce_key)) + 1
+    if int(nonce) != expected:
+        return "nonce invalid"
+
+    try:
+        pubkey_bytes = _hex_to_bytes_allow_0x(signer_pubkey, name="signer_pubkey", expected_nbytes=48)
+        sig_bytes = _hex_to_bytes_allow_0x(signature, name="signature", expected_nbytes=96)
+    except Exception as exc:
+        return str(exc)
+
+    try:
+        signing_dict = _perp_op_signing_dict(op, signer_pubkey=signer_pubkey, nonce=int(nonce))
+        signing_payload = canonical_json_bytes(signing_dict)
+        msg = domain_sep_bytes(f"perp_op_sig:{config.chain_id}", version=1) + signing_payload
+        msg_hash = hashlib.sha256(msg).digest()
+        ok = bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))  # type: ignore[attr-defined]
+    except Exception as exc:
+        return f"signature verification error: {exc}"
+    if not ok:
+        return "invalid signature"
+
+    # Commit nonce consumption after signature verification.
+    nonces.set_last(signer_nonce_key, int(nonce))
+    return None
+
+
 def apply_perp_ops(
     *,
     config: PerpEngineConfig,
     state: DexState,
     operations: Mapping[str, Any],
     tx_sender_pubkey: str,
+    block_timestamp: int,
 ) -> PerpTxResult:
     try:
         ops = parse_perp_ops(
@@ -370,6 +555,7 @@ def apply_perp_ops(
 
     # Work on copies; only commit to `DexState` if everything succeeds.
     balances = _copy_balance_table(state.balances)
+    nonces = _copy_nonce_table(state.nonces)
 
     perps = state.perps
     perps_version = PERPS_STATE_VERSION
@@ -417,9 +603,6 @@ def apply_perp_ops(
         if action == "init_market_2p":
             if version not in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
                 return PerpTxResult(ok=False, error="init_market_2p requires perps.version=0.2 or 1.0")
-            err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
-            if err is not None:
-                return PerpTxResult(ok=False, error=err)
             if market_id in markets:
                 return PerpTxResult(ok=False, error="market already exists")
 
@@ -433,10 +616,53 @@ def apply_perp_ops(
             if account_a_pubkey == account_b_pubkey:
                 return PerpTxResult(ok=False, error="accounts must be distinct")
 
-            allowed = {"module", "version", "market_id", "action", "quote_asset", "account_a_pubkey", "account_b_pubkey"}
+            _deadline = _require_int(data.get("deadline"), name="deadline", non_negative=True)
+            nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
+            sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
+            nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
+            sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
+
+            allowed = {
+                "module",
+                "version",
+                "market_id",
+                "action",
+                "quote_asset",
+                "account_a_pubkey",
+                "account_b_pubkey",
+                "deadline",
+                "nonce_a",
+                "sig_a",
+                "nonce_b",
+                "sig_b",
+            }
             extra = set(data.keys()) - allowed
             if extra:
                 return PerpTxResult(ok=False, error="init_market_2p has unknown fields")
+
+            sig_err_a = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_a_pubkey,
+                nonce=nonce_a,
+                signature=sig_a,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_a is not None:
+                return PerpTxResult(ok=False, error=f"account_a signature invalid: {sig_err_a}")
+
+            sig_err_b = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_b_pubkey,
+                nonce=nonce_b,
+                signature=sig_b,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_b is not None:
+                return PerpTxResult(ok=False, error=f"account_b signature invalid: {sig_err_b}")
 
             # Clearinghouse markets require perps state v5+ (market kind tags).
             perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
@@ -464,9 +690,6 @@ def apply_perp_ops(
         if action == "init_market_3p":
             if version != PERP_OP_VERSION_CH3P_V1_1:
                 return PerpTxResult(ok=False, error="init_market_3p requires perps.version=1.1")
-            err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
-            if err is not None:
-                return PerpTxResult(ok=False, error=err)
             if market_id in markets:
                 return PerpTxResult(ok=False, error="market already exists")
 
@@ -483,6 +706,14 @@ def apply_perp_ops(
             if len({account_a_pubkey, account_b_pubkey, account_c_pubkey}) != 3:
                 return PerpTxResult(ok=False, error="accounts must be distinct")
 
+            _deadline = _require_int(data.get("deadline"), name="deadline", non_negative=True)
+            nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
+            sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
+            nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
+            sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
+            nonce_c = _require_int_u32_pos(data.get("nonce_c"), name="nonce_c")
+            sig_c = _require_str(data.get("sig_c"), name="sig_c", non_empty=True, max_len=4096)
+
             allowed = {
                 "module",
                 "version",
@@ -492,10 +723,53 @@ def apply_perp_ops(
                 "account_a_pubkey",
                 "account_b_pubkey",
                 "account_c_pubkey",
+                "deadline",
+                "nonce_a",
+                "sig_a",
+                "nonce_b",
+                "sig_b",
+                "nonce_c",
+                "sig_c",
             }
             extra = set(data.keys()) - allowed
             if extra:
                 return PerpTxResult(ok=False, error="init_market_3p has unknown fields")
+
+            sig_err_a = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_a_pubkey,
+                nonce=nonce_a,
+                signature=sig_a,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_a is not None:
+                return PerpTxResult(ok=False, error=f"account_a signature invalid: {sig_err_a}")
+
+            sig_err_b = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_b_pubkey,
+                nonce=nonce_b,
+                signature=sig_b,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_b is not None:
+                return PerpTxResult(ok=False, error=f"account_b signature invalid: {sig_err_b}")
+
+            sig_err_c = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_c_pubkey,
+                nonce=nonce_c,
+                signature=sig_c,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_c is not None:
+                return PerpTxResult(ok=False, error=f"account_c signature invalid: {sig_err_c}")
 
             perps_version = max(perps_version, PERPS_STATE_VERSION_V5)
             try:
@@ -524,18 +798,6 @@ def apply_perp_ops(
         market_any = markets.get(market_id)
         if market_any is None:
             return PerpTxResult(ok=False, error="unknown market_id")
-
-        if action in (
-            "advance_epoch",
-            "publish_clearing_price",
-            "settle_epoch",
-            "clear_breaker",
-            "set_position_pair",
-            "set_position_triplet",
-        ):
-            err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
-            if err is not None:
-                return PerpTxResult(ok=False, error=err)
 
         is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
         is_ch3p = version == PERP_OP_VERSION_CH3P_V1_1
@@ -574,9 +836,30 @@ def apply_perp_ops(
             continue
 
         if is_ch2p and action == "publish_clearing_price":
-            allowed = {"module", "version", "market_id", "action", "price_e8"}
+            oracle_pubkey = (config.oracle_pubkey or "").strip()
+            if not oracle_pubkey:
+                return PerpTxResult(ok=False, error="oracle signer not configured (set PerpEngineConfig.oracle_pubkey)")
+
+            _deadline = _require_int(data.get("deadline"), name="deadline", non_negative=True)
+            oracle_nonce = _require_int_u32_pos(data.get("oracle_nonce"), name="oracle_nonce")
+            oracle_sig = _require_str(data.get("oracle_sig"), name="oracle_sig", non_empty=True, max_len=4096)
+
+            allowed = {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="publish_clearing_price has unknown fields")
+
+            sig_err = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=oracle_pubkey,
+                nonce=oracle_nonce,
+                signature=oracle_sig,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err is not None:
+                return PerpTxResult(ok=False, error=f"oracle signature invalid: {sig_err}")
+
             price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
             try:
                 next_state, eff = _ch2p_step(ch2p_market.state, tag="publish_clearing_price", args={"price_e8": price_e8})
@@ -683,6 +966,12 @@ def apply_perp_ops(
             if version not in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
                 return PerpTxResult(ok=False, error="set_position_pair requires perps.version=0.2 or 1.0")
 
+            _deadline = _require_int(data.get("deadline"), name="deadline", non_negative=True)
+            nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
+            sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
+            nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
+            sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
+
             allowed = {
                 "module",
                 "version",
@@ -692,6 +981,11 @@ def apply_perp_ops(
                 "account_b_pubkey",
                 "new_position_base_a",
                 "new_position_base_b",
+                "deadline",
+                "nonce_a",
+                "sig_a",
+                "nonce_b",
+                "sig_b",
             }
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="set_position_pair has unknown fields")
@@ -709,6 +1003,30 @@ def apply_perp_ops(
             new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
             if new_b != -new_a:
                 return PerpTxResult(ok=False, error="clearinghouse_2p requires net position == 0")
+
+            sig_err_a = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_a_pubkey,
+                nonce=nonce_a,
+                signature=sig_a,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_a is not None:
+                return PerpTxResult(ok=False, error=f"account_a signature invalid: {sig_err_a}")
+
+            sig_err_b = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_b_pubkey,
+                nonce=nonce_b,
+                signature=sig_b,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_b is not None:
+                return PerpTxResult(ok=False, error=f"account_b signature invalid: {sig_err_b}")
 
             try:
                 next_state, eff = _ch2p_step(
@@ -750,9 +1068,30 @@ def apply_perp_ops(
             continue
 
         if is_ch3p and action == "publish_clearing_price":
-            allowed = {"module", "version", "market_id", "action", "price_e8"}
+            oracle_pubkey = (config.oracle_pubkey or "").strip()
+            if not oracle_pubkey:
+                return PerpTxResult(ok=False, error="oracle signer not configured (set PerpEngineConfig.oracle_pubkey)")
+
+            _deadline = _require_int(data.get("deadline"), name="deadline", non_negative=True)
+            oracle_nonce = _require_int_u32_pos(data.get("oracle_nonce"), name="oracle_nonce")
+            oracle_sig = _require_str(data.get("oracle_sig"), name="oracle_sig", non_empty=True, max_len=4096)
+
+            allowed = {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="publish_clearing_price has unknown fields")
+
+            sig_err = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=oracle_pubkey,
+                nonce=oracle_nonce,
+                signature=oracle_sig,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err is not None:
+                return PerpTxResult(ok=False, error=f"oracle signature invalid: {sig_err}")
+
             price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
             try:
                 next_state, eff = _ch3p_step(ch3p_market.state, tag="publish_clearing_price", args={"price_e8": price_e8})
@@ -866,6 +1205,14 @@ def apply_perp_ops(
             if version != PERP_OP_VERSION_CH3P_V1_1:
                 return PerpTxResult(ok=False, error="set_position_triplet requires perps.version=1.1")
 
+            _deadline = _require_int(data.get("deadline"), name="deadline", non_negative=True)
+            nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
+            sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
+            nonce_b = _require_int_u32_pos(data.get("nonce_b"), name="nonce_b")
+            sig_b = _require_str(data.get("sig_b"), name="sig_b", non_empty=True, max_len=4096)
+            nonce_c = _require_int_u32_pos(data.get("nonce_c"), name="nonce_c")
+            sig_c = _require_str(data.get("sig_c"), name="sig_c", non_empty=True, max_len=4096)
+
             allowed = {
                 "module",
                 "version",
@@ -877,6 +1224,13 @@ def apply_perp_ops(
                 "new_position_base_a",
                 "new_position_base_b",
                 "new_position_base_c",
+                "deadline",
+                "nonce_a",
+                "sig_a",
+                "nonce_b",
+                "sig_b",
+                "nonce_c",
+                "sig_c",
             }
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="set_position_triplet has unknown fields")
@@ -904,6 +1258,42 @@ def apply_perp_ops(
                 return PerpTxResult(ok=False, error="clearinghouse_3p requires net position == 0")
             if not (new_a == 0 or new_b == 0 or new_c == 0):
                 return PerpTxResult(ok=False, error="clearinghouse_3p requires at least one flat position")
+
+            sig_err_a = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_a_pubkey,
+                nonce=nonce_a,
+                signature=sig_a,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_a is not None:
+                return PerpTxResult(ok=False, error=f"account_a signature invalid: {sig_err_a}")
+
+            sig_err_b = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_b_pubkey,
+                nonce=nonce_b,
+                signature=sig_b,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_b is not None:
+                return PerpTxResult(ok=False, error=f"account_b signature invalid: {sig_err_b}")
+
+            sig_err_c = _verify_perp_op_signature(
+                config=config,
+                signer_pubkey=account_c_pubkey,
+                nonce=nonce_c,
+                signature=sig_c,
+                op=data,
+                nonces=nonces,
+                block_timestamp=block_timestamp,
+            )
+            if sig_err_c is not None:
+                return PerpTxResult(ok=False, error=f"account_c signature invalid: {sig_err_c}")
 
             # Exactly one account must be idle in the post-position vector; the kernel guards also require the
             # idle account is already flat in the pre-state.
@@ -944,6 +1334,9 @@ def apply_perp_ops(
             return PerpTxResult(ok=False, error=f"unknown perps action: {action}")
 
         if action == "advance_epoch":
+            err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
+            if err is not None:
+                return PerpTxResult(ok=False, error=err)
             allowed = {"module", "version", "market_id", "action", "delta"}
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="advance_epoch has unknown fields")
@@ -971,6 +1364,9 @@ def apply_perp_ops(
             continue
 
         if action == "publish_clearing_price":
+            err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
+            if err is not None:
+                return PerpTxResult(ok=False, error=err)
             allowed = {"module", "version", "market_id", "action", "price_e8"}
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="publish_clearing_price has unknown fields")
@@ -996,6 +1392,9 @@ def apply_perp_ops(
             continue
 
         if action == "settle_epoch":
+            err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
+            if err is not None:
+                return PerpTxResult(ok=False, error=err)
             allowed = {"module", "version", "market_id", "action"}
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="settle_epoch has unknown fields")
@@ -1100,6 +1499,9 @@ def apply_perp_ops(
             continue
 
         if action == "clear_breaker":
+            err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
+            if err is not None:
+                return PerpTxResult(ok=False, error=err)
             allowed = {"module", "version", "market_id", "action"}
             if set(data.keys()) - allowed:
                 return PerpTxResult(ok=False, error="clear_breaker has unknown fields")
@@ -1327,5 +1729,5 @@ def apply_perp_ops(
         return PerpTxResult(ok=False, error=f"unknown perps action: {action}")
 
     next_perps = PerpsState(version=perps_version, markets=markets) if markets else None
-    next_state = replace(state, balances=balances, perps=next_perps)
+    next_state = replace(state, balances=balances, nonces=nonces, perps=next_perps)
     return PerpTxResult(ok=True, state=next_state, effects=effects)

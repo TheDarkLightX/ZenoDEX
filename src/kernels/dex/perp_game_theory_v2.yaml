@@ -1,7 +1,7 @@
 # [FORGE] Perp Game Theory v2 (Mechanism Design Verification — FIXED)
 #
 # Purpose:
-# - ESSO-IR state machine encoding game-theoretic invariants for the perpetual protocol.
+# - Kernel IR state machine encoding game-theoretic invariants for the perpetual protocol.
 # - Two-player isolated-margin model with funding, liquidation, and insurance fund.
 # - Verifies budget balance, incentive compatibility, individual rationality via SMT.
 #

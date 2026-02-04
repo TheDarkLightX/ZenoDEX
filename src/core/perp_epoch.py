@@ -10,9 +10,10 @@ Two “sources of truth” coexist:
 
 Backends:
 - Spec interpreter (optional): loads and steps the YAML kernel directly using an
-  optional kernel toolchain (vendored under `external/ESSO/`). The toolchain is a
-  deterministic verifier + interpreter + code generator for YAML kernels. It is
-  not required at production runtime, but it is used by evidence gates.
+  optional private toolchain (vendored under `external/` and git-ignored). The
+  toolchain is a deterministic verifier + interpreter + code generator for YAML
+  kernels. It is not required at production runtime, but it is used by evidence
+  gates.
 - Native (default): executes `src/core/perp_v2/`, which is kept equivalent to the
   YAML kernel via parity tests against a generated, dependency-free Python
   reference model committed under `generated/perp_python/`.

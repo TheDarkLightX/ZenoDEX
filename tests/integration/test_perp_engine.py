@@ -23,7 +23,7 @@ def _apply_result(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str,
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
     cfg = PerpEngineConfig(operator_pubkey=operator_pubkey)
-    return apply_perp_ops(config=cfg, state=state, operations={"5": ops}, tx_sender_pubkey=tx_sender_pubkey)
+    return apply_perp_ops(config=cfg, state=state, operations={"5": ops}, tx_sender_pubkey=tx_sender_pubkey, block_timestamp=0)
 
 
 def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], operator_pubkey: str) -> DexState:
