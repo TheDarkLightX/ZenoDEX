@@ -1,6 +1,6 @@
 """
 Auto-generated Python reference model for: perp_epoch_clearinghouse_2p_v0_1
-IR hash: sha256:11530562918cd1aaa048d9e999143f9cf2bb51aa70dc0dfcfece689a89c0ead4
+IR hash: sha256:9ee41ddd9919f6695fb116f03ba87d802e007bac0f441546513a958bbd8ff38b
 
 Generated from the YAML kernel spec by the repo's optional private toolchain.
 
@@ -882,8 +882,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -891,8 +894,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -912,8 +918,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -921,8 +930,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -976,8 +988,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -985,8 +1000,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -1006,8 +1024,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -1015,8 +1036,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -1071,8 +1095,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -1080,8 +1107,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -1101,8 +1131,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -1110,8 +1143,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -1165,8 +1201,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -1174,8 +1213,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -1195,8 +1237,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -1204,8 +1249,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -1302,8 +1350,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -1311,8 +1362,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -1332,8 +1386,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -1341,8 +1398,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -1406,8 +1466,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 else (
                                                                     (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         // 10000
                                                                     )
@@ -1415,8 +1478,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         1
                                                                         if (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             % 10000
                                                                         )
@@ -1439,8 +1505,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 else (
                                                                     (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         // 10000
                                                                     )
@@ -1448,8 +1517,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         1
                                                                         if (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             % 10000
                                                                         )
@@ -1515,8 +1587,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -1524,8 +1599,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -1548,8 +1626,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -1557,8 +1638,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -1632,8 +1716,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -1641,8 +1728,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -1665,8 +1755,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -1674,8 +1767,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -1741,8 +1837,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -1750,8 +1849,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -1774,8 +1876,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -1783,8 +1888,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -1846,8 +1954,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -1855,8 +1966,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -1879,8 +1993,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -1888,8 +2005,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -1947,8 +2067,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     else (
                                                         (
                                                             (
-                                                                s.index_price_e8
-                                                                * s.max_oracle_move_bps
+                                                                9999
+                                                                + (
+                                                                    s.index_price_e8
+                                                                    * s.max_oracle_move_bps
+                                                                )
                                                             )
                                                             // 10000
                                                         )
@@ -1956,8 +2079,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             1
                                                             if (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 % 10000
                                                             )
@@ -1977,8 +2103,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     else (
                                                         (
                                                             (
-                                                                s.index_price_e8
-                                                                * s.max_oracle_move_bps
+                                                                9999
+                                                                + (
+                                                                    s.index_price_e8
+                                                                    * s.max_oracle_move_bps
+                                                                )
                                                             )
                                                             // 10000
                                                         )
@@ -1986,8 +2115,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             1
                                                             if (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 % 10000
                                                             )
@@ -2047,8 +2179,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -2056,8 +2191,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -2080,8 +2218,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -2089,8 +2230,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -2158,8 +2302,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -2167,8 +2314,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -2191,8 +2341,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -2200,8 +2353,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -2267,8 +2423,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -2276,8 +2435,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -2300,8 +2462,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -2309,8 +2474,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -2379,8 +2547,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -2388,8 +2559,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -2409,8 +2583,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                             else (
                                                 (
                                                     (
-                                                        s.index_price_e8
-                                                        * s.max_oracle_move_bps
+                                                        9999
+                                                        + (
+                                                            s.index_price_e8
+                                                            * s.max_oracle_move_bps
+                                                        )
                                                     )
                                                     // 10000
                                                 )
@@ -2418,8 +2595,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     1
                                                     if (
                                                         (
-                                                            s.index_price_e8
-                                                            * s.max_oracle_move_bps
+                                                            9999
+                                                            + (
+                                                                s.index_price_e8
+                                                                * s.max_oracle_move_bps
+                                                            )
                                                         )
                                                         % 10000
                                                     )
@@ -2483,8 +2663,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 else (
                                                                     (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         // 10000
                                                                     )
@@ -2492,8 +2675,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         1
                                                                         if (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             % 10000
                                                                         )
@@ -2516,8 +2702,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 else (
                                                                     (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         // 10000
                                                                     )
@@ -2525,8 +2714,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         1
                                                                         if (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             % 10000
                                                                         )
@@ -2592,8 +2784,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -2601,8 +2796,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -2625,8 +2823,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -2634,8 +2835,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -2709,8 +2913,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -2718,8 +2925,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -2742,8 +2952,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -2751,8 +2964,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -2818,8 +3034,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -2827,8 +3046,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -2851,8 +3073,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -2860,8 +3085,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -2923,8 +3151,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -2932,8 +3163,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -2956,8 +3190,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -2965,8 +3202,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -3024,8 +3264,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     else (
                                                         (
                                                             (
-                                                                s.index_price_e8
-                                                                * s.max_oracle_move_bps
+                                                                9999
+                                                                + (
+                                                                    s.index_price_e8
+                                                                    * s.max_oracle_move_bps
+                                                                )
                                                             )
                                                             // 10000
                                                         )
@@ -3033,8 +3276,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             1
                                                             if (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 % 10000
                                                             )
@@ -3054,8 +3300,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     else (
                                                         (
                                                             (
-                                                                s.index_price_e8
-                                                                * s.max_oracle_move_bps
+                                                                9999
+                                                                + (
+                                                                    s.index_price_e8
+                                                                    * s.max_oracle_move_bps
+                                                                )
                                                             )
                                                             // 10000
                                                         )
@@ -3063,8 +3312,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             1
                                                             if (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 % 10000
                                                             )
@@ -3124,8 +3376,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -3133,8 +3388,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -3157,8 +3415,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -3166,8 +3427,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -3235,8 +3499,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -3244,8 +3511,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -3268,8 +3538,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -3277,8 +3550,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -3344,8 +3620,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -3353,8 +3632,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -3377,8 +3659,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -3386,8 +3671,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -3460,8 +3748,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -3469,8 +3760,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -3493,8 +3787,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -3502,8 +3799,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -3571,8 +3871,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -3580,8 +3883,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -3604,8 +3910,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -3613,8 +3922,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -3680,8 +3992,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -3689,8 +4004,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -3713,8 +4031,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -3722,8 +4043,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -3790,8 +4114,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -3799,8 +4126,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -3823,8 +4153,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -3832,8 +4165,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -3901,8 +4237,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -3910,8 +4249,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -3934,8 +4276,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -3943,8 +4288,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -4010,8 +4358,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -4019,8 +4370,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -4043,8 +4397,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -4052,8 +4409,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -4118,15 +4478,24 @@ def step(s: State, cmd: Command) -> StepResult:
                                     if 10000 == 0
                                     else (
                                         (
-                                            (s.index_price_e8 * s.max_oracle_move_bps)
+                                            (
+                                                9999
+                                                + (
+                                                    s.index_price_e8
+                                                    * s.max_oracle_move_bps
+                                                )
+                                            )
                                             // 10000
                                         )
                                         + (
                                             1
                                             if (
                                                 (
-                                                    s.index_price_e8
-                                                    * s.max_oracle_move_bps
+                                                    9999
+                                                    + (
+                                                        s.index_price_e8
+                                                        * s.max_oracle_move_bps
+                                                    )
                                                 )
                                                 % 10000
                                             )
@@ -4145,15 +4514,24 @@ def step(s: State, cmd: Command) -> StepResult:
                                     if 10000 == 0
                                     else (
                                         (
-                                            (s.index_price_e8 * s.max_oracle_move_bps)
+                                            (
+                                                9999
+                                                + (
+                                                    s.index_price_e8
+                                                    * s.max_oracle_move_bps
+                                                )
+                                            )
                                             // 10000
                                         )
                                         + (
                                             1
                                             if (
                                                 (
-                                                    s.index_price_e8
-                                                    * s.max_oracle_move_bps
+                                                    9999
+                                                    + (
+                                                        s.index_price_e8
+                                                        * s.max_oracle_move_bps
+                                                    )
                                                 )
                                                 % 10000
                                             )
@@ -4199,8 +4577,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -4208,8 +4589,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -4232,8 +4616,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -4241,8 +4628,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -4310,8 +4700,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -4319,8 +4712,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -4343,8 +4739,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -4352,8 +4751,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -4419,8 +4821,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -4428,8 +4833,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -4452,8 +4860,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -4461,8 +4872,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -4529,8 +4943,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -4538,8 +4955,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -4562,8 +4982,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -4571,8 +4994,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -4640,8 +5066,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -4649,8 +5078,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -4673,8 +5105,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -4682,8 +5117,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -4749,8 +5187,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -4758,8 +5199,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -4782,8 +5226,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -4791,8 +5238,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -4857,15 +5307,24 @@ def step(s: State, cmd: Command) -> StepResult:
                                     if 10000 == 0
                                     else (
                                         (
-                                            (s.index_price_e8 * s.max_oracle_move_bps)
+                                            (
+                                                9999
+                                                + (
+                                                    s.index_price_e8
+                                                    * s.max_oracle_move_bps
+                                                )
+                                            )
                                             // 10000
                                         )
                                         + (
                                             1
                                             if (
                                                 (
-                                                    s.index_price_e8
-                                                    * s.max_oracle_move_bps
+                                                    9999
+                                                    + (
+                                                        s.index_price_e8
+                                                        * s.max_oracle_move_bps
+                                                    )
                                                 )
                                                 % 10000
                                             )
@@ -4884,15 +5343,24 @@ def step(s: State, cmd: Command) -> StepResult:
                                     if 10000 == 0
                                     else (
                                         (
-                                            (s.index_price_e8 * s.max_oracle_move_bps)
+                                            (
+                                                9999
+                                                + (
+                                                    s.index_price_e8
+                                                    * s.max_oracle_move_bps
+                                                )
+                                            )
                                             // 10000
                                         )
                                         + (
                                             1
                                             if (
                                                 (
-                                                    s.index_price_e8
-                                                    * s.max_oracle_move_bps
+                                                    9999
+                                                    + (
+                                                        s.index_price_e8
+                                                        * s.max_oracle_move_bps
+                                                    )
                                                 )
                                                 % 10000
                                             )
@@ -4948,8 +5416,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -4957,8 +5428,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -4981,8 +5455,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -4990,8 +5467,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -5057,8 +5537,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -5066,8 +5549,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -5090,8 +5576,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -5099,8 +5588,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -5174,8 +5666,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -5183,8 +5678,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -5207,8 +5705,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -5216,8 +5717,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -5290,8 +5794,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             else (
                                                                                 (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     // 10000
                                                                                 )
@@ -5299,8 +5806,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                     1
                                                                                     if (
                                                                                         (
-                                                                                            s.index_price_e8
-                                                                                            * s.max_oracle_move_bps
+                                                                                            9999
+                                                                                            + (
+                                                                                                s.index_price_e8
+                                                                                                * s.max_oracle_move_bps
+                                                                                            )
                                                                                         )
                                                                                         % 10000
                                                                                     )
@@ -5324,8 +5834,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             else (
                                                                                 (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     // 10000
                                                                                 )
@@ -5333,8 +5846,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                     1
                                                                                     if (
                                                                                         (
-                                                                                            s.index_price_e8
-                                                                                            * s.max_oracle_move_bps
+                                                                                            9999
+                                                                                            + (
+                                                                                                s.index_price_e8
+                                                                                                * s.max_oracle_move_bps
+                                                                                            )
                                                                                         )
                                                                                         % 10000
                                                                                     )
@@ -5396,8 +5912,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             else (
                                                                 (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     // 10000
                                                                 )
@@ -5405,8 +5924,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     1
                                                                     if (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         % 10000
                                                                     )
@@ -5429,8 +5951,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             else (
                                                                 (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     // 10000
                                                                 )
@@ -5438,8 +5963,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     1
                                                                     if (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         % 10000
                                                                     )
@@ -5497,8 +6025,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -5506,8 +6037,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -5530,8 +6064,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -5539,8 +6076,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -5600,8 +6140,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             else (
                                                                 (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     // 10000
                                                                 )
@@ -5609,8 +6152,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     1
                                                                     if (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         % 10000
                                                                     )
@@ -5633,8 +6179,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             else (
                                                                 (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     // 10000
                                                                 )
@@ -5642,8 +6191,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     1
                                                                     if (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         % 10000
                                                                     )
@@ -5711,8 +6263,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -5720,8 +6275,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -5744,8 +6302,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -5753,8 +6314,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -5827,8 +6391,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             else (
                                                                                 (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     // 10000
                                                                                 )
@@ -5836,8 +6403,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                     1
                                                                                     if (
                                                                                         (
-                                                                                            s.index_price_e8
-                                                                                            * s.max_oracle_move_bps
+                                                                                            9999
+                                                                                            + (
+                                                                                                s.index_price_e8
+                                                                                                * s.max_oracle_move_bps
+                                                                                            )
                                                                                         )
                                                                                         % 10000
                                                                                     )
@@ -5861,8 +6431,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             else (
                                                                                 (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     // 10000
                                                                                 )
@@ -5870,8 +6443,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                     1
                                                                                     if (
                                                                                         (
-                                                                                            s.index_price_e8
-                                                                                            * s.max_oracle_move_bps
+                                                                                            9999
+                                                                                            + (
+                                                                                                s.index_price_e8
+                                                                                                * s.max_oracle_move_bps
+                                                                                            )
                                                                                         )
                                                                                         % 10000
                                                                                     )
@@ -5951,8 +6527,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -5960,8 +6539,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -5984,8 +6566,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -5993,8 +6578,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -6060,8 +6648,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -6069,8 +6660,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -6093,8 +6687,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -6102,8 +6699,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -6177,8 +6777,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -6186,8 +6789,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -6210,8 +6816,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -6219,8 +6828,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -6293,8 +6905,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             else (
                                                                                 (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     // 10000
                                                                                 )
@@ -6302,8 +6917,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                     1
                                                                                     if (
                                                                                         (
-                                                                                            s.index_price_e8
-                                                                                            * s.max_oracle_move_bps
+                                                                                            9999
+                                                                                            + (
+                                                                                                s.index_price_e8
+                                                                                                * s.max_oracle_move_bps
+                                                                                            )
                                                                                         )
                                                                                         % 10000
                                                                                     )
@@ -6327,8 +6945,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             else (
                                                                                 (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     // 10000
                                                                                 )
@@ -6336,8 +6957,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                     1
                                                                                     if (
                                                                                         (
-                                                                                            s.index_price_e8
-                                                                                            * s.max_oracle_move_bps
+                                                                                            9999
+                                                                                            + (
+                                                                                                s.index_price_e8
+                                                                                                * s.max_oracle_move_bps
+                                                                                            )
                                                                                         )
                                                                                         % 10000
                                                                                     )
@@ -6399,8 +7023,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             else (
                                                                 (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     // 10000
                                                                 )
@@ -6408,8 +7035,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     1
                                                                     if (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         % 10000
                                                                     )
@@ -6432,8 +7062,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             else (
                                                                 (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     // 10000
                                                                 )
@@ -6441,8 +7074,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     1
                                                                     if (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         % 10000
                                                                     )
@@ -6500,8 +7136,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -6509,8 +7148,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -6533,8 +7175,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -6542,8 +7187,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -6603,8 +7251,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             else (
                                                                 (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     // 10000
                                                                 )
@@ -6612,8 +7263,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     1
                                                                     if (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         % 10000
                                                                     )
@@ -6636,8 +7290,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             else (
                                                                 (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     // 10000
                                                                 )
@@ -6645,8 +7302,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     1
                                                                     if (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         % 10000
                                                                     )
@@ -6714,8 +7374,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -6723,8 +7386,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -6747,8 +7413,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -6756,8 +7425,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -6830,8 +7502,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             else (
                                                                                 (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     // 10000
                                                                                 )
@@ -6839,8 +7514,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                     1
                                                                                     if (
                                                                                         (
-                                                                                            s.index_price_e8
-                                                                                            * s.max_oracle_move_bps
+                                                                                            9999
+                                                                                            + (
+                                                                                                s.index_price_e8
+                                                                                                * s.max_oracle_move_bps
+                                                                                            )
                                                                                         )
                                                                                         % 10000
                                                                                     )
@@ -6864,8 +7542,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             else (
                                                                                 (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     // 10000
                                                                                 )
@@ -6873,8 +7554,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                     1
                                                                                     if (
                                                                                         (
-                                                                                            s.index_price_e8
-                                                                                            * s.max_oracle_move_bps
+                                                                                            9999
+                                                                                            + (
+                                                                                                s.index_price_e8
+                                                                                                * s.max_oracle_move_bps
+                                                                                            )
                                                                                         )
                                                                                         % 10000
                                                                                     )
@@ -6939,11 +7623,17 @@ def step(s: State, cmd: Command) -> StepResult:
                             0
                             if 10000 == 0
                             else (
-                                ((s.index_price_e8 * s.max_oracle_move_bps) // 10000)
+                                (
+                                    (9999 + (s.index_price_e8 * s.max_oracle_move_bps))
+                                    // 10000
+                                )
                                 + (
                                     1
                                     if (
-                                        (s.index_price_e8 * s.max_oracle_move_bps)
+                                        (
+                                            9999
+                                            + (s.index_price_e8 * s.max_oracle_move_bps)
+                                        )
                                         % 10000
                                     )
                                     < 0
@@ -6960,11 +7650,17 @@ def step(s: State, cmd: Command) -> StepResult:
                             0
                             if 10000 == 0
                             else (
-                                ((s.index_price_e8 * s.max_oracle_move_bps) // 10000)
+                                (
+                                    (9999 + (s.index_price_e8 * s.max_oracle_move_bps))
+                                    // 10000
+                                )
                                 + (
                                     1
                                     if (
-                                        (s.index_price_e8 * s.max_oracle_move_bps)
+                                        (
+                                            9999
+                                            + (s.index_price_e8 * s.max_oracle_move_bps)
+                                        )
                                         % 10000
                                     )
                                     < 0
@@ -7006,8 +7702,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     else (
                                                         (
                                                             (
-                                                                s.index_price_e8
-                                                                * s.max_oracle_move_bps
+                                                                9999
+                                                                + (
+                                                                    s.index_price_e8
+                                                                    * s.max_oracle_move_bps
+                                                                )
                                                             )
                                                             // 10000
                                                         )
@@ -7015,8 +7714,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             1
                                                             if (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 % 10000
                                                             )
@@ -7036,8 +7738,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     else (
                                                         (
                                                             (
-                                                                s.index_price_e8
-                                                                * s.max_oracle_move_bps
+                                                                9999
+                                                                + (
+                                                                    s.index_price_e8
+                                                                    * s.max_oracle_move_bps
+                                                                )
                                                             )
                                                             // 10000
                                                         )
@@ -7045,8 +7750,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             1
                                                             if (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 % 10000
                                                             )
@@ -7114,8 +7822,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 else (
                                                                     (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         // 10000
                                                                     )
@@ -7123,8 +7834,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         1
                                                                         if (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             % 10000
                                                                         )
@@ -7147,8 +7861,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 else (
                                                                     (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         // 10000
                                                                     )
@@ -7156,8 +7873,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         1
                                                                         if (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             % 10000
                                                                         )
@@ -7223,8 +7943,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -7232,8 +7955,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -7256,8 +7982,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -7265,8 +7994,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -7333,8 +8065,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     else (
                                                         (
                                                             (
-                                                                s.index_price_e8
-                                                                * s.max_oracle_move_bps
+                                                                9999
+                                                                + (
+                                                                    s.index_price_e8
+                                                                    * s.max_oracle_move_bps
+                                                                )
                                                             )
                                                             // 10000
                                                         )
@@ -7342,8 +8077,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             1
                                                             if (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 % 10000
                                                             )
@@ -7363,8 +8101,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                     else (
                                                         (
                                                             (
-                                                                s.index_price_e8
-                                                                * s.max_oracle_move_bps
+                                                                9999
+                                                                + (
+                                                                    s.index_price_e8
+                                                                    * s.max_oracle_move_bps
+                                                                )
                                                             )
                                                             // 10000
                                                         )
@@ -7372,8 +8113,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                             1
                                                             if (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 % 10000
                                                             )
@@ -7441,8 +8185,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 else (
                                                                     (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         // 10000
                                                                     )
@@ -7450,8 +8197,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         1
                                                                         if (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             % 10000
                                                                         )
@@ -7474,8 +8224,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 else (
                                                                     (
                                                                         (
-                                                                            s.index_price_e8
-                                                                            * s.max_oracle_move_bps
+                                                                            9999
+                                                                            + (
+                                                                                s.index_price_e8
+                                                                                * s.max_oracle_move_bps
+                                                                            )
                                                                         )
                                                                         // 10000
                                                                     )
@@ -7483,8 +8236,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         1
                                                                         if (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             % 10000
                                                                         )
@@ -7550,8 +8306,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -7559,8 +8318,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -7583,8 +8345,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -7592,8 +8357,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -7673,8 +8441,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -7682,8 +8453,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -7706,8 +8480,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -7715,8 +8492,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -7784,8 +8564,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -7793,8 +8576,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -7817,8 +8603,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -7826,8 +8615,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -7893,8 +8685,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -7902,8 +8697,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -7926,8 +8724,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -7935,8 +8736,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -8003,8 +8807,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -8012,8 +8819,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -8036,8 +8846,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -8045,8 +8858,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -8114,8 +8930,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -8123,8 +8942,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -8147,8 +8969,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -8156,8 +8981,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -8223,8 +9051,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -8232,8 +9063,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -8256,8 +9090,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -8265,8 +9102,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -8339,8 +9179,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -8348,8 +9191,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -8372,8 +9218,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -8381,8 +9230,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -8450,8 +9302,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -8459,8 +9314,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -8483,8 +9341,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -8492,8 +9353,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -8559,8 +9423,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -8568,8 +9435,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -8592,8 +9462,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -8601,8 +9474,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -8669,8 +9545,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -8678,8 +9557,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -8702,8 +9584,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                         else (
                                                             (
                                                                 (
-                                                                    s.index_price_e8
-                                                                    * s.max_oracle_move_bps
+                                                                    9999
+                                                                    + (
+                                                                        s.index_price_e8
+                                                                        * s.max_oracle_move_bps
+                                                                    )
                                                                 )
                                                                 // 10000
                                                             )
@@ -8711,8 +9596,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                 1
                                                                 if (
                                                                     (
-                                                                        s.index_price_e8
-                                                                        * s.max_oracle_move_bps
+                                                                        9999
+                                                                        + (
+                                                                            s.index_price_e8
+                                                                            * s.max_oracle_move_bps
+                                                                        )
                                                                     )
                                                                     % 10000
                                                                 )
@@ -8780,8 +9668,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -8789,8 +9680,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -8813,8 +9707,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                     else (
                                                                         (
                                                                             (
-                                                                                s.index_price_e8
-                                                                                * s.max_oracle_move_bps
+                                                                                9999
+                                                                                + (
+                                                                                    s.index_price_e8
+                                                                                    * s.max_oracle_move_bps
+                                                                                )
                                                                             )
                                                                             // 10000
                                                                         )
@@ -8822,8 +9719,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                             1
                                                                             if (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 % 10000
                                                                             )
@@ -8889,8 +9789,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -8898,8 +9801,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )
@@ -8922,8 +9828,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                         else (
                                                                             (
                                                                                 (
-                                                                                    s.index_price_e8
-                                                                                    * s.max_oracle_move_bps
+                                                                                    9999
+                                                                                    + (
+                                                                                        s.index_price_e8
+                                                                                        * s.max_oracle_move_bps
+                                                                                    )
                                                                                 )
                                                                                 // 10000
                                                                             )
@@ -8931,8 +9840,11 @@ def step(s: State, cmd: Command) -> StepResult:
                                                                                 1
                                                                                 if (
                                                                                     (
-                                                                                        s.index_price_e8
-                                                                                        * s.max_oracle_move_bps
+                                                                                        9999
+                                                                                        + (
+                                                                                            s.index_price_e8
+                                                                                            * s.max_oracle_move_bps
+                                                                                        )
                                                                                     )
                                                                                     % 10000
                                                                                 )

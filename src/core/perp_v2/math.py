@@ -62,7 +62,10 @@ def settle_price(
     """Settlement price: clearing price clamped to max allowed move."""
     if not oracle_move_violated(clearing_price_e8, index_price_e8, max_oracle_move_bps, oracle_seen):
         return clearing_price_e8
-    max_delta = (index_price_e8 * max_oracle_move_bps) // BPS_SCALE
+    # Quantization-safe clamp: use a ceil-div to avoid a zero-width band when
+    # `index_price_e8 * max_oracle_move_bps < 10000`. This preserves the intended
+    # percent bound up to rounding to the 1e-8 price tick.
+    max_delta = ((index_price_e8 * max_oracle_move_bps) + (BPS_SCALE - 1)) // BPS_SCALE
     if clearing_price_e8 >= index_price_e8:
         return index_price_e8 + max_delta
     return index_price_e8 - max_delta

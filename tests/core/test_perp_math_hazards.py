@@ -33,10 +33,11 @@ def test_breaker_quantization_can_stall_witness() -> None:
     # Mirrors the minimal clamp-quantization witness recorded in:
     # internal/popperpad_mcp/bootstrap_zenodex_pad.py
     #
-    # If delta := floor(P*m_bps/10000) is 0 while P_raw is out-of-bounds,
-    # then clamping makes no progress (stall hazard).
+    # Quantization-safe clamp (ceil-div) avoids the zero-width-band stall:
+    # when `P*m_bps/10000` is smaller than one price tick, we still allow a
+    # single-tick move.
     def clamp_step(p: int, p_raw: int, m_bps: int) -> tuple[int, bool, int]:
-        delta = (p * m_bps) // 10_000
+        delta = ((p * m_bps) + 9_999) // 10_000
         lo = p - delta
         hi = p + delta
         if p_raw > hi:
@@ -49,7 +50,6 @@ def test_breaker_quantization_can_stall_witness() -> None:
     p_raw = 2
     m_bps = 1
     p1, violated, delta = clamp_step(p0, p_raw, m_bps)
-    assert delta == 0
-    assert violated is True
-    assert p1 == 1
-
+    assert delta == 1
+    assert violated is False
+    assert p1 == 2
