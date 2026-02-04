@@ -2,7 +2,7 @@
 
 The reference model is generated from `src/kernels/dex/perp_epoch_isolated_v2.yaml`
 by an optional kernel-spec toolchain (validator/verifier/codegen) vendored under
-`external/ESSO/`. That toolchain is used in evidence/verification workflows; the
+`external/` (git-ignored). That toolchain is used in evidence/verification workflows; the
 generated file itself is committed and has no runtime toolchain dependency.
 
 This is the strongest CI-friendly regression test we can have without invoking the

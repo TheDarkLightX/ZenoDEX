@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping
 
 
-# Bound to the ESSO-IR hash of `src/kernels/dex/dex_global_conservation_v1.yaml`.
-# This is checked by `python3 -m ESSO shell-lint ...` (fail-closed by default).
+# Bound to the kernel IR hash of `src/kernels/dex/dex_global_conservation_v1.yaml`.
+# Checked by the toolchain's adapter lint step (fail-closed by default).
 IR_HASH = "sha256:9ea1cb58898c72b5f809923be0c25e85630101e24f8cead027bd0c5cb96fc06f"
 
 

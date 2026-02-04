@@ -1,8 +1,8 @@
 """Adapter for the `perp_epoch_isolated_v1_1` kernel spec.
 
-This module is used by an optional kernel toolchain (vendored under
-`external/ESSO/`) to interpret the YAML kernel and run shell-level checks such
-as `python3 -m ESSO verify-shell ...`.
+This module is used by an optional private kernel toolchain (vendored under
+`external/` and git-ignored) to interpret the YAML kernel and run shell-level
+checks (adapter lint + shell verification).
 
 The adapter itself is intentionally thin: it delegates semantics to the kernel
 interpreter and only manages deterministic state/effect plumbing for stepping.
@@ -15,7 +15,7 @@ from typing import Any, Callable, Mapping
 
 
 # Bind this adapter to the exact kernel spec version (fail-closed by default).
-# Checked by the toolchain's adapter lint step (e.g. `python3 -m ESSO shell-lint ...`).
+# Checked by the toolchain's adapter lint step (fail-closed by default).
 IR_HASH = "sha256:d85e41c05f9ebbd26334ea5c6c7aebfa2760b79f460e919596d6c410e149d86d"
 
 

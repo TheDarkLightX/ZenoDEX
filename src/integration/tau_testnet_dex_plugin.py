@@ -8,7 +8,7 @@ It applies DEX operations from a Tau transaction's `operations` dict:
   - "2": intents (list)
   - "3": settlement (object) [optional if allow_missing_settlement]
   - "4": faucet (object) [optional, test-only; requires TAU_DEX_FAUCET=1]
-  - "5": perps (list) [optional; requires operator key for admin actions]
+  - "5": perps (list) [optional; isolated markets require an operator key for admin actions]
 """
 
 from __future__ import annotations
@@ -224,12 +224,18 @@ def apply_app_tx(
 
     if perp_ops:
         operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
-        perp_cfg = PerpEngineConfig(operator_pubkey=(operator_pubkey or "").strip() or None)
+        oracle_pubkey = os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
+        perp_cfg = PerpEngineConfig(
+            operator_pubkey=(operator_pubkey or "").strip() or None,
+            chain_id=chain_id,
+            oracle_pubkey=(oracle_pubkey or "").strip() or None,
+        )
         perp_res = apply_perp_ops(
             config=perp_cfg,
             state=next_state,
             operations=perp_ops,
             tx_sender_pubkey=tx_sender_pubkey,
+            block_timestamp=int(block_timestamp),
         )
         if not perp_res.ok or perp_res.state is None:
             return False, app_state_json, "", None, perp_res.error or "PERP rejected"

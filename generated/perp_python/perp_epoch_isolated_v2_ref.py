@@ -2,7 +2,7 @@
 Auto-generated Python reference model for: perp_epoch_isolated_v2
 IR hash: sha256:db1ecdf46c8c9762d938eeb97d8ba7eda3c013bc117367caf72347156194582c
 
-Generated from the YAML kernel spec by the repo's optional spec toolchain (ESSO: Evolutionary State Space Optimizer).
+Generated from the YAML kernel spec by the repo's optional private toolchain.
 
 This file is standalone and has no runtime dependency on the generator/toolchain.
 """

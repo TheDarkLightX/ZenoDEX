@@ -2,7 +2,7 @@
 Auto-generated Python reference model for: il_futures_market_v1
 IR hash: sha256:c38dc1f0dad42ca94cea745cefaeef111b09b5b2e5dc31848bed63700a1f1266
 
-Generated from the YAML kernel spec by the repo's optional spec toolchain (ESSO: Evolutionary State Space Optimizer).
+Generated from the YAML kernel spec by the repo's optional private toolchain.
 
 This file is standalone and has no runtime dependency on the generator/toolchain.
 """

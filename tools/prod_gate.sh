@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Runs:
 # - python tests
-# - ESSO kernel assurance (cpmm_swap + liquidity_pool)
+# - private-toolchain kernel assurance (cpmm_swap + liquidity_pool)
 # - npm audit for UI
 # - docker build of production image
 # - trivy scan of the built artifact
@@ -108,4 +108,3 @@ else
 fi
 
 echo "[gate] PASS"
-

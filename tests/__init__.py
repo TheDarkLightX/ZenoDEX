@@ -1,8 +1,6 @@
 """
 Test package.
 
-This file also makes `tests.*` importable for Morph evidence domains, so
-`python3 -m morph doctor --strict` can replay bundles that reference
-`domain_import: tests.*`.
+This file also makes `tests.*` importable for in-house evidence replays, so
+evidence bundles can reference `domain_import: tests.*` when needed.
 """
-

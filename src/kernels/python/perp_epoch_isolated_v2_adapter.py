@@ -1,9 +1,9 @@
 """Adapter for the `perp_epoch_isolated_v2` kernel spec.
 
-This module is used by an optional kernel toolchain (vendored under
-`external/ESSO/`) to run shell-level checks such as:
-- adapter ↔ spec surface compatibility (e.g. `python3 -m ESSO shell-lint ...`)
-- adapter ↔ interpreter consistency on random traces (e.g. `python3 -m ESSO verify-shell ...`)
+This module is used by an optional private kernel toolchain (vendored under
+`external/` and git-ignored) to run shell-level checks such as:
+- adapter ↔ spec surface compatibility (adapter lint)
+- adapter ↔ interpreter consistency on random traces (shell verification)
 
 At runtime, the default perps path uses the native engine in `src/core/perp_v2/`;
 this adapter exists to keep the spec-interpreter backend honest and replayable.
@@ -16,7 +16,7 @@ from typing import Any, Callable, Mapping
 
 
 # Bind this adapter to the exact kernel spec version (fail-closed by default).
-# Checked by the toolchain's adapter lint step (e.g. `python3 -m ESSO shell-lint ...`).
+# Checked by the toolchain's adapter lint step (fail-closed by default).
 IR_HASH = "sha256:db1ecdf46c8c9762d938eeb97d8ba7eda3c013bc117367caf72347156194582c"
 
 
