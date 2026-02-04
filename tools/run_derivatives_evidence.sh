@@ -36,6 +36,7 @@ echo "== derivatives: pytest =="
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/core/test_derivatives_generated_refs.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_market.py" \
+  "$ROOT_DIR/tests/core/test_funding_rate_market_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_il_futures.py" \
   "$ROOT_DIR/tests/core/test_curve_selection.py"
 
@@ -43,6 +44,12 @@ echo "== derivatives: kernel inductiveness (verify-multi) =="
 "$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/funding_rate_market_v1.yaml" \
   --solvers z3,cvc5 \
+  --timeout-ms 60000 \
+  --determinism-trials 2
+
+"$PY" -m ESSO verify-multi \
+  "$ROOT_DIR/src/kernels/dex/funding_rate_market_v1_1.yaml" \
+  --solvers z3 \
   --timeout-ms 60000 \
   --determinism-trials 2
 
@@ -59,4 +66,3 @@ echo "== derivatives: kernel inductiveness (verify-multi) =="
   --determinism-trials 2
 
 echo "ok"
-

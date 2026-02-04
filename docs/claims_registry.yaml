@@ -177,8 +177,8 @@ claims:
     status: supported
     layer: spec
     statement: >
-      The committed, dependency-free Python reference models for v1 derivative kernels import and can
-      execute at least one valid step from init state while preserving invariants.
+      The committed, dependency-free Python reference models for v1 and v1.1 derivative kernels import
+      and can execute at least one valid step from init state while preserving invariants.
     evidence:
       kind: pytest
       check:
@@ -186,6 +186,7 @@ claims:
       files:
         - tests/core/test_derivatives_generated_refs.py
         - generated/derivatives_python/funding_rate_market_v1_ref.py
+        - generated/derivatives_python/funding_rate_market_v1_1_ref.py
         - generated/derivatives_python/il_futures_market_v1_ref.py
         - generated/derivatives_python/curve_selection_market_v1_ref.py
 
@@ -201,6 +202,35 @@ claims:
         - cmd: python3 -m ESSO verify-multi src/kernels/dex/funding_rate_market_v1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
       files:
         - src/kernels/dex/funding_rate_market_v1.yaml
+
+  - id: esso:funding_rate_market_v1_1:verify_multi_z3
+    status: supported
+    layer: spec
+    statement: >
+      The funding-rate market kernel (v1.1) is inductive (k=1) under the kernel verifier's fail-closed
+      verification model (Z3).
+    evidence:
+      kind: esso
+      check:
+        - cmd: python3 -m ESSO verify-multi src/kernels/dex/funding_rate_market_v1_1.yaml --solvers z3 --timeout-ms 60000 --determinism-trials 2
+      files:
+        - src/kernels/dex/funding_rate_market_v1_1.yaml
+
+  - id: py:funding_rate_market_v1_1:parity_with_generated_ref
+    status: supported
+    layer: spec
+    statement: >
+      The hand-written Python implementation of the funding-rate market matches the committed generated
+      reference model for the v1.1 kernel spec over a deterministic random trace (semantic parity).
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_funding_rate_market_ref_parity.py
+      files:
+        - tests/core/test_funding_rate_market_ref_parity.py
+        - src/core/funding_rate_market.py
+        - generated/derivatives_python/funding_rate_market_v1_1_ref.py
+        - src/kernels/dex/funding_rate_market_v1_1.yaml
 
   - id: esso:il_futures_market_v1:verify_multi_z3_cvc5
     status: supported
