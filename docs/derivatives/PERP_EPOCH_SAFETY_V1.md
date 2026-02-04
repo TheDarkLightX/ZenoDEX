@@ -8,9 +8,11 @@ We call it European-style because all economically relevant transitions are **ep
 
 For the complementary **game theory / incentive layer**, see `docs/derivatives/PERP_INCENTIVES_V1.md`.
 
-**Recommendation (current default posture):** use the **v2 kernel** (`perp_epoch_isolated_v2.yaml`) as the default posture.
-It preserves the v1.1 clamp+breaker safety posture and adds hardened accounting knobs (depeg buffer, explicit
-fee/insurance tracking, anti-bounty-farming threshold).
+**Recommendation (single-account risk kernel):** use the **v2 isolated kernel** (`perp_epoch_isolated_v2.yaml`)
+when you want a compact, per-account risk engine with clamp+breaker safety posture and hardened accounting knobs
+(depeg buffer, explicit fee/insurance tracking, anti-bounty-farming threshold).
+
+For the production peer-to-peer posture (net-zero clearinghouse kernels), see `docs/derivatives/PERP_SOTA_ROADMAP.md`.
 
 Reproducible verification snapshot (2026-02-03):
 - `perp_epoch_isolated_v2.yaml` is **VERIFIED** under strict `verify-multi` cross-check (`--solvers z3,cvc5`).
