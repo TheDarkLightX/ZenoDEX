@@ -105,42 +105,42 @@ claims:
         - src/integration/dex_snapshot.py
         - generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py
 
-  - id: esso:perp_epoch_isolated_v2:verify_multi_z3_cvc5
+  - id: smt:perp_epoch_isolated_v2:inductive_z3_cvc5
     status: supported
     layer: spec
     statement: >
       The default epoch-perp risk kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under the kernel verifier's fail-closed verification model (tool: ESSO).
+      under a fail-closed, multi-solver SMT verification model.
     evidence:
-      kind: esso
+      kind: smt
       check:
-        - cmd: python3 -m ESSO verify-multi src/kernels/dex/perp_epoch_isolated_v2.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+        - cmd: bash tools/run_perps_evidence.sh
       files:
         - src/kernels/dex/perp_epoch_isolated_v2.yaml
 
-  - id: esso:perp_epoch_clearinghouse_2p_v0_1:verify_multi_z3_cvc5
+  - id: smt:perp_epoch_clearinghouse_2p_v0_1:inductive_z3_cvc5
     status: supported
     layer: spec
     statement: >
       The 2-party clearinghouse epoch-perp kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under the kernel verifier's fail-closed verification model (tool: ESSO).
+      under a fail-closed, multi-solver SMT verification model.
     evidence:
-      kind: esso
+      kind: smt
       check:
-        - cmd: python3 -m ESSO verify-multi src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+        - cmd: bash tools/run_perps_evidence.sh
       files:
         - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
 
-  - id: esso:perp_game_theory_v2:verify_multi_z3_cvc5
+  - id: smt:perp_game_theory_v2:inductive_z3_cvc5
     status: supported
     layer: spec
     statement: >
       The 2-party epoch-perp game-theory kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under the kernel verifier's fail-closed verification model (tool: ESSO).
+      under a fail-closed, multi-solver SMT verification model.
     evidence:
-      kind: esso
+      kind: smt
       check:
-        - cmd: python3 -m ESSO verify-multi src/kernels/dex/perp_game_theory_v2.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+        - cmd: bash tools/run_perps_evidence.sh
       files:
         - src/kernels/dex/perp_game_theory_v2.yaml
 
@@ -279,15 +279,13 @@ claims:
         - formal/tla/PerpEpochScheduler.tla
         - formal/tla/PerpEpochScheduler.cfg
 
-  - id: esso:ltlf:perp_epoch_scheduler:settle_epoch2_reachable
+  - id: ltlf:perp_epoch_scheduler:settle_epoch2_reachable
     status: supported
     layer: liveness
     statement: >
       In the finite-trace scheduler micro-model, the operator can reach a state where epoch 2 is settled
       (oracle_last_update_epoch = 2) via the canonical advance/publish/settle cycle. This is a bounded,
       executable complement to the infinite-trace TLA+ liveness check.
-    assumptions:
-      - Requires the kernel toolchain installed (Python package `ESSO`) for the LTLf synthesis gate.
     evidence:
       kind: pytest
       check:
