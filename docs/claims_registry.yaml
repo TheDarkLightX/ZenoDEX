@@ -105,6 +105,27 @@ claims:
         - src/integration/dex_snapshot.py
         - generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py
 
+  - id: py:perp_engine_ch3p:transfer_and_conservation
+    status: supported
+    layer: implementation
+    statement: >
+      The perps tx adapter supports a 3-party transfer clearinghouse posture (perps.version=1.1)
+      that is fail-closed and deterministic: markets bind exactly three accounts (A,B,C),
+      position updates keep net position == 0 with at least one idle account, and settlement can
+      transfer a distressed position to the idle account when it satisfies initial margin.
+      Quote-e8 accounting preserves the closed-system invariant exactly:
+      net_deposited = collateral_a + collateral_b + collateral_c + fee_pool.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py
+      files:
+        - tests/integration/test_perp_engine_clearinghouse_3p_transfer.py
+        - src/integration/perp_engine.py
+        - src/core/perps.py
+        - src/integration/dex_snapshot.py
+        - generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py
+
   - id: smt:perp_epoch_isolated_v2:inductive_z3_cvc5
     status: supported
     layer: spec
@@ -172,6 +193,23 @@ claims:
         - tests/core/test_perp_clearinghouse_2p/test_ref_smoke.py
         - generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py
         - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
+
+  - id: py:perp_clearinghouse_3p_transfer:transfer_penalty_conservation
+    status: supported
+    layer: spec
+    statement: >
+      In the 3-party transfer clearinghouse reference model, a +5% settlement move can deterministically
+      transfer the distressed side into an idle account, apply a liquidation penalty into the fee pool,
+      and preserve exact quote-e8 conservation
+      (net_deposited = collateral_a + collateral_b + collateral_c + fee_pool).
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_perp_clearinghouse_3p_transfer/test_ref_smoke.py
+      files:
+        - tests/core/test_perp_clearinghouse_3p_transfer/test_ref_smoke.py
+        - generated/perp_python/perp_epoch_clearinghouse_3p_transfer_v0_1_ref.py
+        - src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml
 
   - id: py:derivatives_generated_refs:smoke_v1
     status: supported

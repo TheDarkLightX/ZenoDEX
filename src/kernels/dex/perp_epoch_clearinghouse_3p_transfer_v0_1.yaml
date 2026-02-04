@@ -684,15 +684,18 @@ actions:
                       - op: "<"
                         args:
                           - *collateral_post_a
-                          - op: "div"
+                          - &mm_req_a
+                            op: "div"
                             args:
                               - op: "+"
                                 args:
                                   - op: "*"
                                     args:
-                                      - op: "*"
+                                      - &notional_a
+                                        op: "*"
                                         args:
-                                          - op: "ite"
+                                          - &abs_pos_a
+                                            op: "ite"
                                             cond: { op: ">=", args: [{ var: "position_base_a" }, { const: 0 }] }
                                             then: { var: "position_base_a" }
                                             else: { op: "-", args: [{ const: 0 }, { var: "position_base_a" }] }
@@ -710,15 +713,18 @@ actions:
                           - op: "<"
                             args:
                               - *collateral_post_b
-                              - op: "div"
+                              - &mm_req_b
+                                op: "div"
                                 args:
                                   - op: "+"
                                     args:
                                       - op: "*"
                                         args:
-                                          - op: "*"
+                                          - &notional_b
+                                            op: "*"
                                             args:
-                                              - op: "ite"
+                                              - &abs_pos_b
+                                                op: "ite"
                                                 cond: { op: ">=", args: [{ var: "position_base_b" }, { const: 0 }] }
                                                 then: { var: "position_base_b" }
                                                 else: { op: "-", args: [{ const: 0 }, { var: "position_base_b" }] }
@@ -734,15 +740,18 @@ actions:
                           - op: "<"
                             args:
                               - *collateral_post_c
-                              - op: "div"
+                              - &mm_req_c
+                                op: "div"
                                 args:
                                   - op: "+"
                                     args:
                                       - op: "*"
                                         args:
-                                          - op: "*"
+                                          - &notional_c
+                                            op: "*"
                                             args:
-                                              - op: "ite"
+                                              - &abs_pos_c
+                                                op: "ite"
                                                 cond: { op: ">=", args: [{ var: "position_base_c" }, { const: 0 }] }
                                                 then: { var: "position_base_c" }
                                                 else: { op: "-", args: [{ const: 0 }, { var: "position_base_c" }] }
@@ -777,20 +786,13 @@ actions:
                                   - op: ">="
                                     args:
                                       - *collateral_post_b
-                                      - op: "div"
+                                      - &im_req_a
+                                        op: "div"
                                         args:
                                           - op: "+"
                                             args:
                                               - op: "*"
-                                                args:
-                                                  - op: "*"
-                                                    args:
-                                                      - op: "ite"
-                                                        cond: { op: ">=", args: [{ var: "position_base_a" }, { const: 0 }] }
-                                                        then: { var: "position_base_a" }
-                                                        else: { op: "-", args: [{ const: 0 }, { var: "position_base_a" }] }
-                                                      - *settle_price_e8
-                                                  - { var: "initial_margin_bps" }
+                                                args: [*notional_a, { var: "initial_margin_bps" }]
                                               - { const: 9999 }
                                           - { const: 10000 }
                               - op: "and"
@@ -801,22 +803,7 @@ actions:
                                   - op: ">="
                                     args:
                                       - *collateral_post_c
-                                      - op: "div"
-                                        args:
-                                          - op: "+"
-                                            args:
-                                              - op: "*"
-                                                args:
-                                                  - op: "*"
-                                                    args:
-                                                      - op: "ite"
-                                                        cond: { op: ">=", args: [{ var: "position_base_a" }, { const: 0 }] }
-                                                        then: { var: "position_base_a" }
-                                                        else: { op: "-", args: [{ const: 0 }, { var: "position_base_a" }] }
-                                                      - *settle_price_e8
-                                                  - { var: "initial_margin_bps" }
-                                              - { const: 9999 }
-                                          - { const: 10000 }
+                                      - *im_req_a
                       - op: "or"
                         args:
                           - &transfer_b
@@ -841,20 +828,13 @@ actions:
                                       - op: ">="
                                         args:
                                           - *collateral_post_a
-                                          - op: "div"
+                                          - &im_req_b
+                                            op: "div"
                                             args:
                                               - op: "+"
                                                 args:
                                                   - op: "*"
-                                                    args:
-                                                      - op: "*"
-                                                        args:
-                                                          - op: "ite"
-                                                            cond: { op: ">=", args: [{ var: "position_base_b" }, { const: 0 }] }
-                                                            then: { var: "position_base_b" }
-                                                            else: { op: "-", args: [{ const: 0 }, { var: "position_base_b" }] }
-                                                          - *settle_price_e8
-                                                      - { var: "initial_margin_bps" }
+                                                    args: [*notional_b, { var: "initial_margin_bps" }]
                                                   - { const: 9999 }
                                               - { const: 10000 }
                                   - op: "and"
@@ -863,22 +843,7 @@ actions:
                                       - op: ">="
                                         args:
                                           - *collateral_post_c
-                                          - op: "div"
-                                            args:
-                                              - op: "+"
-                                                args:
-                                                  - op: "*"
-                                                    args:
-                                                      - op: "*"
-                                                        args:
-                                                          - op: "ite"
-                                                            cond: { op: ">=", args: [{ var: "position_base_b" }, { const: 0 }] }
-                                                            then: { var: "position_base_b" }
-                                                            else: { op: "-", args: [{ const: 0 }, { var: "position_base_b" }] }
-                                                          - *settle_price_e8
-                                                      - { var: "initial_margin_bps" }
-                                                  - { const: 9999 }
-                                              - { const: 10000 }
+                                          - *im_req_b
                           - &transfer_c
                             op: "and"
                             args:
@@ -899,20 +864,13 @@ actions:
                                       - op: ">="
                                         args:
                                           - *collateral_post_a
-                                          - op: "div"
+                                          - &im_req_c
+                                            op: "div"
                                             args:
                                               - op: "+"
                                                 args:
                                                   - op: "*"
-                                                    args:
-                                                      - op: "*"
-                                                        args:
-                                                          - op: "ite"
-                                                            cond: { op: ">=", args: [{ var: "position_base_c" }, { const: 0 }] }
-                                                            then: { var: "position_base_c" }
-                                                            else: { op: "-", args: [{ const: 0 }, { var: "position_base_c" }] }
-                                                          - *settle_price_e8
-                                                      - { var: "initial_margin_bps" }
+                                                    args: [*notional_c, { var: "initial_margin_bps" }]
                                                   - { const: 9999 }
                                               - { const: 10000 }
                                   - op: "and"
@@ -921,22 +879,7 @@ actions:
                                       - op: ">="
                                         args:
                                           - *collateral_post_b
-                                          - op: "div"
-                                            args:
-                                              - op: "+"
-                                                args:
-                                                  - op: "*"
-                                                    args:
-                                                      - op: "*"
-                                                        args:
-                                                          - op: "ite"
-                                                            cond: { op: ">=", args: [{ var: "position_base_c" }, { const: 0 }] }
-                                                            then: { var: "position_base_c" }
-                                                            else: { op: "-", args: [{ const: 0 }, { var: "position_base_c" }] }
-                                                          - *settle_price_e8
-                                                      - { var: "initial_margin_bps" }
-                                                  - { const: 9999 }
-                                              - { const: 10000 }
+                                          - *im_req_c
           then: { const: 0 }
           else:
             op: "ite"
@@ -1029,15 +972,7 @@ actions:
                                 - op: "+"
                                   args:
                                     - op: "*"
-                                      args:
-                                        - op: "*"
-                                          args:
-                                            - op: "ite"
-                                              cond: { op: ">=", args: [{ var: "position_base_a" }, { const: 0 }] }
-                                              then: { var: "position_base_a" }
-                                              else: { op: "-", args: [{ const: 0 }, { var: "position_base_a" }] }
-                                            - *settle_price_e8
-                                        - { var: "liquidation_penalty_bps" }
+                                      args: [*notional_a, { var: "liquidation_penalty_bps" }]
                                     - { const: 9999 }
                                 - { const: 10000 }
                             - *collateral_post_a
@@ -1058,15 +993,7 @@ actions:
                                 - op: "+"
                                   args:
                                     - op: "*"
-                                      args:
-                                        - op: "*"
-                                          args:
-                                            - op: "ite"
-                                              cond: { op: ">=", args: [{ var: "position_base_b" }, { const: 0 }] }
-                                              then: { var: "position_base_b" }
-                                              else: { op: "-", args: [{ const: 0 }, { var: "position_base_b" }] }
-                                            - *settle_price_e8
-                                        - { var: "liquidation_penalty_bps" }
+                                      args: [*notional_b, { var: "liquidation_penalty_bps" }]
                                     - { const: 9999 }
                                 - { const: 10000 }
                             - *collateral_post_b
@@ -1087,15 +1014,7 @@ actions:
                             - op: "+"
                               args:
                                 - op: "*"
-                                  args:
-                                    - op: "*"
-                                      args:
-                                        - op: "ite"
-                                          cond: { op: ">=", args: [{ var: "position_base_c" }, { const: 0 }] }
-                                          then: { var: "position_base_c" }
-                                          else: { op: "-", args: [{ const: 0 }, { var: "position_base_c" }] }
-                                        - *settle_price_e8
-                                    - { var: "liquidation_penalty_bps" }
+                                  args: [*notional_c, { var: "liquidation_penalty_bps" }]
                                 - { const: 9999 }
                             - { const: 10000 }
                         - *collateral_post_c
@@ -1806,4 +1725,3 @@ actions:
       collateral_after_b: { var: "collateral_e8_b" }
       collateral_after_c: { var: "collateral_e8_c" }
       fee_pool_after: { var: "fee_pool_e8" }
-
