@@ -160,6 +160,61 @@ claims:
         - generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py
         - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
 
+  - id: py:derivatives_generated_refs:smoke_v1
+    status: supported
+    layer: spec
+    statement: >
+      The committed, dependency-free Python reference models for v1 derivative kernels import and can
+      execute at least one valid step from init state while preserving invariants.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_derivatives_generated_refs.py
+      files:
+        - tests/core/test_derivatives_generated_refs.py
+        - generated/derivatives_python/funding_rate_market_v1_ref.py
+        - generated/derivatives_python/il_futures_market_v1_ref.py
+        - generated/derivatives_python/curve_selection_market_v1_ref.py
+
+  - id: esso:funding_rate_market_v1:verify_multi_z3_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The funding-rate market kernel (v1) is inductive (k=1) and cross-verified by both Z3 and CVC5
+      under the kernel verifier's fail-closed verification model.
+    evidence:
+      kind: esso
+      check:
+        - cmd: python3 -m ESSO verify-multi src/kernels/dex/funding_rate_market_v1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+      files:
+        - src/kernels/dex/funding_rate_market_v1.yaml
+
+  - id: esso:il_futures_market_v1:verify_multi_z3_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The IL futures market kernel (v1) is inductive (k=1) and cross-verified by both Z3 and CVC5
+      under the kernel verifier's fail-closed verification model.
+    evidence:
+      kind: esso
+      check:
+        - cmd: python3 -m ESSO verify-multi src/kernels/dex/il_futures_market_v1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+      files:
+        - src/kernels/dex/il_futures_market_v1.yaml
+
+  - id: esso:curve_selection_market_v1:verify_multi_z3_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The curve-selection market kernel (v1) is inductive (k=1) and cross-verified by both Z3 and CVC5
+      under the kernel verifier's fail-closed verification model.
+    evidence:
+      kind: esso
+      check:
+        - cmd: python3 -m ESSO verify-multi src/kernels/dex/curve_selection_market_v1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2
+      files:
+        - src/kernels/dex/curve_selection_market_v1.yaml
+
   - id: lean:perp_epoch_safety:collateral_nonneg_after_clamped_move
     status: proved
     layer: math
