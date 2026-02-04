@@ -218,6 +218,20 @@ claims:
       files:
         - tests/core/test_perp_math_hazards.py
 
+  - id: py:perp_incentives:volume_rewards_can_subsidize_oracle_manipulation_witness
+    status: supported
+    layer: math
+    statement: >
+      A naive per-leg volume reward can subsidize a spot-derived oracle manipulation loop: even when
+      integer quantization yields perp_pnl=0, the reward can exceed the spot roundtrip cost, producing
+      net_profit>0. A concrete witness is captured as a deterministic pytest.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_perp_incentive_hazards.py::test_volume_rewards_can_subsidize_oracle_manipulation_witness
+      files:
+        - tests/core/test_perp_incentive_hazards.py
+
   - id: lean:zenodex_nonces:no_replay_in_later_valid_seq
     status: proved
     layer: math
