@@ -246,6 +246,21 @@ claims:
       files:
         - tests/core/test_perp_incentive_hazards.py
 
+  - id: py:cpmm:protocol_fee_rebate_capped_by_extracted_fees_unprofitable_under_bounds
+    status: supported
+    layer: math
+    statement: >
+      For a fixed CPMM configuration (reserves=10_000/10_000, fee_bps=10, protocol_fee_share_bps=10_000,
+      rebate_share_bps=10_000), a quote->base->quote roundtrip is not profitable when the rebate is capped
+      by extracted protocol fees. This is checked by bounded brute-force over trade_in_quote ∈ [1, 20_000),
+      skipping invalid tiny trades where the unwind leg is undefined under exact-in semantics.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_perp_incentive_hazards.py::test_protocol_fee_rebate_capped_by_extracted_fees_not_profitable_under_bounds
+      files:
+        - tests/core/test_perp_incentive_hazards.py
+
   - id: lean:zenodex_nonces:no_replay_in_later_valid_seq
     status: proved
     layer: math
