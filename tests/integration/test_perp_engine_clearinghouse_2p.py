@@ -142,6 +142,114 @@ def test_init_market_2p_is_strict_about_prefix_and_signatures() -> None:
     assert res3.ok is True, res3.error
 
 
+def test_advance_epoch_2p_rejects_delta_gt_1() -> None:
+    market_id = "perp:ch2p:epoch_delta"
+    quote_asset = "0x" + "77" * 32
+    relayer = "ff" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_2p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=_DEADLINE)],
+    )
+
+    res = _apply_result(state=state, tx_sender_pubkey=relayer, ops=[_op(market_id, "advance_epoch", version="1.0", delta=2)])
+    assert not res.ok
+    assert res.error == "advance_epoch delta must be 1 for clearinghouse markets"
+
+
+def test_init_market_2p_rejects_expired_deadline() -> None:
+    market_id = "perp:ch2p:expired"
+    quote_asset = "0x" + "88" * 32
+    relayer = "ff" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    op = _signed_init_market_2p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=0)
+    res = _apply_result(state=state, tx_sender_pubkey=relayer, ops=[op], block_timestamp=1)
+    assert not res.ok
+    assert res.error == "account_a signature invalid: signature expired (deadline)"
+
+
+def test_init_market_2p_rejects_wrong_chain_id_signature() -> None:
+    market_id = "perp:ch2p:chain_id"
+    quote_asset = "0x" + "99" * 32
+    relayer = "ff" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    op = _op(
+        market_id,
+        "init_market_2p",
+        version="1.0",
+        quote_asset=quote_asset,
+        account_a_pubkey=_ALICE_PUBKEY,
+        account_b_pubkey=_BOB_PUBKEY,
+        deadline=_DEADLINE,
+        nonce_a=1,
+        nonce_b=1,
+    )
+    op["sig_a"] = sign_perp_op_for_engine(
+        op,
+        privkey=_ALICE_SK,
+        chain_id="tau-wrong",
+        signer_pubkey=_ALICE_PUBKEY,
+        nonce=1,
+    )
+    op["sig_b"] = sign_perp_op_for_engine(
+        op,
+        privkey=_BOB_SK,
+        chain_id="tau-wrong",
+        signer_pubkey=_BOB_PUBKEY,
+        nonce=1,
+    )
+    res = _apply_result(state=state, tx_sender_pubkey=relayer, ops=[op])
+    assert not res.ok
+    assert res.error == "account_a signature invalid: invalid signature"
+
+
+def test_init_market_2p_rejects_nonce_replay_and_is_transaction_atomic() -> None:
+    quote_asset = "0x" + "aa" * 32
+    relayer = "ff" * 48
+
+    state0 = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    op1 = _signed_init_market_2p(
+        market_id="perp:ch2p:atomic1",
+        quote_asset=quote_asset,
+        nonce_a=1,
+        nonce_b=1,
+        deadline=_DEADLINE,
+    )
+    op2 = _signed_init_market_2p(
+        market_id="perp:ch2p:atomic2",
+        quote_asset=quote_asset,
+        nonce_a=2,
+        nonce_b=2,
+        deadline=_DEADLINE,
+    )
+    op2_bad = dict(op2)
+    op2_bad["sig_b"] = "0x" + "00" * 96
+
+    # If any op fails, nothing commits (including nonce consumption from earlier ops).
+    res = _apply_result(state=state0, tx_sender_pubkey=relayer, ops=[op1, op2_bad])
+    assert not res.ok
+    assert res.error is not None and res.error.startswith("account_b signature invalid:")
+
+    res2 = _apply_result(state=state0, tx_sender_pubkey=relayer, ops=[op1])
+    assert res2.ok is True, res2.error
+
+    # Nonce replay is rejected after a successful commit.
+    state1 = res2.state
+    assert state1 is not None
+    res3 = _apply_result(
+        state=state1,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_2p(market_id="perp:ch2p:replay", quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=_DEADLINE)],
+    )
+    assert not res3.ok
+    assert res3.error == "account_a signature invalid: nonce invalid"
+
+
 def test_set_position_pair_requires_net_zero() -> None:
     market_id = "perp:ch2p:netzero"
     quote_asset = "0x" + "44" * 32
