@@ -225,10 +225,12 @@ def apply_app_tx(
     if perp_ops:
         operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
         oracle_pubkey = os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
+        allow_isolated = _bool_env("TAU_DEX_ALLOW_ISOLATED_PERPS", default=False)
         perp_cfg = PerpEngineConfig(
             operator_pubkey=(operator_pubkey or "").strip() or None,
             chain_id=chain_id,
             oracle_pubkey=(oracle_pubkey or "").strip() or None,
+            allow_isolated_markets=bool(allow_isolated),
         )
         perp_res = apply_perp_ops(
             config=perp_cfg,
