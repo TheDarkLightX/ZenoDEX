@@ -232,6 +232,20 @@ claims:
       files:
         - tests/core/test_perp_incentive_hazards.py
 
+  - id: py:cpmm:lp_fees_are_recapturable_for_full_lp_witness
+    status: supported
+    layer: math
+    statement: >
+      When protocol fees are not extracted from a CPMM, swap fees remain in the pool. A trader who is also
+      100% of the LP side therefore recaptures the roundtrip loss via pool ownership (combined wallet+pool
+      balances are conserved). A concrete witness is captured as a deterministic pytest.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_perp_incentive_hazards.py::test_cpmm_lp_fees_are_recapturable_for_full_lp_witness
+      files:
+        - tests/core/test_perp_incentive_hazards.py
+
   - id: lean:zenodex_nonces:no_replay_in_later_valid_seq
     status: proved
     layer: math
