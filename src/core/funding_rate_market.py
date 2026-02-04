@@ -29,6 +29,7 @@ MAX_RATE_BPS = 10_000  # ±100% absolute cap
 @unique
 class FRMAction(Enum):
     """Actions for the funding rate market."""
+
     OPEN_RATE_LONG = "open_rate_long"
     OPEN_RATE_SHORT = "open_rate_short"
     SETTLE_RATE_EPOCH = "settle_rate_epoch"
@@ -39,6 +40,7 @@ class FRMAction(Enum):
 @unique
 class FRMEvent(Enum):
     """Events emitted by the funding rate market."""
+
     RATE_LONG_OPENED = "RateLongOpened"
     RATE_SHORT_OPENED = "RateShortOpened"
     RATE_EPOCH_SETTLED = "RateEpochSettled"
@@ -51,27 +53,27 @@ class FRMState:
     """Complete state of the funding rate market."""
 
     # Exposure
-    rate_long_exposure: int = 0   # total staked on rate-up
+    rate_long_exposure: int = 0  # total staked on rate-up
     rate_short_exposure: int = 0  # total staked on rate-down
 
     # Derived rate from exposure ratio
-    implied_rate_bps: int = 0     # (long - short) / (long + short) * funding_cap_bps
+    implied_rate_bps: int = 0  # (long - short) / (long + short) * funding_cap_bps
 
     # Settlement
-    realized_rate_bps: int = 0    # actual basis at settlement
+    realized_rate_bps: int = 0  # actual basis at settlement
     settlement_epoch: int = 0
     rate_market_epoch: int = 0
     settled_this_epoch: bool = False
 
     # Financial
     premium_pool: int = 0
-    long_payout: int = 0          # last settlement: amount distributed to longs
-    short_payout: int = 0         # last settlement: amount distributed to shorts
+    long_payout: int = 0  # last settlement: amount distributed to longs
+    short_payout: int = 0  # last settlement: amount distributed to shorts
     protocol_fee_pool: int = 0
-    protocol_fee_bps: int = 100   # 1%
+    protocol_fee_bps: int = 100  # 1%
 
     # Constraints
-    funding_cap_bps: int = 100    # ±1% max rate (matches perp default)
+    funding_cap_bps: int = 100  # ±1% max rate (matches perp default)
 
     # Emergency
     frozen: bool = False
@@ -82,8 +84,12 @@ class FRMState:
 
     def __post_init__(self) -> None:
         for name in (
-            "rate_long_exposure", "rate_short_exposure",
-            "premium_pool", "long_payout", "short_payout", "protocol_fee_pool",
+            "rate_long_exposure",
+            "rate_short_exposure",
+            "premium_pool",
+            "long_payout",
+            "short_payout",
+            "protocol_fee_pool",
         ):
             val = getattr(self, name)
             if not isinstance(val, int) or isinstance(val, bool):
@@ -95,6 +101,7 @@ class FRMState:
 @dataclass(frozen=True)
 class FRMActionParams:
     """Parameters for a funding rate market action."""
+
     action: FRMAction
     amount: int = 0
     auth_ok: bool = False
@@ -106,6 +113,7 @@ class FRMActionParams:
 @dataclass(frozen=True)
 class FRMEffect:
     """Post-state observables."""
+
     event: FRMEvent
     implied_rate_bps: int = 0
     realized_rate_bps: int = 0
@@ -116,6 +124,7 @@ class FRMEffect:
 @dataclass(frozen=True)
 class FRMStepResult:
     """Result of a single funding rate market step."""
+
     accepted: bool
     state: FRMState | None = None
     effect: FRMEffect | None = None
@@ -125,6 +134,7 @@ class FRMStepResult:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def compute_implied_rate_bps(
     long_exposure: int,
@@ -159,6 +169,7 @@ def compute_basis_bps(mark_price_e8: int, index_price_e8: int) -> int:
 # ---------------------------------------------------------------------------
 # Guards
 # ---------------------------------------------------------------------------
+
 
 def _guard_open_long(state: FRMState, params: FRMActionParams) -> bool:
     if not params.auth_ok:
@@ -218,10 +229,13 @@ def _guard_freeze(state: FRMState, params: FRMActionParams) -> bool:
 # Updates
 # ---------------------------------------------------------------------------
 
+
 def _update_open_long(state: FRMState, params: FRMActionParams) -> FRMState:
     new_long = state.rate_long_exposure + params.amount
     new_implied = compute_implied_rate_bps(
-        new_long, state.rate_short_exposure, state.funding_cap_bps,
+        new_long,
+        state.rate_short_exposure,
+        state.funding_cap_bps,
     )
     return replace(
         state,
@@ -234,7 +248,9 @@ def _update_open_long(state: FRMState, params: FRMActionParams) -> FRMState:
 def _update_open_short(state: FRMState, params: FRMActionParams) -> FRMState:
     new_short = state.rate_short_exposure + params.amount
     new_implied = compute_implied_rate_bps(
-        state.rate_long_exposure, new_short, state.funding_cap_bps,
+        state.rate_long_exposure,
+        new_short,
+        state.funding_cap_bps,
     )
     return replace(
         state,
@@ -247,7 +263,9 @@ def _update_open_short(state: FRMState, params: FRMActionParams) -> FRMState:
 def _update_settle(state: FRMState, params: FRMActionParams) -> FRMState:
     # Compute realized basis
     realized_bps = compute_basis_bps(params.mark_price_e8, params.index_price_e8)
-    clamped_realized = max(-state.funding_cap_bps, min(state.funding_cap_bps, realized_bps))
+    clamped_realized = max(
+        -state.funding_cap_bps, min(state.funding_cap_bps, realized_bps)
+    )
 
     # Settlement: compare implied vs realized
     # If implied > realized: shorts win (longs overpaid)
@@ -313,6 +331,7 @@ def _update_freeze(state: FRMState, params: FRMActionParams) -> FRMState:
 # Effects
 # ---------------------------------------------------------------------------
 
+
 def _effect_open_long(state: FRMState, params: FRMActionParams) -> FRMEffect:
     return FRMEffect(
         event=FRMEvent.RATE_LONG_OPENED,
@@ -349,6 +368,7 @@ def _effect_freeze(state: FRMState, params: FRMActionParams) -> FRMEffect:
 # Invariant check
 # ---------------------------------------------------------------------------
 
+
 def _check_invariants(state: FRMState) -> list[str]:
     violations: list[str] = []
     if state.rate_long_exposure < 0:
@@ -365,6 +385,18 @@ def _check_invariants(state: FRMState) -> list[str]:
         violations.append("protocol_fee_nonneg")
     if abs(state.implied_rate_bps) > state.funding_cap_bps:
         violations.append("rate_bounded")
+    if not state.settled_this_epoch:
+        if state.premium_pool != (state.rate_long_exposure + state.rate_short_exposure):
+            violations.append("pool_matches_exposure")
+        if state.realized_rate_bps != 0:
+            violations.append("unsettled_realized_zero")
+        if state.long_payout != 0:
+            violations.append("unsettled_long_payout_zero")
+        if state.short_payout != 0:
+            violations.append("unsettled_short_payout_zero")
+    else:
+        if state.premium_pool != 0:
+            violations.append("settled_pool_zero")
     return violations
 
 
@@ -374,7 +406,11 @@ def _check_invariants(state: FRMState) -> list[str]:
 
 _DISPATCH = {
     FRMAction.OPEN_RATE_LONG: (_guard_open_long, _update_open_long, _effect_open_long),
-    FRMAction.OPEN_RATE_SHORT: (_guard_open_short, _update_open_short, _effect_open_short),
+    FRMAction.OPEN_RATE_SHORT: (
+        _guard_open_short,
+        _update_open_short,
+        _effect_open_short,
+    ),
     FRMAction.SETTLE_RATE_EPOCH: (_guard_settle, _update_settle, _effect_settle),
     FRMAction.ADVANCE_RATE_EPOCH: (_guard_advance, _update_advance, _effect_advance),
     FRMAction.EMERGENCY_FREEZE: (_guard_freeze, _update_freeze, _effect_freeze),
@@ -385,7 +421,9 @@ def step(state: FRMState, params: FRMActionParams) -> FRMStepResult:
     """Execute one funding rate market action."""
     entry = _DISPATCH.get(params.action)
     if entry is None:
-        return FRMStepResult(accepted=False, rejection=f"unknown_action:{params.action}")
+        return FRMStepResult(
+            accepted=False, rejection=f"unknown_action:{params.action}"
+        )
 
     guard_fn, update_fn, effect_fn = entry
 

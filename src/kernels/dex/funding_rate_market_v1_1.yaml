@@ -1,0 +1,577 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "funding_rate_market_v1_1"
+  created_by: "zenodex-rd"
+  notes: |
+    Endogenous funding rate market (v1.1).
+
+    This is a self-contained, deterministic state machine:
+    - implied_rate_bps is computed from exposure imbalance:
+        ((long - short) * cap) div (long + short), clamped to ±cap
+    - realized_rate_bps is computed at settlement from mark/index prices:
+        ((mark - index) * 10000) div index, clamped to ±cap
+    - premium_pool is deterministically split at settlement with a protocol fee.
+
+observables:
+  state_vars:
+    [
+      "rate_long_exposure",
+      "rate_short_exposure",
+      "implied_rate_bps",
+      "realized_rate_bps",
+      "settlement_epoch",
+      "rate_market_epoch",
+      "settled_this_epoch",
+      "premium_pool",
+      "long_payout",
+      "short_payout",
+      "protocol_fee_pool",
+      "frozen",
+      "mark_price_e8",
+      "index_price_e8",
+      "funding_cap_bps",
+      "protocol_fee_bps",
+    ]
+  effects: ["event", "implied_rate_bps", "realized_rate_bps", "payout_long", "payout_short"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "RateLongOpened",
+          "RateShortOpened",
+          "RateEpochSettled",
+          "RateEpochAdvanced",
+          "MarketFrozen",
+        ]
+
+state_vars:
+  - id: "rate_long_exposure"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "rate_short_exposure"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "implied_rate_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+  - id: "realized_rate_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+  - id: "settlement_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "rate_market_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "settled_this_epoch"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "premium_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "long_payout"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "short_payout"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "protocol_fee_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "frozen"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "mark_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "index_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "funding_cap_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+  - id: "protocol_fee_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+
+invariants:
+  - id: "inv_exposure_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: ">="
+          args: [{ var: "rate_long_exposure" }, { const: 0 }]
+        - op: ">="
+          args: [{ var: "rate_short_exposure" }, { const: 0 }]
+
+  # Structural accounting: while unsettled, the premium pool is exactly the sum of
+  # both exposure sides. After settlement, premium_pool is cleared to 0.
+  - id: "inv_pool_consistency"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{ var: "settled_this_epoch" }, { bool: false }]
+            - op: "="
+              args:
+                - { var: "premium_pool" }
+                - op: "+"
+                  args: [{ var: "rate_long_exposure" }, { var: "rate_short_exposure" }]
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{ var: "settled_this_epoch" }, { bool: true }]
+            - op: "="
+              args: [{ var: "premium_pool" }, { const: 0 }]
+  - id: "inv_pools_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: ">="
+          args: [{ var: "premium_pool" }, { const: 0 }]
+        - op: ">="
+          args: [{ var: "long_payout" }, { const: 0 }]
+        - op: ">="
+          args: [{ var: "short_payout" }, { const: 0 }]
+        - op: ">="
+          args: [{ var: "protocol_fee_pool" }, { const: 0 }]
+
+  # Structural: before settlement, realized rate and payouts are zeroed.
+  - id: "inv_unsettled_fields_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "settled_this_epoch" }, { bool: false }]
+        - op: "and"
+          args:
+            - op: "="
+              args: [{ var: "realized_rate_bps" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "long_payout" }, { const: 0 }]
+            - op: "="
+              args: [{ var: "short_payout" }, { const: 0 }]
+  - id: "inv_rate_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: ">="
+          args:
+            - var: "implied_rate_bps"
+            - op: "-"
+              args: [{ const: 0 }, { var: "funding_cap_bps" }]
+        - op: "<="
+          args: [{ var: "implied_rate_bps" }, { var: "funding_cap_bps" }]
+
+init:
+  - var: "rate_long_exposure"
+    expr: { const: 0 }
+  - var: "rate_short_exposure"
+    expr: { const: 0 }
+  - var: "implied_rate_bps"
+    expr: { const: 0 }
+  - var: "realized_rate_bps"
+    expr: { const: 0 }
+  - var: "settlement_epoch"
+    expr: { const: 0 }
+  - var: "rate_market_epoch"
+    expr: { const: 0 }
+  - var: "settled_this_epoch"
+    expr: { bool: false }
+  - var: "premium_pool"
+    expr: { const: 0 }
+  - var: "long_payout"
+    expr: { const: 0 }
+  - var: "short_payout"
+    expr: { const: 0 }
+  - var: "protocol_fee_pool"
+    expr: { const: 0 }
+  - var: "frozen"
+    expr: { bool: false }
+  - var: "mark_price_e8"
+    expr: { const: 0 }
+  - var: "index_price_e8"
+    expr: { const: 0 }
+  - var: "funding_cap_bps"
+    expr: { const: 100 }
+  - var: "protocol_fee_bps"
+    expr: { const: 100 }
+
+actions:
+  # -----------------------------------------------------------------------
+  # open_rate_long: Bet that funding rate will be high.
+  # Updates implied_rate_bps deterministically from new exposure imbalance.
+  # -----------------------------------------------------------------------
+  - id: "open_rate_long"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - op: "="
+          args: [{ var: "frozen" }, { bool: false }]
+        - op: "="
+          args: [{ var: "settled_this_epoch" }, { bool: false }]
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "rate_long_exposure" }, { param: "amount" }]
+            - { const: 1000000000000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "premium_pool" }, { param: "amount" }]
+            - { const: 1000000000000 }
+    updates:
+      - var: "rate_long_exposure"
+        expr:
+          op: "+"
+          args: [{ var: "rate_long_exposure" }, { param: "amount" }]
+      - var: "premium_pool"
+        expr:
+          op: "+"
+          args: [{ var: "premium_pool" }, { param: "amount" }]
+      - var: "implied_rate_bps"
+        expr:
+          op: "max"
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { var: "funding_cap_bps" }]
+            - op: "min"
+              args:
+                - { var: "funding_cap_bps" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args:
+                            - op: "+"
+                              args: [{ var: "rate_long_exposure" }, { param: "amount" }]
+                            - { var: "rate_short_exposure" }
+                        - { var: "funding_cap_bps" }
+                    - op: "+"
+                      args:
+                        - op: "+"
+                          args: [{ var: "rate_long_exposure" }, { param: "amount" }]
+                        - { var: "rate_short_exposure" }
+    effects:
+      event: { enum: "RateLongOpened" }
+      implied_rate_bps: { var: "implied_rate_bps" }
+      realized_rate_bps: { const: 0 }
+      payout_long: { const: 0 }
+      payout_short: { const: 0 }
+
+  # -----------------------------------------------------------------------
+  # open_rate_short: Bet that funding rate will be low.
+  # -----------------------------------------------------------------------
+  - id: "open_rate_short"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - op: "="
+          args: [{ var: "frozen" }, { bool: false }]
+        - op: "="
+          args: [{ var: "settled_this_epoch" }, { bool: false }]
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "rate_short_exposure" }, { param: "amount" }]
+            - { const: 1000000000000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "premium_pool" }, { param: "amount" }]
+            - { const: 1000000000000 }
+    updates:
+      - var: "rate_short_exposure"
+        expr:
+          op: "+"
+          args: [{ var: "rate_short_exposure" }, { param: "amount" }]
+      - var: "premium_pool"
+        expr:
+          op: "+"
+          args: [{ var: "premium_pool" }, { param: "amount" }]
+      - var: "implied_rate_bps"
+        expr:
+          op: "max"
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { var: "funding_cap_bps" }]
+            - op: "min"
+              args:
+                - { var: "funding_cap_bps" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args:
+                            - { var: "rate_long_exposure" }
+                            - op: "+"
+                              args: [{ var: "rate_short_exposure" }, { param: "amount" }]
+                        - { var: "funding_cap_bps" }
+                    - op: "+"
+                      args:
+                        - { var: "rate_long_exposure" }
+                        - op: "+"
+                          args: [{ var: "rate_short_exposure" }, { param: "amount" }]
+    effects:
+      event: { enum: "RateShortOpened" }
+      implied_rate_bps: { var: "implied_rate_bps" }
+      realized_rate_bps: { const: 0 }
+      payout_long: { const: 0 }
+      payout_short: { const: 0 }
+
+  # -----------------------------------------------------------------------
+  # settle_rate_epoch: compute realized rate and distribute premium_pool.
+  # -----------------------------------------------------------------------
+  - id: "settle_rate_epoch"
+    params:
+      - id: "mark_price_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "index_price_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "frozen" }, { bool: false }]
+        - op: "="
+          args: [{ var: "settled_this_epoch" }, { bool: false }]
+        - op: ">"
+          args:
+            - op: "+"
+              args: [{ var: "rate_long_exposure" }, { var: "rate_short_exposure" }]
+            - { const: 0 }
+        - op: "<"
+          args: [{ var: "settlement_epoch" }, { const: 1000000000 }]
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "protocol_fee_pool" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args: [{ var: "premium_pool" }, { var: "protocol_fee_bps" }]
+                    - { const: 10000 }
+            - { const: 1000000000000 }
+    updates:
+      - var: "realized_rate_bps"
+        expr:
+          op: "max"
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { var: "funding_cap_bps" }]
+            - op: "min"
+              args:
+                - { var: "funding_cap_bps" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args: [{ param: "mark_price_e8" }, { param: "index_price_e8" }]
+                        - { const: 10000 }
+                    - { param: "index_price_e8" }
+      - var: "mark_price_e8"
+        expr: { param: "mark_price_e8" }
+      - var: "index_price_e8"
+        expr: { param: "index_price_e8" }
+      - var: "settled_this_epoch"
+        expr: { bool: true }
+      - var: "settlement_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "settlement_epoch" }, { const: 1 }]
+      - var: "protocol_fee_pool"
+        expr:
+          op: "+"
+          args:
+            - { var: "protocol_fee_pool" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ var: "premium_pool" }, { var: "protocol_fee_bps" }]
+                - { const: 10000 }
+
+      - var: "long_payout"
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - op: "-"
+                  args:
+                    - { var: "premium_pool" }
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args: [{ var: "premium_pool" }, { var: "protocol_fee_bps" }]
+                        - { const: 10000 }
+                - op: "ite"
+                  cond:
+                    op: ">="
+                    args:
+                      - op: "max"
+                        args:
+                          - op: "-"
+                            args: [{ const: 0 }, { var: "funding_cap_bps" }]
+                          - op: "min"
+                            args:
+                              - { var: "funding_cap_bps" }
+                              - op: "div"
+                                args:
+                                  - op: "*"
+                                    args:
+                                      - op: "-"
+                                        args: [{ param: "mark_price_e8" }, { param: "index_price_e8" }]
+                                      - { const: 10000 }
+                                  - { param: "index_price_e8" }
+                      - { var: "implied_rate_bps" }
+                  then: { var: "rate_long_exposure" }
+                  else: { var: "rate_short_exposure" }
+            - op: "+"
+              args: [{ var: "rate_long_exposure" }, { var: "rate_short_exposure" }]
+
+      - var: "short_payout"
+        expr:
+          op: "-"
+          args:
+            - op: "-"
+              args:
+                - { var: "premium_pool" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args: [{ var: "premium_pool" }, { var: "protocol_fee_bps" }]
+                    - { const: 10000 }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args:
+                        - { var: "premium_pool" }
+                        - op: "div"
+                          args:
+                            - op: "*"
+                              args: [{ var: "premium_pool" }, { var: "protocol_fee_bps" }]
+                            - { const: 10000 }
+                    - op: "ite"
+                      cond:
+                        op: ">="
+                        args:
+                          - op: "max"
+                            args:
+                              - op: "-"
+                                args: [{ const: 0 }, { var: "funding_cap_bps" }]
+                              - op: "min"
+                                args:
+                                  - { var: "funding_cap_bps" }
+                                  - op: "div"
+                                    args:
+                                      - op: "*"
+                                        args:
+                                          - op: "-"
+                                            args: [{ param: "mark_price_e8" }, { param: "index_price_e8" }]
+                                          - { const: 10000 }
+                                      - { param: "index_price_e8" }
+                          - { var: "implied_rate_bps" }
+                      then: { var: "rate_long_exposure" }
+                      else: { var: "rate_short_exposure" }
+                - op: "+"
+                  args: [{ var: "rate_long_exposure" }, { var: "rate_short_exposure" }]
+
+      - var: "premium_pool"
+        expr: { const: 0 }
+    effects:
+      event: { enum: "RateEpochSettled" }
+      implied_rate_bps: { var: "implied_rate_bps" }
+      realized_rate_bps: { var: "realized_rate_bps" }
+      payout_long: { var: "long_payout" }
+      payout_short: { var: "short_payout" }
+
+  # -----------------------------------------------------------------------
+  # advance_rate_epoch: reset exposures for next epoch.
+  # -----------------------------------------------------------------------
+  - id: "advance_rate_epoch"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "settled_this_epoch" }, { bool: true }]
+        - op: "<"
+          args: [{ var: "rate_market_epoch" }, { const: 1000000000 }]
+    updates:
+      - var: "rate_market_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "rate_market_epoch" }, { const: 1 }]
+      - var: "rate_long_exposure"
+        expr: { const: 0 }
+      - var: "rate_short_exposure"
+        expr: { const: 0 }
+      - var: "premium_pool"
+        expr: { const: 0 }
+      - var: "implied_rate_bps"
+        expr: { const: 0 }
+      - var: "realized_rate_bps"
+        expr: { const: 0 }
+      - var: "long_payout"
+        expr: { const: 0 }
+      - var: "short_payout"
+        expr: { const: 0 }
+      - var: "settled_this_epoch"
+        expr: { bool: false }
+    effects:
+      event: { enum: "RateEpochAdvanced" }
+      implied_rate_bps: { const: 0 }
+      realized_rate_bps: { const: 0 }
+      payout_long: { const: 0 }
+      payout_short: { const: 0 }
+
+  # -----------------------------------------------------------------------
+  # emergency_freeze: circuit breaker.
+  # -----------------------------------------------------------------------
+  - id: "emergency_freeze"
+    params:
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { param: "auth_ok" }
+        - op: "="
+          args: [{ var: "frozen" }, { bool: false }]
+    updates:
+      - var: "frozen"
+        expr: { bool: true }
+    effects:
+      event: { enum: "MarketFrozen" }
+      implied_rate_bps: { const: 0 }
+      realized_rate_bps: { const: 0 }
+      payout_long: { const: 0 }
+      payout_short: { const: 0 }
