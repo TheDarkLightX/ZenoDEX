@@ -116,8 +116,12 @@ See:
 
 Single entrypoint:
 - `bash tools/run_perps_evidence.sh`
+- `bash tools/run_mechanical_scientist_evidence.sh` (mechanical-scientist campaign smoke + strict replay)
 
 This runs unit/integration tests and kernel-level checks. Some checks require optional local toolchains; the script fails closed when prerequisites are missing so “production posture” is always explicit.
+
+Mechanical-scientist iteration notes and measured throughput improvements are tracked in:
+- `docs/derivatives/MECHANICAL_SCIENTIST_LIFTOFF_20260206.md`
 
 ## Roadmap to v1.0 (pragmatic)
 
