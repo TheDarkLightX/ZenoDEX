@@ -1,0 +1,292 @@
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "twap_accumulator_v2"
+  description: "Oracle-free TWAP accumulator with staleness policy and cumulative time tracking"
+  tags: ["twap", "oracle", "mev-resistance", "pricing", "staleness"]
+
+observables:
+  state_vars: ["cumulative_price_x1e6", "cumulative_time", "last_timestamp", "observation_count"]
+  effects: ["twap_updated", "stale_detected"]
+
+types: []
+
+state_vars:
+  - id: "cumulative_price_x1e6"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000000}
+    description: "Cumulative price * time_delta, scaled by 1e6. TWAP = cumulative_price / cumulative_time"
+
+  - id: "cumulative_time"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000}
+    description: "Total elapsed time since start. Enables TWAP calculation."
+
+  - id: "start_timestamp"
+    role: "data"
+    type: {kind: "int", min: 0, max: 2000000000}
+    description: "Immutable first observation timestamp"
+
+  - id: "last_price_x1e6"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000}
+    description: "Last recorded price, scaled by 1e6"
+
+  - id: "last_timestamp"
+    role: "data"
+    type: {kind: "int", min: 0, max: 2000000000}
+    description: "Timestamp of last price update"
+
+  - id: "observation_count"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000}
+    description: "Number of price observations recorded"
+
+  - id: "max_stale_seconds"
+    role: "data"
+    type: {kind: "int", min: 60, max: 86400}
+    description: "Maximum allowed gap between observations (staleness policy)"
+
+  - id: "initialized"
+    role: "control"
+    type: {kind: "bool"}
+    description: "Whether the accumulator has been initialized"
+
+  - id: "is_stale"
+    role: "control"
+    type: {kind: "bool"}
+    description: "True if last observation exceeded staleness threshold"
+
+invariants:
+  - id: "CumulativeMonotonic"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "cumulative_price_x1e6"}
+        - {const: 0}
+    description: "Cumulative price is always non-negative"
+
+  - id: "CumulativeTimeMonotonic"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "cumulative_time"}
+        - {const: 0}
+    description: "Cumulative time is always non-negative"
+
+  - id: "TimestampOrdering"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "last_timestamp"}
+        - {var: "start_timestamp"}
+    description: "Last timestamp >= start timestamp"
+
+  - id: "ObservationCountBounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - {var: "observation_count"}
+        - {const: 1000000}
+    description: "Observation count stays within bounds"
+
+  - id: "InitializedImpliesPositiveCount"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - {var: "initialized"}
+        - op: ">"
+          args:
+            - {var: "observation_count"}
+            - {const: 0}
+    description: "If initialized, at least one observation exists"
+
+  - id: "StalenessConfigValid"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: ">="
+          args:
+            - {var: "max_stale_seconds"}
+            - {const: 60}
+        - op: "<="
+          args:
+            - {var: "max_stale_seconds"}
+            - {const: 86400}
+    description: "Staleness config within valid range"
+
+init:
+  - var: "cumulative_price_x1e6"
+    expr: {const: 0}
+  - var: "cumulative_time"
+    expr: {const: 0}
+  - var: "start_timestamp"
+    expr: {const: 0}
+  - var: "last_price_x1e6"
+    expr: {const: 0}
+  - var: "last_timestamp"
+    expr: {const: 0}
+  - var: "observation_count"
+    expr: {const: 0}
+  - var: "max_stale_seconds"
+    expr: {const: 3600}
+  - var: "initialized"
+    expr: {bool: false}
+  - var: "is_stale"
+    expr: {bool: false}
+
+actions:
+  - id: "initialize"
+    description: "Initialize the TWAP accumulator with first price observation"
+    params:
+      - id: "initial_price_x1e6"
+        type: {kind: "int", min: 1, max: 1000000000}
+      - id: "timestamp"
+        type: {kind: "int", min: 1, max: 2000000000}
+      - id: "stale_seconds"
+        type: {kind: "int", min: 60, max: 86400}
+    guard:
+      op: "not"
+      args:
+        - {var: "initialized"}
+    updates:
+      - var: "last_price_x1e6"
+        expr: {param: "initial_price_x1e6"}
+      - var: "last_timestamp"
+        expr: {param: "timestamp"}
+      - var: "start_timestamp"
+        expr: {param: "timestamp"}
+      - var: "observation_count"
+        expr: {const: 1}
+      - var: "max_stale_seconds"
+        expr: {param: "stale_seconds"}
+      - var: "initialized"
+        expr: {bool: true}
+      - var: "is_stale"
+        expr: {bool: false}
+    effects:
+      twap_updated: {bool: true}
+      stale_detected: {bool: false}
+
+  - id: "record_price"
+    description: "Record a new price observation with staleness check"
+    params:
+      - id: "new_price_x1e6"
+        type: {kind: "int", min: 1, max: 1000000000}
+      - id: "timestamp"
+        type: {kind: "int", min: 1, max: 2000000000}
+    guard:
+      op: "and"
+      args:
+        - {var: "initialized"}
+        - op: ">"
+          args:
+            - {param: "timestamp"}
+            - {var: "last_timestamp"}
+        - op: "<"
+          args:
+            - {var: "observation_count"}
+            - {const: 1000000}
+        # Staleness check: time_delta <= max_stale_seconds
+        - op: "<="
+          args:
+            - op: "-"
+              args:
+                - {param: "timestamp"}
+                - {var: "last_timestamp"}
+            - {var: "max_stale_seconds"}
+        # Overflow guard: cumulative_price + (price * time_delta) <= max
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "cumulative_price_x1e6"}
+                - op: "*"
+                  args:
+                    - {var: "last_price_x1e6"}
+                    - op: "-"
+                      args:
+                        - {param: "timestamp"}
+                        - {var: "last_timestamp"}
+            - {const: 1000000000000000}
+        # Overflow guard: cumulative_time + time_delta <= max
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "cumulative_time"}
+                - op: "-"
+                  args:
+                    - {param: "timestamp"}
+                    - {var: "last_timestamp"}
+            - {const: 1000000000}
+    updates:
+      - var: "cumulative_price_x1e6"
+        expr:
+          op: "+"
+          args:
+            - {var: "cumulative_price_x1e6"}
+            - op: "*"
+              args:
+                - {var: "last_price_x1e6"}
+                - op: "-"
+                  args:
+                    - {param: "timestamp"}
+                    - {var: "last_timestamp"}
+      - var: "cumulative_time"
+        expr:
+          op: "+"
+          args:
+            - {var: "cumulative_time"}
+            - op: "-"
+              args:
+                - {param: "timestamp"}
+                - {var: "last_timestamp"}
+      - var: "last_price_x1e6"
+        expr: {param: "new_price_x1e6"}
+      - var: "last_timestamp"
+        expr: {param: "timestamp"}
+      - var: "observation_count"
+        expr:
+          op: "+"
+          args:
+            - {var: "observation_count"}
+            - {const: 1}
+      - var: "is_stale"
+        expr: {bool: false}
+    effects:
+      twap_updated: {bool: true}
+      stale_detected: {bool: false}
+
+  - id: "record_stale"
+    description: "Record when observation gap exceeds staleness threshold"
+    params:
+      - id: "timestamp"
+        type: {kind: "int", min: 1, max: 2000000000}
+    guard:
+      op: "and"
+      args:
+        - {var: "initialized"}
+        - op: ">"
+          args:
+            - {param: "timestamp"}
+            - {var: "last_timestamp"}
+        - op: ">"
+          args:
+            - op: "-"
+              args:
+                - {param: "timestamp"}
+                - {var: "last_timestamp"}
+            - {var: "max_stale_seconds"}
+    updates:
+      - var: "is_stale"
+        expr: {bool: true}
+    effects:
+      twap_updated: {bool: false}
+      stale_detected: {bool: true}

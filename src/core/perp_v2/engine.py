@@ -7,7 +7,7 @@
 3. Checks all invariants on the post-state.
 4. Returns a ``StepResult`` (accepted or rejected with reason).
 
-The authoritative spec is `src/kernels/dex/perp_epoch_isolated_v2.yaml`; keep
+The authoritative spec is `src/kernels/dex/perp_epoch_isolated_v3.yaml`; keep
 this module in sync and use parity tests against generated refs when updating.
 """
 
@@ -22,6 +22,7 @@ from .effects import (
     effect_clear_breaker,
     effect_deposit_collateral,
     effect_deposit_insurance,
+    effect_partial_liquidate,
     effect_publish_clearing_price,
     effect_set_position,
     effect_settle_epoch,
@@ -34,6 +35,7 @@ from .guards import (
     guard_clear_breaker,
     guard_deposit_collateral,
     guard_deposit_insurance,
+    guard_partial_liquidate,
     guard_publish_clearing_price,
     guard_set_position,
     guard_settle_epoch,
@@ -49,6 +51,7 @@ from .updates import (
     apply_deposit_insurance,
     apply_funding,
     apply_insurance_claim,
+    apply_partial_liquidate,
     apply_publish_clearing_price,
     apply_set_position,
     apply_settle_epoch,
@@ -90,6 +93,9 @@ _DISPATCH: dict[Action, tuple[GuardFn, UpdateFn, EffectFn]] = {
     Action.APPLY_INSURANCE_CLAIM: (
         guard_apply_insurance_claim, apply_insurance_claim, effect_apply_insurance_claim,
     ),
+    Action.PARTIAL_LIQUIDATE: (
+        guard_partial_liquidate, apply_partial_liquidate, effect_partial_liquidate,
+    ),
 }
 
 # -- Parameter domain bounds (from YAML param type specs) --------------------
@@ -127,16 +133,39 @@ _PARAM_BOUNDS: dict[Action, list[tuple[str, int, int]]] = {
     Action.APPLY_INSURANCE_CLAIM: [
         ("claim_amount", 1, MAX_PARAM_AMOUNT),
     ],
+    Action.PARTIAL_LIQUIDATE: [
+        ("fraction_bps", 0, MAX_RATE_BPS),
+    ],
 }
+
+# Actions that consume `auth_ok` as a consensus-relevant guard input.
+_AUTH_ACTIONS: set[Action] = {
+    Action.DEPOSIT_COLLATERAL,
+    Action.WITHDRAW_COLLATERAL,
+    Action.SET_POSITION,
+    Action.CLEAR_BREAKER,
+    Action.APPLY_FUNDING,
+    Action.APPLY_INSURANCE_CLAIM,
+    Action.PARTIAL_LIQUIDATE,
+}
+
+
+def _is_strict_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _validate_params(params: ActionParams) -> str | None:
     """Check parameter domain bounds. Returns rejection reason or None."""
+    if params.action in _AUTH_ACTIONS and not isinstance(params.auth_ok, bool):
+        return "param_domain:auth_ok"
+
     bounds = _PARAM_BOUNDS.get(params.action)
     if bounds is None:
         return None
     for field, lo, hi in bounds:
         val = getattr(params, field)
+        if not _is_strict_int(val):
+            return f"param_domain:{field}"
         if val < lo or val > hi:
             return f"param_domain:{field}"
     return None

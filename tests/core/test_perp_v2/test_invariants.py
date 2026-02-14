@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from src.core.perp_v2.invariants import INVARIANT_REGISTRY, check_all
 from src.core.perp_v2.state import initial_state
+from src.core.perp_v2.types import EpochPhase
 
 
 class TestAllInvariantsOnInitialState:
@@ -12,8 +13,8 @@ class TestAllInvariantsOnInitialState:
         violations = check_all(s)
         assert violations == []
 
-    def test_registry_has_16_invariants(self):
-        assert len(INVARIANT_REGISTRY) == 16
+    def test_registry_has_18_invariants(self):
+        assert len(INVARIANT_REGISTRY) == 18
 
 
 class TestClearingNotFromFuture:
@@ -55,6 +56,16 @@ class TestOracleSeenZeroed:
     def test_fail_not_seen_nonzero(self):
         s = replace(initial_state(), oracle_seen=False, index_price_e8=100)
         assert "inv_oracle_seen_zeroed" in check_all(s)
+
+
+class TestOracleSeenPositiveIndex:
+    def test_fail_seen_zero_index(self):
+        s = replace(initial_state(), oracle_seen=True, oracle_last_update_epoch=0, index_price_e8=0)
+        assert "inv_oracle_seen_positive_index" in check_all(s)
+
+    def test_pass_seen_positive_index(self):
+        s = replace(initial_state(), oracle_seen=True, oracle_last_update_epoch=0, index_price_e8=100_000_000)
+        assert "inv_oracle_seen_positive_index" not in check_all(s)
 
 
 class TestBreakerNotFromFuture:
@@ -159,3 +170,59 @@ class TestFeePoolEqFeeIncome:
     def test_fail(self):
         s = replace(initial_state(), fee_pool_quote=100, fee_income=0)
         assert "inv_fee_pool_eq_fee_income" in check_all(s)
+
+
+class TestPhaseConsistent:
+    def test_open_always_passes(self):
+        s = replace(initial_state(), epoch_phase=EpochPhase.OPEN)
+        assert "inv_phase_consistent" not in check_all(s)
+
+    def test_price_published_pass(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            now_epoch=1,
+            clearing_price_epoch=1,
+            clearing_price_seen=True,
+        )
+        assert "inv_phase_consistent" not in check_all(s)
+
+    def test_price_published_fail_wrong_epoch(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            now_epoch=2,
+            clearing_price_epoch=1,
+            clearing_price_seen=True,
+        )
+        assert "inv_phase_consistent" in check_all(s)
+
+    def test_price_published_fail_not_seen(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            now_epoch=1,
+            clearing_price_epoch=1,
+            clearing_price_seen=False,
+        )
+        assert "inv_phase_consistent" in check_all(s)
+
+    def test_settled_pass(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.SETTLED,
+            now_epoch=1,
+            oracle_last_update_epoch=1,
+            oracle_seen=True,
+            index_price_e8=100_000_000,
+        )
+        assert "inv_phase_consistent" not in check_all(s)
+
+    def test_settled_fail_oracle_behind(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.SETTLED,
+            now_epoch=2,
+            oracle_last_update_epoch=1,
+        )
+        assert "inv_phase_consistent" in check_all(s)

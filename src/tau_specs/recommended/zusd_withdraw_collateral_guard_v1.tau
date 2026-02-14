@@ -1,0 +1,17 @@
+# zUSD Withdraw Collateral Guard v1
+# i1 = amount (bv[64])
+# i2 = collateral_before (bv[64])
+# i3 = collateral_after (bv[64])
+# i4 = debt_before (bv[64])
+# i5 = risky_ops_allowed (sbf)
+# i6 = mcr_post_ok (sbf)
+# o4 = withdraw_allowed
+
+set charvar off
+
+amount_pos(amount : bv[64]) := amount > { #x0000000000000000 }:bv[64].
+enough_coll(coll_b : bv[64], amount : bv[64]) := coll_b >= amount.
+coll_delta_ok(coll_b : bv[64], coll_a : bv[64], amount : bv[64]) := (coll_b >= coll_a) && ((coll_b - coll_a) = amount).
+risk_gate_ok(debt_b : bv[64], risky_ops_allowed : sbf) := (debt_b = { #x0000000000000000 }:bv[64]) || (risky_ops_allowed = 1:sbf).
+withdraw_allowed(amount : bv[64], coll_b : bv[64], coll_a : bv[64], debt_b : bv[64], risky_ops_allowed : sbf, mcr_post_ok : sbf) := amount_pos(amount) && enough_coll(coll_b, amount) && coll_delta_ok(coll_b, coll_a, amount) && risk_gate_ok(debt_b, risky_ops_allowed) && (mcr_post_ok = 1:sbf).
+always (o1[t]:sbf = 1:sbf <-> (amount_pos(i1[t]:bv[64]) && enough_coll(i2[t]:bv[64], i1[t]:bv[64]) && coll_delta_ok(i2[t]:bv[64], i3[t]:bv[64], i1[t]:bv[64]))) && (o2[t]:sbf = 1:sbf <-> risk_gate_ok(i4[t]:bv[64], i5[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> (i6[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> withdraw_allowed(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:sbf, i6[t]:sbf)).

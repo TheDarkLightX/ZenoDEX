@@ -76,6 +76,60 @@ INTENT_EXPIRY_GUARD_V1 = TauSpecRef(
     gate_output="o4",
 )
 
+ZUSD_ORACLE_COMMIT_GUARD_V2 = TauSpecRef(
+    spec_id="zusd_oracle_commit_guard_v2",
+    path=RECOMMENDED_SPECS_DIR / "zusd_oracle_commit_guard_v2.tau",
+    gate_output="o4",
+)
+
+ZUSD_LIQUIDATION_GUARD_V2 = TauSpecRef(
+    spec_id="zusd_liquidation_guard_v2",
+    path=RECOMMENDED_SPECS_DIR / "zusd_liquidation_guard_v2.tau",
+    gate_output="o4",
+)
+
+ZUSD_SUPPLY_CONSERVATION_V2 = TauSpecRef(
+    spec_id="zusd_supply_conservation_v2",
+    path=RECOMMENDED_SPECS_DIR / "zusd_supply_conservation_v2.tau",
+    gate_output="o4",
+)
+
+ZUSD_MINT_GUARD_V1 = TauSpecRef(
+    spec_id="zusd_mint_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_mint_guard_v1.tau",
+    gate_output="o4",
+)
+
+ZUSD_REPAY_GUARD_V1 = TauSpecRef(
+    spec_id="zusd_repay_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_repay_guard_v1.tau",
+    gate_output="o4",
+)
+
+ZUSD_REDEEM_GUARD_V1 = TauSpecRef(
+    spec_id="zusd_redeem_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_redeem_guard_v1.tau",
+    gate_output="o4",
+)
+
+ZUSD_WITHDRAW_COLLATERAL_GUARD_V1 = TauSpecRef(
+    spec_id="zusd_withdraw_collateral_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_withdraw_collateral_guard_v1.tau",
+    gate_output="o4",
+)
+
+ZUSD_DEPOSIT_SP_GUARD_V1 = TauSpecRef(
+    spec_id="zusd_deposit_sp_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_deposit_sp_guard_v1.tau",
+    gate_output="o4",
+)
+
+ZUSD_WITHDRAW_SP_GUARD_V1 = TauSpecRef(
+    spec_id="zusd_withdraw_sp_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_withdraw_sp_guard_v1.tau",
+    gate_output="o4",
+)
+
 TOKEN_ARCHETYPE_SOULBOUND_V2 = TauSpecRef(
     spec_id="token_archetype_soulbound_v2",
     path=RECOMMENDED_SPECS_DIR / "token_archetype_soulbound_v2.tau",
@@ -719,6 +773,224 @@ def build_intent_expiry_guard_v1_step(
         "i3": int(min_validity_period),
         "i4": int(max_validity_period),
         "i5": int(intent_created),
+    }
+
+
+def build_zusd_oracle_commit_guard_v2_step(
+    *,
+    oracle_seen: int,
+    pending_le_active: int,
+    fresh_ok: int,
+    auth_ok: int,
+    mcr_ok_at_pending: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_oracle_commit_guard_v2.tau`.
+    """
+    return {
+        "i1": _sbf("oracle_seen", oracle_seen),
+        "i2": _sbf("pending_le_active", pending_le_active),
+        "i3": _sbf("fresh_ok", fresh_ok),
+        "i4": _sbf("auth_ok", auth_ok),
+        "i5": _sbf("mcr_ok_at_pending", mcr_ok_at_pending),
+    }
+
+
+def build_zusd_liquidation_guard_v2_step(
+    *,
+    pending_init: int,
+    vault_debt: int,
+    under_mcr: int,
+    sp_debt: int,
+    vault_coll: int,
+    sp_coll_before: int,
+    max_sp_coll: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_liquidation_guard_v2.tau`.
+    """
+    return {
+        "i1": _sbf("pending_init", pending_init),
+        "i2": _u64("vault_debt", vault_debt),
+        "i3": _sbf("under_mcr", under_mcr),
+        "i4": _u64("sp_debt", sp_debt),
+        "i5": _u64("vault_coll", vault_coll),
+        "i6": _u64("sp_coll_before", sp_coll_before),
+        "i7": _u64("max_sp_coll", max_sp_coll),
+    }
+
+
+def build_zusd_supply_conservation_v2_step(
+    *,
+    free_before: int,
+    sp_before: int,
+    total_before: int,
+    free_after: int,
+    sp_after: int,
+    total_after: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_supply_conservation_v2.tau`.
+    """
+    return {
+        "i1": _u64("free_before", free_before),
+        "i2": _u64("sp_before", sp_before),
+        "i3": _u64("total_before", total_before),
+        "i4": _u64("free_after", free_after),
+        "i5": _u64("sp_after", sp_after),
+        "i6": _u64("total_after", total_after),
+    }
+
+
+def build_zusd_mint_guard_v1_step(
+    *,
+    amount: int,
+    debt_before: int,
+    free_before: int,
+    debt_after: int,
+    free_after: int,
+    risky_ops_allowed: int,
+    min_open_ok: int,
+    max_vault_ok: int,
+    max_supply_ok: int,
+    mcr_post_ok: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_mint_guard_v1.tau`.
+    """
+    return {
+        "i1": _u64("amount", amount),
+        "i2": _u64("debt_before", debt_before),
+        "i3": _u64("free_before", free_before),
+        "i4": _u64("debt_after", debt_after),
+        "i5": _u64("free_after", free_after),
+        "i6": _sbf("risky_ops_allowed", risky_ops_allowed),
+        "i7": _sbf("min_open_ok", min_open_ok),
+        "i8": _sbf("max_vault_ok", max_vault_ok),
+        "i9": _sbf("max_supply_ok", max_supply_ok),
+        "i10": _sbf("mcr_post_ok", mcr_post_ok),
+    }
+
+
+def build_zusd_repay_guard_v1_step(
+    *,
+    amount: int,
+    debt_before: int,
+    free_before: int,
+    debt_after: int,
+    free_after: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_repay_guard_v1.tau`.
+    """
+    return {
+        "i1": _u64("amount", amount),
+        "i2": _u64("debt_before", debt_before),
+        "i3": _u64("free_before", free_before),
+        "i4": _u64("debt_after", debt_after),
+        "i5": _u64("free_after", free_after),
+    }
+
+
+def build_zusd_redeem_guard_v1_step(
+    *,
+    amount: int,
+    debt_before: int,
+    free_before: int,
+    collateral_before: int,
+    debt_after: int,
+    free_after: int,
+    collateral_after: int,
+    gross_collateral: int,
+    fee_collateral: int,
+    oracle_ok: int,
+    mcr_post_ok: int,
+    fee_cap_ok: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_redeem_guard_v1.tau`.
+    """
+    return {
+        "i1": _u64("amount", amount),
+        "i2": _u64("debt_before", debt_before),
+        "i3": _u64("free_before", free_before),
+        "i4": _u64("collateral_before", collateral_before),
+        "i5": _u64("debt_after", debt_after),
+        "i6": _u64("free_after", free_after),
+        "i7": _u64("collateral_after", collateral_after),
+        "i8": _u64("gross_collateral", gross_collateral),
+        "i9": _u64("fee_collateral", fee_collateral),
+        "i10": _sbf("oracle_ok", oracle_ok),
+        "i11": _sbf("mcr_post_ok", mcr_post_ok),
+        "i12": _sbf("fee_cap_ok", fee_cap_ok),
+    }
+
+
+def build_zusd_withdraw_collateral_guard_v1_step(
+    *,
+    amount: int,
+    collateral_before: int,
+    collateral_after: int,
+    debt_before: int,
+    risky_ops_allowed: int,
+    mcr_post_ok: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_withdraw_collateral_guard_v1.tau`.
+    """
+    return {
+        "i1": _u64("amount", amount),
+        "i2": _u64("collateral_before", collateral_before),
+        "i3": _u64("collateral_after", collateral_after),
+        "i4": _u64("debt_before", debt_before),
+        "i5": _sbf("risky_ops_allowed", risky_ops_allowed),
+        "i6": _sbf("mcr_post_ok", mcr_post_ok),
+    }
+
+
+def build_zusd_deposit_sp_guard_v1_step(
+    *,
+    amount: int,
+    free_before: int,
+    sp_before: int,
+    free_after: int,
+    sp_after: int,
+    max_supply_ok: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_deposit_sp_guard_v1.tau`.
+    """
+    return {
+        "i1": _u64("amount", amount),
+        "i2": _u64("free_before", free_before),
+        "i3": _u64("sp_before", sp_before),
+        "i4": _u64("free_after", free_after),
+        "i5": _u64("sp_after", sp_after),
+        "i6": _sbf("max_supply_ok", max_supply_ok),
+    }
+
+
+def build_zusd_withdraw_sp_guard_v1_step(
+    *,
+    amount: int,
+    free_before: int,
+    sp_before: int,
+    free_after: int,
+    sp_after: int,
+    risky_ops_allowed: int,
+    vault_mcr_ok: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_withdraw_sp_guard_v1.tau`.
+    """
+    return {
+        "i1": _u64("amount", amount),
+        "i2": _u64("free_before", free_before),
+        "i3": _u64("sp_before", sp_before),
+        "i4": _u64("free_after", free_after),
+        "i5": _u64("sp_after", sp_after),
+        "i6": _sbf("risky_ops_allowed", risky_ops_allowed),
+        "i7": _sbf("vault_mcr_ok", vault_mcr_ok),
     }
 
 

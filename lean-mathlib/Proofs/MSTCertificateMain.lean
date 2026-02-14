@@ -29,7 +29,7 @@ variable {V : Type} [DecidableEq V]
 variable (G T : SimpleGraph V) (w : Sym2 V → Nat)
 
 /- MST certificate predicate for a candidate tree `T ≤ G`, parameterized by a tree proof.
-   (We avoid any `admit`/`sorry` by making the tree hypothesis explicit.) -/
+   (We make the tree hypothesis explicit to avoid unfinished proof placeholders.) -/
 def CertificateWithTree (hT : T.IsTree) : Prop :=
   T ≤ G ∧
   (∀ u v : V, u ≠ v → G.Adj u v → ¬ T.Adj u v →
@@ -41,7 +41,7 @@ theorem CertificateWithTree.noImprovingExchange
     {u v : V} (huv : u ≠ v)
     (hG : G.Adj u v) (hTuv : ¬ T.Adj u v)
     {e : Sym2 V}
-    (he : e ∈ pathEdges (T := T) (w := w) hT u v) :
+    (he : e ∈ pathEdges (T := T) hT u v) :
     w e ≤ w s(u, v) := by
   rcases hcert with ⟨h_le, hbound⟩
   have hcert_uv : maxWeightOnPath (T := T) (w := w) hT u v ≤ w s(u, v) :=

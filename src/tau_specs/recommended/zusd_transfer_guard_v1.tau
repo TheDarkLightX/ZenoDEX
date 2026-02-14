@@ -1,0 +1,18 @@
+# zUSD Transfer Guard v1 (proof-gated for Tau runtime predictability)
+# i1 = amount_positive (sbf)
+# i2 = sender_has_balance (sbf)
+# i3 = transfer_deltas_match (sbf)  # host-computed exact arithmetic witness
+# i4 = sender_auth_ok (sbf)
+# i5 = recipient_valid (sbf)
+# i6 = paused (sbf)
+# o1 = structural_ok
+# o2 = policy_ok
+# o3 = transfer_ok
+# o4 = transfer_allowed
+
+set charvar off
+
+structural_ok(amount_pos : sbf, has_balance : sbf, deltas_ok : sbf) := (amount_pos = 1:sbf) && (has_balance = 1:sbf) && (deltas_ok = 1:sbf).
+policy_ok(auth_ok : sbf, recipient_ok : sbf, paused : sbf) := (auth_ok = 1:sbf) && (recipient_ok = 1:sbf) && (paused = 0:sbf).
+transfer_ok(amount_pos : sbf, has_balance : sbf, deltas_ok : sbf, auth_ok : sbf, recipient_ok : sbf, paused : sbf) := structural_ok(amount_pos, has_balance, deltas_ok) && policy_ok(auth_ok, recipient_ok, paused).
+always (o1[t]:sbf = 1:sbf <-> structural_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> policy_ok(i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> transfer_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> transfer_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)).

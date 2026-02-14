@@ -8,6 +8,7 @@ ordering so commitments and comparisons can be stable across equivalent encoders
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Mapping
 
 
@@ -19,12 +20,37 @@ def normalize_settlement_op_for_commitment(op3: Mapping[str, Any]) -> Dict[str, 
     - drop non-transition metadata: `batch_ref`, `events`
     - for each fill: drop `reason` and any `None` values
     - sort `included_intents`, `fills`, and all delta lists by deterministic keys
+    - aggregate deltas by key (semantic normal form)
     """
     if not isinstance(op3, Mapping):
         raise TypeError("op3 must be a mapping")
     op = dict(op3)
 
     out: Dict[str, Any] = {k: v for k, v in op.items() if k not in ("batch_ref", "events")}
+
+    def _require_str(value: Any, *, name: str, non_empty: bool = True) -> str:
+        if not isinstance(value, str):
+            raise TypeError(f"{name} must be a string")
+        if non_empty and not value:
+            raise TypeError(f"{name} must be a non-empty string")
+        return value
+
+    def _int_or_0(value: Any, *, name: str) -> int:
+        if value is None:
+            return 0
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{name} must be an int")
+        return int(value)
+
+    def _canonical_json_key(value: object) -> str:
+        # Use a strict, deterministic JSON string for ordering tie-breaks.
+        return json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+            allow_nan=False,
+        )
 
     included = out.get("included_intents")
     if included is None:
@@ -36,10 +62,8 @@ def normalize_settlement_op_for_commitment(op3: Mapping[str, Any]) -> Dict[str, 
         if not isinstance(entry, (list, tuple)) or len(entry) != 2:
             raise TypeError("included_intents entries must be [intent_id, action]")
         intent_id, action = entry[0], entry[1]
-        if not isinstance(intent_id, str) or not intent_id:
-            raise TypeError("included_intents.intent_id must be a non-empty string")
-        if not isinstance(action, str) or not action:
-            raise TypeError("included_intents.action must be a non-empty string")
+        intent_id = _require_str(intent_id, name="included_intents.intent_id", non_empty=True)
+        action = _require_str(action, name="included_intents.action", non_empty=True)
         norm_included.append([intent_id, action])
     norm_included.sort(key=lambda t: (t[0], t[1]))
     out["included_intents"] = norm_included
@@ -54,37 +78,53 @@ def normalize_settlement_op_for_commitment(op3: Mapping[str, Any]) -> Dict[str, 
         if not isinstance(fill, Mapping):
             raise TypeError("fill must be an object")
         d = {k: v for k, v in dict(fill).items() if v is not None and k != "reason"}
-        intent_id = d.get("intent_id")
-        action = d.get("action")
-        if not isinstance(intent_id, str) or not intent_id:
-            raise TypeError("fill.intent_id must be a non-empty string")
-        if not isinstance(action, str) or not action:
-            raise TypeError("fill.action must be a non-empty string")
+        intent_id = _require_str(d.get("intent_id"), name="fill.intent_id", non_empty=True)
+        action = _require_str(d.get("action"), name="fill.action", non_empty=True)
+        d["intent_id"] = intent_id
+        d["action"] = action
         compact_fills.append(d)
-    compact_fills.sort(key=lambda d: (d.get("intent_id", ""), d.get("action", "")))
+    compact_fills.sort(
+        key=lambda d: (
+            d.get("intent_id", ""),
+            d.get("action", ""),
+            _canonical_json_key(d),
+        )
+    )
     out["fills"] = compact_fills
 
-    def _sort_deltas(name: str, *, key_fields: tuple[str, ...]) -> None:
+    def _normalize_deltas(name: str, *, key_fields: tuple[str, ...]) -> None:
         raw = out.get(name)
         if raw is None:
             raw = []
         if not isinstance(raw, list):
             raise TypeError(f"settlement.{name} must be a list")
-        items: list[Dict[str, Any]] = []
+        acc: dict[tuple[str, ...], tuple[int, int]] = {}
         for entry in raw:
             if not isinstance(entry, Mapping):
                 raise TypeError(f"{name} entries must be objects")
-            items.append(dict(entry))
+            entry_d = dict(entry)
+            key = tuple(_require_str(entry_d.get(f), name=f"{name}.{f}", non_empty=True) for f in key_fields)
+            delta_add = _int_or_0(entry_d.get("delta_add", 0), name=f"{name}.delta_add")
+            delta_sub = _int_or_0(entry_d.get("delta_sub", 0), name=f"{name}.delta_sub")
+            if delta_add == 0 and delta_sub == 0:
+                continue
+            prev = acc.get(key)
+            if prev is None:
+                acc[key] = (int(delta_add), int(delta_sub))
+            else:
+                acc[key] = (int(prev[0]) + int(delta_add), int(prev[1]) + int(delta_sub))
 
-        def _k(d: Dict[str, Any]) -> tuple[Any, ...]:
-            return tuple(d.get(f) for f in key_fields) + (d.get("delta_add"), d.get("delta_sub"))
-
-        items.sort(key=_k)
+        items: list[Dict[str, Any]] = []
+        for key in sorted(acc.keys()):
+            d: Dict[str, Any] = {key_fields[i]: key[i] for i in range(len(key_fields))}
+            delta_add, delta_sub = acc[key]
+            d["delta_add"] = int(delta_add)
+            d["delta_sub"] = int(delta_sub)
+            items.append(d)
         out[name] = items
 
-    _sort_deltas("balance_deltas", key_fields=("pubkey", "asset"))
-    _sort_deltas("reserve_deltas", key_fields=("pool_id", "asset"))
-    _sort_deltas("lp_deltas", key_fields=("pubkey", "pool_id"))
+    _normalize_deltas("balance_deltas", key_fields=("pubkey", "asset"))
+    _normalize_deltas("reserve_deltas", key_fields=("pool_id", "asset"))
+    _normalize_deltas("lp_deltas", key_fields=("pubkey", "pool_id"))
 
     return out
-

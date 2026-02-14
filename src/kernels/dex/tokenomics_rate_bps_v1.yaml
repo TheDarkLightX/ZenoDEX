@@ -1,0 +1,112 @@
+# Tokenomics Rate (BPS) v1 - Kernel IR Model
+# Validates externally-computed floor(base * rate_bps / 10000)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "tokenomics_rate_bps_v1"
+  created_by: "tau-spec-port"
+  notes: |
+    Ported from tokenomics_rate_bps_32_v1.tau
+    Validates BPS-based rate calculations with:
+    - Rate bounds (0 <= rate <= 10000, rate <= cap)
+    - Floor division math with tolerance
+    - Output caps (out <= base, out <= out_cap)
+    - Safe range guards to prevent overflow
+
+observables:
+  state_vars: []
+  effects: ["rate_in_range_ok", "rate_calc_valid", "caps_valid", "rate_module_ok"]
+
+types: []
+
+state_vars: []
+
+init: []
+
+invariants: []
+
+actions:
+  - id: "validate_rate"
+    params:
+      - id: "base_amount"
+        type: { kind: "int", min: 0, max: 429496 }  # max_safe_32
+      - id: "rate_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "out_amount"
+        type: { kind: "int", min: 0, max: 429496 }
+      - id: "out_cap"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "rate_cap_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+    guard:
+      op: "and"
+      args:
+        # Input bounds
+        - { op: ">=", args: [{ param: "base_amount" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "base_amount" }, { const: 429496 }] }
+        - { op: ">=", args: [{ param: "rate_bps" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "rate_bps" }, { const: 10000 }] }
+        - { op: ">=", args: [{ param: "out_amount" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "out_amount" }, { const: 429496 }] }
+    updates: []
+    effects:
+      # rate_in_range: rate <= 10000 && rate <= rate_cap
+      rate_in_range_ok:
+        op: "and"
+        args:
+          - { op: "<=", args: [{ param: "rate_bps" }, { const: 10000 }] }
+          - { op: "<=", args: [{ param: "rate_bps" }, { param: "rate_cap_bps" }] }
+
+      # rate_calc_ok: out * 10000 >= base * rate AND out * 10000 <= base * rate + 9999
+      rate_calc_valid:
+        op: "and"
+        args:
+          - op: ">="
+            args:
+              - { op: "*", args: [{ param: "out_amount" }, { const: 10000 }] }
+              - { op: "*", args: [{ param: "base_amount" }, { param: "rate_bps" }] }
+          - op: "<="
+            args:
+              - { op: "*", args: [{ param: "out_amount" }, { const: 10000 }] }
+              - op: "+"
+                args:
+                  - { op: "*", args: [{ param: "base_amount" }, { param: "rate_bps" }] }
+                  - { const: 9999 }
+
+      # caps_ok: out <= base && out <= out_cap
+      caps_valid:
+        op: "and"
+        args:
+          - { op: "<=", args: [{ param: "out_amount" }, { param: "base_amount" }] }
+          - { op: "<=", args: [{ param: "out_amount" }, { param: "out_cap" }] }
+
+      # rate_module_ok: all checks pass + safe range
+      rate_module_ok:
+        op: "and"
+        args:
+          # rate_in_range
+          - op: "and"
+            args:
+              - { op: "<=", args: [{ param: "rate_bps" }, { const: 10000 }] }
+              - { op: "<=", args: [{ param: "rate_bps" }, { param: "rate_cap_bps" }] }
+          # rate_calc_ok
+          - op: "and"
+            args:
+              - op: ">="
+                args:
+                  - { op: "*", args: [{ param: "out_amount" }, { const: 10000 }] }
+                  - { op: "*", args: [{ param: "base_amount" }, { param: "rate_bps" }] }
+              - op: "<="
+                args:
+                  - { op: "*", args: [{ param: "out_amount" }, { const: 10000 }] }
+                  - op: "+"
+                    args:
+                      - { op: "*", args: [{ param: "base_amount" }, { param: "rate_bps" }] }
+                      - { const: 9999 }
+          # caps_ok
+          - op: "and"
+            args:
+              - { op: "<=", args: [{ param: "out_amount" }, { param: "base_amount" }] }
+              - { op: "<=", args: [{ param: "out_amount" }, { param: "out_cap" }] }
+          # safe_range_ok
+          - { op: "<=", args: [{ param: "base_amount" }, { const: 429496 }] }
+          - { op: "<=", args: [{ param: "out_amount" }, { const: 429496 }] }

@@ -1,0 +1,469 @@
+# [FORGE] ZenoDEX Order/Intent Kernel v1 (Limit + Stop orders; keeper-executed)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "order_intent_v1"
+  created_by: "zenodex"
+  notes: |
+    Intent/order kernel for "scheduled trades" (BTC-e style automation) on a DEX.
+
+    Core idea:
+      - Users create an order with a trigger (limit or stop), a time window, and a slippage bound (min_amount_out).
+      - The chain does NOT auto-execute. Any party (keeper/bot/other user) may call `execute_order` when the guard is true.
+      - On execute, this kernel emits an intent describing the swap. A downstream settlement kernel applies it.
+
+    Price source:
+      - Uses an oracle price `oracle_price_y_per_x` (scaled integer: quote-per-base).
+      - Oracle updates are guarded by a host-provided boolean witness `oracle_update_ok` (host verifies signatures/quorum).
+      - Execution requires oracle freshness: now_epoch - oracle_last_update_epoch <= max_oracle_staleness_epochs.
+
+    Trigger semantics (quote-per-base price):
+      - swap_dir=XForY means "sell X for Y" (selling base).
+      - swap_dir=YForX means "buy X with Y" (buying base).
+
+      Limit:
+        - XForY triggers when price >= trigger_price   (sell when price is high enough)
+        - YForX triggers when price <= trigger_price   (buy when price is cheap enough)
+
+      Stop (stop-loss / stop-buy):
+        - XForY triggers when price <= trigger_price   (stop-loss sell when price falls)
+        - YForX triggers when price >= trigger_price   (stop-buy when price breaks out)
+
+    MEV note:
+      - This kernel enforces a slippage bound (min_amount_out). For strong manipulation resistance, pair it with
+        TWAP/median-oracle freshness constraints in composition (oracle kernel + settlement kernel).
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "oracle_price_y_per_x",
+      "oracle_last_update_epoch",
+      "oracle_seen",
+      "max_oracle_staleness_epochs",
+      "order_status",
+      "order_kind",
+      "swap_dir",
+      "owner_id",
+      "amount_in",
+      "min_amount_out",
+      "trigger_price",
+      "valid_from_epoch",
+      "valid_until_epoch",
+      "keeper_fee",
+    ]
+  effects:
+    [
+      "event",
+      "oracle_fresh",
+      "trigger_ok",
+      "intent_emitted",
+      "intent_swap_dir",
+      "intent_amount_in",
+      "intent_min_amount_out",
+      "intent_keeper_fee",
+    ]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["EpochAdvanced", "OracleUpdated", "OrderPlaced", "OrderCancelled", "OrderExecuted"]
+  - id: "t_order_status"
+    type:
+      kind: "enum"
+      symbols: ["Empty", "Live", "Cancelled", "Filled"]
+  - id: "t_order_kind"
+    type:
+      kind: "enum"
+      symbols: ["Limit", "Stop"]
+  - id: "t_swap_dir"
+    type:
+      kind: "enum"
+      symbols: ["XForY", "YForX"]
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "oracle_price_y_per_x"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "oracle_seen"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "max_oracle_staleness_epochs"
+    role: "control"
+    type: { kind: "int", min: 1, max: 1000000 }
+
+  - id: "order_status"
+    role: "data"
+    type: { ref: "t_order_status" }
+
+  - id: "order_kind"
+    role: "data"
+    type: { ref: "t_order_kind" }
+
+  - id: "swap_dir"
+    role: "data"
+    type: { ref: "t_swap_dir" }
+
+  - id: "owner_id"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "amount_in"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+
+  - id: "min_amount_out"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+
+  - id: "trigger_price"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+
+  - id: "valid_from_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "valid_until_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  - id: "keeper_fee"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+
+invariants:
+  - id: "inv_oracle_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_oracle_seen_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "not"
+          args: [{ var: "oracle_seen" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "oracle_last_update_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "oracle_price_y_per_x" }, { const: 0 }] }
+
+  - id: "inv_order_schedule_ok"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "valid_from_epoch" }, { var: "valid_until_epoch" }]
+
+  - id: "inv_keeper_fee_bounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "keeper_fee" }, { var: "amount_in" }]
+
+  - id: "inv_empty_order_is_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "order_status" }, { enum: "Empty" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "owner_id" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "amount_in" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "min_amount_out" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "trigger_price" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "valid_from_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "valid_until_epoch" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "keeper_fee" }, { const: 0 }] }
+
+  - id: "inv_live_order_has_positive_amount"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "order_status" }, { enum: "Live" }]
+        - op: "and"
+          args:
+            - { op: ">", args: [{ var: "amount_in" }, { const: 0 }] }
+            - { op: ">", args: [{ var: "trigger_price" }, { const: 0 }] }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "oracle_price_y_per_x"
+    expr: { const: 0 }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+  - var: "oracle_seen"
+    expr: { bool: false }
+  - var: "max_oracle_staleness_epochs"
+    expr: { const: 100 }
+
+  - var: "order_status"
+    expr: { enum: "Empty" }
+  - var: "order_kind"
+    expr: { enum: "Limit" }
+  - var: "swap_dir"
+    expr: { enum: "XForY" }
+  - var: "owner_id"
+    expr: { const: 0 }
+  - var: "amount_in"
+    expr: { const: 0 }
+  - var: "min_amount_out"
+    expr: { const: 0 }
+  - var: "trigger_price"
+    expr: { const: 0 }
+  - var: "valid_from_epoch"
+    expr: { const: 0 }
+  - var: "valid_until_epoch"
+    expr: { const: 0 }
+  - var: "keeper_fee"
+    expr: { const: 0 }
+
+actions:
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "now_epoch" }, { param: "delta" }]
+        - { const: 1000000 }
+    updates:
+      - var: "now_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "now_epoch" }, { param: "delta" }]
+    effects:
+      event: { enum: "EpochAdvanced" }
+      oracle_fresh:
+        op: "and"
+        args:
+          - { var: "oracle_seen" }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      trigger_ok: { bool: false }
+      intent_emitted: { bool: false }
+      intent_swap_dir: { enum: "XForY" }
+      intent_amount_in: { const: 0 }
+      intent_min_amount_out: { const: 0 }
+      intent_keeper_fee: { const: 0 }
+
+  - id: "observe_oracle_price"
+    params:
+      - id: "price_y_per_x"
+        type: { kind: "int", min: 0, max: 1000000000 }
+      - id: "oracle_update_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "="
+      args: [{ param: "oracle_update_ok" }, { bool: true }]
+    updates:
+      - var: "oracle_price_y_per_x"
+        expr: { param: "price_y_per_x" }
+      - var: "oracle_last_update_epoch"
+        expr: { var: "now_epoch" }
+      - var: "oracle_seen"
+        expr: { bool: true }
+    effects:
+      event: { enum: "OracleUpdated" }
+      oracle_fresh:
+        op: "and"
+        args:
+          - { bool: true }
+          - op: "<="
+            args:
+              - { const: 0 }
+              - { var: "max_oracle_staleness_epochs" }
+      trigger_ok: { bool: false }
+      intent_emitted: { bool: false }
+      intent_swap_dir: { enum: "XForY" }
+      intent_amount_in: { const: 0 }
+      intent_min_amount_out: { const: 0 }
+      intent_keeper_fee: { const: 0 }
+
+  - id: "place_order"
+    params:
+      - id: "owner_id"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+      - id: "order_kind"
+        type: { ref: "t_order_kind" }
+      - id: "swap_dir"
+        type: { ref: "t_swap_dir" }
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 3000000000 }
+      - id: "min_amount_out"
+        type: { kind: "int", min: 0, max: 3000000000 }
+      - id: "trigger_price"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "valid_from_epoch"
+        type: { kind: "int", min: 0, max: 1000000 }
+      - id: "valid_until_epoch"
+        type: { kind: "int", min: 0, max: 1000000 }
+      - id: "keeper_fee"
+        type: { kind: "int", min: 0, max: 3000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "order_status" }, { enum: "Live" }]
+        - op: "<="
+          args: [{ param: "valid_from_epoch" }, { param: "valid_until_epoch" }]
+        - op: "<="
+          args: [{ param: "keeper_fee" }, { param: "amount_in" }]
+    updates:
+      - var: "order_status"
+        expr: { enum: "Live" }
+      - var: "order_kind"
+        expr: { param: "order_kind" }
+      - var: "swap_dir"
+        expr: { param: "swap_dir" }
+      - var: "owner_id"
+        expr: { param: "owner_id" }
+      - var: "amount_in"
+        expr: { param: "amount_in" }
+      - var: "min_amount_out"
+        expr: { param: "min_amount_out" }
+      - var: "trigger_price"
+        expr: { param: "trigger_price" }
+      - var: "valid_from_epoch"
+        expr: { param: "valid_from_epoch" }
+      - var: "valid_until_epoch"
+        expr: { param: "valid_until_epoch" }
+      - var: "keeper_fee"
+        expr: { param: "keeper_fee" }
+    effects:
+      event: { enum: "OrderPlaced" }
+      oracle_fresh:
+        op: "and"
+        args:
+          - { var: "oracle_seen" }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      trigger_ok: { bool: false }
+      intent_emitted: { bool: false }
+      intent_swap_dir: { enum: "XForY" }
+      intent_amount_in: { const: 0 }
+      intent_min_amount_out: { const: 0 }
+      intent_keeper_fee: { const: 0 }
+
+  - id: "cancel_order"
+    params:
+      - id: "owner_id"
+        type: { kind: "int", min: 1, max: 1000000 }
+      - id: "auth_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "auth_ok" }, { bool: true }] }
+        - { op: "=", args: [{ var: "order_status" }, { enum: "Live" }] }
+        - { op: "=", args: [{ param: "owner_id" }, { var: "owner_id" }] }
+    updates:
+      - var: "order_status"
+        expr: { enum: "Cancelled" }
+    effects:
+      event: { enum: "OrderCancelled" }
+      oracle_fresh:
+        op: "and"
+        args:
+          - { var: "oracle_seen" }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      trigger_ok: { bool: false }
+      intent_emitted: { bool: false }
+      intent_swap_dir: { enum: "XForY" }
+      intent_amount_in: { const: 0 }
+      intent_min_amount_out: { const: 0 }
+      intent_keeper_fee: { const: 0 }
+
+  - id: "execute_order"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "order_status" }, { enum: "Live" }] }
+        - op: "<="
+          args: [{ var: "valid_from_epoch" }, { var: "now_epoch" }]
+        - op: "<="
+          args: [{ var: "now_epoch" }, { var: "valid_until_epoch" }]
+        # Oracle freshness required.
+        - op: "and"
+          args:
+            - { var: "oracle_seen" }
+            - op: "<="
+              args:
+                - op: "-"
+                  args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                - { var: "max_oracle_staleness_epochs" }
+        # Trigger condition required.
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "order_kind" }, { enum: "Limit" }]
+          then:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ var: "swap_dir" }, { enum: "XForY" }]
+            then:
+              op: ">="
+              args: [{ var: "oracle_price_y_per_x" }, { var: "trigger_price" }]
+            else:
+              op: "<="
+              args: [{ var: "oracle_price_y_per_x" }, { var: "trigger_price" }]
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ var: "swap_dir" }, { enum: "XForY" }]
+            then:
+              op: "<="
+              args: [{ var: "oracle_price_y_per_x" }, { var: "trigger_price" }]
+            else:
+              op: ">="
+              args: [{ var: "oracle_price_y_per_x" }, { var: "trigger_price" }]
+    updates:
+      - var: "order_status"
+        expr: { enum: "Filled" }
+    effects:
+      event: { enum: "OrderExecuted" }
+      oracle_fresh: { bool: true }
+      trigger_ok: { bool: true }
+      intent_emitted: { bool: true }
+      intent_swap_dir: { var: "swap_dir" }
+      intent_amount_in: { var: "amount_in" }
+      intent_min_amount_out: { var: "min_amount_out" }
+      intent_keeper_fee: { var: "keeper_fee" }
+

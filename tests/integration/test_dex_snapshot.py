@@ -140,6 +140,7 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
 
     perps_global = {
         "now_epoch": 0,
+        "epoch_phase": "Open",
         "breaker_active": False,
         "breaker_last_trigger_epoch": 0,
         "clearing_price_seen": False,
@@ -183,8 +184,8 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
             ),
             "perp:ch2p:demo": PerpClearinghouse2pMarketState(
                 quote_asset="0x" + "44" * 32,
-                account_a_pubkey="alice",
-                account_b_pubkey="bob",
+                account_a_pubkey="aa" * 48,
+                account_b_pubkey="bb" * 48,
                 state={
                     **{k: 0 for k in PERP_CLEARINGHOUSE_2P_STATE_KEYS},
                     "breaker_active": False,
@@ -201,9 +202,9 @@ def test_snapshot_roundtrip_with_perps_is_deterministic() -> None:
             ),
             "perp:ch3p:demo": PerpClearinghouse3pTransferMarketState(
                 quote_asset="0x" + "55" * 32,
-                account_a_pubkey="alice",
-                account_b_pubkey="bob",
-                account_c_pubkey="carol",
+                account_a_pubkey="aa" * 48,
+                account_b_pubkey="bb" * 48,
+                account_c_pubkey="cc" * 48,
                 state={
                     **{k: 0 for k in PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS},
                     "breaker_active": False,

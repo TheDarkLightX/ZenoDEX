@@ -92,105 +92,71 @@ actions:
       current_ratio:
         op: "div"
         args:
-          [
-            { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
-            { var: "reserve0" },
-          ]
+          - op: "*"
+            args: [{ var: "reserve1" }, { const: 100 }]
+          - { var: "reserve0" }
       rebalance_needed:
         op: ">"
         args:
-          [
-            {
-              op: "ite"
-              cond:
-                op: ">="
-                args:
-                  [
-                    {
-                      op: "div"
-                      args:
-                        [
-                          { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
-                          { var: "reserve0" },
-                        ],
-                    },
-                    { var: "target_ratio" },
-                  ]
-              then:
-                op: "-"
-                args:
-                  [
-                    {
-                      op: "div"
-                      args:
-                        [
-                          { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
-                          { var: "reserve0" },
-                        ],
-                    },
-                    { var: "target_ratio" },
-                  ]
-              else:
-                op: "-"
-                args:
-                  [
-                    { var: "target_ratio" },
-                    {
-                      op: "div"
-                      args:
-                        [
-                          { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
-                          { var: "reserve0" },
-                        ],
-                    },
-                  ],
-            },
-            { const: 50 },
-          ]
+          - op: "ite"
+            cond:
+              op: ">="
+              args:
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args: [{ var: "reserve1" }, { const: 100 }]
+                    - { var: "reserve0" }
+                - { var: "target_ratio" }
+            then:
+              op: "-"
+              args:
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args: [{ var: "reserve1" }, { const: 100 }]
+                    - { var: "reserve0" }
+                - { var: "target_ratio" }
+            else:
+              op: "-"
+              args:
+                - { var: "target_ratio" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args: [{ var: "reserve1" }, { const: 100 }]
+                    - { var: "reserve0" }
+          - { const: 50 }
       deviation_bps:
         op: "ite"
         cond:
           op: ">="
           args:
-            [
-              {
-                op: "div"
-                args:
-                  [
-                    { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
-                    { var: "reserve0" },
-                  ],
-              },
-              { var: "target_ratio" },
-            ]
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ var: "reserve1" }, { const: 100 }]
+                - { var: "reserve0" }
+            - { var: "target_ratio" }
         then:
           op: "-"
           args:
-            [
-              {
-                op: "div"
-                args:
-                  [
-                    { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
-                    { var: "reserve0" },
-                  ],
-              },
-              { var: "target_ratio" },
-            ]
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ var: "reserve1" }, { const: 100 }]
+                - { var: "reserve0" }
+            - { var: "target_ratio" }
         else:
           op: "-"
           args:
-            [
-              { var: "target_ratio" },
-              {
-                op: "div"
-                args:
-                  [
-                    { op: "*", args: [{ var: "reserve1" }, { const: 100 }] },
-                    { var: "reserve0" },
-                  ],
-              },
-            ]
+            - { var: "target_ratio" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ var: "reserve1" }, { const: 100 }]
+                - { var: "reserve0" }
+
 
   - id: "rebalance"
     params:

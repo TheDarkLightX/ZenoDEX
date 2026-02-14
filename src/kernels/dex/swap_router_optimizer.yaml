@@ -59,6 +59,14 @@ actions:
         - { op: ">=", args: [{ param: "path_score" }, { const: 0 }] }
         - { op: "<=", args: [{ param: "path_score" }, { const: 10000 }] }
         - { op: ">=", args: [{ param: "savings_amount" }, { const: 0 }] }
+        # Preserve routing_success_count type upper bound after +1 update.
+        - { op: "<", args: [{ var: "routing_success_count" }, { const: 1000000 }] }
+        # Preserve total_savings type upper bound after accumulation update.
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "total_savings" }, { param: "savings_amount" }]
+            - { const: 100000000 }
     updates:
       - var: "best_path_score"
         expr:
@@ -88,14 +96,10 @@ actions:
       routing_efficiency:
         op: "div"
         args:
-          [
-            { var: "total_savings" },
-            {
-              op: "ite"
-              cond:
-                op: ">"
-                args: [{ var: "routing_success_count" }, { const: 0 }]
-              then: { var: "routing_success_count" }
-              else: { const: 1 },
-            },
-          ]
+          - { var: "total_savings" }
+          - op: "ite"
+            cond:
+              op: ">"
+              args: [{ var: "routing_success_count" }, { const: 0 }]
+            then: { var: "routing_success_count" }
+            else: { const: 1 }

@@ -60,6 +60,86 @@ class RouteQuote:
     legs: Tuple[RouteLeg, ...]
 
 
+@dataclass(frozen=True)
+class ExactOutTwoHopGateConfig:
+    """
+    Deterministic gate for deciding whether exact-out 2-hop evaluation should run.
+
+    Policies:
+    - "stress":          amount_out / direct_reserve_out >= stress_threshold
+    - "pressure":        direct_amount_in / amount_out >= pressure_threshold
+    - "stress_or_pressure": (stress condition) OR (pressure condition)
+    """
+
+    policy: str = "stress_or_pressure"
+    stress_threshold: float = 0.4
+    pressure_threshold: float = 1.6
+
+
+@dataclass(frozen=True)
+class ExactOutTwoHopGateDecision:
+    consider_two_hop: bool
+    stress: float
+    pressure: float
+    policy: str
+
+
+def _normalize_exact_out_gate_policy(policy: str) -> str:
+    p = str(policy).strip().lower()
+    if p in {"stress", "pressure", "stress_or_pressure"}:
+        return p
+    raise ValueError(f"unsupported exact-out gate policy: {policy}")
+
+
+def decide_exact_out_two_hop_gate(
+    *,
+    amount_out: Amount,
+    direct_reserve_out: Amount,
+    direct_amount_in: Amount,
+    config: ExactOutTwoHopGateConfig | None = None,
+) -> ExactOutTwoHopGateDecision:
+    if amount_out <= 0:
+        raise ValueError("amount_out must be positive")
+    if direct_reserve_out <= 0:
+        raise ValueError("direct_reserve_out must be positive")
+    if direct_amount_in <= 0:
+        raise ValueError("direct_amount_in must be positive")
+    cfg = config or ExactOutTwoHopGateConfig()
+    policy = _normalize_exact_out_gate_policy(cfg.policy)
+    stress = float(amount_out) / float(direct_reserve_out)
+    pressure = float(direct_amount_in) / float(amount_out)
+    if policy == "stress":
+        consider = bool(stress >= float(cfg.stress_threshold))
+    elif policy == "pressure":
+        consider = bool(pressure >= float(cfg.pressure_threshold))
+    else:
+        consider = bool(
+            stress >= float(cfg.stress_threshold)
+            or pressure >= float(cfg.pressure_threshold)
+        )
+    return ExactOutTwoHopGateDecision(
+        consider_two_hop=consider,
+        stress=stress,
+        pressure=pressure,
+        policy=policy,
+    )
+
+
+def should_consider_exact_out_two_hop(
+    *,
+    amount_out: Amount,
+    direct_reserve_out: Amount,
+    direct_amount_in: Amount,
+    config: ExactOutTwoHopGateConfig | None = None,
+) -> bool:
+    return decide_exact_out_two_hop_gate(
+        amount_out=amount_out,
+        direct_reserve_out=direct_reserve_out,
+        direct_amount_in=direct_amount_in,
+        config=config,
+    ).consider_two_hop
+
+
 def _pool_quote_exact_in(
     pool: PoolState, *, asset_in: AssetId, asset_out: AssetId, amount_in: Amount
 ) -> Optional[Tuple[Amount, str]]:
@@ -98,6 +178,7 @@ def best_route_exact_in_2hop(
     asset_in: AssetId,
     asset_out: AssetId,
     amount_in: Amount,
+    split_search_profile: str = "baseline",
 ) -> Optional[RouteQuote]:
     """
     Compute the best exact-in route up to 2 hops.
@@ -232,6 +313,7 @@ def best_route_exact_in_2hop(
                         asset_in=asset_in,
                         asset_out=asset_out,
                         amount_in_total=amount_in,
+                        search_profile=str(split_search_profile),
                     )
                 except Exception:
                     continue
