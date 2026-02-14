@@ -268,3 +268,55 @@ def test_engine_rejects_settlement_without_intents() -> None:
     assert not res.ok
     assert res.error is not None
     assert "without intents" in res.error
+
+
+def test_engine_accepts_semantically_equivalent_settlement_when_match_required() -> None:
+    sender = "0x" + "aa" * 48
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+    intent_id = "0x" + "03" * 32
+
+    balances = BalanceTable()
+    balances.set(sender, min(asset0, asset1), 1000)
+    balances.set(sender, max(asset0, asset1), 2000)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable())
+
+    intent_dict = _create_pool_intent_dict(intent_id=intent_id, sender=sender, asset0=asset0, asset1=asset1)
+    from src.integration.operations import parse_intents
+
+    intents = parse_intents({"2": [intent_dict]})
+    settlement = compute_settlement(intents=intents, pools={}, balances=balances, lp_balances=state.lp_balances)
+    settlement_op = create_settlement_operation(settlement)["3"]
+
+    # Reorder and split one delta entry into duplicates; this should remain
+    # semantically equivalent after normalization.
+    settlement_op["included_intents"] = list(reversed(settlement_op.get("included_intents", [])))
+    settlement_op["fills"] = list(reversed(settlement_op.get("fills", [])))
+    settlement_op["balance_deltas"] = list(reversed(settlement_op.get("balance_deltas", [])))
+    settlement_op["reserve_deltas"] = list(reversed(settlement_op.get("reserve_deltas", [])))
+    settlement_op["lp_deltas"] = list(reversed(settlement_op.get("lp_deltas", [])))
+
+    if settlement_op["balance_deltas"]:
+        first = dict(settlement_op["balance_deltas"].pop(0))
+        add_total = int(first.get("delta_add", 0))
+        sub_total = int(first.get("delta_sub", 0))
+        left = dict(first)
+        right = dict(first)
+        left["delta_add"] = add_total // 2
+        right["delta_add"] = add_total - left["delta_add"]
+        left["delta_sub"] = sub_total // 2
+        right["delta_sub"] = sub_total - left["delta_sub"]
+        settlement_op["balance_deltas"].extend([left, right])
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=False,
+            require_settlement_match=True,
+            require_intent_signatures=False,
+        ),
+        state=state,
+        operations={"2": [intent_dict], "3": settlement_op},
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert res.ok, res.error
