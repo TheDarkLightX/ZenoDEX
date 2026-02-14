@@ -8,6 +8,7 @@ import types
 
 import pytest
 
+from src.integration import perps_api as perps_demo_api
 import src.integration.zusd_tau_gate as zusd_tau_gate
 from src.core.zusd import E8
 from src.integration.zusd_api import handle_zusd_request, reset_demo_state
@@ -16,11 +17,17 @@ from src.integration.zusd_api import handle_zusd_request, reset_demo_state
 @pytest.fixture(autouse=True)
 def _reset_state_and_env(monkeypatch):
     reset_demo_state()
+    perps_demo_api.reset_demo_state()
     monkeypatch.setenv("ZUSD_TAU_GATE_ENABLED", "0")
     monkeypatch.delenv("ZUSD_TAU_BIN", raising=False)
     monkeypatch.delenv("ZUSD_TAU_ALLOW_PATH_LOOKUP", raising=False)
+    monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_ENABLED", raising=False)
+    monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", raising=False)
+    monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", raising=False)
+    monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG", raising=False)
     yield
     reset_demo_state()
+    perps_demo_api.reset_demo_state()
 
 
 def _post(path: str, body: dict) -> tuple[int, dict]:
@@ -79,6 +86,52 @@ class TestMultiFlow:
         s3, b3 = _post("/api/zusd/multi/step", {"tag": "mint_zusd", "args": {"vault": "a", "amount_e8": 100 * E8}})
         assert s3 == 200
         assert b3["state"]["vault_a"]["debt_e8"] == 100 * E8
+
+
+class TestPerpOracleSyncGate:
+    def test_sync_gate_accepts_aligned_price_and_epoch_lag(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_ENABLED", "1")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", "TAU-USD")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", "0")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG", "5000")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {"tag": "bootstrap_oracle", "args": {"price_e8": 50_000_000, "auth_ok": True}},
+        )
+        assert status == 200
+        assert body["ok"] is True
+        assert body["state"]["price_e8"] == 50_000_000
+
+    def test_sync_gate_rejects_price_divergence(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_ENABLED", "1")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", "TAU-USD")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", "100")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG", "5000")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}},
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "oracle_sync_divergence" in str(body.get("detail", ""))
+
+    def test_sync_gate_rejects_epoch_lag(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_ENABLED", "1")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", "TAU-USD")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", "0")
+        monkeypatch.setenv("ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG", "0")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {"tag": "bootstrap_oracle", "args": {"price_e8": 50_000_000, "auth_ok": True}},
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "oracle_sync_epoch_lag" in str(body.get("detail", ""))
 
 
 class TestTauGateWiring:
