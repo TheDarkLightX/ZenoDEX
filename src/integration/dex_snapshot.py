@@ -27,6 +27,7 @@ from ..core.perps import (
     PerpClearinghouse3pTransferMarketState,
     PerpMarketState,
     PerpsState,
+    _infer_epoch_phase,
 )
 from ..core.vault import VaultState
 from ..state.balances import BalanceTable
@@ -432,6 +433,9 @@ def state_from_snapshot(
                     if not isinstance(global_state, Mapping):
                         raise TypeError("perps.global_state must be an object")
                     global_state_dict: Dict[str, Any] = dict(global_state)
+                    # Backward compat: infer epoch_phase from existing state fields.
+                    if "epoch_phase" not in global_state_dict:
+                        global_state_dict["epoch_phase"] = _infer_epoch_phase(global_state_dict)
 
                     acct_entries = entry.get("accounts")
                     if acct_entries is None:
@@ -491,6 +495,9 @@ def state_from_snapshot(
                     if not isinstance(global_state, Mapping):
                         raise TypeError("perps.global_state must be an object")
                     global_state_dict = dict(global_state)
+                    # Backward compat: infer epoch_phase from existing state fields.
+                    if "epoch_phase" not in global_state_dict:
+                        global_state_dict["epoch_phase"] = _infer_epoch_phase(global_state_dict)
 
                     acct_entries = entry.get("accounts")
                     if acct_entries is None:

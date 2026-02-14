@@ -118,7 +118,25 @@ def _continuous_opt_split(pool0: PoolXY, pool1: PoolXY, amount_in: int) -> float
     return a
 
 
-def best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amount_in: int, *, window: int = 64) -> Tuple[int, int]:
+def _search_profile_params(search_profile: str) -> tuple[str, int, bool]:
+    profile = str(search_profile).strip().lower()
+    if profile == "baseline":
+        return profile, 8, False
+    if profile == "dense24":
+        return profile, 24, True
+    if profile == "dense32":
+        return profile, 32, True
+    raise ValueError(f"unsupported search_profile: {search_profile}")
+
+
+def best_split_two_pools_exact_in(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+    *,
+    window: int = 64,
+    search_profile: str = "baseline",
+) -> Tuple[int, int]:
     """
     Fast deterministic split optimizer:
     - For small trades, use brute-force (exact + canonical).
@@ -126,12 +144,18 @@ def best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amount_in: int, 
       plus endpoints and a refinement pass.
     - Choose best total output; tie-break by smallest a.
 
+    `search_profile` (guarded mode):
+    - "baseline": legacy search schedule.
+    - "dense24": denser deterministic coarse probes (24 bins) + local refinement.
+    - "dense32": very dense deterministic coarse probes (32 bins) + local refinement.
+
     This is intended to be iteratively improved with counterexample mining.
     """
     if amount_in <= 0:
         raise ValueError("amount_in must be positive")
     if window < 0:
         raise ValueError("window must be non-negative")
+    _profile, grid_n, force_dense_grid = _search_profile_params(search_profile)
 
     brute_force_max = 4096
     if amount_in <= brute_force_max:
@@ -205,10 +229,10 @@ def best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amount_in: int, 
 
             span = hi_both - lo_both
             centers = {lo_both, hi_both, (lo_both + hi_both) // 2, a_star}
-            if span > 8 * window:
-                # Add a small deterministic grid for coverage on wide intervals.
-                for i in range(1, 8):
-                    centers.add(lo_both + (span * i) // 8)
+            if span > 0 and (force_dense_grid or span > int(grid_n) * int(window)):
+                # Deterministic coarse coverage grid; density controlled by search_profile.
+                for i in range(1, int(grid_n)):
+                    centers.add(lo_both + (span * i) // int(grid_n))
 
             best_both: tuple[int, int] | None = None
             for c in sorted(centers):
@@ -249,6 +273,15 @@ def best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amount_in: int, 
                     if prev is None or prev != refine_out:
                         break
                     a0 -= 1
+
+                if force_dense_grid:
+                    # Dense profiles pay a small extra pass to enforce global canonical tie-break:
+                    # choose the smallest feasible `a` that attains `refine_out`.
+                    for a_scan in range(lo_both, a0):
+                        tot_scan = total_out(a_scan)
+                        if tot_scan is not None and tot_scan == refine_out:
+                            a0 = a_scan
+                            break
                 best_both = (refine_out, a0)
 
                 if best_both[0] > best_out or (best_both[0] == best_out and best_both[1] < best_a):

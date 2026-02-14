@@ -41,9 +41,29 @@ def is_oracle_fresh(
     oracle_seen: bool,
 ) -> bool:
     """True when the oracle has been seen and is not stale."""
-    return (
-        oracle_seen
-        and (now_epoch - oracle_last_update_epoch) <= max_oracle_staleness_epochs
+    if not oracle_seen:
+        return False
+    # Fail-closed on malformed states that claim oracle updates in the future.
+    if now_epoch < oracle_last_update_epoch:
+        return False
+    return (now_epoch - oracle_last_update_epoch) <= max_oracle_staleness_epochs
+
+
+def is_settle_oracle_usable(
+    now_epoch: int,
+    oracle_last_update_epoch: int,
+    max_oracle_staleness_epochs: int,
+    oracle_seen: bool,
+    index_price_e8: int,
+) -> bool:
+    """True when settlement can safely rely on oracle/index state."""
+    if index_price_e8 <= 0:
+        return False
+    return is_oracle_fresh(
+        now_epoch,
+        oracle_last_update_epoch,
+        max_oracle_staleness_epochs,
+        oracle_seen,
     )
 
 
@@ -214,3 +234,171 @@ def funding_payment(position_base: int, index_price_e8: int, rate_bps: int) -> i
     """Signed funding: +magnitude for payer, -magnitude for payee."""
     mag = funding_magnitude(position_base, index_price_e8, rate_bps)
     return mag if funding_same_sign(position_base, rate_bps) else -mag
+
+
+# -- Liquidation price estimate ---------------------------------------------
+
+
+# -- Partial liquidation helpers ---------------------------------------------
+
+
+def partial_close_base(position_abs: int, fraction_bps: int) -> int:
+    """Number of base units to close (unsigned), given fraction in bps."""
+    return (position_abs * fraction_bps) // BPS_SCALE
+
+
+def remaining_position_signed(position_base: int, fraction_bps: int) -> int:
+    """Remaining position (signed) after closing fraction_bps/10000."""
+    if fraction_bps >= BPS_SCALE:
+        return 0
+    if fraction_bps <= 0:
+        return position_base
+    pos_abs = abs_val(position_base)
+    closed = partial_close_base(pos_abs, fraction_bps)
+    remaining_abs = pos_abs - closed
+    return remaining_abs if position_base >= 0 else -remaining_abs
+
+
+def partial_liq_penalty(
+    position_base: int,
+    fraction_bps: int,
+    settle_price_e8: int,
+    liquidation_penalty_bps: int,
+    min_notional_for_bounty: int,
+) -> int:
+    """Liquidation penalty for the closed portion of the position."""
+    if fraction_bps >= BPS_SCALE:
+        return liq_penalty(
+            position_base, settle_price_e8,
+            liquidation_penalty_bps, min_notional_for_bounty,
+        )
+    closed = partial_close_base(abs_val(position_base), fraction_bps)
+    if closed == 0:
+        return 0
+    return liq_penalty(
+        closed, settle_price_e8,
+        liquidation_penalty_bps, min_notional_for_bounty,
+    )
+
+
+def partial_liq_penalty_capped(
+    collateral_after_pnl: int,
+    position_base: int,
+    fraction_bps: int,
+    settle_price_e8: int,
+    liquidation_penalty_bps: int,
+    min_notional_for_bounty: int,
+) -> int:
+    """Penalty for partial close, capped at remaining collateral (non-negative)."""
+    raw = partial_liq_penalty(
+        position_base, fraction_bps, settle_price_e8,
+        liquidation_penalty_bps, min_notional_for_bounty,
+    )
+    return min(max(collateral_after_pnl, 0), raw)
+
+
+def _is_partial_fraction_sufficient(
+    position_base: int,
+    collateral_after_pnl: int,
+    fraction_bps: int,
+    settle_price_e8: int,
+    maintenance_margin_bps: int,
+    depeg_buffer_bps: int,
+    liquidation_penalty_bps: int,
+    min_notional_for_bounty: int,
+) -> bool:
+    """True if closing fraction_bps/10000 of position restores maint margin."""
+    remaining = remaining_position_signed(position_base, fraction_bps)
+    penalty = partial_liq_penalty_capped(
+        collateral_after_pnl, position_base, fraction_bps,
+        settle_price_e8, liquidation_penalty_bps, min_notional_for_bounty,
+    )
+    coll_after = collateral_after_pnl - penalty
+    if remaining == 0:
+        return True
+    mreq = maint_margin_req(remaining, settle_price_e8,
+                            maintenance_margin_bps, depeg_buffer_bps)
+    return coll_after >= mreq
+
+
+def compute_partial_close_fraction(
+    position_base: int,
+    collateral_after_pnl: int,
+    settle_price_e8: int,
+    maintenance_margin_bps: int,
+    depeg_buffer_bps: int,
+    liquidation_penalty_bps: int,
+    min_notional_for_bounty: int,
+) -> int:
+    """Compute minimum fraction [1, BPS_SCALE] to close to restore maint margin.
+
+    Returns BPS_SCALE if full close is needed (or account is deeply underwater).
+    Returns 0 if the position is not actually liquidatable (defensive).
+
+    Uses binary search over [1, BPS_SCALE].
+    """
+    if position_base == 0:
+        return 0
+
+    if not is_liquidatable(
+        position_base, collateral_after_pnl, settle_price_e8,
+        maintenance_margin_bps, depeg_buffer_bps,
+    ):
+        return 0
+
+    lo, hi = 1, BPS_SCALE
+    if not _is_partial_fraction_sufficient(
+        position_base, collateral_after_pnl, BPS_SCALE - 1,
+        settle_price_e8, maintenance_margin_bps, depeg_buffer_bps,
+        liquidation_penalty_bps, min_notional_for_bounty,
+    ):
+        return BPS_SCALE
+
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _is_partial_fraction_sufficient(
+            position_base, collateral_after_pnl, mid,
+            settle_price_e8, maintenance_margin_bps, depeg_buffer_bps,
+            liquidation_penalty_bps, min_notional_for_bounty,
+        ):
+            hi = mid
+        else:
+            lo = mid + 1
+
+    return lo
+
+
+def liquidation_price_e8(
+    position_base: int,
+    collateral: int,
+    index_price_e8: int,
+    maint_bps: int,
+    depeg_bps: int,
+) -> int | None:
+    """Estimate the index price at which position becomes liquidatable.
+
+    Returns the price (in e8) at which collateral == maintenance margin,
+    or None if the position is flat.
+
+    This is a *UI display estimate*, not a safety-critical computation.
+    The actual liquidation decision uses ``is_liquidatable()`` which includes
+    PnL. This estimate answers: "at roughly what mark price does
+    collateral == maintenance margin?", ignoring direction-dependent PnL.
+
+    Integer approximation via cross-multiplication:
+    At liquidation: collateral = floor(floor(abs_pos * liq_price / 1e8) * eff_maint / 10000)
+    Upper bound: abs_pos * liq_price * eff_maint / (1e8 * 10000)
+    Solving: liq_price = collateral * 1e8 * 10000 / (abs_pos * eff_maint)
+    """
+    if position_base == 0:
+        return None
+
+    abs_pos = abs_val(position_base)
+    eff_maint_bps = maint_bps + depeg_bps
+    if eff_maint_bps == 0:
+        return None
+
+    liq = (collateral * PRICE_SCALE * BPS_SCALE) // (abs_pos * eff_maint_bps)
+    if liq <= 0:
+        return None
+    return liq

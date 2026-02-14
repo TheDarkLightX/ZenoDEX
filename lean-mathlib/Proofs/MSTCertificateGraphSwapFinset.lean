@@ -36,28 +36,25 @@ theorem edgeFinset_deleteEdges_singleton
 
 theorem edgeFinset_swapEdge_eq_insert_erase
     (e : Sym2 V) (u v : V)
-    [Fintype (edgeSet (T.deleteEdges ({e} : Finset (Sym2 V)) ⊔ SimpleGraph.edge u v))]
-    (hn : ¬ (T.deleteEdges ({e} : Finset (Sym2 V))).Adj u v)
+    [Fintype (edgeSet (T.deleteEdges ({e} : Set (Sym2 V)) ⊔ SimpleGraph.edge u v))]
+    (hn : ¬ (T.deleteEdges ({e} : Set (Sym2 V))).Adj u v)
     (hne : u ≠ v) :
     (TauSwap.MST.swapEdge (T := T) e u v).edgeFinset
       = insert s(u, v) ((T.edgeFinset.erase e)) := by
-  -- Unfold swapEdge and use `edgeFinset_sup_edge`.
-  unfold TauSwap.MST.swapEdge
-  -- Rewrite deleteEdges edgeFinset into erase form, then apply edgeFinset_sup_edge.
   have hdel :
-      (T.deleteEdges ({e} : Finset (Sym2 V))).edgeFinset = T.edgeFinset.erase e := by
-    simpa using (edgeFinset_deleteEdges_singleton (T := T) e)
-  -- Now apply edgeFinset_sup_edge on G := T.deleteEdges {e}
-  -- edgeFinset_sup_edge gives `.cons s(u,v)` which simp rewrites to `insert`.
+      (T.deleteEdges ({e} : Set (Sym2 V))).edgeFinset = T.edgeFinset.erase e := by
+    ext x
+    simp [SimpleGraph.edgeSet_deleteEdges, and_left_comm, and_assoc, and_comm]
   have hs :
-      (T.deleteEdges ({e} : Finset (Sym2 V)) ⊔ SimpleGraph.edge u v).edgeFinset
-        = (T.deleteEdges ({e} : Finset (Sym2 V))).edgeFinset.cons s(u, v) (by simp_all) := by
-    simpa using (SimpleGraph.edgeFinset_sup_edge (G := T.deleteEdges ({e} : Finset (Sym2 V)))
+      (TauSwap.MST.swapEdge (T := T) e u v).edgeFinset =
+        insert s(u, v) ((T.deleteEdges ({e} : Set (Sym2 V))).edgeFinset) := by
+    unfold TauSwap.MST.swapEdge
+    simpa using (SimpleGraph.edgeFinset_sup_edge (G := T.deleteEdges ({e} : Set (Sym2 V)))
       (s := u) (t := v) hn hne)
-  -- Convert cons into insert and substitute deleteEdges finset.
-  -- `cons_eq_insert` is used internally in Mathlib lemma; we can just simp it out.
-  simpa [hs, hdel]
+  calc
+    (TauSwap.MST.swapEdge (T := T) e u v).edgeFinset
+        = insert s(u, v) ((T.deleteEdges ({e} : Set (Sym2 V))).edgeFinset) := hs
+    _ = insert s(u, v) (T.edgeFinset.erase e) := by simpa [hdel]
 
 end MST
 end TauSwap
-

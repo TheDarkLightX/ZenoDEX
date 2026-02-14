@@ -56,22 +56,32 @@ actions:
       args:
         - { op: ">", args: [{ param: "swap_amount" }, { const: 0 }] }
         - { op: "<=", args: [{ op: "+", args: [{ var: "swap_count" }, { const: 1 }] }, { const: 10000000 }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "total_revenue" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - { param: "swap_amount" }
+                        - { var: "base_fee_bps" }
+                    - { const: 10000 }
+            - { const: 1000000000 }
     updates:
       - var: "total_revenue"
         expr:
           op: "+"
           args:
-            [
-              { var: "total_revenue" },
-              {
-                op: "div"
-                args:
-                  [
-                    { op: "*", args: [{ param: "swap_amount" }, { var: "base_fee_bps" }] },
-                    { const: 10000 },
-                  ],
-              },
-            ]
+            - { var: "total_revenue" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { param: "swap_amount" }
+                    - { var: "base_fee_bps" }
+                - { const: 10000 }
       - var: "swap_count"
         expr:
           op: "+"
@@ -81,28 +91,20 @@ actions:
       revenue_per_swap:
         op: "div"
         args:
-          [
-            { var: "total_revenue" },
-            {
-              op: "ite"
-              cond:
-                op: ">"
-                args: [{ var: "swap_count" }, { const: 0 }]
-              then: { var: "swap_count" }
-              else: { const: 1 },
-            },
-          ]
+          - { var: "total_revenue" }
+          - op: "ite"
+            cond:
+              op: ">"
+              args: [{ var: "swap_count" }, { const: 0 }]
+            then: { var: "swap_count" }
+            else: { const: 1 }
       optimization_score:
         op: "*"
         args:
-          [
-            { var: "total_revenue" },
-            {
-              op: "ite"
-              cond:
-                op: ">"
-                args: [{ var: "swap_count" }, { const: 0 }]
-              then: { var: "swap_count" }
-              else: { const: 1 },
-            },
-          ]
+          - { var: "total_revenue" }
+          - op: "ite"
+            cond:
+              op: ">"
+              args: [{ var: "swap_count" }, { const: 0 }]
+            then: { var: "swap_count" }
+            else: { const: 1 }

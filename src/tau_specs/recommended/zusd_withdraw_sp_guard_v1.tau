@@ -1,0 +1,19 @@
+# zUSD Stability-Pool Withdraw Guard v1
+# i1 = amount (bv[64])
+# i2 = free_before (bv[64])
+# i3 = sp_before (bv[64])
+# i4 = free_after (bv[64])
+# i5 = sp_after (bv[64])
+# i6 = risky_ops_allowed (sbf)
+# i7 = vault_mcr_ok (sbf)
+# o4 = withdraw_sp_allowed
+
+set charvar off
+
+amount_pos(amount : bv[64]) := amount > { #x0000000000000000 }:bv[64].
+sp_bound_ok(sp_b : bv[64], amount : bv[64]) := sp_b >= amount.
+sp_delta_ok(sp_b : bv[64], sp_a : bv[64], amount : bv[64]) := (sp_b >= sp_a) && ((sp_b - sp_a) = amount).
+free_delta_ok(free_b : bv[64], free_a : bv[64], amount : bv[64]) := (free_a >= free_b) && ((free_a - free_b) = amount).
+policy_ok(risky_ops_allowed : sbf, vault_mcr_ok : sbf) := (risky_ops_allowed = 1:sbf) && (vault_mcr_ok = 1:sbf).
+withdraw_sp_allowed(amount : bv[64], free_b : bv[64], sp_b : bv[64], free_a : bv[64], sp_a : bv[64], risky_ops_allowed : sbf, vault_mcr_ok : sbf) := amount_pos(amount) && sp_bound_ok(sp_b, amount) && sp_delta_ok(sp_b, sp_a, amount) && free_delta_ok(free_b, free_a, amount) && policy_ok(risky_ops_allowed, vault_mcr_ok).
+always (o1[t]:sbf = 1:sbf <-> (amount_pos(i1[t]:bv[64]) && sp_bound_ok(i3[t]:bv[64], i1[t]:bv[64]))) && (o2[t]:sbf = 1:sbf <-> (sp_delta_ok(i3[t]:bv[64], i5[t]:bv[64], i1[t]:bv[64]) && free_delta_ok(i2[t]:bv[64], i4[t]:bv[64], i1[t]:bv[64]))) && (o3[t]:sbf = 1:sbf <-> policy_ok(i6[t]:sbf, i7[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> withdraw_sp_allowed(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:sbf, i7[t]:sbf)).

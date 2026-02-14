@@ -1,0 +1,2852 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "esso_spec_quality_assessment_v1"
+  created_by: "orchestration-unit"
+  notes: |
+    Spec Quality Assessment Framework for kernel IR state machine specifications (correctness ≠ quality).
+
+    1) QUALITY DIMENSIONS (7):
+       D1 Formal Soundness & Safety
+       D2 Coverage & Completeness
+       D3 Determinism & Replayability
+       D4 Contract Clarity & Observability
+       D5 Adversarial/Game-Theory Robustness
+       D6 Integration & Operability (CBC)
+       D7 Maintainability & Evolvability
+
+    2) MEASURABLE METRICS (0-100 each, deterministic):
+       - Each dimension score is computed from 4 evidence items in 25-pt bins:
+         score_dim = Σ (25 if evidence ∈ {Pass, NA} else 0).
+       - Evidence is fail-closed: Unknown blocks decisions.
+       - Severe defects override scores for gate decisions.
+
+    3) AUTOMATED CHECKS (toolchain-verifiable / deterministic gates):
+       - Validate/schema/type/finite domains
+       - Invariant inductiveness
+       - Refinement/no-extra behavior (when a reference exists)
+       - Observational equivalence (when a reference exists)
+       - Canonicalizer sanity (idempotence / invariant-preserving if used)
+       - Bounds/shrink sanity (state-space control)
+       - Deterministic replay (trace/tape replay)
+       - CBC: shell-lint + verify-shell
+       - Codegen smoke (if shipping generated code)
+
+    4) REVIEW CHECKLISTS (human/AI attestations):
+       - Explicit assumptions
+       - Contract/observables clarity
+       - Edge-case matrix (boundary + adversarial cases)
+       - Liveness/progress conditions
+       - Threat model
+       - Game-theory/incentive analysis
+       - MEV/front-running analysis
+       - Oracle/trust-boundary analysis
+       - Versioning/upgrade/migration plan
+       - Operability controls (timeouts/monitoring/fail-closed)
+       - Modularity/decomposition
+       - Documentation + changelog
+       - CI quality plan (process control plan)
+
+    5) QUALITY GATES (pass/fail thresholds; Revise means iterate before re-gating):
+       - Alpha: D1>=75, D2>=50, D4>=50; no open S0/S1; core formal checks must not Fail.
+       - Beta:  D1>=75, D2>=75, D3>=75, D4>=75, D6>=75, D5>=50; Pass requires no open S2.
+       - Prod:  D1==100, D3==100, and D2/D4/D5/D6/D7>=75; no open S0/S1/S2; CI plan Pass;
+                process_dpmo_x10 <= 34 (Six Sigma target 3.4 DPMO).
+
+    6) DEFECT TAXONOMY:
+       - Severity: S0 Catastrophic, S1 Critical, S2 Major, S3 Minor, S4 Trivial
+       - Type: invariant/guard/init/bounds/nondet/observability/refinement/CBC/liveness/game-theory/oracle/upgrade/docs
+       - Stage: Automated, Review, PostDeploy
+       - Status: Open/Closed
+
+    7) CONTINUOUS IMPROVEMENT:
+       - Escaped (post-deploy) defects open CAPA; process_dpmo_x10 updated from external measurement.
+       - Production gating requires Six Sigma readiness (process_dpmo_x10<=34) and CI plan Pass.
+
+observables:
+  state_vars:
+    - "phase"
+    - "gate_level"
+    - "spec_ref"
+    - "revision"
+    - "evidence_epoch"
+    - "score_epoch"
+    - "verdict"
+    - "decision_gate"
+    - "score_formal"
+    - "score_coverage"
+    - "score_determinism"
+    - "score_contract"
+    - "score_adversarial"
+    - "score_operability"
+    - "score_maintainability"
+    - "has_open_s0"
+    - "has_open_s1"
+    - "has_open_s2"
+    - "process_dpmo_x10"
+    - "process_six_sigma_ready"
+    - "capa_open"
+    - "escaped_defects_window"
+    - "last_escape_sev"
+    - "last_escape_type"
+    - "ac_validate"
+    - "ac_finite_domains"
+    - "ac_invariants_inductive"
+    - "ac_refinement"
+    - "ac_equivalence"
+    - "ac_canonicalizer"
+    - "ac_bounds_sane"
+    - "ac_deterministic_replay"
+    - "ac_shell_lint"
+    - "ac_verify_shell"
+    - "ac_codegen_smoke"
+    - "rv_assumptions"
+    - "rv_contract"
+    - "rv_edge_cases"
+    - "rv_liveness"
+    - "rv_threat_model"
+    - "rv_game_theory"
+    - "rv_mev"
+    - "rv_oracle"
+    - "rv_versioning"
+    - "rv_ops_controls"
+    - "rv_modularity"
+    - "rv_documentation"
+    - "rv_change_log"
+    - "rv_ci_plan"
+  effects:
+    - "event"
+    - "auto_check"
+    - "auto_result"
+    - "review_item"
+    - "review_result"
+    - "defect_slot"
+    - "defect_type"
+    - "defect_sev"
+    - "defect_stage"
+    - "decision_gate_eff"
+    - "decision_verdict_eff"
+
+types:
+  - id: "Phase"
+    type: { kind: "enum", symbols: ["PH_Boot", "PH_Intake", "PH_Evidence", "PH_Decided", "PH_Archived"] }
+  - id: "GateLevel"
+    type: { kind: "enum", symbols: ["GL_Alpha", "GL_Beta", "GL_Production"] }
+  - id: "Verdict"
+    type: { kind: "enum", symbols: ["VD_None", "VD_Pass", "VD_Revise", "VD_Fail"] }
+  - id: "Event"
+    type:
+      kind: "enum"
+      symbols:
+        - "EV_none"
+        - "EV_booted"
+        - "EV_assessment_started"
+        - "EV_auto_recorded"
+        - "EV_review_recorded"
+        - "EV_defect_logged"
+        - "EV_defect_closed"
+        - "EV_scores_recomputed"
+        - "EV_gate_decided"
+        - "EV_archived"
+        - "EV_revision_reset"
+        - "EV_process_dpmo_updated"
+        - "EV_escaped_defect_logged"
+        - "EV_capa_closed"
+  - id: "EvidenceStatus"
+    type: { kind: "enum", symbols: ["ES_Unknown", "ES_Pass", "ES_Fail", "ES_NA"] }
+  - id: "AutoCheckId"
+    type:
+      kind: "enum"
+      symbols:
+        - "AC_None"
+        - "AC_Validate"
+        - "AC_FiniteDomains"
+        - "AC_InvariantsInductive"
+        - "AC_RefinementNoExtra"
+        - "AC_Equivalence"
+        - "AC_Canonicalizer"
+        - "AC_BoundsSane"
+        - "AC_DeterministicReplay"
+        - "AC_ShellLint"
+        - "AC_VerifyShell"
+        - "AC_CodegenSmoke"
+  - id: "ReviewItemId"
+    type:
+      kind: "enum"
+      symbols:
+        - "RV_None"
+        - "RV_Assumptions"
+        - "RV_Contract"
+        - "RV_EdgeCases"
+        - "RV_Liveness"
+        - "RV_ThreatModel"
+        - "RV_GameTheory"
+        - "RV_MEV"
+        - "RV_Oracle"
+        - "RV_Versioning"
+        - "RV_OpsControls"
+        - "RV_Modularity"
+        - "RV_Documentation"
+        - "RV_ChangeLog"
+        - "RV_CIPlan"
+  - id: "DefectSlot"
+    type: { kind: "enum", symbols: ["SL_None", "SL_0", "SL_1", "SL_2", "SL_3"] }
+  - id: "DefectSeverity"
+    type:
+      kind: "enum"
+      symbols:
+        - "SV_S0_Catastrophic"
+        - "SV_S1_Critical"
+        - "SV_S2_Major"
+        - "SV_S3_Minor"
+        - "SV_S4_Trivial"
+  - id: "DefectType"
+    type:
+      kind: "enum"
+      symbols:
+        - "DT_None"
+        - "DT_InvariantGap"
+        - "DT_GuardHole"
+        - "DT_InitAmbiguity"
+        - "DT_BoundsOverflow"
+        - "DT_Nondeterminism"
+        - "DT_ObservabilityMismatch"
+        - "DT_RefinementBreak"
+        - "DT_CBCMismatch"
+        - "DT_LivenessOmission"
+        - "DT_GameTheoryAttack"
+        - "DT_OracleAssumption"
+        - "DT_UpgradeBreak"
+        - "DT_DocumentationGap"
+  - id: "DefectStage"
+    type: { kind: "enum", symbols: ["DS_Automated", "DS_Review", "DS_PostDeploy"] }
+  - id: "DefectStatus"
+    type: { kind: "enum", symbols: ["DF_Open", "DF_Closed"] }
+
+  - id: "Score"
+    type: { kind: "int", min: 0, max: 100 }
+  - id: "SpecRef"
+    type: { kind: "int", min: 0, max: 4095 }
+  - id: "Epoch"
+    type: { kind: "int", min: 0, max: 63 }
+  - id: "Revision"
+    type: { kind: "int", min: 0, max: 7 }
+  - id: "DpmoX10"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "EscapedCount"
+    type: { kind: "int", min: 0, max: 31 }
+
+state_vars:
+  - id: "phase"
+    role: "control"
+    type: { ref: "Phase" }
+  - id: "gate_level"
+    role: "control"
+    type: { ref: "GateLevel" }
+  - id: "spec_ref"
+    role: "data"
+    type: { ref: "SpecRef" }
+  - id: "revision"
+    role: "data"
+    type: { ref: "Revision" }
+
+  - id: "evidence_epoch"
+    role: "data"
+    type: { ref: "Epoch" }
+  - id: "score_epoch"
+    role: "data"
+    type: { ref: "Epoch" }
+
+  - id: "verdict"
+    role: "control"
+    type: { ref: "Verdict" }
+  - id: "decision_gate"
+    role: "data"
+    type: { ref: "GateLevel" }
+
+  - id: "score_formal"
+    role: "data"
+    type: { ref: "Score" }
+  - id: "score_coverage"
+    role: "data"
+    type: { ref: "Score" }
+  - id: "score_determinism"
+    role: "data"
+    type: { ref: "Score" }
+  - id: "score_contract"
+    role: "data"
+    type: { ref: "Score" }
+  - id: "score_adversarial"
+    role: "data"
+    type: { ref: "Score" }
+  - id: "score_operability"
+    role: "data"
+    type: { ref: "Score" }
+  - id: "score_maintainability"
+    role: "data"
+    type: { ref: "Score" }
+
+  - id: "has_open_s0"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_open_s1"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_open_s2"
+    role: "data"
+    type: { kind: "bool" }
+
+  - id: "process_dpmo_x10"
+    role: "data"
+    type: { ref: "DpmoX10" }
+  - id: "process_six_sigma_ready"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "capa_open"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "escaped_defects_window"
+    role: "data"
+    type: { ref: "EscapedCount" }
+  - id: "last_escape_sev"
+    role: "data"
+    type: { ref: "DefectSeverity" }
+  - id: "last_escape_type"
+    role: "data"
+    type: { ref: "DefectType" }
+
+  # Automated evidence (toolchain)
+  - id: "ac_validate"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_finite_domains"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_invariants_inductive"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_refinement"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_equivalence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_canonicalizer"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_bounds_sane"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_deterministic_replay"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_shell_lint"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_verify_shell"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "ac_codegen_smoke"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+
+  # Review evidence (human/AI)
+  - id: "rv_assumptions"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_contract"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_edge_cases"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_liveness"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_threat_model"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_game_theory"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_mev"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_oracle"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_versioning"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_ops_controls"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_modularity"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_documentation"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_change_log"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "rv_ci_plan"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+
+  # Defect slots (bounded N=4)
+  - id: "d0_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "d0_sev"
+    role: "data"
+    type: { ref: "DefectSeverity" }
+  - id: "d0_type"
+    role: "data"
+    type: { ref: "DefectType" }
+  - id: "d0_stage"
+    role: "data"
+    type: { ref: "DefectStage" }
+  - id: "d0_status"
+    role: "data"
+    type: { ref: "DefectStatus" }
+
+  - id: "d1_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "d1_sev"
+    role: "data"
+    type: { ref: "DefectSeverity" }
+  - id: "d1_type"
+    role: "data"
+    type: { ref: "DefectType" }
+  - id: "d1_stage"
+    role: "data"
+    type: { ref: "DefectStage" }
+  - id: "d1_status"
+    role: "data"
+    type: { ref: "DefectStatus" }
+
+  - id: "d2_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "d2_sev"
+    role: "data"
+    type: { ref: "DefectSeverity" }
+  - id: "d2_type"
+    role: "data"
+    type: { ref: "DefectType" }
+  - id: "d2_stage"
+    role: "data"
+    type: { ref: "DefectStage" }
+  - id: "d2_status"
+    role: "data"
+    type: { ref: "DefectStatus" }
+
+  - id: "d3_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "d3_sev"
+    role: "data"
+    type: { ref: "DefectSeverity" }
+  - id: "d3_type"
+    role: "data"
+    type: { ref: "DefectType" }
+  - id: "d3_stage"
+    role: "data"
+    type: { ref: "DefectStage" }
+  - id: "d3_status"
+    role: "data"
+    type: { ref: "DefectStatus" }
+
+invariants:
+  - id: "inv_epochs_order"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "score_epoch" }, { var: "evidence_epoch" }]
+
+  - id: "inv_archived_requires_decision"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "!="
+          args: [{ var: "phase" }, { enum: "PH_Archived" }]
+        - op: "!="
+          args: [{ var: "verdict" }, { enum: "VD_None" }]
+
+  # Fail-closed core checks: these cannot be NA by design.
+  - id: "inv_ac_validate_not_na"
+    kind: "safety"
+    expr:
+      op: "!="
+      args: [{ var: "ac_validate" }, { enum: "ES_NA" }]
+  - id: "inv_ac_finite_domains_not_na"
+    kind: "safety"
+    expr:
+      op: "!="
+      args: [{ var: "ac_finite_domains" }, { enum: "ES_NA" }]
+  - id: "inv_ac_invariants_inductive_not_na"
+    kind: "safety"
+    expr:
+      op: "!="
+      args: [{ var: "ac_invariants_inductive" }, { enum: "ES_NA" }]
+
+  - id: "inv_rv_assumptions_not_na"
+    kind: "safety"
+    expr:
+      op: "!="
+      args: [{ var: "rv_assumptions" }, { enum: "ES_NA" }]
+  - id: "inv_rv_contract_not_na"
+    kind: "safety"
+    expr:
+      op: "!="
+      args: [{ var: "rv_contract" }, { enum: "ES_NA" }]
+
+  - id: "inv_six_sigma_flag"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "process_six_sigma_ready" }
+        - op: "<="
+          args: [{ var: "process_dpmo_x10" }, { const: 34 }]
+
+  # Defect-slot consistency (present/open/closed).
+  - id: "inv_d0_absent_closed"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args: [{ var: "d0_present" }]
+        - op: "="
+          args: [{ var: "d0_status" }, { enum: "DF_Closed" }]
+  - id: "inv_d0_open_implies_present"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "!="
+          args: [{ var: "d0_status" }, { enum: "DF_Open" }]
+        - { var: "d0_present" }
+
+  - id: "inv_d1_absent_closed"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args: [{ var: "d1_present" }]
+        - op: "="
+          args: [{ var: "d1_status" }, { enum: "DF_Closed" }]
+  - id: "inv_d1_open_implies_present"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "!="
+          args: [{ var: "d1_status" }, { enum: "DF_Open" }]
+        - { var: "d1_present" }
+
+  - id: "inv_d2_absent_closed"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args: [{ var: "d2_present" }]
+        - op: "="
+          args: [{ var: "d2_status" }, { enum: "DF_Closed" }]
+  - id: "inv_d2_open_implies_present"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "!="
+          args: [{ var: "d2_status" }, { enum: "DF_Open" }]
+        - { var: "d2_present" }
+
+  - id: "inv_d3_absent_closed"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args: [{ var: "d3_present" }]
+        - op: "="
+          args: [{ var: "d3_status" }, { enum: "DF_Closed" }]
+  - id: "inv_d3_open_implies_present"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "!="
+          args: [{ var: "d3_status" }, { enum: "DF_Open" }]
+        - { var: "d3_present" }
+
+init:
+  - var: "phase"
+    expr: { enum: "PH_Boot" }
+  - var: "gate_level"
+    expr: { enum: "GL_Alpha" }
+  - var: "spec_ref"
+    expr: { const: 0 }
+  - var: "revision"
+    expr: { const: 0 }
+
+  - var: "evidence_epoch"
+    expr: { const: 0 }
+  - var: "score_epoch"
+    expr: { const: 0 }
+
+  - var: "verdict"
+    expr: { enum: "VD_None" }
+  - var: "decision_gate"
+    expr: { enum: "GL_Alpha" }
+
+  - var: "score_formal"
+    expr: { const: 0 }
+  - var: "score_coverage"
+    expr: { const: 0 }
+  - var: "score_determinism"
+    expr: { const: 0 }
+  - var: "score_contract"
+    expr: { const: 0 }
+  - var: "score_adversarial"
+    expr: { const: 0 }
+  - var: "score_operability"
+    expr: { const: 0 }
+  - var: "score_maintainability"
+    expr: { const: 0 }
+
+  - var: "has_open_s0"
+    expr: { bool: false }
+  - var: "has_open_s1"
+    expr: { bool: false }
+  - var: "has_open_s2"
+    expr: { bool: false }
+
+  - var: "process_dpmo_x10"
+    expr: { const: 1000 }
+  - var: "process_six_sigma_ready"
+    expr: { bool: false }
+  - var: "capa_open"
+    expr: { bool: false }
+  - var: "escaped_defects_window"
+    expr: { const: 0 }
+  - var: "last_escape_sev"
+    expr: { enum: "SV_S4_Trivial" }
+  - var: "last_escape_type"
+    expr: { enum: "DT_None" }
+
+  - var: "ac_validate"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_finite_domains"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_invariants_inductive"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_refinement"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_equivalence"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_canonicalizer"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_bounds_sane"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_deterministic_replay"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_shell_lint"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_verify_shell"
+    expr: { enum: "ES_Unknown" }
+  - var: "ac_codegen_smoke"
+    expr: { enum: "ES_Unknown" }
+
+  - var: "rv_assumptions"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_contract"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_edge_cases"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_liveness"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_threat_model"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_game_theory"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_mev"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_oracle"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_versioning"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_ops_controls"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_modularity"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_documentation"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_change_log"
+    expr: { enum: "ES_Unknown" }
+  - var: "rv_ci_plan"
+    expr: { enum: "ES_Unknown" }
+
+  - var: "d0_present"
+    expr: { bool: false }
+  - var: "d0_sev"
+    expr: { enum: "SV_S4_Trivial" }
+  - var: "d0_type"
+    expr: { enum: "DT_None" }
+  - var: "d0_stage"
+    expr: { enum: "DS_Automated" }
+  - var: "d0_status"
+    expr: { enum: "DF_Closed" }
+
+  - var: "d1_present"
+    expr: { bool: false }
+  - var: "d1_sev"
+    expr: { enum: "SV_S4_Trivial" }
+  - var: "d1_type"
+    expr: { enum: "DT_None" }
+  - var: "d1_stage"
+    expr: { enum: "DS_Automated" }
+  - var: "d1_status"
+    expr: { enum: "DF_Closed" }
+
+  - var: "d2_present"
+    expr: { bool: false }
+  - var: "d2_sev"
+    expr: { enum: "SV_S4_Trivial" }
+  - var: "d2_type"
+    expr: { enum: "DT_None" }
+  - var: "d2_stage"
+    expr: { enum: "DS_Automated" }
+  - var: "d2_status"
+    expr: { enum: "DF_Closed" }
+
+  - var: "d3_present"
+    expr: { bool: false }
+  - var: "d3_sev"
+    expr: { enum: "SV_S4_Trivial" }
+  - var: "d3_type"
+    expr: { enum: "DT_None" }
+  - var: "d3_stage"
+    expr: { enum: "DS_Automated" }
+  - var: "d3_status"
+    expr: { enum: "DF_Closed" }
+
+actions:
+  - id: "boot"
+    params: []
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { enum: "PH_Boot" }]
+    updates:
+      - var: "phase"
+        expr: { enum: "PH_Intake" }
+    effects:
+      event: { enum: "EV_booted" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Automated" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "start_assessment"
+    params:
+      - id: "gate"
+        type: { ref: "GateLevel" }
+      - id: "spec_ref"
+        type: { ref: "SpecRef" }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "PH_Intake" }]
+        - op: "!="
+          args: [{ param: "spec_ref" }, { const: 0 }]
+        - op: "<"
+          args: [{ var: "evidence_epoch" }, { const: 63 }]
+    updates:
+      - var: "phase"
+        expr: { enum: "PH_Evidence" }
+      - var: "gate_level"
+        expr: { param: "gate" }
+      - var: "spec_ref"
+        expr: { param: "spec_ref" }
+      - var: "revision"
+        expr: { const: 0 }
+      - var: "verdict"
+        expr: { enum: "VD_None" }
+
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+      - var: "score_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+
+      - var: "score_formal"
+        expr: { const: 0 }
+      - var: "score_coverage"
+        expr: { const: 0 }
+      - var: "score_determinism"
+        expr: { const: 0 }
+      - var: "score_contract"
+        expr: { const: 0 }
+      - var: "score_adversarial"
+        expr: { const: 0 }
+      - var: "score_operability"
+        expr: { const: 0 }
+      - var: "score_maintainability"
+        expr: { const: 0 }
+
+      - var: "has_open_s0"
+        expr: { bool: false }
+      - var: "has_open_s1"
+        expr: { bool: false }
+      - var: "has_open_s2"
+        expr: { bool: false }
+
+      - var: "ac_validate"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_finite_domains"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_invariants_inductive"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_refinement"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_equivalence"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_canonicalizer"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_bounds_sane"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_deterministic_replay"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_shell_lint"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_verify_shell"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_codegen_smoke"
+        expr: { enum: "ES_Unknown" }
+
+      - var: "rv_assumptions"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_contract"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_edge_cases"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_liveness"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_threat_model"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_game_theory"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_mev"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_oracle"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_versioning"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_ops_controls"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_modularity"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_documentation"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_change_log"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_ci_plan"
+        expr: { enum: "ES_Unknown" }
+
+      - var: "d0_present"
+        expr: { bool: false }
+      - var: "d0_sev"
+        expr: { enum: "SV_S4_Trivial" }
+      - var: "d0_type"
+        expr: { enum: "DT_None" }
+      - var: "d0_stage"
+        expr: { enum: "DS_Automated" }
+      - var: "d0_status"
+        expr: { enum: "DF_Closed" }
+
+      - var: "d1_present"
+        expr: { bool: false }
+      - var: "d1_sev"
+        expr: { enum: "SV_S4_Trivial" }
+      - var: "d1_type"
+        expr: { enum: "DT_None" }
+      - var: "d1_stage"
+        expr: { enum: "DS_Automated" }
+      - var: "d1_status"
+        expr: { enum: "DF_Closed" }
+
+      - var: "d2_present"
+        expr: { bool: false }
+      - var: "d2_sev"
+        expr: { enum: "SV_S4_Trivial" }
+      - var: "d2_type"
+        expr: { enum: "DT_None" }
+      - var: "d2_stage"
+        expr: { enum: "DS_Automated" }
+      - var: "d2_status"
+        expr: { enum: "DF_Closed" }
+
+      - var: "d3_present"
+        expr: { bool: false }
+      - var: "d3_sev"
+        expr: { enum: "SV_S4_Trivial" }
+      - var: "d3_type"
+        expr: { enum: "DT_None" }
+      - var: "d3_stage"
+        expr: { enum: "DS_Automated" }
+      - var: "d3_status"
+        expr: { enum: "DF_Closed" }
+
+    effects:
+      event: { enum: "EV_assessment_started" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Automated" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "record_auto_check"
+    params:
+      - id: "check"
+        type: { ref: "AutoCheckId" }
+      - id: "result"
+        type: { ref: "EvidenceStatus" }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "PH_Evidence" }]
+        - op: "="
+          args: [{ var: "verdict" }, { enum: "VD_None" }]
+        - op: "!="
+          args: [{ param: "check" }, { enum: "AC_None" }]
+        - op: "!="
+          args: [{ param: "result" }, { enum: "ES_Unknown" }]
+        - op: "<"
+          args: [{ var: "evidence_epoch" }, { const: 63 }]
+
+        # Disallow NA on core checks (to satisfy invariants).
+        - op: "ite"
+          cond:
+            op: "or"
+            args:
+              - op: "="
+                args: [{ param: "check" }, { enum: "AC_Validate" }]
+              - op: "="
+                args: [{ param: "check" }, { enum: "AC_FiniteDomains" }]
+              - op: "="
+                args: [{ param: "check" }, { enum: "AC_InvariantsInductive" }]
+          then:
+            op: "!="
+            args: [{ param: "result" }, { enum: "ES_NA" }]
+          else: { bool: true }
+
+        # Selected item must be Unknown (monotonic evidence).
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_Validate" }]
+          then:
+            op: "="
+            args: [{ var: "ac_validate" }, { enum: "ES_Unknown" }]
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ param: "check" }, { enum: "AC_FiniteDomains" }]
+            then:
+              op: "="
+              args: [{ var: "ac_finite_domains" }, { enum: "ES_Unknown" }]
+            else:
+              op: "ite"
+              cond:
+                op: "="
+                args: [{ param: "check" }, { enum: "AC_InvariantsInductive" }]
+              then:
+                op: "="
+                args: [{ var: "ac_invariants_inductive" }, { enum: "ES_Unknown" }]
+              else:
+                op: "ite"
+                cond:
+                  op: "="
+                  args: [{ param: "check" }, { enum: "AC_RefinementNoExtra" }]
+                then:
+                  op: "="
+                  args: [{ var: "ac_refinement" }, { enum: "ES_Unknown" }]
+                else:
+                  op: "ite"
+                  cond:
+                    op: "="
+                    args: [{ param: "check" }, { enum: "AC_Equivalence" }]
+                  then:
+                    op: "="
+                    args: [{ var: "ac_equivalence" }, { enum: "ES_Unknown" }]
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "="
+                      args: [{ param: "check" }, { enum: "AC_Canonicalizer" }]
+                    then:
+                      op: "="
+                      args: [{ var: "ac_canonicalizer" }, { enum: "ES_Unknown" }]
+                    else:
+                      op: "ite"
+                      cond:
+                        op: "="
+                        args: [{ param: "check" }, { enum: "AC_BoundsSane" }]
+                      then:
+                        op: "="
+                        args: [{ var: "ac_bounds_sane" }, { enum: "ES_Unknown" }]
+                      else:
+                        op: "ite"
+                        cond:
+                          op: "="
+                          args: [{ param: "check" }, { enum: "AC_DeterministicReplay" }]
+                        then:
+                          op: "="
+                          args: [{ var: "ac_deterministic_replay" }, { enum: "ES_Unknown" }]
+                        else:
+                          op: "ite"
+                          cond:
+                            op: "="
+                            args: [{ param: "check" }, { enum: "AC_ShellLint" }]
+                          then:
+                            op: "="
+                            args: [{ var: "ac_shell_lint" }, { enum: "ES_Unknown" }]
+                          else:
+                            op: "ite"
+                            cond:
+                              op: "="
+                              args: [{ param: "check" }, { enum: "AC_VerifyShell" }]
+                            then:
+                              op: "="
+                              args: [{ var: "ac_verify_shell" }, { enum: "ES_Unknown" }]
+                            else:
+                              op: "="
+                              args: [{ var: "ac_codegen_smoke" }, { enum: "ES_Unknown" }]
+    updates:
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+
+      - var: "ac_validate"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_Validate" }]
+          then: { param: "result" }
+          else: { var: "ac_validate" }
+      - var: "ac_finite_domains"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_FiniteDomains" }]
+          then: { param: "result" }
+          else: { var: "ac_finite_domains" }
+      - var: "ac_invariants_inductive"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_InvariantsInductive" }]
+          then: { param: "result" }
+          else: { var: "ac_invariants_inductive" }
+      - var: "ac_refinement"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_RefinementNoExtra" }]
+          then: { param: "result" }
+          else: { var: "ac_refinement" }
+      - var: "ac_equivalence"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_Equivalence" }]
+          then: { param: "result" }
+          else: { var: "ac_equivalence" }
+      - var: "ac_canonicalizer"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_Canonicalizer" }]
+          then: { param: "result" }
+          else: { var: "ac_canonicalizer" }
+      - var: "ac_bounds_sane"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_BoundsSane" }]
+          then: { param: "result" }
+          else: { var: "ac_bounds_sane" }
+      - var: "ac_deterministic_replay"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_DeterministicReplay" }]
+          then: { param: "result" }
+          else: { var: "ac_deterministic_replay" }
+      - var: "ac_shell_lint"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_ShellLint" }]
+          then: { param: "result" }
+          else: { var: "ac_shell_lint" }
+      - var: "ac_verify_shell"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_VerifyShell" }]
+          then: { param: "result" }
+          else: { var: "ac_verify_shell" }
+      - var: "ac_codegen_smoke"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "check" }, { enum: "AC_CodegenSmoke" }]
+          then: { param: "result" }
+          else: { var: "ac_codegen_smoke" }
+
+    effects:
+      event: { enum: "EV_auto_recorded" }
+      auto_check: { param: "check" }
+      auto_result: { param: "result" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Automated" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "record_review_item"
+    params:
+      - id: "item"
+        type: { ref: "ReviewItemId" }
+      - id: "result"
+        type: { ref: "EvidenceStatus" }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "PH_Evidence" }]
+        - op: "="
+          args: [{ var: "verdict" }, { enum: "VD_None" }]
+        - op: "!="
+          args: [{ param: "item" }, { enum: "RV_None" }]
+        - op: "!="
+          args: [{ param: "result" }, { enum: "ES_Unknown" }]
+        - op: "<"
+          args: [{ var: "evidence_epoch" }, { const: 63 }]
+
+        # Disallow NA for foundational review items (to satisfy invariants).
+        - op: "ite"
+          cond:
+            op: "or"
+            args:
+              - op: "="
+                args: [{ param: "item" }, { enum: "RV_Assumptions" }]
+              - op: "="
+                args: [{ param: "item" }, { enum: "RV_Contract" }]
+          then:
+            op: "!="
+            args: [{ param: "result" }, { enum: "ES_NA" }]
+          else: { bool: true }
+
+        # Selected item must be Unknown (monotonic evidence).
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_Assumptions" }]
+          then:
+            op: "="
+            args: [{ var: "rv_assumptions" }, { enum: "ES_Unknown" }]
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ param: "item" }, { enum: "RV_Contract" }]
+            then:
+              op: "="
+              args: [{ var: "rv_contract" }, { enum: "ES_Unknown" }]
+            else:
+              op: "ite"
+              cond:
+                op: "="
+                args: [{ param: "item" }, { enum: "RV_EdgeCases" }]
+              then:
+                op: "="
+                args: [{ var: "rv_edge_cases" }, { enum: "ES_Unknown" }]
+              else:
+                op: "ite"
+                cond:
+                  op: "="
+                  args: [{ param: "item" }, { enum: "RV_Liveness" }]
+                then:
+                  op: "="
+                  args: [{ var: "rv_liveness" }, { enum: "ES_Unknown" }]
+                else:
+                  op: "ite"
+                  cond:
+                    op: "="
+                    args: [{ param: "item" }, { enum: "RV_ThreatModel" }]
+                  then:
+                    op: "="
+                    args: [{ var: "rv_threat_model" }, { enum: "ES_Unknown" }]
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "="
+                      args: [{ param: "item" }, { enum: "RV_GameTheory" }]
+                    then:
+                      op: "="
+                      args: [{ var: "rv_game_theory" }, { enum: "ES_Unknown" }]
+                    else:
+                      op: "ite"
+                      cond:
+                        op: "="
+                        args: [{ param: "item" }, { enum: "RV_MEV" }]
+                      then:
+                        op: "="
+                        args: [{ var: "rv_mev" }, { enum: "ES_Unknown" }]
+                      else:
+                        op: "ite"
+                        cond:
+                          op: "="
+                          args: [{ param: "item" }, { enum: "RV_Oracle" }]
+                        then:
+                          op: "="
+                          args: [{ var: "rv_oracle" }, { enum: "ES_Unknown" }]
+                        else:
+                          op: "ite"
+                          cond:
+                            op: "="
+                            args: [{ param: "item" }, { enum: "RV_Versioning" }]
+                          then:
+                            op: "="
+                            args: [{ var: "rv_versioning" }, { enum: "ES_Unknown" }]
+                          else:
+                            op: "ite"
+                            cond:
+                              op: "="
+                              args: [{ param: "item" }, { enum: "RV_OpsControls" }]
+                            then:
+                              op: "="
+                              args: [{ var: "rv_ops_controls" }, { enum: "ES_Unknown" }]
+                            else:
+                              op: "ite"
+                              cond:
+                                op: "="
+                                args: [{ param: "item" }, { enum: "RV_Modularity" }]
+                              then:
+                                op: "="
+                                args: [{ var: "rv_modularity" }, { enum: "ES_Unknown" }]
+                              else:
+                                op: "ite"
+                                cond:
+                                  op: "="
+                                  args: [{ param: "item" }, { enum: "RV_Documentation" }]
+                                then:
+                                  op: "="
+                                  args: [{ var: "rv_documentation" }, { enum: "ES_Unknown" }]
+                                else:
+                                  op: "ite"
+                                  cond:
+                                    op: "="
+                                    args: [{ param: "item" }, { enum: "RV_ChangeLog" }]
+                                  then:
+                                    op: "="
+                                    args: [{ var: "rv_change_log" }, { enum: "ES_Unknown" }]
+                                  else:
+                                    op: "ite"
+                                    cond:
+                                      op: "="
+                                      args: [{ param: "item" }, { enum: "RV_CIPlan" }]
+                                    then:
+                                      op: "="
+                                      args: [{ var: "rv_ci_plan" }, { enum: "ES_Unknown" }]
+                                    else:
+                                      op: "="
+                                      args: [{ var: "rv_ci_plan" }, { enum: "ES_Unknown" }]
+    updates:
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+
+      - var: "rv_assumptions"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_Assumptions" }]
+          then: { param: "result" }
+          else: { var: "rv_assumptions" }
+      - var: "rv_contract"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_Contract" }]
+          then: { param: "result" }
+          else: { var: "rv_contract" }
+      - var: "rv_edge_cases"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_EdgeCases" }]
+          then: { param: "result" }
+          else: { var: "rv_edge_cases" }
+      - var: "rv_liveness"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_Liveness" }]
+          then: { param: "result" }
+          else: { var: "rv_liveness" }
+      - var: "rv_threat_model"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_ThreatModel" }]
+          then: { param: "result" }
+          else: { var: "rv_threat_model" }
+      - var: "rv_game_theory"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_GameTheory" }]
+          then: { param: "result" }
+          else: { var: "rv_game_theory" }
+      - var: "rv_mev"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_MEV" }]
+          then: { param: "result" }
+          else: { var: "rv_mev" }
+      - var: "rv_oracle"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_Oracle" }]
+          then: { param: "result" }
+          else: { var: "rv_oracle" }
+      - var: "rv_versioning"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_Versioning" }]
+          then: { param: "result" }
+          else: { var: "rv_versioning" }
+      - var: "rv_ops_controls"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_OpsControls" }]
+          then: { param: "result" }
+          else: { var: "rv_ops_controls" }
+      - var: "rv_modularity"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_Modularity" }]
+          then: { param: "result" }
+          else: { var: "rv_modularity" }
+      - var: "rv_documentation"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_Documentation" }]
+          then: { param: "result" }
+          else: { var: "rv_documentation" }
+      - var: "rv_change_log"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_ChangeLog" }]
+          then: { param: "result" }
+          else: { var: "rv_change_log" }
+      - var: "rv_ci_plan"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "item" }, { enum: "RV_CIPlan" }]
+          then: { param: "result" }
+          else: { var: "rv_ci_plan" }
+
+    effects:
+      event: { enum: "EV_review_recorded" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { param: "item" }
+      review_result: { param: "result" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Review" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "log_defect"
+    params:
+      - id: "slot"
+        type: { ref: "DefectSlot" }
+      - id: "sev"
+        type: { ref: "DefectSeverity" }
+      - id: "typ"
+        type: { ref: "DefectType" }
+      - id: "stage"
+        type: { ref: "DefectStage" }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "PH_Evidence" }]
+        - op: "="
+          args: [{ var: "verdict" }, { enum: "VD_None" }]
+        - op: "!="
+          args: [{ param: "slot" }, { enum: "SL_None" }]
+        - op: "!="
+          args: [{ param: "typ" }, { enum: "DT_None" }]
+        - op: "<"
+          args: [{ var: "evidence_epoch" }, { const: 63 }]
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_0" }]
+          then:
+            op: "not"
+            args: [{ var: "d0_present" }]
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ param: "slot" }, { enum: "SL_1" }]
+            then:
+              op: "not"
+              args: [{ var: "d1_present" }]
+            else:
+              op: "ite"
+              cond:
+                op: "="
+                args: [{ param: "slot" }, { enum: "SL_2" }]
+              then:
+                op: "not"
+                args: [{ var: "d2_present" }]
+              else:
+                op: "not"
+                args: [{ var: "d3_present" }]
+    updates:
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+
+      - var: "d0_present"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_0" }]
+          then: { bool: true }
+          else: { var: "d0_present" }
+      - var: "d0_sev"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_0" }]
+          then: { param: "sev" }
+          else: { var: "d0_sev" }
+      - var: "d0_type"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_0" }]
+          then: { param: "typ" }
+          else: { var: "d0_type" }
+      - var: "d0_stage"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_0" }]
+          then: { param: "stage" }
+          else: { var: "d0_stage" }
+      - var: "d0_status"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_0" }]
+          then: { enum: "DF_Open" }
+          else: { var: "d0_status" }
+
+      - var: "d1_present"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_1" }]
+          then: { bool: true }
+          else: { var: "d1_present" }
+      - var: "d1_sev"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_1" }]
+          then: { param: "sev" }
+          else: { var: "d1_sev" }
+      - var: "d1_type"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_1" }]
+          then: { param: "typ" }
+          else: { var: "d1_type" }
+      - var: "d1_stage"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_1" }]
+          then: { param: "stage" }
+          else: { var: "d1_stage" }
+      - var: "d1_status"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_1" }]
+          then: { enum: "DF_Open" }
+          else: { var: "d1_status" }
+
+      - var: "d2_present"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_2" }]
+          then: { bool: true }
+          else: { var: "d2_present" }
+      - var: "d2_sev"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_2" }]
+          then: { param: "sev" }
+          else: { var: "d2_sev" }
+      - var: "d2_type"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_2" }]
+          then: { param: "typ" }
+          else: { var: "d2_type" }
+      - var: "d2_stage"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_2" }]
+          then: { param: "stage" }
+          else: { var: "d2_stage" }
+      - var: "d2_status"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_2" }]
+          then: { enum: "DF_Open" }
+          else: { var: "d2_status" }
+
+      - var: "d3_present"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_3" }]
+          then: { bool: true }
+          else: { var: "d3_present" }
+      - var: "d3_sev"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_3" }]
+          then: { param: "sev" }
+          else: { var: "d3_sev" }
+      - var: "d3_type"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_3" }]
+          then: { param: "typ" }
+          else: { var: "d3_type" }
+      - var: "d3_stage"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_3" }]
+          then: { param: "stage" }
+          else: { var: "d3_stage" }
+      - var: "d3_status"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_3" }]
+          then: { enum: "DF_Open" }
+          else: { var: "d3_status" }
+
+      - var: "has_open_s0"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "sev" }, { enum: "SV_S0_Catastrophic" }]
+          then: { bool: true }
+          else: { var: "has_open_s0" }
+
+      - var: "has_open_s1"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "sev" }, { enum: "SV_S1_Critical" }]
+          then: { bool: true }
+          else: { var: "has_open_s1" }
+
+      - var: "has_open_s2"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "sev" }, { enum: "SV_S2_Major" }]
+          then: { bool: true }
+          else: { var: "has_open_s2" }
+
+    effects:
+      event: { enum: "EV_defect_logged" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { param: "slot" }
+      defect_type: { param: "typ" }
+      defect_sev: { param: "sev" }
+      defect_stage: { param: "stage" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "close_defect"
+    params:
+      - id: "slot"
+        type: { ref: "DefectSlot" }
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "PH_Evidence" }]
+        - op: "="
+          args: [{ var: "verdict" }, { enum: "VD_None" }]
+        - op: "!="
+          args: [{ param: "slot" }, { enum: "SL_None" }]
+        - op: "<"
+          args: [{ var: "evidence_epoch" }, { const: 63 }]
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_0" }]
+          then:
+            op: "and"
+            args:
+              - { var: "d0_present" }
+              - op: "="
+                args: [{ var: "d0_status" }, { enum: "DF_Open" }]
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ param: "slot" }, { enum: "SL_1" }]
+            then:
+              op: "and"
+              args:
+                - { var: "d1_present" }
+                - op: "="
+                  args: [{ var: "d1_status" }, { enum: "DF_Open" }]
+            else:
+              op: "ite"
+              cond:
+                op: "="
+                args: [{ param: "slot" }, { enum: "SL_2" }]
+              then:
+                op: "and"
+                args:
+                  - { var: "d2_present" }
+                  - op: "="
+                    args: [{ var: "d2_status" }, { enum: "DF_Open" }]
+              else:
+                op: "and"
+                args:
+                  - { var: "d3_present" }
+                  - op: "="
+                    args: [{ var: "d3_status" }, { enum: "DF_Open" }]
+    updates:
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+
+      - var: "d0_status"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_0" }]
+          then: { enum: "DF_Closed" }
+          else: { var: "d0_status" }
+      - var: "d1_status"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_1" }]
+          then: { enum: "DF_Closed" }
+          else: { var: "d1_status" }
+      - var: "d2_status"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_2" }]
+          then: { enum: "DF_Closed" }
+          else: { var: "d2_status" }
+      - var: "d3_status"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ param: "slot" }, { enum: "SL_3" }]
+          then: { enum: "DF_Closed" }
+          else: { var: "d3_status" }
+
+    effects:
+      event: { enum: "EV_defect_closed" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { param: "slot" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Review" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "recompute_scores"
+    params: []
+    guard:
+      op: "!="
+      args: [{ var: "score_epoch" }, { var: "evidence_epoch" }]
+    updates:
+      - var: "score_epoch"
+        expr: { var: "evidence_epoch" }
+
+      # Derived open-severity flags (S0/S1/S2) from defect slots.
+      - var: "has_open_s0"
+        expr:
+          op: "or"
+          args:
+            - op: "and"
+              args:
+                - { var: "d0_present" }
+                - op: "="
+                  args: [{ var: "d0_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d0_sev" }, { enum: "SV_S0_Catastrophic" }]
+            - op: "and"
+              args:
+                - { var: "d1_present" }
+                - op: "="
+                  args: [{ var: "d1_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d1_sev" }, { enum: "SV_S0_Catastrophic" }]
+            - op: "and"
+              args:
+                - { var: "d2_present" }
+                - op: "="
+                  args: [{ var: "d2_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d2_sev" }, { enum: "SV_S0_Catastrophic" }]
+            - op: "and"
+              args:
+                - { var: "d3_present" }
+                - op: "="
+                  args: [{ var: "d3_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d3_sev" }, { enum: "SV_S0_Catastrophic" }]
+
+      - var: "has_open_s1"
+        expr:
+          op: "or"
+          args:
+            - op: "and"
+              args:
+                - { var: "d0_present" }
+                - op: "="
+                  args: [{ var: "d0_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d0_sev" }, { enum: "SV_S1_Critical" }]
+            - op: "and"
+              args:
+                - { var: "d1_present" }
+                - op: "="
+                  args: [{ var: "d1_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d1_sev" }, { enum: "SV_S1_Critical" }]
+            - op: "and"
+              args:
+                - { var: "d2_present" }
+                - op: "="
+                  args: [{ var: "d2_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d2_sev" }, { enum: "SV_S1_Critical" }]
+            - op: "and"
+              args:
+                - { var: "d3_present" }
+                - op: "="
+                  args: [{ var: "d3_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d3_sev" }, { enum: "SV_S1_Critical" }]
+
+      - var: "has_open_s2"
+        expr:
+          op: "or"
+          args:
+            - op: "and"
+              args:
+                - { var: "d0_present" }
+                - op: "="
+                  args: [{ var: "d0_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d0_sev" }, { enum: "SV_S2_Major" }]
+            - op: "and"
+              args:
+                - { var: "d1_present" }
+                - op: "="
+                  args: [{ var: "d1_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d1_sev" }, { enum: "SV_S2_Major" }]
+            - op: "and"
+              args:
+                - { var: "d2_present" }
+                - op: "="
+                  args: [{ var: "d2_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d2_sev" }, { enum: "SV_S2_Major" }]
+            - op: "and"
+              args:
+                - { var: "d3_present" }
+                - op: "="
+                  args: [{ var: "d3_status" }, { enum: "DF_Open" }]
+                - op: "="
+                  args: [{ var: "d3_sev" }, { enum: "SV_S2_Major" }]
+
+      # Helper condition: evidence satisfied if Pass or NA.
+      # D1 Formal: validate, finite, inductive, refinement
+      - var: "score_formal"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "ac_validate" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "ac_validate" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "ac_finite_domains" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "ac_finite_domains" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                - op: "ite"
+                  cond:
+                    op: "or"
+                    args:
+                      - op: "="
+                        args: [{ var: "ac_invariants_inductive" }, { enum: "ES_Pass" }]
+                      - op: "="
+                        args: [{ var: "ac_invariants_inductive" }, { enum: "ES_NA" }]
+                  then: { const: 25 }
+                  else: { const: 0 }
+            - op: "ite"
+              cond:
+                op: "or"
+                args:
+                  - op: "="
+                    args: [{ var: "ac_refinement" }, { enum: "ES_Pass" }]
+                  - op: "="
+                    args: [{ var: "ac_refinement" }, { enum: "ES_NA" }]
+              then: { const: 25 }
+              else: { const: 0 }
+
+      # D2 Coverage: edge cases, liveness, bounds sane, assumptions
+      - var: "score_coverage"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "rv_edge_cases" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "rv_edge_cases" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "rv_liveness" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "rv_liveness" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                - op: "ite"
+                  cond:
+                    op: "or"
+                    args:
+                      - op: "="
+                        args: [{ var: "ac_bounds_sane" }, { enum: "ES_Pass" }]
+                      - op: "="
+                        args: [{ var: "ac_bounds_sane" }, { enum: "ES_NA" }]
+                  then: { const: 25 }
+                  else: { const: 0 }
+            - op: "ite"
+              cond:
+                op: "or"
+                args:
+                  - op: "="
+                    args: [{ var: "rv_assumptions" }, { enum: "ES_Pass" }]
+                  - op: "="
+                    args: [{ var: "rv_assumptions" }, { enum: "ES_NA" }]
+              then: { const: 25 }
+              else: { const: 0 }
+
+      # D3 Determinism: deterministic replay, canonicalizer, shell-lint, verify-shell
+      - var: "score_determinism"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "ac_deterministic_replay" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "ac_deterministic_replay" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "ac_canonicalizer" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "ac_canonicalizer" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                - op: "ite"
+                  cond:
+                    op: "or"
+                    args:
+                      - op: "="
+                        args: [{ var: "ac_shell_lint" }, { enum: "ES_Pass" }]
+                      - op: "="
+                        args: [{ var: "ac_shell_lint" }, { enum: "ES_NA" }]
+                  then: { const: 25 }
+                  else: { const: 0 }
+            - op: "ite"
+              cond:
+                op: "or"
+                args:
+                  - op: "="
+                    args: [{ var: "ac_verify_shell" }, { enum: "ES_Pass" }]
+                  - op: "="
+                    args: [{ var: "ac_verify_shell" }, { enum: "ES_NA" }]
+              then: { const: 25 }
+              else: { const: 0 }
+
+      # D4 Contract: contract clarity, versioning, refinement, equivalence
+      - var: "score_contract"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "rv_contract" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "rv_contract" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "rv_versioning" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "rv_versioning" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                - op: "ite"
+                  cond:
+                    op: "or"
+                    args:
+                      - op: "="
+                        args: [{ var: "ac_refinement" }, { enum: "ES_Pass" }]
+                      - op: "="
+                        args: [{ var: "ac_refinement" }, { enum: "ES_NA" }]
+                  then: { const: 25 }
+                  else: { const: 0 }
+            - op: "ite"
+              cond:
+                op: "or"
+                args:
+                  - op: "="
+                    args: [{ var: "ac_equivalence" }, { enum: "ES_Pass" }]
+                  - op: "="
+                    args: [{ var: "ac_equivalence" }, { enum: "ES_NA" }]
+              then: { const: 25 }
+              else: { const: 0 }
+
+      # D5 Adversarial: threat model, game theory, mev, oracle
+      - var: "score_adversarial"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "rv_threat_model" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "rv_threat_model" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "rv_game_theory" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "rv_game_theory" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                - op: "ite"
+                  cond:
+                    op: "or"
+                    args:
+                      - op: "="
+                        args: [{ var: "rv_mev" }, { enum: "ES_Pass" }]
+                      - op: "="
+                        args: [{ var: "rv_mev" }, { enum: "ES_NA" }]
+                  then: { const: 25 }
+                  else: { const: 0 }
+            - op: "ite"
+              cond:
+                op: "or"
+                args:
+                  - op: "="
+                    args: [{ var: "rv_oracle" }, { enum: "ES_Pass" }]
+                  - op: "="
+                    args: [{ var: "rv_oracle" }, { enum: "ES_NA" }]
+              then: { const: 25 }
+              else: { const: 0 }
+
+      # D6 Operability: shell-lint, verify-shell, ops controls, codegen smoke
+      - var: "score_operability"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "ac_shell_lint" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "ac_shell_lint" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "ac_verify_shell" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "ac_verify_shell" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                - op: "ite"
+                  cond:
+                    op: "or"
+                    args:
+                      - op: "="
+                        args: [{ var: "rv_ops_controls" }, { enum: "ES_Pass" }]
+                      - op: "="
+                        args: [{ var: "rv_ops_controls" }, { enum: "ES_NA" }]
+                  then: { const: 25 }
+                  else: { const: 0 }
+            - op: "ite"
+              cond:
+                op: "or"
+                args:
+                  - op: "="
+                    args: [{ var: "ac_codegen_smoke" }, { enum: "ES_Pass" }]
+                  - op: "="
+                    args: [{ var: "ac_codegen_smoke" }, { enum: "ES_NA" }]
+              then: { const: 25 }
+              else: { const: 0 }
+
+      # D7 Maintainability: modularity, documentation, changelog, bounds sane
+      - var: "score_maintainability"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "rv_modularity" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "rv_modularity" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                    - op: "ite"
+                      cond:
+                        op: "or"
+                        args:
+                          - op: "="
+                            args: [{ var: "rv_documentation" }, { enum: "ES_Pass" }]
+                          - op: "="
+                            args: [{ var: "rv_documentation" }, { enum: "ES_NA" }]
+                      then: { const: 25 }
+                      else: { const: 0 }
+                - op: "ite"
+                  cond:
+                    op: "or"
+                    args:
+                      - op: "="
+                        args: [{ var: "rv_change_log" }, { enum: "ES_Pass" }]
+                      - op: "="
+                        args: [{ var: "rv_change_log" }, { enum: "ES_NA" }]
+                  then: { const: 25 }
+                  else: { const: 0 }
+            - op: "ite"
+              cond:
+                op: "or"
+                args:
+                  - op: "="
+                    args: [{ var: "ac_bounds_sane" }, { enum: "ES_Pass" }]
+                  - op: "="
+                    args: [{ var: "ac_bounds_sane" }, { enum: "ES_NA" }]
+              then: { const: 25 }
+              else: { const: 0 }
+
+    effects:
+      event: { enum: "EV_scores_recomputed" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Automated" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "decide_gate"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "PH_Evidence" }]
+        - op: "="
+          args: [{ var: "verdict" }, { enum: "VD_None" }]
+        - op: "!="
+          args: [{ var: "spec_ref" }, { const: 0 }]
+        - op: "="
+          args: [{ var: "score_epoch" }, { var: "evidence_epoch" }]
+
+        # Evidence completeness depends on selected gate.
+        - op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "gate_level" }, { enum: "GL_Alpha" }]
+          then:
+            op: "and"
+            args:
+              - op: "!="
+                args: [{ var: "ac_validate" }, { enum: "ES_Unknown" }]
+              - op: "!="
+                args: [{ var: "ac_finite_domains" }, { enum: "ES_Unknown" }]
+              - op: "!="
+                args: [{ var: "ac_invariants_inductive" }, { enum: "ES_Unknown" }]
+              - op: "!="
+                args: [{ var: "ac_refinement" }, { enum: "ES_Unknown" }]
+              - op: "!="
+                args: [{ var: "rv_assumptions" }, { enum: "ES_Unknown" }]
+              - op: "!="
+                args: [{ var: "rv_contract" }, { enum: "ES_Unknown" }]
+              - op: "!="
+                args: [{ var: "rv_edge_cases" }, { enum: "ES_Unknown" }]
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ var: "gate_level" }, { enum: "GL_Beta" }]
+            then:
+              op: "and"
+              args:
+                - op: "and"
+                  args:
+                    - op: "!="
+                      args: [{ var: "ac_validate" }, { enum: "ES_Unknown" }]
+                    - op: "!="
+                      args: [{ var: "ac_finite_domains" }, { enum: "ES_Unknown" }]
+                    - op: "!="
+                      args: [{ var: "ac_invariants_inductive" }, { enum: "ES_Unknown" }]
+                    - op: "!="
+                      args: [{ var: "ac_refinement" }, { enum: "ES_Unknown" }]
+                    - op: "!="
+                      args: [{ var: "rv_assumptions" }, { enum: "ES_Unknown" }]
+                    - op: "!="
+                      args: [{ var: "rv_contract" }, { enum: "ES_Unknown" }]
+                    - op: "!="
+                      args: [{ var: "rv_edge_cases" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_deterministic_replay" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_canonicalizer" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_shell_lint" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_verify_shell" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_liveness" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_ops_controls" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_threat_model" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_versioning" }, { enum: "ES_Unknown" }]
+            else:
+              # Production: all evidence must be explicitly decided (no Unknown).
+              op: "and"
+              args:
+                - op: "!="
+                  args: [{ var: "ac_validate" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_finite_domains" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_invariants_inductive" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_refinement" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_equivalence" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_canonicalizer" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_bounds_sane" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_deterministic_replay" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_shell_lint" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_verify_shell" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "ac_codegen_smoke" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_assumptions" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_contract" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_edge_cases" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_liveness" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_threat_model" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_game_theory" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_mev" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_oracle" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_versioning" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_ops_controls" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_modularity" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_documentation" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_change_log" }, { enum: "ES_Unknown" }]
+                - op: "!="
+                  args: [{ var: "rv_ci_plan" }, { enum: "ES_Unknown" }]
+    updates:
+      - var: "phase"
+        expr: { enum: "PH_Decided" }
+      - var: "decision_gate"
+        expr: { var: "gate_level" }
+
+      # verdict = Fail if hard-fail; else Pass if thresholds met; else Revise.
+      - var: "verdict"
+        expr:
+          op: "ite"
+          cond:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ var: "gate_level" }, { enum: "GL_Alpha" }]
+            then:
+              op: "or"
+              args:
+                - { var: "has_open_s0" }
+                - { var: "has_open_s1" }
+                - op: "="
+                  args: [{ var: "ac_validate" }, { enum: "ES_Fail" }]
+                - op: "="
+                  args: [{ var: "ac_finite_domains" }, { enum: "ES_Fail" }]
+                - op: "="
+                  args: [{ var: "ac_invariants_inductive" }, { enum: "ES_Fail" }]
+            else:
+              op: "ite"
+              cond:
+                op: "="
+                args: [{ var: "gate_level" }, { enum: "GL_Beta" }]
+              then:
+                op: "or"
+                args:
+                  - { var: "has_open_s0" }
+                  - { var: "has_open_s1" }
+                  - op: "="
+                    args: [{ var: "ac_validate" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_finite_domains" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_invariants_inductive" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_deterministic_replay" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_shell_lint" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_verify_shell" }, { enum: "ES_Fail" }]
+              else:
+                op: "or"
+                args:
+                  - { var: "has_open_s0" }
+                  - { var: "has_open_s1" }
+                  - op: "="
+                    args: [{ var: "ac_validate" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_finite_domains" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_invariants_inductive" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_deterministic_replay" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_shell_lint" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_verify_shell" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_equivalence" }, { enum: "ES_Fail" }]
+                  - op: "="
+                    args: [{ var: "ac_codegen_smoke" }, { enum: "ES_Fail" }]
+                  - op: ">"
+                    args: [{ var: "process_dpmo_x10" }, { const: 34 }]
+                  - op: "!="
+                    args: [{ var: "rv_ci_plan" }, { enum: "ES_Pass" }]
+          then: { enum: "VD_Fail" }
+          else:
+            op: "ite"
+            cond:
+              op: "ite"
+              cond:
+                op: "="
+                args: [{ var: "gate_level" }, { enum: "GL_Alpha" }]
+              then:
+                op: "and"
+                args:
+                  - op: ">="
+                    args: [{ var: "score_formal" }, { const: 75 }]
+                  - op: ">="
+                    args: [{ var: "score_contract" }, { const: 50 }]
+                  - op: ">="
+                    args: [{ var: "score_coverage" }, { const: 50 }]
+                  - op: "not"
+                    args: [{ var: "has_open_s0" }]
+                  - op: "not"
+                    args: [{ var: "has_open_s1" }]
+              else:
+                op: "ite"
+                cond:
+                  op: "="
+                  args: [{ var: "gate_level" }, { enum: "GL_Beta" }]
+                then:
+                  op: "and"
+                  args:
+                    - op: ">="
+                      args: [{ var: "score_formal" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_coverage" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_determinism" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_contract" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_operability" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_adversarial" }, { const: 50 }]
+                    - op: "not"
+                      args: [{ var: "has_open_s0" }]
+                    - op: "not"
+                      args: [{ var: "has_open_s1" }]
+                    - op: "not"
+                      args: [{ var: "has_open_s2" }]
+                else:
+                  op: "and"
+                  args:
+                    - op: "="
+                      args: [{ var: "score_formal" }, { const: 100 }]
+                    - op: "="
+                      args: [{ var: "score_determinism" }, { const: 100 }]
+                    - op: ">="
+                      args: [{ var: "score_coverage" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_contract" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_adversarial" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_operability" }, { const: 75 }]
+                    - op: ">="
+                      args: [{ var: "score_maintainability" }, { const: 75 }]
+                    - op: "<="
+                      args: [{ var: "process_dpmo_x10" }, { const: 34 }]
+                    - op: "="
+                      args: [{ var: "rv_ci_plan" }, { enum: "ES_Pass" }]
+                    - op: "not"
+                      args: [{ var: "has_open_s0" }]
+                    - op: "not"
+                      args: [{ var: "has_open_s1" }]
+                    - op: "not"
+                      args: [{ var: "has_open_s2" }]
+            then: { enum: "VD_Pass" }
+            else: { enum: "VD_Revise" }
+
+    effects:
+      event: { enum: "EV_gate_decided" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Automated" }
+      decision_gate_eff: { var: "decision_gate" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "archive"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "PH_Decided" }]
+        - op: "!="
+          args: [{ var: "verdict" }, { enum: "VD_None" }]
+    updates:
+      - var: "phase"
+        expr: { enum: "PH_Archived" }
+    effects:
+      event: { enum: "EV_archived" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Automated" }
+      decision_gate_eff: { var: "decision_gate" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "reset_for_revision"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "PH_Decided" }]
+        - op: "<"
+          args: [{ var: "revision" }, { const: 7 }]
+        - op: "<"
+          args: [{ var: "evidence_epoch" }, { const: 63 }]
+    updates:
+      - var: "phase"
+        expr: { enum: "PH_Evidence" }
+      - var: "revision"
+        expr:
+          op: "+"
+          args: [{ var: "revision" }, { const: 1 }]
+      - var: "verdict"
+        expr: { enum: "VD_None" }
+
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+      - var: "score_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+
+      - var: "score_formal"
+        expr: { const: 0 }
+      - var: "score_coverage"
+        expr: { const: 0 }
+      - var: "score_determinism"
+        expr: { const: 0 }
+      - var: "score_contract"
+        expr: { const: 0 }
+      - var: "score_adversarial"
+        expr: { const: 0 }
+      - var: "score_operability"
+        expr: { const: 0 }
+      - var: "score_maintainability"
+        expr: { const: 0 }
+
+      - var: "has_open_s0"
+        expr: { bool: false }
+      - var: "has_open_s1"
+        expr: { bool: false }
+      - var: "has_open_s2"
+        expr: { bool: false }
+
+      - var: "ac_validate"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_finite_domains"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_invariants_inductive"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_refinement"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_equivalence"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_canonicalizer"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_bounds_sane"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_deterministic_replay"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_shell_lint"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_verify_shell"
+        expr: { enum: "ES_Unknown" }
+      - var: "ac_codegen_smoke"
+        expr: { enum: "ES_Unknown" }
+
+      - var: "rv_assumptions"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_contract"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_edge_cases"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_liveness"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_threat_model"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_game_theory"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_mev"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_oracle"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_versioning"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_ops_controls"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_modularity"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_documentation"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_change_log"
+        expr: { enum: "ES_Unknown" }
+      - var: "rv_ci_plan"
+        expr: { enum: "ES_Unknown" }
+
+      - var: "d0_present"
+        expr: { bool: false }
+      - var: "d0_sev"
+        expr: { enum: "SV_S4_Trivial" }
+      - var: "d0_type"
+        expr: { enum: "DT_None" }
+      - var: "d0_stage"
+        expr: { enum: "DS_Automated" }
+      - var: "d0_status"
+        expr: { enum: "DF_Closed" }
+
+      - var: "d1_present"
+        expr: { bool: false }
+      - var: "d1_sev"
+        expr: { enum: "SV_S4_Trivial" }
+      - var: "d1_type"
+        expr: { enum: "DT_None" }
+      - var: "d1_stage"
+        expr: { enum: "DS_Automated" }
+      - var: "d1_status"
+        expr: { enum: "DF_Closed" }
+
+      - var: "d2_present"
+        expr: { bool: false }
+      - var: "d2_sev"
+        expr: { enum: "SV_S4_Trivial" }
+      - var: "d2_type"
+        expr: { enum: "DT_None" }
+      - var: "d2_stage"
+        expr: { enum: "DS_Automated" }
+      - var: "d2_status"
+        expr: { enum: "DF_Closed" }
+
+      - var: "d3_present"
+        expr: { bool: false }
+      - var: "d3_sev"
+        expr: { enum: "SV_S4_Trivial" }
+      - var: "d3_type"
+        expr: { enum: "DT_None" }
+      - var: "d3_stage"
+        expr: { enum: "DS_Automated" }
+      - var: "d3_status"
+        expr: { enum: "DF_Closed" }
+
+    effects:
+      event: { enum: "EV_revision_reset" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_Automated" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "update_process_dpmo"
+    params:
+      - id: "dpmo_x10"
+        type: { ref: "DpmoX10" }
+    guard:
+      op: "<"
+      args: [{ var: "evidence_epoch" }, { const: 63 }]
+    updates:
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+      - var: "process_dpmo_x10"
+        expr: { param: "dpmo_x10" }
+      - var: "process_six_sigma_ready"
+        expr:
+          op: "<="
+          args: [{ param: "dpmo_x10" }, { const: 34 }]
+    effects:
+      event: { enum: "EV_process_dpmo_updated" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_PostDeploy" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "log_escaped_defect"
+    params:
+      - id: "sev"
+        type: { ref: "DefectSeverity" }
+      - id: "typ"
+        type: { ref: "DefectType" }
+    guard:
+      op: "and"
+      args:
+        - op: "<"
+          args: [{ var: "evidence_epoch" }, { const: 63 }]
+        - op: "<"
+          args: [{ var: "escaped_defects_window" }, { const: 31 }]
+        - op: "!="
+          args: [{ param: "typ" }, { enum: "DT_None" }]
+    updates:
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+      - var: "capa_open"
+        expr: { bool: true }
+      - var: "last_escape_sev"
+        expr: { param: "sev" }
+      - var: "last_escape_type"
+        expr: { param: "typ" }
+      - var: "escaped_defects_window"
+        expr:
+          op: "+"
+          args: [{ var: "escaped_defects_window" }, { const: 1 }]
+    effects:
+      event: { enum: "EV_escaped_defect_logged" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { param: "typ" }
+      defect_sev: { param: "sev" }
+      defect_stage: { enum: "DS_PostDeploy" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }
+
+  - id: "close_capa"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { var: "capa_open" }
+        - op: "<"
+          args: [{ var: "evidence_epoch" }, { const: 63 }]
+    updates:
+      - var: "evidence_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "evidence_epoch" }, { const: 1 }]
+      - var: "capa_open"
+        expr: { bool: false }
+    effects:
+      event: { enum: "EV_capa_closed" }
+      auto_check: { enum: "AC_None" }
+      auto_result: { enum: "ES_Unknown" }
+      review_item: { enum: "RV_None" }
+      review_result: { enum: "ES_Unknown" }
+      defect_slot: { enum: "SL_None" }
+      defect_type: { enum: "DT_None" }
+      defect_sev: { enum: "SV_S4_Trivial" }
+      defect_stage: { enum: "DS_PostDeploy" }
+      decision_gate_eff: { var: "gate_level" }
+      decision_verdict_eff: { var: "verdict" }

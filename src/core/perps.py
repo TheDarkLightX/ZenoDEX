@@ -5,7 +5,7 @@ This file defines the *persistent* perps state that lives inside `DexState` and 
 encoded/decoded by `src/integration/dex_snapshot.py`.
 
 The actual risk-engine step logic is implemented separately (see
-`src/core/perp_epoch.py` + `src/kernels/dex/perp_epoch_isolated_v2.yaml`).
+`src/core/perp_epoch.py` + `src/kernels/dex/perp_epoch_isolated_v3.yaml`).
 
 Units note:
 - Isolated markets (`kind="isolated_v2"`) track collateral in *quote units* (`collateral_quote`).
@@ -19,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Literal
 
+from ..state.canonical import canonical_hex_fixed_allow_0x
+
 
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
 Value = bool | int | str
@@ -28,11 +30,46 @@ PERPS_STATE_VERSION_V4 = 4
 PERPS_STATE_VERSION_V5 = 5
 PERPS_STATE_VERSION = PERPS_STATE_VERSION_V5
 
+
+def _pubkey_bytes48(pubkey: str, *, name: str) -> bytes:
+    canon = canonical_hex_fixed_allow_0x(pubkey, nbytes=48, name=name)
+    return bytes.fromhex(canon[2:])
+
+
+def _pubkey_bytes48_or_none(pubkey: str) -> bytes | None:
+    try:
+        return _pubkey_bytes48(pubkey, name="pubkey")
+    except Exception:
+        return None
+
+
+def _infer_epoch_phase(gs: dict) -> str:
+    """Infer epoch_phase from existing global_state fields for legacy snapshots.
+
+    Epoch lifecycle: advance_epoch→Open, publish_clearing_price→PricePublished,
+    settle_epoch→Settled. We detect the phase from the side-effects each
+    transition leaves:
+      - PricePublished: clearing_price_seen=True, clearing_price_epoch==now_epoch
+      - Settled: additionally oracle_last_update_epoch==now_epoch, oracle_seen=True
+      - Open: otherwise (no clearing price published in the current epoch)
+    """
+    now = gs.get("now_epoch", 0)
+    cp_seen = gs.get("clearing_price_seen", False)
+    cp_epoch = gs.get("clearing_price_epoch", -1)
+    o_seen = gs.get("oracle_seen", False)
+    o_epoch = gs.get("oracle_last_update_epoch", -1)
+
+    if cp_seen and cp_epoch == now:
+        if o_seen and o_epoch == now:
+            return "Settled"
+        return "PricePublished"
+    return "Open"
+
 PERP_MARKET_KIND_ISOLATED_V2: Literal["isolated_v2"] = "isolated_v2"
 PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1: Literal["clearinghouse_2p_v1"] = "clearinghouse_2p_v1"
 PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1: Literal["clearinghouse_3p_transfer_v1"] = "clearinghouse_3p_transfer_v1"
 
-# Per `src/kernels/dex/perp_epoch_isolated_v2.yaml` (default posture).
+# Per `src/kernels/dex/perp_epoch_isolated_v3.yaml` (default posture).
 PERP_ACCOUNT_KEYS: set[str] = {
     "position_base",
     "entry_price_e8",
@@ -43,6 +80,7 @@ PERP_ACCOUNT_KEYS: set[str] = {
 }
 PERP_ISOLATED_GLOBAL_KEYS: set[str] = {
     "now_epoch",
+    "epoch_phase",
     "breaker_active",
     "breaker_last_trigger_epoch",
     "clearing_price_seen",
@@ -66,6 +104,13 @@ PERP_ISOLATED_GLOBAL_KEYS: set[str] = {
     "fee_income",
     "claims_paid",
     "min_notional_for_bounty",
+}
+
+# JSON compatibility: allow legacy 0/1 encodings for bools and normalize them.
+_PERP_ISOLATED_GLOBAL_BOOL_KEYS: set[str] = {
+    "breaker_active",
+    "clearing_price_seen",
+    "oracle_seen",
 }
 
 # Backwards-compatible alias (older modules import PERP_GLOBAL_KEYS).
@@ -206,6 +251,10 @@ class PerpMarketState:
             raise TypeError("accounts must be a dict")
 
         # Fail-closed: validate global_state shape and types (no unknown keys).
+        # Backward compat: infer epoch_phase from existing state for legacy snapshots.
+        if "epoch_phase" not in self.global_state:
+            # frozen=True prevents direct assignment; use dict mutation.
+            self.global_state["epoch_phase"] = _infer_epoch_phase(self.global_state)
         keys = set(self.global_state.keys())
         extra = keys - PERP_ISOLATED_GLOBAL_KEYS
         missing = PERP_ISOLATED_GLOBAL_KEYS - keys
@@ -213,12 +262,150 @@ class PerpMarketState:
             raise ValueError(f"global_state has unknown keys: {sorted(extra)[:8]}")
         if missing:
             raise ValueError(f"global_state missing required keys: {sorted(missing)[:8]}")
-        for k, v in self.global_state.items():
-            if isinstance(v, bool):
+        # Normalize epoch_phase int encoding (ESSO: 0=Open,1=PricePublished,2=Settled).
+        _EPOCH_PHASE_INT_TO_STR = {0: "Open", 1: "PricePublished", 2: "Settled"}
+        ep = self.global_state.get("epoch_phase")
+        if isinstance(ep, int) and not isinstance(ep, bool):
+            if ep not in _EPOCH_PHASE_INT_TO_STR:
+                raise ValueError(f"global_state['epoch_phase'] int value {ep} out of range [0,2]")
+            self.global_state["epoch_phase"] = _EPOCH_PHASE_INT_TO_STR[ep]
+        _VALID_EPOCH_PHASES = {"Open", "PricePublished", "Settled"}
+        for k, v in list(self.global_state.items()):
+            # epoch_phase must be a valid phase string (never bool/int after normalization).
+            if k == "epoch_phase":
+                if not isinstance(v, str) or v not in _VALID_EPOCH_PHASES:
+                    raise ValueError(f"global_state['epoch_phase'] invalid: {v!r}")
                 continue
+
+            # Some upstreams historically used 0/1 ints for booleans; normalize.
+            if k in _PERP_ISOLATED_GLOBAL_BOOL_KEYS:
+                if isinstance(v, bool):
+                    continue
+                if isinstance(v, int) and not isinstance(v, bool):
+                    if v in (0, 1):
+                        self.global_state[k] = bool(v)
+                        continue
+                raise TypeError(f"global_state[{k!r}] must be a bool (or 0/1 int)")
+
             if isinstance(v, int) and not isinstance(v, bool):
                 continue
-            raise TypeError(f"global_state[{k!r}] must be bool|int")
+            raise TypeError(f"global_state[{k!r}] must be an int")
+
+        self._validate_isolated_state_consistency()
+
+    def _validate_isolated_state_consistency(self) -> None:
+        """Validate consensus-critical invariants on the persistent isolated-market state.
+
+        This prevents malformed snapshots from bypassing phase gates or corrupting
+        derived accounting.
+        """
+        from .perp_v2.math import maint_margin_req
+
+        gs = self.global_state
+
+        now_epoch = int(gs["now_epoch"])
+        epoch_phase = str(gs["epoch_phase"])
+
+        breaker_active = bool(gs["breaker_active"])
+        breaker_last_trigger_epoch = int(gs["breaker_last_trigger_epoch"])
+
+        clearing_price_seen = bool(gs["clearing_price_seen"])
+        clearing_price_epoch = int(gs["clearing_price_epoch"])
+        clearing_price_e8 = int(gs["clearing_price_e8"])
+
+        oracle_seen = bool(gs["oracle_seen"])
+        oracle_last_update_epoch = int(gs["oracle_last_update_epoch"])
+        index_price_e8 = int(gs["index_price_e8"])
+
+        max_oracle_move_bps = int(gs["max_oracle_move_bps"])
+        initial_margin_bps = int(gs["initial_margin_bps"])
+        maintenance_margin_bps = int(gs["maintenance_margin_bps"])
+        depeg_buffer_bps = int(gs["depeg_buffer_bps"])
+        liquidation_penalty_bps = int(gs["liquidation_penalty_bps"])
+
+        fee_pool_quote = int(gs["fee_pool_quote"])
+        funding_rate_bps = int(gs["funding_rate_bps"])
+        funding_cap_bps = int(gs["funding_cap_bps"])
+
+        insurance_balance = int(gs["insurance_balance"])
+        initial_insurance = int(gs["initial_insurance"])
+        fee_income = int(gs["fee_income"])
+        claims_paid = int(gs["claims_paid"])
+
+        # Basic temporal sanity: "from future" fields are invalid.
+        if breaker_last_trigger_epoch > now_epoch:
+            raise ValueError("breaker_last_trigger_epoch must be <= now_epoch")
+        if clearing_price_epoch > now_epoch:
+            raise ValueError("clearing_price_epoch must be <= now_epoch")
+        if oracle_last_update_epoch > now_epoch:
+            raise ValueError("oracle_last_update_epoch must be <= now_epoch")
+
+        # Zeroing invariants (fail-closed on partial fields).
+        if not breaker_active and breaker_last_trigger_epoch != 0:
+            raise ValueError("breaker_last_trigger_epoch must be 0 when breaker_active is false")
+        if not clearing_price_seen and (clearing_price_epoch != 0 or clearing_price_e8 != 0):
+            raise ValueError("clearing_price fields must be 0 when clearing_price_seen is false")
+        if not oracle_seen and (oracle_last_update_epoch != 0 or index_price_e8 != 0):
+            raise ValueError("oracle fields must be 0 when oracle_seen is false")
+        if oracle_seen and index_price_e8 <= 0:
+            raise ValueError("index_price_e8 must be positive when oracle_seen is true")
+
+        # Parameter ordering invariants.
+        eff_maint = maintenance_margin_bps + depeg_buffer_bps
+        if not (max_oracle_move_bps <= eff_maint <= initial_margin_bps):
+            raise ValueError("invalid margin params ordering (max_move <= maint+depeg <= initial)")
+        if liquidation_penalty_bps >= eff_maint:
+            raise ValueError("invalid liquidation_penalty_bps (must be < maintenance_margin_bps + depeg_buffer_bps)")
+
+        # Funding bounds + gate.
+        if abs(funding_rate_bps) > funding_cap_bps:
+            raise ValueError("funding_rate_bps must be within [-funding_cap_bps, funding_cap_bps]")
+
+        # Insurance accounting + nonneg.
+        if insurance_balance < 0:
+            raise ValueError("insurance_balance must be non-negative")
+        if insurance_balance != initial_insurance + fee_income - claims_paid:
+            raise ValueError("insurance_balance must equal initial_insurance + fee_income - claims_paid")
+
+        # Fee pool accounting identity.
+        if fee_pool_quote != fee_income:
+            raise ValueError("fee_pool_quote must equal fee_income")
+
+        # Epoch phase consistency (prevents bypassing phase gating via malformed snapshots).
+        if epoch_phase == "Open":
+            if clearing_price_seen and clearing_price_epoch == now_epoch:
+                raise ValueError("epoch_phase Open inconsistent with clearing_price for current epoch")
+            if now_epoch > 0 and oracle_seen and oracle_last_update_epoch == now_epoch:
+                raise ValueError("epoch_phase Open inconsistent with oracle_last_update_epoch == now_epoch")
+        elif epoch_phase == "PricePublished":
+            if not (clearing_price_seen and clearing_price_epoch == now_epoch):
+                raise ValueError("epoch_phase PricePublished requires clearing_price for current epoch")
+            if oracle_seen and oracle_last_update_epoch == now_epoch:
+                raise ValueError("epoch_phase PricePublished requires oracle_last_update_epoch < now_epoch")
+        elif epoch_phase == "Settled":
+            if not (clearing_price_seen and clearing_price_epoch == now_epoch):
+                raise ValueError("epoch_phase Settled requires clearing_price for current epoch")
+            if not (oracle_seen and oracle_last_update_epoch == now_epoch):
+                raise ValueError("epoch_phase Settled requires oracle_last_update_epoch == now_epoch")
+        else:  # pragma: no cover - guarded earlier
+            raise ValueError(f"invalid epoch_phase: {epoch_phase!r}")
+
+        # Account-level invariants that are cheap to enforce at snapshot boundaries.
+        for pk, acct in self.accounts.items():
+            if not isinstance(pk, str) or not pk:
+                raise TypeError("accounts keys must be non-empty strings")
+            pos = int(acct.position_base)
+            entry = int(acct.entry_price_e8)
+            if int(acct.funding_last_applied_epoch) > now_epoch:
+                raise ValueError("account funding_last_applied_epoch must be <= now_epoch")
+            if pos == 0 and entry != 0:
+                raise ValueError("entry_price_e8 must be 0 when position_base is 0")
+            if pos != 0 and entry != index_price_e8:
+                raise ValueError("entry_price_e8 must equal index_price_e8 when position_base is non-zero")
+            if pos != 0:
+                mreq = maint_margin_req(pos, index_price_e8, maintenance_margin_bps, depeg_buffer_bps)
+                if int(acct.collateral_quote) < mreq:
+                    raise ValueError("account collateral below maintenance margin requirement")
 
     def kernel_state_for_account(self, account: PerpAccountState) -> dict[str, Value]:
         # Merge global + account state into a single kernel state dict.
@@ -252,7 +439,9 @@ class PerpClearinghouse2pMarketState:
             raise TypeError("account_a_pubkey must be a non-empty string")
         if not isinstance(self.account_b_pubkey, str) or not self.account_b_pubkey:
             raise TypeError("account_b_pubkey must be a non-empty string")
-        if self.account_a_pubkey == self.account_b_pubkey:
+        a_b = _pubkey_bytes48(self.account_a_pubkey, name="account_a_pubkey")
+        b_b = _pubkey_bytes48(self.account_b_pubkey, name="account_b_pubkey")
+        if a_b == b_b:
             raise ValueError("clearinghouse accounts must be distinct")
         if not isinstance(self.state, dict):
             raise TypeError("state must be a dict")
@@ -292,9 +481,12 @@ class PerpClearinghouse2pMarketState:
             )
 
     def role_for_pubkey(self, pubkey: str) -> Literal["a", "b"] | None:
-        if pubkey == self.account_a_pubkey:
+        pb = _pubkey_bytes48_or_none(pubkey)
+        if pb is None:
+            return None
+        if pb == _pubkey_bytes48_or_none(self.account_a_pubkey):
             return "a"
-        if pubkey == self.account_b_pubkey:
+        if pb == _pubkey_bytes48_or_none(self.account_b_pubkey):
             return "b"
         return None
 
@@ -329,7 +521,10 @@ class PerpClearinghouse3pTransferMarketState:
             raise TypeError("account_b_pubkey must be a non-empty string")
         if not isinstance(self.account_c_pubkey, str) or not self.account_c_pubkey:
             raise TypeError("account_c_pubkey must be a non-empty string")
-        if len({self.account_a_pubkey, self.account_b_pubkey, self.account_c_pubkey}) != 3:
+        a_b = _pubkey_bytes48(self.account_a_pubkey, name="account_a_pubkey")
+        b_b = _pubkey_bytes48(self.account_b_pubkey, name="account_b_pubkey")
+        c_b = _pubkey_bytes48(self.account_c_pubkey, name="account_c_pubkey")
+        if len({a_b, b_b, c_b}) != 3:
             raise ValueError("clearinghouse accounts must be distinct")
         if not isinstance(self.state, dict):
             raise TypeError("state must be a dict")
@@ -374,11 +569,14 @@ class PerpClearinghouse3pTransferMarketState:
             )
 
     def role_for_pubkey(self, pubkey: str) -> Literal["a", "b", "c"] | None:
-        if pubkey == self.account_a_pubkey:
+        pb = _pubkey_bytes48_or_none(pubkey)
+        if pb is None:
+            return None
+        if pb == _pubkey_bytes48_or_none(self.account_a_pubkey):
             return "a"
-        if pubkey == self.account_b_pubkey:
+        if pb == _pubkey_bytes48_or_none(self.account_b_pubkey):
             return "b"
-        if pubkey == self.account_c_pubkey:
+        if pb == _pubkey_bytes48_or_none(self.account_c_pubkey):
             return "c"
         return None
 

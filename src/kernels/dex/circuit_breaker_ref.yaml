@@ -53,6 +53,19 @@ actions:
         - { op: "not", args: [{ var: "breaker_triggered" }] }
         - { op: ">=", args: [{ param: "current_time" }, { var: "window_start" }] }
         - { op: ">", args: [{ param: "volume" }, { const: 0 }] }
+        # No-overflow guard for the active-window accumulation branch.
+        - op: "or"
+          args:
+            - op: ">"
+              args:
+                - op: "-"
+                  args: [{ param: "current_time" }, { var: "window_start" }]
+                - { param: "window_duration" }
+            - op: "<="
+              args:
+                - op: "+"
+                  args: [{ var: "volume_accumulated" }, { param: "volume" }]
+                - { const: 10000000 }
     updates:
       - var: "window_start"
         expr:
@@ -84,30 +97,21 @@ actions:
         expr:
           op: "or"
           args:
-            [
-              { var: "breaker_triggered" },
-              {
-                op: ">=",
-                args:
-                  [
-                    {
-                      op: "ite",
-                      cond:
-                        op: ">"
-                        args:
-                          [
-                            { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] },
-                            { param: "window_duration" },
-                          ]
-                      then: { param: "volume" }
-                      else:
-                        op: "+"
-                        args: [{ var: "volume_accumulated" }, { param: "volume" }],
-                    },
-                    { param: "max_volume" },
-                  ],
-              },
-            ]
+            - { var: "breaker_triggered" }
+            - op: ">="
+              args:
+                - op: "ite"
+                  cond:
+                    op: ">"
+                    args:
+                      - op: "-"
+                        args: [{ param: "current_time" }, { var: "window_start" }]
+                      - { param: "window_duration" }
+                  then: { param: "volume" }
+                  else:
+                    op: "+"
+                    args: [{ var: "volume_accumulated" }, { param: "volume" }]
+                - { param: "max_volume" }
     effects:
       volume_after:
         op: "ite"
@@ -125,23 +129,18 @@ actions:
       is_breached:
         op: ">="
         args:
-          [
-            {
-              op: "ite",
-              cond:
-                op: ">"
-                args:
-                  [
-                    { op: "-", args: [{ param: "current_time" }, { var: "window_start" }] },
-                    { param: "window_duration" },
-                  ]
-              then: { param: "volume" }
-              else:
-                op: "+"
-                args: [{ var: "volume_accumulated" }, { param: "volume" }],
-            },
-            { param: "max_volume" },
-          ]
+          - op: "ite"
+            cond:
+              op: ">"
+              args:
+                - op: "-"
+                  args: [{ param: "current_time" }, { var: "window_start" }]
+                - { param: "window_duration" }
+            then: { param: "volume" }
+            else:
+              op: "+"
+              args: [{ var: "volume_accumulated" }, { param: "volume" }]
+          - { param: "max_volume" }
   - id: "reset"
     params: []
     guard:

@@ -1,6 +1,22 @@
 """
 Batch clearing algorithm for deterministic settlement.
 
+PRODUCTION REQUIREMENT: Always use batch clearing, never sequential execution.
+--------------------------------------------------------------------------
+- Sequential CPMM execution has fundamental sandwich MEV: an adversary who
+  controls ordering can insert transactions before and after a victim swap,
+  extracting value via price manipulation (H-GT-002).
+- Batch clearing with AB-optimal ordering eliminates this MEV vector by
+  processing all intents atomically against a single reserve snapshot, with
+  the ordering chosen to maximize executed volume (A) and surplus (B)
+  rather than being attacker-controlled (H-BC-016).
+- Production deployments MUST route through ``compute_settlement()`` with
+  ``swap_ordering="optimal_ab_bounded"`` (exact, bounded) or
+  ``"greedy_ab_refined"`` (heuristic, unbounded-n). Direct sequential
+  application of swaps against a live pool is NOT safe for adversarial
+  environments.
+--------------------------------------------------------------------------
+
 This module implements the batch clearing algorithm that processes multiple
 intents in a single batch to reduce ordering dependence.
 
@@ -40,15 +56,21 @@ LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 _SWAP_ORDERING_LIMIT_PRICE = "limit_price"
 _SWAP_ORDERING_OPTIMAL_AB_BOUNDED = "optimal_ab_bounded"
 _SWAP_ORDERING_GREEDY_AB = "greedy_ab"
+_SWAP_ORDERING_GREEDY_AB_REFINED = "greedy_ab_refined"
+_SWAP_ORDERING_GREEDY_AB_GLOBAL = "greedy_ab_global"
 _SWAP_ORDERING_CHOICES = frozenset({
     _SWAP_ORDERING_LIMIT_PRICE,
     _SWAP_ORDERING_OPTIMAL_AB_BOUNDED,
     _SWAP_ORDERING_GREEDY_AB,
+    _SWAP_ORDERING_GREEDY_AB_REFINED,
+    _SWAP_ORDERING_GREEDY_AB_GLOBAL,
 })
 
 # Bounded brute-force safety cap for AB-optimal ordering.
 # For N > this limit, greedy_ab should be used instead.
 _MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
+# Global pair-swap refinement can be expensive; cap intent count for this mode.
+_MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
 
 
 def compute_settlement(
@@ -478,6 +500,33 @@ def clear_batch_single_pool(
     elif swap_ordering == _SWAP_ORDERING_GREEDY_AB:
         sorted_swaps = _order_swaps_greedy_ab(
             swap_intents,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
+    elif swap_ordering == _SWAP_ORDERING_GREEDY_AB_REFINED:
+        greedy = _order_swaps_greedy_ab(
+            swap_intents,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
+        sorted_swaps = _refine_b_ordering(
+            greedy,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
+    elif swap_ordering == _SWAP_ORDERING_GREEDY_AB_GLOBAL:
+        greedy = _order_swaps_greedy_ab(
+            swap_intents,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
+        refined = _refine_b_ordering(
+            greedy,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
+        sorted_swaps = _refine_ab_ordering_global(
+            refined,
             pool_state=pool_state,
             reserves=current_reserves,
         )
@@ -1353,3 +1402,120 @@ def _order_swaps_greedy_ab(
     if greedy_ab >= limit_ab:
         return greedy_ordered
     return limit_ordered
+
+
+def _refine_b_ordering(
+    ordering: List[Intent],
+    *,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> List[Intent]:
+    """B-refinement pass: improve surplus (B) without decreasing volume (A).
+
+    Takes a greedy-AB ordering and performs repeated adjacent-swap passes.
+    For each pair of adjacent intents (i, i+1), if swapping them improves B
+    while keeping A equal, the swap is applied. Repeats until a full pass
+    produces no improvement (bubble-sort style).
+
+    Complexity: O(n^2) per pass, at most O(n) passes, so O(n^3) worst case.
+    In practice converges in 1-2 passes for typical batch sizes.
+
+    This addresses the B-suboptimality of greedy ordering (H-BC-001):
+    greedy_ab is A-optimal but B-suboptimal in 39-94% of cases.
+    """
+    if len(ordering) <= 1:
+        return list(ordering)
+
+    result = list(ordering)
+    base_a, base_b = _eval_ordering_ab(result, pool_state, reserves)
+
+    improved = True
+    while improved:
+        improved = False
+        for i in range(len(result) - 1):
+            # Try swapping adjacent pair (i, i+1)
+            result[i], result[i + 1] = result[i + 1], result[i]
+            new_a, new_b = _eval_ordering_ab(result, pool_state, reserves)
+
+            if new_a < base_a:
+                # A decreased: revert swap
+                result[i], result[i + 1] = result[i + 1], result[i]
+            elif new_a == base_a and new_b > base_b:
+                # A unchanged, B improved: keep the swap
+                base_b = new_b
+                improved = True
+            elif new_a > base_a:
+                # A increased (unexpected but beneficial): keep the swap
+                base_a = new_a
+                base_b = new_b
+                improved = True
+            else:
+                # A unchanged, B not improved: revert swap
+                result[i], result[i + 1] = result[i + 1], result[i]
+
+    return result
+
+
+def _refine_ab_ordering_global(
+    ordering: List[Intent],
+    *,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> List[Intent]:
+    """Global pair-swap AB refinement with deterministic tie-breaks.
+
+    Starts from an existing ordering (typically `greedy_ab_refined`) and applies
+    improving non-adjacent pair swaps. A candidate swap is accepted only when it
+    strictly improves `(A, B)` lexicographically (maximize A first, then B).
+
+    To avoid pathological runtime, for large batches this function falls back to
+    adjacent-only refinement.
+    """
+    n = len(ordering)
+    if n <= 1:
+        return list(ordering)
+    if n > _MAX_SWAP_ORDERING_GLOBAL_REFINE_N:
+        return _refine_b_ordering(ordering, pool_state=pool_state, reserves=reserves)
+
+    result = list(ordering)
+    base_a, base_b = _eval_ordering_ab(result, pool_state, reserves)
+
+    # Bounded number of passes; each pass applies at most one best-improving swap.
+    max_passes = n
+    for _ in range(max_passes):
+        best_pair: Optional[Tuple[int, int]] = None
+        best_a: Amount = base_a
+        best_b: Amount = base_b
+
+        for i in range(n - 1):
+            for j in range(i + 1, n):
+                result[i], result[j] = result[j], result[i]
+                cand_a, cand_b = _eval_ordering_ab(result, pool_state, reserves)
+                result[i], result[j] = result[j], result[i]
+
+                better = False
+                if cand_a > best_a:
+                    better = True
+                elif cand_a == best_a and cand_b > best_b:
+                    better = True
+
+                if not better:
+                    continue
+
+                # Deterministic tie-break: prefer smallest (i, j) for equal (A, B).
+                if cand_a == best_a and cand_b == best_b and best_pair is not None:
+                    if (i, j) >= best_pair:
+                        continue
+
+                best_pair = (i, j)
+                best_a = cand_a
+                best_b = cand_b
+
+        if best_pair is None:
+            break
+
+        i, j = best_pair
+        result[i], result[j] = result[j], result[i]
+        base_a, base_b = best_a, best_b
+
+    return result

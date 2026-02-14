@@ -1,0 +1,16 @@
+# zUSD Mint Guard v1 (transition-aware, direct-expression form)
+# i1  = amount (bv[64])
+# i2  = debt_before (bv[64])
+# i3  = free_before (bv[64])
+# i4  = debt_after (bv[64])
+# i5  = free_after (bv[64])
+# i6  = risky_ops_allowed (sbf)
+# i7  = min_open_ok (sbf)
+# i8  = max_vault_ok (sbf)
+# i9  = max_supply_ok (sbf)
+# i10 = mcr_post_ok (sbf)
+# o4  = mint_allowed
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[64] > { #x0000000000000000 }:bv[64]) && (i4[t]:bv[64] >= i2[t]:bv[64]) && ((i4[t]:bv[64] - i2[t]:bv[64]) = i1[t]:bv[64]) && (i5[t]:bv[64] >= i3[t]:bv[64]) && ((i5[t]:bv[64] - i3[t]:bv[64]) = i1[t]:bv[64]))) && (o2[t]:sbf = 1:sbf <-> ((i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf))) && (o3[t]:sbf = 1:sbf <-> ((i4[t]:bv[64] >= i2[t]:bv[64]) && ((i4[t]:bv[64] - i2[t]:bv[64]) = i1[t]:bv[64]) && (i5[t]:bv[64] >= i3[t]:bv[64]) && ((i5[t]:bv[64] - i3[t]:bv[64]) = i1[t]:bv[64]))) && (o4[t]:sbf = 1:sbf <-> ((i1[t]:bv[64] > { #x0000000000000000 }:bv[64]) && (i4[t]:bv[64] >= i2[t]:bv[64]) && ((i4[t]:bv[64] - i2[t]:bv[64]) = i1[t]:bv[64]) && (i5[t]:bv[64] >= i3[t]:bv[64]) && ((i5[t]:bv[64] - i3[t]:bv[64]) = i1[t]:bv[64]) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf))).

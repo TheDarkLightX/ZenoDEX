@@ -20,7 +20,7 @@ The stronger finset-level statement
   (swapEdge ...).edgeFinset = insert s(u,v) (T.edgeFinset.erase e)
 
 is the next step once we thread through the standard finiteness instances; we keep it out of this
-file to ensure the development stays `sorry`/`admit`-free.
+file to keep the development free of unfinished proof placeholders.
 -/
 
 open scoped Classical
@@ -49,4 +49,3 @@ theorem edgeSet_swapEdge (e : Sym2 V) (u v : V) :
 
 end MST
 end TauSwap
-

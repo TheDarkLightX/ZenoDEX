@@ -5,10 +5,14 @@ This module implements the generic `external/tau-testnet/app_bridge.py` plugin A
   apply_app_tx(...)
 
 It applies DEX operations from a Tau transaction's `operations` dict:
-  - "2": intents (list)
-  - "3": settlement (object) [optional if allow_missing_settlement]
-  - "4": faucet (object) [optional, test-only; requires TAU_DEX_FAUCET=1]
-  - "5": perps (list) [optional; isolated markets require an operator key for admin actions]
+  - "5": intents (list)
+  - "6": settlement (object) [optional if allow_missing_settlement]
+  - "7": faucet (object) [optional, test-only; requires TAU_DEX_FAUCET=1]
+  - "8": perps (list) [optional; isolated markets require an operator key for admin actions]
+  - "9": token ops (list) [optional; transfer/mint/burn for non-native assets]
+
+Legacy key aliases are also accepted when invoking the plugin directly:
+  - "2" -> intents, "3" -> settlement, "4" -> faucet, "5" -> perps
 """
 
 from __future__ import annotations
@@ -17,14 +21,34 @@ import json
 import os
 import hashlib
 from dataclasses import replace
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 from ..core.dex import DexState
+from ..state.canonical import canonical_hex_fixed_allow_0x
 from ..state.balances import BalanceTable, NATIVE_ASSET
 from ..state.lp import LPTable
+from ..state.nonces import NonceTable
 from .dex_engine import DexEngineConfig, apply_ops
 from .dex_snapshot import snapshot_from_state, state_from_snapshot
 from .perp_engine import PerpEngineConfig, apply_perp_ops
+
+
+_DEX_INTENTS_KEY = "5"
+_DEX_SETTLEMENT_KEY = "6"
+_DEX_FAUCET_KEY = "7"
+_PERP_OPS_KEY = "8"
+_TOKEN_OPS_KEY = "9"
+
+_LEGACY_DEX_INTENTS_KEY = "2"
+_LEGACY_DEX_SETTLEMENT_KEY = "3"
+_LEGACY_DEX_FAUCET_KEY = "4"
+_LEGACY_PERP_OPS_KEY = "5"
+
+
+def _canonical_state_and_hash(state: DexState) -> Tuple[str, str]:
+    snap = snapshot_from_state(state)
+    canonical = snap.canonical_bytes()
+    return canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest()
 
 
 def _bool_env(name: str, *, default: bool) -> bool:
@@ -43,6 +67,13 @@ def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
     copied = BalanceTable()
     for (pubkey, asset), amount in balances.get_all_balances().items():
         copied.set(pubkey, asset, int(amount))
+    return copied
+
+
+def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
+    copied = NonceTable()
+    for pubkey, last_nonce in nonces.get_all().items():
+        copied.set_last(pubkey, int(last_nonce))
     return copied
 
 
@@ -105,16 +136,7 @@ def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) ->
             continue
         balances_copy.set(str(pk), NATIVE_ASSET, amt_i)
 
-    return DexState(
-        balances=balances_copy,
-        pools=state.pools,
-        lp_balances=state.lp_balances,
-        nonces=state.nonces,
-        vault=state.vault,
-        oracle=state.oracle,
-        fee_accumulator=state.fee_accumulator,
-        perps=state.perps,
-    )
+    return replace(state, balances=balances_copy)
 
 
 def _apply_faucet(
@@ -164,6 +186,300 @@ def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState)
     return out
 
 
+def _canonical_pubkey(value: Any, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a 48-byte hex pubkey string")
+    return canonical_hex_fixed_allow_0x(value, nbytes=48, name=name)
+
+
+def _canonical_token_asset(value: Any, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a 32-byte hex asset string")
+    asset = canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)
+    if asset == NATIVE_ASSET:
+        raise ValueError("token stream does not support native asset")
+    return asset
+
+
+def _require_u32_positive(value: Any, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError(f"{name} must be a positive int")
+    if value > 0xFFFFFFFF:
+        raise ValueError(f"{name} must fit in u32")
+    return int(value)
+
+
+def _token_sender_nonce_key(sender_pubkey: str) -> str:
+    # Domain-separated pseudopubkey avoids nonce coupling with DEX/perps streams.
+    payload = b"zenodex:tau_token_nonce:v1\x00" + sender_pubkey.encode("ascii")
+    return "0x" + hashlib.sha384(payload).hexdigest()
+
+
+def _resolve_token_operator_pubkey() -> Optional[str]:
+    raw = os.environ.get("TAU_DEX_TOKEN_OPERATOR_PUBKEY", "").strip()
+    if not raw:
+        raw = os.environ.get("TAU_DEX_OPERATOR_PUBKEY", "").strip()
+    if not raw:
+        return None
+    return _canonical_pubkey(raw, name="TAU_DEX_TOKEN_OPERATOR_PUBKEY")
+
+
+def _enforce_deadline(*, op: Mapping[str, Any], block_timestamp: int, op_name: str) -> Optional[str]:
+    deadline_raw = op.get("deadline")
+    if deadline_raw is None:
+        return None
+    try:
+        deadline = _require_u32_positive(deadline_raw, name=f"{op_name}.deadline")
+    except Exception as exc:
+        return str(exc)
+    if int(block_timestamp) > int(deadline):
+        return f"{op_name}.deadline expired"
+    return None
+
+
+def _apply_token_ops(
+    state: DexState,
+    token_ops: Any,
+    *,
+    tx_sender_pubkey: str,
+    block_timestamp: int,
+) -> Tuple[bool, DexState, Optional[str]]:
+    if token_ops is None:
+        return True, state, None
+    if not isinstance(token_ops, list):
+        return False, state, "token op stream must be a list"
+    if not token_ops:
+        return True, state, None
+
+    try:
+        sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
+    except Exception as exc:
+        return False, state, str(exc)
+
+    balances = _copy_balance_table(state.balances)
+    nonces = _copy_nonce_table(state.nonces)
+    nonce_key = _token_sender_nonce_key(sender)
+
+    for i, raw in enumerate(token_ops):
+        if not isinstance(raw, Mapping):
+            return False, state, f"token op[{i}] must be an object"
+        op = dict(raw)
+        module = str(op.get("module", "TauToken"))
+        if module != "TauToken":
+            return False, state, f"token op[{i}] module must be TauToken"
+        action = str(op.get("action", "")).strip().lower()
+        if action not in {"transfer", "mint", "burn"}:
+            return False, state, f"token op[{i}] action unsupported: {action!r}"
+
+        try:
+            nonce = _require_u32_positive(op.get("nonce"), name=f"token op[{i}].nonce")
+        except Exception as exc:
+            return False, state, str(exc)
+        expected = int(nonces.get_last(nonce_key)) + 1
+        if nonce != expected:
+            return False, state, f"token op[{i}] nonce invalid (expected {expected}, got {nonce})"
+
+        deadline_err = _enforce_deadline(op=op, block_timestamp=int(block_timestamp), op_name=f"token op[{i}]")
+        if deadline_err is not None:
+            return False, state, deadline_err
+
+        if action == "transfer":
+            allowed = {
+                "module",
+                "version",
+                "action",
+                "asset",
+                "to_pubkey",
+                "amount",
+                "nonce",
+                "deadline",
+                "sender_pubkey",
+            }
+            extra = set(op.keys()) - allowed
+            if extra:
+                return False, state, f"token op[{i}] unknown fields: {sorted(extra)}"
+            sender_raw = op.get("sender_pubkey")
+            if sender_raw is not None:
+                try:
+                    sender_in_op = _canonical_pubkey(sender_raw, name=f"token op[{i}].sender_pubkey")
+                except Exception as exc:
+                    return False, state, str(exc)
+                if sender_in_op != sender:
+                    return False, state, f"token op[{i}] sender_pubkey mismatch"
+            try:
+                asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
+                to_pubkey = _canonical_pubkey(op.get("to_pubkey"), name=f"token op[{i}].to_pubkey")
+                amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
+            except Exception as exc:
+                return False, state, str(exc)
+            sender_balance = int(balances.get(sender, asset))
+            if sender_balance < amount:
+                return False, state, f"token op[{i}] insufficient balance"
+            balances.set(sender, asset, sender_balance - amount)
+            recipient_balance = int(balances.get(to_pubkey, asset))
+            balances.set(to_pubkey, asset, recipient_balance + amount)
+
+        elif action == "mint":
+            allowed = {
+                "module",
+                "version",
+                "action",
+                "asset",
+                "to_pubkey",
+                "amount",
+                "nonce",
+                "deadline",
+                "operator_pubkey",
+            }
+            extra = set(op.keys()) - allowed
+            if extra:
+                return False, state, f"token op[{i}] unknown fields: {sorted(extra)}"
+            operator_pk = _resolve_token_operator_pubkey()
+            if operator_pk is None:
+                return False, state, "token mint disabled (set TAU_DEX_TOKEN_OPERATOR_PUBKEY)"
+            if sender != operator_pk:
+                return False, state, "token mint requires operator sender"
+            operator_in_op = op.get("operator_pubkey")
+            if operator_in_op is not None:
+                try:
+                    op_pk = _canonical_pubkey(operator_in_op, name=f"token op[{i}].operator_pubkey")
+                except Exception as exc:
+                    return False, state, str(exc)
+                if op_pk != sender:
+                    return False, state, f"token op[{i}] operator_pubkey mismatch"
+            try:
+                asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
+                to_pubkey = _canonical_pubkey(op.get("to_pubkey"), name=f"token op[{i}].to_pubkey")
+                amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
+            except Exception as exc:
+                return False, state, str(exc)
+            recipient_balance = int(balances.get(to_pubkey, asset))
+            balances.set(to_pubkey, asset, recipient_balance + amount)
+
+        else:
+            allowed = {
+                "module",
+                "version",
+                "action",
+                "asset",
+                "amount",
+                "nonce",
+                "deadline",
+                "sender_pubkey",
+            }
+            extra = set(op.keys()) - allowed
+            if extra:
+                return False, state, f"token op[{i}] unknown fields: {sorted(extra)}"
+            sender_raw = op.get("sender_pubkey")
+            if sender_raw is not None:
+                try:
+                    sender_in_op = _canonical_pubkey(sender_raw, name=f"token op[{i}].sender_pubkey")
+                except Exception as exc:
+                    return False, state, str(exc)
+                if sender_in_op != sender:
+                    return False, state, f"token op[{i}] sender_pubkey mismatch"
+            try:
+                asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
+                amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
+            except Exception as exc:
+                return False, state, str(exc)
+            sender_balance = int(balances.get(sender, asset))
+            if sender_balance < amount:
+                return False, state, f"token op[{i}] insufficient balance"
+            balances.set(sender, asset, sender_balance - amount)
+
+        nonces.set_last(nonce_key, nonce)
+
+    return True, replace(state, balances=balances, nonces=nonces), None
+
+
+def _looks_like_dex_intents(raw: Any) -> bool:
+    if not isinstance(raw, list):
+        return False
+    if not raw:
+        return True
+
+    first = raw[0]
+    candidate: Any = None
+    if isinstance(first, dict):
+        candidate = first
+    elif isinstance(first, (list, tuple)) and first and isinstance(first[0], dict):
+        candidate = first[0]
+    if not isinstance(candidate, dict):
+        return False
+
+    module = candidate.get("module")
+    if module is None:
+        return "kind" in candidate
+    return str(module) == "TauSwap"
+
+
+def _looks_like_perp_ops(raw: Any) -> bool:
+    if not isinstance(raw, list):
+        return False
+    if not raw:
+        return True
+    first = raw[0]
+    if not isinstance(first, dict):
+        return False
+    module = first.get("module")
+    if module is None:
+        return "action" in first
+    return str(module) == "TauPerp"
+
+
+def _select_dex_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if _LEGACY_DEX_INTENTS_KEY in operations:
+        out[_LEGACY_DEX_INTENTS_KEY] = operations.get(_LEGACY_DEX_INTENTS_KEY)
+    elif _DEX_INTENTS_KEY in operations and _looks_like_dex_intents(operations.get(_DEX_INTENTS_KEY)):
+        # Remap upstream-safe stream "5" to the internal DEX adapter schema.
+        out[_LEGACY_DEX_INTENTS_KEY] = operations.get(_DEX_INTENTS_KEY)
+
+    if _LEGACY_DEX_SETTLEMENT_KEY in operations:
+        out[_LEGACY_DEX_SETTLEMENT_KEY] = operations.get(_LEGACY_DEX_SETTLEMENT_KEY)
+    elif _DEX_SETTLEMENT_KEY in operations:
+        # Remap upstream-safe stream "6" to the internal DEX adapter schema.
+        out[_LEGACY_DEX_SETTLEMENT_KEY] = operations.get(_DEX_SETTLEMENT_KEY)
+    return out
+
+
+def _select_perp_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if _PERP_OPS_KEY in operations:
+        out[_LEGACY_PERP_OPS_KEY] = operations.get(_PERP_OPS_KEY)
+        return out
+
+    if (
+        _LEGACY_PERP_OPS_KEY in operations
+        and _LEGACY_DEX_INTENTS_KEY not in operations
+        and not _looks_like_dex_intents(operations.get(_LEGACY_PERP_OPS_KEY))
+        and _looks_like_perp_ops(operations.get(_LEGACY_PERP_OPS_KEY))
+    ):
+        # Legacy fallback for direct plugin tests/tooling that still use stream "5" for perps.
+        out[_LEGACY_PERP_OPS_KEY] = operations.get(_LEGACY_PERP_OPS_KEY)
+    return out
+
+
+def _select_token_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if _TOKEN_OPS_KEY in operations:
+        out[_TOKEN_OPS_KEY] = operations.get(_TOKEN_OPS_KEY)
+    return out
+
+
+def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
+    operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
+    oracle_pubkey = os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
+    allow_isolated = _bool_env("TAU_DEX_ALLOW_ISOLATED_PERPS", default=False)
+    return PerpEngineConfig(
+        operator_pubkey=(operator_pubkey or "").strip() or None,
+        chain_id=chain_id,
+        oracle_pubkey=(oracle_pubkey or "").strip() or None,
+        allow_isolated_markets=bool(allow_isolated),
+    )
+
+
 def apply_app_tx(
     *,
     app_state_json: str,
@@ -172,6 +488,11 @@ def apply_app_tx(
     tx_sender_pubkey: str,
     block_timestamp: int,
 ) -> Tuple[bool, str, str, Optional[Dict[str, int]], Optional[str]]:
+    if not isinstance(operations, dict):
+        return False, app_state_json, "", None, "operations must be an object"
+    if not isinstance(chain_balances, dict):
+        return False, app_state_json, "", None, "chain_balances must be an object"
+
     allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
     allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)
     require_intent_sigs = _bool_env("TAU_DEX_REQUIRE_INTENT_SIGS", default=True)
@@ -183,28 +504,31 @@ def apply_app_tx(
         return False, app_state_json, "", None, str(exc)
     state = _sync_native_balances(state, chain_balances=chain_balances)
 
-    faucet_op = operations.get("4")
+    faucet_op = operations.get(_DEX_FAUCET_KEY, operations.get(_LEGACY_DEX_FAUCET_KEY))
     ok, state, err = _apply_faucet(state, faucet_op, allow=allow_faucet)
     if not ok:
         return False, app_state_json, "", None, err
 
-    dex_ops: Dict[str, Any] = {}
-    if "2" in operations:
-        dex_ops["2"] = operations.get("2")
-    if "3" in operations:
-        dex_ops["3"] = operations.get("3")
-
-    perp_ops: Dict[str, Any] = {}
-    if "5" in operations:
-        perp_ops["5"] = operations.get("5")
+    dex_ops = _select_dex_ops(operations)
+    perp_ops = _select_perp_ops(operations)
+    token_ops = _select_token_ops(operations)
 
     # Sync-only call: no ops, but we still update the snapshot/hash so native balances stay consistent.
-    if not dex_ops and not perp_ops:
-        snap = snapshot_from_state(state)
-        canonical = snap.canonical_bytes()
-        return True, canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest(), None, None
+    if not dex_ops and not perp_ops and not token_ops:
+        canonical, app_hash = _canonical_state_and_hash(state)
+        return True, canonical, app_hash, None, None
 
     next_state = state
+    if token_ops:
+        ok, next_state, token_err = _apply_token_ops(
+            next_state,
+            token_ops.get(_TOKEN_OPS_KEY),
+            tx_sender_pubkey=tx_sender_pubkey,
+            block_timestamp=int(block_timestamp),
+        )
+        if not ok:
+            return False, app_state_json, "", None, token_err or "token op rejected"
+
     if dex_ops:
         engine_cfg = DexEngineConfig(
             allow_missing_settlement=bool(allow_missing_settlement),
@@ -223,15 +547,7 @@ def apply_app_tx(
         next_state = res.state
 
     if perp_ops:
-        operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
-        oracle_pubkey = os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
-        allow_isolated = _bool_env("TAU_DEX_ALLOW_ISOLATED_PERPS", default=False)
-        perp_cfg = PerpEngineConfig(
-            operator_pubkey=(operator_pubkey or "").strip() or None,
-            chain_id=chain_id,
-            oracle_pubkey=(oracle_pubkey or "").strip() or None,
-            allow_isolated_markets=bool(allow_isolated),
-        )
+        perp_cfg = _build_perp_engine_config(chain_id=chain_id)
         perp_res = apply_perp_ops(
             config=perp_cfg,
             state=next_state,
@@ -244,6 +560,5 @@ def apply_app_tx(
         next_state = perp_res.state
 
     balances_patch = _balances_patch_for_native(before=chain_balances, after_state=next_state)
-    snap = snapshot_from_state(next_state)
-    canonical = snap.canonical_bytes()
-    return True, canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest(), balances_patch, None
+    canonical, app_hash = _canonical_state_and_hash(next_state)
+    return True, canonical, app_hash, balances_patch, None
