@@ -9,6 +9,7 @@ from dataclasses import replace
 from src.core.perp_v2 import (
     Action,
     ActionParams,
+    EpochPhase,
     Event,
     PerpGuardError,
     PerpInvariantError,
@@ -85,6 +86,20 @@ class TestPublishClearingPrice:
         r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
         assert not r.accepted
 
+    def test_rejected_when_phase_not_open(self):
+        s = replace(
+            initial_state(),
+            now_epoch=1,
+            clearing_price_epoch=0,
+            epoch_phase=EpochPhase.SETTLED,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=100_000_000,
+        )
+        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
+        assert not r.accepted
+        assert r.rejection == "guard"
+
 
 # ---------------------------------------------------------------------------
 # settle_epoch
@@ -96,6 +111,7 @@ class TestSettleEpoch:
         s = replace(
             initial_state(),
             now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
             clearing_price_seen=True,
             clearing_price_epoch=2,
             clearing_price_e8=price_e8,
@@ -116,6 +132,26 @@ class TestSettleEpoch:
         assert r.state.oracle_last_update_epoch == 2
         assert r.effect.event == Event.EPOCH_SETTLED
         assert r.effect.oracle_fresh is True
+
+    def test_bootstrap_settle_allowed_when_oracle_not_seen_and_flat(self):
+        s = replace(
+            initial_state(),
+            now_epoch=1,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            clearing_price_seen=True,
+            clearing_price_epoch=1,
+            clearing_price_e8=100_000_000,
+            oracle_seen=False,
+            oracle_last_update_epoch=0,
+            index_price_e8=0,
+            position_base=0,
+            collateral_quote=0,
+        )
+        r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
+        assert r.accepted
+        assert r.state is not None
+        assert r.state.oracle_seen is True
+        assert r.state.index_price_e8 == 100_000_000
 
     def test_profitable_long(self):
         # Long 100, price goes up 10% but clamped to 5% (max_oracle_move_bps=500)
@@ -146,6 +182,7 @@ class TestSettleEpoch:
         s = replace(
             initial_state(),
             now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
             clearing_price_seen=True,
             clearing_price_epoch=2,
             clearing_price_e8=97_000_000,
@@ -166,6 +203,60 @@ class TestSettleEpoch:
         s = replace(initial_state(), now_epoch=2, clearing_price_seen=False)
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert not r.accepted
+
+    def test_guard_rejects_when_phase_not_price_published(self):
+        s = replace(
+            initial_state(),
+            now_epoch=2,
+            epoch_phase=EpochPhase.OPEN,
+            clearing_price_seen=True,
+            clearing_price_epoch=2,
+            clearing_price_e8=100_000_000,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=100_000_000,
+            collateral_quote=100_000,
+        )
+        r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
+        assert not r.accepted
+        assert r.rejection == "guard"
+
+    def test_guard_rejects_when_oracle_not_seen(self):
+        s = replace(
+            initial_state(),
+            now_epoch=2,
+            clearing_price_seen=True,
+            clearing_price_epoch=2,
+            clearing_price_e8=100_000_000,
+            oracle_seen=False,
+            oracle_last_update_epoch=1,
+            index_price_e8=0,
+            collateral_quote=100_000,
+            position_base=100,
+            entry_price_e8=100_000_000,
+        )
+        r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
+        assert not r.accepted
+        assert r.rejection == "guard"
+
+    def test_guard_rejects_when_oracle_stale(self):
+        s = replace(
+            initial_state(),
+            now_epoch=5,
+            clearing_price_seen=True,
+            clearing_price_epoch=5,
+            clearing_price_e8=100_000_000,
+            oracle_seen=True,
+            oracle_last_update_epoch=2,
+            max_oracle_staleness_epochs=1,
+            index_price_e8=100_000_000,
+            collateral_quote=100_000,
+            position_base=100,
+            entry_price_e8=100_000_000,
+        )
+        r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
+        assert not r.accepted
+        assert r.rejection == "guard"
 
     def test_breaker_triggered_on_large_move(self):
         # price exceeds max_oracle_move_bps (500 = 5%)
@@ -223,6 +314,21 @@ class TestWithdrawCollateral:
         r = step(s, ActionParams(action=Action.WITHDRAW_COLLATERAL, amount=90, auth_ok=True))
         assert r.accepted
 
+    def test_rejected_when_oracle_seen_but_index_zero(self):
+        s = replace(
+            initial_state(),
+            now_epoch=1,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=0,
+            collateral_quote=100,
+            position_base=100,
+            entry_price_e8=0,
+        )
+        r = step(s, ActionParams(action=Action.WITHDRAW_COLLATERAL, amount=1, auth_ok=True))
+        assert not r.accepted
+        assert r.rejection == "guard"
+
 
 # ---------------------------------------------------------------------------
 # set_position
@@ -253,6 +359,19 @@ class TestSetPosition:
         s = initial_state()
         r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True))
         assert not r.accepted
+
+    def test_oracle_seen_with_zero_index_rejected(self):
+        s = replace(
+            initial_state(),
+            now_epoch=1,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=0,
+            collateral_quote=100_000,
+        )
+        r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True))
+        assert not r.accepted
+        assert r.rejection == "guard"
 
     def test_breaker_reduce_only(self):
         s = _make_state_with_oracle(collateral=100_000, position=100, breaker_active=True)
@@ -354,6 +473,21 @@ class TestApplyFunding:
         r = step(s, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True))
         assert not r.accepted
 
+    def test_oracle_seen_with_zero_index_rejected(self):
+        s = replace(
+            initial_state(),
+            now_epoch=1,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=0,
+            collateral_quote=100_000,
+            position_base=100,
+            entry_price_e8=0,
+        )
+        r = step(s, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True))
+        assert not r.accepted
+        assert r.rejection == "guard"
+
     def test_margin_check(self):
         s = _make_state_with_oracle(collateral=7, position=100)
         # maint_req = 6, funding=5 would leave collateral=2 < 6
@@ -407,11 +541,13 @@ class TestFullSequence:
         r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
         assert r.accepted
         s = r.state
+        assert s.epoch_phase == EpochPhase.OPEN
 
         # Publish clearing price
         r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
         assert r.accepted
         s = r.state
+        assert s.epoch_phase == EpochPhase.PRICE_PUBLISHED
 
         # Settle epoch (establishes oracle)
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
@@ -419,6 +555,13 @@ class TestFullSequence:
         s = r.state
         assert s.oracle_seen is True
         assert s.index_price_e8 == 100_000_000
+        assert s.epoch_phase == EpochPhase.SETTLED
+
+        # Advance to epoch 2 to re-enter OPEN phase for user actions
+        r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
+        assert r.accepted
+        s = r.state
+        assert s.epoch_phase == EpochPhase.OPEN
 
         # Deposit collateral
         r = step(s, ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=100_000, auth_ok=True))
@@ -431,7 +574,7 @@ class TestFullSequence:
         s = r.state
         assert s.position_base == 500
 
-        # Epoch 2
+        # Epoch 3
         r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
         assert r.accepted
         s = r.state
@@ -441,7 +584,7 @@ class TestFullSequence:
         assert r.accepted
         s = r.state
 
-        # Settle epoch 2
+        # Settle epoch 3
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert r.accepted
         s = r.state
@@ -449,6 +592,11 @@ class TestFullSequence:
         assert s.collateral_quote == 100_025
         assert s.index_price_e8 == 105_000_000  # clamped
         assert s.breaker_active is True  # 10% move > 5% threshold
+
+        # Advance to re-enter OPEN phase for user actions
+        r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
+        assert r.accepted
+        s = r.state
 
         # Close position (breaker active, reduce-only)
         r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=0, auth_ok=True))
@@ -475,11 +623,13 @@ class TestFullSequence:
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
             ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000),
             ActionParams(action=Action.SETTLE_EPOCH),
+            ActionParams(action=Action.ADVANCE_EPOCH, delta=1),  # re-enter OPEN
             ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1_000_000, auth_ok=True),
             ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True),
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
             ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=102_000_000),
             ActionParams(action=Action.SETTLE_EPOCH),
+            ActionParams(action=Action.ADVANCE_EPOCH, delta=1),  # re-enter OPEN
             ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True),
             ActionParams(action=Action.SET_POSITION, new_position_base=0, auth_ok=True),
             ActionParams(action=Action.WITHDRAW_COLLATERAL, amount=100, auth_ok=True),
@@ -517,6 +667,11 @@ class TestParamDomainValidation:
         assert not r.accepted
         assert r.rejection == "param_domain:delta"
 
+    def test_advance_epoch_delta_bool_rejected(self):
+        r = step(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=True))
+        assert not r.accepted
+        assert r.rejection == "param_domain:delta"
+
     def test_advance_epoch_delta_at_max(self):
         r = step(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=10_000))
         assert r.accepted
@@ -543,6 +698,11 @@ class TestParamDomainValidation:
         r = step(initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=0, auth_ok=True))
         assert not r.accepted
         assert r.rejection == "param_domain:amount"
+
+    def test_deposit_collateral_auth_must_be_bool(self):
+        r = step(initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1, auth_ok=1))
+        assert not r.accepted
+        assert r.rejection == "param_domain:auth_ok"
 
     def test_deposit_collateral_negative(self):
         r = step(initial_state(), ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=-1, auth_ok=True))
@@ -614,6 +774,7 @@ class TestEffectFields:
         s = replace(
             initial_state(),
             now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
             clearing_price_seen=True,
             clearing_price_epoch=2,
             clearing_price_e8=101_000_000,
@@ -718,3 +879,121 @@ class TestSettleLiqOverflowBoundary:
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert not r.accepted
         assert r.rejection == "guard"
+
+
+# ---------------------------------------------------------------------------
+# Phase-gate tests
+# ---------------------------------------------------------------------------
+
+class TestPhaseGating:
+    """User actions (deposit, withdraw, set_position, apply_funding) are
+    rejected when epoch_phase is not OPEN."""
+
+    def test_deposit_rejected_in_price_published(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            now_epoch=1,
+            clearing_price_seen=True,
+            clearing_price_epoch=1,
+        )
+        r = step(s, ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1000, auth_ok=True))
+        assert not r.accepted
+        assert r.rejection == "guard"
+
+    def test_deposit_rejected_in_settled(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.SETTLED,
+            now_epoch=1,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=100_000_000,
+        )
+        r = step(s, ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1000, auth_ok=True))
+        assert not r.accepted
+        assert r.rejection == "guard"
+
+    def test_withdraw_rejected_in_price_published(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            now_epoch=1,
+            clearing_price_seen=True,
+            clearing_price_epoch=1,
+            collateral_quote=1000,
+        )
+        r = step(s, ActionParams(action=Action.WITHDRAW_COLLATERAL, amount=500, auth_ok=True))
+        assert not r.accepted
+
+    def test_set_position_rejected_in_settled(self):
+        s = replace(
+            _make_state_with_oracle(collateral=100_000),
+            epoch_phase=EpochPhase.SETTLED,
+            oracle_last_update_epoch=1,
+        )
+        r = step(s, ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True))
+        assert not r.accepted
+
+    def test_apply_funding_accepted_in_price_published(self):
+        """Funding can be applied after clearing price is published (PRICE_PUBLISHED phase)."""
+        s = replace(
+            _make_state_with_oracle(collateral=100_000, position=1000),
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            clearing_price_seen=True,
+            clearing_price_epoch=1,
+        )
+        r = step(s, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True))
+        assert r.accepted
+
+    def test_apply_funding_rejected_in_settled(self):
+        """Funding cannot be applied after epoch is settled."""
+        s = replace(
+            _make_state_with_oracle(collateral=100_000, position=1000),
+            epoch_phase=EpochPhase.SETTLED,
+            clearing_price_seen=True,
+            clearing_price_epoch=1,
+        )
+        r = step(s, ActionParams(action=Action.APPLY_FUNDING, new_rate_bps=50, auth_ok=True))
+        assert not r.accepted
+
+    def test_deposit_accepted_in_open(self):
+        s = initial_state()
+        assert s.epoch_phase == EpochPhase.OPEN
+        r = step(s, ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1000, auth_ok=True))
+        assert r.accepted
+
+    def test_advance_epoch_resets_to_open(self):
+        s = replace(
+            initial_state(),
+            epoch_phase=EpochPhase.SETTLED,
+            now_epoch=1,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=100_000_000,
+        )
+        r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
+        assert r.accepted
+        assert r.state.epoch_phase == EpochPhase.OPEN
+
+    def test_publish_sets_price_published(self):
+        s = replace(initial_state(), now_epoch=1, clearing_price_epoch=0)
+        r = step(s, ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000))
+        assert r.accepted
+        assert r.state.epoch_phase == EpochPhase.PRICE_PUBLISHED
+
+    def test_settle_sets_settled(self):
+        s = replace(
+            initial_state(),
+            now_epoch=2,
+            epoch_phase=EpochPhase.PRICE_PUBLISHED,
+            clearing_price_seen=True,
+            clearing_price_epoch=2,
+            clearing_price_e8=100_000_000,
+            oracle_seen=True,
+            oracle_last_update_epoch=1,
+            index_price_e8=100_000_000,
+        )
+        r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
+        assert r.accepted
+        assert r.state.epoch_phase == EpochPhase.SETTLED

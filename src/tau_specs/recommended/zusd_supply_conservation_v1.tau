@@ -1,0 +1,8 @@
+# zUSD Supply Conservation v1
+set charvar off
+safe_u32(x : bv[32]) := x <= { #x0000FFFF }:bv[32].
+before_ok(free_b : bv[32], sp_b : bv[32], total_b : bv[32]) := (free_b + sp_b) = total_b.
+after_ok(free_a : bv[32], sp_a : bv[32], total_a : bv[32]) := (free_a + sp_a) = total_a.
+safe_range_ok(free_b : bv[32], sp_b : bv[32], total_b : bv[32], free_a : bv[32], sp_a : bv[32], total_a : bv[32]) := safe_u32(free_b) && safe_u32(sp_b) && safe_u32(total_b) && safe_u32(free_a) && safe_u32(sp_a) && safe_u32(total_a).
+supply_conserved(free_b : bv[32], sp_b : bv[32], total_b : bv[32], free_a : bv[32], sp_a : bv[32], total_a : bv[32]) := safe_range_ok(free_b, sp_b, total_b, free_a, sp_a, total_a) && before_ok(free_b, sp_b, total_b) && after_ok(free_a, sp_a, total_a).
+always (o1[t]:sbf = 1:sbf <-> before_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> after_ok(i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> safe_range_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])) && (o4[t]:sbf = 1:sbf <-> supply_conserved(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])).

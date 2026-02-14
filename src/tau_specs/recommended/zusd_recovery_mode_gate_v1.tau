@@ -1,0 +1,7 @@
+# zUSD Recovery Mode Gate v1
+set charvar off
+env_ok(oracle_seen : sbf, price_pos : sbf, pending_eq : sbf, fresh : sbf) := (oracle_seen = 1:sbf) && (price_pos = 1:sbf) && (pending_eq = 1:sbf) && (fresh = 1:sbf).
+risky_ops_allowed(oracle_seen : sbf, price_pos : sbf, pending_eq : sbf, fresh : sbf, tcr_ok : sbf) := env_ok(oracle_seen, price_pos, pending_eq, fresh) && (tcr_ok = 1:sbf).
+blocked_by_recovery(oracle_seen : sbf, price_pos : sbf, pending_eq : sbf, fresh : sbf, tcr_ok : sbf) := env_ok(oracle_seen, price_pos, pending_eq, fresh) && (tcr_ok = 0:sbf).
+action_allowed(oracle_seen : sbf, price_pos : sbf, pending_eq : sbf, fresh : sbf, tcr_ok : sbf, risky : sbf) := (risky = 0:sbf) || risky_ops_allowed(oracle_seen, price_pos, pending_eq, fresh, tcr_ok).
+always (o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> risky_ops_allowed(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> blocked_by_recovery(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> action_allowed(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)).

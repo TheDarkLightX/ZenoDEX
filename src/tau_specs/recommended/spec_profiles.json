@@ -188,6 +188,75 @@
           "spec_path": "src/tau_specs/recommended/tdex_buyback_floor_fixedpoint_v2.tau"
         }
       ]
+    },
+    "zusd": {
+      "variants": [
+        {
+          "variant_id": "transfer_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_transfer_guard_v1.tau"
+        },
+        {
+          "variant_id": "oracle_commit_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_oracle_commit_guard_v1.tau"
+        },
+        {
+          "variant_id": "recovery_mode_gate_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_recovery_mode_gate_v1.tau"
+        },
+        {
+          "variant_id": "liquidation_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v1.tau"
+        },
+        {
+          "variant_id": "supply_conservation_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_supply_conservation_v1.tau"
+        },
+        {
+          "variant_id": "oracle_commit_guard_v2",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_oracle_commit_guard_v2.tau"
+        },
+        {
+          "variant_id": "liquidation_guard_v2",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v2.tau"
+        },
+        {
+          "variant_id": "supply_conservation_v2",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_supply_conservation_v2.tau"
+        },
+        {
+          "variant_id": "mint_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_mint_guard_v1.tau"
+        },
+        {
+          "variant_id": "repay_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_repay_guard_v1.tau"
+        },
+        {
+          "variant_id": "withdraw_collateral_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_withdraw_collateral_guard_v1.tau"
+        },
+        {
+          "variant_id": "deposit_sp_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_deposit_sp_guard_v1.tau"
+        },
+        {
+          "variant_id": "withdraw_sp_guard_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_withdraw_sp_guard_v1.tau"
+        }
+      ]
     }
   }
 }

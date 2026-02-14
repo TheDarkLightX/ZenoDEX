@@ -67,23 +67,26 @@ theorem exists_mem_eq_foldr_max_of_ne_nil (xs : List Nat) (hne : xs ≠ []) :
 theorem exists_heaviest_edge_on_path_le_offEdge
     (T : SimpleGraph V) (w : Sym2 V → Nat)
     (hT : T.IsTree) (u v : V)
-    (hne : pathEdges (T := T) (w := w) hT u v ≠ [])
+    (hne : pathEdges (T := T) hT u v ≠ [])
     (hcert : maxWeightOnPath (T := T) (w := w) hT u v ≤ w s(u, v)) :
     ∃ e : Sym2 V,
-      e ∈ pathEdges (T := T) (w := w) hT u v ∧
+      e ∈ pathEdges (T := T) hT u v ∧
       w e = maxWeightOnPath (T := T) (w := w) hT u v ∧
       w e ≤ w s(u, v) := by
   -- Work on the mapped weight list.
-  have hneW : ((pathEdges (T := T) (w := w) hT u v).map w) ≠ [] := by
+  have hneW : ((pathEdges (T := T) hT u v).map w) ≠ [] := by
     intro hnil
-    -- If map is empty, original is empty.
-    exact hne (List.map_eq_nil.mp hnil)
+    cases hpath : pathEdges (T := T) hT u v with
+    | nil =>
+      exact hne hpath
+    | cons hd tl =>
+      simp [hpath] at hnil
 
   obtain ⟨x, hx_mem, hx_eq⟩ :=
-    exists_mem_eq_foldr_max_of_ne_nil ((pathEdges (T := T) (w := w) hT u v).map w) hneW
+    exists_mem_eq_foldr_max_of_ne_nil ((pathEdges (T := T) hT u v).map w) hneW
 
   -- Pull back `x` to an actual edge `e` on the path with `w e = x`.
-  have : ∃ e, e ∈ pathEdges (T := T) (w := w) hT u v ∧ w e = x := by
+  have : ∃ e, e ∈ pathEdges (T := T) hT u v ∧ w e = x := by
     -- membership in a map gives a preimage
     simpa [List.mem_map] using hx_mem
 
@@ -91,9 +94,11 @@ theorem exists_heaviest_edge_on_path_le_offEdge
 
   refine ⟨e, he_mem, ?_, ?_⟩
   · -- w e = maxWeightOnPath
-    unfold maxWeightOnPath
-    -- foldr on weights list equals x, and w e = x
-    simpa [he_w] using congrArg (fun t => t) hx_eq
+    calc
+      w e = x := he_w
+      _ = maxWeightOnPath (T := T) (w := w) hT u v := by
+        unfold maxWeightOnPath
+        exact hx_eq.symm
   · -- w e ≤ w off-edge
     have hwe_le_max : w e ≤ maxWeightOnPath (T := T) (w := w) hT u v :=
       le_maxWeightOnPath_of_mem (T := T) (w := w) hT (u := u) (v := v) he_mem
@@ -101,4 +106,3 @@ theorem exists_heaviest_edge_on_path_le_offEdge
 
 end MST
 end TauSwap
-

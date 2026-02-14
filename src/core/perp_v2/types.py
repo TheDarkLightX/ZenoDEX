@@ -1,7 +1,7 @@
 """Data types for the `perp_v2` risk engine.
 
 All types are frozen dataclasses (immutable). Field names and defaults match
-`src/kernels/dex/perp_epoch_isolated_v2.yaml`.
+`src/kernels/dex/perp_epoch_isolated_v3.yaml`.
 
 Units/conventions:
 - `*_e8` prices are quote-per-base scaled by 1e8.
@@ -29,6 +29,15 @@ class Action(Enum):
     APPLY_FUNDING = "apply_funding"
     DEPOSIT_INSURANCE = "deposit_insurance"
     APPLY_INSURANCE_CLAIM = "apply_insurance_claim"
+    PARTIAL_LIQUIDATE = "partial_liquidate"
+
+
+@unique
+class EpochPhase(Enum):
+    """Lifecycle phase within an epoch."""
+    OPEN = "Open"
+    PRICE_PUBLISHED = "PricePublished"
+    SETTLED = "Settled"
 
 
 @unique
@@ -44,14 +53,16 @@ class Event(Enum):
     FUNDING_APPLIED = "FundingApplied"
     INSURANCE_DEPOSITED = "InsuranceDeposited"
     INSURANCE_CLAIM_PAID = "InsuranceClaimPaid"
+    PARTIAL_LIQUIDATION_APPLIED = "PartialLiquidationApplied"
 
 
 @dataclass(frozen=True)
 class PerpState:
-    """Complete state of the single-account `perp_epoch_isolated_v2` kernel."""
+    """Complete state of the single-account `perp_epoch_isolated_v3` kernel."""
 
     # Epoch
     now_epoch: int = 0
+    epoch_phase: EpochPhase = EpochPhase.OPEN
 
     # Circuit breaker
     breaker_active: bool = False
@@ -121,6 +132,7 @@ class ActionParams:
     new_position_base: int = 0    # set_position
     new_rate_bps: int = 0         # apply_funding
     claim_amount: int = 0         # apply_insurance_claim
+    fraction_bps: int = 0         # partial_liquidate (0 = auto-compute minimum)
     auth_ok: bool = False         # shared: deposit/withdraw/set_position/clear/funding/claim
 
 

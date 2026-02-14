@@ -1,0 +1,16 @@
+# zUSD Repay Guard v1 (transition-aware)
+# i1 = amount (bv[64])
+# i2 = debt_before (bv[64])
+# i3 = free_before (bv[64])
+# i4 = debt_after (bv[64])
+# i5 = free_after (bv[64])
+# o4 = repay_allowed
+
+set charvar off
+
+amount_pos(amount : bv[64]) := amount > { #x0000000000000000 }:bv[64].
+pre_bounds_ok(debt_b : bv[64], free_b : bv[64], amount : bv[64]) := (debt_b >= amount) && (free_b >= amount).
+debt_delta_ok(debt_b : bv[64], debt_a : bv[64], amount : bv[64]) := (debt_b >= debt_a) && ((debt_b - debt_a) = amount).
+free_delta_ok(free_b : bv[64], free_a : bv[64], amount : bv[64]) := (free_b >= free_a) && ((free_b - free_a) = amount).
+repay_allowed(amount : bv[64], debt_b : bv[64], free_b : bv[64], debt_a : bv[64], free_a : bv[64]) := amount_pos(amount) && pre_bounds_ok(debt_b, free_b, amount) && debt_delta_ok(debt_b, debt_a, amount) && free_delta_ok(free_b, free_a, amount).
+always (o1[t]:sbf = 1:sbf <-> pre_bounds_ok(i2[t]:bv[64], i3[t]:bv[64], i1[t]:bv[64])) && (o2[t]:sbf = 1:sbf <-> debt_delta_ok(i2[t]:bv[64], i4[t]:bv[64], i1[t]:bv[64])) && (o3[t]:sbf = 1:sbf <-> free_delta_ok(i3[t]:bv[64], i5[t]:bv[64], i1[t]:bv[64])) && (o4[t]:sbf = 1:sbf <-> repay_allowed(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64])).

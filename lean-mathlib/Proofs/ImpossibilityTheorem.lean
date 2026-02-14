@@ -9,7 +9,7 @@ import Mathlib.Tactic
 /-!
 # AMM curve tradeoff (local, proved)
 
-This file provides a **Lean-checked** (no `sorry`) local tradeoff result for the power family
+This file provides a **Lean-checked** (fully completed) local tradeoff result for the power family
 
 `K(x,y; α) = x * y * (x + y)^α`  with `α : ℕ`,
 

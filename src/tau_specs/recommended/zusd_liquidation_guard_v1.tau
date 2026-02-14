@@ -1,0 +1,9 @@
+# zUSD Liquidation Guard v1
+set charvar off
+safe_u32(x : bv[32]) := x <= { #x0000FFFF }:bv[32].
+positive_debt(debt : bv[32]) := debt > { #x00000000 }:bv[32].
+debt_absorbable(vault_debt : bv[32], sp_debt : bv[32]) := sp_debt >= vault_debt.
+coll_cap_ok(vault_coll : bv[32], sp_coll_before : bv[32], max_sp_coll : bv[32]) := safe_u32(vault_coll) && safe_u32(sp_coll_before) && safe_u32(max_sp_coll) && ((sp_coll_before + vault_coll) <= max_sp_coll).
+liq_preconditions_ok(pending_init : sbf, vault_debt : bv[32], under_mcr : sbf) := (pending_init = 1:sbf) && positive_debt(vault_debt) && (under_mcr = 1:sbf).
+liquidation_allowed(pending_init : sbf, vault_debt : bv[32], under_mcr : sbf, sp_debt : bv[32], vault_coll : bv[32], sp_coll_before : bv[32], max_sp_coll : bv[32]) := liq_preconditions_ok(pending_init, vault_debt, under_mcr) && debt_absorbable(vault_debt, sp_debt) && coll_cap_ok(vault_coll, sp_coll_before, max_sp_coll).
+always (o1[t]:sbf = 1:sbf <-> debt_absorbable(i2[t]:bv[32], i4[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> coll_cap_ok(i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> liq_preconditions_ok(i1[t]:sbf, i2[t]:bv[32], i3[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> liquidation_allowed(i1[t]:sbf, i2[t]:bv[32], i3[t]:sbf, i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])).

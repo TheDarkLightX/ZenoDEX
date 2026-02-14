@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.core.dex import DexState
 from src.core.perps import PerpClearinghouse3pTransferMarketState
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
@@ -33,10 +35,17 @@ def _op(market_id: str, action: str, *, version: str, **kwargs: object) -> dict[
     return op
 
 
-def _apply_result(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], block_timestamp: int = _BLOCK_TIMESTAMP):
+def _apply_result(
+    *,
+    state: DexState,
+    tx_sender_pubkey: str,
+    ops: list[dict[str, object]],
+    block_timestamp: int = _BLOCK_TIMESTAMP,
+    operator_pubkey: str | None = None,
+):
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
-    cfg = PerpEngineConfig(chain_id=_CHAIN_ID, oracle_pubkey=_ORACLE_PUBKEY)
+    cfg = PerpEngineConfig(chain_id=_CHAIN_ID, oracle_pubkey=_ORACLE_PUBKEY, operator_pubkey=operator_pubkey)
     return apply_perp_ops(
         config=cfg,
         state=state,
@@ -46,8 +55,21 @@ def _apply_result(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str,
     )
 
 
-def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object]], block_timestamp: int = _BLOCK_TIMESTAMP) -> DexState:
-    res = _apply_result(state=state, tx_sender_pubkey=tx_sender_pubkey, ops=ops, block_timestamp=block_timestamp)
+def _apply(
+    *,
+    state: DexState,
+    tx_sender_pubkey: str,
+    ops: list[dict[str, object]],
+    block_timestamp: int = _BLOCK_TIMESTAMP,
+    operator_pubkey: str | None = None,
+) -> DexState:
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=tx_sender_pubkey,
+        ops=ops,
+        block_timestamp=block_timestamp,
+        operator_pubkey=operator_pubkey,
+    )
     assert res.ok is True, res.error
     assert res.state is not None
     return res.state
@@ -242,6 +264,32 @@ def test_init_market_3p_rejects_wrong_chain_id_signature() -> None:
     assert res.error == "account_a signature invalid: invalid signature"
 
 
+def test_publish_price_3p_rejects_zero_price() -> None:
+    market_id = "perp:ch3p:zero_price"
+    quote_asset = "0x" + "21" * 32
+    relayer = "ff" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_3p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, nonce_c=1, deadline=_DEADLINE)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)],
+    )
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_publish_price(market_id=market_id, price_e8=0, oracle_nonce=1, deadline=_DEADLINE)],
+    )
+    assert not res.ok
+    assert res.error == "publish_clearing_price requires price_e8 > 0"
+
+
 def test_set_position_triplet_requires_net_zero_and_one_idle() -> None:
     market_id = "perp:ch3p:netzero"
     quote_asset = "0x" + "44" * 32
@@ -378,3 +426,53 @@ def test_settle_epoch_3p_can_transfer_distressed_side_and_preserve_conservation(
         + int(m.state["fee_pool_e8"])
         == int(m.state["net_deposited_e8"])
     )
+
+
+def test_set_market_params_3p_rejects_penalty_increase_with_open_positions() -> None:
+    market_id = "perp:ch3p:params_open_pos_guard"
+    quote_asset = "0x" + "66" * 32
+    relayer = "ff" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_3p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, nonce_c=1, deadline=_DEADLINE)],
+    )
+
+    assert state.perps is not None
+    m = state.perps.markets[market_id]
+    assert isinstance(m, PerpClearinghouse3pTransferMarketState)
+    open_market = PerpClearinghouse3pTransferMarketState(
+        quote_asset=m.quote_asset,
+        account_a_pubkey=m.account_a_pubkey,
+        account_b_pubkey=m.account_b_pubkey,
+        account_c_pubkey=m.account_c_pubkey,
+        state={**m.state, "position_base_a": 1_000, "position_base_b": -1_000, "position_base_c": 0},
+    )
+    markets = dict(state.perps.markets)
+    markets[market_id] = open_market
+    state = replace(state, perps=replace(state.perps, markets=markets))
+
+    m = state.perps.markets[market_id]
+    assert isinstance(m, PerpClearinghouse3pTransferMarketState)
+    old_penalty = int(m.state["liquidation_penalty_bps"])
+    maint = int(m.state["maintenance_margin_bps"])
+    new_penalty = old_penalty + 1
+    assert new_penalty < maint
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=relayer,
+        operator_pubkey=relayer,
+        ops=[
+            _op(
+                market_id,
+                "set_market_params",
+                version="1.1",
+                params={"liquidation_penalty_bps": new_penalty},
+            )
+        ],
+    )
+    assert not res.ok
+    assert res.error is not None and "cannot increase liquidation_penalty_bps while positions are open" in res.error

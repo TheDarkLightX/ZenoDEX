@@ -6,7 +6,12 @@ import pytest
 
 from src.core.cpmm import swap_exact_in, swap_exact_out
 from src.integration.tau_runner import split_u32
-from src.integration.tau_witness import build_swap_exact_in_v1_step, build_swap_exact_out_v1_step
+from src.integration.tau_witness import (
+    build_swap_exact_in_v1_step,
+    build_swap_exact_out_v1_step,
+    build_zusd_mint_guard_v1_step,
+    build_zusd_supply_conservation_v2_step,
+)
 
 
 def test_build_swap_exact_in_v1_step_matches_split_u32() -> None:
@@ -88,4 +93,43 @@ def test_build_witness_rejects_out_of_u32_range() -> None:
             amount_out=1,
             new_reserve_in=1,
             new_reserve_out=1,
+        )
+
+
+def test_build_zusd_mint_guard_v1_step_maps_fields() -> None:
+    step = build_zusd_mint_guard_v1_step(
+        amount=100,
+        debt_before=200,
+        free_before=150,
+        debt_after=300,
+        free_after=250,
+        risky_ops_allowed=1,
+        min_open_ok=1,
+        max_vault_ok=1,
+        max_supply_ok=1,
+        mcr_post_ok=1,
+    )
+    assert step == {
+        "i1": 100,
+        "i2": 200,
+        "i3": 150,
+        "i4": 300,
+        "i5": 250,
+        "i6": 1,
+        "i7": 1,
+        "i8": 1,
+        "i9": 1,
+        "i10": 1,
+    }
+
+
+def test_build_zusd_supply_conservation_v2_step_rejects_out_of_u64_range() -> None:
+    with pytest.raises(ValueError):
+        build_zusd_supply_conservation_v2_step(
+            free_before=0x1_0000_0000_0000_0000,  # > u64 max
+            sp_before=0,
+            total_before=0,
+            free_after=0,
+            sp_after=0,
+            total_after=0,
         )

@@ -1,0 +1,43 @@
+# Perp Bounty Shock Guard v1 - Open-Position Parameter Shock Rejection
+#
+# MUTABILITY: IMMUTABLE (policy relation)
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS:
+# - If positions are open, liquidation_penalty_bps must not increase.
+# - If positions are open, min_notional_for_bounty must not decrease.
+#
+# PURPOSE:
+# Encode the runtime fail-closed rule for isolated perps parameter updates:
+# while any position is open, reject updates that increase liquidation keeper
+# payoff by raising penalty bps or lowering bounty-eligible notional.
+#
+# Stream mapping:
+# i1 = has_open_positions (sbf)
+# i2 = old_liquidation_penalty_bps (bv[32])
+# i3 = new_liquidation_penalty_bps (bv[32])
+# i4 = old_min_notional_for_bounty (bv[32])
+# i5 = new_min_notional_for_bounty (bv[32])
+#
+# o1 = penalty_increase_shock
+# o2 = bounty_threshold_decrease_shock
+# o3 = any_bounty_shock
+# o4 = params_update_safe
+#
+# @rule o4:
+#   has_open_positions -> (new_penalty <= old_penalty && new_min_notional >= old_min_notional)
+
+set charvar off
+
+penalty_increase(old_penalty : bv[32], new_penalty : bv[32]) := new_penalty > old_penalty.
+
+bounty_threshold_decrease(old_min_notional : bv[32], new_min_notional : bv[32]) := new_min_notional < old_min_notional.
+
+penalty_increase_shock(open_pos : sbf, old_penalty : bv[32], new_penalty : bv[32]) := (open_pos = 1:sbf) && penalty_increase(old_penalty, new_penalty).
+
+bounty_threshold_decrease_shock(open_pos : sbf, old_min_notional : bv[32], new_min_notional : bv[32]) := (open_pos = 1:sbf) && bounty_threshold_decrease(old_min_notional, new_min_notional).
+
+any_bounty_shock(open_pos : sbf, old_penalty : bv[32], new_penalty : bv[32], old_min_notional : bv[32], new_min_notional : bv[32]) := penalty_increase_shock(open_pos, old_penalty, new_penalty) || bounty_threshold_decrease_shock(open_pos, old_min_notional, new_min_notional).
+
+params_update_safe(open_pos : sbf, old_penalty : bv[32], new_penalty : bv[32], old_min_notional : bv[32], new_min_notional : bv[32]) := !any_bounty_shock(open_pos, old_penalty, new_penalty, old_min_notional, new_min_notional).
+
+always (o1[t]:sbf = 1:sbf <-> penalty_increase_shock(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> bounty_threshold_decrease_shock(i1[t]:sbf, i4[t]:bv[32], i5[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> any_bounty_shock(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) && (o4[t]:sbf = 1:sbf <-> params_update_safe(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).
