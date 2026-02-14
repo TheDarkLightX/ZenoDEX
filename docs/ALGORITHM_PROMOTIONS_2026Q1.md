@@ -1,6 +1,6 @@
 # ZenoDEX Algorithm Promotions (2026 Q1)
 
-This document explains three mechanism/algorithm upgrades that were promoted from research to production code.
+This document explains promoted mechanism/algorithm upgrades that were moved from research into production code.
 
 ## Why these were promoted
 
@@ -83,6 +83,67 @@ Equivalent settlements from different encoders (different list order, split-vs-a
 - If forms match, engine still executes the locally recomputed settlement.
 - Malicious non-equivalent settlements still fail with `settlement mismatch`.
 
+## 4) IL Futures Margin-Capped Settlement (`il_margin_cap`)
+
+### What changed
+
+IL-futures settlement payout is now capped by short margin only:
+
+- old: `available = premium_pool + margin_pool`
+- new: `available = margin_pool`
+
+### Why this is better
+
+This removes cross-subsidy from premium funds into leveraged settlement payouts. Long-side settlement remains bounded by posted short-side margin.
+
+### Determinism and correctness
+
+- Integer arithmetic and invariant checks are unchanged.
+- Settlement remains fail-closed.
+- New regression test locks “premium pool not consumed at settlement” behavior.
+
+## 5) FRM Exposure Imbalance Cap (`frm_imbalance_cap`)
+
+### What changed
+
+FRM open-long/open-short actions now support an optional deterministic imbalance cap:
+
+- `max_imbalance_ratio_bps`
+- `imbalance_cap_min_total`
+
+If enabled, post-trade skew `|L-S|/(L+S)` must stay within the configured bound once total exposure reaches the activation threshold.
+
+### Why this is better
+
+It constrains highly one-sided books that amplify manipulation risk and dual-position gaming EV under extreme imbalance.
+
+### Determinism and correctness
+
+- Guard-only change (no stochastic behavior).
+- Default posture is backward-compatible when cap is unset (`<= 0`).
+- New tests cover reject/allow boundaries.
+
+## 6) zUSD↔Perp Oracle Synchronization Gate (`oracle_sync_gate`)
+
+### What changed
+
+zUSD API oracle-activating commands (`bootstrap_oracle`, `oracle_commit`) now support an optional cross-module sync gate against perps oracle state:
+
+- `ZUSD_PERP_ORACLE_SYNC_ENABLED`
+- `ZUSD_PERP_ORACLE_SYNC_MARKET_ID`
+- `ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS`
+- `ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG`
+
+### Why this is better
+
+It directly mitigates cross-module oracle divergence risk by fail-closing zUSD oracle activation when divergence or epoch lag exceeds configured limits.
+
+### Determinism and correctness
+
+- Checks are integer-only and deterministic.
+- Gate is opt-in and fail-closed.
+- New integration tests cover aligned acceptance, divergence rejection, and epoch-lag rejection.
+
 ## Default posture updates
 
 Core and engine defaults now use:
@@ -110,6 +171,13 @@ Additional regression tests were added to lock behavior:
 - `src/core/batch_clearing.py`
 - `src/core/dex.py`
 - `src/integration/dex_engine.py`
+- `src/core/il_futures.py`
+- `src/core/funding_rate_market.py`
+- `src/integration/perps_api.py`
+- `src/integration/zusd_api.py`
 - `tests/core/test_batch_clearing.py`
+- `tests/core/test_il_futures.py`
+- `tests/core/test_funding_rate_market.py`
 - `tests/integration/test_dex_engine.py`
+- `tests/integration/test_zusd_api.py`
 - `docs/ALGORITHM_PROMOTIONS_2026Q1.md`

@@ -65,6 +65,21 @@ def _float_env(name: str, default: float, *, lo: float, hi: float) -> float:
     return float(v)
 
 
+def _int_env(name: str, default: int, *, lo: int, hi: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return int(default)
+    try:
+        v = int(raw.strip())
+    except Exception:
+        return int(default)
+    if v < lo:
+        return int(lo)
+    if v > hi:
+        return int(hi)
+    return int(v)
+
+
 def _tau_gate_config_from_env() -> ZUSDTauGateConfig:
     return ZUSDTauGateConfig(
         enabled=_bool_env("ZUSD_TAU_GATE_ENABLED", default=True),
@@ -72,6 +87,86 @@ def _tau_gate_config_from_env() -> ZUSDTauGateConfig:
         tau_bin=(os.environ.get("ZUSD_TAU_BIN", "").strip() or None),
         allow_path_lookup=_bool_env("ZUSD_TAU_ALLOW_PATH_LOOKUP", default=True),
     )
+
+
+def _planned_single_oracle_sync_target(*, state: ZUSDState, tag: str, args: Mapping[str, Any]) -> Optional[Tuple[int, int]]:
+    """Return (price_e8, epoch) for commands that would set active oracle price."""
+    if tag == "bootstrap_oracle":
+        raw = args.get("price_e8")
+        if isinstance(raw, int) and not isinstance(raw, bool) and raw > 0:
+            return int(raw), int(state.now_epoch)
+        return None
+    if tag == "oracle_commit":
+        if state.price_pending_e8 > 0:
+            return int(state.price_pending_e8), int(state.now_epoch)
+        return None
+    return None
+
+
+def _planned_multi_oracle_sync_target(*, state: ZUSDMultiState, tag: str, args: Mapping[str, Any]) -> Optional[Tuple[int, int]]:
+    """Return (price_e8, epoch) for multi-vault commands that set active oracle price."""
+    if tag == "bootstrap_oracle":
+        raw = args.get("price_e8")
+        if isinstance(raw, int) and not isinstance(raw, bool) and raw > 0:
+            return int(raw), int(state.now_epoch)
+        return None
+    if tag == "oracle_commit":
+        if state.price_pending_e8 > 0:
+            return int(state.price_pending_e8), int(state.now_epoch)
+        return None
+    return None
+
+
+def _check_perp_oracle_sync(*, price_e8: int, epoch: int) -> Optional[str]:
+    """Optional cross-module zUSD/perp oracle synchronization gate."""
+    if not _bool_env("ZUSD_PERP_ORACLE_SYNC_ENABLED", default=False):
+        return None
+    market_id = (os.environ.get("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", "TAU-USD") or "").strip()
+    if not market_id:
+        return "oracle_sync_config_error: missing ZUSD_PERP_ORACLE_SYNC_MARKET_ID"
+
+    max_div_bps = _int_env(
+        "ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS",
+        500,
+        lo=0,
+        hi=10_000,
+    )
+    max_epoch_lag = _int_env(
+        "ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG",
+        10,
+        lo=0,
+        hi=1_000_000,
+    )
+
+    try:
+        from .perps_api import get_oracle_sync_snapshot
+    except Exception as exc:
+        return f"oracle_sync_unavailable:{type(exc).__name__}"
+
+    snap = get_oracle_sync_snapshot(market_id)
+    if snap is None:
+        return f"oracle_sync_unavailable: market={market_id}"
+
+    perp_price_e8 = int(snap.get("price_e8", 0))
+    perp_epoch = int(snap.get("oracle_last_update_epoch", 0))
+    if perp_price_e8 <= 0:
+        return f"oracle_sync_unavailable: non-positive perp price for market={market_id}"
+
+    divergence_bps = (abs(int(price_e8) - perp_price_e8) * 10_000) // perp_price_e8
+    if divergence_bps > max_div_bps:
+        return (
+            f"oracle_sync_divergence: market={market_id} "
+            f"divergence_bps={divergence_bps} cap_bps={max_div_bps}"
+        )
+
+    epoch_lag = abs(int(epoch) - perp_epoch)
+    if epoch_lag > max_epoch_lag:
+        return (
+            f"oracle_sync_epoch_lag: market={market_id} "
+            f"epoch_lag={epoch_lag} cap={max_epoch_lag}"
+        )
+
+    return None
 
 
 def _single_state_payload(state: ZUSDState) -> Dict[str, Any]:
@@ -178,6 +273,27 @@ def _handle_post(
     tau_cfg = _tau_gate_config_from_env()
 
     if rest == ["step"]:
+        sync_target = _planned_single_oracle_sync_target(state=single, tag=tag, args=args)
+        if sync_target is not None:
+            sync_err = _check_perp_oracle_sync(price_e8=sync_target[0], epoch=sync_target[1])
+            if sync_err is not None:
+                new_history = _history_with_entry(
+                    history,
+                    mode="single",
+                    tag=tag,
+                    args=args,
+                    ok=False,
+                    error=sync_err,
+                )
+                return single, multi, new_history, (
+                    400,
+                    {
+                        "ok": False,
+                        "error": "rejected",
+                        "detail": sync_err,
+                    },
+                )
+
         cmd = ZUSDCommand(tag=tag, args=args)
         result = step_with_tau(single, cmd, config=tau_cfg)
         new_history = _history_with_entry(history, mode="single", tag=tag, args=args, ok=result.ok, error=result.error)
@@ -203,6 +319,27 @@ def _handle_post(
                 },
             },
         )
+
+    sync_target_multi = _planned_multi_oracle_sync_target(state=multi, tag=tag, args=args)
+    if sync_target_multi is not None:
+        sync_err = _check_perp_oracle_sync(price_e8=sync_target_multi[0], epoch=sync_target_multi[1])
+        if sync_err is not None:
+            new_history = _history_with_entry(
+                history,
+                mode="multi",
+                tag=tag,
+                args=args,
+                ok=False,
+                error=sync_err,
+            )
+            return single, multi, new_history, (
+                400,
+                {
+                    "ok": False,
+                    "error": "rejected",
+                    "detail": sync_err,
+                },
+            )
 
     cmd_multi = ZUSDMultiCommand(tag=tag, args=args)
     result_multi = step_multi_with_tau(multi, cmd_multi, config=tau_cfg)

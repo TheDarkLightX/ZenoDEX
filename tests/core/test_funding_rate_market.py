@@ -130,6 +130,49 @@ def test_open_zero_amount() -> None:
     assert not r.accepted
 
 
+def test_open_rate_long_rejected_by_imbalance_cap() -> None:
+    """Optional imbalance cap rejects excessively one-sided opening flow."""
+    s = FRMState()
+    r = step(s, FRMActionParams(
+        action=FRMAction.OPEN_RATE_LONG,
+        amount=50_000,
+        auth_ok=True,
+        max_imbalance_ratio_bps=4_000,  # max 40% skew
+        imbalance_cap_min_total=1,
+    ))
+    assert not r.accepted
+
+
+def test_open_rate_long_allows_bootstrap_below_cap_activation() -> None:
+    """Cap can be deferred until total exposure reaches an activation threshold."""
+    s = FRMState()
+    r = step(s, FRMActionParams(
+        action=FRMAction.OPEN_RATE_LONG,
+        amount=50_000,
+        auth_ok=True,
+        max_imbalance_ratio_bps=4_000,
+        imbalance_cap_min_total=100_000,
+    ))
+    assert r.accepted
+
+
+def test_open_rate_long_rejected_when_existing_book_exceeds_cap() -> None:
+    """Post-trade skew is checked against cap on existing exposure."""
+    s = FRMState(
+        rate_long_exposure=50_000,
+        rate_short_exposure=50_000,
+        premium_pool=100_000,
+    )
+    r = step(s, FRMActionParams(
+        action=FRMAction.OPEN_RATE_LONG,
+        amount=100_000,
+        auth_ok=True,
+        max_imbalance_ratio_bps=4_000,
+        imbalance_cap_min_total=1,
+    ))
+    assert not r.accepted
+
+
 # ---------------------------------------------------------------------------
 # Implied rate tracking
 # ---------------------------------------------------------------------------
