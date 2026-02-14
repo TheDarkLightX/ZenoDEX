@@ -1,0 +1,344 @@
+# [FORGE] ZenoDEX Safety Proof Gate v1 (per-intent Tau assertions; fail-closed)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "safety_proof_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Minimal "proof gate" kernel for User-Defined Safety Proofs:
+      - Each intent carries a `proof_policy` and (if required) a `template_id` + `params_commitment`.
+      - At settlement time, the host runs Tau on the chosen template and provides boolean witnesses:
+          tau_checked, tau_ok, binding_ok.
+      - This kernel is fail-closed: Unset/unknown policy/template or missing witnesses cannot approve.
+
+    Determinism:
+      - No wall-clock time. Uses `batch_epoch` (monotone, bounded) as the only time-like input.
+      - One intent is evaluated at a time, identified by a bounded monotone `intent_seq`.
+
+observables:
+  state_vars:
+    - "batch_epoch"
+    - "last_intent_seq"
+    - "last_decision"
+    - "last_proof_policy"
+    - "last_template_id"
+    - "last_params_commitment_31"
+    - "last_context_commitment_31"
+    - "last_binding_ok"
+    - "last_tau_checked"
+    - "last_tau_ok"
+    - "max_template_id"
+  effects:
+    - "event"
+    - "allow_settlement"
+    - "decision"
+    - "proof_policy"
+    - "template_id"
+    - "intent_seq"
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["EpochAdvanced", "IntentEvaluated"]
+  - id: "t_decision"
+    type:
+      kind: "enum"
+      symbols: ["NoDecision", "Approved", "Rejected"]
+  - id: "t_proof_policy"
+    type:
+      kind: "enum"
+      symbols: ["Unset", "NoProof", "RequireTau"]
+
+state_vars:
+  - id: "batch_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "last_intent_seq"
+    role: "data"
+    type: { kind: "int", min: 0, max: 65535 }
+  - id: "last_decision"
+    role: "data"
+    type: { ref: "t_decision" }
+  - id: "last_proof_policy"
+    role: "data"
+    type: { ref: "t_proof_policy" }
+  - id: "last_template_id"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "last_params_commitment_31"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2147483648 }
+  - id: "last_context_commitment_31"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2147483648 }
+  - id: "last_binding_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "last_tau_checked"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "last_tau_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "max_template_id"
+    role: "control"
+    type: { kind: "int", min: 1, max: 255 }
+
+invariants:
+  # Fail-closed default: the initial (NoDecision) state is fully zeroed.
+  - id: "inv_init_zeroed"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "last_decision" }, { enum: "NoDecision" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "last_intent_seq" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "last_proof_policy" }, { enum: "Unset" }] }
+            - { op: "=", args: [{ var: "last_template_id" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "last_params_commitment_31" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "last_context_commitment_31" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "last_binding_ok" }, { bool: false }] }
+            - { op: "=", args: [{ var: "last_tau_checked" }, { bool: false }] }
+            - { op: "=", args: [{ var: "last_tau_ok" }, { bool: false }] }
+
+  # Template IDs are meaningful only when RequireTau; otherwise they must be zero.
+  - id: "inv_policy_template_consistent"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{ var: "last_proof_policy" }, { enum: "RequireTau" }]
+            - op: "and"
+              args:
+                - { op: ">", args: [{ var: "last_template_id" }, { const: 0 }] }
+                - { op: "<=", args: [{ var: "last_template_id" }, { var: "max_template_id" }] }
+        - op: "=>"
+          args:
+            - op: "not"
+              args:
+                - op: "="
+                  args: [{ var: "last_proof_policy" }, { enum: "RequireTau" }]
+            - op: "="
+              args: [{ var: "last_template_id" }, { const: 0 }]
+
+  # Approvals require explicit policy + binding, and RequireTau approvals require a Tau-checked passing proof.
+  - id: "inv_approved_implies_proof_satisfied"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "last_decision" }, { enum: "Approved" }]
+        - op: "and"
+          args:
+            - op: "not"
+              args:
+                - op: "="
+                  args: [{ var: "last_proof_policy" }, { enum: "Unset" }]
+            - { op: "=", args: [{ var: "last_binding_ok" }, { bool: true }] }
+            - op: "ite"
+              cond:
+                op: "="
+                args: [{ var: "last_proof_policy" }, { enum: "RequireTau" }]
+              then:
+                op: "and"
+                args:
+                  - { op: "=", args: [{ var: "last_tau_checked" }, { bool: true }] }
+                  - { op: "=", args: [{ var: "last_tau_ok" }, { bool: true }] }
+              else:
+                op: "and"
+                args:
+                  - { op: "=", args: [{ var: "last_tau_checked" }, { bool: false }] }
+                  - { op: "=", args: [{ var: "last_tau_ok" }, { bool: false }] }
+
+  # Unknown/absent policy must never approve.
+  - id: "inv_unset_never_approved"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "last_proof_policy" }, { enum: "Unset" }]
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "last_decision" }, { enum: "Approved" }]
+
+init:
+  - var: "batch_epoch"
+    expr: { const: 0 }
+  - var: "last_intent_seq"
+    expr: { const: 0 }
+  - var: "last_decision"
+    expr: { enum: "NoDecision" }
+  - var: "last_proof_policy"
+    expr: { enum: "Unset" }
+  - var: "last_template_id"
+    expr: { const: 0 }
+  - var: "last_params_commitment_31"
+    expr: { const: 0 }
+  - var: "last_context_commitment_31"
+    expr: { const: 0 }
+  - var: "last_binding_ok"
+    expr: { bool: false }
+  - var: "last_tau_checked"
+    expr: { bool: false }
+  - var: "last_tau_ok"
+    expr: { bool: false }
+  - var: "max_template_id"
+    expr: { const: 32 }
+
+actions:
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "batch_epoch" }, { param: "delta" }]
+        - { const: 1000000 }
+    updates:
+      - var: "batch_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "batch_epoch" }, { param: "delta" }]
+    effects:
+      event: { enum: "EpochAdvanced" }
+      allow_settlement: { bool: false }
+      decision: { var: "last_decision" }
+      proof_policy: { var: "last_proof_policy" }
+      template_id: { var: "last_template_id" }
+      intent_seq: { var: "last_intent_seq" }
+
+  - id: "evaluate_intent"
+    params:
+      - id: "intent_seq"
+        type: { kind: "int", min: 1, max: 65535 }
+      - id: "proof_policy"
+        type: { ref: "t_proof_policy" }
+      - id: "template_id"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "params_commitment_31"
+        type: { kind: "int", min: 0, max: 2147483648 }
+      - id: "context_commitment_31"
+        type: { kind: "int", min: 0, max: 2147483648 }
+      # External verification flags (host-provided booleans).
+      - id: "binding_ok"
+        type: { kind: "bool" }
+      - id: "tau_checked"
+        type: { kind: "bool" }
+      - id: "tau_ok"
+        type: { kind: "bool" }
+    guard:
+      # Bounded monotone sequencing (bounded surrogate for a full intent_id set).
+      op: ">"
+      args: [{ param: "intent_seq" }, { var: "last_intent_seq" }]
+    updates:
+      - var: "last_intent_seq"
+        expr: { param: "intent_seq" }
+      - var: "last_params_commitment_31"
+        expr: { param: "params_commitment_31" }
+      - var: "last_context_commitment_31"
+        expr: { param: "context_commitment_31" }
+      - var: "last_binding_ok"
+        expr: { param: "binding_ok" }
+
+      # Canonicalize: RequireTau is only meaningful with a known template_id in range.
+      - var: "last_proof_policy"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "="
+                args: [{ param: "proof_policy" }, { enum: "RequireTau" }]
+              - { op: ">", args: [{ param: "template_id" }, { const: 0 }] }
+              - { op: "<=", args: [{ param: "template_id" }, { var: "max_template_id" }] }
+          then: { enum: "RequireTau" }
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ param: "proof_policy" }, { enum: "NoProof" }]
+            then: { enum: "NoProof" }
+            else: { enum: "Unset" }
+
+      - var: "last_template_id"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "="
+                args: [{ param: "proof_policy" }, { enum: "RequireTau" }]
+              - { op: ">", args: [{ param: "template_id" }, { const: 0 }] }
+              - { op: "<=", args: [{ param: "template_id" }, { var: "max_template_id" }] }
+          then: { param: "template_id" }
+          else: { const: 0 }
+
+      - var: "last_tau_checked"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "="
+                args: [{ param: "proof_policy" }, { enum: "RequireTau" }]
+              - { op: ">", args: [{ param: "template_id" }, { const: 0 }] }
+              - { op: "<=", args: [{ param: "template_id" }, { var: "max_template_id" }] }
+          then: { param: "tau_checked" }
+          else: { bool: false }
+
+      - var: "last_tau_ok"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "="
+                args: [{ param: "proof_policy" }, { enum: "RequireTau" }]
+              - { op: ">", args: [{ param: "template_id" }, { const: 0 }] }
+              - { op: "<=", args: [{ param: "template_id" }, { var: "max_template_id" }] }
+          then: { param: "tau_ok" }
+          else: { bool: false }
+
+      - var: "last_decision"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - { op: "=", args: [{ param: "binding_ok" }, { bool: true }] }
+              - op: "or"
+                args:
+                  # NoProof is explicitly allowed (but still requires binding_ok).
+                  - op: "="
+                    args: [{ param: "proof_policy" }, { enum: "NoProof" }]
+                  # RequireTau needs: valid template + Tau checked + Tau ok.
+                  - op: "and"
+                    args:
+                      - op: "="
+                        args: [{ param: "proof_policy" }, { enum: "RequireTau" }]
+                      - { op: ">", args: [{ param: "template_id" }, { const: 0 }] }
+                      - { op: "<=", args: [{ param: "template_id" }, { var: "max_template_id" }] }
+                      - { op: "=", args: [{ param: "tau_checked" }, { bool: true }] }
+                      - { op: "=", args: [{ param: "tau_ok" }, { bool: true }] }
+          then: { enum: "Approved" }
+          else: { enum: "Rejected" }
+    effects:
+      event: { enum: "IntentEvaluated" }
+      allow_settlement:
+        op: "="
+        args: [{ var: "last_decision" }, { enum: "Approved" }]
+      decision: { var: "last_decision" }
+      proof_policy: { var: "last_proof_policy" }
+      template_id: { var: "last_template_id" }
+      intent_seq: { var: "last_intent_seq" }

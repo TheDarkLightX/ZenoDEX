@@ -8,6 +8,7 @@ from src.core.perp_v2.math import (
     init_margin_req,
     is_liquidatable,
     is_oracle_fresh,
+    is_settle_oracle_usable,
     liq_penalty,
     liq_penalty_capped,
     maint_margin_req,
@@ -55,6 +56,23 @@ class TestOracleFresh:
 
     def test_one_past_boundary(self):
         assert is_oracle_fresh(106, 5, 100, True) is False
+
+    def test_oracle_last_update_in_future_is_not_fresh(self):
+        assert is_oracle_fresh(5, 6, 100, True) is False
+
+
+class TestSettleOracleUsable:
+    def test_usable(self):
+        assert is_settle_oracle_usable(10, 9, 5, True, 100_000_000) is True
+
+    def test_not_seen(self):
+        assert is_settle_oracle_usable(10, 9, 5, False, 100_000_000) is False
+
+    def test_non_positive_index(self):
+        assert is_settle_oracle_usable(10, 9, 5, True, 0) is False
+
+    def test_stale(self):
+        assert is_settle_oracle_usable(10, 1, 5, True, 100_000_000) is False
 
 
 # ---------------------------------------------------------------------------

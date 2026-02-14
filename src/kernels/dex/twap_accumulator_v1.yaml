@@ -1,0 +1,173 @@
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "twap_accumulator_v1"
+  description: "Oracle-free Time-Weighted Average Price accumulator for MEV-resistant pricing"
+  tags: ["twap", "oracle", "mev-resistance", "pricing"]
+
+observables:
+  state_vars: ["cumulative_price_x1e6", "last_timestamp", "observation_count"]
+  effects: ["twap_updated"]
+
+types: []
+
+state_vars:
+  - id: "cumulative_price_x1e6"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000000}
+    description: "Cumulative price * time_delta, scaled by 1e6"
+
+  - id: "last_price_x1e6"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000}
+    description: "Last recorded price, scaled by 1e6"
+
+  - id: "last_timestamp"
+    role: "data"
+    type: {kind: "int", min: 0, max: 2000000000}
+    description: "Timestamp of last price update"
+
+  - id: "observation_count"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000}
+    description: "Number of price observations recorded"
+
+  - id: "initialized"
+    role: "control"
+    type: {kind: "bool"}
+    description: "Whether the accumulator has been initialized"
+
+invariants:
+  - id: "CumulativeMonotonic"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "cumulative_price_x1e6"}
+        - {const: 0}
+    description: "Cumulative price is always non-negative"
+
+  - id: "TimestampOrdering"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "last_timestamp"}
+        - {const: 0}
+    description: "Timestamp is always non-negative"
+
+  - id: "ObservationCountBounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - {var: "observation_count"}
+        - {const: 1000000}
+    description: "Observation count stays within bounds"
+
+  - id: "InitializedImpliesPositiveCount"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - {var: "initialized"}
+        - op: ">"
+          args:
+            - {var: "observation_count"}
+            - {const: 0}
+    description: "If initialized, at least one observation exists"
+
+init:
+  - var: "cumulative_price_x1e6"
+    expr: {const: 0}
+  - var: "last_price_x1e6"
+    expr: {const: 0}
+  - var: "last_timestamp"
+    expr: {const: 0}
+  - var: "observation_count"
+    expr: {const: 0}
+  - var: "initialized"
+    expr: {bool: false}
+
+actions:
+  - id: "initialize"
+    description: "Initialize the TWAP accumulator with first price observation"
+    params:
+      - id: "initial_price_x1e6"
+        type: {kind: "int", min: 1, max: 1000000000}
+      - id: "timestamp"
+        type: {kind: "int", min: 1, max: 2000000000}
+    guard:
+      op: "not"
+      args:
+        - {var: "initialized"}
+    updates:
+      - var: "last_price_x1e6"
+        expr: {param: "initial_price_x1e6"}
+      - var: "last_timestamp"
+        expr: {param: "timestamp"}
+      - var: "observation_count"
+        expr: {const: 1}
+      - var: "initialized"
+        expr: {bool: true}
+    effects:
+      twap_updated: {bool: true}
+
+  - id: "record_price"
+    description: "Record a new price observation, accumulating price*time"
+    params:
+      - id: "new_price_x1e6"
+        type: {kind: "int", min: 1, max: 1000000000}
+      - id: "timestamp"
+        type: {kind: "int", min: 1, max: 2000000000}
+    guard:
+      op: "and"
+      args:
+        - {var: "initialized"}
+        - op: ">"
+          args:
+            - {param: "timestamp"}
+            - {var: "last_timestamp"}
+        - op: "<"
+          args:
+            - {var: "observation_count"}
+            - {const: 1000000}
+        # Overflow guard: cumulative + (price * time_delta) <= max
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "cumulative_price_x1e6"}
+                - op: "*"
+                  args:
+                    - {var: "last_price_x1e6"}
+                    - op: "-"
+                      args:
+                        - {param: "timestamp"}
+                        - {var: "last_timestamp"}
+            - {const: 1000000000000000}
+    updates:
+      - var: "cumulative_price_x1e6"
+        expr:
+          op: "+"
+          args:
+            - {var: "cumulative_price_x1e6"}
+            - op: "*"
+              args:
+                - {var: "last_price_x1e6"}
+                - op: "-"
+                  args:
+                    - {param: "timestamp"}
+                    - {var: "last_timestamp"}
+      - var: "last_price_x1e6"
+        expr: {param: "new_price_x1e6"}
+      - var: "last_timestamp"
+        expr: {param: "timestamp"}
+      - var: "observation_count"
+        expr:
+          op: "+"
+          args:
+            - {var: "observation_count"}
+            - {const: 1}
+    effects:
+      twap_updated: {bool: true}

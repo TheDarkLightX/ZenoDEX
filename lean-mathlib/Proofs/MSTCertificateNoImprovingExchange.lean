@@ -34,20 +34,19 @@ theorem no_improving_exchange_along_path
     (hT : T.IsTree) (u v : V)
     (hcert : maxWeightOnPath (T := T) (w := w) hT u v ≤ w s(u, v))
     {e : Sym2 V}
-    (he : e ∈ pathEdges (T := T) (w := w) hT u v) :
+    (he : e ∈ pathEdges (T := T) hT u v) :
     w e ≤ w s(u, v) :=
   le_weight_offTreeEdge_of_mem_path (T := T) (w := w) hT u v hcert he
 
 theorem exists_exchange_edge_with_max_weight
     (hT : T.IsTree) (u v : V)
-    (hne : pathEdges (T := T) (w := w) hT u v ≠ [])
+    (hne : pathEdges (T := T) hT u v ≠ [])
     (hcert : maxWeightOnPath (T := T) (w := w) hT u v ≤ w s(u, v)) :
     ∃ e : Sym2 V,
-      e ∈ pathEdges (T := T) (w := w) hT u v ∧
+      e ∈ pathEdges (T := T) hT u v ∧
       w e = maxWeightOnPath (T := T) (w := w) hT u v ∧
       w e ≤ w s(u, v) :=
   exists_heaviest_edge_on_path_le_offEdge (T := T) (w := w) hT u v hne hcert
 
 end MST
 end TauSwap
-

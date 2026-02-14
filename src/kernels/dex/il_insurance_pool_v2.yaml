@@ -1,0 +1,467 @@
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "il_insurance_pool_v2"
+  description: "IL Insurance Pool v2 - Fixes reject_claim to return to Active, adds exposure tracking"
+  tags: ["insurance", "impermanent-loss", "lp-protection", "hedging", "exposure-tracking"]
+
+observables:
+  state_vars: ["insurance_pool", "total_staked", "claims_paid", "pool_phase", "total_covered_value"]
+  effects: ["stake_added", "claim_paid", "premium_collected", "claim_rejected"]
+
+types: []
+
+state_vars:
+  - id: "pool_phase"
+    role: "control"
+    type: {kind: "enum", symbols: ["Idle", "Active", "ClaimsPending", "Depleted"]}
+    description: "Current phase of the insurance pool"
+
+  - id: "insurance_pool"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Total funds in insurance pool"
+
+  - id: "total_staked"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Total amount staked by LPs for coverage"
+
+  - id: "total_covered_value"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Total max payout exposure across all active policies"
+
+  - id: "claims_paid"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Cumulative claims paid out"
+
+  - id: "rejected_claims"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000}
+    description: "Number of claims rejected due to insufficient funds"
+
+  - id: "premiums_collected"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Cumulative premiums collected"
+
+  - id: "active_policies"
+    role: "data"
+    type: {kind: "int", min: 0, max: 100000}
+    description: "Number of active insurance policies"
+
+  - id: "il_threshold_bps"
+    role: "data"
+    type: {kind: "int", min: 100, max: 5000}
+    description: "IL threshold in basis points to trigger payout"
+
+  - id: "coverage_ratio_bps"
+    role: "data"
+    type: {kind: "int", min: 1000, max: 10000}
+    description: "Coverage ratio - how much of IL is covered"
+
+  - id: "pending_claim_amount"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Amount pending in current claim"
+
+invariants:
+  - id: "PoolSolvency"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "insurance_pool"}
+        - {const: 0}
+    description: "Insurance pool is never negative"
+
+  - id: "CoveredValueNonNegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "total_covered_value"}
+        - {const: 0}
+    description: "Total covered value is never negative"
+
+  - id: "ThresholdBounds"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: ">="
+          args:
+            - {var: "il_threshold_bps"}
+            - {const: 100}
+        - op: "<="
+          args:
+            - {var: "il_threshold_bps"}
+            - {const: 5000}
+    description: "IL threshold stays within bounds"
+
+  - id: "CoverageRatioBounds"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: ">="
+          args:
+            - {var: "coverage_ratio_bps"}
+            - {const: 1000}
+        - op: "<="
+          args:
+            - {var: "coverage_ratio_bps"}
+            - {const: 10000}
+    description: "Coverage ratio within bounds"
+
+  - id: "RejectedClaimsBounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - {var: "rejected_claims"}
+        - {const: 1000000}
+    description: "Rejected claims counter bounded"
+
+init:
+  - var: "pool_phase"
+    expr: {enum: "Idle"}
+  - var: "insurance_pool"
+    expr: {const: 0}
+  - var: "total_staked"
+    expr: {const: 0}
+  - var: "total_covered_value"
+    expr: {const: 0}
+  - var: "claims_paid"
+    expr: {const: 0}
+  - var: "rejected_claims"
+    expr: {const: 0}
+  - var: "premiums_collected"
+    expr: {const: 0}
+  - var: "active_policies"
+    expr: {const: 0}
+  - var: "il_threshold_bps"
+    expr: {const: 500}
+  - var: "coverage_ratio_bps"
+    expr: {const: 8000}
+  - var: "pending_claim_amount"
+    expr: {const: 0}
+
+actions:
+  - id: "seed_pool"
+    description: "Initial funding of the insurance pool"
+    params:
+      - id: "amount"
+        type: {kind: "int", min: 10000, max: 1000000000000}
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args:
+            - {var: "pool_phase"}
+            - {enum: "Idle"}
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "insurance_pool"}
+                - {param: "amount"}
+            - {const: 1000000000000}
+    updates:
+      - var: "insurance_pool"
+        expr:
+          op: "+"
+          args:
+            - {var: "insurance_pool"}
+            - {param: "amount"}
+      - var: "pool_phase"
+        expr: {enum: "Active"}
+    effects:
+      stake_added: {bool: true}
+      claim_paid: {bool: false}
+      premium_collected: {bool: false}
+      claim_rejected: {bool: false}
+
+  - id: "add_premium"
+    description: "LP pays premium to get IL coverage - tracks max exposure"
+    params:
+      - id: "premium_amount"
+        type: {kind: "int", min: 1, max: 100000000}
+      - id: "stake_amount"
+        type: {kind: "int", min: 1000, max: 1000000000000}
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args:
+            - {var: "pool_phase"}
+            - {enum: "Active"}
+        - op: "<"
+          args:
+            - {var: "active_policies"}
+            - {const: 100000}
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "insurance_pool"}
+                - {param: "premium_amount"}
+            - {const: 1000000000000}
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "premiums_collected"}
+                - {param: "premium_amount"}
+            - {const: 1000000000000}
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "total_staked"}
+                - {param: "stake_amount"}
+            - {const: 1000000000000}
+        # Overflow guard for total_covered_value increase
+        # Max coverage = stake_amount * coverage_ratio_bps / 10000
+        # Simplified: stake_amount (since coverage_ratio_bps <= 10000)
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "total_covered_value"}
+                - {param: "stake_amount"}
+            - {const: 1000000000000}
+    updates:
+      - var: "insurance_pool"
+        expr:
+          op: "+"
+          args:
+            - {var: "insurance_pool"}
+            - {param: "premium_amount"}
+      - var: "premiums_collected"
+        expr:
+          op: "+"
+          args:
+            - {var: "premiums_collected"}
+            - {param: "premium_amount"}
+      - var: "total_staked"
+        expr:
+          op: "+"
+          args:
+            - {var: "total_staked"}
+            - {param: "stake_amount"}
+      # Track max exposure: stake * coverage_ratio / 10000
+      # Using simplified upper bound: stake_amount
+      - var: "total_covered_value"
+        expr:
+          op: "+"
+          args:
+            - {var: "total_covered_value"}
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - {param: "stake_amount"}
+                    - {var: "coverage_ratio_bps"}
+                - {const: 10000}
+      - var: "active_policies"
+        expr:
+          op: "+"
+          args:
+            - {var: "active_policies"}
+            - {const: 1}
+    effects:
+      stake_added: {bool: false}
+      claim_paid: {bool: false}
+      premium_collected: {bool: true}
+      claim_rejected: {bool: false}
+
+  - id: "submit_claim"
+    description: "LP submits IL claim when price divergence exceeds threshold"
+    params:
+      - id: "il_amount_bps"
+        type: {kind: "int", min: 100, max: 10000}
+      - id: "position_value"
+        type: {kind: "int", min: 1000, max: 1000000000000}
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args:
+            - {var: "pool_phase"}
+            - {enum: "Active"}
+        - op: ">="
+          args:
+            - {param: "il_amount_bps"}
+            - {var: "il_threshold_bps"}
+        - op: ">"
+          args:
+            - {var: "active_policies"}
+            - {const: 0}
+    updates:
+      - var: "pool_phase"
+        expr: {enum: "ClaimsPending"}
+      - var: "pending_claim_amount"
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - op: "*"
+                  args:
+                    - {param: "position_value"}
+                    - {param: "il_amount_bps"}
+                - {var: "coverage_ratio_bps"}
+            - {const: 100000000}
+    effects:
+      stake_added: {bool: false}
+      claim_paid: {bool: false}
+      premium_collected: {bool: false}
+      claim_rejected: {bool: false}
+
+  - id: "process_claim"
+    description: "Process and pay out pending claim"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args:
+            - {var: "pool_phase"}
+            - {enum: "ClaimsPending"}
+        - op: "<="
+          args:
+            - {var: "pending_claim_amount"}
+            - {var: "insurance_pool"}
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "claims_paid"}
+                - {var: "pending_claim_amount"}
+            - {const: 1000000000000}
+        - op: ">"
+          args:
+            - {var: "active_policies"}
+            - {const: 0}
+    updates:
+      - var: "insurance_pool"
+        expr:
+          op: "-"
+          args:
+            - {var: "insurance_pool"}
+            - {var: "pending_claim_amount"}
+      - var: "claims_paid"
+        expr:
+          op: "+"
+          args:
+            - {var: "claims_paid"}
+            - {var: "pending_claim_amount"}
+      # Reduce exposure by claim amount
+      - var: "total_covered_value"
+        expr:
+          op: "max"
+          args:
+            - op: "-"
+              args:
+                - {var: "total_covered_value"}
+                - {var: "pending_claim_amount"}
+            - {const: 0}
+      - var: "active_policies"
+        expr:
+          op: "-"
+          args:
+            - {var: "active_policies"}
+            - {const: 1}
+      - var: "pending_claim_amount"
+        expr: {const: 0}
+      - var: "pool_phase"
+        expr:
+          op: "ite"
+          cond:
+            op: "<"
+            args:
+              - op: "-"
+                args:
+                  - {var: "insurance_pool"}
+                  - {var: "pending_claim_amount"}
+              - {const: 1000}
+          then: {enum: "Depleted"}
+          else: {enum: "Active"}
+    effects:
+      stake_added: {bool: false}
+      claim_paid: {bool: true}
+      premium_collected: {bool: false}
+      claim_rejected: {bool: false}
+
+  - id: "reject_claim"
+    description: "Reject claim if pool cannot cover it - pool stays Active for smaller claims"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args:
+            - {var: "pool_phase"}
+            - {enum: "ClaimsPending"}
+        - op: ">"
+          args:
+            - {var: "pending_claim_amount"}
+            - {var: "insurance_pool"}
+        - op: "<"
+          args:
+            - {var: "rejected_claims"}
+            - {const: 1000000}
+    updates:
+      - var: "pending_claim_amount"
+        expr: {const: 0}
+      # FIX: Return to Active, not Depleted - pool still has funds for smaller claims
+      - var: "pool_phase"
+        expr: {enum: "Active"}
+      - var: "rejected_claims"
+        expr:
+          op: "+"
+          args:
+            - {var: "rejected_claims"}
+            - {const: 1}
+    effects:
+      stake_added: {bool: false}
+      claim_paid: {bool: false}
+      premium_collected: {bool: false}
+      claim_rejected: {bool: true}
+
+  - id: "recapitalize"
+    description: "Add funds to depleted pool"
+    params:
+      - id: "amount"
+        type: {kind: "int", min: 10000, max: 1000000000000}
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args:
+            - {var: "pool_phase"}
+            - {enum: "Depleted"}
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "insurance_pool"}
+                - {param: "amount"}
+            - {const: 1000000000000}
+    updates:
+      - var: "insurance_pool"
+        expr:
+          op: "+"
+          args:
+            - {var: "insurance_pool"}
+            - {param: "amount"}
+      - var: "pool_phase"
+        expr: {enum: "Active"}
+    effects:
+      stake_added: {bool: true}
+      claim_paid: {bool: false}
+      premium_collected: {bool: false}
+      claim_rejected: {bool: false}

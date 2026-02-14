@@ -175,7 +175,7 @@ class DexTxResult:
 def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional[int] = None) -> bytes:
     if not isinstance(hex_str, str):
         raise TypeError(f"{name} must be a string")
-    s = hex_str[2:] if hex_str.startswith("0x") else hex_str
+    s = hex_str[2:] if hex_str.lower().startswith("0x") else hex_str
     if not s:
         raise ValueError(f"{name} must be non-empty hex")
 

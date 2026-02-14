@@ -90,3 +90,7 @@ def effect_deposit_insurance(state: PerpState, params: ActionParams) -> Effect:
 
 def effect_apply_insurance_claim(state: PerpState, params: ActionParams) -> Effect:
     return Effect(event=Event.INSURANCE_CLAIM_PAID, **_common_effects(state))
+
+
+def effect_partial_liquidate(state: PerpState, params: ActionParams) -> Effect:
+    return Effect(event=Event.PARTIAL_LIQUIDATION_APPLIED, **_common_effects(state))

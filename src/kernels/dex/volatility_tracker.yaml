@@ -63,15 +63,34 @@ actions:
       args:
         - { op: ">", args: [{ param: "new_price" }, { const: 0 }] }
         - { op: ">", args: [{ var: "last_price" }, { const: 0 }] }
+        # Prevent one-step overflow under bounded state space.
+        - { op: "<=", args: [{ var: "price_history_sum" }, { const: 99000000 }] }
     updates:
       - var: "price_history_sum"
         expr:
-          op: "+"
-          args:
-            [
-              { var: "price_history_sum" },
-              {
-                op: "ite"
+          op: "ite"
+          cond:
+            op: ">"
+            args:
+              - op: "+"
+                args: [{ var: "price_history_count" }, { const: 1 }]
+              - { param: "window_size" }
+          then:
+            op: "+"
+            args:
+              - op: "-"
+                args:
+                  - { var: "price_history_sum" }
+                  - op: "div"
+                    args:
+                      - { var: "price_history_sum" }
+                      - op: "ite"
+                        cond:
+                          op: ">"
+                          args: [{ var: "price_history_count" }, { const: 0 }]
+                        then: { var: "price_history_count" }
+                        else: { const: 1 }
+              - op: "ite"
                 cond:
                   op: ">="
                   args: [{ param: "new_price" }, { var: "last_price" }]
@@ -80,81 +99,75 @@ actions:
                   args: [{ param: "new_price" }, { var: "last_price" }]
                 else:
                   op: "-"
-                  args: [{ var: "last_price" }, { param: "new_price" }],
-              },
-            ]
-      - var: "price_history_count"
-        expr:
-          op: "+"
-          args: [{ var: "price_history_count" }, { const: 1 }]
-      - var: "price_history_count"
-        expr:
-          op: "ite"
-          cond:
-            op: ">"
-            args: [{ var: "price_history_count" }, { param: "window_size" }]
-          then: { param: "window_size" }
-          else: { var: "price_history_count" }
-      - var: "price_history_sum"
-        expr:
-          op: "ite"
-          cond:
-            op: ">"
-            args: [{ var: "price_history_count" }, { param: "window_size" }]
-          then:
-            op: "-"
+                  args: [{ var: "last_price" }, { param: "new_price" }]
+          else:
+            op: "+"
             args:
-              [
-                { var: "price_history_sum" },
-                {
-                  op: "div"
-                  args:
-                    [
-                      { var: "price_history_sum" },
-                      { op: "+", args: [{ var: "price_history_count" }, { const: 1 }] },
-                    ],
-                },
-              ]
-          else: { var: "price_history_sum" }
+              - { var: "price_history_sum" }
+              - op: "ite"
+                cond:
+                  op: ">="
+                  args: [{ param: "new_price" }, { var: "last_price" }]
+                then:
+                  op: "-"
+                  args: [{ param: "new_price" }, { var: "last_price" }]
+                else:
+                  op: "-"
+                  args: [{ var: "last_price" }, { param: "new_price" }]
+      - var: "price_history_count"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args:
+              - op: "+"
+                args: [{ var: "price_history_count" }, { const: 1 }]
+              - { param: "window_size" }
+          then: { param: "window_size" }
+          else:
+            op: "+"
+            args: [{ var: "price_history_count" }, { const: 1 }]
       - var: "last_price"
         expr: { param: "new_price" }
       - var: "volatility_score"
         expr:
-          op: "div"
-          args:
-            [
-              {
-                op: "*"
-                args:
-                  [
-                    { var: "price_history_sum" },
-                    { const: 10000 },
-                  ],
-              },
-              {
-                op: "*"
-                args:
-                  [
-                    {
-                      op: "ite"
-                      cond:
-                        op: ">"
-                        args: [{ var: "price_history_count" }, { const: 0 }]
-                      then: { var: "price_history_count" }
-                      else: { const: 1 },
-                    },
-                    { var: "last_price" },
-                  ],
-              },
-            ]
-      - var: "volatility_score"
-        expr:
           op: "ite"
           cond:
             op: ">"
-            args: [{ var: "volatility_score" }, { const: 10000 }]
+            args:
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - { var: "price_history_sum" }
+                      - { const: 10000 }
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: ">"
+                          args: [{ var: "price_history_count" }, { const: 0 }]
+                        then: { var: "price_history_count" }
+                        else: { const: 1 }
+                      - { param: "new_price" }
+              - { const: 10000 }
           then: { const: 10000 }
-          else: { var: "volatility_score" }
+          else:
+            op: "div"
+            args:
+              - op: "*"
+                args:
+                  - { var: "price_history_sum" }
+                  - { const: 10000 }
+              - op: "*"
+                args:
+                  - op: "ite"
+                    cond:
+                      op: ">"
+                      args: [{ var: "price_history_count" }, { const: 0 }]
+                    then: { var: "price_history_count" }
+                    else: { const: 1 }
+                  - { param: "new_price" }
     effects:
       current_volatility: { var: "volatility_score" }
       is_high_volatility:
@@ -163,25 +176,17 @@ actions:
       price_change_bps:
         op: "div"
         args:
-          [
-            {
-              op: "*"
-              args:
-                [
-                  {
-                    op: "ite"
-                    cond:
-                      op: ">="
-                      args: [{ param: "new_price" }, { var: "last_price" }]
-                    then:
-                      op: "-"
-                      args: [{ param: "new_price" }, { var: "last_price" }]
-                    else:
-                      op: "-"
-                      args: [{ var: "last_price" }, { param: "new_price" }],
-                  },
-                  { const: 10000 },
-                ],
-            },
-            { var: "last_price" },
-          ]
+          - op: "*"
+            args:
+              - op: "ite"
+                cond:
+                  op: ">="
+                  args: [{ param: "new_price" }, { var: "last_price" }]
+                then:
+                  op: "-"
+                  args: [{ param: "new_price" }, { var: "last_price" }]
+                else:
+                  op: "-"
+                  args: [{ var: "last_price" }, { param: "new_price" }]
+              - { const: 10000 }
+          - { var: "last_price" }

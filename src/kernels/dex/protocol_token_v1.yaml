@@ -1,0 +1,133 @@
+# Protocol Token v1 - Kernel IR Model
+# Validates token state transitions (transfer/mint/burn)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "protocol_token_v1"
+  created_by: "tau-spec-port"
+  notes: |
+    Ported from protocol_token_v1.tau
+    Validates single token state transition with:
+    - Transfer: from -= amount, to += amount, supply unchanged
+    - Mint: to += amount, supply += amount
+    - Burn: from -= amount, supply -= amount
+    - One-hot operation selection (exactly one of transfer/mint/burn)
+    - Conservation laws for each operation
+
+observables:
+  state_vars: ["total_supply"]
+  effects: ["transfer_ok", "mint_ok", "burn_ok", "transition_valid"]
+
+types:
+  - id: "TokenOp"
+    type: { kind: "enum", symbols: ["transfer", "mint", "burn"] }
+
+state_vars:
+  - id: "total_supply"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967295 }
+
+init:
+  - var: "total_supply"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_supply_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "total_supply" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "total_supply" }, { const: 4294967295 }] }
+
+actions:
+  # Transfer: from -= amount, to += amount, supply unchanged
+  - id: "transfer"
+    params:
+      - id: "from_balance"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "to_balance"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        # Amount must be positive
+        - { op: ">=", args: [{ param: "amount" }, { const: 1 }] }
+        # From has sufficient balance
+        - { op: ">=", args: [{ param: "from_balance" }, { param: "amount" }] }
+        # To won't overflow
+        - op: "<="
+          args:
+            - { op: "+", args: [{ param: "to_balance" }, { param: "amount" }] }
+            - { const: 4294967295 }
+    updates: []  # Supply unchanged for transfer
+    effects:
+      transfer_ok: { const: 1 }
+      mint_ok: { const: 0 }
+      burn_ok: { const: 0 }
+      transition_valid: { const: 1 }
+
+  # Mint: to += amount, supply += amount
+  - id: "mint"
+    params:
+      - id: "to_balance"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        # Amount must be positive
+        - { op: ">=", args: [{ param: "amount" }, { const: 1 }] }
+        # To won't overflow
+        - op: "<="
+          args:
+            - { op: "+", args: [{ param: "to_balance" }, { param: "amount" }] }
+            - { const: 4294967295 }
+        # Supply won't overflow
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "total_supply" }, { param: "amount" }] }
+            - { const: 4294967295 }
+    updates:
+      - var: "total_supply"
+        expr:
+          op: "+"
+          args:
+            - { var: "total_supply" }
+            - { param: "amount" }
+    effects:
+      transfer_ok: { const: 0 }
+      mint_ok: { const: 1 }
+      burn_ok: { const: 0 }
+      transition_valid: { const: 1 }
+
+  # Burn: from -= amount, supply -= amount
+  - id: "burn"
+    params:
+      - id: "from_balance"
+        type: { kind: "int", min: 0, max: 4294967295 }
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 4294967295 }
+    guard:
+      op: "and"
+      args:
+        # Amount must be positive
+        - { op: ">=", args: [{ param: "amount" }, { const: 1 }] }
+        # From has sufficient balance
+        - { op: ">=", args: [{ param: "from_balance" }, { param: "amount" }] }
+        # Supply has sufficient tokens
+        - { op: ">=", args: [{ var: "total_supply" }, { param: "amount" }] }
+    updates:
+      - var: "total_supply"
+        expr:
+          op: "-"
+          args:
+            - { var: "total_supply" }
+            - { param: "amount" }
+    effects:
+      transfer_ok: { const: 0 }
+      mint_ok: { const: 0 }
+      burn_ok: { const: 1 }
+      transition_valid: { const: 1 }

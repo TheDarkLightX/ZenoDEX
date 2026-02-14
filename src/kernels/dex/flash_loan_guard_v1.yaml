@@ -1,0 +1,251 @@
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "flash_loan_guard_v1"
+  description: "Detects and blocks flash loan exploits by tracking same-block borrow-repay patterns"
+  tags: ["security", "flash-loan", "exploit-prevention", "mev"]
+
+observables:
+  state_vars: ["flash_detected", "current_block", "swaps_blocked"]
+  effects: ["guard_triggered", "block_advanced"]
+
+types: []
+
+state_vars:
+  - id: "current_block"
+    role: "control"
+    type: {kind: "int", min: 0, max: 100000000}
+    description: "Current block number"
+
+  - id: "borrowed_this_block"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Amount borrowed in current block"
+
+  - id: "repaid_this_block"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Amount repaid in current block"
+
+  - id: "flash_detected"
+    role: "control"
+    type: {kind: "bool"}
+    description: "Flash loan pattern detected in current block"
+
+  - id: "swaps_blocked"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000}
+    description: "Total swaps blocked due to flash loan detection"
+
+  - id: "total_borrows"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000000000}
+    description: "Cumulative borrows tracked"
+
+  - id: "total_flash_attempts"
+    role: "data"
+    type: {kind: "int", min: 0, max: 1000000}
+    description: "Total flash loan attempts detected"
+
+invariants:
+  - id: "RepayLessThanBorrow"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - {var: "repaid_this_block"}
+        - {var: "borrowed_this_block"}
+    description: "Cannot repay more than borrowed in same block"
+
+  - id: "FlashDetectionCorrect"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "and"
+          args:
+            - op: ">"
+              args:
+                - {var: "borrowed_this_block"}
+                - {const: 0}
+            - op: ">"
+              args:
+                - {var: "repaid_this_block"}
+                - {const: 0}
+        - {var: "flash_detected"}
+    description: "If borrow and repay both happened, flash is detected"
+
+  - id: "SwapsBlockedMonotonic"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "swaps_blocked"}
+        - {const: 0}
+    description: "Blocked swaps counter is non-negative"
+
+  - id: "BlockNumberMonotonic"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "current_block"}
+        - {const: 0}
+    description: "Block number is non-negative"
+
+init:
+  - var: "current_block"
+    expr: {const: 0}
+  - var: "borrowed_this_block"
+    expr: {const: 0}
+  - var: "repaid_this_block"
+    expr: {const: 0}
+  - var: "flash_detected"
+    expr: {bool: false}
+  - var: "swaps_blocked"
+    expr: {const: 0}
+  - var: "total_borrows"
+    expr: {const: 0}
+  - var: "total_flash_attempts"
+    expr: {const: 0}
+
+actions:
+  - id: "advance_block"
+    description: "Move to next block, resetting per-block tracking"
+    params:
+      - id: "new_block"
+        type: {kind: "int", min: 1, max: 100000000}
+    guard:
+      op: ">"
+      args:
+        - {param: "new_block"}
+        - {var: "current_block"}
+    updates:
+      - var: "current_block"
+        expr: {param: "new_block"}
+      - var: "borrowed_this_block"
+        expr: {const: 0}
+      - var: "repaid_this_block"
+        expr: {const: 0}
+      - var: "flash_detected"
+        expr: {bool: false}
+    effects:
+      block_advanced: {bool: true}
+      guard_triggered: {bool: false}
+
+  - id: "on_borrow"
+    description: "Record a borrow event in current block"
+    params:
+      - id: "amount"
+        type: {kind: "int", min: 1, max: 1000000000000}
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "borrowed_this_block"}
+                - {param: "amount"}
+            - {const: 1000000000000}
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "total_borrows"}
+                - {param: "amount"}
+            - {const: 1000000000000}
+    updates:
+      - var: "borrowed_this_block"
+        expr:
+          op: "+"
+          args:
+            - {var: "borrowed_this_block"}
+            - {param: "amount"}
+      - var: "total_borrows"
+        expr:
+          op: "+"
+          args:
+            - {var: "total_borrows"}
+            - {param: "amount"}
+    effects:
+      guard_triggered: {bool: false}
+      block_advanced: {bool: false}
+
+  - id: "on_repay"
+    description: "Record a repay event - triggers flash detection if borrow exists"
+    params:
+      - id: "amount"
+        type: {kind: "int", min: 1, max: 1000000000000}
+    guard:
+      op: "and"
+      args:
+        - op: ">"
+          args:
+            - {var: "borrowed_this_block"}
+            - {const: 0}
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "repaid_this_block"}
+                - {param: "amount"}
+            - {var: "borrowed_this_block"}
+        - op: "<"
+          args:
+            - {var: "total_flash_attempts"}
+            - {const: 1000000}
+    updates:
+      - var: "repaid_this_block"
+        expr:
+          op: "+"
+          args:
+            - {var: "repaid_this_block"}
+            - {param: "amount"}
+      - var: "flash_detected"
+        expr: {bool: true}
+      - var: "total_flash_attempts"
+        expr:
+          op: "+"
+          args:
+            - {var: "total_flash_attempts"}
+            - {const: 1}
+    effects:
+      guard_triggered: {bool: true}
+      block_advanced: {bool: false}
+
+  - id: "try_swap"
+    description: "Attempt a swap - blocked if flash loan detected"
+    params:
+      - id: "swap_amount"
+        type: {kind: "int", min: 1, max: 1000000000000}
+    guard:
+      op: "not"
+      args:
+        - {var: "flash_detected"}
+    updates: []
+    effects:
+      guard_triggered: {bool: false}
+      block_advanced: {bool: false}
+
+  - id: "blocked_swap"
+    description: "Record a blocked swap attempt due to flash detection"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - {var: "flash_detected"}
+        - op: "<"
+          args:
+            - {var: "swaps_blocked"}
+            - {const: 1000000}
+    updates:
+      - var: "swaps_blocked"
+        expr:
+          op: "+"
+          args:
+            - {var: "swaps_blocked"}
+            - {const: 1}
+    effects:
+      guard_triggered: {bool: true}
+      block_advanced: {bool: false}

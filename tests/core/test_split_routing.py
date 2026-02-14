@@ -50,3 +50,29 @@ def test_split_regression_counterexample_tie_break():
     best_out, best_a = best_split_two_pools_exact_in(p0, p1, amt, window=64)
     assert best_out == best_out_bf
     assert best_a == best_a_bf
+
+
+def test_dense_profile_recovers_known_gap_case():
+    # Manual witness (M001): baseline misses by 1, dense profile should recover oracle output.
+    p0 = PoolXY(x=87, y=80, fee_bps=75)
+    p1 = PoolXY(x=46, y=66, fee_bps=11)
+    amt = 6539
+    best_out_bf, best_a_bf = brute_force_best_split_two_pools_exact_in(p0, p1, amt)
+
+    base_out, _base_a = best_split_two_pools_exact_in(p0, p1, amt, window=64, search_profile="baseline")
+    dense_out, dense_a = best_split_two_pools_exact_in(p0, p1, amt, window=64, search_profile="dense24")
+
+    assert base_out < best_out_bf
+    assert dense_out == best_out_bf
+    assert dense_a == best_a_bf
+
+
+def test_unknown_search_profile_rejected():
+    p0 = PoolXY(x=100, y=100, fee_bps=10)
+    p1 = PoolXY(x=100, y=100, fee_bps=10)
+    try:
+        best_split_two_pools_exact_in(p0, p1, 1000, search_profile="unknown_mode")
+    except ValueError as exc:
+        assert "unsupported search_profile" in str(exc)
+    else:
+        assert False, "expected ValueError for unknown search profile"

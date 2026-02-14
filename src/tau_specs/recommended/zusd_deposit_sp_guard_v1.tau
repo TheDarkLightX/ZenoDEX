@@ -1,0 +1,17 @@
+# zUSD Stability-Pool Deposit Guard v1
+# i1 = amount (bv[64])
+# i2 = free_before (bv[64])
+# i3 = sp_before (bv[64])
+# i4 = free_after (bv[64])
+# i5 = sp_after (bv[64])
+# i6 = max_supply_ok (sbf)
+# o4 = deposit_sp_allowed
+
+set charvar off
+
+amount_pos(amount : bv[64]) := amount > { #x0000000000000000 }:bv[64].
+free_bound_ok(free_b : bv[64], amount : bv[64]) := free_b >= amount.
+free_delta_ok(free_b : bv[64], free_a : bv[64], amount : bv[64]) := (free_b >= free_a) && ((free_b - free_a) = amount).
+sp_delta_ok(sp_b : bv[64], sp_a : bv[64], amount : bv[64]) := (sp_a >= sp_b) && ((sp_a - sp_b) = amount).
+deposit_sp_allowed(amount : bv[64], free_b : bv[64], sp_b : bv[64], free_a : bv[64], sp_a : bv[64], max_supply_ok : sbf) := amount_pos(amount) && free_bound_ok(free_b, amount) && free_delta_ok(free_b, free_a, amount) && sp_delta_ok(sp_b, sp_a, amount) && (max_supply_ok = 1:sbf).
+always (o1[t]:sbf = 1:sbf <-> (amount_pos(i1[t]:bv[64]) && free_bound_ok(i2[t]:bv[64], i1[t]:bv[64]))) && (o2[t]:sbf = 1:sbf <-> (free_delta_ok(i2[t]:bv[64], i4[t]:bv[64], i1[t]:bv[64]) && sp_delta_ok(i3[t]:bv[64], i5[t]:bv[64], i1[t]:bv[64]))) && (o3[t]:sbf = 1:sbf <-> (i6[t]:sbf = 1:sbf)) && (o4[t]:sbf = 1:sbf <-> deposit_sp_allowed(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:sbf)).
