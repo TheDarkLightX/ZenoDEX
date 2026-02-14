@@ -2,8 +2,16 @@
 
 from __future__ import annotations
 
-from src.core.batch_clearing import compute_settlement, validate_settlement, clear_batch_single_pool
+from src.core.batch_clearing import (
+    _aggregate_balance_deltas_chunked,
+    _aggregate_lp_deltas_chunked,
+    _aggregate_reserve_deltas_chunked,
+    clear_batch_single_pool,
+    compute_settlement,
+    validate_settlement,
+)
 from src.core.liquidity import create_pool
+from src.core.settlement import BalanceDelta, LPDelta, ReserveDelta
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
@@ -205,3 +213,53 @@ def test_clear_batch_single_pool_optimal_ab_bounded_canonicalizes_lex_order() ->
 
     fills_ab = clear_batch_single_pool(intents, pool, balances, lp_balances, swap_ordering="optimal_ab_bounded")
     assert [f.intent_id for f in fills_ab] == [_iid(0), _iid(1), _iid(2)]
+
+
+def test_chunked_delta_aggregation_preserves_semantics_and_order() -> None:
+    pk_a = "0x" + "11" * 48
+    pk_b = "0x" + "22" * 48
+    asset_a = "0x" + "01" * 32
+    asset_b = "0x" + "02" * 32
+    pool_a = "0x" + "aa" * 32
+    pool_b = "0x" + "bb" * 32
+
+    balance_deltas = [
+        BalanceDelta(pubkey=pk_b, asset=asset_a, delta_add=7, delta_sub=0),
+        BalanceDelta(pubkey=pk_a, asset=asset_a, delta_add=3, delta_sub=2),
+        BalanceDelta(pubkey=pk_a, asset=asset_a, delta_add=5, delta_sub=1),
+        BalanceDelta(pubkey=pk_b, asset=asset_b, delta_add=0, delta_sub=4),
+        BalanceDelta(pubkey=pk_b, asset=asset_b, delta_add=2, delta_sub=0),
+    ]
+    expected_balance = [
+        BalanceDelta(pubkey=pk_a, asset=asset_a, delta_add=8, delta_sub=3),
+        BalanceDelta(pubkey=pk_b, asset=asset_a, delta_add=7, delta_sub=0),
+        BalanceDelta(pubkey=pk_b, asset=asset_b, delta_add=2, delta_sub=4),
+    ]
+    for chunk_size in (1, 2, 3, 128):
+        assert _aggregate_balance_deltas_chunked(balance_deltas, chunk_size=chunk_size) == expected_balance
+
+    reserve_deltas = [
+        ReserveDelta(pool_id=pool_b, asset=asset_b, delta_add=0, delta_sub=5),
+        ReserveDelta(pool_id=pool_a, asset=asset_a, delta_add=10, delta_sub=0),
+        ReserveDelta(pool_id=pool_a, asset=asset_a, delta_add=1, delta_sub=2),
+        ReserveDelta(pool_id=pool_b, asset=asset_b, delta_add=3, delta_sub=0),
+    ]
+    expected_reserve = [
+        ReserveDelta(pool_id=pool_a, asset=asset_a, delta_add=11, delta_sub=2),
+        ReserveDelta(pool_id=pool_b, asset=asset_b, delta_add=3, delta_sub=5),
+    ]
+    for chunk_size in (1, 2, 5, 128):
+        assert _aggregate_reserve_deltas_chunked(reserve_deltas, chunk_size=chunk_size) == expected_reserve
+
+    lp_deltas = [
+        LPDelta(pubkey=pk_b, pool_id=pool_b, delta_add=0, delta_sub=2),
+        LPDelta(pubkey=pk_a, pool_id=pool_a, delta_add=4, delta_sub=0),
+        LPDelta(pubkey=pk_a, pool_id=pool_a, delta_add=1, delta_sub=1),
+        LPDelta(pubkey=pk_b, pool_id=pool_b, delta_add=3, delta_sub=0),
+    ]
+    expected_lp = [
+        LPDelta(pubkey=pk_a, pool_id=pool_a, delta_add=5, delta_sub=1),
+        LPDelta(pubkey=pk_b, pool_id=pool_b, delta_add=3, delta_sub=2),
+    ]
+    for chunk_size in (1, 2, 4, 128):
+        assert _aggregate_lp_deltas_chunked(lp_deltas, chunk_size=chunk_size) == expected_lp
