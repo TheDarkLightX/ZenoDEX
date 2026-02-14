@@ -267,8 +267,9 @@ def _update_settle(state: ILFState, params: ILFActionParams) -> ILFState:
         il_bps, state.long_exposure, state.coverage_ratio_bps,
     )
 
-    # Cap total outflow to available pools (premium + margin)
-    available = state.premium_pool + state.margin_pool
+    # Margin-capped settlement: long payouts are sourced only from short margin.
+    # Premiums remain in the premium pool and are not consumed by settlement.
+    available = state.margin_pool
     capped_payout = min(total_long_payout, available)
 
     # Protocol fee taken from the capped payout (fee + net are sourced from same pool)

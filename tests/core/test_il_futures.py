@@ -520,6 +520,32 @@ def test_settle_payout_fee_accounting() -> None:
     assert ns.protocol_fee_pool == eff.protocol_fee
 
 
+def test_settle_is_margin_capped_and_preserves_premium_pool() -> None:
+    """Settlement payout is capped by short margin and does not consume premiums."""
+    s = ILFState(
+        snapshot_taken=True,
+        pool_snapshot_reserve_x=1_000_000,
+        pool_snapshot_reserve_y=1_000_000,
+        long_exposure=500_000,
+        short_exposure=10_000,
+        margin_pool=10_000,
+        premium_pool=5_000,
+    )
+    r = step(s, ILFActionParams(
+        action=ILFAction.SETTLE_IL_EPOCH,
+        current_reserve_x=500_000,
+        current_reserve_y=2_000_000,
+        auth_ok=True,
+    ))
+    assert r.accepted
+    assert r.state is not None
+    # Margin is fully consumed up to the cap, premiums are left untouched.
+    assert r.state.margin_pool == 0
+    assert r.state.short_exposure == 0
+    assert r.state.premium_pool == s.premium_pool
+    assert (r.state.last_net_payout + r.state.last_protocol_fee) == s.margin_pool
+
+
 def test_settle_margin_short_consistent() -> None:
     """After settlement, margin_pool == short_exposure."""
     s = ILFState(
