@@ -38,7 +38,7 @@ theorem sum_le_sum_erase_add_of_mem
   -- Let W = sum s f and h = f a.
   have hsum : s.sum f = (s.erase a).sum f + f a := by
     -- standard finset lemma: sum_erase_add (for commutative monoids; Nat works)
-    simpa [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using (Finset.sum_erase_add (s := s) (f := f) ha)
+    simpa using (Finset.sum_erase_add (s := s) (f := f) ha).symm
 
   -- Rewrite goal using hsum, then use monotonicity of addition on the right.
   -- From hle: (eraseSum + f a) ≤ (eraseSum + o).
@@ -50,4 +50,3 @@ theorem sum_le_sum_erase_add_of_mem
 
 end MST
 end TauSwap
-

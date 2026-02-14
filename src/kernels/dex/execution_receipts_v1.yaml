@@ -1,0 +1,546 @@
+# [FORGE] Verifiable Execution Receipts Kernel v1 (bounded Merkle-accumulator peaks)
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "execution_receipts_v1"
+  created_by: "zenodex"
+  notes: |
+    Verifiable execution receipts: per-intent receipts (fills/fees/price impact) committed into a deterministic
+    receipt_root for auditability + dispute tooling.
+
+    Design:
+      - Receipts are append-only within an epoch (batch). Advancing epoch resets the receipt accumulator.
+      - Commitment is an MMR-style Merkle accumulator with 6 peaks (levels 0..5), so at most 63 receipts/epoch.
+      - Peaks are maintained by binary-carry merge; unused peaks are forced to 0 by invariants (fail-closed).
+      - receipt_root is a deterministic fold over peaks and is intended to be included in the global state_root.
+
+    Cryptography note:
+      - The kernel IR does not model SHA-256. We use a small deterministic compression H(a,b) over the 32-bit prime
+        field MOD=4294967291 as a stand-in. Tau specs / production code should use SHA-256 Merkle hashing.
+
+observables:
+  state_vars: ["epoch", "receipt_count", "receipt_root"]
+  effects:
+    [
+      "event",
+      "receipt_epoch",
+      "receipt_index",
+      "receipt_leaf",
+      "receipt_root_out",
+      "intent_id",
+      "fill_action",
+      "amount_in",
+      "amount_out",
+      "fee_paid",
+      "price_impact_bps",
+    ]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["EpochAdvanced", "ReceiptCommitted"]
+  - id: "t_fill_action"
+    type:
+      kind: "enum"
+      symbols: ["Fill", "Reject"]
+  - id: "t_receipt_ok"
+    type:
+      kind: "enum"
+      symbols: ["Ok", "Bad"]
+
+state_vars:
+  - id: "epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+
+  # Count of committed receipts in the current epoch (finite bound keeps the model decidable/compact).
+  - id: "receipt_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 63 }
+
+  # Merkle accumulator root (domain: [0, MOD-1], MOD=4294967291).
+  - id: "receipt_root"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967290 }
+
+  # Internal MMR peaks: peak_i represents a subtree root of size 2^i when bit_i(receipt_count)=1.
+  - id: "peak_0"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967290 }
+  - id: "peak_1"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967290 }
+  - id: "peak_2"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967290 }
+  - id: "peak_3"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967290 }
+  - id: "peak_4"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967290 }
+  - id: "peak_5"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967290 }
+
+canonicalizer:
+  assigns:
+    # receipt_root := H(peak_0, H(peak_1, H(peak_2, H(peak_3, H(peak_4, H(peak_5, 0))))))
+    # with H(a,b) = (a*1000003 + b) mod 4294967291. Because unused peaks are forced to 0 by invariants,
+    # H(0,b)=b makes unused peaks a no-op (no conditional "skip" needed, so the canonicalizer stays small).
+    - var: "receipt_root"
+      expr:
+        op: "mod"
+        args:
+          - op: "+"
+            args:
+              - { op: "*", args: [{ var: "peak_0" }, { const: 1000003 }] }
+              - op: "mod"
+                args:
+                  - op: "+"
+                    args:
+                      - { op: "*", args: [{ var: "peak_1" }, { const: 1000003 }] }
+                      - op: "mod"
+                        args:
+                          - op: "+"
+                            args:
+                              - { op: "*", args: [{ var: "peak_2" }, { const: 1000003 }] }
+                              - op: "mod"
+                                args:
+                                  - op: "+"
+                                    args:
+                                      - { op: "*", args: [{ var: "peak_3" }, { const: 1000003 }] }
+                                      - op: "mod"
+                                        args:
+                                          - op: "+"
+                                            args:
+                                              - { op: "*", args: [{ var: "peak_4" }, { const: 1000003 }] }
+                                              - op: "mod"
+                                                args:
+                                                  - op: "+"
+                                                    args:
+                                                      - { op: "*", args: [{ var: "peak_5" }, { const: 1000003 }] }
+                                                      - { const: 0 }
+                                                  - { const: 4294967291 }
+                                          - { const: 4294967291 }
+                                  - { const: 4294967291 }
+                          - { const: 4294967291 }
+                  - { const: 4294967291 }
+          - { const: 4294967291 }
+
+invariants:
+  # Fail-closed peak discipline: if the corresponding bit of receipt_count is 0, the peak must be 0.
+  - id: "inv_peak_0_zero_when_bit_0_unset"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args:
+            - op: "mod"
+              args: [{ var: "receipt_count" }, { const: 2 }]
+            - { const: 0 }
+        - op: "="
+          args: [{ var: "peak_0" }, { const: 0 }]
+
+  - id: "inv_peak_1_zero_when_bit_1_unset"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args:
+            - op: "mod"
+              args:
+                - op: "div"
+                  args: [{ var: "receipt_count" }, { const: 2 }]
+                - { const: 2 }
+            - { const: 0 }
+        - op: "="
+          args: [{ var: "peak_1" }, { const: 0 }]
+
+  - id: "inv_peak_2_zero_when_bit_2_unset"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args:
+            - op: "mod"
+              args:
+                - op: "div"
+                  args: [{ var: "receipt_count" }, { const: 4 }]
+                - { const: 2 }
+            - { const: 0 }
+        - op: "="
+          args: [{ var: "peak_2" }, { const: 0 }]
+
+  - id: "inv_peak_3_zero_when_bit_3_unset"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args:
+            - op: "mod"
+              args:
+                - op: "div"
+                  args: [{ var: "receipt_count" }, { const: 8 }]
+                - { const: 2 }
+            - { const: 0 }
+        - op: "="
+          args: [{ var: "peak_3" }, { const: 0 }]
+
+  - id: "inv_peak_4_zero_when_bit_4_unset"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args:
+            - op: "mod"
+              args:
+                - op: "div"
+                  args: [{ var: "receipt_count" }, { const: 16 }]
+                - { const: 2 }
+            - { const: 0 }
+        - op: "="
+          args: [{ var: "peak_4" }, { const: 0 }]
+
+  - id: "inv_peak_5_zero_when_bit_5_unset"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args:
+            - op: "mod"
+              args:
+                - op: "div"
+                  args: [{ var: "receipt_count" }, { const: 32 }]
+                - { const: 2 }
+            - { const: 0 }
+        - op: "="
+          args: [{ var: "peak_5" }, { const: 0 }]
+
+init:
+  - var: "epoch"
+    expr: { const: 0 }
+  - var: "receipt_count"
+    expr: { const: 0 }
+  - var: "receipt_root"
+    expr: { const: 0 }
+  - var: "peak_0"
+    expr: { const: 0 }
+  - var: "peak_1"
+    expr: { const: 0 }
+  - var: "peak_2"
+    expr: { const: 0 }
+  - var: "peak_3"
+    expr: { const: 0 }
+  - var: "peak_4"
+    expr: { const: 0 }
+  - var: "peak_5"
+    expr: { const: 0 }
+
+actions:
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 10000 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "epoch" }, { param: "delta" }]
+        - { const: 1000000 }
+    updates:
+      - var: "epoch"
+        expr:
+          op: "+"
+          args: [{ var: "epoch" }, { param: "delta" }]
+      - var: "receipt_count"
+        expr: { const: 0 }
+      - var: "peak_0"
+        expr: { const: 0 }
+      - var: "peak_1"
+        expr: { const: 0 }
+      - var: "peak_2"
+        expr: { const: 0 }
+      - var: "peak_3"
+        expr: { const: 0 }
+      - var: "peak_4"
+        expr: { const: 0 }
+      - var: "peak_5"
+        expr: { const: 0 }
+    effects:
+      event: { enum: "EpochAdvanced" }
+      receipt_epoch: { var: "epoch" }
+      receipt_index: { const: 0 }
+      receipt_leaf: { const: 0 }
+      receipt_root_out: { var: "receipt_root" }
+      intent_id: { const: 0 }
+      fill_action: { enum: "Fill" }
+      amount_in: { const: 0 }
+      amount_out: { const: 0 }
+      fee_paid: { const: 0 }
+      price_impact_bps: { const: 0 }
+
+  - id: "commit_receipt"
+    params:
+      - id: "intent_id"
+        type: { kind: "int", min: 1, max: 4294967295 }
+      - id: "fill_action"
+        type: { ref: "t_fill_action" }
+      - id: "amount_in"
+        type: { kind: "int", min: 0, max: 3000000000 }
+      - id: "amount_out"
+        type: { kind: "int", min: 0, max: 3000000000 }
+      - id: "fee_paid"
+        type: { kind: "int", min: 0, max: 3000000000 }
+      - id: "price_impact_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "receipt_ok"
+        type: { ref: "t_receipt_ok" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "receipt_ok" }, { enum: "Ok" }] }
+        - { op: "<", args: [{ var: "receipt_count" }, { const: 63 }] }
+        # Fill vs Reject semantics (fail-closed on missing/invalid data).
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{ param: "fill_action" }, { enum: "Fill" }]
+            - op: "and"
+              args:
+                - { op: ">", args: [{ param: "amount_in" }, { const: 0 }] }
+                - { op: ">", args: [{ param: "amount_out" }, { const: 0 }] }
+                - { op: "<=", args: [{ param: "fee_paid" }, { param: "amount_in" }] }
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{ param: "fill_action" }, { enum: "Reject" }]
+            - op: "and"
+              args:
+                - { op: "=", args: [{ param: "amount_in" }, { const: 0 }] }
+                - { op: "=", args: [{ param: "amount_out" }, { const: 0 }] }
+                - { op: "=", args: [{ param: "fee_paid" }, { const: 0 }] }
+                - { op: "=", args: [{ param: "price_impact_bps" }, { const: 0 }] }
+    updates:
+      - var: "receipt_count"
+        expr:
+          op: "+"
+          args: [{ var: "receipt_count" }, { const: 1 }]
+
+      - var: "peak_0"
+        expr:
+          op: "ite"
+          cond: &bit0
+            op: "="
+            args:
+              - op: "mod"
+                args: [{ var: "receipt_count" }, { const: 2 }]
+              - { const: 1 }
+          then: { const: 0 }
+          else: &leaf_pre
+            op: "mod"
+            args:
+              - op: "+"
+                args:
+                  - { const: 424242 }
+                  - { op: "*", args: [{ param: "intent_id" }, { const: 17 }] }
+                  - { op: "*",
+                      args:
+                        [
+                          { op: "ite",
+                            cond: { op: "=", args: [{ param: "fill_action" }, { enum: "Fill" }] },
+                            then: { const: 1 },
+                            else: { const: 2 },
+                          },
+                          { const: 19 },
+                        ],
+                    }
+                  - { op: "*", args: [{ param: "amount_in" }, { const: 23 }] }
+                  - { op: "*", args: [{ param: "amount_out" }, { const: 29 }] }
+                  - { op: "*", args: [{ param: "fee_paid" }, { const: 31 }] }
+                  - { op: "*", args: [{ param: "price_impact_bps" }, { const: 37 }] }
+                  - { op: "*", args: [{ var: "epoch" }, { const: 41 }] }
+                  - { op: "*", args: [{ var: "receipt_count" }, { const: 43 }] }
+              - { const: 4294967291 }
+
+      - var: "peak_1"
+        expr:
+          op: "ite"
+          cond: *bit0
+          then:
+            op: "ite"
+            cond: &bit1
+              op: "="
+              args:
+                - op: "mod"
+                  args:
+                    - op: "div"
+                      args: [{ var: "receipt_count" }, { const: 2 }]
+                    - { const: 2 }
+                - { const: 1 }
+            then: { const: 0 }
+            else: &node1
+              op: "mod"
+              args:
+                - op: "+"
+                  args:
+                    - { op: "*", args: [{ var: "peak_0" }, { const: 1000003 }] }
+                    - *leaf_pre
+                - { const: 4294967291 }
+          else: { var: "peak_1" }
+
+      - var: "peak_2"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args: [*bit0, *bit1]
+          then:
+            op: "ite"
+            cond: &bit2
+              op: "="
+              args:
+                - op: "mod"
+                  args:
+                    - op: "div"
+                      args: [{ var: "receipt_count" }, { const: 4 }]
+                    - { const: 2 }
+                - { const: 1 }
+            then: { const: 0 }
+            else: &node2
+              op: "mod"
+              args:
+                - op: "+"
+                  args:
+                    - { op: "*", args: [{ var: "peak_1" }, { const: 1000003 }] }
+                    - *node1
+                - { const: 4294967291 }
+          else: { var: "peak_2" }
+
+      - var: "peak_3"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args: [*bit0, *bit1, *bit2]
+          then:
+            op: "ite"
+            cond: &bit3
+              op: "="
+              args:
+                - op: "mod"
+                  args:
+                    - op: "div"
+                      args: [{ var: "receipt_count" }, { const: 8 }]
+                    - { const: 2 }
+                - { const: 1 }
+            then: { const: 0 }
+            else: &node3
+              op: "mod"
+              args:
+                - op: "+"
+                  args:
+                    - { op: "*", args: [{ var: "peak_2" }, { const: 1000003 }] }
+                    - *node2
+                - { const: 4294967291 }
+          else: { var: "peak_3" }
+
+      - var: "peak_4"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args: [*bit0, *bit1, *bit2, *bit3]
+          then:
+            op: "ite"
+            cond: &bit4
+              op: "="
+              args:
+                - op: "mod"
+                  args:
+                    - op: "div"
+                      args: [{ var: "receipt_count" }, { const: 16 }]
+                    - { const: 2 }
+                - { const: 1 }
+            then: { const: 0 }
+            else: &node4
+              op: "mod"
+              args:
+                - op: "+"
+                  args:
+                    - { op: "*", args: [{ var: "peak_3" }, { const: 1000003 }] }
+                    - *node3
+                - { const: 4294967291 }
+          else: { var: "peak_4" }
+
+      - var: "peak_5"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args: [*bit0, *bit1, *bit2, *bit3, *bit4]
+          then:
+            op: "ite"
+            cond: &bit5
+              op: "="
+              args:
+                - op: "mod"
+                  args:
+                    - op: "div"
+                      args: [{ var: "receipt_count" }, { const: 32 }]
+                    - { const: 2 }
+                - { const: 1 }
+            then: { const: 0 }
+            else:
+              op: "mod"
+              args:
+                - op: "+"
+                  args:
+                    - { op: "*", args: [{ var: "peak_4" }, { const: 1000003 }] }
+                    - *node4
+                - { const: 4294967291 }
+          else: { var: "peak_5" }
+    effects:
+      event: { enum: "ReceiptCommitted" }
+      receipt_epoch: { var: "epoch" }
+      receipt_index: &receipt_index
+        op: "-"
+        args: [{ var: "receipt_count" }, { const: 1 }]
+      receipt_leaf:
+        op: "mod"
+        args:
+          - op: "+"
+            args:
+              - { const: 424242 }
+              - { op: "*", args: [{ param: "intent_id" }, { const: 17 }] }
+              - { op: "*",
+                  args:
+                    [
+                      { op: "ite",
+                        cond: { op: "=", args: [{ param: "fill_action" }, { enum: "Fill" }] },
+                        then: { const: 1 },
+                        else: { const: 2 },
+                      },
+                      { const: 19 },
+                    ],
+                }
+              - { op: "*", args: [{ param: "amount_in" }, { const: 23 }] }
+              - { op: "*", args: [{ param: "amount_out" }, { const: 29 }] }
+              - { op: "*", args: [{ param: "fee_paid" }, { const: 31 }] }
+              - { op: "*", args: [{ param: "price_impact_bps" }, { const: 37 }] }
+              - { op: "*", args: [{ var: "epoch" }, { const: 41 }] }
+              - { op: "*", args: [*receipt_index, { const: 43 }] }
+          - { const: 4294967291 }
+      receipt_root_out: { var: "receipt_root" }
+      intent_id: { param: "intent_id" }
+      fill_action: { param: "fill_action" }
+      amount_in: { param: "amount_in" }
+      amount_out: { param: "amount_out" }
+      fee_paid: { param: "fee_paid" }
+      price_impact_bps: { param: "price_impact_bps" }

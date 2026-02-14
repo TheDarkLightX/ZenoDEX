@@ -14,20 +14,25 @@ from __future__ import annotations
 from dataclasses import replace
 
 from .math import (
+    BPS_SCALE,
+    compute_partial_close_fraction,
     funding_payment,
     is_liquidatable,
     liq_penalty_capped,
     oracle_move_violated,
+    partial_liq_penalty_capped,
     pnl_quote,
+    remaining_position_signed,
     settle_price,
 )
-from .types import ActionParams, PerpState
+from .types import ActionParams, EpochPhase, PerpState
 
 
 def apply_advance_epoch(state: PerpState, params: ActionParams) -> PerpState:
     return replace(
         state,
         now_epoch=state.now_epoch + params.delta,
+        epoch_phase=EpochPhase.OPEN,
         liquidated_this_step=False,
     )
 
@@ -38,6 +43,7 @@ def apply_publish_clearing_price(state: PerpState, params: ActionParams) -> Perp
         clearing_price_seen=True,
         clearing_price_epoch=state.now_epoch,
         clearing_price_e8=params.price_e8,
+        epoch_phase=EpochPhase.PRICE_PUBLISHED,
         liquidated_this_step=False,
     )
 
@@ -84,6 +90,7 @@ def apply_settle_epoch(state: PerpState, params: ActionParams) -> PerpState:
         state,
         oracle_last_update_epoch=state.now_epoch,
         oracle_seen=True,
+        epoch_phase=EpochPhase.SETTLED,
         liquidated_this_step=liq,
         index_price_e8=sp,
         breaker_active=state.breaker_active or move_violated,
@@ -161,4 +168,55 @@ def apply_insurance_claim(state: PerpState, params: ActionParams) -> PerpState:
         claims_paid=new_claims,
         insurance_balance=state.initial_insurance + state.fee_income - new_claims,
         liquidated_this_step=False,
+    )
+
+
+def apply_partial_liquidate(state: PerpState, params: ActionParams) -> PerpState:
+    """Partially close a liquidatable position.
+
+    Closes the minimum fraction needed to restore the remaining position
+    above maintenance margin, applying a penalty on the closed portion.
+
+    When ``fraction_bps == 0``, the minimum fraction is auto-computed via
+    binary search. Otherwise the supplied fraction is used directly.
+
+    Invariants preserved:
+    - inv_entry_zero_when_flat: entry=0 when position=0
+    - inv_insurance_conservation: accounting identity maintained
+    - inv_fee_pool_eq_fee_income: penalty goes to both
+    - inv_maint_margin_ok: remaining position within margin (by construction)
+    """
+    # Resolve fraction.
+    fraction = params.fraction_bps
+    if fraction == 0:
+        fraction = compute_partial_close_fraction(
+            state.position_base, state.collateral_quote, state.index_price_e8,
+            state.maintenance_margin_bps, state.depeg_buffer_bps,
+            state.liquidation_penalty_bps, state.min_notional_for_bounty,
+        )
+
+    remaining = remaining_position_signed(state.position_base, fraction)
+    penalty = partial_liq_penalty_capped(
+        state.collateral_quote, state.position_base, fraction,
+        state.index_price_e8, state.liquidation_penalty_bps,
+        state.min_notional_for_bounty,
+    )
+
+    new_collateral = state.collateral_quote - penalty
+    new_fee_pool = state.fee_pool_quote + penalty
+    new_fee_income = state.fee_income + penalty
+    new_insurance = state.initial_insurance + new_fee_income - state.claims_paid
+
+    # Entry price: 0 if flat, else index price (matches spec convention).
+    new_entry = 0 if remaining == 0 else state.index_price_e8
+
+    return replace(
+        state,
+        position_base=remaining,
+        entry_price_e8=new_entry,
+        collateral_quote=new_collateral,
+        fee_pool_quote=new_fee_pool,
+        fee_income=new_fee_income,
+        insurance_balance=new_insurance,
+        liquidated_this_step=True,
     )

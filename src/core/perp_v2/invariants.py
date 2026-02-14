@@ -1,6 +1,6 @@
 """Invariant checkers for `perp_v2`.
 
-This file mirrors the invariants in `src/kernels/dex/perp_epoch_isolated_v2.yaml`.
+This file mirrors the invariants in `src/kernels/dex/perp_epoch_isolated_v3.yaml`.
 Each function returns True when the invariant holds, and `check_all()` returns
 the list of violated invariant IDs (empty = all pass).
 
@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Callable
 
 from .math import maint_margin_req
-from .types import PerpState
+from .types import EpochPhase, PerpState
 
 
 def inv_clearing_not_from_future(s: PerpState) -> bool:
@@ -34,6 +34,12 @@ def inv_oracle_seen_zeroed(s: PerpState) -> bool:
     if s.oracle_seen:
         return True
     return s.oracle_last_update_epoch == 0 and s.index_price_e8 == 0
+
+
+def inv_oracle_seen_positive_index(s: PerpState) -> bool:
+    if not s.oracle_seen:
+        return True
+    return s.index_price_e8 > 0
 
 
 def inv_breaker_not_from_future(s: PerpState) -> bool:
@@ -98,6 +104,15 @@ def inv_fee_pool_eq_fee_income(s: PerpState) -> bool:
     return s.fee_pool_quote == s.fee_income
 
 
+def inv_phase_consistent(s: PerpState) -> bool:
+    """Phase matches observable state."""
+    if s.epoch_phase == EpochPhase.PRICE_PUBLISHED:
+        return s.clearing_price_epoch == s.now_epoch and s.clearing_price_seen
+    if s.epoch_phase == EpochPhase.SETTLED:
+        return s.oracle_last_update_epoch >= s.now_epoch
+    return True  # OPEN has no additional constraint
+
+
 # ---------------------------------------------------------------------------
 # Registry + check_all
 # ---------------------------------------------------------------------------
@@ -107,6 +122,7 @@ INVARIANT_REGISTRY: dict[str, Callable[[PerpState], bool]] = {
     "inv_clearing_seen_zeroed": inv_clearing_seen_zeroed,
     "inv_oracle_not_from_future": inv_oracle_not_from_future,
     "inv_oracle_seen_zeroed": inv_oracle_seen_zeroed,
+    "inv_oracle_seen_positive_index": inv_oracle_seen_positive_index,
     "inv_breaker_not_from_future": inv_breaker_not_from_future,
     "inv_breaker_inactive_zeroed": inv_breaker_inactive_zeroed,
     "inv_margin_params_ordered": inv_margin_params_ordered,
@@ -119,6 +135,7 @@ INVARIANT_REGISTRY: dict[str, Callable[[PerpState], bool]] = {
     "inv_liquidation_ic_guard": inv_liquidation_ic_guard,
     "inv_funding_epoch_gated": inv_funding_epoch_gated,
     "inv_fee_pool_eq_fee_income": inv_fee_pool_eq_fee_income,
+    "inv_phase_consistent": inv_phase_consistent,
 }
 
 

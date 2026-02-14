@@ -1,6 +1,6 @@
-"""`perp_v2`: pure-Python implementation of the `perp_epoch_isolated_v2` risk kernel.
+"""`perp_v2`: pure-Python implementation of the `perp_epoch_isolated_v3` risk kernel.
 
-This package mirrors the semantics of `src/kernels/dex/perp_epoch_isolated_v2.yaml`:
+This package mirrors the semantics of `src/kernels/dex/perp_epoch_isolated_v3.yaml`:
 - deterministic, integer-only transitions,
 - immutable state (frozen dataclasses),
 - fail-closed guards and invariant checks.
@@ -17,7 +17,7 @@ Public API:
 from .engine import step, step_or_raise
 from .errors import PerpGuardError, PerpInvariantError, PerpOverflowError
 from .state import initial_state, state_from_dict, state_to_dict
-from .types import Action, ActionParams, Effect, Event, PerpState, StepResult
+from .types import Action, ActionParams, Effect, EpochPhase, Event, PerpState, StepResult
 
 __all__ = [
     "step",
@@ -28,6 +28,7 @@ __all__ = [
     "Action",
     "ActionParams",
     "Effect",
+    "EpochPhase",
     "Event",
     "PerpState",
     "StepResult",

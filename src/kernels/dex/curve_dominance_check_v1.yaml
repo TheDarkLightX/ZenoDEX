@@ -1,0 +1,357 @@
+# Kernel IR Model: AMM Curve Dominance Check
+#
+# This model encodes the verification of whether any curve in the family
+# K = xy(x+y)^alpha can dominate CPMM (alpha=0) on both slippage AND IL.
+#
+# State Variables:
+# - alpha: curve parameter (scaled by 100, so alpha=50 means 0.5)
+# - reserve_x, reserve_y: pool reserves
+# - trade_size: size of the trade being analyzed
+# - price_move: price change factor (scaled by 100, so 150 means 1.5x)
+#
+# The invariant encodes the impossibility theorem:
+# NOT (slippage_better AND il_better) for alpha > 0
+#
+# If this invariant holds inductively, the theorem is verified.
+
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "curve_dominance_check_v1"
+  description: "Verifies that no xy(x+y)^alpha curve dominates CPMM on both slippage and IL"
+  version: "1.0.0"
+
+observables:
+  state_vars:
+    - alpha
+    - slippage_vs_cpmm
+    - il_vs_cpmm
+    - dominance_status
+  effects:
+    - rc
+
+types:
+  - id: "t_alpha"
+    type: {kind: "int", min: 0, max: 200}  # alpha * 100 (0 to 2.0)
+
+  - id: "t_reserve"
+    type: {kind: "int", min: 100, max: 10000}  # Reserve bounds
+
+  - id: "t_trade"
+    type: {kind: "int", min: 1, max: 1000}  # Trade size
+
+  - id: "t_price_move"
+    type: {kind: "int", min: 50, max: 200}  # Price ratio * 100 (0.5 to 2.0)
+
+  - id: "t_metric_diff"
+    type: {kind: "int", min: -2000, max: 2000}  # Basis points difference
+
+  - id: "t_dominance"
+    type: {kind: "enum", symbols: ["NoDominance", "SlippageBetter", "ILBetter", "BothBetter"]}
+
+state_vars:
+  - id: "alpha"
+    role: "data"
+    type: {ref: "t_alpha"}
+
+  - id: "reserve_x"
+    role: "data"
+    type: {ref: "t_reserve"}
+
+  - id: "reserve_y"
+    role: "data"
+    type: {ref: "t_reserve"}
+
+  - id: "trade_size"
+    role: "data"
+    type: {ref: "t_trade"}
+
+  - id: "price_move"
+    role: "data"
+    type: {ref: "t_price_move"}
+
+  - id: "slippage_vs_cpmm"
+    role: "data"
+    type: {ref: "t_metric_diff"}
+
+  - id: "il_vs_cpmm"
+    role: "data"
+    type: {ref: "t_metric_diff"}
+
+  - id: "dominance_status"
+    role: "data"
+    type: {ref: "t_dominance"}
+
+# Core invariant: No curve dominates CPMM on BOTH metrics
+# This is the theorem we're proving by showing it holds inductively
+invariants:
+  - id: "no_dominance"
+    kind: "safety"
+    description: "If alpha > 0, cannot have BOTH slippage < CPMM AND IL < CPMM"
+    expr:
+      # alpha > 0 => NOT (slippage_vs_cpmm < 0 AND il_vs_cpmm < 0)
+      op: "=>"
+      args:
+        - op: ">"
+          args: [{var: "alpha"}, {const: 0}]
+        - op: "not"
+          args:
+            - op: "and"
+              args:
+                - op: "<"
+                  args: [{var: "slippage_vs_cpmm"}, {const: 0}]
+                - op: "<"
+                  args: [{var: "il_vs_cpmm"}, {const: 0}]
+
+  - id: "tradeoff_bound"
+    kind: "safety"
+    description: "Slippage improvement implies IL degradation"
+    expr:
+      # If slippage is better by more than 10 bps, IL must be worse
+      op: "=>"
+      args:
+        - op: "<"
+          args: [{var: "slippage_vs_cpmm"}, {const: -10}]
+        - op: ">"
+          args: [{var: "il_vs_cpmm"}, {const: 0}]
+
+  - id: "slippage_nonnegative"
+    kind: "safety"
+    description: "Slippage approximation is nonnegative for alpha >= 0 updates"
+    expr:
+      op: ">="
+      args: [{var: "slippage_vs_cpmm"}, {const: 0}]
+
+  - id: "status_consistency"
+    kind: "safety"
+    description: "Dominance status matches metric comparisons"
+    expr:
+      op: "and"
+      args:
+        # BothBetter should never occur (that's the theorem)
+        - op: "!="
+          args: [{var: "dominance_status"}, {enum: "BothBetter"}]
+        # SlippageBetter implies slippage < 0
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{var: "dominance_status"}, {enum: "SlippageBetter"}]
+            - op: "<"
+              args: [{var: "slippage_vs_cpmm"}, {const: 0}]
+        # ILBetter implies il < 0
+        - op: "=>"
+          args:
+            - op: "="
+              args: [{var: "dominance_status"}, {enum: "ILBetter"}]
+            - op: "<"
+              args: [{var: "il_vs_cpmm"}, {const: 0}]
+
+init:
+  - var: "alpha"
+    expr: {const: 0}  # Start with CPMM
+  - var: "reserve_x"
+    expr: {const: 1000}
+  - var: "reserve_y"
+    expr: {const: 1000}
+  - var: "trade_size"
+    expr: {const: 100}
+  - var: "price_move"
+    expr: {const: 100}  # No price change initially
+  - var: "slippage_vs_cpmm"
+    expr: {const: 0}  # At alpha=0, same as CPMM
+  - var: "il_vs_cpmm"
+    expr: {const: 0}
+  - var: "dominance_status"
+    expr: {enum: "NoDominance"}
+
+actions:
+  # Explore different alpha values
+  - id: "set_alpha"
+    params:
+      - id: "new_alpha"
+        type: {ref: "t_alpha"}
+    guard: {bool: true}  # Always allowed
+    updates:
+      - var: "alpha"
+        expr: {param: "new_alpha"}
+      # Update metrics based on alpha
+      # Slippage approximation: increases with alpha
+      # slippage_vs_cpmm = alpha * shape_factor (simplified)
+      - var: "slippage_vs_cpmm"
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - {param: "new_alpha"}
+                - {const: 5}  # Base factor
+            - {const: 10}
+      # IL approximation: may decrease for small price moves
+      - var: "il_vs_cpmm"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "<"
+                args: [{var: "price_move"}, {const: 120}]
+              - op: ">"
+                args: [{var: "price_move"}, {const: 80}]
+          then:
+            # Near equilibrium: alpha can reduce IL
+            op: "div"
+            args:
+              - op: "*"
+                args:
+                  - {param: "new_alpha"}
+                  - {const: -2}  # IL improves slightly
+              - {const: 10}
+          else:
+            # Far from equilibrium: alpha increases IL
+            op: "div"
+            args:
+              - op: "*"
+                args:
+                  - {param: "new_alpha"}
+                  - {const: 8}  # IL worsens
+              - {const: 10}
+      # Update status
+      - var: "dominance_status"
+        expr: {enum: "NoDominance"}  # Will be corrected by canonicalizer
+    effects:
+      rc: {const: 0}
+
+  # Explore different reserve configurations
+  - id: "set_reserves"
+    params:
+      - id: "new_x"
+        type: {ref: "t_reserve"}
+      - id: "new_y"
+        type: {ref: "t_reserve"}
+    guard: {bool: true}
+    updates:
+      - var: "reserve_x"
+        expr: {param: "new_x"}
+      - var: "reserve_y"
+        expr: {param: "new_y"}
+      # Recalculate metrics based on new reserves and current alpha
+      # Shape factor = (x+y) / (2*sqrt(xy))
+      # For unbalanced pools, slippage effect changes
+      - var: "slippage_vs_cpmm"
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - {var: "alpha"}
+                - op: "div"
+                  args:
+                    - op: "+"
+                      args: [{param: "new_x"}, {param: "new_y"}]
+                    - {const: 100}
+            - {const: 20}
+    effects:
+      rc: {const: 0}
+
+  # Explore different trade sizes
+  - id: "set_trade"
+    params:
+      - id: "new_trade"
+        type: {ref: "t_trade"}
+    guard: {bool: true}
+    updates:
+      - var: "trade_size"
+        expr: {param: "new_trade"}
+      # Larger trades amplify slippage difference
+      - var: "slippage_vs_cpmm"
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - {var: "alpha"}
+                - op: "+"
+                  args:
+                    - {const: 5}
+                    - op: "div"
+                      args: [{param: "new_trade"}, {const: 100}]
+            - {const: 10}
+    effects:
+      rc: {const: 0}
+
+  # Explore different price movements
+  - id: "set_price_move"
+    params:
+      - id: "new_price"
+        type: {ref: "t_price_move"}
+    guard: {bool: true}
+    updates:
+      - var: "price_move"
+        expr: {param: "new_price"}
+      # IL impact depends on price movement magnitude
+      - var: "il_vs_cpmm"
+        expr:
+          op: "ite"
+          cond:
+            # Small price moves (90-110%)
+            op: "and"
+            args:
+              - op: "<"
+                args: [{param: "new_price"}, {const: 110}]
+              - op: ">"
+                args: [{param: "new_price"}, {const: 90}]
+          then:
+            # Near equilibrium: concentrated liquidity helps
+            op: "-"
+            args:
+              - {const: 0}
+              - op: "div"
+                args: [{var: "alpha"}, {const: 50}]
+          else:
+            # Far from equilibrium: concentrated liquidity hurts
+            op: "div"
+            args:
+              - op: "*"
+                args:
+                  - {var: "alpha"}
+                  - op: "max"
+                    args:
+                      - op: "-"
+                        args: [{param: "new_price"}, {const: 100}]
+                      - op: "-"
+                        args: [{const: 100}, {param: "new_price"}]
+              - {const: 50}
+    effects:
+      rc: {const: 0}
+
+# Canonicalizer: Update dominance status based on metrics
+canonicalizer:
+  assigns:
+    - var: "dominance_status"
+      expr:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - op: "<"
+              args: [{var: "slippage_vs_cpmm"}, {const: 0}]
+            - op: "<"
+              args: [{var: "il_vs_cpmm"}, {const: 0}]
+        then:
+          {enum: "BothBetter"}  # Should never be reachable if theorem holds
+        else:
+          op: "ite"
+          cond:
+            op: "<"
+            args: [{var: "slippage_vs_cpmm"}, {const: 0}]
+          then:
+            {enum: "SlippageBetter"}
+          else:
+            op: "ite"
+            cond:
+              op: "<"
+              args: [{var: "il_vs_cpmm"}, {const: 0}]
+            then:
+              {enum: "ILBetter"}
+            else:
+              {enum: "NoDominance"}

@@ -100,3 +100,28 @@ def test_best_route_can_split_across_three_parallel_pools():
             best2_out = max(best2_out, q2.amount_out)
 
     assert q3.amount_out > best2_out
+
+
+def test_best_route_split_profile_dense_is_not_worse_than_baseline():
+    # Counterexample-style pair where dense split probing should be at least as good as baseline probing.
+    pools = {
+        "p0": _pool("p0", "A", "B", 87, 80, 75),
+        "p1": _pool("p1", "A", "B", 46, 66, 11),
+    }
+    q_base = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=6539,
+        split_search_profile="baseline",
+    )
+    q_dense = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=6539,
+        split_search_profile="dense24",
+    )
+    assert q_base is not None
+    assert q_dense is not None
+    assert q_dense.amount_out >= q_base.amount_out

@@ -1,6 +1,6 @@
 """Parity check: `src/core/perp_v2` vs a generated Python reference model for the YAML spec.
 
-The reference model is generated from `src/kernels/dex/perp_epoch_isolated_v2.yaml`
+The reference model is generated from `src/kernels/dex/perp_epoch_isolated_v3.yaml`
 by an optional kernel-spec toolchain (validator/verifier/codegen) vendored under
 `external/` (git-ignored). That toolchain is used in evidence/verification workflows; the
 generated file itself is committed and has no runtime toolchain dependency.
@@ -31,11 +31,11 @@ from src.core.perp_v2.state import state_to_dict
 
 def _import_generated_ref() -> Any:
     root = Path(__file__).resolve().parents[3]
-    ref_path = root / "generated" / "perp_python" / "perp_epoch_isolated_v2_ref.py"
+    ref_path = root / "generated" / "perp_python" / "perp_epoch_isolated_v3_ref.py"
     if not ref_path.exists():
         pytest.skip(f"generated ref not found at {ref_path}", allow_module_level=True)
 
-    module_name = "generated.perp_python.perp_epoch_isolated_v2_ref"
+    module_name = "generated.perp_python.perp_epoch_isolated_v3_ref"
     spec = importlib.util.spec_from_file_location(module_name, ref_path)
     assert spec and spec.loader, f"could not load spec from {ref_path}"
     module = importlib.util.module_from_spec(spec)
@@ -47,8 +47,18 @@ def _import_generated_ref() -> Any:
 REF = _import_generated_ref()
 
 
+def _state_dict_for_ref(s) -> dict[str, Any]:
+    """Convert our state_to_dict to the ref model's encoding."""
+    d = state_to_dict(s)
+    ep = d.get("epoch_phase")
+    if isinstance(ep, str):
+        # Ref model uses int encoding: Open=0, PricePublished=1, Settled=2.
+        d["epoch_phase"] = {"Open": 0, "PricePublished": 1, "Settled": 2}[ep]
+    return d
+
+
 def _to_ref_state(s) -> Any:
-    return REF.State(**state_to_dict(s))
+    return REF.State(**_state_dict_for_ref(s))
 
 
 def _to_ref_cmd(params: ActionParams) -> Any:
@@ -150,7 +160,7 @@ class TestPerpV2ParityWithGeneratedRef:
     def test_initial_state_matches(self) -> None:
         ours = initial_state()
         ref = REF.init_state()
-        assert state_to_dict(ours) == vars(ref)
+        assert _state_dict_for_ref(ours) == vars(ref)
 
     def test_random_trace_parity(self) -> None:
         rng = random.Random(0)
@@ -176,7 +186,7 @@ class TestPerpV2ParityWithGeneratedRef:
             assert ref_res.state is not None
             assert ref_res.effects is not None
 
-            assert state_to_dict(our_res.state) == vars(ref_res.state)
+            assert _state_dict_for_ref(our_res.state) == vars(ref_res.state)
             assert _effect_as_dict(our_res.effect) == dict(ref_res.effects)
 
             ours = our_res.state

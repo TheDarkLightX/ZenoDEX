@@ -343,6 +343,7 @@ class TauDefinition:
 
 _IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _STREAM_DECL_RE = re.compile(r"^\s*[io]\d+\s*\[[^\]]+\]\s*:")
+_OUTPUT_ASSIGN_RE = re.compile(r"\b(o\d+)\[(\d+)\](?::[^\s:=]+)?\s*:=\s*(-?\d+)")
 
 
 def parse_definitions(spec_text: str) -> dict[str, TauDefinition]:
@@ -509,6 +510,30 @@ def extract_always_exprs(spec_text: str) -> list[str]:
     return exprs
 
 
+def _extract_outputs_from_text(output_text: str) -> Dict[int, Dict[str, int]]:
+    outputs_by_step: Dict[int, Dict[str, int]] = {}
+    for match in _OUTPUT_ASSIGN_RE.finditer(output_text):
+        name = match.group(1)
+        idx = int(match.group(2))
+        value = int(match.group(3))
+        outputs_by_step.setdefault(idx, {})[name] = value
+    return outputs_by_step
+
+
+def _outputs_complete(
+    *,
+    outputs_by_step: Dict[int, Dict[str, int]],
+    out_names: Sequence[str],
+    step_count: int,
+) -> bool:
+    for idx in range(step_count):
+        got = outputs_by_step.get(idx, {})
+        for out_name in out_names:
+            if out_name not in got:
+                return False
+    return True
+
+
 def build_repl_script(
     *,
     spec_text: str,
@@ -529,11 +554,13 @@ def build_repl_script(
     skipping_def_block = False
 
     for name in sorted(input_streams.keys(), key=lambda s: int(s[1:])):
-        lines.append(f'{name} : {input_streams[name]} = in file("{input_paths[name]}")')
+        in_path = str(input_paths[name]).replace("\\", "\\\\").replace('"', '\\"')
+        lines.append(f'{name} : {input_streams[name]} := in file("{in_path}")')
 
     lines.append("")
     for name in sorted(output_streams.keys(), key=lambda s: int(s[1:])):
-        lines.append(f'{name} : {output_streams[name]} = out file("{output_paths[name]}")')
+        out_path = str(output_paths[name]).replace("\\", "\\\\").replace('"', '\\"')
+        lines.append(f'{name} : {output_streams[name]} := out file("{out_path}")')
 
     lines.append("")
     for line in spec_text.splitlines():
@@ -879,6 +906,25 @@ def run_tau_spec_steps_spec_mode_with_trace(
 
     raw_spec_text = spec_path.read_text(encoding="utf-8")
     spec_text = normalize_spec_text(raw_spec_text)
+    defs = parse_definitions(spec_text)
+    always_exprs = extract_always_exprs(spec_text)
+    if always_exprs:
+        expanded_always_exprs = [inline_definitions(expr, defs) for expr in always_exprs]
+        # Tau 0.7 file-runner can reject helper predicate/function definitions that REPL mode accepts.
+        # Build a file-runner-safe spec by dropping helper defs and re-emitting inlined always clauses.
+        kept_lines: list[str] = []
+        for raw_line in spec_text.splitlines():
+            stripped = raw_line.strip()
+            if not stripped:
+                continue
+            if re.match(r"^always\b", stripped):
+                continue
+            if re.match(r"^[A-Za-z_][A-Za-z0-9_]*\s*\(.*\)\s*:=\s*.*\.\s*$", stripped):
+                continue
+            kept_lines.append(stripped)
+        for expr in expanded_always_exprs:
+            kept_lines.append(f"always {expr}.")
+        spec_text = "\n".join(kept_lines) + "\n"
     stream_types = extract_stream_types(spec_text)
     input_streams = {k: v for k, v in stream_types.items() if k.startswith("i")}
     output_streams = {k: v for k, v in stream_types.items() if k.startswith("o")}
@@ -915,61 +961,53 @@ def run_tau_spec_steps_spec_mode_with_trace(
             cmd.append("--experimental")
         cmd += ["--severity", severity, "--charvar", "false", "-x"]
 
-        # Some Tau builds do not terminate cleanly in `-x` mode on EOF and will keep
-        # producing outputs indefinitely. Cap stdout to a budget that should contain
-        # at least the requested trace length, then accept truncated runs as long as
-        # we observed all requested outputs.
         out_names = sorted(output_streams.keys())
         est_line_bytes = 96
         stdout_budget = 16_384 + len(steps) * max(1, len(out_names)) * est_line_bytes
 
-        rc, out, err = _run_subprocess_with_output_caps(
-            cmd,
-            input_text=input_text,
-            cwd=tmpdir_path,
-            timeout_s=timeout_s,
-            max_stdout_bytes=min(256_000, max(32_000, int(stdout_budget))),
-            max_stderr_bytes=32_000,
-        )
+        # Some Tau builds do not terminate cleanly in `-x` mode on EOF and will keep
+        # producing repeated prompts indefinitely. Treat completion as "all requested
+        # outputs observed", not process exit status. If the first run times out before
+        # producing a full trace, retry once with a higher budget.
+        attempt_timeouts = [float(timeout_s)]
+        if attempt_timeouts[0] < 25.0:
+            attempt_timeouts.append(25.0)
 
-    output_text = out + ("\n" + err if err else "")
-    outputs_by_step: Dict[int, Dict[str, int]] = {}
-    for line in output_text.splitlines():
-        for match in re.finditer(r"\b(o\d+)\[(\d+)\]:[^\s:=]+\s*:=\s*(-?\d+)", line):
-            name = match.group(1)
-            idx = int(match.group(2))
-            value = int(match.group(3))
-            outputs_by_step.setdefault(idx, {})[name] = value
+        last_rc = -1
+        last_out = ""
+        last_err = ""
+        for attempt_timeout_s in attempt_timeouts:
+            rc, out, err = _run_subprocess_with_output_caps(
+                cmd,
+                input_text=input_text,
+                cwd=tmpdir_path,
+                timeout_s=float(attempt_timeout_s),
+                max_stdout_bytes=min(256_000, max(32_000, int(stdout_budget))),
+                max_stderr_bytes=32_000,
+            )
 
-    if rc != 0:
-        # Accept truncated stdout if we still captured the requested outputs.
-        want_steps = range(len(steps))
-        want_outs = out_names
-        ok_complete = True
-        for idx in want_steps:
-            got = outputs_by_step.get(idx, {})
-            for out_name in want_outs:
-                if out_name not in got:
-                    ok_complete = False
-                    break
-            if not ok_complete:
+            output_text = out + ("\n" + err if err else "")
+            outputs_by_step = _extract_outputs_from_text(output_text)
+            if _outputs_complete(outputs_by_step=outputs_by_step, out_names=out_names, step_count=len(steps)):
+                return outputs_by_step, out, err, spec_text, input_text
+
+            last_rc = rc
+            last_out = out
+            last_err = err
+            if (err or "").strip() != "tau timed out":
                 break
-        if ok_complete and (err or "").strip() == "tau stdout too large":
-            return outputs_by_step, out, err, spec_text, input_text
 
-        detail = (err or out or "unknown error").strip()
-        raise TauRunError(
-            f"tau failed (rc={rc}): {detail[:400]}",
-            rc=rc,
-            stdout=out,
-            stderr=err,
-            repl_script="",
-            mode="spec",
-            spec_text=spec_text,
-            input_text=input_text,
-        )
-
-    return outputs_by_step, out, err, spec_text, input_text
+    detail = (last_err or last_out or "unknown error").strip()
+    raise TauRunError(
+        f"tau failed (rc={last_rc}): {detail[:400]}",
+        rc=last_rc,
+        stdout=last_out,
+        stderr=last_err,
+        repl_script="",
+        mode="spec",
+        spec_text=spec_text,
+        input_text=input_text,
+    )
 
 
 def split_u32(x: int) -> tuple[int, int]:

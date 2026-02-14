@@ -8,7 +8,7 @@ from src.core.perp_v2.state import (
     state_from_dict,
     state_to_dict,
 )
-from src.core.perp_v2.types import PerpState
+from src.core.perp_v2.types import EpochPhase, PerpState
 
 
 class TestInitialState:
@@ -43,10 +43,10 @@ class TestInitialState:
 
 class TestStateVarNames:
     def test_count(self):
-        assert len(STATE_VAR_NAMES) == 30
+        assert len(STATE_VAR_NAMES) == 31
 
     def test_no_duplicates(self):
-        assert len(set(STATE_VAR_NAMES)) == 30
+        assert len(set(STATE_VAR_NAMES)) == 31
 
 
 class TestRoundTrip:
@@ -102,5 +102,23 @@ class TestStateFromDict:
     def test_wrong_type_raises(self):
         d = state_to_dict(initial_state())
         d["now_epoch"] = "not_an_int"
+        with pytest.raises(TypeError):
+            state_from_dict(d)
+
+    def test_epoch_phase_accepts_int_encoding(self):
+        d = state_to_dict(initial_state())
+        d["epoch_phase"] = 1
+        s = state_from_dict(d)
+        assert s.epoch_phase == EpochPhase.PRICE_PUBLISHED
+
+    def test_epoch_phase_invalid_int_raises(self):
+        d = state_to_dict(initial_state())
+        d["epoch_phase"] = 3
+        with pytest.raises(ValueError):
+            state_from_dict(d)
+
+    def test_epoch_phase_bool_rejected(self):
+        d = state_to_dict(initial_state())
+        d["epoch_phase"] = True
         with pytest.raises(TypeError):
             state_from_dict(d)

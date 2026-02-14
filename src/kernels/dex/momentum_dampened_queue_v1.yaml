@@ -1,0 +1,484 @@
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "momentum_dampened_queue_v1"
+  description: "MDAQ creates endogenous MEV resistance by tracking price momentum and applying adaptive friction. Sandwich attacks become unprofitable because high-momentum conditions trigger increased dampening costs."
+  tags: ["mev-resistance", "sandwich-prevention", "momentum", "adaptive-fees"]
+
+observables:
+  state_vars: ["momentum", "queue_depth", "dampening_level", "epoch", "stabilizer_pool", "phase"]
+  effects: ["trade_executed", "tax_collected", "reward_paid", "epoch_advanced", "emergency_triggered"]
+
+types: []
+
+state_vars:
+  - id: "momentum"
+    role: "data"
+    type: {kind: "int", min: -100, max: 100}
+    description: "Directional momentum (-100 to +100)"
+
+  - id: "momentum_magnitude"
+    role: "data"
+    type: {kind: "int", min: 0, max: 100}
+    description: "Absolute momentum value"
+
+  - id: "queue_depth"
+    role: "data"
+    type: {kind: "int", min: 0, max: 50}
+    description: "Number of trades in current epoch"
+
+  - id: "dampening_level"
+    role: "control"
+    type: {kind: "int", min: 1, max: 10}
+    description: "Current friction multiplier"
+
+  - id: "epoch"
+    role: "control"
+    type: {kind: "int", min: 0, max: 1000000}
+    description: "Current epoch number"
+
+  - id: "stabilizer_pool"
+    role: "data"
+    type: {kind: "int", min: 0, max: 10000}
+    description: "Pool for rewarding counter-momentum trades"
+
+  - id: "phase"
+    role: "control"
+    type: {kind: "enum", symbols: ["Normal", "HighMomentum", "Cooldown"]}
+    description: "Current market phase"
+
+  - id: "momentum_tax_collected"
+    role: "data"
+    type: {kind: "int", min: 0, max: 50000}
+    description: "Total tax collected from momentum trades"
+
+  - id: "rewards_distributed"
+    role: "data"
+    type: {kind: "int", min: 0, max: 50000}
+    description: "Total rewards paid to stabilizers"
+
+  - id: "cooldown_remaining"
+    role: "control"
+    type: {kind: "int", min: 0, max: 10}
+    description: "Epochs remaining in cooldown"
+
+  - id: "trades_this_epoch"
+    role: "data"
+    type: {kind: "int", min: 0, max: 100}
+    description: "Trade count in current epoch"
+
+invariants:
+  - id: "RewardConservation"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - {var: "rewards_distributed"}
+        - {var: "momentum_tax_collected"}
+    description: "Cannot distribute more rewards than collected"
+
+  - id: "QueueBounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - {var: "queue_depth"}
+        - {const: 50}
+    description: "Queue depth stays bounded"
+
+  - id: "DampeningBounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: ">="
+          args: [{var: "dampening_level"}, {const: 1}]
+        - op: "<="
+          args: [{var: "dampening_level"}, {const: 10}]
+    description: "Dampening level stays in range"
+
+  - id: "CooldownOnlyInCooldownPhase"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: ">"
+          args: [{var: "cooldown_remaining"}, {const: 0}]
+        - op: "="
+          args: [{var: "phase"}, {enum: "Cooldown"}]
+    description: "Cooldown counter only positive in Cooldown phase"
+
+  - id: "MomentumMagnitudeNonNegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args:
+        - {var: "momentum_magnitude"}
+        - {const: 0}
+    description: "Magnitude is always non-negative"
+
+init:
+  - var: "momentum"
+    expr: {const: 0}
+  - var: "momentum_magnitude"
+    expr: {const: 0}
+  - var: "queue_depth"
+    expr: {const: 0}
+  - var: "dampening_level"
+    expr: {const: 1}
+  - var: "epoch"
+    expr: {const: 0}
+  - var: "stabilizer_pool"
+    expr: {const: 0}
+  - var: "phase"
+    expr: {enum: "Normal"}
+  - var: "momentum_tax_collected"
+    expr: {const: 0}
+  - var: "rewards_distributed"
+    expr: {const: 0}
+  - var: "cooldown_remaining"
+    expr: {const: 0}
+  - var: "trades_this_epoch"
+    expr: {const: 0}
+
+actions:
+  - id: "submit_buy_momentum"
+    description: "Submit buy trade that follows positive momentum - pays friction"
+    params:
+      - id: "size"
+        type: {kind: "int", min: 1, max: 100}
+    guard:
+      op: "and"
+      args:
+        - op: "<"
+          args: [{var: "queue_depth"}, {const: 50}]
+        - op: "<"
+          args: [{var: "trades_this_epoch"}, {const: 100}]
+        - op: "!="
+          args: [{var: "phase"}, {enum: "Cooldown"}]
+        - op: ">"
+          args: [{var: "momentum"}, {const: 0}]
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "momentum_tax_collected"}
+                - op: "*"
+                  args: [{var: "dampening_level"}, {param: "size"}]
+            - {const: 50000}
+    updates:
+      - var: "momentum"
+        expr:
+          op: "min"
+          args:
+            - {const: 100}
+            - op: "+"
+              args:
+                - {var: "momentum"}
+                - op: "div"
+                  args: [{param: "size"}, {const: 10}]
+      - var: "momentum_magnitude"
+        expr:
+          op: "min"
+          args:
+            - {const: 100}
+            - op: "+"
+              args:
+                - {var: "momentum_magnitude"}
+                - op: "div"
+                  args: [{param: "size"}, {const: 10}]
+      - var: "queue_depth"
+        expr:
+          op: "+"
+          args: [{var: "queue_depth"}, {const: 1}]
+      - var: "momentum_tax_collected"
+        expr:
+          op: "+"
+          args:
+            - {var: "momentum_tax_collected"}
+            - op: "*"
+              args: [{var: "dampening_level"}, {param: "size"}]
+      - var: "trades_this_epoch"
+        expr:
+          op: "+"
+          args: [{var: "trades_this_epoch"}, {const: 1}]
+      - var: "phase"
+        expr:
+          op: "ite"
+          cond:
+            op: ">="
+            args: [{var: "momentum_magnitude"}, {const: 80}]
+          then: {enum: "HighMomentum"}
+          else: {var: "phase"}
+    effects:
+      trade_executed: {bool: true}
+      tax_collected: {bool: true}
+      reward_paid: {bool: false}
+      epoch_advanced: {bool: false}
+      emergency_triggered: {bool: false}
+
+  - id: "submit_sell_momentum"
+    description: "Submit sell trade that follows negative momentum - pays friction"
+    params:
+      - id: "size"
+        type: {kind: "int", min: 1, max: 100}
+    guard:
+      op: "and"
+      args:
+        - op: "<"
+          args: [{var: "queue_depth"}, {const: 50}]
+        - op: "<"
+          args: [{var: "trades_this_epoch"}, {const: 100}]
+        - op: "!="
+          args: [{var: "phase"}, {enum: "Cooldown"}]
+        - op: "<"
+          args: [{var: "momentum"}, {const: 0}]
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "momentum_tax_collected"}
+                - op: "*"
+                  args: [{var: "dampening_level"}, {param: "size"}]
+            - {const: 50000}
+    updates:
+      - var: "momentum"
+        expr:
+          op: "max"
+          args:
+            - {const: -100}
+            - op: "-"
+              args:
+                - {var: "momentum"}
+                - op: "div"
+                  args: [{param: "size"}, {const: 10}]
+      - var: "momentum_magnitude"
+        expr:
+          op: "min"
+          args:
+            - {const: 100}
+            - op: "+"
+              args:
+                - {var: "momentum_magnitude"}
+                - op: "div"
+                  args: [{param: "size"}, {const: 10}]
+      - var: "queue_depth"
+        expr:
+          op: "+"
+          args: [{var: "queue_depth"}, {const: 1}]
+      - var: "momentum_tax_collected"
+        expr:
+          op: "+"
+          args:
+            - {var: "momentum_tax_collected"}
+            - op: "*"
+              args: [{var: "dampening_level"}, {param: "size"}]
+      - var: "trades_this_epoch"
+        expr:
+          op: "+"
+          args: [{var: "trades_this_epoch"}, {const: 1}]
+      - var: "phase"
+        expr:
+          op: "ite"
+          cond:
+            op: ">="
+            args: [{var: "momentum_magnitude"}, {const: 80}]
+          then: {enum: "HighMomentum"}
+          else: {var: "phase"}
+    effects:
+      trade_executed: {bool: true}
+      tax_collected: {bool: true}
+      reward_paid: {bool: false}
+      epoch_advanced: {bool: false}
+      emergency_triggered: {bool: false}
+
+  - id: "submit_stabilizer_buy"
+    description: "Counter-momentum buy (stabilizes negative momentum) - gets reward"
+    params:
+      - id: "size"
+        type: {kind: "int", min: 1, max: 100}
+    guard:
+      op: "and"
+      args:
+        - op: "<"
+          args: [{var: "queue_depth"}, {const: 50}]
+        - op: "<"
+          args: [{var: "trades_this_epoch"}, {const: 100}]
+        - op: "<"
+          args: [{var: "momentum"}, {const: 0}]
+        - op: ">="
+          args: [{var: "momentum_magnitude"}, {const: 10}]
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - {var: "rewards_distributed"}
+                - op: "min"
+                  args:
+                    - {var: "stabilizer_pool"}
+                    - op: "*"
+                      args: [{const: 2}, {param: "size"}]
+            - {var: "momentum_tax_collected"}
+    updates:
+      - var: "momentum"
+        expr:
+          op: "min"
+          args:
+            - {const: 0}
+            - op: "+"
+              args:
+                - {var: "momentum"}
+                - op: "div"
+                  args: [{param: "size"}, {const: 5}]
+      - var: "momentum_magnitude"
+        expr:
+          op: "max"
+          args:
+            - {const: 0}
+            - op: "-"
+              args:
+                - {var: "momentum_magnitude"}
+                - op: "div"
+                  args: [{param: "size"}, {const: 5}]
+      - var: "queue_depth"
+        expr:
+          op: "+"
+          args: [{var: "queue_depth"}, {const: 1}]
+      - var: "rewards_distributed"
+        expr:
+          op: "+"
+          args:
+            - {var: "rewards_distributed"}
+            - op: "min"
+              args:
+                - {var: "stabilizer_pool"}
+                - op: "*"
+                  args: [{const: 2}, {param: "size"}]
+      - var: "stabilizer_pool"
+        expr:
+          op: "max"
+          args:
+            - {const: 0}
+            - op: "-"
+              args:
+                - {var: "stabilizer_pool"}
+                - op: "*"
+                  args: [{const: 2}, {param: "size"}]
+      - var: "trades_this_epoch"
+        expr:
+          op: "+"
+          args: [{var: "trades_this_epoch"}, {const: 1}]
+    effects:
+      trade_executed: {bool: true}
+      tax_collected: {bool: false}
+      reward_paid: {bool: true}
+      epoch_advanced: {bool: false}
+      emergency_triggered: {bool: false}
+
+  - id: "advance_epoch"
+    description: "Advance to next epoch - settles batch, decays momentum, refills pool"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: ">"
+          args: [{var: "trades_this_epoch"}, {const: 0}]
+        - op: "<"
+          args: [{var: "epoch"}, {const: 1000000}]
+    updates:
+      - var: "epoch"
+        expr:
+          op: "+"
+          args: [{var: "epoch"}, {const: 1}]
+      - var: "queue_depth"
+        expr: {const: 0}
+      - var: "momentum"
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args: [{var: "momentum"}, {const: 9}]
+            - {const: 10}
+      - var: "momentum_magnitude"
+        expr:
+          op: "div"
+          args:
+            - op: "*"
+              args: [{var: "momentum_magnitude"}, {const: 9}]
+            - {const: 10}
+      - var: "stabilizer_pool"
+        expr:
+          op: "min"
+          args:
+            - {const: 10000}
+            - op: "+"
+              args:
+                - {var: "stabilizer_pool"}
+                - op: "div"
+                  args:
+                    - op: "-"
+                      args:
+                        - {var: "momentum_tax_collected"}
+                        - {var: "rewards_distributed"}
+                    - {const: 2}
+      - var: "trades_this_epoch"
+        expr: {const: 0}
+      - var: "dampening_level"
+        expr:
+          op: "max"
+          args:
+            - {const: 1}
+            - op: "+"
+              args:
+                - {const: 1}
+                - op: "div"
+                  args: [{var: "momentum_magnitude"}, {const: 12}]
+      - var: "cooldown_remaining"
+        expr:
+          op: "max"
+          args:
+            - {const: 0}
+            - op: "-"
+              args: [{var: "cooldown_remaining"}, {const: 1}]
+      - var: "phase"
+        expr:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "="
+                args: [{var: "phase"}, {enum: "Cooldown"}]
+              - op: "<="
+                args: [{var: "cooldown_remaining"}, {const: 1}]
+          then: {enum: "Normal"}
+          else: {var: "phase"}
+    effects:
+      trade_executed: {bool: false}
+      tax_collected: {bool: false}
+      reward_paid: {bool: false}
+      epoch_advanced: {bool: true}
+      emergency_triggered: {bool: false}
+
+  - id: "emergency_reset"
+    description: "Emergency reset when momentum is extreme - triggers cooldown"
+    params: []
+    guard:
+      op: ">="
+      args: [{var: "momentum_magnitude"}, {const: 95}]
+    updates:
+      - var: "momentum"
+        expr: {const: 0}
+      - var: "momentum_magnitude"
+        expr: {const: 0}
+      - var: "dampening_level"
+        expr: {const: 1}
+      - var: "phase"
+        expr: {enum: "Cooldown"}
+      - var: "cooldown_remaining"
+        expr: {const: 10}
+    effects:
+      trade_executed: {bool: false}
+      tax_collected: {bool: false}
+      reward_paid: {bool: false}
+      epoch_advanced: {bool: false}
+      emergency_triggered: {bool: true}

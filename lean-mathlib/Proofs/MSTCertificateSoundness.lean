@@ -33,7 +33,7 @@ theorem le_weight_offTreeEdge_of_mem_path
     (hT : T.IsTree) (u v : V)
     (hcert : maxWeightOnPath (T := T) (w := w) hT u v ≤ w s(u, v))
     {e : Sym2 V}
-    (he : e ∈ pathEdges (T := T) (w := w) hT u v) :
+    (he : e ∈ pathEdges (T := T) hT u v) :
     w e ≤ w s(u, v) := by
   have h1 : w e ≤ maxWeightOnPath (T := T) (w := w) hT u v :=
     le_maxWeightOnPath_of_mem (T := T) (w := w) hT (u := u) (v := v) he
@@ -41,4 +41,3 @@ theorem le_weight_offTreeEdge_of_mem_path
 
 end MST
 end TauSwap
-

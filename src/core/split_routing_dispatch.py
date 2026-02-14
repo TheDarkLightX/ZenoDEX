@@ -250,6 +250,7 @@ def best_split_two_pools_exact_in_for_pools(
     asset_out: AssetId,
     amount_in_total: Amount,
     window: int = 64,
+    search_profile: str = "baseline",
 ) -> SplitTwoPoolsQuote:
     """
     Compute the best exact-in split across two pools for the same asset pair direction.
@@ -274,7 +275,13 @@ def best_split_two_pools_exact_in_for_pools(
         rin1, rout1 = r1
         xy0 = PoolXY(x=int(rin0), y=int(rout0), fee_bps=int(p0.fee_bps))
         xy1 = PoolXY(x=int(rin1), y=int(rout1), fee_bps=int(p1.fee_bps))
-        best_out, best_a = best_split_two_pools_exact_in(xy0, xy1, int(amount_in_total), window=int(window))
+        best_out, best_a = best_split_two_pools_exact_in(
+            xy0,
+            xy1,
+            int(amount_in_total),
+            window=int(window),
+            search_profile=str(search_profile),
+        )
         out0 = exact_out_for_pool_exact_in(xy0, best_a) if best_a > 0 else 0
         out1 = exact_out_for_pool_exact_in(xy1, int(amount_in_total) - best_a) if best_a < int(amount_in_total) else 0
         return SplitTwoPoolsQuote(

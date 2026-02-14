@@ -1,0 +1,15 @@
+# zUSD Supply Conservation v2 (bv[64], subtraction-form equality)
+# i1 = free_before (bv[64])
+# i2 = sp_before (bv[64])
+# i3 = total_before (bv[64])
+# i4 = free_after (bv[64])
+# i5 = sp_after (bv[64])
+# i6 = total_after (bv[64])
+# o4 = supply_conserved
+
+set charvar off
+
+before_ok(free_b : bv[64], sp_b : bv[64], total_b : bv[64]) := (total_b >= free_b) && ((total_b - free_b) = sp_b).
+after_ok(free_a : bv[64], sp_a : bv[64], total_a : bv[64]) := (total_a >= free_a) && ((total_a - free_a) = sp_a).
+supply_conserved(free_b : bv[64], sp_b : bv[64], total_b : bv[64], free_a : bv[64], sp_a : bv[64], total_a : bv[64]) := before_ok(free_b, sp_b, total_b) && after_ok(free_a, sp_a, total_a).
+always (o1[t]:sbf = 1:sbf <-> before_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64])) && (o2[t]:sbf = 1:sbf <-> after_ok(i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64])) && (o3[t]:sbf = 1:sbf <-> supply_conserved(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64])) && (o4[t]:sbf = 1:sbf <-> supply_conserved(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64])).

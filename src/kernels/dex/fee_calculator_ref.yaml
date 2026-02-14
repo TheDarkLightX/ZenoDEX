@@ -24,6 +24,11 @@ invariants:
     expr:
       op: ">="
       args: [{ var: "total_fees_collected" }, { const: 0 }]
+  - id: "inv_total_fees_bounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "total_fees_collected" }, { const: 10000000 }]
 
 actions:
   - id: "calculate_and_collect"
@@ -38,6 +43,17 @@ actions:
         - { op: ">", args: [{ param: "fee_amount" }, { const: 0 }] }
         - { op: ">=", args: [{ param: "fee_bps" }, { const: 0 }] }
         - { op: "<=", args: [{ param: "fee_bps" }, { const: 10000 }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "total_fees_collected" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args: [{ param: "fee_amount" }, { param: "fee_bps" }]
+                    - { const: 10000 }
+            - { const: 10000000 }
     updates:
       - var: "total_fees_collected"
         expr:

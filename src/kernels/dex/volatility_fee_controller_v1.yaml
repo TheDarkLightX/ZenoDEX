@@ -1,0 +1,334 @@
+# Volatility-Aware Fee Controller v1
+# Designed to avoid common IR anti-patterns (bounded, deterministic, fail-closed)
+# Created via 40-iteration multi-agent collaboration
+
+ir_version: "esso-ir/v1"
+
+meta:
+  model_id: "volatility_fee_controller_v1"
+  description: "Phase-based fee controller with volatility tiers, conservation laws, and oracle freshness"
+  version: "1.0.0"
+
+# Externally observable state (C5: obs_stability)
+observables:
+  state_vars: ["phase", "fee_basis_points", "volatility_tier", "total_fees_collected", "total_fees_distributed"]
+  effects: ["fee_adjusted", "fees_distributed"]
+
+# Type definitions
+types: []
+
+# State variables (C1: bounded with tight domains from reachability)
+state_vars:
+  # Control flow via phase enum (C1 point 2)
+  - id: "phase"
+    role: "control"
+    type: {kind: "enum", symbols: ["Idle", "Collecting", "Adjusting", "Active"]}
+
+  # Volatility tier (bounded domain)
+  - id: "volatility_tier"
+    role: "data"
+    type: {kind: "int", min: 0, max: 3}
+
+  # Fee rate in basis points (0.01% to 1%)
+  - id: "fee_basis_points"
+    role: "data"
+    type: {kind: "int", min: 1, max: 100}
+
+  # Conservation tracking (C4: conservation law pattern)
+  - id: "total_fees_collected"
+    role: "data"
+    type: {kind: "int", min: 0, max: 10000}
+
+  - id: "total_fees_distributed"
+    role: "data"
+    type: {kind: "int", min: 0, max: 10000}
+
+  # Precision tracking (BP17: dust_carry for integer division)
+  - id: "dust_carry"
+    role: "data"
+    type: {kind: "int", min: 0, max: 99}
+
+  # Oracle freshness tracking (AP13 fix, C4 pattern 4)
+  - id: "price_block"
+    role: "data"
+    type: {kind: "int", min: 0, max: 100}
+
+  - id: "current_block"
+    role: "data"
+    type: {kind: "int", min: 0, max: 100}
+
+  # Reentrancy protection (AP14 fix, C4 pattern 5)
+  - id: "reentrancy_lock"
+    role: "control"
+    type: {kind: "bool"}
+
+# Invariants (all QF_LIA per BP15 - no var*var)
+invariants:
+  # Conservation law (C4 pattern 1)
+  - id: "inv_conservation"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{var: "total_fees_distributed"}, {var: "dust_carry"}]
+        - {var: "total_fees_collected"}
+
+  # Dust bound
+  - id: "inv_dust_bound"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{var: "dust_carry"}, {const: 99}]
+
+  # Fee range
+  - id: "inv_fee_range"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: ">="
+          args: [{var: "fee_basis_points"}, {const: 1}]
+        - op: "<="
+          args: [{var: "fee_basis_points"}, {const: 100}]
+
+  # Lock during sensitive phases (AP14 fix)
+  - id: "inv_lock_during_adjustment"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "or"
+          args:
+            - op: "="
+              args: [{var: "phase"}, {enum: "Collecting"}]
+            - op: "="
+              args: [{var: "phase"}, {enum: "Adjusting"}]
+        - {var: "reentrancy_lock"}
+
+  # Cannot over-distribute
+  - id: "inv_distribution_bound"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{var: "total_fees_distributed"}, {var: "total_fees_collected"}]
+
+# Init block (C1 point 5: constants only, AP17 avoided)
+init:
+  - var: "phase"
+    expr: {enum: "Idle"}
+  - var: "volatility_tier"
+    expr: {const: 0}
+  - var: "fee_basis_points"
+    expr: {const: 10}  # Default 0.1% fee
+  - var: "total_fees_collected"
+    expr: {const: 0}
+  - var: "total_fees_distributed"
+    expr: {const: 0}
+  - var: "dust_carry"
+    expr: {const: 0}
+  - var: "price_block"
+    expr: {const: 0}
+  - var: "current_block"
+    expr: {const: 0}
+  - var: "reentrancy_lock"
+    expr: {bool: false}
+
+# Actions with proper guards
+actions:
+  # Environment action: advance block
+  - id: "advance_block"
+    params: []
+    guard:
+      op: "<"
+      args: [{var: "current_block"}, {const: 100}]
+    updates:
+      - var: "current_block"
+        expr:
+          op: "+"
+          args: [{var: "current_block"}, {const: 1}]
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {const: 0}
+
+  # Update oracle price
+  - id: "update_price"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{var: "phase"}, {enum: "Idle"}]
+        - op: "not"
+          args: [{var: "reentrancy_lock"}]
+    updates:
+      - var: "price_block"
+        expr: {var: "current_block"}
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {const: 0}
+
+  # Start fee adjustment cycle
+  - id: "start_fee_adjustment"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{var: "phase"}, {enum: "Idle"}]
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{var: "current_block"}, {var: "price_block"}]
+            - {const: 10}  # Price freshness check (AP13 fix)
+    updates:
+      - var: "phase"
+        expr: {enum: "Collecting"}
+      - var: "reentrancy_lock"
+        expr: {bool: true}
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {const: 0}
+
+  # Collect fees (environment action)
+  - id: "collect_fee"
+    params:
+      - id: "amount"
+        type: {kind: "int", min: 1, max: 100}
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{var: "phase"}, {enum: "Collecting"}]
+        - op: "<"
+          args: [{var: "total_fees_collected"}, {const: 9900}]
+    updates:
+      - var: "total_fees_collected"
+        expr:
+          op: "+"
+          args: [{var: "total_fees_collected"}, {param: "amount"}]
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {const: 0}
+
+  # Transition to tier calculation
+  - id: "calculate_tier"
+    params: []
+    guard:
+      op: "="
+      args: [{var: "phase"}, {enum: "Collecting"}]
+    updates:
+      - var: "phase"
+        expr: {enum: "Adjusting"}
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {const: 0}
+
+  # Set volatility tier and corresponding fee
+  - id: "set_volatility_tier"
+    params:
+      - id: "new_tier"
+        type: {kind: "int", min: 0, max: 3}
+    guard:
+      op: "="
+      args: [{var: "phase"}, {enum: "Adjusting"}]
+    updates:
+      - var: "volatility_tier"
+        expr: {param: "new_tier"}
+      - var: "fee_basis_points"
+        expr:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{param: "new_tier"}, {const: 0}]
+          then: {const: 10}  # Low volatility: 0.1%
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{param: "new_tier"}, {const: 1}]
+            then: {const: 25}  # Medium: 0.25%
+            else:
+              op: "ite"
+              cond:
+                op: "="
+                args: [{param: "new_tier"}, {const: 2}]
+              then: {const: 50}  # High: 0.5%
+              else: {const: 100}  # Extreme: 1%
+    effects:
+      fee_adjusted: {param: "new_tier"}
+      fees_distributed: {const: 0}
+
+  # Activate new fee rate
+  - id: "activate_new_fee"
+    params: []
+    guard:
+      op: "="
+      args: [{var: "phase"}, {enum: "Adjusting"}]
+    updates:
+      - var: "phase"
+        expr: {enum: "Active"}
+      - var: "reentrancy_lock"
+        expr: {bool: false}
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {const: 0}
+
+  # Distribute fees with dust handling (BP17)
+  - id: "distribute_fees"
+    params:
+      - id: "amount"
+        type: {kind: "int", min: 1, max: 100}
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{var: "phase"}, {enum: "Active"}]
+        - op: "<="
+          args:
+            - {param: "amount"}
+            - op: "-"
+              args:
+                - op: "-"
+                  args: [{var: "total_fees_collected"}, {var: "total_fees_distributed"}]
+                - {var: "dust_carry"}
+    updates:
+      - var: "total_fees_distributed"
+        expr:
+          op: "+"
+          args: [{var: "total_fees_distributed"}, {param: "amount"}]
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {param: "amount"}
+
+  # Complete cycle and return to idle
+  - id: "complete_cycle"
+    params: []
+    guard:
+      op: "="
+      args: [{var: "phase"}, {enum: "Active"}]
+    updates:
+      - var: "phase"
+        expr: {enum: "Idle"}
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {const: 0}
+
+  # Emergency reset (revert_batch equivalent)
+  - id: "emergency_reset"
+    params: []
+    guard:
+      op: "or"
+      args:
+        - op: "="
+          args: [{var: "phase"}, {enum: "Collecting"}]
+        - op: "="
+          args: [{var: "phase"}, {enum: "Adjusting"}]
+    updates:
+      - var: "phase"
+        expr: {enum: "Idle"}
+      - var: "reentrancy_lock"
+        expr: {bool: false}
+    effects:
+      fee_adjusted: {const: 0}
+      fees_distributed: {const: 0}

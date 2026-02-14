@@ -26,6 +26,18 @@ from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee
 from .oracle import OracleState, init_oracle_state, is_fresh, update_price_timestamp
 from .vault import VaultState, VaultCommand, VaultStepResult
 from .vault import init_vault_state, step as vault_step
+from .zusd import (
+    ZUSDState,
+    ZUSDCommand,
+    ZUSDStepResult,
+    ZUSDMultiState,
+    ZUSDMultiCommand,
+    ZUSDMultiStepResult,
+    init_state as init_zusd_state,
+    init_multi_state as init_zusd_multi_state,
+    step as zusd_step,
+    step_multi as zusd_step_multi,
+)
 
 __all__ = [
     "swap_exact_in",
@@ -59,4 +71,14 @@ __all__ = [
     "VaultStepResult",
     "init_vault_state",
     "vault_step",
+    "ZUSDState",
+    "ZUSDCommand",
+    "ZUSDStepResult",
+    "ZUSDMultiState",
+    "ZUSDMultiCommand",
+    "ZUSDMultiStepResult",
+    "init_zusd_state",
+    "init_zusd_multi_state",
+    "zusd_step",
+    "zusd_step_multi",
 ]

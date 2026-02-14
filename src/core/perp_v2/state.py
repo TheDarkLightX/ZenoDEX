@@ -9,10 +9,29 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .types import PerpState
+from .types import EpochPhase, PerpState
 
 # Auto-derived from PerpState field definitions (single source of truth).
 STATE_VAR_NAMES: tuple[str, ...] = tuple(PerpState.__dataclass_fields__)
+
+
+_EPOCH_PHASE_INT_MAP: dict[int, EpochPhase] = {
+    0: EpochPhase.OPEN,
+    1: EpochPhase.PRICE_PUBLISHED,
+    2: EpochPhase.SETTLED,
+}
+
+
+def _coerce_epoch_phase(val: Any) -> EpochPhase:
+    if isinstance(val, EpochPhase):
+        return val
+    if isinstance(val, str):
+        return EpochPhase(val)
+    if isinstance(val, int) and not isinstance(val, bool):
+        if val in _EPOCH_PHASE_INT_MAP:
+            return _EPOCH_PHASE_INT_MAP[val]
+        raise ValueError(f"state var 'epoch_phase' int value {val} out of range [0,2]")
+    raise TypeError(f"state var 'epoch_phase' must be EpochPhase|str|int, got {type(val).__name__}")
 
 
 def initial_state() -> PerpState:
@@ -24,9 +43,16 @@ def initial_state() -> PerpState:
     return PerpState()
 
 
-def state_to_dict(state: PerpState) -> dict[str, bool | int]:
+def state_to_dict(state: PerpState) -> dict[str, bool | int | str]:
     """Serialize a PerpState to a plain dict (kernel-state dict format)."""
-    return {name: getattr(state, name) for name in STATE_VAR_NAMES}
+    d: dict[str, bool | int | str] = {}
+    for name in STATE_VAR_NAMES:
+        val = getattr(state, name)
+        if isinstance(val, EpochPhase):
+            d[name] = val.value
+        else:
+            d[name] = val
+    return d
 
 
 def state_from_dict(d: Mapping[str, Any]) -> PerpState:
@@ -34,7 +60,9 @@ def state_from_dict(d: Mapping[str, Any]) -> PerpState:
     kwargs: dict[str, Any] = {}
     for name in STATE_VAR_NAMES:
         val = d[name]
-        if isinstance(val, bool):
+        if name == "epoch_phase":
+            kwargs[name] = _coerce_epoch_phase(val)
+        elif isinstance(val, bool):
             kwargs[name] = val
         elif isinstance(val, int):
             kwargs[name] = int(val)  # normalize int subclasses (e.g. numpy)
