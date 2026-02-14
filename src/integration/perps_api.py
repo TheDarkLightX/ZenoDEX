@@ -844,6 +844,31 @@ def _dispatch_post(
     return _handle_insurance(perps, history, parsed)
 
 
+def get_oracle_sync_snapshot(market_id: str) -> Optional[Dict[str, int]]:
+    """Return a deterministic oracle snapshot for cross-module sync checks."""
+    target = str(market_id or "").strip()
+    if not target:
+        return None
+    with _lock:
+        market = _demo_perps.markets.get(target)
+        if not isinstance(market, PerpMarketState):
+            return None
+        gs = market.global_state
+        if not bool(gs.get("oracle_seen", False)):
+            return None
+        price_e8 = int(gs.get("index_price_e8", 0))
+        oracle_epoch = int(gs.get("oracle_last_update_epoch", 0))
+        now_epoch = int(gs.get("now_epoch", 0))
+        if price_e8 <= 0 or oracle_epoch < 0 or now_epoch < 0:
+            return None
+        return {
+            "market_id": target,
+            "price_e8": price_e8,
+            "oracle_last_update_epoch": oracle_epoch,
+            "now_epoch": now_epoch,
+        }
+
+
 def reset_demo_state() -> None:
     """Reset module-level demo state. For tests only."""
     global _demo_perps, _history
