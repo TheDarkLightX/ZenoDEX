@@ -30,6 +30,8 @@ class DexConfig:
     """Runtime config for the core step."""
 
     fee_split_params: Optional[FeeSplitParams] = None
+    # Promote chunked invariant-preserving greedy batch ordering by default.
+    swap_ordering: str = "greedy_ab_refined"
 
 
 @dataclass(frozen=True)
@@ -73,6 +75,7 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             pools=state.pools,
             balances=state.balances,
             lp_balances=state.lp_balances,
+            swap_ordering=str(config.swap_ordering),
         )
         ok, err = validate_settlement(
             settlement=settlement,

@@ -120,6 +120,8 @@ class DexEngineConfig:
     # This prevents malicious "conservation-only" settlements from stealing funds when the settlement
     # is treated as untrusted input.
     require_settlement_match: bool = True
+    # Production swap ordering posture for deterministic, high-A/B batch clearing.
+    swap_ordering: str = "greedy_ab_refined"
 
     # Intent signature policy:
     # - If `require_intent_signatures` is True, each intent must carry a per-intent signature,
@@ -261,6 +263,20 @@ def _settlement_commitment_dict(settlement: Settlement) -> Dict[str, Any]:
     out["fills"] = compact_fills
 
     return out
+
+
+def _settlement_rewrite_normal_form_dict(settlement: Settlement) -> Dict[str, Any]:
+    """
+    Algebraic-rewrite canonicalization for semantic settlement equivalence.
+
+    This quotient form is used for settlement equality checks so list ordering,
+    duplicate deltas, and omitted-vs-null optional fields cannot create false
+    mismatches for semantically equivalent transitions.
+    """
+    op = create_settlement_operation(settlement).get("3")
+    if not isinstance(op, dict):
+        raise TypeError("internal error: settlement operation must be an object")
+    return normalize_settlement_op_for_commitment(op)
 
 
 def _verify_intent_signature_bytes(
@@ -529,6 +545,7 @@ def apply_ops(
                 pools=state.pools,
                 balances=state.balances,
                 lp_balances=state.lp_balances,
+                swap_ordering=str(config.swap_ordering),
             )
 
             if settlement is None:
@@ -537,16 +554,8 @@ def apply_ops(
                 settlement = computed_settlement
             elif config.require_settlement_match:
                 try:
-                    if proof_scheme == "recompute_batch_v4":
-                        expected_op3 = create_settlement_operation(computed_settlement).get("3")
-                        got_op3 = create_settlement_operation(settlement).get("3")
-                        if not isinstance(expected_op3, dict) or not isinstance(got_op3, dict):
-                            raise TypeError("settlement operation must be an object")
-                        expected = normalize_settlement_op_for_commitment(expected_op3)
-                        got = normalize_settlement_op_for_commitment(got_op3)
-                    else:
-                        expected = _settlement_commitment_dict(computed_settlement)
-                        got = _settlement_commitment_dict(settlement)
+                    expected = _settlement_rewrite_normal_form_dict(computed_settlement)
+                    got = _settlement_rewrite_normal_form_dict(settlement)
                 except Exception:
                     return DexTxResult(ok=False, error="invalid settlement payload for comparison")
                 if got != expected:

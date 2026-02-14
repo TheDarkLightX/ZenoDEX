@@ -161,6 +161,25 @@ def _pool_quote_exact_in(
     return amount_out, pool.pool_id
 
 
+def _pool_connects(pool: PoolState, a: AssetId, b: AssetId) -> bool:
+    return (a == pool.asset0 and b == pool.asset1) or (a == pool.asset1 and b == pool.asset0)
+
+
+def _build_asset_pool_index(pools: Tuple[PoolState, ...]) -> Dict[AssetId, Tuple[int, ...]]:
+    """
+    Build deterministic asset -> pool-index adjacency for indexed routing scans.
+    """
+    temp: Dict[AssetId, List[int]] = {}
+    for idx, pool in enumerate(pools):
+        temp.setdefault(pool.asset0, []).append(idx)
+        temp.setdefault(pool.asset1, []).append(idx)
+    out: Dict[AssetId, Tuple[int, ...]] = {}
+    for asset, indices in temp.items():
+        indices.sort(key=lambda i: pools[i].pool_id)
+        out[asset] = tuple(indices)
+    return out
+
+
 def _quote_key(q: RouteQuote) -> Tuple[int, int, str, str, str]:
     # Prefer fewer sequential hops, then fewer legs, then lexicographic pool_id sequence.
     hop_count = sum(len(leg.hops) for leg in q.legs)
@@ -190,12 +209,17 @@ def best_route_exact_in_2hop(
     if asset_in == asset_out:
         return None
 
-    pools: List[PoolState] = list(pools_by_id.values())
+    # Deterministic indexed representation (array backend).
+    pools: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda p: p.pool_id))
+    by_asset: Dict[AssetId, Tuple[int, ...]] = _build_asset_pool_index(pools)
 
     best: Optional[RouteQuote] = None
 
     # 1-hop candidates
-    for p in pools:
+    for idx in by_asset.get(asset_in, ()):
+        p = pools[idx]
+        if not _pool_connects(p, asset_in, asset_out):
+            continue
         out = _pool_quote_exact_in(p, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
         if out is None:
             continue
@@ -215,7 +239,8 @@ def best_route_exact_in_2hop(
 
     # 2-hop candidates: asset_in -> mid -> asset_out
     # Enumerate mid assets implicitly by enumerating first-hop pools connected to asset_in.
-    for p1 in pools:
+    for idx1 in by_asset.get(asset_in, ()):
+        p1 = pools[idx1]
         # p1 must connect asset_in to some mid
         if asset_in == p1.asset0:
             mid = p1.asset1
@@ -230,7 +255,8 @@ def best_route_exact_in_2hop(
             continue
         amt_mid, _ = out1
         # second hop pools that connect mid to asset_out
-        for p2 in pools:
+        for idx2 in by_asset.get(mid, ()):
+            p2 = pools[idx2]
             out2 = _pool_quote_exact_in(p2, asset_in=mid, asset_out=asset_out, amount_in=amt_mid)
             if out2 is None:
                 continue
@@ -251,7 +277,10 @@ def best_route_exact_in_2hop(
 
     # 1-hop split routing across parallel pools (N legs).
     direct_pools: List[Tuple[Amount, PoolState]] = []
-    for p in pools:
+    for idx in by_asset.get(asset_in, ()):
+        p = pools[idx]
+        if not _pool_connects(p, asset_in, asset_out):
+            continue
         out = _pool_quote_exact_in(p, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
         if out is None:
             continue
