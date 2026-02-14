@@ -292,8 +292,9 @@ actions:
   # IL value is environment input (computed externally via isqrt).
   # capped_payout and protocol_fee are environment inputs (floor division
   # computed off-chain, same pattern as WS3 funding rate settlement).
-  # Conservation: capped_payout <= premium_pool + margin_pool.
-  # Margin deducted first, then premium. short_exposure = remaining margin.
+  # Conservation: capped_payout <= margin_pool.
+  # Settlement is margin-capped; premium_pool is not consumed.
+  # short_exposure = remaining margin.
   # Settlement zeroes long_exposure (positions fully settled).
   # -----------------------------------------------------------------------
   - id: "settle_il_epoch"
@@ -314,10 +315,10 @@ actions:
         - { op: "=", args: [{ var: "settled_this_epoch" }, { bool: false }] }
         # Protocol fee must not exceed capped payout
         - { op: "<=", args: [{ param: "protocol_fee" }, { param: "capped_payout" }] }
-        # Conservation: total deduction bounded by available pools
+        # Margin-capped settlement
         - { op: "<=", args: [
             { param: "capped_payout" },
-            { op: "+", args: [{ var: "premium_pool" }, { var: "margin_pool" }] }
+            { var: "margin_pool" }
           ]}
         # Protocol fee pool overflow guard
         - { op: "<=", args: [
@@ -340,17 +341,9 @@ actions:
           args:
             - { var: "margin_pool" }
             - { op: "min", args: [{ param: "capped_payout" }, { var: "margin_pool" }] }
-      # Premium absorbs remainder: premium_deduct = capped_payout - margin_deduct
-      # new_premium = premium_pool - (capped_payout - min(capped_payout, margin_pool))
+      # Premium pool is not consumed by settlement (margin-capped payout).
       - var: "premium_pool"
-        expr:
-          op: "-"
-          args:
-            - { var: "premium_pool" }
-            - op: "-"
-              args:
-                - { param: "capped_payout" }
-                - { op: "min", args: [{ param: "capped_payout" }, { var: "margin_pool" }] }
+        expr: { var: "premium_pool" }
       # short_exposure = remaining margin (margin_short_consistent invariant)
       - var: "short_exposure"
         expr:

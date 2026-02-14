@@ -105,6 +105,10 @@ class FRMActionParams:
     action: FRMAction
     amount: int = 0
     auth_ok: bool = False
+    # Optional safety guard for exposure skew. Disabled when <= 0.
+    max_imbalance_ratio_bps: int = 0
+    # Do not enforce imbalance cap until total exposure reaches this threshold.
+    imbalance_cap_min_total: int = 0
     # For settlement
     mark_price_e8: int = 0
     index_price_e8: int = 0
@@ -166,6 +170,34 @@ def compute_basis_bps(mark_price_e8: int, index_price_e8: int) -> int:
     return ((mark_price_e8 - index_price_e8) * BPS_DENOM) // index_price_e8
 
 
+def _imbalance_ratio_bps(long_exposure: int, short_exposure: int) -> int:
+    """Exposure skew as bps of total exposure: |L-S| / (L+S) * 10000."""
+    total = long_exposure + short_exposure
+    if total <= 0:
+        return 0
+    return (abs(long_exposure - short_exposure) * BPS_DENOM) // total
+
+
+def _passes_imbalance_cap(
+    long_exposure: int,
+    short_exposure: int,
+    *,
+    max_ratio_bps: int,
+    min_total_for_enforcement: int,
+) -> bool:
+    """Return True when post-trade imbalance stays within the configured cap."""
+    if max_ratio_bps <= 0:
+        return True
+    if max_ratio_bps > BPS_DENOM:
+        return False
+    if min_total_for_enforcement < 0:
+        return False
+    total = long_exposure + short_exposure
+    if total < min_total_for_enforcement:
+        return True
+    return _imbalance_ratio_bps(long_exposure, short_exposure) <= max_ratio_bps
+
+
 # ---------------------------------------------------------------------------
 # Guards
 # ---------------------------------------------------------------------------
@@ -178,11 +210,22 @@ def _guard_open_long(state: FRMState, params: FRMActionParams) -> bool:
         return False
     if state.settled_this_epoch:
         return False
+    if isinstance(params.max_imbalance_ratio_bps, bool) or isinstance(params.imbalance_cap_min_total, bool):
+        return False
+    if not isinstance(params.max_imbalance_ratio_bps, int) or not isinstance(params.imbalance_cap_min_total, int):
+        return False
     if params.amount <= 0:
         return False
     if state.rate_long_exposure + params.amount > MAX_AMOUNT:
         return False
     if state.premium_pool + params.amount > MAX_AMOUNT:
+        return False
+    if not _passes_imbalance_cap(
+        state.rate_long_exposure + params.amount,
+        state.rate_short_exposure,
+        max_ratio_bps=params.max_imbalance_ratio_bps,
+        min_total_for_enforcement=params.imbalance_cap_min_total,
+    ):
         return False
     return True
 
@@ -194,11 +237,22 @@ def _guard_open_short(state: FRMState, params: FRMActionParams) -> bool:
         return False
     if state.settled_this_epoch:
         return False
+    if isinstance(params.max_imbalance_ratio_bps, bool) or isinstance(params.imbalance_cap_min_total, bool):
+        return False
+    if not isinstance(params.max_imbalance_ratio_bps, int) or not isinstance(params.imbalance_cap_min_total, int):
+        return False
     if params.amount <= 0:
         return False
     if state.rate_short_exposure + params.amount > MAX_AMOUNT:
         return False
     if state.premium_pool + params.amount > MAX_AMOUNT:
+        return False
+    if not _passes_imbalance_cap(
+        state.rate_long_exposure,
+        state.rate_short_exposure + params.amount,
+        max_ratio_bps=params.max_imbalance_ratio_bps,
+        min_total_for_enforcement=params.imbalance_cap_min_total,
+    ):
         return False
     return True
 
