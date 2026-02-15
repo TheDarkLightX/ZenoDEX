@@ -1,0 +1,330 @@
+{
+  "check_priors": {
+    "batch_clearing_no_gap": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 19,
+      "score_bias": -0.1781,
+      "source": "auto_refine_v1"
+    },
+    "batch_greedy_invariants": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 35,
+      "evidence_total": 35,
+      "score_bias": 0.225,
+      "source": "auto_refine_v1"
+    },
+    "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml": {
+      "score_bias": 0.03
+    },
+    "route_exact_out_2hop_value": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 69,
+      "evidence_total": 69,
+      "score_bias": 0.225,
+      "source": "auto_refine_v1"
+    },
+    "settlement_normal_form": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 43,
+      "evidence_total": 43,
+      "score_bias": 0.225,
+      "source": "auto_refine_v1"
+    },
+    "split_routing_no_gap": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 19,
+      "score_bias": -0.1781,
+      "source": "auto_refine_v1"
+    },
+    "state_root_determinism": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 12,
+      "evidence_total": 12,
+      "score_bias": 0.1125,
+      "source": "auto_refine_v1"
+    }
+  },
+  "engine": {
+    "backend": "auto",
+    "prolog": {
+      "binary": "swipl",
+      "preferred_bonus": 0.03,
+      "timeout_s": 2.0
+    },
+    "scoring": {
+      "backend_score_weight": 0.14,
+      "exploitation_weight": 0.72,
+      "exploration_weight": 0.22,
+      "position_bonus_weight": 0.01,
+      "preference_bonus": 0.03,
+      "prior_evidence_weight": 0.5,
+      "pseudo_count": 1.0,
+      "reliability_scale": 32.0,
+      "reliability_weight": 0.12,
+      "uncertainty_penalty_weight": 0.06,
+      "uncertainty_weight": 0.08
+    },
+    "souffle": {
+      "binary": "souffle",
+      "preferred_bonus": 0.03,
+      "timeout_s": 2.0
+    }
+  },
+  "learning": {
+    "auto_rule_count": 4,
+    "check_count": 6,
+    "global_support_rate": 0.807107,
+    "matched_rows": 197,
+    "min_count": 4,
+    "operator_count": 6,
+    "source": "tools/krr_refine_from_evidence.py",
+    "token_count": 14,
+    "token_min_count": 6,
+    "unmatched_rows": 0,
+    "updated_at": 1771130131,
+    "version": "v1"
+  },
+  "operator_priors": {
+    "op_algebraic_rewrite": {
+      "check_preferences": [
+        "settlement_normal_form"
+      ],
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 43,
+      "evidence_total": 43,
+      "min_speedup_override": 0.875,
+      "score_bias": 0.35,
+      "source": "auto_refine_v1"
+    },
+    "op_branch_reduction": {
+      "check_preferences": [
+        "state_root_determinism"
+      ],
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 12,
+      "evidence_total": 12,
+      "min_speedup_override": 0.875,
+      "score_bias": 0.175,
+      "source": "auto_refine_v1"
+    },
+    "op_data_structure_array": {
+      "check_preferences": [
+        "route_exact_out_2hop_value"
+      ],
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 48,
+      "evidence_total": 48,
+      "min_speedup_override": 0.875,
+      "score_bias": 0.35,
+      "source": "auto_refine_v1"
+    },
+    "op_dualize_constraints": {
+      "check_preferences": [
+        "route_exact_out_2hop_value",
+        "split_routing_no_gap"
+      ],
+      "min_speedup_override": 0.9,
+      "score_bias": 0.1
+    },
+    "op_invariant_chunking": {
+      "check_preferences": [
+        "batch_greedy_invariants"
+      ],
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 35,
+      "evidence_total": 35,
+      "min_speedup_override": 0.875,
+      "score_bias": 0.35,
+      "source": "auto_refine_v1"
+    },
+    "op_invariant_mining_ice": {
+      "check_preferences": [
+        "batch_greedy_invariants",
+        "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml"
+      ],
+      "min_speedup_override": 0.88,
+      "score_bias": 0.13
+    },
+    "op_lift_project": {
+      "check_preferences": [
+        "split_routing_no_gap",
+        "route_exact_out_2hop_value"
+      ],
+      "min_speedup_override": 0.9,
+      "score_bias": 0.07
+    },
+    "op_partition_reduce": {
+      "avoid_checks": [
+        "split_routing_no_gap"
+      ],
+      "check_preferences": [
+        "route_exact_out_2hop_value",
+        "split_routing_no_gap"
+      ],
+      "evidence_support_rate": 0.269231,
+      "evidence_supported": 7,
+      "evidence_total": 26,
+      "score_bias": -0.1615,
+      "source": "auto_refine_v1"
+    },
+    "op_schema_switch_dc": {
+      "avoid_checks": [
+        "batch_clearing_no_gap"
+      ],
+      "check_preferences": [
+        "route_exact_out_2hop_value",
+        "batch_clearing_no_gap"
+      ],
+      "evidence_support_rate": 0.424242,
+      "evidence_supported": 14,
+      "evidence_total": 33,
+      "min_speedup_override": 0.92,
+      "score_bias": -0.053,
+      "source": "auto_refine_v1"
+    },
+    "op_symmetry_quotient": {
+      "check_preferences": [
+        "settlement_normal_form",
+        "state_root_determinism"
+      ],
+      "min_speedup_override": 0.93,
+      "score_bias": 0.16
+    },
+    "op_total_order_canonicalization": {
+      "avoid_checks": [],
+      "check_preferences": [
+        "settlement_normal_form",
+        "state_root_determinism"
+      ],
+      "min_speedup_override": 0.95,
+      "score_bias": 0.14
+    }
+  },
+  "schema": "zenodex/krr-kb/v1",
+  "semantic_rules": [
+    {
+      "if_semantic_contains": [
+        "canonical",
+        "lex",
+        "min",
+        "total_key"
+      ],
+      "if_semantic_predicates_any": [
+        "canonicalization"
+      ],
+      "min_speedup_override": 0.9,
+      "name": "canonicalization_determinism",
+      "score_bias": 0.12,
+      "then_prefer_checks": [
+        "settlement_normal_form",
+        "state_root_determinism"
+      ]
+    },
+    {
+      "if_semantic_contains": [
+        "split",
+        "route",
+        "path"
+      ],
+      "if_semantic_predicates_any": [
+        "routing"
+      ],
+      "min_speedup_override": 0.9,
+      "name": "split_route_value",
+      "score_bias": 0.09,
+      "then_prefer_checks": [
+        "split_routing_no_gap",
+        "route_exact_out_2hop_value"
+      ]
+    },
+    {
+      "if_semantic_contains": [
+        "invariant",
+        "inductive",
+        "safety"
+      ],
+      "if_semantic_predicates_any": [
+        "invariant_guard"
+      ],
+      "min_speedup_override": 0.88,
+      "name": "invariant_guard_strength",
+      "score_bias": 0.1,
+      "then_prefer_checks": [
+        "batch_greedy_invariants"
+      ]
+    },
+    {
+      "if_schema_in": [
+        "divide_and_conquer",
+        "algebraic_rewrite"
+      ],
+      "min_speedup_override": 0.9,
+      "name": "spec_path_requires_esso",
+      "score_bias": 0.04,
+      "then_prefer_checks": [
+        "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml"
+      ]
+    },
+    {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 9,
+      "evidence_total": 9,
+      "if_semantic_contains": [
+        "max_depth"
+      ],
+      "name": "auto_tok_max_depth_route_exact_out_2hop_value",
+      "score_bias": 0.0656,
+      "source": "auto_refine_v1",
+      "then_prefer_checks": [
+        "route_exact_out_2hop_value"
+      ]
+    },
+    {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 9,
+      "evidence_total": 9,
+      "if_semantic_contains": [
+        "divide_and_conquer"
+      ],
+      "if_semantic_predicates_any": [
+        "decomposition"
+      ],
+      "name": "auto_tok_divide_and_conquer_route_exact_out_2hop_value",
+      "score_bias": 0.0656,
+      "source": "auto_refine_v1",
+      "then_prefer_checks": [
+        "route_exact_out_2hop_value"
+      ]
+    },
+    {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 6,
+      "evidence_total": 6,
+      "if_semantic_contains": [
+        "search_prune"
+      ],
+      "name": "auto_tok_search_prune_route_exact_out_2hop_value",
+      "score_bias": 0.0437,
+      "source": "auto_refine_v1",
+      "then_prefer_checks": [
+        "route_exact_out_2hop_value"
+      ]
+    },
+    {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 5,
+      "evidence_total": 5,
+      "if_semantic_contains": [
+        "greedy"
+      ],
+      "name": "auto_tok_greedy_settlement_normal_form",
+      "score_bias": 0.0365,
+      "source": "auto_refine_v1",
+      "then_prefer_checks": [
+        "settlement_normal_form"
+      ]
+    }
+  ]
+}

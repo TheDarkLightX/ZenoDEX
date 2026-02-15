@@ -11,6 +11,15 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
+try:
+    from tools.krr_reasoner_engine import advise_candidate_krr, load_krr_kb
+except Exception:
+    try:
+        from krr_reasoner_engine import advise_candidate_krr, load_krr_kb
+    except Exception:
+        advise_candidate_krr = None
+        load_krr_kb = None
+
 
 def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -34,14 +43,86 @@ def _safe_token(text: str, max_len: int = 72) -> str:
     return token[:max_len]
 
 
+def _uniq(items: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        key = str(item).strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
 # Bridge from ZAG operator IDs to concrete ZenoDEX check hooks and transforms.
 OPERATOR_BRIDGE: dict[str, dict[str, Any]] = {
     "op_schema_switch_dc": {
         "representation_shift_used": "reduce",
-        "check": "batch_clearing_no_gap",
+        "check": "batch_greedy_invariants",
+        "checks": [
+            "batch_greedy_invariants",
+            "route_exact_out_2hop_value",
+            "batch_clearing_no_gap",
+        ],
         "expected_metric_delta": [2, 1, 1, -1, 1],
         "mechanism_template": "Apply divide-and-conquer settlement decomposition with replayable merge invariants.",
         "null_template": "Decomposition introduces measurable objective gaps under bounded replay.",
+    },
+    "op_symmetry_quotient": {
+        "representation_shift_used": "reduce",
+        "check": "settlement_normal_form",
+        "checks": [
+            "settlement_normal_form",
+            "state_root_determinism",
+        ],
+        "expected_metric_delta": [2, 0, 0, 0, 3],
+        "mechanism_template": "Detect symmetries and quotient/canonicalize to reduce nondeterminism and search cost (normal-form and idempotence obligations).",
+        "null_template": "Symmetry quotient/canonicalization is not semantics-preserving or introduces nondeterminism.",
+    },
+    "op_dualize_constraints": {
+        "representation_shift_used": "relax",
+        "check": "route_exact_out_2hop_value",
+        "checks": [
+            "route_exact_out_2hop_value",
+            "split_routing_no_gap",
+        ],
+        "expected_metric_delta": [1, 2, 2, 0, 1],
+        "mechanism_template": "Use dualization (constraints/shadow prices) to guide route or split selection, with a refinement certificate that the chosen action is optimal within a bounded candidate set.",
+        "null_template": "Dual-guided selection does not improve route value or causes bounded-optimality gaps.",
+    },
+    "op_lift_project": {
+        "representation_shift_used": "relax",
+        "check": "split_routing_no_gap",
+        "checks": [
+            "split_routing_no_gap",
+            "route_exact_out_2hop_value",
+        ],
+        "expected_metric_delta": [1, 1, 2, 1, 1],
+        "mechanism_template": "Lift discrete optimization to a continuous/relaxed proxy, then project with deterministic multi-center refinement and bounded oracle checks.",
+        "null_template": "Lift+project proxy misses optimal solutions (bounded gap exists) or hurts determinism.",
+    },
+    "op_invariant_mining_ice": {
+        "representation_shift_used": "restrict",
+        "check": "batch_greedy_invariants",
+        "checks": [
+            "batch_greedy_invariants",
+            "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml",
+        ],
+        "expected_metric_delta": [3, 0, 1, -1, 2],
+        "mechanism_template": "Mine inductive invariants via ICE/CEGIS and enforce them fail-closed as guards/certificates on critical transitions.",
+        "null_template": "Invariant mining does not produce a stable inductive guard under deterministic replay.",
+    },
+    "op_total_order_canonicalization": {
+        "representation_shift_used": "restrict",
+        "check": "settlement_normal_form",
+        "checks": [
+            "settlement_normal_form",
+            "state_root_determinism",
+        ],
+        "expected_metric_delta": [2, 0, 1, 0, 3],
+        "mechanism_template": "Canonicalize all choice points by selecting the unique winner under a total key (objective + tie-break) to harden determinism.",
+        "null_template": "Total-order canonicalization is inconsistent with verifier semantics or is not replay-stable.",
     },
     "op_data_structure_array": {
         "representation_shift_used": "reduce",
@@ -73,7 +154,12 @@ OPERATOR_BRIDGE: dict[str, dict[str, Any]] = {
     },
     "op_partition_reduce": {
         "representation_shift_used": "reduce",
-        "check": "split_routing_no_gap",
+        "check": "route_exact_out_2hop_value",
+        "checks": [
+            "route_exact_out_2hop_value",
+            "batch_greedy_invariants",
+            "split_routing_no_gap",
+        ],
         "expected_metric_delta": [1, 1, 2, -1, 1],
         "mechanism_template": "Partition intents by risk/liquidity class and reduce independently with verified recomposition.",
         "null_template": "Partition-then-reduce introduces routing or clearing quality gaps.",
@@ -102,6 +188,11 @@ INTENT_TO_OPERATOR_ID: dict[str, str] = {
 
 OPERATOR_DESCRIPTIONS: dict[str, str] = {
     "op_schema_switch_dc": "Switch from linear fold to divide-and-conquer reduction.",
+    "op_symmetry_quotient": "Detect symmetries and quotient/canonicalize to reduce state-space and nondeterminism.",
+    "op_dualize_constraints": "Dualize objective/constraints to expose shadow prices/bounds; refine deterministically.",
+    "op_lift_project": "Lift to a proxy model then project with bounded discrete refinement.",
+    "op_invariant_mining_ice": "Mine inductive invariants (ICE/CEGIS) and embed proof-carrying guards.",
+    "op_total_order_canonicalization": "Define a total key and canonical winner selection to harden determinism.",
     "op_data_structure_array": "Switch core data structure from list traversal to array indexing/fold.",
     "op_invariant_chunking": "Introduce chunked accumulation invariant.",
     "op_algebraic_rewrite": "Apply algebraic rewrite pipeline before reduction.",
@@ -148,13 +239,14 @@ def _expand_globs(patterns: list[str]) -> list[Path]:
     return sorted(out)
 
 
-def _signature_key(*, operator_id: str, check: str, schema: str, intent_op: str) -> str:
+def _signature_key(*, operator_id: str, check: str, schema: str, intent_op: str, semantic_sig: str = "") -> str:
     return "|".join(
         [
             _safe_token(operator_id, max_len=64),
             _safe_token(check, max_len=64),
             _safe_token(schema, max_len=64),
             _safe_token(intent_op, max_len=64),
+            _safe_token(semantic_sig or "", max_len=96),
         ]
     )
 
@@ -201,14 +293,88 @@ def _load_signature_history(bridge_globs: list[str]) -> Counter[str]:
         for h in obj.get("hypotheses", []):
             if not isinstance(h, dict):
                 continue
+            explicit = str(h.get("bridge_signature", "")).strip()
+            if explicit:
+                out[explicit] += 1
+                continue
             op = str(h.get("operator_id", "")).strip()
             check = str(h.get("support_recipe", "")).strip()
             schema = str(h.get("zag_schema", "")).strip()
             intent = str(h.get("descriptor_intent_op", "")).strip()
+            semantic = str(h.get("zag_semantic_signature", "")).strip()
             if not op or not check:
                 continue
-            out[_signature_key(operator_id=op, check=check, schema=schema, intent_op=intent)] += 1
+            out[_signature_key(operator_id=op, check=check, schema=schema, intent_op=intent, semantic_sig=semantic)] += 1
     return out
+
+
+def _bridge_checks(bridge: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    raw = bridge.get("checks")
+    if isinstance(raw, list):
+        for x in raw:
+            check = str(x).strip()
+            if check and check not in out:
+                out.append(check)
+    default_check = str(bridge.get("check", "")).strip()
+    if default_check and default_check not in out:
+        out.append(default_check)
+    return out
+
+
+def _select_check(
+    *,
+    bridge: dict[str, Any],
+    check_choices_override: list[str] | None,
+    history_check_stats: dict[str, dict[str, float]],
+    min_check_support_rate: float,
+    min_check_history_total: int,
+) -> dict[str, Any]:
+    choices = _uniq(check_choices_override or _bridge_checks(bridge))
+    if not choices:
+        return {"check": "", "check_total": 0, "check_rate": None, "signal_ok": True}
+    ranked: list[tuple[tuple[int, float, int, int], dict[str, Any]]] = []
+    for ix, check in enumerate(choices):
+        hist = history_check_stats.get(check, {})
+        check_total = int(_parse_float(hist.get("total", 0.0), 0.0))
+        check_rate_obj = hist.get("support_rate")
+        check_rate = float(check_rate_obj) if isinstance(check_rate_obj, (int, float)) else None
+        signal_ok = not (
+            check_total >= int(max(0, min_check_history_total))
+            and check_rate is not None
+            and check_rate < float(min_check_support_rate)
+        )
+        prior = check_rate if check_rate is not None else 0.5
+        confidence = min(1.0, float(max(0, check_total)) / 12.0)
+        score = prior + 0.08 * confidence
+        ranked.append(
+            (
+                (
+                    int(signal_ok),
+                    score,
+                    check_total,
+                    -ix,  # prefer listed order on ties
+                ),
+                {
+                    "check": check,
+                    "check_total": check_total,
+                    "check_rate": check_rate,
+                    "signal_ok": signal_ok,
+                },
+            )
+        )
+    ranked.sort(key=lambda row: row[0], reverse=True)
+    return ranked[0][1]
+
+
+def _effective_min_speedup(*, base_min_speedup: float, check_support_rate: float | None, check_total: int) -> float:
+    base = float(base_min_speedup)
+    if check_support_rate is None:
+        return max(0.75, base)
+    confidence = min(1.0, float(max(0, check_total)) / 12.0)
+    support_margin = max(0.0, float(check_support_rate) - 0.5)
+    relaxed = base - (0.40 * support_margin * confidence)
+    return max(0.75, relaxed)
 
 
 def _selection_score(
@@ -249,7 +415,13 @@ def _mk_hypothesis(*, cycle: int, idx: int, assignment: dict[str, Any], score_ro
     schema = str(score_row.get("schema", "unknown"))
     status = str(score_row.get("status", "TESTED_ONLY"))
     speedup = str(score_row.get("speedup", "1.000000"))
+    semantic_sig = str(
+        assignment.get("semantic_signature")
+        or score_row.get("semantic_signature")
+        or ""
+    ).strip()
     operator_desc = str(assignment.get("operator_description", "")).strip()
+    op_original = str(assignment.get("_operator_id_original", "")).strip()
 
     slug = _safe_token(f"{op_id}_{cand_id}")
     hid = f"H_cycle{cycle}_zag_bridge_{idx:03d}_{slug}_v1"
@@ -270,6 +442,8 @@ def _mk_hypothesis(*, cycle: int, idx: int, assignment: dict[str, Any], score_ro
         f"ZAG evidence: candidate `{cand_id}` (`schema={schema}`, `status={status}`, `speedup={speedup}`). "
         f"Operator note: {operator_desc}"
     )
+    if op_original:
+        mech = f"{mech} (operator_id_original={op_original})"
     candidate_hypothesis = str(assignment.get("candidate_hypothesis", "")).strip()
     if candidate_hypothesis:
         mech += f" Candidate hypothesis: {candidate_hypothesis}"
@@ -299,9 +473,12 @@ def _mk_hypothesis(*, cycle: int, idx: int, assignment: dict[str, Any], score_ro
         "candidate_hypothesis": candidate_hypothesis,
         "proposal_schema_version": str(assignment.get("proposal_schema_version", "")),
         "selection_score": round(_parse_float(assignment.get("_selection_score"), 0.0), 6),
+        "krr_score_delta": round(_parse_float(assignment.get("_krr_score_delta"), 0.0), 6),
+        "krr": assignment.get("_krr_advice", {}) if isinstance(assignment.get("_krr_advice"), dict) else {},
         "history_check_support_rate": assignment.get("_check_support_rate"),
         "history_check_total": int(_parse_float(assignment.get("_check_total"), 0)),
         "bridge_signature": str(assignment.get("_signature", "")),
+        "zag_semantic_signature": semantic_sig,
         "timeout_s": 220,
         "category": "algo",
     }
@@ -316,6 +493,22 @@ def _median(values: list[float]) -> float:
     if n % 2 == 1:
         return float(vals[m])
     return 0.5 * float(vals[m - 1] + vals[m])
+
+
+def _semantic_signature(schema: str, ir: Any, fallback: str = "") -> str:
+    explicit = str(fallback or "").strip()
+    if explicit:
+        return explicit
+    ir_obj = ir if isinstance(ir, dict) else {}
+    op = str(ir_obj.get("op", "unknown")).strip() or "unknown"
+    parts = [str(schema or "unknown").strip() or "unknown", f"op={op}"]
+    for key in sorted(ir_obj.keys()):
+        if key == "op":
+            continue
+        value = ir_obj.get(key)
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            parts.append(f"{key}={value}")
+    return "|".join(parts)
 
 
 def _operator_id_from_schema_intent(*, schema: str, intent_op: str) -> str | None:
@@ -351,6 +544,11 @@ def _extract_selected_details(manifest: dict[str, Any]) -> tuple[list[dict[str, 
                 "descriptor_intent_op": intent_op,
                 "candidate_hypothesis": str(row.get("hypothesis", "")).strip(),
                 "proposal_schema_version": str(row.get("proposal_schema_version", "")).strip(),
+                "semantic_signature": _semantic_signature(
+                    schema,
+                    row.get("ir"),
+                    fallback=str(row.get("semantic_signature", "")),
+                ),
                 "proof_priority": int(row.get("proof_priority"))
                 if isinstance(row.get("proof_priority"), int)
                 else None,
@@ -364,6 +562,11 @@ def _extract_selected_details(manifest: dict[str, Any]) -> tuple[list[dict[str, 
                 "candidate_id": cid,
                 "schema": schema,
                 "status": str(row.get("status", "TESTED_ONLY")),
+                "semantic_signature": _semantic_signature(
+                    schema,
+                    row.get("ir"),
+                    fallback=str(row.get("semantic_signature", "")),
+                ),
                 "speedup": f"{speedup:.6f}",
                 "speedup_observed": bool(speedup_observed),
             }
@@ -436,6 +639,11 @@ def _extract_neuro_assignments(manifest_path: Path, manifest: dict[str, Any]) ->
                 "descriptor_intent_op": intent_op,
                 "candidate_hypothesis": str(obj.get("hypothesis", "")).strip(),
                 "proposal_schema_version": str(obj.get("proposal_schema_version", "")).strip(),
+                "semantic_signature": _semantic_signature(
+                    schema,
+                    obj.get("ir"),
+                    fallback=str(obj.get("semantic_signature", "")),
+                ),
                 "proof_priority": int(obj.get("proof_plan", {}).get("priority", 0))
                 if isinstance(obj.get("proof_plan"), dict)
                 else None,
@@ -452,6 +660,11 @@ def _extract_neuro_assignments(manifest_path: Path, manifest: dict[str, Any]) ->
                 "candidate_id": cid,
                 "schema": schema,
                 "status": status_by_id.get(cid, "TESTED_ONLY"),
+                "semantic_signature": _semantic_signature(
+                    schema,
+                    obj.get("ir"),
+                    fallback=str(obj.get("semantic_signature", "")),
+                ),
                 "speedup": f"{speedup:.6f}",
                 "speedup_observed": bool(speedup_observed),
             }
@@ -470,6 +683,9 @@ def _build_bridge_pack(
     min_speedup: float,
     min_check_support_rate: float,
     min_check_history_total: int,
+    krr_kb: dict[str, Any] | None,
+    krr_backend: str,
+    krr_score_weight: float,
 ) -> dict[str, Any]:
     assignments = [dict(x) for x in manifest.get("innovation_assignments", []) if isinstance(x, dict)]
     score_rows = {str(x.get("candidate_id", "")): dict(x) for x in manifest.get("scores", []) if isinstance(x, dict)}
@@ -494,41 +710,121 @@ def _build_bridge_pack(
     signature_capped: list[dict[str, Any]] = []
     skipped_reasons: Counter[str] = Counter()
     skipped_examples: list[dict[str, Any]] = []
+    krr_backend_counts: Counter[str] = Counter()
+    krr_fallback_reasons: Counter[str] = Counter()
     for a in assignments:
         cand_id = str(a.get("candidate_id", "")).strip()
+        row = score_rows.get(cand_id, {})
+        schema = str(row.get("schema", "unknown")).strip()
+        intent_op = str(a.get("descriptor_intent_op", "")).strip()
+
         op_id = str(a.get("operator_id", "")).strip()
         bridge = OPERATOR_BRIDGE.get(op_id)
         if bridge is None:
-            skipped_reasons["unknown_operator"] += 1
+            # Compatibility: newer ZAG versions may emit operator IDs we don't explicitly map.
+            # Degrade gracefully by mapping based on schema/intent operator families.
+            fallback = _operator_id_from_schema_intent(schema=schema, intent_op=intent_op)
+            bridge = OPERATOR_BRIDGE.get(fallback or "")
+            if bridge is None:
+                skipped_reasons["unknown_operator"] += 1
+                continue
+            a["_operator_id_original"] = op_id
+            op_id = str(fallback)
+            a["operator_id"] = op_id
+            a["operator_description"] = OPERATOR_DESCRIPTIONS.get(op_id, str(a.get("operator_description", "")))
+
+        semantic_sig = str(
+            row.get("semantic_signature")
+            or a.get("semantic_signature")
+            or ""
+        ).strip()
+        base_check_options = _bridge_checks(bridge)
+        krr_advice: dict[str, Any] = {}
+        check_options = list(base_check_options)
+        krr_min_speedup_override = None
+        krr_score_delta = 0.0
+        if callable(advise_candidate_krr):
+            try:
+                krr_advice = advise_candidate_krr(
+                    operator_id=op_id,
+                    schema=schema,
+                    semantic_signature=semantic_sig,
+                    check_options=list(base_check_options),
+                    history_check_stats=history_check_stats,
+                    kb=krr_kb if isinstance(krr_kb, dict) else {},
+                    backend=str(krr_backend or "auto"),
+                )
+            except Exception as exc:
+                krr_advice = {
+                    "preferred_checks": list(base_check_options),
+                    "confidence": 0.0,
+                    "backend_used": "error",
+                    "backend_fallback_reason": f"krr_error:{type(exc).__name__}",
+                    "score_delta": 0.0,
+                }
+            preferred_checks = [
+                str(x).strip()
+                for x in list(krr_advice.get("preferred_checks", []) or [])
+                if str(x).strip()
+            ]
+            if preferred_checks:
+                check_options = _uniq(preferred_checks + list(base_check_options))
+            krr_min_speedup_override = krr_advice.get("min_speedup_override")
+            if krr_min_speedup_override is not None:
+                krr_min_speedup_override = _parse_float(krr_min_speedup_override, float(min_speedup))
+            krr_score_delta = _parse_float(krr_advice.get("score_delta", 0.0), 0.0)
+            backend_used = str(krr_advice.get("backend_used", "none")).strip() or "none"
+            krr_backend_counts[backend_used] += 1
+            krr_fb_raw = krr_advice.get("backend_fallback_reason")
+            krr_fb = str(krr_fb_raw).strip() if krr_fb_raw is not None else ""
+            if krr_fb:
+                krr_fallback_reasons[krr_fb] += 1
+
+        check_pick = _select_check(
+            bridge=bridge,
+            check_choices_override=check_options,
+            history_check_stats=history_check_stats,
+            min_check_support_rate=min_check_support_rate,
+            min_check_history_total=min_check_history_total,
+        )
+        check = str(check_pick.get("check", "")).strip()
+        if not check:
+            skipped_reasons["missing_check_mapping"] += 1
             continue
-        row = score_rows.get(cand_id, {})
-        check = str(bridge["check"])
-        schema = str(row.get("schema", "unknown")).strip()
-        intent_op = str(a.get("descriptor_intent_op", "")).strip()
-        hist = history_check_stats.get(check, {})
-        check_total = int(_parse_float(hist.get("total", 0.0), 0.0))
-        check_rate = hist.get("support_rate")
-        if (
-            check_total >= int(max(0, min_check_history_total))
-            and isinstance(check_rate, (int, float))
-            and float(check_rate) < float(min_check_support_rate)
-        ):
+        semantic_sig = str(
+            row.get("semantic_signature")
+            or a.get("semantic_signature")
+            or ""
+        ).strip()
+        check_total = int(_parse_float(check_pick.get("check_total", 0), 0.0))
+        check_rate = check_pick.get("check_rate")
+        if not bool(check_pick.get("signal_ok", True)):
             skipped_reasons["low_signal_check"] += 1
             skipped_examples.append(
                 {
                     "candidate_id": cand_id,
                     "operator_id": op_id,
                     "check": check,
+                    "check_options": check_options,
                     "reason": "low_signal_check",
                     "check_support_rate": float(check_rate),
                     "check_total": check_total,
+                    "krr_backend_used": str(krr_advice.get("backend_used", "")),
                 }
             )
             continue
 
         speedup = _parse_float(row.get("speedup", 1.0), 1.0)
         speedup_observed = bool(row.get("speedup_observed", False))
-        if speedup_observed and speedup < float(min_speedup):
+        speedup_base = float(min_speedup)
+        if isinstance(krr_min_speedup_override, (int, float)):
+            speedup_base = min(speedup_base, float(krr_min_speedup_override))
+        effective_min_speedup = _effective_min_speedup(
+            base_min_speedup=speedup_base,
+            check_support_rate=float(check_rate) if isinstance(check_rate, (int, float)) else None,
+            check_total=check_total,
+        )
+        if speedup_observed and speedup < float(effective_min_speedup):
             skipped_reasons["speedup_below_min"] += 1
             skipped_examples.append(
                 {
@@ -538,11 +834,19 @@ def _build_bridge_pack(
                     "reason": "speedup_below_min",
                     "speedup": speedup,
                     "min_speedup": float(min_speedup),
+                    "effective_min_speedup": float(effective_min_speedup),
+                    "krr_min_speedup_override": krr_min_speedup_override,
                 }
             )
             continue
 
-        signature = _signature_key(operator_id=op_id, check=check, schema=schema, intent_op=intent_op)
+        signature = _signature_key(
+            operator_id=op_id,
+            check=check,
+            schema=schema,
+            intent_op=intent_op,
+            semantic_sig=semantic_sig,
+        )
         prior_repeats = int(signature_history.get(signature, 0))
         score = _selection_score(
             status=str(row.get("status", "TESTED_ONLY")),
@@ -554,16 +858,21 @@ def _build_bridge_pack(
             proof_priority=a.get("proof_priority") if isinstance(a.get("proof_priority"), int) else None,
             candidate_hypothesis=str(a.get("candidate_hypothesis", "")),
         )
+        score += float(krr_score_weight) * float(krr_score_delta)
         staged_row = {
             "assignment": dict(a),
             "score_row": dict(row),
             "operator_id": op_id,
             "signature": signature,
+            "semantic_signature": semantic_sig,
             "score": float(score),
             "check": check,
             "check_support_rate": float(check_rate) if isinstance(check_rate, (int, float)) else None,
             "check_total": check_total,
+            "effective_min_speedup": float(effective_min_speedup),
             "prior_repeats": prior_repeats,
+            "krr_advice": dict(krr_advice),
+            "krr_score_delta": float(krr_score_delta),
         }
         if prior_repeats >= int(max(0, max_signature_repeats)):
             skipped_reasons["signature_repeat_cap"] += 1
@@ -618,7 +927,10 @@ def _build_bridge_pack(
         a["_selection_score"] = float(row.get("score", 0.0))
         a["_check_support_rate"] = row.get("check_support_rate")
         a["_check_total"] = int(row.get("check_total", 0))
+        a["_effective_min_speedup"] = float(_parse_float(row.get("effective_min_speedup"), 0.0))
         a["_signature"] = signature
+        a["_krr_advice"] = dict(row.get("krr_advice", {}))
+        a["_krr_score_delta"] = float(_parse_float(row.get("krr_score_delta"), 0.0))
         score_row = dict(row.get("score_row", {}))
         h = _mk_hypothesis(cycle=cycle, idx=idx, assignment=a, score_row=score_row)
         if h:
@@ -643,6 +955,9 @@ def _build_bridge_pack(
             "min_check_history_total": int(min_check_history_total),
             "selected_by_operator": dict(selected_by_operator),
             "fallback_relaxed_signature_cap": bool(fallback_relaxed_signature_cap),
+            "krr_backend_counts": dict(krr_backend_counts),
+            "krr_fallback_reasons": dict(krr_fallback_reasons),
+            "krr_score_weight": float(krr_score_weight),
             "skip_reason_counts": dict(skipped_reasons),
             "skip_examples": skipped_examples[:32],
         },
@@ -691,6 +1006,25 @@ def main() -> int:
         default=6,
         help="Minimum historical check count before support-rate filter is applied.",
     )
+    ap.add_argument(
+        "--krr-kb",
+        type=Path,
+        default=Path("tools/krr_knowledge_base.json"),
+        help="Knowledge base JSON for symbolic KRR advisor.",
+    )
+    ap.add_argument(
+        "--krr-backend",
+        type=str,
+        default="auto",
+        choices=["auto", "python", "prolog", "souffle", "off"],
+        help="KRR backend selector (`prolog`/`souffle` use symbolic engines when installed).",
+    )
+    ap.add_argument(
+        "--krr-score-weight",
+        type=float,
+        default=1.0,
+        help="Multiplier for KRR score delta in candidate ranking.",
+    )
     args = ap.parse_args()
 
     manifest_path = (ROOT / args.zag_manifest).resolve() if not args.zag_manifest.is_absolute() else args.zag_manifest
@@ -701,6 +1035,13 @@ def main() -> int:
         manifest["_manifest_path"] = str(manifest_path)
     history_check_stats = _load_check_history(list(args.history_summary_glob or []))
     signature_history = _load_signature_history(list(args.prior_bridge_glob or []))
+    kb_path = (ROOT / args.krr_kb).resolve() if not args.krr_kb.is_absolute() else args.krr_kb
+    krr_kb = {}
+    if callable(load_krr_kb):
+        try:
+            krr_kb = load_krr_kb(kb_path)
+        except Exception:
+            krr_kb = {}
     pack = _build_bridge_pack(
         cycle=int(args.cycle),
         manifest=manifest if isinstance(manifest, dict) else {},
@@ -711,6 +1052,9 @@ def main() -> int:
         min_speedup=float(args.min_speedup),
         min_check_support_rate=float(args.min_check_support_rate),
         min_check_history_total=int(max(0, args.min_check_history_total)),
+        krr_kb=krr_kb,
+        krr_backend=str(args.krr_backend),
+        krr_score_weight=float(args.krr_score_weight),
     )
     _write_json(out_path, pack)
 

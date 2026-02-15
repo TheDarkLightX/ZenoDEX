@@ -1,0 +1,169 @@
+{
+  "schema": "zenodex/krr-kb/v1",
+  "engine": {
+    "backend": "auto",
+    "prolog": {
+      "binary": "swipl",
+      "timeout_s": 2.0,
+      "preferred_bonus": 0.03
+    },
+    "souffle": {
+      "binary": "souffle",
+      "timeout_s": 2.0,
+      "preferred_bonus": 0.03
+    },
+    "scoring": {
+      "exploitation_weight": 0.72,
+      "exploration_weight": 0.22,
+      "uncertainty_weight": 0.08,
+      "uncertainty_penalty_weight": 0.06,
+      "reliability_weight": 0.12,
+      "backend_score_weight": 0.14,
+      "prior_evidence_weight": 0.5,
+      "pseudo_count": 1.0,
+      "position_bonus_weight": 0.01,
+      "preference_bonus": 0.03,
+      "reliability_scale": 32.0
+    }
+  },
+  "operator_priors": {
+    "op_total_order_canonicalization": {
+      "check_preferences": [
+        "settlement_normal_form",
+        "state_root_determinism"
+      ],
+      "avoid_checks": [],
+      "score_bias": 0.14,
+      "min_speedup_override": 0.95
+    },
+    "op_symmetry_quotient": {
+      "check_preferences": [
+        "settlement_normal_form",
+        "state_root_determinism"
+      ],
+      "score_bias": 0.16,
+      "min_speedup_override": 0.93
+    },
+    "op_schema_switch_dc": {
+      "check_preferences": [
+        "batch_greedy_invariants",
+        "batch_clearing_no_gap",
+        "route_exact_out_2hop_value"
+      ],
+      "score_bias": 0.08,
+      "min_speedup_override": 0.92
+    },
+    "op_dualize_constraints": {
+      "check_preferences": [
+        "route_exact_out_2hop_value",
+        "split_routing_no_gap"
+      ],
+      "score_bias": 0.1,
+      "min_speedup_override": 0.9
+    },
+    "op_lift_project": {
+      "check_preferences": [
+        "split_routing_no_gap",
+        "route_exact_out_2hop_value"
+      ],
+      "score_bias": 0.07,
+      "min_speedup_override": 0.9
+    },
+    "op_invariant_mining_ice": {
+      "check_preferences": [
+        "batch_greedy_invariants",
+        "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml"
+      ],
+      "score_bias": 0.13,
+      "min_speedup_override": 0.88
+    }
+  },
+  "semantic_rules": [
+    {
+      "name": "canonicalization_determinism",
+      "if_semantic_predicates_any": [
+        "canonicalization"
+      ],
+      "if_semantic_contains": [
+        "canonical",
+        "lex",
+        "min",
+        "total_key"
+      ],
+      "then_prefer_checks": [
+        "settlement_normal_form",
+        "state_root_determinism"
+      ],
+      "score_bias": 0.12,
+      "min_speedup_override": 0.9
+    },
+    {
+      "name": "split_route_value",
+      "if_semantic_predicates_any": [
+        "routing"
+      ],
+      "if_semantic_contains": [
+        "split",
+        "route",
+        "path"
+      ],
+      "then_prefer_checks": [
+        "split_routing_no_gap",
+        "route_exact_out_2hop_value"
+      ],
+      "score_bias": 0.09,
+      "min_speedup_override": 0.9
+    },
+    {
+      "name": "invariant_guard_strength",
+      "if_semantic_predicates_any": [
+        "invariant_guard"
+      ],
+      "if_semantic_contains": [
+        "invariant",
+        "inductive",
+        "safety"
+      ],
+      "then_prefer_checks": [
+        "batch_greedy_invariants"
+      ],
+      "score_bias": 0.1,
+      "min_speedup_override": 0.88
+    },
+    {
+      "name": "spec_path_requires_esso",
+      "if_schema_in": [
+        "divide_and_conquer",
+        "algebraic_rewrite"
+      ],
+      "then_prefer_checks": [
+        "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml"
+      ],
+      "score_bias": 0.04,
+      "min_speedup_override": 0.9
+    }
+  ],
+  "check_priors": {
+    "state_root_determinism": {
+      "score_bias": 0.05
+    },
+    "settlement_normal_form": {
+      "score_bias": 0.05
+    },
+    "route_exact_out_2hop_value": {
+      "score_bias": 0.03
+    },
+    "split_routing_no_gap": {
+      "score_bias": 0.03
+    },
+    "batch_greedy_invariants": {
+      "score_bias": 0.04
+    },
+    "batch_clearing_no_gap": {
+      "score_bias": 0.02
+    },
+    "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml": {
+      "score_bias": 0.03
+    }
+  }
+}
