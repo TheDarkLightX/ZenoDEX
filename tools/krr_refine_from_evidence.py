@@ -96,6 +96,7 @@ def _load_kb(path: Path) -> dict[str, Any]:
             "operator_priors": {},
             "semantic_rules": [],
             "check_priors": {},
+            "check_family_priors": {},
         }
     try:
         obj = _read_json(path)
@@ -115,6 +116,7 @@ def _load_kb(path: Path) -> dict[str, Any]:
     obj.setdefault("operator_priors", {})
     obj.setdefault("semantic_rules", [])
     obj.setdefault("check_priors", {})
+    obj.setdefault("check_family_priors", {})
     return obj
 
 
@@ -169,6 +171,15 @@ def _score_bias_from_rate(*, rate: float, total: int, gain: float) -> float:
     return round(gain * centered * conf, 4)
 
 
+def _check_family(check: str) -> str:
+    c = str(check or "").strip()
+    if not c:
+        return ""
+    if "::" in c:
+        return c.split("::", 1)[0].strip()
+    return c
+
+
 def _token_predicates(token: str) -> set[str]:
     t = str(token or "").strip().lower()
     if not t:
@@ -219,6 +230,8 @@ def _build_hypothesis_index(bridge_paths: list[Path]) -> dict[str, dict[str, Any
 def _collect_evidence(summary_paths: list[Path], hypothesis_index: dict[str, dict[str, Any]]) -> dict[str, Any]:
     check_total: Counter[str] = Counter()
     check_supported: Counter[str] = Counter()
+    check_family_total: Counter[str] = Counter()
+    check_family_supported: Counter[str] = Counter()
 
     op_total: Counter[str] = Counter()
     op_supported: Counter[str] = Counter()
@@ -249,21 +262,28 @@ def _collect_evidence(summary_paths: list[Path], hypothesis_index: dict[str, dic
             hid = str(row.get("hypothesis_id", "")).strip()
             if not hid:
                 continue
+            status = _status_label(str(row.get("final_status", "")))
+            row_check = str(row.get("check", "")).strip()
+            if row_check:
+                check_total[row_check] += 1
+                fam = _check_family(row_check)
+                if fam:
+                    check_family_total[fam] += 1
+                if status == "supported":
+                    check_supported[row_check] += 1
+                    if fam:
+                        check_family_supported[fam] += 1
+
             meta = hypothesis_index.get(hid)
             if not isinstance(meta, dict):
                 unmatched_rows += 1
                 continue
             matched_rows += 1
-            status = _status_label(str(row.get("final_status", "")))
             check = str(row.get("check", "")).strip() or str(meta.get("support_recipe", "")).strip()
             op = str(meta.get("operator_id", "")).strip()
             sem = str(meta.get("semantic_signature", "")).strip()
             if not check:
                 continue
-
-            check_total[check] += 1
-            if status == "supported":
-                check_supported[check] += 1
 
             if op:
                 op_total[op] += 1
@@ -289,6 +309,8 @@ def _collect_evidence(summary_paths: list[Path], hypothesis_index: dict[str, dic
         "tok_total": tok_total,
         "tok_check_total": tok_check_total,
         "tok_check_supported": tok_check_supported,
+        "check_family_total": check_family_total,
+        "check_family_supported": check_family_supported,
         "matched_rows": matched_rows,
         "unmatched_rows": unmatched_rows,
     }
@@ -306,6 +328,7 @@ def _refine_kb(
     out = copy.deepcopy(kb)
     out.setdefault("operator_priors", {})
     out.setdefault("check_priors", {})
+    out.setdefault("check_family_priors", {})
     out.setdefault("semantic_rules", [])
 
     check_total: Counter[str] = evidence["check_total"]
@@ -317,6 +340,8 @@ def _refine_kb(
     tok_total: Counter[str] = evidence["tok_total"]
     tok_check_total: Counter[tuple[str, str]] = evidence["tok_check_total"]
     tok_check_supported: Counter[tuple[str, str]] = evidence["tok_check_supported"]
+    check_family_total: Counter[str] = evidence["check_family_total"]
+    check_family_supported: Counter[str] = evidence["check_family_supported"]
 
     check_priors = out.get("check_priors")
     if not isinstance(check_priors, dict):
@@ -333,6 +358,27 @@ def _refine_kb(
         if not isinstance(row, dict):
             row = {}
             check_priors[check] = row
+        row["score_bias"] = float(bias)
+        row["evidence_total"] = int(total)
+        row["evidence_supported"] = int(sup)
+        row["evidence_support_rate"] = round(rate, 6)
+        row["source"] = "auto_refine_v1"
+
+    check_family_priors = out.get("check_family_priors")
+    if not isinstance(check_family_priors, dict):
+        check_family_priors = {}
+        out["check_family_priors"] = check_family_priors
+
+    for family, total in check_family_total.items():
+        if total < int(max(1, min_count)):
+            continue
+        sup = int(check_family_supported.get(family, 0))
+        rate = float(sup) / float(total)
+        bias = _score_bias_from_rate(rate=rate, total=total, gain=0.3)
+        row = check_family_priors.get(family)
+        if not isinstance(row, dict):
+            row = {}
+            check_family_priors[family] = row
         row["score_bias"] = float(bias)
         row["evidence_total"] = int(total)
         row["evidence_supported"] = int(sup)
@@ -478,6 +524,7 @@ def _refine_kb(
         "unmatched_rows": int(evidence.get("unmatched_rows", 0)),
         "check_count": len(check_total),
         "operator_count": len(op_total),
+        "check_family_count": len(check_family_total),
         "token_count": len(tok_total),
         "auto_rule_count": len(auto_rules),
         "min_count": int(min_count),

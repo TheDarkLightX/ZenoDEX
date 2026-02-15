@@ -205,6 +205,7 @@ def load_krr_kb(path: Path | str | None = None) -> dict[str, Any]:
             "operator_priors": {},
             "semantic_rules": [],
             "check_priors": {},
+            "check_family_priors": {},
             "engine": {
                 "backend": "auto",
                 "prolog": {
@@ -242,6 +243,7 @@ def load_krr_kb(path: Path | str | None = None) -> dict[str, Any]:
     obj.setdefault("operator_priors", {})
     obj.setdefault("semantic_rules", [])
     obj.setdefault("check_priors", {})
+    obj.setdefault("check_family_priors", {})
 
     engine = obj.get("engine")
     if not isinstance(engine, dict):
@@ -357,6 +359,62 @@ def _get_scoring_cfg(cfg: dict[str, Any]) -> dict[str, float]:
         "preference_bonus": _g("preference_bonus", 0.03),
         "reliability_scale": max(1.0, _g("reliability_scale", 32.0)),
     }
+
+
+def _check_family(check: str) -> str:
+    c = str(check or "").strip()
+    if not c:
+        return ""
+    if "::" in c:
+        return c.split("::", 1)[0].strip()
+    return c
+
+
+def _expand_check_priors(
+    *,
+    candidate_checks: list[str],
+    check_priors: dict[str, Any],
+    check_family_priors: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for check in candidate_checks:
+        key = str(check or "").strip()
+        if not key:
+            continue
+        base = check_priors.get(key, {}) if isinstance(check_priors, dict) else {}
+        fam_key = _check_family(key)
+        fam = check_family_priors.get(fam_key, {}) if isinstance(check_family_priors, dict) else {}
+
+        row: dict[str, Any] = {}
+        if isinstance(base, dict):
+            row.update(base)
+
+        if isinstance(fam, dict) and fam:
+            fam_bias = _safe_float(fam.get("score_bias"), 0.0)
+            fam_total = max(0.0, _safe_float(fam.get("evidence_total"), 0.0))
+            fam_sup = max(0.0, _safe_float(fam.get("evidence_supported"), fam_total * _safe_float(fam.get("evidence_support_rate"), 0.5)))
+            if row:
+                row["score_bias"] = _safe_float(row.get("score_bias"), 0.0) + (0.25 * fam_bias)
+                base_total = max(0.0, _safe_float(row.get("evidence_total"), 0.0))
+                if base_total <= 0.0 and fam_total > 0.0:
+                    row["evidence_total"] = 0.5 * fam_total
+                    row["evidence_supported"] = 0.5 * fam_sup
+                    row["evidence_support_rate"] = round((fam_sup / fam_total), 6)
+                row.setdefault("source", "auto_refine_v1+family")
+            else:
+                # Family-level fallback lets non-bridge manual evidence steer ranking.
+                row["score_bias"] = 0.7 * fam_bias
+                row["evidence_total"] = 0.7 * fam_total
+                row["evidence_supported"] = 0.7 * fam_sup
+                if fam_total > 0.0:
+                    row["evidence_support_rate"] = round((fam_sup / fam_total), 6)
+                row["source"] = "family_fallback_v1"
+            row["check_family"] = fam_key
+
+        if row:
+            out[key] = row
+
+    return out
 
 
 def _check_posterior(
@@ -890,6 +948,7 @@ def advise_candidate_krr(
     operator_priors = cfg.get("operator_priors", {})
     op_prior = operator_priors.get(operator_id, {}) if isinstance(operator_priors, dict) else {}
     check_priors = cfg.get("check_priors", {})
+    check_family_priors = cfg.get("check_family_priors", {})
 
     semantic_tokens, semantic_predicates = _extract_semantic_features(
         schema=str(schema or "").strip(),
@@ -936,6 +995,11 @@ def advise_candidate_krr(
             )
 
     candidate_checks = _uniq(preferred_checks + list(check_options))
+    effective_check_priors = _expand_check_priors(
+        candidate_checks=candidate_checks,
+        check_priors=check_priors if isinstance(check_priors, dict) else {},
+        check_family_priors=check_family_priors if isinstance(check_family_priors, dict) else {},
+    )
     preferred_set = {str(x).strip() for x in preferred_checks if str(x).strip()}
     backend_requested = _resolve_backend(backend=backend, kb=cfg)
     backend_used = "none"
@@ -965,7 +1029,7 @@ def advise_candidate_krr(
             avoid_checks=avoid_checks,
             preferred_set=preferred_set,
             history_check_stats=history_check_stats,
-            check_priors=check_priors if isinstance(check_priors, dict) else {},
+            check_priors=effective_check_priors,
             cfg=cfg,
         )
         backend_used = "python"
@@ -975,7 +1039,7 @@ def advise_candidate_krr(
             avoid_checks=avoid_checks,
             preferred_set=preferred_set,
             history_check_stats=history_check_stats,
-            check_priors=check_priors if isinstance(check_priors, dict) else {},
+            check_priors=effective_check_priors,
             kb=cfg,
         )
         if prolog_rows is not None and prolog_rows:
@@ -987,7 +1051,7 @@ def advise_candidate_krr(
                 avoid_checks=avoid_checks,
                 preferred_set=preferred_set,
                 history_check_stats=history_check_stats,
-                check_priors=check_priors if isinstance(check_priors, dict) else {},
+                check_priors=effective_check_priors,
                 cfg=cfg,
             )
             backend_used = "python"
@@ -998,7 +1062,7 @@ def advise_candidate_krr(
             avoid_checks=avoid_checks,
             preferred_set=preferred_set,
             history_check_stats=history_check_stats,
-            check_priors=check_priors if isinstance(check_priors, dict) else {},
+            check_priors=effective_check_priors,
             kb=cfg,
         )
         if souffle_rows is not None and souffle_rows:
@@ -1010,7 +1074,7 @@ def advise_candidate_krr(
                 avoid_checks=avoid_checks,
                 preferred_set=preferred_set,
                 history_check_stats=history_check_stats,
-                check_priors=check_priors if isinstance(check_priors, dict) else {},
+                check_priors=effective_check_priors,
                 cfg=cfg,
             )
             backend_used = "python"
@@ -1021,7 +1085,7 @@ def advise_candidate_krr(
             avoid_checks=avoid_checks,
             preferred_set=preferred_set,
             history_check_stats=history_check_stats,
-            check_priors=check_priors if isinstance(check_priors, dict) else {},
+            check_priors=effective_check_priors,
             kb=cfg,
         )
         if prolog_rows is not None and prolog_rows:
@@ -1033,7 +1097,7 @@ def advise_candidate_krr(
                 avoid_checks=avoid_checks,
                 preferred_set=preferred_set,
                 history_check_stats=history_check_stats,
-                check_priors=check_priors if isinstance(check_priors, dict) else {},
+                check_priors=effective_check_priors,
                 kb=cfg,
             )
             if souffle_rows is not None and souffle_rows:
@@ -1046,7 +1110,7 @@ def advise_candidate_krr(
                     avoid_checks=avoid_checks,
                     preferred_set=preferred_set,
                     history_check_stats=history_check_stats,
-                    check_priors=check_priors if isinstance(check_priors, dict) else {},
+                    check_priors=effective_check_priors,
                     cfg=cfg,
                 )
                 backend_used = "python"
@@ -1064,7 +1128,7 @@ def advise_candidate_krr(
             avoid_checks=avoid_checks,
             preferred_set=preferred_set,
             history_check_stats=history_check_stats,
-            check_priors=check_priors if isinstance(check_priors, dict) else {},
+            check_priors=effective_check_priors,
             cfg=cfg,
             base_rows=ranked_rows,
         )
