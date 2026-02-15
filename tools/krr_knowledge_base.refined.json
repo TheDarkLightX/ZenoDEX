@@ -15,17 +15,17 @@
       "source": "auto_refine_v1"
     },
     "esso_fail_solver_timeout": {
-      "evidence_support_rate": 0.307692,
-      "evidence_supported": 4,
-      "evidence_total": 13,
-      "score_bias": -0.0312,
+      "evidence_support_rate": 0.294118,
+      "evidence_supported": 5,
+      "evidence_total": 17,
+      "score_bias": -0.0437,
       "source": "auto_refine_v1"
     },
     "esso_spec_debug_class": {
       "evidence_support_rate": 1.0,
-      "evidence_supported": 6,
-      "evidence_total": 6,
-      "score_bias": 0.0375,
+      "evidence_supported": 12,
+      "evidence_total": 12,
+      "score_bias": 0.075,
       "source": "auto_refine_v1"
     },
     "esso_synth_fail_solver_timeout": {
@@ -43,24 +43,24 @@
       "source": "auto_refine_v1"
     },
     "esso_verify_solver_timeout": {
-      "evidence_support_rate": 0.714286,
-      "evidence_supported": 15,
-      "evidence_total": 21,
-      "score_bias": 0.0563,
+      "evidence_support_rate": 0.708333,
+      "evidence_supported": 17,
+      "evidence_total": 24,
+      "score_bias": 0.0625,
       "source": "auto_refine_v1"
     },
     "lean_repeat3": {
       "evidence_support_rate": 1.0,
-      "evidence_supported": 7,
-      "evidence_total": 7,
-      "score_bias": 0.0438,
+      "evidence_supported": 14,
+      "evidence_total": 14,
+      "score_bias": 0.0875,
       "source": "auto_refine_v1"
     },
     "perp_oracle_lp_attack_absent": {
-      "evidence_support_rate": 0.538462,
-      "evidence_supported": 7,
-      "evidence_total": 13,
-      "score_bias": 0.0062,
+      "evidence_support_rate": 0.571429,
+      "evidence_supported": 8,
+      "evidence_total": 14,
+      "score_bias": 0.0125,
       "source": "auto_refine_v1"
     },
     "perp_oracle_lp_attack_exists": {
@@ -209,17 +209,17 @@
   },
   "learning": {
     "auto_rule_count": 9,
-    "check_count": 137,
+    "check_count": 149,
     "check_family_count": 31,
-    "global_support_rate": 0.67019,
+    "global_support_rate": 0.676113,
     "matched_rows": 215,
     "min_count": 4,
     "operator_count": 6,
     "source": "tools/krr_refine_from_evidence.py",
     "token_count": 14,
     "token_min_count": 6,
-    "unmatched_rows": 258,
-    "updated_at": 1771132109,
+    "unmatched_rows": 279,
+    "updated_at": 1771169445,
     "version": "v1"
   },
   "operator_priors": {
