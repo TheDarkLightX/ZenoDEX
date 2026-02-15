@@ -14,6 +14,13 @@
       "score_bias": 0.15,
       "source": "auto_refine_v1"
     },
+    "curve_selection_unsafe_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 4,
+      "score_bias": -0.025,
+      "source": "auto_refine_v1"
+    },
     "esso_fail_solver_timeout": {
       "evidence_support_rate": 0.294118,
       "evidence_supported": 5,
@@ -29,24 +36,38 @@
       "source": "auto_refine_v1"
     },
     "esso_synth_fail_solver_timeout": {
-      "evidence_support_rate": 0.62963,
-      "evidence_supported": 17,
-      "evidence_total": 27,
-      "score_bias": 0.0389,
+      "evidence_support_rate": 0.581395,
+      "evidence_supported": 25,
+      "evidence_total": 43,
+      "score_bias": 0.0244,
       "source": "auto_refine_v1"
     },
     "esso_synth_solver_timeout": {
-      "evidence_support_rate": 0.222222,
-      "evidence_supported": 4,
-      "evidence_total": 18,
-      "score_bias": -0.0625,
+      "evidence_support_rate": 0.210526,
+      "evidence_supported": 8,
+      "evidence_total": 38,
+      "score_bias": -0.0868,
       "source": "auto_refine_v1"
     },
     "esso_verify_solver_timeout": {
-      "evidence_support_rate": 0.708333,
-      "evidence_supported": 17,
-      "evidence_total": 24,
-      "score_bias": 0.0625,
+      "evidence_support_rate": 0.638889,
+      "evidence_supported": 23,
+      "evidence_total": 36,
+      "score_bias": 0.0417,
+      "source": "auto_refine_v1"
+    },
+    "intent_normal_form_regression_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0312,
+      "source": "auto_refine_v1"
+    },
+    "lean_fail": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0312,
       "source": "auto_refine_v1"
     },
     "lean_repeat3": {
@@ -70,17 +91,31 @@
       "score_bias": -0.0187,
       "source": "auto_refine_v1"
     },
+    "perp_v2_invariant_break_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0312,
+      "source": "auto_refine_v1"
+    },
+    "perp_v2_oracle_divergence_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 4,
+      "score_bias": -0.025,
+      "source": "auto_refine_v1"
+    },
     "pytest_fail": {
       "evidence_support_rate": 0.0,
       "evidence_supported": 0,
-      "evidence_total": 45,
+      "evidence_total": 97,
       "score_bias": -0.15,
       "source": "auto_refine_v1"
     },
     "pytest_pass": {
       "evidence_support_rate": 1.0,
-      "evidence_supported": 45,
-      "evidence_total": 45,
+      "evidence_supported": 65,
+      "evidence_total": 65,
       "score_bias": 0.15,
       "source": "auto_refine_v1"
     },
@@ -100,9 +135,16 @@
     },
     "settlement_normal_form": {
       "evidence_support_rate": 1.0,
-      "evidence_supported": 50,
-      "evidence_total": 50,
+      "evidence_supported": 52,
+      "evidence_total": 52,
       "score_bias": 0.15,
+      "source": "auto_refine_v1"
+    },
+    "settlement_ordering_nondeterminism_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0312,
       "source": "auto_refine_v1"
     },
     "split_routing_no_gap": {
@@ -117,6 +159,13 @@
       "evidence_supported": 15,
       "evidence_total": 15,
       "score_bias": 0.0938,
+      "source": "auto_refine_v1"
+    },
+    "state_root_nondeterminism_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0312,
       "source": "auto_refine_v1"
     }
   },
@@ -135,8 +184,113 @@
       "score_bias": 0.225,
       "source": "auto_refine_v1"
     },
+    "curve_selection_unsafe_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 4,
+      "score_bias": -0.0375,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_fail_solver_timeout::cvc5::6000::src/kernels/dex/fee_calculator_hole.yaml::src/kernels/dex/fee_calculator_hole.synth.json": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 4,
+      "score_bias": -0.0375,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_fail_solver_timeout::cvc5::6000::src/kernels/dex/swap_fee_calculator_hole.yaml::src/kernels/dex/swap_fee_calculator_hole.synth.json": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 4,
+      "evidence_total": 4,
+      "score_bias": 0.0375,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_fail_solver_timeout::z3::6000::src/kernels/dex/cpmm_output_amount_hole_v2.yaml::src/kernels/dex/cpmm_output_amount_hole_v2.synth.json": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 5,
+      "evidence_total": 5,
+      "score_bias": 0.0469,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_fail_solver_timeout::z3::6000::src/kernels/dex/fee_accumulator_simple_hole.yaml::src/kernels/dex/fee_accumulator_simple_hole.synth.json": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_fail_solver_timeout::z3::6000::src/kernels/dex/fee_calculator_hole.yaml::src/kernels/dex/fee_calculator_hole.synth.json": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 7,
+      "score_bias": -0.0656,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_solver_timeout::cvc5::6000::src/kernels/dex/circuit_breaker_hole.yaml::src/kernels/dex/circuit_breaker_hole.synth.json": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_solver_timeout::cvc5::6000::src/kernels/dex/fee_accumulator_simple_hole.yaml::src/kernels/dex/fee_accumulator_simple_hole.synth.json": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 4,
+      "evidence_total": 4,
+      "score_bias": 0.0375,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_solver_timeout::cvc5::6000::src/kernels/dex/fee_calculator_hole.yaml::src/kernels/dex/fee_calculator_hole.synth.json": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 4,
+      "evidence_total": 4,
+      "score_bias": 0.0375,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_solver_timeout::cvc5::6000::src/kernels/dex/lp_ratio_calculator_hole.yaml::src/kernels/dex/lp_ratio_calculator_hole.synth.json": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_solver_timeout::cvc5::6000::src/kernels/dex/swap_fee_calculator_hole.yaml::src/kernels/dex/swap_fee_calculator_hole.synth.json": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 6,
+      "score_bias": -0.0563,
+      "source": "auto_refine_v1"
+    },
+    "esso_synth_solver_timeout::cvc5::6000::src/kernels/dex/swap_output_simple_hole.yaml::src/kernels/dex/swap_output_simple_hole.synth.json": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
     "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml": {
       "score_bias": 0.03
+    },
+    "esso_verify_solver_timeout::cvc5,z3::9000::src/kernels/dex/perp_game_theory_v1_liqfix.yaml": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 4,
+      "score_bias": -0.0375,
+      "source": "auto_refine_v1"
+    },
+    "esso_verify_solver_timeout::cvc5,z3::9000::src/kernels/dex/perp_game_theory_v2.yaml": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 4,
+      "evidence_total": 4,
+      "score_bias": 0.0375,
+      "source": "auto_refine_v1"
+    },
+    "esso_verify_solver_timeout::cvc5,z3::9000::src/kernels/dex/spec_quality_assessment_v1.yaml": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 4,
+      "score_bias": -0.0375,
+      "source": "auto_refine_v1"
     },
     "esso_verify_solver_timeout::cvc5,z3::9000::src/kernels/dex/swap_router_optimizer.yaml": {
       "evidence_support_rate": 1.0,
@@ -146,6 +300,146 @@
       "source": "auto_refine_v1"
     },
     "esso_verify_solver_timeout::cvc5,z3::9000::src/kernels/dex/swap_router_optimizer_evolvable_v1.yaml": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 6,
+      "evidence_total": 6,
+      "score_bias": 0.0563,
+      "source": "auto_refine_v1"
+    },
+    "intent_normal_form_regression_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "perp_v2_invariant_break_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "perp_v2_oracle_divergence_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 4,
+      "score_bias": -0.0375,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/core/test_batch_clearing_global_refinement.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 6,
+      "score_bias": -0.0563,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/core/test_cpmm.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 6,
+      "score_bias": -0.0563,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/core/test_funding_rate_market.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/core/test_il_futures.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/core/test_perp_v2/test_invariants.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 6,
+      "score_bias": -0.0563,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/core/test_perp_v2/test_oracle_equiv.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 4,
+      "score_bias": -0.0375,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/core/test_routing_exact_out_gate.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/core/test_settlement_normal_form.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 7,
+      "score_bias": -0.0656,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/integration/test_dex_snapshot.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 6,
+      "score_bias": -0.0563,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/integration/test_operations_parsing.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 6,
+      "score_bias": -0.0563,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/integration/test_tau_testnet_dex_plugin.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
+      "source": "auto_refine_v1"
+    },
+    "pytest_fail::tests/state/test_state_root_determinism.py": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 6,
+      "score_bias": -0.0563,
+      "source": "auto_refine_v1"
+    },
+    "pytest_pass::tests/core/test_batch_clearing_global_refinement.py": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 4,
+      "evidence_total": 4,
+      "score_bias": 0.0375,
+      "source": "auto_refine_v1"
+    },
+    "pytest_pass::tests/core/test_cpmm.py": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 4,
+      "evidence_total": 4,
+      "score_bias": 0.0375,
+      "source": "auto_refine_v1"
+    },
+    "pytest_pass::tests/core/test_settlement_normal_form.py": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 5,
+      "evidence_total": 5,
+      "score_bias": 0.0469,
+      "source": "auto_refine_v1"
+    },
+    "pytest_pass::tests/integration/test_operations_parsing.py": {
+      "evidence_support_rate": 1.0,
+      "evidence_supported": 4,
+      "evidence_total": 4,
+      "score_bias": 0.0375,
+      "source": "auto_refine_v1"
+    },
+    "pytest_pass::tests/state/test_state_root_determinism.py": {
       "evidence_support_rate": 1.0,
       "evidence_supported": 4,
       "evidence_total": 4,
@@ -161,9 +455,16 @@
     },
     "settlement_normal_form": {
       "evidence_support_rate": 1.0,
-      "evidence_supported": 50,
-      "evidence_total": 50,
+      "evidence_supported": 52,
+      "evidence_total": 52,
       "score_bias": 0.225,
+      "source": "auto_refine_v1"
+    },
+    "settlement_ordering_nondeterminism_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
       "source": "auto_refine_v1"
     },
     "split_routing_no_gap": {
@@ -178,6 +479,13 @@
       "evidence_supported": 15,
       "evidence_total": 15,
       "score_bias": 0.1406,
+      "source": "auto_refine_v1"
+    },
+    "state_root_nondeterminism_exists": {
+      "evidence_support_rate": 0.0,
+      "evidence_supported": 0,
+      "evidence_total": 5,
+      "score_bias": -0.0469,
       "source": "auto_refine_v1"
     }
   },
@@ -209,17 +517,17 @@
   },
   "learning": {
     "auto_rule_count": 9,
-    "check_count": 149,
+    "check_count": 157,
     "check_family_count": 31,
-    "global_support_rate": 0.676113,
+    "global_support_rate": 0.593651,
     "matched_rows": 215,
     "min_count": 4,
     "operator_count": 6,
     "source": "tools/krr_refine_from_evidence.py",
     "token_count": 14,
     "token_min_count": 6,
-    "unmatched_rows": 279,
-    "updated_at": 1771169445,
+    "unmatched_rows": 415,
+    "updated_at": 1771169612,
     "version": "v1"
   },
   "operator_priors": {
