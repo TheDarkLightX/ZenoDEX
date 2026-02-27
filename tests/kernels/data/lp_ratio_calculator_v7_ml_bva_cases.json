@@ -1,0 +1,1517 @@
+{
+  "algorithm": {
+    "alpha": 1.35,
+    "cases_per_action": 40,
+    "global_state_pool": {
+      "action_accepts": {
+        "calculate_optimal": 48
+      },
+      "action_pulls": {
+        "calculate_optimal": 50
+      },
+      "baseline_prob": 0.4,
+      "max_states": 64,
+      "reset_prob": 0.2,
+      "seed_state_boundaries": {
+        "accepted": 16,
+        "candidate_var_count": 2,
+        "enabled": true,
+        "rejected": 139,
+        "seed_steps": 400,
+        "seed_width": 2,
+        "state_pool_size": 17,
+        "unique_states_seen": 17,
+        "validator_action_id": "calculate_optimal"
+      },
+      "state_pool_size": 17,
+      "top_k_candidates": 80,
+      "unique_states_seen": 17,
+      "walk_steps": 50
+    },
+    "iterations_per_action": 700,
+    "max_candidates_per_action": 800,
+    "max_states": 64,
+    "name": "ucb1_boundary_sampler",
+    "outside_boundary_candidates": true,
+    "pair_density_bonus": true,
+    "refine_max_steps": 8,
+    "refine_pairs_per_action": 40
+  },
+  "cases": [
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 1,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 2999999999
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1000000000,
+          "optimal0_le_desired0": true,
+          "optimal1": 1000000000,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 2999999999
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=min+1"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 2,
+          "optimal0_le_desired0": true,
+          "optimal1": 2,
+          "optimal1_le_desired1": true,
+          "refund0": 999999998,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 2
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 2999999999
+      },
+      "reward": 1.4
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "desired0=min+1",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 2,
+          "optimal0_le_desired0": true,
+          "optimal1": 2,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 999999998,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 2,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 3000000000
+      },
+      "reward": 1.4
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=max-1"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 999999999,
+          "optimal1_le_desired1": true,
+          "refund0": 1,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 999999999
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 3000000000
+      },
+      "reward": 1.4
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "desired0=max-1",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 999999999,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 999999999,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 3000000000
+      },
+      "reward": 1.4
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=mid"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 500000000,
+          "optimal1_le_desired1": true,
+          "refund0": 1000000000,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 500000000
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 3000000000
+      },
+      "reward": 1.29
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "desired0=mid",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 500000000,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 500000000,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 3000000000
+      },
+      "reward": 1.29
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 0
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 1
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "desired0=min-1",
+        "desired1=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 0,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 1
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1000000001
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 3000000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "desired0=max+1",
+        "desired1=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000001,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 1
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 1
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1000000000,
+          "optimal0_le_desired0": true,
+          "optimal1": 1000000000,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 3000000000
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": true,
+          "optimal0": 1000000000,
+          "optimal0_le_desired0": true,
+          "optimal1": 1000000000,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 0,
+          "reserve1": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 0,
+        "reserve1": 0
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1000000000,
+          "optimal1_le_desired1": true,
+          "refund0": 1000000000,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 1500000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 1500000000
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 2,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 999999998,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 1500000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 1500000000
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 2,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 999999998,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1500000000,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 1500000000,
+        "reserve1": 3000000000
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 999999999,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 1500000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 1500000000
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 0,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1500000000,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 1500000000,
+        "reserve1": 1
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 1000000000,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1500000000,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 1500000000,
+        "reserve1": 2999999999
+      },
+      "reward": 1.32
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 999999999,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1500000000,
+          "reserve1": 1500000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 1500000000,
+        "reserve1": 1500000000
+      },
+      "reward": 1.2
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1000000000,
+          "optimal0_le_desired0": true,
+          "optimal1": 0,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 1
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 0,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1000000000,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 2999999999
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 1000000000,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 3000000000
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1000000000,
+          "optimal1_le_desired1": true,
+          "refund0": 1,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 2999999999
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 999999999,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 3000000000
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 1,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 3000000000
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1000000000,
+          "optimal0_le_desired0": true,
+          "optimal1": 999999999,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 2999999999
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 999999999,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 3000000000
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 0,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 2999999999
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1000000000,
+          "optimal0_le_desired0": true,
+          "optimal1": 1000000000,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 1
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 2999999999
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1000000000,
+          "optimal0_le_desired0": true,
+          "optimal1": 0,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1000000000,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 2999999999,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 2999999999,
+        "reserve1": 1
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 999999999,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 1
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 0,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1000000000,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 1
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 0,
+          "optimal0_le_desired0": true,
+          "optimal1": 1000000000,
+          "optimal1_le_desired1": true,
+          "refund0": 1000000000,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 1,
+          "reserve1": 2999999999
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 1,
+        "reserve1": 2999999999
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 0,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 1
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=max",
+        "desired1=max"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1000000000,
+          "optimal0_le_desired0": true,
+          "optimal1": 0,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 1000000000,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1000000000,
+        "desired1": 1000000000
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 1
+      },
+      "reward": 1.44
+    },
+    {
+      "action": "calculate_optimal",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "desired0=min",
+        "desired1=min"
+      ],
+      "expected": {
+        "effects": {
+          "is_initial": false,
+          "optimal0": 1,
+          "optimal0_le_desired0": true,
+          "optimal1": 1,
+          "optimal1_le_desired1": true,
+          "refund0": 0,
+          "refund0_nonneg": true,
+          "refund1": 0,
+          "refund1_nonneg": true,
+          "sum0_ok": true,
+          "sum1_ok": true
+        },
+        "ok": true,
+        "state": {
+          "reserve0": 3000000000,
+          "reserve1": 3000000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "desired0": 1,
+        "desired1": 1
+      },
+      "pre_state": {
+        "reserve0": 3000000000,
+        "reserve1": 3000000000
+      },
+      "reward": 1.44
+    }
+  ],
+  "model_path": "src/kernels/dex/lp_ratio_calculator_v7.yaml",
+  "model_sha256": "15a46f705ac816a8aab60e4c6cf5cff091d6ca919b1765bbf7190b346d68888b",
+  "schema": "zenodex/ml-boundary-bva/v1",
+  "seed": 0,
+  "summary": {
+    "action_count": 1,
+    "per_action": {
+      "calculate_optimal": {
+        "candidate_count": 22,
+        "iterations": 700,
+        "raw_record_count": 304,
+        "refine_max_steps": 8,
+        "refine_pairs_per_action": 40,
+        "selected": 40,
+        "state_pool_size": 17
+      }
+    },
+    "total_cases": 40
+  }
+}
