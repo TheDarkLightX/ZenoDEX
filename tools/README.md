@@ -37,8 +37,18 @@ python3 tools/bva/mine_bva.py --scenario tools/bva/scenarios/slippage_advisor_st
 
 ## GPU-Assisted Certificates (Internal)
 
-These helpers compute winners off-chain (optionally on GPU via Torch) and emit
+These helpers compute winners off-chain (optionally on GPU via Torch/CuPy) and emit
 Tau steps for cheap, deterministic certificate checks.
+
+GPU backend note:
+- Linux/NVIDIA uses Torch CUDA or CuPy CUDA (when installed) and `--prefer-gpu` is set.
+- macOS uses Torch MPS when available.
+- All results are *untrusted* until verified by deterministic replay / Tau steps.
+
+Quick check:
+```bash
+python3 tools/gpu_env_check.py
+```
 
 - Argmin (key asc, index asc):
 ```bash
@@ -64,6 +74,11 @@ python3 tools/gpu_jobs/route_2hop_search_cpmm.py --input /tmp/job.json --output 
 Verify the witness deterministically:
 ```bash
 python3 tools/proof_verifiers/route_improvement_v1.py --input /tmp/witness.json
+```
+
+Smoke test (search + verifier):
+```bash
+python3 tools/gpu_jobs/route_2hop_smoke.py
 ```
 
 Run an improvement bounty round (select best verified submission; optional Tau argmax cert):
