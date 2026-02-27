@@ -2,9 +2,12 @@
 external/
 internal/
 node_modules/
+generated/
 
 # Local dev scratch (not part of repo)
 .claude/
+.agents/
+temp_algo_lab/
 
 # Python
 __pycache__/
