@@ -16,6 +16,7 @@ import argparse
 import json
 import math
 import random
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -54,6 +55,27 @@ class EvalRecord:
 
 def _json_dumps(obj: object) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _portable_path(path: Path) -> str:
+    """
+    Return a path string stable across machines when possible.
+
+    If `path` is inside the repo, emit a repo-relative POSIX path; otherwise keep
+    the original user-supplied path string.
+    """
+    p = path.expanduser()
+    if not p.is_absolute():
+        return p.as_posix()
+    try:
+        rel = p.resolve().relative_to(_repo_root())
+        return rel.as_posix()
+    except Exception:
+        return p.as_posix()
 
 
 def _state_sig(state: Mapping[str, object]) -> str:
@@ -526,9 +548,10 @@ def generate_ml_bva_suite(
     except Exception as exc:
         raise RuntimeError("ESSO is required to generate ML-BVA suites") from exc
 
-    obj = yaml.safe_load(model_path.read_text(encoding="utf-8"))
+    model_fs_path = model_path.expanduser()
+    obj = yaml.safe_load(model_fs_path.read_text(encoding="utf-8"))
     if not isinstance(obj, dict):
-        raise ValueError(f"model YAML is not a mapping: {model_path}")
+        raise ValueError(f"model YAML is not a mapping: {model_fs_path}")
 
     ir = CandidateIR.from_json_dict(obj).canonicalized()
     ctx = prepare_step_context(ir)
@@ -572,7 +595,8 @@ def generate_ml_bva_suite(
 
     out = {
         "schema": "zenodex/ml-boundary-bva/v1",
-        "model_path": str(model_path),
+        "model_path": _portable_path(model_path),
+        "model_sha256": hashlib.sha256(model_fs_path.read_bytes()).hexdigest(),
         "seed": int(seed),
         "algorithm": {
             "name": "ucb1_boundary_sampler",
@@ -620,7 +644,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     suite = generate_ml_bva_suite(
-        model_path=args.model.expanduser().resolve(),
+        model_path=args.model,
         cases_per_action=int(args.cases_per_action),
         iterations_per_action=int(args.iterations_per_action),
         max_candidates_per_action=int(args.max_candidates_per_action),

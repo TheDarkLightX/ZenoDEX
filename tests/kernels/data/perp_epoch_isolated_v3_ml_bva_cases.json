@@ -6562,7 +6562,8 @@
       "reward": 0.37
     }
   ],
-  "model_path": "/Users/danax/projects/ZenoDEX/ZenoDEX/src/kernels/dex/perp_epoch_isolated_v3.yaml",
+  "model_path": "src/kernels/dex/perp_epoch_isolated_v3.yaml",
+  "model_sha256": "685b8f23d045aa79b02b7c76629fb003a97342d9483e03abe67f0120de9e7607",
   "schema": "zenodex/ml-boundary-bva/v1",
   "seed": 7,
   "summary": {

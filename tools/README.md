@@ -131,6 +131,10 @@ GPU_STEPS_CE=6000 bash tools/run_perps_gpu_liftoff.sh
 Generates replayable boundary-value tests using an adaptive UCB policy over boundary candidates
 (machine-learning-driven BVA).
 
+Portability:
+- Generated test artifacts are replayable on CPU-only machines.
+- `model_path` is emitted in a repo-relative form when possible, so artifacts are not tied to one developer's absolute filesystem path.
+
 Run:
 ```
 python3.11 tools/ml_boundary_bva.py \
