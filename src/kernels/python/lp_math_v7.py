@@ -81,16 +81,23 @@ def optimal_liquidity(
             amount1_refund=0,
         )
 
-    amount1_from_amount0 = (amount0_desired * reserve1) // reserve0
-    if amount1_from_amount0 <= amount1_desired:
+    # Match the v7 kernel spec: choose the limiting side using exact
+    # cross-multiplication comparisons (avoid floor-div branch drift).
+    lhs = amount0_desired * reserve1
+    rhs = amount1_desired * reserve0
+    if lhs <= rhs:
         amount0_used = amount0_desired
-        amount1_used = amount1_from_amount0
+        amount1_used = (amount0_desired * reserve1) // reserve0
     else:
         amount0_used = (amount1_desired * reserve0) // reserve1
         amount1_used = amount1_desired
 
-    if amount0_used <= 0 or amount1_used <= 0:
-        raise ValueError("computed used amounts must be positive")
+    # For extreme ratios, the ratio-preserving floor divisions can produce
+    # a degenerate "use 0 of one asset, refund everything" result. The v7
+    # kernel spec allows this (it is later rejected by minting if it implies
+    # zero liquidity), so we only forbid negative values here.
+    if amount0_used < 0 or amount1_used < 0:
+        raise ValueError("computed used amounts must be non-negative")
     if amount0_used > amount0_desired or amount1_used > amount1_desired:
         raise AssertionError("used amounts exceed desired amounts")
 
