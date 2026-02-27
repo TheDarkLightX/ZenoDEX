@@ -28,6 +28,11 @@ from . import quartic_blend_amm
 from . import quintic_blend_amm
 from . import sum_boost_amm
 
+# Global safety policy for CPMM exact-out in routing/execution paths.
+# The raw CPMM exact-out quote can overdeliver on integer lattices in edge regimes.
+# We cap that quote gap to avoid pathological user overpayment while preserving most quotes.
+CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT = 200
+
 
 def swap_exact_in_for_pool(
     pool: PoolState, *, reserve_in: Amount, reserve_out: Amount, amount_in: Amount
@@ -61,7 +66,13 @@ def swap_exact_out_for_pool(
     pool: PoolState, *, reserve_in: Amount, reserve_out: Amount, amount_out: Amount
 ) -> Tuple[Amount, Tuple[Amount, Amount]]:
     if pool.curve_tag == CURVE_TAG_CPMM:
-        return cpmm.swap_exact_out(reserve_in, reserve_out, amount_out, pool.fee_bps)
+        return cpmm.swap_exact_out(
+            reserve_in,
+            reserve_out,
+            amount_out,
+            pool.fee_bps,
+            max_overdelivery_gap_bps=CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+        )
     if pool.curve_tag == CURVE_TAG_CUBIC_SUM_V1:
         p, q = parse_cubic_sum_params(pool.curve_params)
         return cubic_sum_amm.swap_exact_out_cubic_sum(

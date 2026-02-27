@@ -1,0 +1,36 @@
+# Protocol Fee Floor v1 - Deterministic Protocol Fee Share (DEX)
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: protocol_fee matches floor(fee_total * protocol_fee_share_bps / 10_000) (no-wrap)
+#
+# PURPOSE: Validate externally computed protocol fee share under v8 semantics:
+#   protocol_fee = floor(fee_total * protocol_fee_share_bps / 10_000)
+#
+# Safe math:
+# - Tau bitvectors are modular; we restrict inputs to a range where:
+#     protocol_fee * 10_000 + 9_999 does not overflow bv[64]
+#   and where fee_total * protocol_fee_share_bps does not overflow bv[64].
+#
+# Stream mapping:
+# i1 = fee_total (bv[64])
+# i2 = protocol_fee_share_bps (bv[64])   # 0..10_000
+# i3 = protocol_fee (bv[64])            # claimed protocol fee share
+# o1 = protocol_fee_ok
+#
+# @rule o1: fee_total*share in [protocol_fee*10_000, protocol_fee*10_000 + 9_999] with safe bounds.
+
+set charvar off
+
+# floor((2^64-1 - 9_999) / 10_000)
+max_safe_64() := { #x00068DB8BAC710CA }:bv[64].
+
+rate_ok(rate : bv[64]) := rate <= { #x0000000000002710 }:bv[64].
+safe_ok(v : bv[64]) := v <= max_safe_64().
+
+floor_bounds_ok(fee_total : bv[64], share : bv[64], protocol_fee : bv[64]) := (protocol_fee * { #x0000000000002710 }:bv[64] <= (fee_total * share)) && ((fee_total * share) <= (protocol_fee * { #x0000000000002710 }:bv[64]) + { #x000000000000270F }:bv[64]).
+
+protocol_fee_ok(fee_total : bv[64], share : bv[64], protocol_fee : bv[64]) := rate_ok(share) && safe_ok(fee_total) && safe_ok(protocol_fee) && floor_bounds_ok(fee_total, share, protocol_fee).
+
+always (o1[t]:sbf = 1:sbf <-> protocol_fee_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64])).
+

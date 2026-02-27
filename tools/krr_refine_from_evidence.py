@@ -26,12 +26,18 @@ _PREDICATE_TOKEN_MAP: dict[str, set[str]] = {
         "tie_break",
         "total_key",
     },
-    "routing": {"route", "routing", "path", "hop", "2hop", "split", "pool"},
-    "invariant_guard": {"invariant", "inductive", "guard", "safety", "conservation"},
+    "routing": {"route", "routing", "path", "hop", "2hop", "split", "multihop", "pool"},
+    "invariant_guard": {"invariant", "inductive", "guard", "safety", "conservation", "solvency"},
     "decomposition": {"divide_and_conquer", "divide", "partition", "chunk", "merge", "reduce"},
-    "dualization": {"dual", "dualize", "shadow_price", "lagrangian"},
-    "lift_project": {"lift", "project", "projection", "relax", "relaxation"},
+    "dualization": {"dual", "dualize", "shadow_price", "lagrangian", "constraint"},
+    "lift_project": {"lift", "project", "projection", "relax", "relaxation", "round"},
     "performance": {"array", "index", "branchless", "cache", "latency", "throughput"},
+    "execution_quality": {"slippage", "adverse", "selection", "mev", "sandwich", "adaptive", "volatility", "revert"},
+    "batch_clearing": {"batch", "clearing", "marginal", "insertion", "mci", "ordering", "greedy", "optimal"},
+    "liquidation_prevention": {"liquidation", "predictive", "epochs_to_liq", "drain", "margin", "collateral"},
+    "funding_verification": {"funding", "budget", "balance", "checksum", "bb", "verifier"},
+    "oracle_anomaly": {"oracle", "anomaly", "pump", "oscillation", "staleness", "temporal"},
+    "keeper_liveness": {"keeper", "liveness", "deadlock", "epoch_phase", "settlement", "stateless"},
 }
 
 
@@ -200,6 +206,16 @@ def _token_predicates(token: str) -> set[str]:
         out.add("dualization")
     if t.startswith("lift") or t.startswith("project"):
         out.add("lift_project")
+    if t.startswith("batch") or t.startswith("clearing") or "mci" in t:
+        out.add("batch_clearing")
+    if t.startswith("liquidat") or t.startswith("predictive"):
+        out.add("liquidation_prevention")
+    if t.startswith("funding") or "checksum" in t:
+        out.add("funding_verification")
+    if t.startswith("oracle") or t.startswith("anomal"):
+        out.add("oracle_anomaly")
+    if t.startswith("keeper") or t.startswith("liveness") or "deadlock" in t:
+        out.add("keeper_liveness")
     return out
 
 

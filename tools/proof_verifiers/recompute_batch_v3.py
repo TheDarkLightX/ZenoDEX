@@ -30,8 +30,9 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from src.core.batch_clearing import compute_settlement, validate_settlement  # noqa: E402
+from src.core.batch_clearing import compute_settlement  # noqa: E402
 from src.core.intent_normal_form import IntentNormalFormError, require_normal_form  # noqa: E402
+from src.core.settlement_strong_validator import validate_settlement_strong  # noqa: E402
 from src.integration.dex_snapshot import state_from_snapshot  # noqa: E402
 from src.integration.operations import create_settlement_operation, parse_intents, parse_settlement  # noqa: E402
 from src.state.canonical import CANONICAL_ENCODING_VERSION, canonical_json_bytes, domain_sep_bytes, sha256_hex  # noqa: E402
@@ -253,7 +254,14 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     except Exception as exc:
         return False, f"settlement recomputation failed: {exc}"
 
-    ok, err = validate_settlement(recomputed, state.balances, state.pools, state.lp_balances)
+    ok, err = validate_settlement_strong(
+        settlement=recomputed,
+        intents=intents,
+        pre_balances=state.balances,
+        pre_pools=state.pools,
+        pre_lp_balances=state.lp_balances,
+        mode="strong_replay",
+    )
     if not ok:
         return False, f"recomputed settlement invalid: {err or 'rejected'}"
 
@@ -286,4 +294,3 @@ def main(argv: Sequence[str]) -> None:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-

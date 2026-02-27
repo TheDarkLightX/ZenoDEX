@@ -76,6 +76,78 @@
       ],
       "score_bias": 0.13,
       "min_speedup_override": 0.88
+    },
+    "op_marginal_contribution_insertion": {
+      "check_preferences": [
+        "batch_clearing_no_gap",
+        "batch_mci_vs_bruteforce",
+        "batch_mci_vs_greedy"
+      ],
+      "score_bias": 0.15,
+      "min_speedup_override": 0.92
+    },
+    "op_golden_section_split": {
+      "check_preferences": [
+        "split_routing_no_gap",
+        "dgstr_exact_match",
+        "dgstr_eval_count"
+      ],
+      "score_bias": 0.12,
+      "min_speedup_override": 0.95
+    },
+    "op_adaptive_slippage": {
+      "check_preferences": [
+        "slippage_never_reverts",
+        "slippage_tightness",
+        "slippage_revert_rate"
+      ],
+      "score_bias": 0.11,
+      "min_speedup_override": 0.9
+    },
+    "op_graph_multihop_router": {
+      "check_preferences": [
+        "route_exact_out_2hop_value",
+        "graph_router_dominance",
+        "graph_router_conservation"
+      ],
+      "score_bias": 0.10,
+      "min_speedup_override": 0.88
+    },
+    "op_predictive_liquidation": {
+      "check_preferences": [
+        "predictive_liq_never_optimistic",
+        "predictive_liq_tightness",
+        "lean_proof::PredictiveLiqSafety"
+      ],
+      "score_bias": 0.18,
+      "min_speedup_override": 0.85
+    },
+    "op_funding_bb_verifier": {
+      "check_preferences": [
+        "funding_bb_checksum_bounds",
+        "funding_bb_delta_range",
+        "lean_proof::FundingBBVerifier"
+      ],
+      "score_bias": 0.17,
+      "min_speedup_override": 0.85
+    },
+    "op_oracle_anomaly_detection": {
+      "check_preferences": [
+        "oracle_pump_detection",
+        "oracle_oscillation_detection",
+        "oracle_staleness_detection"
+      ],
+      "score_bias": 0.14,
+      "min_speedup_override": 0.88
+    },
+    "op_keeper_liveness": {
+      "check_preferences": [
+        "keeper_no_deadlock",
+        "keeper_three_action_settlement",
+        "lean_proof::KeeperLiveness"
+      ],
+      "score_bias": 0.16,
+      "min_speedup_override": 0.90
     }
   },
   "semantic_rules": [
@@ -141,6 +213,159 @@
       ],
       "score_bias": 0.04,
       "min_speedup_override": 0.9
+    },
+    {
+      "name": "batch_marginal_contribution",
+      "if_semantic_predicates_any": [
+        "batch_clearing"
+      ],
+      "if_semantic_contains": [
+        "marginal",
+        "insertion",
+        "mci",
+        "batch",
+        "ordering"
+      ],
+      "then_prefer_checks": [
+        "batch_mci_vs_bruteforce",
+        "batch_mci_vs_greedy",
+        "batch_clearing_no_gap"
+      ],
+      "score_bias": 0.14,
+      "min_speedup_override": 0.92
+    },
+    {
+      "name": "golden_section_split_routing",
+      "if_semantic_predicates_any": [
+        "routing"
+      ],
+      "if_semantic_contains": [
+        "golden",
+        "section",
+        "dgstr",
+        "ternary",
+        "split"
+      ],
+      "then_prefer_checks": [
+        "dgstr_exact_match",
+        "split_routing_no_gap"
+      ],
+      "score_bias": 0.11,
+      "min_speedup_override": 0.95
+    },
+    {
+      "name": "predictive_liquidation_safety",
+      "if_semantic_predicates_any": [
+        "liquidation_prevention"
+      ],
+      "if_semantic_contains": [
+        "liquidation",
+        "predictive",
+        "epochs_to_liq",
+        "drain",
+        "margin"
+      ],
+      "then_prefer_checks": [
+        "predictive_liq_never_optimistic",
+        "lean_proof::PredictiveLiqSafety"
+      ],
+      "score_bias": 0.16,
+      "min_speedup_override": 0.85
+    },
+    {
+      "name": "funding_budget_balance",
+      "if_semantic_predicates_any": [
+        "funding_verification"
+      ],
+      "if_semantic_contains": [
+        "funding",
+        "budget",
+        "balance",
+        "checksum",
+        "bb"
+      ],
+      "then_prefer_checks": [
+        "funding_bb_checksum_bounds",
+        "lean_proof::FundingBBVerifier"
+      ],
+      "score_bias": 0.15,
+      "min_speedup_override": 0.85
+    },
+    {
+      "name": "oracle_anomaly_temporal",
+      "if_semantic_predicates_any": [
+        "oracle_anomaly"
+      ],
+      "if_semantic_contains": [
+        "oracle",
+        "anomaly",
+        "pump",
+        "oscillation",
+        "staleness"
+      ],
+      "then_prefer_checks": [
+        "oracle_pump_detection",
+        "oracle_oscillation_detection",
+        "oracle_staleness_detection"
+      ],
+      "score_bias": 0.12,
+      "min_speedup_override": 0.88
+    },
+    {
+      "name": "keeper_liveness_proof",
+      "if_semantic_predicates_any": [
+        "keeper_liveness"
+      ],
+      "if_semantic_contains": [
+        "keeper",
+        "liveness",
+        "deadlock",
+        "epoch_phase",
+        "settlement"
+      ],
+      "then_prefer_checks": [
+        "keeper_no_deadlock",
+        "lean_proof::KeeperLiveness"
+      ],
+      "score_bias": 0.14,
+      "min_speedup_override": 0.90
+    },
+    {
+      "name": "adaptive_slippage_quality",
+      "if_semantic_predicates_any": [
+        "execution_quality"
+      ],
+      "if_semantic_contains": [
+        "slippage",
+        "adaptive",
+        "volatility",
+        "revert"
+      ],
+      "then_prefer_checks": [
+        "slippage_never_reverts",
+        "slippage_tightness"
+      ],
+      "score_bias": 0.10,
+      "min_speedup_override": 0.9
+    },
+    {
+      "name": "graph_multihop_routing",
+      "if_semantic_predicates_any": [
+        "routing"
+      ],
+      "if_semantic_contains": [
+        "graph",
+        "dijkstra",
+        "multihop",
+        "3hop",
+        "4hop"
+      ],
+      "then_prefer_checks": [
+        "graph_router_dominance",
+        "route_exact_out_2hop_value"
+      ],
+      "score_bias": 0.09,
+      "min_speedup_override": 0.88
     }
   ],
   "check_priors": {
@@ -164,6 +389,153 @@
     },
     "esso_verify::src/kernels/dex/spec_quality_assessment_v1.yaml": {
       "score_bias": 0.03
+    },
+    "batch_mci_vs_bruteforce": {
+      "score_bias": 0.15,
+      "evidence_total": 18,
+      "evidence_supported": 18,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track1"
+    },
+    "batch_mci_vs_greedy": {
+      "score_bias": 0.14,
+      "evidence_total": 18,
+      "evidence_supported": 18,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track1"
+    },
+    "dgstr_exact_match": {
+      "score_bias": 0.12,
+      "evidence_total": 20,
+      "evidence_supported": 20,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track2"
+    },
+    "dgstr_eval_count": {
+      "score_bias": 0.10,
+      "evidence_total": 20,
+      "evidence_supported": 20,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track2"
+    },
+    "slippage_never_reverts": {
+      "score_bias": 0.11,
+      "evidence_total": 9,
+      "evidence_supported": 9,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track3"
+    },
+    "slippage_tightness": {
+      "score_bias": 0.09,
+      "evidence_total": 9,
+      "evidence_supported": 9,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track3"
+    },
+    "slippage_revert_rate": {
+      "score_bias": 0.10,
+      "evidence_total": 9,
+      "evidence_supported": 9,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track3"
+    },
+    "graph_router_dominance": {
+      "score_bias": 0.10,
+      "evidence_total": 14,
+      "evidence_supported": 14,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track4"
+    },
+    "graph_router_conservation": {
+      "score_bias": 0.08,
+      "evidence_total": 14,
+      "evidence_supported": 14,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track4"
+    },
+    "predictive_liq_never_optimistic": {
+      "score_bias": 0.18,
+      "evidence_total": 10,
+      "evidence_supported": 10,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track5"
+    },
+    "predictive_liq_tightness": {
+      "score_bias": 0.14,
+      "evidence_total": 10,
+      "evidence_supported": 10,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track5"
+    },
+    "lean_proof::PredictiveLiqSafety": {
+      "score_bias": 0.16,
+      "evidence_total": 4,
+      "evidence_supported": 4,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track5/lean"
+    },
+    "funding_bb_checksum_bounds": {
+      "score_bias": 0.17,
+      "evidence_total": 9,
+      "evidence_supported": 9,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track6"
+    },
+    "funding_bb_delta_range": {
+      "score_bias": 0.14,
+      "evidence_total": 9,
+      "evidence_supported": 9,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track6"
+    },
+    "lean_proof::FundingBBVerifier": {
+      "score_bias": 0.15,
+      "evidence_total": 4,
+      "evidence_supported": 4,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track6/lean"
+    },
+    "oracle_pump_detection": {
+      "score_bias": 0.12,
+      "evidence_total": 20,
+      "evidence_supported": 20,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track7"
+    },
+    "oracle_oscillation_detection": {
+      "score_bias": 0.11,
+      "evidence_total": 20,
+      "evidence_supported": 20,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track7"
+    },
+    "oracle_staleness_detection": {
+      "score_bias": 0.10,
+      "evidence_total": 20,
+      "evidence_supported": 20,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track7"
+    },
+    "keeper_no_deadlock": {
+      "score_bias": 0.16,
+      "evidence_total": 13,
+      "evidence_supported": 13,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track8"
+    },
+    "keeper_three_action_settlement": {
+      "score_bias": 0.14,
+      "evidence_total": 13,
+      "evidence_supported": 13,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track8"
+    },
+    "lean_proof::KeeperLiveness": {
+      "score_bias": 0.15,
+      "evidence_total": 8,
+      "evidence_supported": 8,
+      "evidence_support_rate": 1.0,
+      "source": "algorithm_innovation_cycle/track8/lean"
     }
   }
 }

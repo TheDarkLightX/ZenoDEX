@@ -98,6 +98,51 @@ _PREDICATE_TOKEN_MAP: dict[str, set[str]] = {
         "selection",
         "mev",
         "sandwich",
+        "adaptive",
+        "volatility",
+        "revert",
+    },
+    "batch_clearing": {
+        "batch",
+        "clearing",
+        "marginal",
+        "insertion",
+        "mci",
+        "ordering",
+        "greedy",
+        "optimal",
+    },
+    "liquidation_prevention": {
+        "liquidation",
+        "predictive",
+        "epochs_to_liq",
+        "drain",
+        "margin",
+        "collateral",
+    },
+    "funding_verification": {
+        "funding",
+        "budget",
+        "balance",
+        "checksum",
+        "bb",
+        "verifier",
+    },
+    "oracle_anomaly": {
+        "oracle",
+        "anomaly",
+        "pump",
+        "oscillation",
+        "staleness",
+        "temporal",
+    },
+    "keeper_liveness": {
+        "keeper",
+        "liveness",
+        "deadlock",
+        "epoch_phase",
+        "settlement",
+        "stateless",
     },
 }
 
@@ -193,6 +238,16 @@ def _extract_semantic_features(*, schema: str, semantic_signature: str) -> tuple
             predicates.add("dualization")
         if tok.startswith("lift") or tok.startswith("project"):
             predicates.add("lift_project")
+        if tok.startswith("batch") or tok.startswith("clearing") or "mci" in tok:
+            predicates.add("batch_clearing")
+        if tok.startswith("liquidat") or tok.startswith("predictive"):
+            predicates.add("liquidation_prevention")
+        if tok.startswith("funding") or "checksum" in tok:
+            predicates.add("funding_verification")
+        if tok.startswith("oracle") or tok.startswith("anomal"):
+            predicates.add("oracle_anomaly")
+        if tok.startswith("keeper") or tok.startswith("liveness") or "deadlock" in tok:
+            predicates.add("keeper_liveness")
 
     return toks[:32], predicates
 

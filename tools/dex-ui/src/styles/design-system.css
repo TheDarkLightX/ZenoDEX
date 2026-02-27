@@ -18,7 +18,17 @@
   --accent-green: #22c55e;
   --accent-red: #ef4444;
   --accent-purple: #a78bfa;
-  
+
+  /* Perpetuals */
+  --perp-long: #22c55e;
+  --perp-short: #ef4444;
+  --perp-long-bg: rgba(34, 197, 94, 0.1);
+  --perp-short-bg: rgba(239, 68, 68, 0.1);
+  --perp-warning: #f59e0b;
+  --perp-warning-bg: rgba(245, 158, 11, 0.1);
+  --perp-extreme: #dc2626;
+  --perp-extreme-bg: rgba(220, 38, 38, 0.15);
+
   /* Gradients */
   --gradient-bg: radial-gradient(ellipse 1200px 600px at 10% 0%, #16202a, #0f0f12);
   --gradient-accent: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));

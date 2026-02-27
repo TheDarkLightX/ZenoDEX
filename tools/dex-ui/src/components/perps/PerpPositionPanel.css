@@ -1,0 +1,121 @@
+/* PerpPositionPanel */
+.perp-position-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.perp-position-panel--empty {
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.perp-position-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.perp-position-side-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.perp-position-side-badge--long {
+    background: var(--perp-long-bg);
+    color: var(--perp-long);
+}
+
+.perp-position-side-badge--short {
+    background: var(--perp-short-bg);
+    color: var(--perp-short);
+}
+
+.perp-no-position {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    flex: 1;
+    color: var(--text-muted);
+    padding: var(--space-xl) 0;
+}
+
+.perp-no-position-icon {
+    font-size: var(--font-size-2xl);
+    opacity: 0.3;
+}
+
+.perp-no-position-hint {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.perp-position-stats {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.perp-position-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.perp-position-value {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.perp-pnl.positive {
+    color: var(--perp-long);
+}
+
+.perp-pnl.negative {
+    color: var(--perp-short);
+}
+
+.perp-liq-price {
+    color: var(--perp-warning);
+}
+
+/* Margin Health Bar */
+.perp-margin-health {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.perp-margin-health-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+}
+
+.perp-margin-health-header span:last-child {
+    font-family: var(--font-mono);
+    font-weight: 600;
+}
+
+.perp-margin-health-bar {
+    height: 6px;
+    background: var(--bg-primary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.perp-margin-health-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width var(--transition-base), background var(--transition-base);
+}

@@ -50,6 +50,12 @@ class SwapExactInResult:
 class SwapExactOutResult:
     amount_in: int
     amount_out: int
+    # Exact-in output for the quoted `amount_in`; may exceed requested `amount_out`
+    # under integer rounding semantics.
+    amount_out_quote: int
+    # Non-negative "overdelivery gap" under exact-in semantics:
+    #   amount_out_quote - amount_out
+    overdelivery_gap: int
     fee_total: int
     protocol_fee: int
     lp_fee: int
@@ -235,6 +241,8 @@ def swap_exact_out(
     return SwapExactOutResult(
         amount_in=amount_in,
         amount_out=amount_out,
+        amount_out_quote=amount_out_quote,
+        overdelivery_gap=max(0, amount_out_quote - amount_out),
         fee_total=fee_total,
         protocol_fee=0,
         lp_fee=fee_total,

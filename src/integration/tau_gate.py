@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from typing import Dict, List, Optional, Tuple
 
 from ..core.liquidity import create_pool
+from ..core.settlement import Fill, FillAction, Settlement
 from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState
 from .tau_runner import find_tau_bin, run_tau_spec_steps
@@ -67,7 +68,7 @@ def _require_gate_ok(
 def validate_settlement_swaps(
     *,
     intents: List[Intent],
-    settlement_fills: List,  # Fill objects (typed in src/core/settlement.py)
+    settlement: Settlement,
     pre_pools: Dict[str, PoolState],
     config: TauGateConfig = TauGateConfig(),
 ) -> Tuple[bool, Optional[str]]:
@@ -83,6 +84,7 @@ def validate_settlement_swaps(
 
     try:
         intents_by_id = {i.intent_id: i for i in intents}
+        fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
 
         pools_mut: Dict[str, PoolState] = {}
 
@@ -127,18 +129,16 @@ def validate_settlement_swaps(
             seg.intent_ids.append(intent_id)
 
         seen_filled_intent_ids: set[str] = set()
-        # Canonical fill iteration order: use the settlement fill list order.
+        # Canonical iteration order: use settlement.included_intents order (the semantic execution order).
         #
-        # This must match the settlement maker's execution order; otherwise a sequential
-        # gate can validate a different reserve path than the one assumed by the fills.
-        for fill in settlement_fills:
+        # NOTE: We only validate swap transitions, but we must still apply reserve-affecting
+        # non-swap fills (add/remove liquidity, create pool) to keep the reserve path correct
+        # for later swaps in the same pool.
+        for intent_id, action in settlement.included_intents:
             # Only validate filled intents; rejects are fine.
-            if getattr(fill, "action", None) is None or getattr(fill.action, "value", "") != "FILL":
+            if action != FillAction.FILL:
                 continue
 
-            intent_id = getattr(fill, "intent_id", None)
-            if not isinstance(intent_id, str) or not intent_id:
-                return False, "Invalid fill: missing intent_id"
             if intent_id in seen_filled_intent_ids:
                 return False, f"Duplicate filled intent_id in settlement: {intent_id}"
             seen_filled_intent_ids.add(intent_id)
@@ -146,6 +146,10 @@ def validate_settlement_swaps(
             intent = intents_by_id.get(intent_id)
             if intent is None:
                 return False, f"Unknown intent_id in fill list: {intent_id}"
+
+            fill = fill_by_id.get(intent_id)
+            if fill is None or fill.action != FillAction.FILL:
+                return False, f"Missing fill for filled intent_id: {intent_id}"
 
             if intent.kind == IntentKind.CREATE_POOL:
                 # Reconstruct pool state deterministically.
@@ -171,10 +175,6 @@ def validate_settlement_swaps(
                 pools_mut[pool_id] = pool_state
                 continue
 
-            # For now, if enabled, fail-closed on non-swap intents that might mutate pool reserves.
-            if intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-                return False, f"Tau gate does not support intent kind {intent.kind} (intent {intent.intent_id})"
-
             pool_id = intent.get_field("pool_id")
             if not isinstance(pool_id, str) or not pool_id:
                 return False, f"Missing pool_id for intent {intent.intent_id}"
@@ -182,12 +182,43 @@ def validate_settlement_swaps(
             if pool is None:
                 return False, f"Pool not found for intent {intent.intent_id}: {pool_id}"
 
+            if intent.kind == IntentKind.ADD_LIQUIDITY:
+                amount0_used = getattr(fill, "amount0_used", None)
+                amount1_used = getattr(fill, "amount1_used", None)
+                if not isinstance(amount0_used, int) or isinstance(amount0_used, bool) or amount0_used <= 0:
+                    return False, f"Invalid amount0_used for intent {intent.intent_id}: {amount0_used!r}"
+                if not isinstance(amount1_used, int) or isinstance(amount1_used, bool) or amount1_used <= 0:
+                    return False, f"Invalid amount1_used for intent {intent.intent_id}: {amount1_used!r}"
+                pool.reserve0 = int(pool.reserve0) + int(amount0_used)
+                pool.reserve1 = int(pool.reserve1) + int(amount1_used)
+                pools_mut[pool_id] = pool
+                continue
+
+            if intent.kind == IntentKind.REMOVE_LIQUIDITY:
+                amount0_out = getattr(fill, "amount0_out", None)
+                amount1_out = getattr(fill, "amount1_out", None)
+                if not isinstance(amount0_out, int) or isinstance(amount0_out, bool) or amount0_out <= 0:
+                    return False, f"Invalid amount0_out for intent {intent.intent_id}: {amount0_out!r}"
+                if not isinstance(amount1_out, int) or isinstance(amount1_out, bool) or amount1_out <= 0:
+                    return False, f"Invalid amount1_out for intent {intent.intent_id}: {amount1_out!r}"
+                pool.reserve0 = int(pool.reserve0) - int(amount0_out)
+                pool.reserve1 = int(pool.reserve1) - int(amount1_out)
+                pools_mut[pool_id] = pool
+                continue
+
+            if intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+                return False, f"Tau gate does not support intent kind {intent.kind} (intent {intent.intent_id})"
+
             asset_in = intent.get_field("asset_in")
             asset_out = intent.get_field("asset_out")
             if asset_in not in (pool.asset0, pool.asset1) or asset_out not in (pool.asset0, pool.asset1):
                 return False, f"Swap assets not in pool for intent {intent.intent_id}"
             if asset_in == asset_out:
                 return False, f"Swap asset_in == asset_out for intent {intent.intent_id}"
+
+            if getattr(fill, "reason", None) == "COW_NETTED":
+                # Netting does not touch pool reserves; do not run swap specs.
+                continue
 
             amount_in = getattr(fill, "amount_in_filled", None)
             amount_out = getattr(fill, "amount_out_filled", None)

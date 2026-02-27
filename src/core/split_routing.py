@@ -20,11 +20,12 @@ Determinism:
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import Tuple
 
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _fee_total_v8
+
+BPS_DENOM = 10_000
 
 
 @dataclass(frozen=True)
@@ -85,48 +86,255 @@ def brute_force_best_split_two_pools_exact_in(pool0: PoolXY, pool1: PoolXY, amou
     return best_out, best_a
 
 
-def _alpha_approx(pool: PoolXY) -> float:
-    # Ignore ceil effects; approximate net = gross * (1 - fee_bps/10_000).
-    return max(0.0, 1.0 - float(pool.fee_bps) / 10_000.0)
-
-
-def _continuous_opt_split(pool0: PoolXY, pool1: PoolXY, amount_in: int) -> float:
+def _derivative_gt(pool0: PoolXY, a0: int, pool1: PoolXY, a1: int) -> bool:
     """
-    Continuous optimal split for fee-as-multiplicative (approx), derived by equalizing marginal output:
-      f'(a) = y*alpha*x/(x+alpha*a)^2
-    Solve f0'(a) = f1'(D-a).
+    Compare continuous marginal outputs without floats.
+
+    For the continuous approximation (ignore ceil/floor effects):
+      out(a) = y * (α*a) / (x + α*a), where α = (BPS - fee_bps)/BPS.
+    The derivative simplifies to:
+      out'(a) ∝ (y * α_num * x) / (BPS*x + α_num*a)^2
+    where α_num = BPS - fee_bps.
+
+    Returns True iff out0'(a0) > out1'(a1).
     """
-    D = float(amount_in)
-    a0 = _alpha_approx(pool0)
-    a1 = _alpha_approx(pool1)
-    if a0 <= 0 or a1 <= 0:
-        return 0.0
-    s0 = math.sqrt(max(0.0, float(pool0.y) * a0 * float(pool0.x)))
-    s1 = math.sqrt(max(0.0, float(pool1.y) * a1 * float(pool1.x)))
-    if s0 == 0 or s1 == 0:
-        return 0.0
-    k = s0 / s1
-    denom = a0 + k * a1
-    if denom == 0:
-        return 0.0
-    num = k * (float(pool1.x) + a1 * D) - float(pool0.x)
-    a = num / denom
-    if a < 0:
-        return 0.0
-    if a > D:
-        return D
-    return a
+    a0 = int(a0)
+    a1 = int(a1)
+    alpha0 = int(BPS_DENOM) - int(pool0.fee_bps)
+    alpha1 = int(BPS_DENOM) - int(pool1.fee_bps)
+    if alpha0 <= 0 or alpha1 <= 0:
+        return False
+    if pool0.x <= 0 or pool0.y <= 0 or pool1.x <= 0 or pool1.y <= 0:
+        return False
+    # Compare: w0/den0^2 > w1/den1^2  <=>  w0*den1^2 > w1*den0^2
+    w0 = int(pool0.y) * int(alpha0) * int(pool0.x)
+    w1 = int(pool1.y) * int(alpha1) * int(pool1.x)
+    den0 = int(BPS_DENOM) * int(pool0.x) + int(alpha0) * int(a0)
+    den1 = int(BPS_DENOM) * int(pool1.x) + int(alpha1) * int(a1)
+    if den0 <= 0 or den1 <= 0:
+        return False
+    return int(w0) * int(den1) * int(den1) > int(w1) * int(den0) * int(den0)
 
 
-def _search_profile_params(search_profile: str) -> tuple[str, int, bool]:
+def _seed_opt_split_by_derivative(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    *,
+    amount_in_total: int,
+    lo_both: int,
+    hi_both: int,
+) -> int:
+    """
+    Deterministic integer seed for the best split (continuous approximation).
+
+    We binary-search for the first `a` where:
+      out0'(a) <= out1'(D-a)
+    within the both-valid interval [lo_both, hi_both].
+    """
+    D = int(amount_in_total)
+    lo = int(lo_both)
+    hi = int(hi_both)
+    if lo > hi:
+        return lo
+    # If even at hi, pool0 has higher marginal output, the optimum is at the boundary.
+    if _derivative_gt(pool0, hi, pool1, int(D - hi)):
+        return hi
+    # If already <= at lo, the root is at/before lo.
+    if not _derivative_gt(pool0, lo, pool1, int(D - lo)):
+        return lo
+
+    # Monotone: g(a)=out0'(a)-out1'(D-a) decreases with a.
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _derivative_gt(pool0, mid, pool1, int(D - mid)):
+            lo = mid + 1
+        else:
+            hi = mid
+    return int(lo)
+
+
+def _search_profile_params(search_profile: str) -> tuple[str, int, bool, int]:
     profile = str(search_profile).strip().lower()
     if profile == "baseline":
-        return profile, 8, False
+        return profile, 8, False, 0
+    if profile == "baseline_canon16":
+        # Baseline schedule, but with extra left-sweep centers to reduce canonical tie-break mismatches
+        # without paying the full dense-profile global scan cost.
+        return profile, 8, False, 16
     if profile == "dense24":
-        return profile, 24, True
+        return profile, 24, True, 0
     if profile == "dense32":
-        return profile, 32, True
+        return profile, 32, True, 0
     raise ValueError(f"unsupported search_profile: {search_profile}")
+
+
+def _ratio_ge_num_denom(*, a: int, b: int, num: int, denom: int) -> bool:
+    """
+    Return True iff a/b >= num/denom for positive integers.
+    """
+    if b <= 0:
+        return False
+    if denom <= 0:
+        return False
+    return int(a) * int(denom) >= int(b) * int(num)
+
+
+def _near_equal_bps(*, a: int, b: int, tol_bps: int) -> bool:
+    """
+    Return True iff |a-b| <= tol_bps/10_000 * min(a,b) for positive integers.
+    """
+    if a <= 0 or b <= 0:
+        return False
+    if tol_bps < 0:
+        return False
+    mn = a if a <= b else b
+    return abs(int(a) - int(b)) * 10_000 <= int(tol_bps) * int(mn)
+
+
+def resolve_two_pool_split_search_params(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+    *,
+    search_profile: str,
+    window: int,
+) -> tuple[int, str]:
+    """
+    Resolve higher-level split search policies into concrete `(window, profile)` pairs.
+
+    This is an algorithm-invention hook: it lets the router request an adaptive policy
+    without hardcoding it into the routing hot path.
+
+    Currently supported policies:
+    - baseline/dense24/dense32: identity
+    - adaptive_v1: choose between (baseline,w64), (dense24,w64), (dense24,w96)
+    - adaptive_v2: choose between (baseline_canon16,w64), (dense24,w64), (dense24,w96)
+    - adaptive_v3: choose between (baseline,w64)/(baseline_canon16,w64), (dense24,w64), (dense24,w96)
+    - adaptive_v4: choose between (baseline_canon16,w64) and (dense24,w96) with stricter escalation
+    - adaptive_v5: adaptive_v4 + high-fee/high-pressure escalation to dense32 tiers
+    - adaptive_v6: tighter adaptive_v5 thresholds tuned to cut default-call cost while preserving stress quality
+    """
+    prof = str(search_profile).strip().lower()
+    if prof not in {"adaptive_v1", "adaptive_v2", "adaptive_v3", "adaptive_v4", "adaptive_v5", "adaptive_v6"}:
+        return int(window), str(search_profile)
+
+    if amount_in <= 0:
+        return int(window), "baseline"
+
+    x0, y0, f0 = int(pool0.x), int(pool0.y), int(pool0.fee_bps)
+    x1, y1, f1 = int(pool1.x), int(pool1.y), int(pool1.fee_bps)
+    D = int(amount_in)
+
+    min_x = min(x0, x1)
+    min_y = min(y0, y1)
+
+    fee_gap = abs(int(f0) - int(f1))
+    fee_max = max(int(f0), int(f1))
+    x_ratio_hi = _ratio_ge_num_denom(a=max(x0, x1), b=max(1, min_x), num=3, denom=1)  # max/min >= 3
+    y_ratio_hi = _ratio_ge_num_denom(a=max(y0, y1), b=max(1, min_y), num=5, denom=1)  # max/min >= 5
+
+    # Symmetric-reserve manifold heuristic: near-equal reserves can induce wide plateaus,
+    # but treat it as a hardness signal only in small-reserve regimes.
+    near_sym_raw = _near_equal_bps(a=x0, b=y0, tol_bps=1500) or _near_equal_bps(a=x1, b=y1, tol_bps=1500)
+    near_sym = bool(near_sym_raw and min_x <= 200)
+
+    # Small-reserve regimes are where integer plateaus/disconnected maximizers are most common; prefer
+    # canonicalizing profiles here even when not otherwise "hard".
+    prefer_canon = bool(min_x <= 400)
+
+    # Amount scale relative to smallest reserve_in (input-side liquidity proxy).
+    amt_med = bool(min_x > 0 and D >= 40 * int(min_x))
+    amt_hi = bool(min_x > 0 and D >= 80 * int(min_x))
+    amt_very_hi = bool(min_x > 0 and D >= 120 * int(min_x))
+    imbalance_hi = bool(x_ratio_hi and y_ratio_hi)
+
+    # Tiered selection:
+    # - Default to cheap baseline (w64).
+    # - Escalate to dense24 for medium hardness.
+    # - Escalate to dense24+w96 for high hardness.
+    high = bool(amt_med or fee_gap >= 60 or x_ratio_hi or y_ratio_hi or near_sym)
+    med = bool(high or fee_gap >= 30)
+
+    if prof == "adaptive_v2":
+        if high:
+            return 96, "dense24"
+        if med:
+            return 64, "dense24"
+        return 64, "baseline_canon16"
+
+    if prof == "adaptive_v3":
+        if high:
+            return 96, "dense24"
+        if med:
+            return 64, "dense24"
+        return (64, "baseline_canon16") if prefer_canon else (64, "baseline")
+
+    if prof == "adaptive_v4":
+        # Stricter escalation than v3:
+        # - Default to baseline_canon16_w64 (strong quality/call-cost tradeoff).
+        # - Escalate only for clearly hard regimes to dense24_w96.
+        high4 = bool(amt_hi or fee_gap >= 90 or imbalance_hi or (near_sym and fee_gap >= 40))
+        if high4:
+            return 96, "dense24"
+        return 64, "baseline_canon16"
+
+    if prof == "adaptive_v5":
+        # v5 keeps v4's cheap default posture but escalates in a stricter
+        # high-fee/high-pressure manifold where dense24 can miss oracle optima.
+        high4 = bool(amt_hi or fee_gap >= 90 or imbalance_hi or (near_sym and fee_gap >= 40))
+        thin_out = bool(min_y <= 80)
+        hard5 = bool(
+            (amt_hi and fee_max >= 120)
+            or (amt_very_hi and fee_gap >= 50)
+            or (thin_out and amt_med and fee_max >= 120)
+            or (amt_hi and min_y <= 64)
+            or (imbalance_hi and fee_max >= 90)
+        )
+        extreme5 = bool(
+            (amt_very_hi and fee_max >= 180)
+            or (thin_out and amt_hi and fee_max >= 180)
+            or (amt_very_hi and min_y <= 48)
+        )
+        if extreme5:
+            return 128, "dense32"
+        if hard5:
+            return 96, "dense32"
+        if high4:
+            return 96, "dense24"
+        return 64, "baseline_canon16"
+
+    if prof == "adaptive_v6":
+        # v6 retunes v5 thresholds using supervised stress-holdout evidence:
+        # - keep dense32 escalation for the stress miss manifold,
+        # - reduce unnecessary dense32 activation on default regimes.
+        high6 = bool(amt_hi or fee_gap >= 110 or imbalance_hi or (near_sym and fee_gap >= 40))
+        thin_out = bool(min_y <= 80)
+        hard6 = bool(
+            (amt_hi and fee_max >= 145)
+            or (amt_very_hi and fee_gap >= 80)
+            or (thin_out and amt_med and fee_max >= 145)
+            or (amt_hi and min_y <= 44)
+            or (imbalance_hi and fee_max >= 100)
+        )
+        extreme6 = bool(
+            (amt_very_hi and fee_max >= 195)
+            or (thin_out and amt_hi and fee_max >= 195)
+            or (amt_very_hi and min_y <= 32)
+        )
+        if extreme6:
+            return 128, "dense32"
+        if hard6:
+            return 96, "dense32"
+        if high6:
+            return 96, "dense24"
+        return 64, "baseline_canon16"
+
+    # adaptive_v1 (legacy)
+    if high:
+        return 96, "dense24"
+    if med:
+        return 64, "dense24"
+    return 64, "baseline"
 
 
 def best_split_two_pools_exact_in(
@@ -135,7 +343,7 @@ def best_split_two_pools_exact_in(
     amount_in: int,
     *,
     window: int = 64,
-    search_profile: str = "baseline",
+    search_profile: str = "adaptive_v6",
 ) -> Tuple[int, int]:
     """
     Fast deterministic split optimizer:
@@ -155,22 +363,41 @@ def best_split_two_pools_exact_in(
         raise ValueError("amount_in must be positive")
     if window < 0:
         raise ValueError("window must be non-negative")
-    _profile, grid_n, force_dense_grid = _search_profile_params(search_profile)
+    # Allow adaptive profile names directly at the algorithm entrypoint.
+    # This keeps call sites simple while retaining explicit deterministic resolution.
+    profile = str(search_profile).strip().lower()
+    if profile in {"adaptive_v1", "adaptive_v2", "adaptive_v3", "adaptive_v4", "adaptive_v5", "adaptive_v6"}:
+        window, profile = resolve_two_pool_split_search_params(
+            pool0,
+            pool1,
+            int(amount_in),
+            search_profile=profile,
+            window=int(window),
+        )
+
+    _profile, grid_n, force_dense_grid, left_sweep_k = _search_profile_params(profile)
 
     brute_force_max = 4096
     if amount_in <= brute_force_max:
         return brute_force_best_split_two_pools_exact_in(pool0, pool1, amount_in)
 
+    tot_cache: dict[int, int | None] = {}
+
     def total_out(a: int) -> int | None:
         if not (0 <= a <= amount_in):
             return None
+        if a in tot_cache:
+            return tot_cache[a]
         b = amount_in - a
         try:
             out0 = exact_out_for_pool_exact_in(pool0, a) if a > 0 else 0
             out1 = exact_out_for_pool_exact_in(pool1, b) if b > 0 else 0
         except Exception:
+            tot_cache[a] = None
             return None
-        return int(out0 + out1)
+        tot = int(out0 + out1)
+        tot_cache[a] = tot
+        return tot
 
     def scan_range(lo: int, hi: int) -> tuple[int, int] | None:
         if lo > hi:
@@ -224,7 +451,13 @@ def best_split_two_pools_exact_in(
         lo_both = min0
         hi_both = amount_in - min1
         if lo_both <= hi_both:
-            a_star = int(_continuous_opt_split(pool0, pool1, amount_in))
+            a_star = _seed_opt_split_by_derivative(
+                pool0,
+                pool1,
+                amount_in_total=int(amount_in),
+                lo_both=int(lo_both),
+                hi_both=int(hi_both),
+            )
             a_star = max(lo_both, min(hi_both, a_star))
 
             span = hi_both - lo_both
@@ -233,6 +466,19 @@ def best_split_two_pools_exact_in(
                 # Deterministic coarse coverage grid; density controlled by search_profile.
                 for i in range(1, int(grid_n)):
                     centers.add(lo_both + (span * i) // int(grid_n))
+
+            if int(left_sweep_k) > 0 and int(window) > 0:
+                # Deterministic extra coverage to the left of the continuous optimum.
+                #
+                # Motivation: under integer rounding, the set of maximizers can be disconnected; a local plateau
+                # walk-left only canonicalizes within the discovered segment. Adding a bounded left sweep reduces
+                # tie-break mismatches (min-a among maximizers) without forcing a full global scan.
+                for k in range(1, int(left_sweep_k) + 1):
+                    c = int(a_star) - int(k) * int(window)
+                    if c <= lo_both:
+                        centers.add(lo_both)
+                        break
+                    centers.add(c)
 
             best_both: tuple[int, int] | None = None
             for c in sorted(centers):
@@ -259,7 +505,11 @@ def best_split_two_pools_exact_in(
                     if r_lo == lo_both and r_hi == hi_both:
                         break
                     # If the best is at the edge of our scanned window, keep expanding.
-                    if refine_a in (r_lo, r_hi):
+                    #
+                    # Important: if the best is at the *global* boundary (lo_both/hi_both), naive expansion
+                    # degenerates into scanning the full span even when we already probed other centers.
+                    # This can create an O(D) call cliff in deep-liquidity regimes where the optimum is at a boundary.
+                    if refine_a in (r_lo, r_hi) and refine_a not in (lo_both, hi_both):
                         half *= 2
                         if half >= span:
                             half = span

@@ -63,6 +63,28 @@ def _bool_env(name: str, *, default: bool) -> bool:
     return bool(default)
 
 
+def _maybe_decode_custom_stream_value(value: Any) -> Any:
+    """
+    Upstream tau-testnet restricts custom operation streams (keys beyond 0/1) to
+    `str|int` (or lists thereof). Our client encodes structured ops as canonical
+    JSON strings; this helper decodes those strings back to objects.
+    """
+    if not isinstance(value, str):
+        return value
+    raw = value.strip()
+    if not raw:
+        return value
+    if raw[0] not in "{[":
+        return value
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return value
+    if isinstance(parsed, (dict, list)):
+        return parsed
+    return value
+
+
 def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
     copied = BalanceTable()
     for (pubkey, asset), amount in balances.get_all_balances().items():
@@ -492,6 +514,15 @@ def apply_app_tx(
         return False, app_state_json, "", None, "operations must be an object"
     if not isinstance(chain_balances, dict):
         return False, app_state_json, "", None, "chain_balances must be an object"
+
+    decoded_ops: Dict[str, Any] = {}
+    for k, v in operations.items():
+        key = str(k)
+        if key in ("0", "1"):
+            decoded_ops[key] = v
+        else:
+            decoded_ops[key] = _maybe_decode_custom_stream_value(v)
+    operations = decoded_ops
 
     allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
     allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)

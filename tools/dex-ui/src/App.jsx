@@ -3,11 +3,24 @@ import './index.css';
 import SwapInterface from './components/SwapInterface';
 import PoolDashboard from './components/PoolDashboard';
 import TokenStats from './components/TokenStats';
+import PerpTradingView from './components/perps/PerpTradingView';
+import { PerpProvider } from './lib/PerpProvider.jsx';
+import { DemoModeProvider } from './lib/DemoModeProvider.jsx';
 import WalletConnect from './components/WalletConnect';
+import TransactionDrawer from './components/TransactionDrawer.jsx';
+import { useTransactionCenter } from './lib/TransactionCenterContext.jsx';
+
+const APP_TABS = [
+  { id: 'swap', label: 'Swap' },
+  { id: 'pools', label: 'Pools' },
+  { id: 'stats', label: 'ZDEX Stats' },
+  { id: 'perps', label: 'Perpetuals' },
+];
 
 function App() {
   const [activeTab, setActiveTab] = useState('swap');
   const [wallet, setWallet] = useState(null);
+  const { upsertTransaction } = useTransactionCenter();
 
   return (
     <div className="app-container">
@@ -22,25 +35,17 @@ function App() {
           </span>
         </div>
 
-        <nav className="nav">
-          <button
-            className={`nav-link ${activeTab === 'swap' ? 'active' : ''}`}
-            onClick={() => setActiveTab('swap')}
-          >
-            Swap
-          </button>
-          <button
-            className={`nav-link ${activeTab === 'pools' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pools')}
-          >
-            Pools
-          </button>
-          <button
-            className={`nav-link ${activeTab === 'stats' ? 'active' : ''}`}
-            onClick={() => setActiveTab('stats')}
-          >
-            ZDEX Stats
-          </button>
+        <nav className="nav" aria-label="Product windows">
+          {APP_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              className={`nav-link ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+              type="button"
+            >
+              {tab.label}
+            </button>
+          ))}
         </nav>
 
         <WalletConnect wallet={wallet} onConnect={setWallet} />
@@ -65,6 +70,16 @@ function App() {
             <TokenStats />
           </div>
         )}
+
+        {activeTab === 'perps' && (
+          <div className="animate-fade-in">
+            <DemoModeProvider>
+              <PerpProvider wallet={wallet} onTransaction={upsertTransaction}>
+                <PerpTradingView wallet={wallet} />
+              </PerpProvider>
+            </DemoModeProvider>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
@@ -77,6 +92,8 @@ function App() {
 	          <span className="footer-agrs">AGRS</span> Native Token
         </p>
       </footer>
+
+      <TransactionDrawer />
     </div>
   );
 }

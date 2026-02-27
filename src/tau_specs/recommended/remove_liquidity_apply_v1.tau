@@ -1,0 +1,41 @@
+# Remove Liquidity Apply v1 (proof-gated) - Reserve + LP Supply Transition (DEX)
+#
+# Purpose: a Tau-executable gate that is compatible with host-side verified computation.
+# - Tau enforces structural constraints and reserve/supply transitions.
+# - Host/verifier supplies `proof_ok` and `binding_ok` (fail-closed flags).
+#
+# This spec intentionally does NOT validate the LP burn math in Tau (too slow in this Tau build).
+#
+# Stream mapping:
+# i1 = reserve0_before (bv[32])
+# i2 = reserve1_before (bv[32])
+# i3 = lp_supply_before (bv[32])
+# i4 = lp_burned (bv[32])
+# i5 = amount0_out (bv[32])       # externally computed
+# i6 = amount1_out (bv[32])       # externally computed
+# i7 = reserve0_after (bv[32])
+# i8 = reserve1_after (bv[32])
+# i9 = lp_supply_after (bv[32])
+# i10 = proof_ok (sbf)
+# i11 = binding_ok (sbf)
+# o1 = remove_liquidity_apply_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <->
+  ((i10[t]:sbf = 1:sbf) &&
+   (i11[t]:sbf = 1:sbf) &&
+   (i1[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i2[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i3[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i4[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i4[t]:bv[32] <= i3[t]:bv[32]) &&
+   (i5[t]:bv[32] <= i1[t]:bv[32]) &&
+   (i6[t]:bv[32] <= i2[t]:bv[32]) &&
+   (i7[t]:bv[32] = i1[t]:bv[32] - i5[t]:bv[32]) &&
+   (i7[t]:bv[32] <= i1[t]:bv[32]) &&
+   (i8[t]:bv[32] = i2[t]:bv[32] - i6[t]:bv[32]) &&
+   (i8[t]:bv[32] <= i2[t]:bv[32]) &&
+   (i9[t]:bv[32] = i3[t]:bv[32] - i4[t]:bv[32]) &&
+   (i9[t]:bv[32] <= i3[t]:bv[32]))).
+

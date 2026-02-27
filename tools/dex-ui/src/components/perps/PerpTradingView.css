@@ -1,0 +1,114 @@
+/* PerpTradingView Layout */
+.perp-trading-view {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-md);
+}
+
+.perp-market-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.perp-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.perp-market-tabs {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.perp-market-tab {
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.perp-market-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.perp-market-tab.active {
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  background: rgba(76, 201, 240, 0.08);
+}
+
+/* 3-Column Grid */
+.perp-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr 320px;
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.perp-col .panel {
+  min-height: 200px;
+}
+
+.perp-section-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.perp-price-display {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.perp-account-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.perp-placeholder {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  text-align: center;
+  padding: var(--space-xl) 0;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .perp-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .perp-col-order {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .perp-grid {
+    grid-template-columns: 1fr;
+  }
+  .perp-market-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .perp-price-display {
+    grid-template-columns: 1fr;
+  }
+}

@@ -40,3 +40,71 @@ def test_swap_exact_out_updates_reserves_for_requested_amount_out() -> None:
         fee_bps=fee_bps,
     )
     assert amount_out_check >= amount_out
+
+
+def test_swap_exact_out_exposes_overdelivery_gap_for_monitoring() -> None:
+    # Same witness as above: exact-out request is 1, but exact-in with the quoted input
+    # would output more due to integer lattice effects.
+    from src.kernels.python.cpmm_swap_v8 import swap_exact_out as swap_exact_out_v8
+
+    r = swap_exact_out_v8(
+        reserve_in=1,
+        reserve_out=4,
+        amount_out=1,
+        fee_bps=0,
+    )
+    assert r.amount_out == 1
+    assert r.amount_out_quote >= r.amount_out
+    assert r.overdelivery_gap == r.amount_out_quote - r.amount_out
+    assert r.overdelivery_gap > 0
+
+
+def test_swap_exact_out_overdelivery_gap_absolute_guard() -> None:
+    # Witness has overdelivery gap=1; abs guard=0 should reject.
+    try:
+        swap_exact_out(
+            reserve_in=1,
+            reserve_out=4,
+            amount_out=1,
+            fee_bps=0,
+            max_overdelivery_gap_abs=0,
+        )
+    except ValueError as exc:
+        assert "overdelivery gap exceeds absolute policy" in str(exc)
+    else:
+        assert False, "expected overdelivery absolute guard to reject witness"
+
+    # Allowing gap=1 should pass for this witness.
+    amount_in, _ = swap_exact_out(
+        reserve_in=1,
+        reserve_out=4,
+        amount_out=1,
+        fee_bps=0,
+        max_overdelivery_gap_abs=1,
+    )
+    assert amount_in == 1
+
+
+def test_swap_exact_out_overdelivery_gap_bps_guard() -> None:
+    # Witness has amount_out=1 and gap=1 => 10_000 bps.
+    try:
+        swap_exact_out(
+            reserve_in=1,
+            reserve_out=4,
+            amount_out=1,
+            fee_bps=0,
+            max_overdelivery_gap_bps=9_999,
+        )
+    except ValueError as exc:
+        assert "overdelivery gap exceeds bps policy" in str(exc)
+    else:
+        assert False, "expected overdelivery bps guard to reject witness"
+
+    amount_in, _ = swap_exact_out(
+        reserve_in=1,
+        reserve_out=4,
+        amount_out=1,
+        fee_bps=0,
+        max_overdelivery_gap_bps=10_000,
+    )
+    assert amount_in == 1

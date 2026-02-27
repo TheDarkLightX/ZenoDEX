@@ -40,6 +40,9 @@ class Fill:
         amount0_out: Optional amount0 out (for remove liquidity)
         amount1_out: Optional amount1 out (for remove liquidity)
         lp_burned: Optional LP burned (for remove liquidity)
+        # Optional proof-carrying witnesses (for strong settlement validation)
+        reserve_in_before: Optional reserve of input asset before a pool swap
+        reserve_out_before: Optional reserve of output asset before a pool swap
     """
     intent_id: str
     action: FillAction
@@ -57,6 +60,10 @@ class Fill:
     amount0_out: Optional[Amount] = None
     amount1_out: Optional[Amount] = None
     lp_burned: Optional[Amount] = None
+
+    # Proof-carrying witnesses (optional; required only in strict modes).
+    reserve_in_before: Optional[Amount] = None
+    reserve_out_before: Optional[Amount] = None
 
 
 @dataclass
@@ -152,6 +159,22 @@ class Settlement:
         """Validate settlement structure."""
         if self.module != "TauSwap":
             raise ValueError(f"Invalid module: {self.module}")
+
+        # Reject duplicate intent ids (ambiguous semantics).
+        included_ids = [intent_id for intent_id, _action in self.included_intents]
+        if len(included_ids) != len(set(included_ids)):
+            raise ValueError("included_intents contains duplicate intent_id entries")
+
+        # Reject duplicate fill ids (ambiguous semantics).
+        fill_ids = [fill.intent_id for fill in self.fills]
+        if len(fill_ids) != len(set(fill_ids)):
+            raise ValueError("fills contains duplicate intent_id entries")
+
+        # Any fill record must correspond to an included intent.
+        included_set = set(included_ids)
+        extra_fills = set(fill_ids) - included_set
+        if extra_fills:
+            raise ValueError(f"fills contains intent_ids not in included_intents: {sorted(extra_fills)}")
         
         # Verify all filled intents have corresponding fill details
         # Only check FILL actions; REJECT actions don't need fill details
@@ -167,4 +190,3 @@ class Settlement:
             raise ValueError(
                 f"Fill mismatch: missing {missing}, extra {extra}"
             )
-

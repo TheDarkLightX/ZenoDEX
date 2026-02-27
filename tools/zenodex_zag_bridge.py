@@ -164,6 +164,101 @@ OPERATOR_BRIDGE: dict[str, dict[str, Any]] = {
         "mechanism_template": "Partition intents by risk/liquidity class and reduce independently with verified recomposition.",
         "null_template": "Partition-then-reduce introduces routing or clearing quality gaps.",
     },
+    "op_marginal_contribution_insertion": {
+        "representation_shift_used": "restrict",
+        "check": "batch_mci_vs_bruteforce",
+        "checks": [
+            "batch_clearing_no_gap",
+            "batch_mci_vs_bruteforce",
+            "batch_mci_vs_greedy",
+        ],
+        "expected_metric_delta": [3, 1, 2, 0, 2],
+        "mechanism_template": "Replace brute-force batch ordering with marginal-contribution insertion (O(n^2 log n)). At each step, insert the swap whose marginal (A,B) improvement is maximal at the best position, with 2-opt refinement.",
+        "null_template": "MCI gap exceeds 200bps vs optimal for N<=12, or greedy_ab dominates MCI for N>12.",
+    },
+    "op_golden_section_split": {
+        "representation_shift_used": "equiv",
+        "check": "dgstr_exact_match",
+        "checks": [
+            "split_routing_no_gap",
+            "dgstr_exact_match",
+            "dgstr_eval_count",
+        ],
+        "expected_metric_delta": [2, 2, 3, 0, 1],
+        "mechanism_template": "Exploit CPMM quasi-concavity with discrete golden-section ternary refinement (DGSTR) to find optimal 2-pool split in O(log^2 D) evaluations instead of O(window * grid).",
+        "null_template": "DGSTR gap exceeds 1 unit vs brute-force, or eval count exceeds O(log^2 D) budget.",
+    },
+    "op_adaptive_slippage": {
+        "representation_shift_used": "restrict",
+        "check": "slippage_never_reverts",
+        "checks": [
+            "slippage_never_reverts",
+            "slippage_tightness",
+            "slippage_revert_rate",
+        ],
+        "expected_metric_delta": [1, 0, 1, 0, 3],
+        "mechanism_template": "Compute provably tight slippage bound from CPMM price impact, volatility tier, and settlement time. Reduces revert rate >50% vs static tiers while staying within 1.5x of theoretical minimum.",
+        "null_template": "Adaptive slippage revert reduction <50% or tightness ratio exceeds 1.5x minimum.",
+    },
+    "op_graph_multihop_router": {
+        "representation_shift_used": "reduce",
+        "check": "graph_router_dominance",
+        "checks": [
+            "route_exact_out_2hop_value",
+            "graph_router_dominance",
+            "graph_router_conservation",
+        ],
+        "expected_metric_delta": [2, 2, 2, -1, 1],
+        "mechanism_template": "Dijkstra-style graph router with CPMM-aware negative-log edge weights, hop limit of 4, and pool-reuse prevention. 3-hop routes improve output >5% for >20% of fragmented-liquidity scenarios.",
+        "null_template": "2-hop always beats graph router, or 3-hop improvement rate <20% of fragmented scenarios.",
+    },
+    "op_predictive_liquidation": {
+        "representation_shift_used": "restrict",
+        "check": "predictive_liq_never_optimistic",
+        "checks": [
+            "predictive_liq_never_optimistic",
+            "predictive_liq_tightness",
+            "lean_proof::PredictiveLiqSafety",
+        ],
+        "expected_metric_delta": [3, 0, 1, 0, 3],
+        "mechanism_template": "O(1) predictive liquidation prevention computing epochs_to_liquidation from convex margin structure and ESSO oracle move bounds. Never optimistic: if predicts N epochs, account survives at least N epochs under worst-case.",
+        "null_template": "Predictive bound is optimistic (actual liquidation before predicted epoch) or Lean proof fails.",
+    },
+    "op_funding_bb_verifier": {
+        "representation_shift_used": "restrict",
+        "check": "funding_bb_checksum_bounds",
+        "checks": [
+            "funding_bb_checksum_bounds",
+            "funding_bb_delta_range",
+            "lean_proof::FundingBBVerifier",
+        ],
+        "expected_metric_delta": [3, 0, 1, 0, 3],
+        "mechanism_template": "O(1) amortized funding budget-balance verifier maintaining a running checksum in [-N, 0] (from the Z gap theorem). Detects BB violations in constant time per funding application.",
+        "null_template": "Checksum exits [-N, 0] bounds or Lean proof of checksum_bounded fails.",
+    },
+    "op_oracle_anomaly_detection": {
+        "representation_shift_used": "restrict",
+        "check": "oracle_pump_detection",
+        "checks": [
+            "oracle_pump_detection",
+            "oracle_oscillation_detection",
+            "oracle_staleness_detection",
+        ],
+        "expected_metric_delta": [2, 0, 1, 0, 2],
+        "mechanism_template": "Temporal anomaly detection for oracle manipulation: pump sequences (consecutive near-max moves), oscillation extraction (alternating near-max), and staleness exploitation (clustering near deadline). Detection rate >95%, FPR <5%.",
+        "null_template": "Detection rate <95% or false positive rate >5% for any of the three anomaly patterns.",
+    },
+    "op_keeper_liveness": {
+        "representation_shift_used": "equiv",
+        "check": "ltlf_scheduler_goal_family",
+        "checks": [
+            "ltlf_scheduler_goal_family",
+            "pytest_pass::tests/formal/test_perp_epoch_scheduler_ltlf.py",
+        ],
+        "expected_metric_delta": [3, 0, 1, 0, 3],
+        "mechanism_template": "Stateless keeper function with deterministic phase-to-action mapping. Multi-property LTLf synthesis must realize the required scheduler goals jointly (not just individually).",
+        "null_template": "Required scheduler liveness goals are not jointly realizable under bounded LTLf synthesis.",
+    },
 }
 
 SCHEMA_TO_OPERATOR_ID: dict[str, str] = {
@@ -198,6 +293,14 @@ OPERATOR_DESCRIPTIONS: dict[str, str] = {
     "op_algebraic_rewrite": "Apply algebraic rewrite pipeline before reduction.",
     "op_branch_reduction": "Reduce branch frequency with accumulator or branchless style updates.",
     "op_partition_reduce": "Partition input into semantic buckets then reduce independently.",
+    "op_marginal_contribution_insertion": "Replace brute-force batch ordering with marginal-contribution insertion (O(n^2 log n)).",
+    "op_golden_section_split": "Exploit CPMM quasi-concavity with discrete golden-section ternary refinement for split routing.",
+    "op_adaptive_slippage": "Compute provably tight slippage bound from CPMM price impact and volatility tier.",
+    "op_graph_multihop_router": "Dijkstra-style graph router with CPMM-aware edge weights, up to 4 hops.",
+    "op_predictive_liquidation": "O(1) predictive liquidation prevention from convex margin structure and oracle move bounds.",
+    "op_funding_bb_verifier": "O(1) amortized funding budget-balance verifier maintaining checksum in [-N, 0].",
+    "op_oracle_anomaly_detection": "Temporal anomaly detection for oracle manipulation (pump, oscillation, staleness).",
+    "op_keeper_liveness": "Stateless keeper function with provable deadlock-freedom and 3-action settlement.",
 }
 
 

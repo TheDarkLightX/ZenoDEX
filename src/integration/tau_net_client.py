@@ -141,11 +141,30 @@ def build_signed_tau_transaction(
 ) -> Dict[str, Any]:
     _require_bls()
     sender_pubkey = bls_pubkey_hex_from_privkey(privkey)
+
+    # Upstream tau-testnet enforces that custom operation streams (keys beyond 0/1)
+    # contain only `str|int` values (or lists thereof). Our DEX uses structured JSON
+    # for those streams, so we encode non-(str|int) values as canonical JSON strings.
+    #
+    # This keeps the wire-format compatible while letting the app bridge decode and
+    # validate the full structure deterministically.
+    encoded_ops: Dict[str, Any] = {}
+    for k, v in dict(operations).items():
+        if k in ("0", "1"):
+            encoded_ops[k] = v
+            continue
+        if isinstance(v, bool):
+            raise ValueError(f"operation stream {k!r}: bool values are not allowed")
+        if isinstance(v, (str, int)):
+            encoded_ops[k] = v
+            continue
+        encoded_ops[k] = json.dumps(v, sort_keys=True, separators=(",", ":"))
+
     payload: Dict[str, Any] = {
         "sender_pubkey": sender_pubkey,
         "sequence_number": int(sequence_number),
         "expiration_time": int(expiration_time),
-        "operations": dict(operations),
+        "operations": encoded_ops,
         "fee_limit": str(fee_limit),
     }
     payload["signature"] = sign_tau_transaction_payload(payload, privkey=privkey)
@@ -298,7 +317,8 @@ class TauNetTcpClient:
 
     def sendtx(self, payload: Mapping[str, Any]) -> str:
         blob = json.dumps(dict(payload), separators=(",", ":"), sort_keys=True)
-        return self.rpc(f"sendtx '{blob}'").strip()
+        # Upstream tau-testnet expects `sendtx <json_payload>` with no shell quoting.
+        return self.rpc(f"sendtx {blob}").strip()
 
     def createblock(self) -> str:
         return self.rpc("createblock").strip()

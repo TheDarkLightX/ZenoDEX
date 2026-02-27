@@ -76,6 +76,77 @@ def test_best_route_can_split_across_parallel_pools():
     assert q.amount_out > single.amount_out
 
 
+def test_best_route_can_split_direct_plus_twohop_when_enabled():
+    # Construct a small witness where neither pure direct nor pure 2-hop dominates,
+    # but splitting across the disjoint legs strictly improves total output.
+    #
+    # Witness (fee=0, total_in=4):
+    # - Direct A->B pool: x=y=2 yields out=1 for dx=4.
+    # - 2-hop A->C->B pools: (2,2) then (2,3) also yields out=1 for dx=4.
+    # - Split dx=2 direct + dx=2 twohop yields out=1+1=2.
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 2, 2, 0),
+        "p_ac": _pool("p_ac", "A", "C", 2, 2, 0),
+        "p_cb": _pool("p_cb", "C", "B", 2, 3, 0),
+    }
+
+    q_base = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=4)
+    assert q_base is not None
+    assert q_base.amount_out == 1
+
+    q = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=4,
+        enable_mixed_direct_twohop_split=True,
+    )
+    assert q is not None
+    assert q.amount_out == 2
+    assert len(q.legs) == 2
+    # One leg is a direct hop; the other is 2-hop.
+    hop_counts = sorted(len(leg.hops) for leg in q.legs)
+    assert hop_counts == [1, 2]
+
+
+def test_mixed_direct_twohop_split_bva_amount_in_boundary() -> None:
+    # BVA for the mixed-split feature on a fixed witness:
+    # - Just below the smallest total where the split becomes feasible (D=3): should not split.
+    # - Exactly at the first feasible total (D=4): should split and improve.
+    # - Just above (D=5): should still split (improvement persists).
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 2, 2, 0),
+        "p_ac": _pool("p_ac", "A", "C", 2, 2, 0),
+        "p_cb": _pool("p_cb", "C", "B", 2, 3, 0),
+    }
+
+    q1 = best_route_exact_in_2hop(
+        pools_by_id=pools, asset_in="A", asset_out="B", amount_in=1, enable_mixed_direct_twohop_split=True
+    )
+    assert q1 is None  # both legs are invalid at this size
+
+    q3 = best_route_exact_in_2hop(
+        pools_by_id=pools, asset_in="A", asset_out="B", amount_in=3, enable_mixed_direct_twohop_split=True
+    )
+    assert q3 is not None
+    assert q3.amount_out == 1
+    assert len(q3.legs) == 1  # split not feasible due to per-leg min-trade output=0 discontinuities
+
+    q4 = best_route_exact_in_2hop(
+        pools_by_id=pools, asset_in="A", asset_out="B", amount_in=4, enable_mixed_direct_twohop_split=True
+    )
+    assert q4 is not None
+    assert q4.amount_out == 2
+    assert len(q4.legs) == 2
+
+    q5 = best_route_exact_in_2hop(
+        pools_by_id=pools, asset_in="A", asset_out="B", amount_in=5, enable_mixed_direct_twohop_split=True
+    )
+    assert q5 is not None
+    assert q5.amount_out >= 2
+    assert len(q5.legs) == 2
+
+
 def test_best_route_can_split_across_three_parallel_pools():
     pools = {
         "p3": _pool("p3", "A", "B", 1000, 1000, 0),
@@ -125,3 +196,30 @@ def test_best_route_split_profile_dense_is_not_worse_than_baseline():
     assert q_base is not None
     assert q_dense is not None
     assert q_dense.amount_out >= q_base.amount_out
+
+
+def test_best_route_default_split_profile_matches_dense24_on_known_gap_case():
+    # Known counterexample-style pair where baseline probing misses by 1 on large trades.
+    #
+    # We promote a safer UX default: use dense split probing unless explicitly overridden.
+    pools = {
+        "p0": _pool("p0", "A", "B", 87, 80, 75),
+        "p1": _pool("p1", "A", "B", 46, 66, 11),
+    }
+    q_default = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=6539,
+    )
+    q_dense = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=6539,
+        split_search_profile="dense24",
+    )
+    assert q_default is not None
+    assert q_dense is not None
+    assert q_default.amount_out == q_dense.amount_out
+    assert q_default.amount_out == 143

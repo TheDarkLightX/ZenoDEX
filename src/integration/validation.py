@@ -14,7 +14,8 @@ from ..core.settlement import Settlement
 from ..state.balances import BalanceTable
 from ..state.pools import PoolState
 from ..state.lp import LPTable
-from ..core.batch_clearing import validate_settlement, apply_settlement
+from ..core.batch_clearing import apply_settlement
+from ..core.settlement_strong_validator import validate_settlement_strong
 
 if TYPE_CHECKING:
     from .tau_gate import TauGateConfig
@@ -29,6 +30,7 @@ def validate_operations(
     block_timestamp: int,
     *,
     tau_gate_config: Optional["TauGateConfig"] = None,
+    settlement_validation: str = "strong_proof_carrying",
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate TauSwap operations using Tau Language validation.
@@ -59,20 +61,15 @@ def validate_operations(
     
     # Check that settlement covers all intents
     if settlement:
-        intent_ids = {intent.intent_id for intent in intents}
-        settlement_intent_ids = {
-            intent_id for intent_id, _ in settlement.included_intents
-        }
-        
-        if intent_ids != settlement_intent_ids:
-            missing = intent_ids - settlement_intent_ids
-            extra = settlement_intent_ids - intent_ids
-            return False, (
-                f"Intent coverage mismatch: missing {missing}, extra {extra}"
-            )
-        
-        # Validate settlement
-        is_valid, error = validate_settlement(settlement, balances, pools, lp_balances)
+        # Validate settlement (fail-closed): bind deltas to intents + kernel-backed swap math.
+        is_valid, error = validate_settlement_strong(
+            settlement=settlement,
+            intents=intents,
+            pre_balances=balances,
+            pre_pools=pools,
+            pre_lp_balances=lp_balances,
+            mode=str(settlement_validation),
+        )
         if not is_valid:
             return False, error
 
@@ -85,7 +82,7 @@ def validate_operations(
             try:
                 tau_ok, tau_err = validate_settlement_swaps(
                     intents=intents,
-                    settlement_fills=settlement.fills,
+                    settlement=settlement,
                     pre_pools=pools,
                     config=tau_gate_config,
                 )
