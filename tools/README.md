@@ -62,7 +62,7 @@ python3 tools/gpu_argmax_certificate.py --input /tmp/cands.json --output /tmp/ar
 ## GPU Useful-Work Prototype: Route Improvement Witness (Internal)
 
 Prototype "expensive search, cheap verification" for routing:
-- Search is optionally GPU-accelerated (approx ranking with Torch float64).
+- Search is optionally GPU-accelerated (approx ranking with Torch/CuPy float64).
 - Binding is always via deterministic integer replay in the functional core.
 - Verification is a pure replay check (no trust in off-chain compute).
 
