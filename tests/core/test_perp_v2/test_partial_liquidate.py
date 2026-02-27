@@ -250,12 +250,12 @@ class TestPartialLiquidateInvariants:
     @pytest.mark.parametrize("position", [10, 50, 100, 500, 1000, -10, -50, -100, -500, -1000])
     def test_invariants_over_positions(self, position):
         """Various position sizes preserve invariants."""
-        state = _make_underwater_state(position_base=position, collateral_quote=100)
-        if not is_liquidatable(
+        # Use zero collateral to guarantee underwater setup across all tested magnitudes.
+        state = _make_underwater_state(position_base=position, collateral_quote=0)
+        assert is_liquidatable(
             state.position_base, state.collateral_quote, state.index_price_e8,
             state.maintenance_margin_bps, state.depeg_buffer_bps,
-        ):
-            pytest.skip("Not liquidatable at this position/collateral")
+        ), "test setup must produce a liquidatable position"
 
         params = ActionParams(
             action=Action.PARTIAL_LIQUIDATE,
