@@ -6,7 +6,7 @@ This is an off-chain helper:
 - Compute the canonical winner (argmax) under lex order on (key_u64 DESC, index_u32 ASC).
 - Emit Tau steps for `src/tau_specs/recommended/argmax_stream_certificate_v1.tau`.
 
-Torch is optional. If installed, we can use MPS/CUDA for large candidate sets.
+Torch/CuPy are optional. If installed, we can use MPS/CUDA for large candidate sets.
 """
 
 from __future__ import annotations
@@ -23,6 +23,15 @@ def _try_import_torch() -> Any | None:
         import torch  # type: ignore
 
         return torch
+    except Exception:
+        return None
+
+
+def _try_import_cupy() -> Any | None:
+    try:
+        import cupy  # type: ignore
+
+        return cupy
     except Exception:
         return None
 
@@ -109,6 +118,32 @@ def _argmax_torch(cands: List[Candidate], *, prefer_gpu: bool) -> Candidate:
     raise RuntimeError("argmax selection failed (unexpected)")
 
 
+def _argmax_cupy(cands: List[Candidate], *, prefer_gpu: bool) -> Candidate:
+    if not prefer_gpu:
+        return _argmax_cpu(cands)
+
+    cp = _try_import_cupy()
+    if cp is None:
+        return _argmax_cpu(cands)
+
+    # Compare unsigned u64 by (hi, lo). This avoids signed int64 overflow issues.
+    keys_hi = cp.asarray([_split_u64(c.key_u64)[0] for c in cands], dtype=cp.int64)
+    keys_lo = cp.asarray([_split_u64(c.key_u64)[1] for c in cands], dtype=cp.int64)
+    idxs = cp.asarray([c.index_u32 for c in cands], dtype=cp.int64)
+
+    max_hi = int(cp.max(keys_hi).item())
+    mask_hi = keys_hi == max_hi
+    max_lo = int(cp.max(keys_lo[mask_hi]).item())
+    mask_hilo = mask_hi & (keys_lo == max_lo)
+    min_idx = int(cp.min(idxs[mask_hilo]).item())
+
+    for c in cands:
+        hi, lo = _split_u64(c.key_u64)
+        if hi == max_hi and lo == max_lo and int(c.index_u32) == min_idx:
+            return c
+    raise RuntimeError("argmax selection failed (unexpected)")
+
+
 def _emit_steps(*, winner: Candidate, cands: List[Candidate]) -> List[dict[str, int]]:
     steps: List[dict[str, int]] = []
     for c in cands:
@@ -135,7 +170,11 @@ def main() -> None:
     cands = _read_candidates(Path(args.input))
     if args.limit and args.limit > 0:
         cands = cands[: int(args.limit)]
-    winner = _argmax_torch(cands, prefer_gpu=bool(args.prefer_gpu))
+    # Prefer torch if installed; otherwise use cupy when --prefer-gpu is set; else CPU.
+    if _try_import_torch() is not None:
+        winner = _argmax_torch(cands, prefer_gpu=bool(args.prefer_gpu))
+    else:
+        winner = _argmax_cupy(cands, prefer_gpu=bool(args.prefer_gpu))
     steps = _emit_steps(winner=winner, cands=cands)
 
     out_obj = {
@@ -147,4 +186,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
