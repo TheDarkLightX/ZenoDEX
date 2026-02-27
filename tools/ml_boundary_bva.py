@@ -292,22 +292,6 @@ def _state_type_map(ir: Any) -> dict[str, Any]:
     return out
 
 
-def _state_boundary_values_for_var(t: Any) -> list[int | bool | str]:
-    kind = str(getattr(t, "kind", ""))
-    if kind == "bool":
-        return [True, False]
-    if kind == "enum":
-        syms = list(getattr(t, "symbols", None) or ())
-        return [str(s) for s in syms]
-    if kind == "int":
-        lo = int(getattr(t, "min", 0))
-        hi = int(getattr(t, "max", 0))
-        # State seeds must remain in-domain; outside points are filtered later via
-        # interpreter errors, but in-domain seeding avoids needless rejects.
-        return [int(x) for x in int_boundary_points(low=lo, high=hi)]
-    return []
-
-
 def _state_boundary_hits(state: Mapping[str, object], state_types: Mapping[str, Any]) -> int:
     hits = 0
     for k, t in state_types.items():
@@ -379,108 +363,6 @@ def _state_pool_replace(
     pool_scores[idx] = int(new_score)
 
 
-def _seed_state_pool_via_boundary_mutations(
-    *,
-    ir: Any,
-    ctx: Any,
-    initial: Mapping[str, object],
-    state_types: Mapping[str, Any],
-    validator_action_id: str,
-    validator_candidate: Candidate,
-    max_states: int,
-    seed_steps: int,
-    seed_width: int,
-    seed: int,
-) -> tuple[list[dict[str, object]], dict[str, object]]:
-    """
-    Seed a state pool by mutating *state variables* to boundary values.
-
-    This is primarily useful for "calculator" kernels whose actions do not
-    transition state (updates=[]), so reachability-based MCMC cannot explore
-    alternative pre-states.
-
-    We validate candidate states by attempting a single interpreter step with a
-    known-good (baseline) command; any state that triggers a state-shape/type
-    error is rejected.
-    """
-    rng = random.Random(int(seed))
-    s0 = {str(k): initial[k] for k in sorted(initial.keys(), key=str)}
-    pool: list[dict[str, object]] = [dict(s0)]
-    pool_scores: list[int] = [_state_boundary_hits(s0, state_types)]
-    seen: set[str] = {_state_sig(s0)}
-
-    # Candidate variables to mutate.
-    var_ids: list[str] = []
-    values_by_var: dict[str, list[int | bool | str]] = {}
-    for vid in sorted(state_types.keys(), key=str):
-        t = state_types[vid]
-        vals = _state_boundary_values_for_var(t)
-        if not vals:
-            continue
-        var_ids.append(str(vid))
-        values_by_var[str(vid)] = vals
-
-    accepted = 0
-    rejected = 0
-    if not var_ids or int(seed_steps) <= 0:
-        return pool, {
-            "enabled": True,
-            "seed_steps": int(seed_steps),
-            "seed_width": int(seed_width),
-            "candidate_var_count": int(len(var_ids)),
-            "accepted": int(accepted),
-            "rejected": int(rejected),
-        }
-
-    width = max(1, min(int(seed_width), len(var_ids)))
-    for _t in range(int(seed_steps)):
-        if len(pool) >= int(max_states):
-            break
-        picked = rng.sample(var_ids, k=width) if width < len(var_ids) else list(var_ids)
-        st = dict(s0)
-        for vid in picked:
-            vals = values_by_var.get(str(vid), [])
-            if not vals:
-                continue
-            st[str(vid)] = vals[int(rng.randrange(len(vals)))]
-
-        rec = _evaluate_candidate(ir=ir, ctx=ctx, state=st, candidate=validator_candidate, state_types=state_types)
-        if rec.expected.get("ok", False):
-            ok = True
-        else:
-            code = str(rec.expected.get("code", ""))
-            ok = code not in {"InvalidState", "StateType", "StateShape"}
-        if not ok:
-            rejected += 1
-            continue
-
-        sig = _state_sig(st)
-        if sig in seen:
-            continue
-        seen.add(sig)
-        accepted += 1
-
-        score = _state_boundary_hits(st, state_types)
-        if len(pool) < int(max_states):
-            pool.append(dict(st))
-            pool_scores.append(int(score))
-        else:
-            _state_pool_replace(pool=pool, pool_scores=pool_scores, new_state=st, new_score=score, seed_rng=rng)
-
-    summary = {
-        "enabled": True,
-        "seed_steps": int(seed_steps),
-        "seed_width": int(seed_width),
-        "candidate_var_count": int(len(var_ids)),
-        "accepted": int(accepted),
-        "rejected": int(rejected),
-        "state_pool_size": int(len(pool)),
-        "unique_states_seen": int(len(seen)),
-        "validator_action_id": str(validator_action_id),
-    }
-    return pool, summary
-
-
 def _build_global_state_pool_mcmc(
     *,
     ir: Any,
@@ -489,9 +371,6 @@ def _build_global_state_pool_mcmc(
     state_types: Mapping[str, Any],
     candidates_by_action: Mapping[str, list[Candidate]],
     max_states: int,
-    seed_state_boundaries: bool,
-    state_seed_steps: int,
-    state_seed_width: int,
     walk_steps: int,
     reset_prob: float,
     baseline_prob: float,
@@ -509,39 +388,15 @@ def _build_global_state_pool_mcmc(
     rng = random.Random(int(seed))
 
     s0 = {str(k): initial_state[k] for k in sorted(initial_state.keys(), key=str)}
-
-    # Pick a deterministic validator action + baseline candidate for state seeding.
-    action_ids_sorted = sorted([str(a.id) for a in list(ir.actions)])
-    if not action_ids_sorted:
-        raise ValueError("kernel has no actions; cannot build state pool")
-    validator_action_id = action_ids_sorted[0]
-    validator_candidate = _best_baseline_candidate(list(candidates_by_action.get(validator_action_id, [])))
-
-    if bool(seed_state_boundaries):
-        pool, seed_summary = _seed_state_pool_via_boundary_mutations(
-            ir=ir,
-            ctx=ctx,
-            initial=s0,
-            state_types=state_types,
-            validator_action_id=str(validator_action_id),
-            validator_candidate=validator_candidate,
-            max_states=int(max_states),
-            seed_steps=int(state_seed_steps),
-            seed_width=int(state_seed_width),
-            seed=int(seed),
-        )
-        pool_scores = [_state_boundary_hits(st, state_types) for st in pool]
-        seen = {_state_sig(st) for st in pool}
-    else:
-        pool = [s0]
-        pool_scores = [_state_boundary_hits(s0, state_types)]
-        seen = {_state_sig(s0)}
-        seed_summary = {"enabled": False}
+    pool: list[dict[str, object]] = [s0]
+    pool_scores: list[int] = [_state_boundary_hits(s0, state_types)]
+    seen: set[str] = {_state_sig(s0)}
 
     # Walk over the state graph; current state is part of the Markov chain.
     cur = dict(s0)
 
-    action_ids = list(action_ids_sorted)
+    action_ids = [str(a.id) for a in list(ir.actions)]
+    action_ids.sort()
     action_pulls: dict[str, int] = {aid: 0 for aid in action_ids}
     action_accepts: dict[str, int] = {aid: 0 for aid in action_ids}
 
@@ -593,7 +448,6 @@ def _build_global_state_pool_mcmc(
 
     summary = {
         "max_states": int(max_states),
-        "seed_state_boundaries": dict(seed_summary),
         "walk_steps": int(walk_steps),
         "reset_prob": float(reset_prob),
         "baseline_prob": float(baseline_prob),
@@ -1079,9 +933,6 @@ def generate_ml_bva_suite(
     global_reset_prob: float,
     global_baseline_prob: float,
     global_top_k_candidates: int,
-    seed_state_boundaries: bool = False,
-    state_seed_steps: int = 500,
-    state_seed_width: int = 2,
     refine_pairs_per_action: int,
     refine_max_steps: int,
     alpha: float,
@@ -1103,10 +954,6 @@ def generate_ml_bva_suite(
         raise ValueError("global_baseline_prob must be in [0,1]")
     if int(global_top_k_candidates) <= 0:
         raise ValueError("global_top_k_candidates must be > 0")
-    if int(state_seed_steps) < 0:
-        raise ValueError("state_seed_steps must be >= 0")
-    if int(state_seed_width) <= 0:
-        raise ValueError("state_seed_width must be > 0")
     if int(refine_pairs_per_action) < 0:
         raise ValueError("refine_pairs_per_action must be >= 0")
     if int(refine_max_steps) < 0:
@@ -1156,9 +1003,6 @@ def generate_ml_bva_suite(
         state_types=state_types,
         candidates_by_action=candidates_by_action,
         max_states=int(max_states),
-        seed_state_boundaries=bool(seed_state_boundaries),
-        state_seed_steps=int(state_seed_steps),
-        state_seed_width=int(state_seed_width),
         walk_steps=int(global_walk_steps),
         reset_prob=float(global_reset_prob),
         baseline_prob=float(global_baseline_prob),
@@ -1250,13 +1094,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--global-reset-prob", type=float, default=0.15)
     ap.add_argument("--global-baseline-prob", type=float, default=0.25)
     ap.add_argument("--global-top-k-candidates", type=int, default=40)
-    ap.add_argument(
-        "--seed-state-boundaries",
-        action="store_true",
-        help="Seed the global pre-state pool by mutating state vars to boundary values (useful for calculator kernels).",
-    )
-    ap.add_argument("--state-seed-steps", type=int, default=500)
-    ap.add_argument("--state-seed-width", type=int, default=2, help="How many state vars to mutate per seed proposal.")
     ap.add_argument("--refine-pairs-per-action", type=int, default=12)
     ap.add_argument("--refine-max-steps", type=int, default=6)
     ap.add_argument("--alpha", type=float, default=1.25, help="UCB exploration coefficient.")
@@ -1277,9 +1114,6 @@ def main(argv: list[str] | None = None) -> int:
         global_reset_prob=float(args.global_reset_prob),
         global_baseline_prob=float(args.global_baseline_prob),
         global_top_k_candidates=int(args.global_top_k_candidates),
-        seed_state_boundaries=bool(args.seed_state_boundaries),
-        state_seed_steps=int(args.state_seed_steps),
-        state_seed_width=int(args.state_seed_width),
         refine_pairs_per_action=int(args.refine_pairs_per_action),
         refine_max_steps=int(args.refine_max_steps),
         alpha=float(args.alpha),
