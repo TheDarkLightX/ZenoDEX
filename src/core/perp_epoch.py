@@ -292,11 +292,87 @@ def perp_epoch_isolated_v3_fee_pool_max_quote() -> int:
 # v2 native backend: uses hand-written src/core/perp_v2 (no external toolchain dependency)
 # ---------------------------------------------------------------------------
 
+_EPOCH_PHASE_STR_TO_INT: dict[str, int] = {
+    "Open": 0,
+    "PricePublished": 1,
+    "Settled": 2,
+}
+
+
+def _normalize_native_state_for_kernel_abi_v3(state: Mapping[str, Value]) -> dict[str, Value]:
+    """
+    Normalize native state dict to the v3 kernel ABI.
+
+    v3 adds the `epoch_phase` state var, encoded as an int:
+      Open=0, PricePublished=1, Settled=2.
+    """
+    out = dict(state)
+    ep = out.get("epoch_phase")
+    if isinstance(ep, str):
+        mapped = _EPOCH_PHASE_STR_TO_INT.get(ep)
+        if mapped is not None:
+            out["epoch_phase"] = int(mapped)
+    return out
+
+
+def _normalize_native_state_for_kernel_abi_v2(state: Mapping[str, Value]) -> dict[str, Value]:
+    """
+    Normalize native state dict to the v2 kernel ABI.
+
+    v2 does not have `epoch_phase`; for parity with v2 kernels/refs, drop it.
+    """
+    out = dict(state)
+    out.pop("epoch_phase", None)
+    return out
+
+
+def _infer_epoch_phase_for_native_input(state: Mapping[str, Value]) -> str:
+    """
+    Best-effort phase reconstruction for v2-shaped states that omit epoch_phase.
+    """
+    now = state.get("now_epoch")
+    clearing_seen = bool(state.get("clearing_price_seen", False))
+    clearing_epoch = state.get("clearing_price_epoch")
+    oracle_seen = bool(state.get("oracle_seen", False))
+    oracle_last = state.get("oracle_last_update_epoch")
+    if (
+        clearing_seen
+        and isinstance(now, int)
+        and not isinstance(now, bool)
+        and isinstance(clearing_epoch, int)
+        and not isinstance(clearing_epoch, bool)
+        and int(clearing_epoch) == int(now)
+    ):
+        if (
+            oracle_seen
+            and isinstance(oracle_last, int)
+            and not isinstance(oracle_last, bool)
+            and int(oracle_last) == int(now)
+        ):
+            return "Settled"
+        return "PricePublished"
+    return "Open"
+
+
+def _state_with_epoch_phase_for_native_input(state: Mapping[str, Value]) -> dict[str, Value]:
+    out = dict(state)
+    if "epoch_phase" not in out:
+        out["epoch_phase"] = _infer_epoch_phase_for_native_input(state)
+    return out
+
+
 def perp_epoch_isolated_v2_native_initial_state() -> dict[str, Value]:
     from .perp_v2 import initial_state
     from .perp_v2.state import state_to_dict
 
-    return state_to_dict(initial_state())
+    return _normalize_native_state_for_kernel_abi_v2(state_to_dict(initial_state()))
+
+
+def perp_epoch_isolated_v3_native_initial_state() -> dict[str, Value]:
+    from .perp_v2 import initial_state
+    from .perp_v2.state import state_to_dict
+
+    return _normalize_native_state_for_kernel_abi_v3(state_to_dict(initial_state()))
 
 
 def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
@@ -381,7 +457,7 @@ def perp_epoch_isolated_v2_native_apply(
         return None
 
     try:
-        perp_state = state_from_dict(state)
+        perp_state = state_from_dict(_state_with_epoch_phase_for_native_input(state))
         action_params = _action_params_from_dict(action, params)
     except (KeyError, TypeError, ValueError) as exc:
         # Best-effort classification (fail-closed on ok=false regardless).
@@ -404,7 +480,53 @@ def perp_epoch_isolated_v2_native_apply(
 
     return PerpStepResult(
         ok=True,
-        state=state_to_dict(result.state),
+        state=_normalize_native_state_for_kernel_abi_v2(state_to_dict(result.state)),
+        effects=_effect_to_dict(result.effect),
+    )
+
+
+def perp_epoch_isolated_v3_native_apply(
+    *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
+) -> PerpStepResult:
+    # Same hand-written perp_v2 implementation, but normalized to the v3 ABI.
+    from .perp_v2 import step
+    from .perp_v2.state import state_from_dict, state_to_dict
+
+    def _code_from_rejection(reason: str) -> str | None:
+        # Keep classification aligned with v2 native posture.
+        if reason.startswith("unknown_action:"):
+            return "UnknownAction"
+        if reason.startswith("param_domain:"):
+            return "ParamType"
+        if reason == "guard":
+            return "GuardFalse"
+        if reason.startswith("invariant:"):
+            return "PostInvariantViolation"
+        return None
+
+    try:
+        perp_state = state_from_dict(_state_with_epoch_phase_for_native_input(state))
+        action_params = _action_params_from_dict(action, params)
+    except (KeyError, TypeError, ValueError) as exc:
+        code: str | None = None
+        if isinstance(exc, KeyError):
+            code = "ParamShape"
+        else:
+            msg = str(exc)
+            if msg.startswith("unknown action:"):
+                code = "UnknownAction"
+            else:
+                code = "ParamType"
+        return PerpStepResult(ok=False, error=str(exc), code=code)
+
+    result = step(perp_state, action_params)
+    if not result.accepted:
+        reason = str(result.rejection or "")
+        return PerpStepResult(ok=False, error=reason, code=_code_from_rejection(reason))
+
+    return PerpStepResult(
+        ok=True,
+        state=_normalize_native_state_for_kernel_abi_v3(state_to_dict(result.state)),
         effects=_effect_to_dict(result.effect),
     )
 
@@ -417,8 +539,6 @@ def perp_epoch_isolated_v2_native_fee_pool_max_quote() -> int:
 
 # v3 native backend is the same hand-written implementation (perp_v2 package) but
 # corresponds to the v3 kernel spec (`perp_epoch_isolated_v3.yaml`).
-perp_epoch_isolated_v3_native_initial_state = perp_epoch_isolated_v2_native_initial_state
-perp_epoch_isolated_v3_native_apply = perp_epoch_isolated_v2_native_apply
 perp_epoch_isolated_v3_native_fee_pool_max_quote = perp_epoch_isolated_v2_native_fee_pool_max_quote
 
 
