@@ -43,7 +43,7 @@ def _pubkey_bytes48_or_none(pubkey: str) -> bytes | None:
         return None
 
 
-def _infer_epoch_phase(gs: dict) -> str:
+def _infer_epoch_phase(gs: dict) -> int:
     """Infer epoch_phase from existing global_state fields for legacy snapshots.
 
     Epoch lifecycle: advance_epoch→Open, publish_clearing_price→PricePublished,
@@ -53,17 +53,22 @@ def _infer_epoch_phase(gs: dict) -> str:
       - Settled: additionally oracle_last_update_epoch==now_epoch, oracle_seen=True
       - Open: otherwise (no clearing price published in the current epoch)
     """
-    now = gs.get("now_epoch", 0)
-    cp_seen = gs.get("clearing_price_seen", False)
-    cp_epoch = gs.get("clearing_price_epoch", -1)
-    o_seen = gs.get("oracle_seen", False)
-    o_epoch = gs.get("oracle_last_update_epoch", -1)
+    now = int(gs.get("now_epoch", 0))
+    cp_seen = bool(gs.get("clearing_price_seen", False))
+    cp_epoch = int(gs.get("clearing_price_epoch", -1))
+    o_seen = bool(gs.get("oracle_seen", False))
+    o_epoch = int(gs.get("oracle_last_update_epoch", -1))
 
+    # Canonical kernel encoding: Open=0, PricePublished=1, Settled=2.
     if cp_seen and cp_epoch == now:
         if o_seen and o_epoch == now:
-            return "Settled"
-        return "PricePublished"
-    return "Open"
+            return 2
+        return 1
+    return 0
+
+
+_EPOCH_PHASE_STR_TO_INT: dict[str, int] = {"Open": 0, "PricePublished": 1, "Settled": 2}
+_EPOCH_PHASE_INT_TO_STR: dict[int, str] = {0: "Open", 1: "PricePublished", 2: "Settled"}
 
 PERP_MARKET_KIND_ISOLATED_V2: Literal["isolated_v2"] = "isolated_v2"
 PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1: Literal["clearinghouse_2p_v1"] = "clearinghouse_2p_v1"
@@ -262,18 +267,23 @@ class PerpMarketState:
             raise ValueError(f"global_state has unknown keys: {sorted(extra)[:8]}")
         if missing:
             raise ValueError(f"global_state missing required keys: {sorted(missing)[:8]}")
-        # Normalize epoch_phase int encoding (ESSO: 0=Open,1=PricePublished,2=Settled).
-        _EPOCH_PHASE_INT_TO_STR = {0: "Open", 1: "PricePublished", 2: "Settled"}
+
+        # Normalize epoch_phase encoding to the canonical kernel representation:
+        # Open=0, PricePublished=1, Settled=2.
         ep = self.global_state.get("epoch_phase")
-        if isinstance(ep, int) and not isinstance(ep, bool):
+        if isinstance(ep, str):
+            if ep not in _EPOCH_PHASE_STR_TO_INT:
+                raise ValueError(f"global_state['epoch_phase'] invalid: {ep!r}")
+            self.global_state["epoch_phase"] = _EPOCH_PHASE_STR_TO_INT[ep]
+        elif isinstance(ep, int) and not isinstance(ep, bool):
             if ep not in _EPOCH_PHASE_INT_TO_STR:
                 raise ValueError(f"global_state['epoch_phase'] int value {ep} out of range [0,2]")
-            self.global_state["epoch_phase"] = _EPOCH_PHASE_INT_TO_STR[ep]
-        _VALID_EPOCH_PHASES = {"Open", "PricePublished", "Settled"}
+        else:
+            raise TypeError(f"global_state['epoch_phase'] must be a str or int")
         for k, v in list(self.global_state.items()):
-            # epoch_phase must be a valid phase string (never bool/int after normalization).
+            # epoch_phase must be the canonical int encoding (never bool/str after normalization).
             if k == "epoch_phase":
-                if not isinstance(v, str) or v not in _VALID_EPOCH_PHASES:
+                if not isinstance(v, int) or isinstance(v, bool) or v not in _EPOCH_PHASE_INT_TO_STR:
                     raise ValueError(f"global_state['epoch_phase'] invalid: {v!r}")
                 continue
 
@@ -304,7 +314,8 @@ class PerpMarketState:
         gs = self.global_state
 
         now_epoch = int(gs["now_epoch"])
-        epoch_phase = str(gs["epoch_phase"])
+        epoch_phase = int(gs["epoch_phase"])
+        epoch_phase_str = _EPOCH_PHASE_INT_TO_STR.get(epoch_phase, str(epoch_phase))
 
         breaker_active = bool(gs["breaker_active"])
         breaker_last_trigger_epoch = int(gs["breaker_last_trigger_epoch"])
@@ -372,23 +383,23 @@ class PerpMarketState:
             raise ValueError("fee_pool_quote must equal fee_income")
 
         # Epoch phase consistency (prevents bypassing phase gating via malformed snapshots).
-        if epoch_phase == "Open":
+        if epoch_phase == 0:
             if clearing_price_seen and clearing_price_epoch == now_epoch:
                 raise ValueError("epoch_phase Open inconsistent with clearing_price for current epoch")
             if now_epoch > 0 and oracle_seen and oracle_last_update_epoch == now_epoch:
                 raise ValueError("epoch_phase Open inconsistent with oracle_last_update_epoch == now_epoch")
-        elif epoch_phase == "PricePublished":
+        elif epoch_phase == 1:
             if not (clearing_price_seen and clearing_price_epoch == now_epoch):
                 raise ValueError("epoch_phase PricePublished requires clearing_price for current epoch")
             if oracle_seen and oracle_last_update_epoch == now_epoch:
                 raise ValueError("epoch_phase PricePublished requires oracle_last_update_epoch < now_epoch")
-        elif epoch_phase == "Settled":
+        elif epoch_phase == 2:
             if not (clearing_price_seen and clearing_price_epoch == now_epoch):
                 raise ValueError("epoch_phase Settled requires clearing_price for current epoch")
             if not (oracle_seen and oracle_last_update_epoch == now_epoch):
                 raise ValueError("epoch_phase Settled requires oracle_last_update_epoch == now_epoch")
         else:  # pragma: no cover - guarded earlier
-            raise ValueError(f"invalid epoch_phase: {epoch_phase!r}")
+            raise ValueError(f"invalid epoch_phase: {epoch_phase_str!r}")
 
         # Account-level invariants that are cheap to enforce at snapshot boundaries.
         for pk, acct in self.accounts.items():
