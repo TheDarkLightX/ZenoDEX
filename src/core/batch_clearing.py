@@ -1201,10 +1201,10 @@ def _cow_pair_netting_exact_in_v1(
 
     for (sender, asset), amt in debit_by_sender_asset.items():
         if balances.get(sender, asset) < amt:
-            # Fail-closed: if balances changed unexpectedly, drop all matches.
-            matched_ids = set()
-            best_pairs = []
-            break
+            # Fail-closed: if balances are insufficient for the aggregate debits, do not mutate
+            # the balances snapshot and fall back to "no netting" for this batch.
+            swap_intents_sorted = sorted(list(swap_intents), key=lambda it: it.intent_id)
+            return [], swap_intents_sorted
 
     for (sender, asset), amt in debit_by_sender_asset.items():
         balances.subtract(sender, asset, int(amt))

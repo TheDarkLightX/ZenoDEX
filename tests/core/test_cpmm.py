@@ -13,6 +13,32 @@ def test_compute_lp_mint_uses_integer_isqrt() -> None:
     assert lp == n - MIN_LP_LOCK
 
 
+def test_compute_lp_mint_initial_liquidity_boundary_matches_min_lock() -> None:
+    # Boundary: floor(sqrt(amount0*amount1)) == MIN_LP_LOCK must reject.
+    try:
+        compute_lp_mint(
+            reserve0=0,
+            reserve1=0,
+            amount0=MIN_LP_LOCK,
+            amount1=MIN_LP_LOCK,
+            lp_supply=0,
+        )
+    except ValueError:
+        pass
+    else:
+        assert False, "expected insufficient initial liquidity rejection at sqrt == MIN_LP_LOCK"
+
+    # Just above boundary should mint at least 1 LP.
+    lp = compute_lp_mint(
+        reserve0=0,
+        reserve1=0,
+        amount0=MIN_LP_LOCK + 1,
+        amount1=MIN_LP_LOCK + 1,
+        lp_supply=0,
+    )
+    assert lp == 1
+
+
 def test_swap_exact_out_updates_reserves_for_requested_amount_out() -> None:
     # There exist states where the minimal `amount_in` would yield *more* than the requested
     # `amount_out` under exact-in floor rounding. Exact-out semantics must still update reserves

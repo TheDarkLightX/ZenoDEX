@@ -43,6 +43,44 @@ def validate_settlement_strong(
     pre_pools: Dict[str, PoolState],
     pre_lp_balances: Optional[LPTable] = None,
     mode: str = _MODE_STRONG_REPLAY,
+    allow_cow_netting: bool = False,
+) -> Tuple[bool, Optional[str]]:
+    """
+    Fail-closed wrapper around the strong validator implementation.
+
+    This validator is used on untrusted settlement proposals; it must return `(False, reason)`
+    rather than crash on malformed inputs.
+    """
+    try:
+        return _validate_settlement_strong_impl(
+            settlement=settlement,
+            intents=intents,
+            pre_balances=pre_balances,
+            pre_pools=pre_pools,
+            pre_lp_balances=pre_lp_balances,
+            mode=mode,
+            allow_cow_netting=allow_cow_netting,
+        )
+    except Exception as exc:
+        detail = str(exc).strip()
+        if "\n" in detail or "\r" in detail:
+            detail = " ".join(detail.split())
+        if len(detail) > 200:
+            detail = detail[:200]
+        if detail:
+            return False, f"strong validator crashed: {type(exc).__name__}: {detail}"
+        return False, f"strong validator crashed: {type(exc).__name__}"
+
+
+def _validate_settlement_strong_impl(
+    *,
+    settlement: Settlement,
+    intents: List[Intent],
+    pre_balances: BalanceTable,
+    pre_pools: Dict[str, PoolState],
+    pre_lp_balances: Optional[LPTable] = None,
+    mode: str = _MODE_STRONG_REPLAY,
+    allow_cow_netting: bool = False,
 ) -> Tuple[bool, Optional[str]]:
     """
     Strong settlement validation.
@@ -205,8 +243,10 @@ def validate_settlement_strong(
             if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
                 return fail(f"swap asset mismatch for intent_id={intent_id}")
 
-            # CoW netting semantics: direct user-to-user swap, no pool reserve changes.
+            # CoW netting semantics (optional): direct user-to-user swap, no pool reserve changes.
             if f.reason == "COW_NETTED":
+                if not allow_cow_netting:
+                    return fail(f"COW_NETTED not allowed for intent_id={intent_id}")
                 if it.kind != IntentKind.SWAP_EXACT_IN:
                     return fail(f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}")
                 amount_in = it.get_field("amount_in")
