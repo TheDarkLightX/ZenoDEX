@@ -132,6 +132,49 @@ def mint_liquidity_initial(*, amount0: int, amount1: int, min_lp_lock: int = MIN
     return minted, total_supply
 
 
+def mint_liquidity_initial_witness(
+    *,
+    amount0: int,
+    amount1: int,
+    sqrt_product: int,
+    min_lp_lock: int = MIN_LP_LOCK,
+) -> tuple[int, int]:
+    """
+    Initial liquidity mint using a sqrt witness (verification-by-inequalities).
+
+    This mirrors the witness-based interface used by the v7 kernel spec, where
+    the caller supplies `sqrt_product = floor(sqrt(amount0 * amount1))` and the
+    protocol verifies it via:
+      sqrt_product^2 <= amount0*amount1 < (sqrt_product+1)^2
+
+    Returns (liquidity_minted_to_creator, total_supply_including_lock).
+    """
+    _require_int("amount0", amount0)
+    _require_int("amount1", amount1)
+    _require_int("sqrt_product", sqrt_product)
+    _require_int("min_lp_lock", min_lp_lock)
+    if amount0 <= 0 or amount1 <= 0:
+        raise ValueError("initial amounts must be positive")
+    if sqrt_product <= 0:
+        raise ValueError("sqrt_product must be positive")
+    if min_lp_lock <= 0:
+        raise ValueError("min_lp_lock must be positive")
+
+    n = amount0 * amount1
+    sp = sqrt_product
+    if sp * sp > n:
+        raise ValueError("invalid sqrt witness (too large)")
+    if n >= (sp + 1) * (sp + 1):
+        raise ValueError("invalid sqrt witness (too small)")
+
+    if sp <= min_lp_lock:
+        raise ValueError("insufficient initial liquidity (sqrt(amount0*amount1) <= MIN_LP_LOCK)")
+
+    minted = sp - min_lp_lock
+    total_supply = minted + min_lp_lock
+    return minted, total_supply
+
+
 def mint_liquidity(
     *,
     reserve0: int,
