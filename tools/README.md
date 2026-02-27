@@ -90,3 +90,61 @@ python3 tools/gpu_jobs/improvement_bounty_round_route_v1.py \\
   --emit-argmax-steps /tmp/argmax_cert.json \\
   --require-positive-improvement
 ```
+
+## Perps GPU Liftoff Runner
+
+Runs a full high-resource loop:
+- GPU hazard mining (funding + pnl)
+- GPU CE mining for perps kernel
+- ML-driven boundary-value test generation
+- mechanical-scientist campaign (M3 Max profile by default, high-resource profile optional)
+- strict replay + summary metrics
+
+Run:
+```
+bash tools/run_perps_gpu_liftoff.sh
+```
+
+Defaults:
+- profile config: `docs/derivatives/mechanical_scientist_perps_config_m3max.yaml`
+- CE model: `src/kernels/dex/perp_epoch_isolated_v3.yaml`
+- hazard batch: `262144`
+- CE batch: `262144`
+- ML-BVA max candidates/action: `400`
+- ML-BVA max states: `128`
+- ML-BVA UCB alpha: `1.25`
+
+Override any default with env vars, for example:
+```
+GPU_BATCH_CE=1048576 GPU_STEPS_CE=1000 bash tools/run_perps_gpu_liftoff.sh
+```
+or:
+```
+PERPS_LIFTOFF_CONFIG=docs/derivatives/mechanical_scientist_perps_config_m3max_hires.yaml \
+ML_BVA_CASES_PER_ACTION=16 ML_BVA_ITERS_PER_ACTION=320 \
+ML_BVA_MAX_CANDIDATES=600 ML_BVA_MAX_STATES=192 \
+GPU_STEPS_CE=6000 bash tools/run_perps_gpu_liftoff.sh
+```
+
+## ML-Driven Boundary Test Generation
+
+Generates replayable boundary-value tests using an adaptive UCB policy over boundary candidates
+(machine-learning-driven BVA).
+
+Run:
+```
+python3.11 tools/ml_boundary_bva.py \
+  --model src/kernels/dex/perp_epoch_isolated_v3.yaml \
+  --out-json tests/kernels/data/perp_epoch_isolated_v3_ml_bva_cases.json \
+  --cases-per-action 12 \
+  --iterations-per-action 220 \
+  --max-candidates-per-action 400 \
+  --max-states 128 \
+  --alpha 1.25 \
+  --pretty
+```
+
+Replay test:
+```
+python3.11 -m pytest -q tests/kernels/test_perp_epoch_isolated_v3_ml_bva_cases.py
+```
