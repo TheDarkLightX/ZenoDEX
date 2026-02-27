@@ -321,3 +321,39 @@ class TestLifecycleEquivalence:
 
                 our_s = our_result.state
                 ref_s = ref_result.state
+
+
+def test_regression_stale_oracle_settle_epoch_accept_reject_parity() -> None:
+    """
+    Regression for a ref/native mismatch found by Hypothesis shrinking.
+
+    Scenario:
+    1) Settle epoch 1 to establish an oracle snapshot.
+    2) Advance by a large delta so the last oracle update is far in the past.
+    3) Publish a clearing price and attempt to settle again.
+
+    Expected: accept/reject parity with the generated ref model.
+    """
+    actions = [
+        ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
+        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
+        ActionParams(action=Action.SETTLE_EPOCH),
+        ActionParams(action=Action.ADVANCE_EPOCH, delta=101),
+        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
+        ActionParams(action=Action.SETTLE_EPOCH),
+    ]
+
+    our_s = initial_state()
+    ref_s = ref.init_state()
+    for i, params in enumerate(actions):
+        our_result = step(our_s, params)
+        ref_result = ref.step(ref_s, params_to_command(params))
+        assert our_result.accepted == ref_result.ok, (
+            f"step {i} ({params.action.value}): "
+            f"accept/reject mismatch: "
+            f"ours={our_result.accepted} (rejection={our_result.rejection}), "
+            f"ref={ref_result.ok} (error={ref_result.error})"
+        )
+        if our_result.accepted and ref_result.ok:
+            our_s = our_result.state
+            ref_s = ref_result.state
