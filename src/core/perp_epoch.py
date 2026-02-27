@@ -367,15 +367,40 @@ def perp_epoch_isolated_v2_native_apply(
     from .perp_v2 import step
     from .perp_v2.state import state_from_dict, state_to_dict
 
+    def _code_from_rejection(reason: str) -> str | None:
+        # Align native rejection classification with ESSO interpreter StepError codes
+        # (see external/ESSO/ESSO/kernel/interpreter.py).
+        if reason.startswith("unknown_action:"):
+            return "UnknownAction"
+        if reason.startswith("param_domain:"):
+            return "ParamType"
+        if reason == "guard":
+            return "GuardFalse"
+        if reason.startswith("invariant:"):
+            return "PostInvariantViolation"
+        return None
+
     try:
         perp_state = state_from_dict(state)
         action_params = _action_params_from_dict(action, params)
     except (KeyError, TypeError, ValueError) as exc:
-        return PerpStepResult(ok=False, error=str(exc))
+        # Best-effort classification (fail-closed on ok=false regardless).
+        code: str | None = None
+        if isinstance(exc, KeyError):
+            # Missing required field in state/params.
+            code = "ParamShape"
+        else:
+            msg = str(exc)
+            if msg.startswith("unknown action:"):
+                code = "UnknownAction"
+            else:
+                code = "ParamType"
+        return PerpStepResult(ok=False, error=str(exc), code=code)
 
     result = step(perp_state, action_params)
     if not result.accepted:
-        return PerpStepResult(ok=False, error=result.rejection)
+        reason = str(result.rejection or "")
+        return PerpStepResult(ok=False, error=reason, code=_code_from_rejection(reason))
 
     return PerpStepResult(
         ok=True,
