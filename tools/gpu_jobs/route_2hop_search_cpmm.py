@@ -813,6 +813,91 @@ def _pool_json(p: PoolState) -> Dict[str, Any]:
     }
 
 
+def compute_route_improvement_witness_v1(
+    job: Mapping[str, Any],
+    *,
+    prefer_gpu: bool,
+    topk: int,
+    adaptive_prune: bool,
+    topk_max: int,
+    allow_no_improvement: bool,
+) -> Dict[str, Any]:
+    """
+    Build a `zenodex/route_improvement_witness/v1` payload from a job mapping.
+
+    This function is intentionally "tool-side" only (non-consensus-critical):
+    - GPU use is allowed but treated as an untrusted ranking hint.
+    - Exact outputs are always derived from deterministic integer replay.
+    """
+
+    asset_in = _require_str("asset_in", job.get("asset_in"))
+    asset_out = _require_str("asset_out", job.get("asset_out"))
+    amount_in = _require_int("amount_in", job.get("amount_in"))
+    if amount_in <= 0:
+        raise ValueError("amount_in must be positive")
+
+    pools_raw = job.get("pools")
+    if not isinstance(pools_raw, list):
+        raise TypeError("pools must be a list")
+    pools = [_pool_from_json(p) for p in pools_raw]
+
+    baseline_route, baseline_out, baseline_hops = _best_direct_route(
+        pools=pools, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in
+    )
+    if baseline_route is None:
+        raise ValueError("no valid direct CPMM pool found for asset_in->asset_out")
+
+    if bool(adaptive_prune):
+        kmax = int(topk_max) if int(topk_max) > 0 else int(topk)
+        proposal_route, proposal_out, proposal_hops, meta = _best_2hop_route_adaptive_prune(
+            pools=pools,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in=amount_in,
+            topk_max=int(kmax),
+            prefer_gpu=bool(prefer_gpu),
+        )
+    else:
+        proposal_route, proposal_out, proposal_hops, meta = _best_2hop_route_topk(
+            pools=pools,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in=amount_in,
+            topk=int(topk),
+            prefer_gpu=bool(prefer_gpu),
+        )
+
+    improves = False
+    if proposal_route is not None and proposal_out > baseline_out:
+        improves = True
+    else:
+        # Degrade gracefully: produce a witness with proposal==baseline for debugging.
+        proposal_route = baseline_route
+        proposal_out = baseline_out
+        proposal_hops = list(baseline_hops)
+
+    if not improves and not bool(allow_no_improvement):
+        raise ValueError("no 2-hop improvement found over baseline (use allow_no_improvement to emit witness anyway)")
+
+    return {
+        "schema": "zenodex/route_improvement_witness/v1",
+        "job": {"asset_in": asset_in, "asset_out": asset_out, "amount_in": int(amount_in), "max_hops": 2},
+        "baseline": {
+            "route": [{"pool_id": h.pool_id, "asset_in": h.asset_in, "asset_out": h.asset_out} for h in baseline_route.hops],
+            "amount_out": int(baseline_out),
+            "hop_io": list(baseline_hops),
+        },
+        "proposal": {
+            "route": [{"pool_id": h.pool_id, "asset_in": h.asset_in, "asset_out": h.asset_out} for h in proposal_route.hops],
+            "amount_out": int(proposal_out),
+            "hop_io": list(proposal_hops),
+        },
+        "improves": bool(improves),
+        "meta": dict(meta),
+        "pools": [_pool_json(p) for p in pools],
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="Path to job JSON: {asset_in,asset_out,amount_in,pools:[...]}.")
@@ -838,71 +923,14 @@ def main() -> None:
     args = ap.parse_args()
 
     job = _load_job(Path(args.input))
-    asset_in = _require_str("asset_in", job.get("asset_in"))
-    asset_out = _require_str("asset_out", job.get("asset_out"))
-    amount_in = _require_int("amount_in", job.get("amount_in"))
-    if amount_in <= 0:
-        raise ValueError("amount_in must be positive")
-    pools_raw = job.get("pools")
-    if not isinstance(pools_raw, list):
-        raise TypeError("pools must be a list")
-    pools = [_pool_from_json(p) for p in pools_raw]
-
-    baseline_route, baseline_out, baseline_hops = _best_direct_route(
-        pools=pools, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in
+    out_obj = compute_route_improvement_witness_v1(
+        job,
+        prefer_gpu=bool(args.prefer_gpu),
+        topk=int(args.topk),
+        adaptive_prune=bool(args.adaptive_prune),
+        topk_max=int(args.topk_max),
+        allow_no_improvement=bool(args.allow_no_improvement),
     )
-    if baseline_route is None:
-        raise ValueError("no valid direct CPMM pool found for asset_in->asset_out")
-
-    if bool(args.adaptive_prune):
-        kmax = int(args.topk_max) if int(args.topk_max) > 0 else int(args.topk)
-        proposal_route, proposal_out, proposal_hops, meta = _best_2hop_route_adaptive_prune(
-            pools=pools,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_in=amount_in,
-            topk_max=int(kmax),
-            prefer_gpu=bool(args.prefer_gpu),
-        )
-    else:
-        proposal_route, proposal_out, proposal_hops, meta = _best_2hop_route_topk(
-            pools=pools,
-            asset_in=asset_in,
-            asset_out=asset_out,
-            amount_in=amount_in,
-            topk=int(args.topk),
-            prefer_gpu=bool(args.prefer_gpu),
-        )
-
-    improves = False
-    if proposal_route is not None and proposal_out > baseline_out:
-        improves = True
-    else:
-        # Degrade gracefully: produce a witness with proposal==baseline for debugging.
-        proposal_route = baseline_route
-        proposal_out = baseline_out
-        proposal_hops = list(baseline_hops)
-
-    if not improves and not bool(args.allow_no_improvement):
-        raise ValueError("no 2-hop improvement found over baseline (use --allow-no-improvement to emit witness anyway)")
-
-    out_obj = {
-        "schema": "zenodex/route_improvement_witness/v1",
-        "job": {"asset_in": asset_in, "asset_out": asset_out, "amount_in": int(amount_in), "max_hops": 2},
-        "baseline": {
-            "route": [{"pool_id": h.pool_id, "asset_in": h.asset_in, "asset_out": h.asset_out} for h in baseline_route.hops],
-            "amount_out": int(baseline_out),
-            "hop_io": list(baseline_hops),
-        },
-        "proposal": {
-            "route": [{"pool_id": h.pool_id, "asset_in": h.asset_in, "asset_out": h.asset_out} for h in proposal_route.hops],
-            "amount_out": int(proposal_out),
-            "hop_io": list(proposal_hops),
-        },
-        "improves": bool(improves),
-        "meta": dict(meta),
-        "pools": [_pool_json(p) for p in pools],
-    }
     Path(args.output).write_text(json.dumps(out_obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
