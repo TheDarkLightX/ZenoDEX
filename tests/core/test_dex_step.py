@@ -70,6 +70,21 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
         Intent(
             module="TauSwap",
             version="0.1",
+            kind=IntentKind.SWAP_EXACT_OUT,
+            intent_id=_iid(5),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset1,
+                "asset_out": asset0,
+                "amount_out": 500,
+                "max_amount_in": 10_000_000,
+            },
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
             kind=IntentKind.ADD_LIQUIDITY,
             intent_id=_iid(3),
             sender_pubkey=pk,
@@ -115,4 +130,3 @@ def test_dex_step_end_to_end_create_swap_lp() -> None:
     # Fee split is computed when configured.
     assert int(res.effects["total_swap_fees"]) >= 0
     assert res.effects["fee_split"] is not None
-

@@ -84,6 +84,7 @@ def _validate_and_apply_settlement(
             pre_lp_balances=state.lp_balances,
         )
     else:
+        allow_cow = str(config.swap_ordering) == "cow_pair_netting_v1"
         ok, err = validate_settlement_strong(
             settlement=settlement,
             intents=intents,
@@ -91,6 +92,7 @@ def _validate_and_apply_settlement(
             pre_pools=state.pools,
             pre_lp_balances=state.lp_balances,
             mode=str(config.settlement_validation),
+            allow_cow_netting=bool(allow_cow),
         )
     if not ok:
         return DexStepResult(ok=False, error=err or "settlement invalid")

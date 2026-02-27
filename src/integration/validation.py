@@ -69,6 +69,7 @@ def validate_operations(
             pre_pools=pools,
             pre_lp_balances=lp_balances,
             mode=str(settlement_validation),
+            allow_cow_netting=False,
         )
         if not is_valid:
             return False, error
