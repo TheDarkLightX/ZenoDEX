@@ -35,6 +35,7 @@ class Candidate:
     params: dict[str, int | bool | str]
     boundary_score: float
     boundary_tags: tuple[str, ...]
+    is_baseline: bool = False
 
     def signature(self) -> tuple[str, tuple[tuple[str, object], ...]]:
         return (str(self.action_id), tuple(sorted((str(k), self.params[k]) for k in self.params.keys())))
@@ -216,6 +217,7 @@ def _build_candidates_for_action(action: Any, *, named_types: Mapping[str, Any],
     seen: set[tuple[str, tuple[tuple[str, object], ...]]] = set()
 
     def add_candidate(param_values: Mapping[str, int | bool | str]) -> None:
+        add_baseline = param_values == baseline
         params_obj = {str(k): param_values[k] for k in sorted(param_values.keys(), key=str)}
         sig = (str(action.id), tuple((k, params_obj[k]) for k in params_obj.keys()))
         if sig in seen:
@@ -234,6 +236,7 @@ def _build_candidates_for_action(action: Any, *, named_types: Mapping[str, Any],
                 params=params_obj,
                 boundary_score=float(bscore),
                 boundary_tags=tuple(sorted(tags)),
+                is_baseline=bool(add_baseline),
             )
         )
 
@@ -268,7 +271,15 @@ def _build_candidates_for_action(action: Any, *, named_types: Mapping[str, Any],
 
     candidates.sort(key=lambda c: (float(c.boundary_score), c.signature()), reverse=True)
     if len(candidates) > int(max_candidates):
+        baseline = None
+        for c in candidates:
+            if c.is_baseline:
+                baseline = c
+                break
         candidates = candidates[: int(max_candidates)]
+        if baseline is not None and baseline not in candidates:
+            # Preserve the baseline candidate for reachability exploration.
+            candidates[-1] = baseline
     return candidates
 
 
@@ -296,6 +307,157 @@ def _state_boundary_hits(state: Mapping[str, object], state_types: Mapping[str, 
         if int(v) in {int(lo), int(lo) + 1, int(hi) - 1, int(hi)}:
             hits += 1
     return int(hits)
+
+
+def _best_baseline_candidate(candidates: list[Candidate]) -> Candidate:
+    for c in candidates:
+        if c.is_baseline:
+            return c
+    # Should never happen (baseline is always added), but fail-closed if it does.
+    return candidates[0]
+
+
+def _state_pool_replace(
+    *,
+    pool: list[dict[str, object]],
+    pool_scores: list[int],
+    new_state: dict[str, object],
+    new_score: int,
+    seed_rng: random.Random,
+) -> None:
+    """
+    Replace a state in a fixed-size pool to keep boundary-dense states.
+
+    Deterministic posture:
+    - Replace the lowest-score state; tie-break by lexicographic state signature.
+    """
+    if not pool:
+        pool.append(dict(new_state))
+        pool_scores.append(int(new_score))
+        return
+    min_score = min(pool_scores)
+    if int(new_score) < int(min_score):
+        # Not better; keep pool stable.
+        return
+
+    # Find all lowest-score indices.
+    lows = [i for i, sc in enumerate(pool_scores) if int(sc) == int(min_score)]
+    if len(lows) == 1:
+        idx = lows[0]
+    else:
+        # Break ties deterministically using state sig, and as a last resort
+        # a seeded RNG (to avoid quadratic scans when many ties exist).
+        best_sig = None
+        best_idx = lows[0]
+        for i in lows:
+            sig = _state_sig(pool[i])
+            if best_sig is None or sig < best_sig:
+                best_sig = sig
+                best_idx = i
+        idx = best_idx
+        # If new state is identical to the best tie, don't churn.
+        if _state_sig(pool[idx]) == _state_sig(new_state):
+            return
+
+    pool[idx] = dict(new_state)
+    pool_scores[idx] = int(new_score)
+
+
+def _build_global_state_pool_mcmc(
+    *,
+    ir: Any,
+    ctx: Any,
+    initial_state: Mapping[str, object],
+    state_types: Mapping[str, Any],
+    candidates_by_action: Mapping[str, list[Candidate]],
+    max_states: int,
+    walk_steps: int,
+    reset_prob: float,
+    baseline_prob: float,
+    top_k_candidates: int,
+    seed: int,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
+    """
+    Build a global pre-state pool via a deterministic Markov-chain random walk.
+
+    Motivation:
+    Some actions are only reachable after other actions (e.g. settle_epoch after
+    publish_clearing_price). Per-action sampling from only the kernel init state
+    misses these success paths.
+    """
+    rng = random.Random(int(seed))
+
+    s0 = {str(k): initial_state[k] for k in sorted(initial_state.keys(), key=str)}
+    pool: list[dict[str, object]] = [s0]
+    pool_scores: list[int] = [_state_boundary_hits(s0, state_types)]
+    seen: set[str] = {_state_sig(s0)}
+
+    # Walk over the state graph; current state is part of the Markov chain.
+    cur = dict(s0)
+
+    action_ids = [str(a.id) for a in list(ir.actions)]
+    action_ids.sort()
+    action_pulls: dict[str, int] = {aid: 0 for aid in action_ids}
+    action_accepts: dict[str, int] = {aid: 0 for aid in action_ids}
+
+    for _t in range(int(walk_steps)):
+        if rng.random() < float(reset_prob):
+            cur = dict(pool[int(rng.randrange(len(pool)))])
+
+        # Prefer under-explored actions to keep the pool diverse.
+        min_pull = min(action_pulls.values()) if action_pulls else 0
+        low_actions = [aid for aid, n in action_pulls.items() if int(n) == int(min_pull)]
+        if low_actions:
+            aid = low_actions[int(rng.randrange(len(low_actions)))]
+        else:
+            aid = action_ids[int(rng.randrange(len(action_ids)))]
+        action_pulls[aid] = int(action_pulls.get(aid, 0)) + 1
+
+        cands = list(candidates_by_action.get(aid, []))
+        if not cands:
+            continue
+        baseline = _best_baseline_candidate(cands)
+        cands.sort(key=lambda c: (float(c.boundary_score), c.signature()), reverse=True)
+        cands = cands[: max(1, int(top_k_candidates))]
+        if baseline not in cands:
+            cands.append(baseline)
+
+        if rng.random() < float(baseline_prob):
+            cand = baseline
+        else:
+            cand = cands[int(rng.randrange(len(cands)))]
+
+        rec = _evaluate_candidate(ir=ir, ctx=ctx, state=cur, candidate=cand, state_types=state_types)
+        if rec.next_state is None:
+            continue
+
+        action_accepts[aid] = int(action_accepts.get(aid, 0)) + 1
+        cur = dict(rec.next_state)
+
+        sig = _state_sig(cur)
+        if sig in seen:
+            continue
+        seen.add(sig)
+
+        score = _state_boundary_hits(cur, state_types)
+        if len(pool) < int(max_states):
+            pool.append(dict(cur))
+            pool_scores.append(int(score))
+        else:
+            _state_pool_replace(pool=pool, pool_scores=pool_scores, new_state=cur, new_score=score, seed_rng=rng)
+
+    summary = {
+        "max_states": int(max_states),
+        "walk_steps": int(walk_steps),
+        "reset_prob": float(reset_prob),
+        "baseline_prob": float(baseline_prob),
+        "top_k_candidates": int(top_k_candidates),
+        "state_pool_size": int(len(pool)),
+        "unique_states_seen": int(len(seen)),
+        "action_pulls": {k: int(action_pulls[k]) for k in sorted(action_pulls.keys())},
+        "action_accepts": {k: int(action_accepts[k]) for k in sorted(action_accepts.keys())},
+    }
+    return pool, summary
 
 
 def _evaluate_candidate(
@@ -405,12 +567,170 @@ def _param_l1_distance(a: Mapping[str, object], b: Mapping[str, object]) -> floa
     return float(dist)
 
 
+def _action_param_type_map(*, action: Any, named_types: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for p in list(getattr(action, "params", None) or ()):
+        t = p.type.resolved(named_types) if p.type.kind == "ref" else p.type
+        out[str(p.id)] = t
+    return out
+
+
+def _candidate_from_params(
+    *,
+    action_id: str,
+    params: Mapping[str, object],
+    param_types: Mapping[str, Any],
+    extra_tags: tuple[str, ...] = tuple(),
+    boundary_score_boost: float = 0.0,
+) -> Candidate:
+    params_obj: dict[str, int | bool | str] = {}
+    for k in sorted(params.keys(), key=str):
+        v = params[k]
+        if isinstance(v, bool):
+            params_obj[str(k)] = bool(v)
+        elif isinstance(v, int) and not isinstance(v, bool):
+            params_obj[str(k)] = int(v)
+        elif isinstance(v, str):
+            params_obj[str(k)] = str(v)
+        else:
+            raise ValueError(f"unsupported param value type for {k!r}: {type(v).__name__}")
+
+    scores: list[float] = []
+    tags: list[str] = []
+    for pid, val in params_obj.items():
+        t = param_types.get(pid)
+        if t is None:
+            # Fail-closed; action/param types should be available.
+            raise ValueError(f"missing param type for {pid!r}")
+        sc, tg = _boundary_feature_for_param(param_id=pid, value=val, t=t)
+        scores.append(float(sc))
+        tags.append(str(tg))
+    bscore = (sum(scores) / float(len(scores))) if scores else 0.0
+    bscore = max(0.0, min(1.0, float(bscore) + float(boundary_score_boost)))
+    all_tags = tuple(sorted(set(tuple(tags) + tuple(extra_tags))))
+    return Candidate(
+        action_id=str(action_id),
+        params=params_obj,
+        boundary_score=float(bscore),
+        boundary_tags=all_tags,
+        is_baseline=False,
+    )
+
+
+def _evalrecord_with_reward_and_tags(
+    rec: EvalRecord, *, reward_add: float, extra_tags: tuple[str, ...]
+) -> EvalRecord:
+    tags = tuple(sorted(set(tuple(rec.boundary_tags) + tuple(extra_tags))))
+    return EvalRecord(
+        reward=float(rec.reward) + float(reward_add),
+        pre_state=dict(rec.pre_state),
+        action=str(rec.action),
+        params=dict(rec.params),
+        expected=dict(rec.expected),
+        boundary_score=float(rec.boundary_score),
+        boundary_tags=tags,
+        outcome_key=str(rec.outcome_key),
+        next_state=(dict(rec.next_state) if rec.next_state is not None else None),
+    )
+
+
+def _refine_pair_bisection(
+    *,
+    ir: Any,
+    ctx: Any,
+    pre_state: Mapping[str, object],
+    action_id: str,
+    param_types: Mapping[str, Any],
+    state_types: Mapping[str, Any],
+    a_params: Mapping[str, object],
+    a_outcome: str,
+    b_params: Mapping[str, object],
+    b_outcome: str,
+    max_steps: int,
+    boundary_tag: str,
+) -> list[EvalRecord]:
+    """
+    Refine a discovered outcome boundary via deterministic integer bisection.
+
+    We keep one endpoint fixed to outcome `a_outcome` and shrink the segment to
+    the nearest boundary along the line between the two parameter vectors.
+    """
+    if int(max_steps) <= 0:
+        return []
+
+    # Only bisect when int params differ; keep non-int params from a.
+    int_keys: list[str] = []
+    for k, t in param_types.items():
+        if str(getattr(t, "kind", "")) != "int":
+            continue
+        va = a_params.get(k)
+        vb = b_params.get(k)
+        if isinstance(va, int) and not isinstance(va, bool) and isinstance(vb, int) and not isinstance(vb, bool):
+            if int(va) != int(vb):
+                int_keys.append(str(k))
+    int_keys.sort()
+    if not int_keys:
+        return []
+
+    pa = {str(k): a_params[k] for k in sorted(a_params.keys(), key=str)}
+    pb = {str(k): b_params[k] for k in sorted(b_params.keys(), key=str)}
+
+    refined: list[EvalRecord] = []
+    for _i in range(int(max_steps)):
+        d = _param_l1_distance(pa, pb)
+        if d <= 1.0:
+            break
+
+        mid = dict(pa)
+        progressed = False
+        for k in int_keys:
+            ta = param_types[k]
+            lo = int(getattr(ta, "min", 0))
+            hi = int(getattr(ta, "max", 0))
+            a = int(pa[k])
+            b = int(pb[k])
+            if a == b:
+                continue
+            progressed = True
+            m = (a + b) // 2
+            # Allow the classic BVA "just outside" points, but don't drift.
+            m = max(int(lo) - 1, min(int(hi) + 1, int(m)))
+            mid[k] = int(m)
+        if not progressed:
+            break
+        if _json_dumps(mid) == _json_dumps(pa) or _json_dumps(mid) == _json_dumps(pb):
+            break
+
+        cand = _candidate_from_params(
+            action_id=str(action_id),
+            params=mid,
+            param_types=param_types,
+            extra_tags=(str(boundary_tag),),
+            # Boost so refined cases are not starved by coverage selection.
+            boundary_score_boost=0.35,
+        )
+        rec = _evaluate_candidate(ir=ir, ctx=ctx, state=pre_state, candidate=cand, state_types=state_types)
+
+        # The closer we get to the boundary, the higher the bonus.
+        bonus = 0.85 / (1.0 + float(d))
+        rec2 = _evalrecord_with_reward_and_tags(rec, reward_add=float(bonus), extra_tags=(str(boundary_tag),))
+        refined.append(rec2)
+
+        if str(rec.outcome_key) == str(a_outcome):
+            pa = dict(mid)
+        else:
+            pb = dict(mid)
+
+    return refined
+
+
 def _ucb_generate_for_action(
     *,
     ir: Any,
     ctx: Any,
     action: Any,
-    initial_state: Mapping[str, object],
+    candidates: list[Candidate],
+    state_pool_seed: list[dict[str, object]],
     state_types: Mapping[str, Any],
     cases_per_action: int,
     iterations_per_action: int,
@@ -418,10 +738,14 @@ def _ucb_generate_for_action(
     max_states: int,
     alpha: float,
     seed: int,
+    refine_pairs_per_action: int,
+    refine_max_steps: int,
 ) -> tuple[list[EvalRecord], dict[str, object]]:
-    candidates = _build_candidates_for_action(action, named_types=ir.named_types(), max_candidates=max_candidates_per_action)
     if not candidates:
         return [], {"candidate_count": 0, "state_pool_size": 1}
+    candidates = list(candidates)
+    if len(candidates) > int(max_candidates_per_action):
+        candidates = candidates[: int(max_candidates_per_action)]
 
     pulls = [0 for _ in candidates]
     means = [0.0 for _ in candidates]
@@ -429,11 +753,31 @@ def _ucb_generate_for_action(
     gathered: list[EvalRecord] = []
     novelty_seen: set[tuple[str, str, str]] = set()
     seen_outcomes_by_state: dict[str, list[tuple[dict[str, object], str]]] = {}
+    pre_state_by_sig: dict[str, dict[str, object]] = {}
     rng = random.Random(int(seed))
 
-    s0 = {str(k): initial_state[k] for k in sorted(initial_state.keys(), key=str)}
-    state_pool: list[dict[str, object]] = [s0]
-    state_seen: set[str] = {_state_sig(s0)}
+    if not state_pool_seed:
+        raise ValueError("state_pool_seed must be non-empty")
+    seed_pool = [{str(k): st[k] for k in sorted(st.keys(), key=str)} for st in state_pool_seed]
+    # Deduplicate while preserving deterministic order.
+    state_pool: list[dict[str, object]] = []
+    state_seen: set[str] = set()
+    for st in seed_pool:
+        sig = _state_sig(st)
+        if sig in state_seen:
+            continue
+        state_seen.add(sig)
+        state_pool.append(st)
+    if not state_pool:
+        raise ValueError("state_pool_seed produced empty pool")
+
+    # Pre-compute viable pre-states: those where the baseline candidate is accepted.
+    viable_states: list[dict[str, object]] = []
+    baseline = _best_baseline_candidate(candidates)
+    for st in state_pool:
+        rec0 = _evaluate_candidate(ir=ir, ctx=ctx, state=st, candidate=baseline, state_types=state_types)
+        if rec0.next_state is not None:
+            viable_states.append(st)
 
     iters = max(int(iterations_per_action), int(cases_per_action) * 4, len(candidates) * 2)
     for i in range(iters):
@@ -465,8 +809,12 @@ def _ucb_generate_for_action(
             idx = tied[int(rng.randrange(len(tied)))]
 
         cand = candidates[idx]
-        st = state_pool[int(rng.randrange(len(state_pool)))]
+        if viable_states and rng.random() < 0.75:
+            st = viable_states[int(rng.randrange(len(viable_states)))]
+        else:
+            st = state_pool[int(rng.randrange(len(state_pool)))]
         rec = _evaluate_candidate(ir=ir, ctx=ctx, state=st, candidate=cand, state_types=state_types)
+        pre_state_by_sig.setdefault(_state_sig(rec.pre_state), dict(rec.pre_state))
 
         nov_key = (
             _json_dumps({"a": rec.action, "p": rec.params}),
@@ -507,12 +855,69 @@ def _ucb_generate_for_action(
                 state_seen.add(sig)
                 state_pool.append(dict(rec.next_state))
 
+    named_types = ir.named_types()
+    param_types = _action_param_type_map(action=action, named_types=named_types)
+
+    if int(refine_pairs_per_action) > 0 and int(refine_max_steps) > 0:
+        # Build a small set of (close) outcome-crossing pairs per pre-state, then bisect.
+        pairs: list[tuple[float, str, str, str, dict[str, object], str, dict[str, object], str]] = []
+        for pre_sig in sorted(seen_outcomes_by_state.keys(), key=str):
+            entries = list(seen_outcomes_by_state.get(pre_sig, []))
+            # Unique by (params_sig, outcome_key) to keep O(n^2) bounded.
+            uniq: dict[tuple[str, str], dict[str, object]] = {}
+            for params_obj, outcome_key in entries:
+                psig = _json_dumps({str(k): params_obj[k] for k in sorted(params_obj.keys(), key=str)})
+                uniq.setdefault((psig, str(outcome_key)), dict(params_obj))
+            uniq_entries: list[tuple[str, dict[str, object], str]] = []
+            for (psig, outcome_key), params_obj in sorted(uniq.items(), key=lambda x: (x[0][0], x[0][1])):
+                uniq_entries.append((psig, params_obj, str(outcome_key)))
+            for i in range(len(uniq_entries)):
+                psig_a, pa, oa = uniq_entries[i]
+                for j in range(i + 1, len(uniq_entries)):
+                    psig_b, pb, ob = uniq_entries[j]
+                    if oa == ob:
+                        continue
+                    dist = _param_l1_distance(pa, pb)
+                    pairs.append((float(dist), str(pre_sig), str(psig_a), str(oa), pa, str(psig_b), pb, str(ob)))
+        pairs.sort(key=lambda t: (float(t[0]), str(t[1]), str(t[2]), str(t[3]), str(t[5]), str(t[7])))
+        for dist, pre_sig, psig_a, oa, pa, psig_b, pb, ob in pairs[: int(refine_pairs_per_action)]:
+            pre_state = pre_state_by_sig.get(str(pre_sig))
+            if pre_state is None:
+                continue
+            boundary_tag = f"refine:bisect:{oa}->{ob}"
+            refined = _refine_pair_bisection(
+                ir=ir,
+                ctx=ctx,
+                pre_state=pre_state,
+                action_id=str(action.id),
+                param_types=param_types,
+                state_types=state_types,
+                a_params=pa,
+                a_outcome=str(oa),
+                b_params=pb,
+                b_outcome=str(ob),
+                max_steps=int(refine_max_steps),
+                boundary_tag=str(boundary_tag),
+            )
+            for rec in refined:
+                nov_key = (
+                    _json_dumps({"a": rec.action, "p": rec.params}),
+                    str(rec.outcome_key),
+                    _state_sig(rec.pre_state),
+                )
+                if nov_key in novelty_seen:
+                    continue
+                novelty_seen.add(nov_key)
+                gathered.append(rec)
+
     selected = _select_cases_with_coverage(gathered, want=int(cases_per_action))
     summary = {
         "candidate_count": int(len(candidates)),
         "iterations": int(iters),
         "state_pool_size": int(len(state_pool)),
         "raw_record_count": int(len(gathered)),
+        "refine_pairs_per_action": int(refine_pairs_per_action),
+        "refine_max_steps": int(refine_max_steps),
     }
     return selected, summary
 
@@ -524,6 +929,12 @@ def generate_ml_bva_suite(
     iterations_per_action: int,
     max_candidates_per_action: int,
     max_states: int,
+    global_walk_steps: int,
+    global_reset_prob: float,
+    global_baseline_prob: float,
+    global_top_k_candidates: int,
+    refine_pairs_per_action: int,
+    refine_max_steps: int,
     alpha: float,
     seed: int,
 ) -> dict[str, object]:
@@ -535,6 +946,18 @@ def generate_ml_bva_suite(
         raise ValueError("max_candidates_per_action must be > 0")
     if int(max_states) <= 0:
         raise ValueError("max_states must be > 0")
+    if int(global_walk_steps) <= 0:
+        raise ValueError("global_walk_steps must be > 0")
+    if float(global_reset_prob) < 0.0 or float(global_reset_prob) > 1.0:
+        raise ValueError("global_reset_prob must be in [0,1]")
+    if float(global_baseline_prob) < 0.0 or float(global_baseline_prob) > 1.0:
+        raise ValueError("global_baseline_prob must be in [0,1]")
+    if int(global_top_k_candidates) <= 0:
+        raise ValueError("global_top_k_candidates must be > 0")
+    if int(refine_pairs_per_action) < 0:
+        raise ValueError("refine_pairs_per_action must be >= 0")
+    if int(refine_max_steps) < 0:
+        raise ValueError("refine_max_steps must be >= 0")
     if float(alpha) <= 0.0:
         raise ValueError("alpha must be > 0")
 
@@ -561,15 +984,42 @@ def generate_ml_bva_suite(
     s0 = dict(initial_state(ir))
     state_types = _state_type_map(ir)
 
+    # Precompute boundary candidates per action and build a global state pool
+    # with cross-action reachability (Markov-chain walk).
+    candidates_by_action: dict[str, list[Candidate]] = {}
+    actions_sorted = sorted(list(ir.actions), key=lambda a: str(a.id))
+    named_types = ir.named_types()
+    for action in actions_sorted:
+        action_id = str(action.id)
+        candidates_by_action[action_id] = _build_candidates_for_action(
+            action,
+            named_types=named_types,
+            max_candidates=int(max_candidates_per_action),
+        )
+    global_states, global_summary = _build_global_state_pool_mcmc(
+        ir=ir,
+        ctx=ctx,
+        initial_state=s0,
+        state_types=state_types,
+        candidates_by_action=candidates_by_action,
+        max_states=int(max_states),
+        walk_steps=int(global_walk_steps),
+        reset_prob=float(global_reset_prob),
+        baseline_prob=float(global_baseline_prob),
+        top_k_candidates=int(global_top_k_candidates),
+        seed=int(seed),
+    )
+
     all_cases: list[dict[str, object]] = []
     per_action: dict[str, object] = {}
-    for action in list(ir.actions):
+    for action in actions_sorted:
         action_id = str(action.id)
         selected, summary = _ucb_generate_for_action(
             ir=ir,
             ctx=ctx,
             action=action,
-            initial_state=s0,
+            candidates=candidates_by_action[action_id],
+            state_pool_seed=global_states,
             state_types=state_types,
             cases_per_action=int(cases_per_action),
             iterations_per_action=int(iterations_per_action),
@@ -577,6 +1027,8 @@ def generate_ml_bva_suite(
             max_states=int(max_states),
             alpha=float(alpha),
             seed=int(seed) + int(sum(ord(ch) for ch in action_id)),
+            refine_pairs_per_action=int(refine_pairs_per_action),
+            refine_max_steps=int(refine_max_steps),
         )
         per_action[action_id] = {"selected": int(len(selected)), **summary}
         for r in selected:
@@ -605,6 +1057,9 @@ def generate_ml_bva_suite(
             "iterations_per_action": int(iterations_per_action),
             "max_candidates_per_action": int(max_candidates_per_action),
             "max_states": int(max_states),
+            "global_state_pool": dict(global_summary),
+            "refine_pairs_per_action": int(refine_pairs_per_action),
+            "refine_max_steps": int(refine_max_steps),
             "pair_density_bonus": True,
             "outside_boundary_candidates": True,
         },
@@ -635,6 +1090,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--iterations-per-action", type=int, default=220)
     ap.add_argument("--max-candidates-per-action", type=int, default=400)
     ap.add_argument("--max-states", type=int, default=128)
+    ap.add_argument("--global-walk-steps", type=int, default=800)
+    ap.add_argument("--global-reset-prob", type=float, default=0.15)
+    ap.add_argument("--global-baseline-prob", type=float, default=0.25)
+    ap.add_argument("--global-top-k-candidates", type=int, default=40)
+    ap.add_argument("--refine-pairs-per-action", type=int, default=12)
+    ap.add_argument("--refine-max-steps", type=int, default=6)
     ap.add_argument("--alpha", type=float, default=1.25, help="UCB exploration coefficient.")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--pretty", action="store_true")
@@ -649,6 +1110,12 @@ def main(argv: list[str] | None = None) -> int:
         iterations_per_action=int(args.iterations_per_action),
         max_candidates_per_action=int(args.max_candidates_per_action),
         max_states=int(args.max_states),
+        global_walk_steps=int(args.global_walk_steps),
+        global_reset_prob=float(args.global_reset_prob),
+        global_baseline_prob=float(args.global_baseline_prob),
+        global_top_k_candidates=int(args.global_top_k_candidates),
+        refine_pairs_per_action=int(args.refine_pairs_per_action),
+        refine_max_steps=int(args.refine_max_steps),
         alpha=float(args.alpha),
         seed=int(args.seed),
     )
