@@ -3,8 +3,8 @@
 GPU-assisted 2-hop CPMM route search (exact-in), emitting a replayable witness.
 
 Design goal: "expensive search, cheap verification".
-- Search: optionally uses Torch (MPS/CUDA) with float64 *approximation* to rank
-  many 2-hop candidates quickly.
+- Search: optionally uses Torch (MPS/CUDA) or CuPy (CUDA) with float64
+  *approximation* to rank many 2-hop candidates quickly.
 - Binding: exact amounts are always computed by deterministic integer replay
   using the functional core CPMM kernel; GPU never decides the final amount.
 - Verification: a verifier can deterministically replay the witness and check:
@@ -45,6 +45,15 @@ def _try_import_torch() -> Any | None:
         import torch  # type: ignore
 
         return torch
+    except Exception:
+        return None
+
+
+def _try_import_cupy() -> Any | None:
+    try:
+        import cupy  # type: ignore
+
+        return cupy
     except Exception:
         return None
 
@@ -338,6 +347,58 @@ def _approx_2hop_outputs_torch(
     return out_list, backend
 
 
+def _approx_2hop_outputs_cupy(
+    cands: Sequence[Tuple[PoolState, PoolState, AssetId]],
+    *,
+    asset_in: AssetId,
+    asset_out: AssetId,
+    amount_in: int,
+) -> Tuple[List[float], str]:
+    cp = _try_import_cupy()
+    if cp is None:
+        raise RuntimeError("cupy not available")
+
+    def _dir_reserves(p: PoolState, a_in: AssetId, a_out: AssetId) -> Tuple[float, float]:
+        if a_in == p.asset0 and a_out == p.asset1:
+            return float(p.reserve0), float(p.reserve1)
+        if a_in == p.asset1 and a_out == p.asset0:
+            return float(p.reserve1), float(p.reserve0)
+        raise ValueError("bad direction")
+
+    r1_in: List[float] = []
+    r1_out: List[float] = []
+    f1: List[float] = []
+    r2_in: List[float] = []
+    r2_out: List[float] = []
+    f2: List[float] = []
+
+    for p1, p2, mid in cands:
+        rin1, rout1 = _dir_reserves(p1, asset_in, mid)
+        rin2, rout2 = _dir_reserves(p2, mid, asset_out)
+        r1_in.append(rin1)
+        r1_out.append(rout1)
+        f1.append(float(p1.fee_bps))
+        r2_in.append(rin2)
+        r2_out.append(rout2)
+        f2.append(float(p2.fee_bps))
+
+    t_r1_in = cp.asarray(r1_in, dtype=cp.float64)
+    t_r1_out = cp.asarray(r1_out, dtype=cp.float64)
+    t_f1 = cp.asarray(f1, dtype=cp.float64)
+    t_r2_in = cp.asarray(r2_in, dtype=cp.float64)
+    t_r2_out = cp.asarray(r2_out, dtype=cp.float64)
+    t_f2 = cp.asarray(f2, dtype=cp.float64)
+
+    amt = cp.full((len(cands),), float(amount_in), dtype=cp.float64)
+    net1 = amt * (float(BPS_DENOM) - t_f1) / float(BPS_DENOM)
+    out1 = t_r1_out * net1 / (t_r1_in + net1)
+    net2 = out1 * (float(BPS_DENOM) - t_f2) / float(BPS_DENOM)
+    out2 = t_r2_out * net2 / (t_r2_in + net2)
+
+    out_list = [float(x) for x in cp.asnumpy(out2).tolist()]
+    return out_list, "cupy:cuda"
+
+
 def _approx_2hop_outputs_cpu(
     cands: Sequence[Tuple[PoolState, PoolState, AssetId]],
     *,
@@ -412,6 +473,8 @@ def _best_2hop_route_topk(
     torch = _try_import_torch()
     if torch is not None:
         approx, backend = _approx_2hop_outputs_torch(cands, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in, prefer_gpu=prefer_gpu)
+    elif prefer_gpu and _try_import_cupy() is not None:
+        approx, backend = _approx_2hop_outputs_cupy(cands, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
     else:
         approx, backend = _approx_2hop_outputs_cpu(cands, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
 
@@ -658,6 +721,8 @@ def _best_2hop_route_adaptive_prune(
         approx, backend = _approx_2hop_outputs_torch(
             cands, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in, prefer_gpu=prefer_gpu
         )
+    elif prefer_gpu and _try_import_cupy() is not None:
+        approx, backend = _approx_2hop_outputs_cupy(cands, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
     else:
         approx, backend = _approx_2hop_outputs_cpu(cands, asset_in=asset_in, asset_out=asset_out, amount_in=amount_in)
 
@@ -752,7 +817,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--input", required=True, help="Path to job JSON: {asset_in,asset_out,amount_in,pools:[...]}.")
     ap.add_argument("--output", required=True, help="Path to write route-improvement witness JSON.")
-    ap.add_argument("--prefer-gpu", action="store_true", help="Prefer GPU backend when torch is available (MPS/CUDA).")
+    ap.add_argument("--prefer-gpu", action="store_true", help="Prefer GPU backend when available (Torch MPS/CUDA, or CuPy CUDA).")
     ap.add_argument("--topk", type=int, default=256, help="Exact-evaluate only the top-K approximate 2-hop candidates.")
     ap.add_argument(
         "--adaptive-prune",

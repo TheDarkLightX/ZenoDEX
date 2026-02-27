@@ -60,6 +60,7 @@ venv/
 env/
 ENV/
 .venv_audit/
+.venv_gpu/
 
 # IDE
 .vscode/
