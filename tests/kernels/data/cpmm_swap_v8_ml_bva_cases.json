@@ -1,0 +1,1049 @@
+{
+  "algorithm": {
+    "alpha": 1.35,
+    "cases_per_action": 30,
+    "global_state_pool": {
+      "action_accepts": {
+        "swap": 42
+      },
+      "action_pulls": {
+        "swap": 1600
+      },
+      "baseline_prob": 0.4,
+      "max_states": 256,
+      "reset_prob": 0.2,
+      "state_pool_size": 2,
+      "top_k_candidates": 80,
+      "unique_states_seen": 2,
+      "walk_steps": 1600
+    },
+    "iterations_per_action": 600,
+    "max_candidates_per_action": 800,
+    "max_states": 256,
+    "name": "ucb1_boundary_sampler",
+    "outside_boundary_candidates": true,
+    "pair_density_bonus": true,
+    "refine_max_steps": 8,
+    "refine_pairs_per_action": 30
+  },
+  "cases": [
+    {
+      "action": "swap",
+      "boundary_score": 0.975,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min",
+        "refine:bisect:ok->err:GuardFalse"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 853839,
+          "fee_split_ok": true,
+          "fee_total": 17579,
+          "gross_in": 5859376,
+          "k_after": 1002573255536,
+          "k_before": 1000000000000,
+          "lp_fee": 17579,
+          "net_in": 5841797,
+          "net_ok": true,
+          "new_reserve_in": 6859376,
+          "new_reserve_out": 146161,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 6859376,
+          "reserve_in_before": 1000000,
+          "reserve_out": 146161,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 5859376,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.31
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=max+1",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 3000000001,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=min-1",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 0,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 3000000001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.525,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min+1"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 999331,
+          "fee_split_ok": true,
+          "fee_total": 4500000,
+          "gross_in": 1500000000,
+          "k_after": 1004169000000,
+          "k_before": 1000000000000,
+          "lp_fee": 4500000,
+          "net_in": 1495500000,
+          "net_ok": true,
+          "new_reserve_in": 1501000000,
+          "new_reserve_out": 669,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 1501000000,
+          "reserve_in_before": 1000000,
+          "reserve_out": 669,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1500000000,
+        "min_amount_out": 2
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.13
+    },
+    {
+      "action": "swap",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=max",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 3000000000,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 3000000000
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "amount_in=max-1",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2999999999,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.61
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.61
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max-1"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 2999999999
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.61
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=mid"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 1500000000
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.5
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.6,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=mid",
+        "refine:bisect:err:GuardFalse->ok"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1500000000,
+        "min_amount_out": 5859376
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.49
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.975,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min",
+        "refine:bisect:ok->err:GuardFalse"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 921157,
+          "fee_split_ok": true,
+          "fee_total": 35157,
+          "gross_in": 11718751,
+          "k_after": 1002784485093,
+          "k_before": 1000000000000,
+          "lp_fee": 35157,
+          "net_in": 11683594,
+          "net_ok": true,
+          "new_reserve_in": 12718751,
+          "new_reserve_out": 78843,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 12718751,
+          "reserve_in_before": 1000000,
+          "reserve_out": 78843,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 11718751,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.31
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.975,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min",
+        "refine:bisect:ok->err:GuardFalse"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 958961,
+          "fee_split_ok": true,
+          "fee_total": 70313,
+          "gross_in": 23437501,
+          "k_after": 1002890603539,
+          "k_before": 1000000000000,
+          "lp_fee": 70313,
+          "net_in": 23367188,
+          "net_ok": true,
+          "new_reserve_in": 24437501,
+          "new_reserve_out": 41039,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 24437501,
+          "reserve_in_before": 1000000,
+          "reserve_out": 41039,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 23437501,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.31
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.975,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min",
+        "refine:bisect:ok->err:GuardFalse"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 979050,
+          "fee_split_ok": true,
+          "fee_total": 140626,
+          "gross_in": 46875001,
+          "k_after": 1002981270950,
+          "k_before": 1000000000000,
+          "lp_fee": 140626,
+          "net_in": 46734375,
+          "net_ok": true,
+          "new_reserve_in": 47875001,
+          "new_reserve_out": 20950,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 47875001,
+          "reserve_in_before": 1000000,
+          "reserve_out": 20950,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 46875001,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.31
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.975,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min",
+        "refine:bisect:ok->err:GuardFalse"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 989414,
+          "fee_split_ok": true,
+          "fee_total": 281251,
+          "gross_in": 93750001,
+          "k_after": 1003023510586,
+          "k_before": 1000000000000,
+          "lp_fee": 281251,
+          "net_in": 93468750,
+          "net_ok": true,
+          "new_reserve_in": 94750001,
+          "new_reserve_out": 10586,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 94750001,
+          "reserve_in_before": 1000000,
+          "reserve_out": 10586,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 93750001,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.31
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.975,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min",
+        "refine:bisect:ok->err:GuardFalse"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 994679,
+          "fee_split_ok": true,
+          "fee_total": 562501,
+          "gross_in": 187500001,
+          "k_after": 1003008505321,
+          "k_before": 1000000000000,
+          "lp_fee": 562501,
+          "net_in": 186937500,
+          "net_ok": true,
+          "new_reserve_in": 188500001,
+          "new_reserve_out": 5321,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 188500001,
+          "reserve_in_before": 1000000,
+          "reserve_out": 5321,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 187500001,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.31
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.975,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min",
+        "refine:bisect:ok->err:GuardFalse"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 997332,
+          "fee_split_ok": true,
+          "fee_total": 1125001,
+          "gross_in": 375000001,
+          "k_after": 1003168002668,
+          "k_before": 1000000000000,
+          "lp_fee": 1125001,
+          "net_in": 373875000,
+          "net_ok": true,
+          "new_reserve_in": 376000001,
+          "new_reserve_out": 2668,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 376000001,
+          "reserve_in_before": 1000000,
+          "reserve_out": 2668,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 375000001,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.31
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.975,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min",
+        "refine:bisect:ok->err:GuardFalse"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 998664,
+          "fee_split_ok": true,
+          "fee_total": 2250001,
+          "gross_in": 750000001,
+          "k_after": 1003336001336,
+          "k_before": 1000000000000,
+          "lp_fee": 2250001,
+          "net_in": 747750000,
+          "net_ok": true,
+          "new_reserve_in": 751000001,
+          "new_reserve_out": 1336,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 751000001,
+          "reserve_in_before": 1000000,
+          "reserve_out": 1336,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 750000001,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.31
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=mid",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "effects": {
+          "amount_out": 999331,
+          "fee_split_ok": true,
+          "fee_total": 4500000,
+          "gross_in": 1500000000,
+          "k_after": 1004169000000,
+          "k_before": 1000000000000,
+          "lp_fee": 4500000,
+          "net_in": 1495500000,
+          "net_ok": true,
+          "new_reserve_in": 1501000000,
+          "new_reserve_out": 669,
+          "protocol_fee": 0
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "protocol_fee_share_bps": 0,
+          "reserve_in": 1501000000,
+          "reserve_in_before": 1000000,
+          "reserve_out": 669,
+          "reserve_out_before": 1000000
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1500000000,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.17
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=max+1",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 3000000001,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=min-1",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 0,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 3000000001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "swap",
+      "boundary_score": 0.625,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 1.15
+    },
+    {
+      "action": "swap",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=max",
+        "min_amount_out=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 3000000000,
+        "min_amount_out": 3000000000
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=max",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 3000000000,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1501000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 669,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=max",
+        "min_amount_out=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 3000000000,
+        "min_amount_out": 3000000000
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "protocol_fee_share_bps": 0,
+        "reserve_in": 1000000,
+        "reserve_in_before": 1000000,
+        "reserve_out": 1000000,
+        "reserve_out_before": 1000000
+      },
+      "reward": 0.65
+    }
+  ],
+  "model_path": "src/kernels/dex/cpmm_swap_v8.yaml",
+  "model_sha256": "5d1918413413a8004360f98330ef2048b1eadfc8dc9aa5d2e24e9089c937fde8",
+  "schema": "zenodex/ml-boundary-bva/v1",
+  "seed": 0,
+  "summary": {
+    "action_count": 1,
+    "per_action": {
+      "swap": {
+        "candidate_count": 22,
+        "iterations": 600,
+        "raw_record_count": 60,
+        "refine_max_steps": 8,
+        "refine_pairs_per_action": 30,
+        "selected": 30,
+        "state_pool_size": 2
+      }
+    },
+    "total_cases": 30
+  }
+}
