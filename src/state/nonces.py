@@ -32,6 +32,10 @@ class NonceTable:
             raise ValueError(f"invalid stored nonce for {pubkey!r}: {v!r}")
         return int(v)
 
+    # Backward-compatible alias used by older integration code/tests.
+    def get(self, pubkey: PubKey) -> int:
+        return self.get_last(pubkey)
+
     def set_last(self, pubkey: PubKey, last_nonce: int) -> None:
         if not isinstance(last_nonce, int) or isinstance(last_nonce, bool) or last_nonce < 0:
             raise TypeError("last_nonce must be a non-negative int")
@@ -39,6 +43,10 @@ class NonceTable:
             raise TypeError("last_nonce must fit in u32")
         pk = canonical_hex_fixed_allow_0x(pubkey, nbytes=48, name="pubkey")
         self._last[pk] = int(last_nonce)
+
+    # Backward-compatible alias: apply accepted nonce update.
+    def apply_accept(self, pubkey: PubKey, nonce: int) -> None:
+        self.set_last(pubkey, nonce)
 
     def get_all(self) -> Mapping[PubKey, int]:
         # Return a shallow copy to avoid accidental mutation during iteration.
