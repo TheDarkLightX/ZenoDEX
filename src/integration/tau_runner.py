@@ -1,15 +1,18 @@
 """
 Tau spec runner utilities (imperative shell).
 
-This module is IO by design: it spawns the `tau` binary and parses outputs.
+This module is IO by design: it spawns the `tau` binary (or, optionally,
+uses Tau's Python bindings) and parses outputs.
 Keep it out of the functional core.
 """
 
 from __future__ import annotations
 
+import importlib
 import re
 import shutil
 import os
+import sys
 import select
 import signal
 import subprocess
@@ -17,6 +20,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 from typing import Dict, List, Optional, Sequence, Tuple
 
 
@@ -258,6 +262,167 @@ def find_tau_bin(project_root: Path = ROOT) -> Optional[str]:
         if c.exists() and c.is_file():
             return str(c)
     return shutil.which("tau")
+
+
+def _find_tau_python_binding_dirs(project_root: Path = ROOT) -> list[Path]:
+    """
+    Return candidate directories that may contain the compiled Tau Python extension.
+
+    Tau's nanobind build produces an extension named `tau.*.so` (or `.pyd`).
+    We keep this purely best-effort and do not raise on missing paths.
+    """
+    build_roots = [
+        project_root / "external" / "tau-lang" / "build-Release",
+        project_root / "external" / "tau-lang" / "build-Debug",
+    ]
+    exts = (".so", ".pyd", ".dylib")
+    dirs: set[Path] = set()
+    for root in build_roots:
+        if not root.exists():
+            continue
+        for ext in exts:
+            for p in root.rglob(f"tau*{ext}"):
+                if p.is_file():
+                    dirs.add(p.parent)
+    return sorted(dirs)
+
+
+def _try_import_tau_python_binding(project_root: Path = ROOT) -> Optional[ModuleType]:
+    """
+    Attempt to import Tau's Python bindings (built via `-DTAU_BUILD_BINDING_PYTHON=ON`).
+
+    Returns the imported module on success, else None.
+
+    IMPORTANT: This is best-effort tooling only. For consensus-critical verification,
+    prefer running the standalone `tau` binary in a separate process.
+    """
+    candidates = _find_tau_python_binding_dirs(project_root)
+    if not candidates:
+        return None
+
+    old_sys_path = list(sys.path)
+    try:
+        # Prepend all candidate directories. Once the extension is imported, it
+        # lives in `sys.modules` and doesn't require `sys.path` persistence.
+        for d in reversed(candidates):
+            ds = str(d)
+            if ds not in sys.path:
+                sys.path.insert(0, ds)
+        try:
+            mod = importlib.import_module("tau")
+        except Exception:
+            return None
+
+        # Guard against importing an unrelated `tau` package.
+        if not hasattr(mod, "get_interpreter") or not hasattr(mod, "get_inputs_for_step") or not hasattr(mod, "step"):
+            return None
+
+        return mod
+    finally:
+        sys.path = old_sys_path
+
+
+def _run_tau_spec_steps_via_python_binding(
+    spec_path: Path,
+    steps: List[Dict[str, int]],
+    *,
+    timeout_s: float,
+    project_root: Path = ROOT,
+) -> Dict[int, Dict[str, int]]:
+    tau = _try_import_tau_python_binding(project_root=project_root)
+    if tau is None:
+        raise RuntimeError(
+            "Tau Python bindings not available. Build Tau with "
+            "`-DTAU_BUILD_BINDING_PYTHON=ON` and ensure the resulting `tau.*.so` "
+            "is discoverable (this repo's helper searches under external/tau-lang/build-*)."
+        )
+
+    if not spec_path.exists():
+        raise FileNotFoundError(f"Tau spec not found: {spec_path}")
+
+    raw_spec_text = spec_path.read_text(encoding="utf-8")
+    spec_text = normalize_spec_text(raw_spec_text)
+    stream_types = extract_stream_types(spec_text)
+    input_streams = {k: v for k, v in stream_types.items() if k.startswith("i")}
+    output_streams = {k: v for k, v in stream_types.items() if k.startswith("o")}
+    always_exprs = extract_always_exprs(spec_text)
+    defs = parse_definitions(spec_text)
+
+    if not always_exprs:
+        raise RuntimeError(
+            "Tau Python-binding runner currently supports only specs that use "
+            "`always ... .` clauses (so it can compile them into a single expression for the API)."
+        )
+
+    # NOTE: Tau's string API expects a spec expression like:
+    #   (<expr1>) && (<expr2>) .
+    # not our REPL-friendly multi-line `always ... .` directives.
+    expanded_always_exprs = [inline_definitions(expr, defs) for expr in always_exprs]
+    spec_expr = " && ".join(f"({expr})" for expr in expanded_always_exprs if expr.strip())
+    if not spec_expr:
+        raise RuntimeError("empty always expression after normalization/inlining")
+    spec_for_api = spec_expr + "."
+
+    # Defensive posture: we observed reproducible segfaults in Tau's Python bindings
+    # when stepping specs that have sbf-typed *inputs* (e.g. i1[t]:sbf). Fail closed
+    # and require the subprocess runner for those specs.
+    for in_name, in_type in input_streams.items():
+        if in_type == "sbf":
+            raise RuntimeError(
+                f"Tau Python bindings unsafe for sbf input stream {in_name} "
+                f"(spec: {spec_path.name}); use the tau subprocess runner instead."
+            )
+
+    opts = tau.interpreter_options()
+    in_stream_objs: dict[str, object] = {}
+    out_stream_objs: dict[str, object] = {}
+
+    for name in sorted(input_streams.keys(), key=lambda s: int(s[1:])):
+        values: list[str] = []
+        for step in steps:
+            if name not in step:
+                raise ValueError(f"Missing {name} in Tau inputs for spec {spec_path}")
+            v = step[name]
+            if not isinstance(v, int) or isinstance(v, bool):
+                raise ValueError(f"{name} must be an int, got {v!r}")
+            values.append(str(v))
+        stream = tau.vector_input_stream(values)
+        opts.input_remaps[name] = stream
+        in_stream_objs[name] = stream
+
+    for name in sorted(output_streams.keys(), key=lambda s: int(s[1:])):
+        stream = tau.vector_output_stream()
+        opts.output_remaps[name] = stream
+        out_stream_objs[name] = stream
+
+    interp = tau.get_interpreter(spec_for_api, opts)
+    if interp is None:
+        raise RuntimeError(f"tau.get_interpreter returned None for spec: {spec_path}")
+
+    started = time.monotonic()
+    for _ in range(len(steps)):
+        if (time.monotonic() - started) > float(timeout_s):
+            raise RuntimeError(f"tau python binding runner timed out after {timeout_s}s")
+        # IMPORTANT: do not use `get_inputs_for_step` + `step(i, inputs)` here.
+        # We observed segfaults in the current nanobind layer for map-typed inputs.
+        tau.step(interp)
+
+    outputs_by_step: Dict[int, Dict[str, int]] = {}
+    for out_name, out_stream in out_stream_objs.items():
+        values = out_stream.get_values()
+        if len(values) != len(steps):
+            raise RuntimeError(
+                f"{out_name} output length mismatch: expected {len(steps)} line(s), got {len(values)}"
+            )
+        for idx, raw in enumerate(values):
+            raw_s = str(raw).strip()
+            try:
+                value = int(raw_s)
+            except Exception as exc:
+                raise RuntimeError(f"{out_name} output non-integer value: {raw_s!r}") from exc
+            outputs_by_step.setdefault(idx, {})[out_name] = value
+
+    return outputs_by_step
 
 
 def normalize_spec_text(spec_text: str) -> str:
@@ -599,7 +764,7 @@ def build_repl_script(
 
 
 def run_tau_spec_steps(
-    tau_bin: str,
+    tau_bin: Optional[str],
     spec_path: Path,
     steps: List[Dict[str, int]],
     *,
@@ -615,10 +780,14 @@ def run_tau_spec_steps(
         return {}
     if len(steps) > 10_000:
         raise ValueError(f"too many Tau steps: {len(steps)} > 10000")
-    if not tau_bin:
-        raise ValueError("tau_bin must be provided")
     if not spec_path.exists():
         raise FileNotFoundError(f"Tau spec not found: {spec_path}")
+    if not tau_bin:
+        if os.environ.get("TAU_USE_PY_BINDINGS") != "1":
+            raise ValueError(
+                "tau_bin must be provided (or set TAU_USE_PY_BINDINGS=1 to enable Tau Python bindings fallback)"
+            )
+        return _run_tau_spec_steps_via_python_binding(spec_path, steps, timeout_s=timeout_s)
 
     spec_text = normalize_spec_text(spec_path.read_text(encoding="utf-8"))
     stream_types = extract_stream_types(spec_text)
@@ -705,7 +874,7 @@ def run_tau_spec_steps(
 
 
 def run_tau_spec_steps_with_trace(
-    tau_bin: str,
+    tau_bin: Optional[str],
     spec_path: Path,
     steps: List[Dict[str, int]],
     *,
@@ -724,10 +893,17 @@ def run_tau_spec_steps_with_trace(
         return {}, "", "", ""
     if len(steps) > 10_000:
         raise ValueError(f"too many Tau steps: {len(steps)} > 10000")
-    if not tau_bin:
-        raise ValueError("tau_bin must be provided")
     if not spec_path.exists():
         raise FileNotFoundError(f"Tau spec not found: {spec_path}")
+    if not tau_bin:
+        if os.environ.get("TAU_USE_PY_BINDINGS") != "1":
+            raise ValueError(
+                "tau_bin must be provided (or set TAU_USE_PY_BINDINGS=1 to enable Tau Python bindings fallback)"
+            )
+        # The Python binding does not (currently) expose the same stdout/stderr REPL traces.
+        # Return an empty trace bundle to keep the caller contract stable.
+        outputs = _run_tau_spec_steps_via_python_binding(spec_path, steps, timeout_s=timeout_s)
+        return outputs, "", "", "(python bindings)"
 
     spec_text = normalize_spec_text(spec_path.read_text(encoding="utf-8"))
     stream_types = extract_stream_types(spec_text)

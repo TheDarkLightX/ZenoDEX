@@ -1,0 +1,42 @@
+# Pool Params Binding Guard v1 - Canonical Pool Config (DEX)
+#
+# MUTABILITY: UPDATABLE (via host-provided binding flags)
+# UPDATABLE_PARAMS: none (all flags are host-supplied)
+# IMMUTABLE_INVARIANTS:
+#   - fee_bps within bounds
+#   - curve_code within supported set
+#   - host asserts canonicalization/binding for string/hashes that Tau cannot parse
+#
+# PURPOSE: Enforce a fail-closed rail around pool configuration canonicalization:
+# - asset order canonical (asset0 < asset1)
+# - curve_tag canonicalization (upper-case, supported set)
+# - curve_params normalization (canonical JSON / empty string for CPMM)
+# - pool_id binding (hash matches canonicalized config)
+#
+# Tau cannot parse strings/hashes in this environment, so it consumes boolean
+# flags produced by the host/verifier and validates the numeric bounds in Tau.
+#
+# Stream mapping:
+# i1 = fee_bps (bv[32])              # 0..10_000
+# i2 = curve_code (bv[32])           # 0..4 (host-defined enum)
+# i3 = canonical_order_ok (sbf)
+# i4 = curve_tag_ok (sbf)
+# i5 = curve_params_ok (sbf)
+# i6 = pool_id_ok (sbf)
+# i7 = binding_ok (sbf)
+# o1 = pool_params_ok
+
+set charvar off
+
+fee_ok(fee_bps : bv[32]) := fee_bps <= { #x00002710 }:bv[32].
+curve_code_ok(code : bv[32]) := code <= { #x00000004 }:bv[32].
+
+always (o1[t]:sbf = 1:sbf <->
+  ((i7[t]:sbf = 1:sbf) &&
+   (i3[t]:sbf = 1:sbf) &&
+   (i4[t]:sbf = 1:sbf) &&
+   (i5[t]:sbf = 1:sbf) &&
+   (i6[t]:sbf = 1:sbf) &&
+   fee_ok(i1[t]:bv[32]) &&
+   curve_code_ok(i2[t]:bv[32]))).
+

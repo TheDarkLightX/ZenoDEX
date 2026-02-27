@@ -263,3 +263,165 @@ def test_chunked_delta_aggregation_preserves_semantics_and_order() -> None:
     ]
     for chunk_size in (1, 2, 4, 128):
         assert _aggregate_lp_deltas_chunked(lp_deltas, chunk_size=chunk_size) == expected_lp
+
+
+def test_cow_pair_netting_fills_opposite_exact_in_intents_without_pool_deltas() -> None:
+    pk_a = "0x" + "11" * 48
+    pk_b = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool = PoolState(
+        pool_id="0x" + "aa" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    pools = {pool.pool_id: pool}
+
+    balances = BalanceTable()
+    balances.set(pk_a, asset0, 1_000)
+    balances.set(pk_a, asset1, 0)
+    balances.set(pk_b, asset0, 0)
+    balances.set(pk_b, asset1, 2_000)
+    lp_balances = LPTable()
+
+    intents = [
+        # pk_a: asset0 -> asset1, requires at least 150 asset1.
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(1),
+            sender_pubkey=pk_a,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 100,
+                "min_amount_out": 150,
+            },
+        ),
+        # pk_b: asset1 -> asset0, requires at least 90 asset0.
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(2),
+            sender_pubkey=pk_b,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool.pool_id,
+                "asset_in": asset1,
+                "asset_out": asset0,
+                "amount_in": 200,
+                "min_amount_out": 90,
+            },
+        ),
+    ]
+
+    settlement = compute_settlement(
+        intents,
+        pools,
+        balances,
+        lp_balances,
+        swap_ordering="cow_pair_netting_v1",
+    )
+    ok, err = validate_settlement(settlement, balances, pools, lp_balances)
+    assert ok, err
+
+    filled = [f for f in settlement.fills if f.action.value == "FILL"]
+    assert [f.intent_id for f in filled] == [_iid(1), _iid(2)]
+    assert all(f.reason == "COW_NETTED" for f in filled)
+    assert all((f.fee_paid or 0) == 0 for f in filled)
+
+    # No pool interaction => no reserve deltas.
+    assert settlement.reserve_deltas == []
+
+
+def test_cow_pair_netting_bva_min_out_boundary() -> None:
+    # BVA: just below / at / above the matchability boundary.
+    pk_a = "0x" + "11" * 48
+    pk_b = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool = PoolState(
+        pool_id="0x" + "aa" * 32,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    pools = {pool.pool_id: pool}
+
+    balances = BalanceTable()
+    balances.set(pk_a, asset0, 1_000)
+    balances.set(pk_a, asset1, 0)
+    balances.set(pk_b, asset0, 0)
+    balances.set(pk_b, asset1, 2_000)
+    lp_balances = LPTable()
+
+    # Fix pk_b amount_in=200, so pk_a is matchable iff min_out <= 200.
+    for min_out_a, expect_netted in [(199, True), (200, True), (201, False)]:
+        intents = [
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_IN,
+                intent_id=_iid(1),
+                sender_pubkey=pk_a,
+                deadline=9999999999,
+                fields={
+                    "pool_id": pool.pool_id,
+                    "asset_in": asset0,
+                    "asset_out": asset1,
+                    "amount_in": 100,
+                    "min_amount_out": min_out_a,
+                },
+            ),
+            Intent(
+                module="TauSwap",
+                version="0.1",
+                kind=IntentKind.SWAP_EXACT_IN,
+                intent_id=_iid(2),
+                sender_pubkey=pk_b,
+                deadline=9999999999,
+                fields={
+                    "pool_id": pool.pool_id,
+                    "asset_in": asset1,
+                    "asset_out": asset0,
+                    "amount_in": 200,
+                    "min_amount_out": 90,
+                },
+            ),
+        ]
+
+        settlement = compute_settlement(
+            intents,
+            pools,
+            balances,
+            lp_balances,
+            swap_ordering="cow_pair_netting_v1",
+        )
+        ok, err = validate_settlement(settlement, balances, pools, lp_balances)
+        assert ok, err
+
+        filled = [f for f in settlement.fills if f.action.value == "FILL"]
+        if expect_netted:
+            assert all(f.reason == "COW_NETTED" for f in filled)
+            assert settlement.reserve_deltas == []
+        else:
+            # No netting: at least one swap should hit the pool (reserve deltas non-empty).
+            assert any(f.reason != "COW_NETTED" for f in filled)
+            assert settlement.reserve_deltas != []

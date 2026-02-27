@@ -54,22 +54,22 @@ class PerpStepResult:
 
 def _model_path_v1() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v1.yaml
-    return Path(__file__).resolve().parents[1] / "kernels" / "dex" / "perp_epoch_isolated_v1.yaml"
+    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v1.yaml")
 
 
 def _model_path_v1_1() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v1_1.yaml
-    return Path(__file__).resolve().parents[1] / "kernels" / "dex" / "perp_epoch_isolated_v1_1.yaml"
+    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v1_1.yaml")
 
 
 def _model_path_v2() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v2.yaml
-    return Path(__file__).resolve().parents[1] / "kernels" / "dex" / "perp_epoch_isolated_v2.yaml"
+    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v2.yaml")
 
 
 def _model_path_v3() -> Path:
     # src/core/perp_epoch.py -> src/ -> kernels/dex/perp_epoch_isolated_v3.yaml
-    return Path(__file__).resolve().parents[1] / "kernels" / "dex" / "perp_epoch_isolated_v3.yaml"
+    return Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "perp_epoch_isolated_v3.yaml")
 
 
 def _load_yaml_model(path: Path):

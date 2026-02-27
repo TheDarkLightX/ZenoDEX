@@ -17,6 +17,91 @@ except ImportError:
     bls = None
 
 
+def _guardrail_severity(action: str) -> int:
+    a = str(action or "").strip().lower()
+    if a == "allow":
+        return 0
+    if a == "confirm":
+        return 1
+    if a == "typed_confirm":
+        return 2
+    if a == "block":
+        return 3
+    return 9
+
+
+def _pool_reserves_for_swap(pool: Any, *, asset_in: str, asset_out: str) -> tuple[int, int] | None:
+    if asset_in == getattr(pool, "asset0", None) and asset_out == getattr(pool, "asset1", None):
+        return int(getattr(pool, "reserve0", 0)), int(getattr(pool, "reserve1", 0))
+    if asset_in == getattr(pool, "asset1", None) and asset_out == getattr(pool, "asset0", None):
+        return int(getattr(pool, "reserve1", 0)), int(getattr(pool, "reserve0", 0))
+    return None
+
+
+def _preflight_swap_pokayoke_exact_in_cpmm(
+    *,
+    pool: Any,
+    asset_in: str,
+    asset_out: str,
+    amount_in: int,
+    user_slippage_bps: int,
+    pending_volume_same_direction: int = 0,
+    confidence_bps: int = 9500,
+    slippage_options_bps: Optional[list[int]] = None,
+    max_attacker_amount_in: int = 2000,
+) -> Any:
+    # Import lazily to keep agent surfaces lightweight.
+    from src.core.slippage_advisor import slippage_advice_exact_in_cpmm
+    from src.core.pokayoke_swap_guardrails import SwapGuardrailContext, decide_swap_guardrails
+
+    curve = str(getattr(pool, "curve_tag", "")).strip().upper()
+    if curve != "CPMM":
+        raise ValueError(f"pokayoke_unsupported_curve:{curve or 'unknown'}")
+
+    reserves = _pool_reserves_for_swap(pool, asset_in=str(asset_in), asset_out=str(asset_out))
+    if reserves is None:
+        raise ValueError("pokayoke_bad_pool_direction")
+    reserve_in, reserve_out = reserves
+
+    # Ensure the user's slippage choice is included among evaluated options.
+    opts = list(slippage_options_bps) if isinstance(slippage_options_bps, list) else [10, 50, 100, 300]
+    opts.append(int(user_slippage_bps))
+
+    advice = slippage_advice_exact_in_cpmm(
+        reserve_in=int(reserve_in),
+        reserve_out=int(reserve_out),
+        fee_bps=int(getattr(pool, "fee_bps", 0)),
+        amount_in=int(amount_in),
+        pending_volume_same_direction=int(pending_volume_same_direction),
+        confidence_bps=int(confidence_bps),
+        slippage_options_bps=opts,
+        max_attacker_amount_in=int(max_attacker_amount_in),
+    )
+
+    ctx = SwapGuardrailContext(
+        price_impact_bps=int(advice.price_impact_bps),
+        slippage_advice_status=str(advice.status),
+        required_slippage_bps=int(advice.required_slippage_bps),
+        recommended_slippage_bps_revert_safe=(
+            int(advice.recommended_slippage_bps_revert_safe) if advice.recommended_slippage_bps_revert_safe is not None else None
+        ),
+        recommended_slippage_bps_mev_safe=(
+            int(advice.recommended_slippage_bps_mev_safe) if advice.recommended_slippage_bps_mev_safe is not None else None
+        ),
+        recommended_slippage_bps=(int(advice.recommended_slippage_bps) if advice.recommended_slippage_bps is not None else None),
+    )
+    decision = decide_swap_guardrails(ctx=ctx, user_slippage_bps=int(user_slippage_bps))
+    return advice, decision
+
+
+def _enforce_pokayoke_max_action(*, decision: Any, max_action: str) -> None:
+    max_sev = _guardrail_severity(str(max_action))
+    got_sev = _guardrail_severity(str(getattr(decision, "action", "")))
+    if got_sev > max_sev:
+        reasons = getattr(decision, "reasons", ()) or ()
+        raise ValueError(f"pokayoke_guardrail:{getattr(decision, 'action', 'unknown')}:{max_action}:{','.join(map(str, reasons))}")
+
+
 def create_swap_intent(
     pool_id: str,
     asset_in: AssetId,
@@ -30,6 +115,8 @@ def create_swap_intent(
     max_amount_in: Optional[Amount] = None,
     recipient: Optional[PubKey] = None,
     salt: Optional[str] = None,
+    quote_receipt_hash: Optional[str] = None,
+    nonce: Optional[int] = None,
 ) -> Intent:
     """
     Create a swap intent.
@@ -81,6 +168,16 @@ def create_swap_intent(
             "min_amount_out": min_amount_out,
             "recipient": recipient or sender_pubkey,
         }
+
+    if quote_receipt_hash is not None:
+        if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
+            raise ValueError("quote_receipt_hash must be a non-empty string")
+        fields["quote_receipt_hash"] = quote_receipt_hash
+
+    if nonce is not None:
+        if not isinstance(nonce, int) or isinstance(nonce, bool) or nonce <= 0 or nonce > 0xFFFFFFFF:
+            raise ValueError("nonce must be an int in [1, 2^32-1]")
+        fields["nonce"] = int(nonce)
     
     # Generate intent_id
     intent_id = _generate_intent_id(
@@ -99,6 +196,290 @@ def create_swap_intent(
     )
     
     return intent
+
+
+def create_swap_intent_from_quote_receipt(
+    *,
+    receipt: Dict[str, Any],
+    pools_by_id: Dict[str, Any],
+    sender_pubkey: PubKey,
+    deadline: int,
+    slippage_bps: int = 50,
+    pokayoke_max_action: Optional[str] = None,
+    pokayoke_pending_volume_same_direction: int = 0,
+    pokayoke_confidence_bps: int = 9500,
+    pokayoke_slippage_options_bps: Optional[list[int]] = None,
+    pokayoke_max_attacker_amount_in: int = 2000,
+    recipient: Optional[PubKey] = None,
+    salt: Optional[str] = None,
+) -> Intent:
+    """
+    Create a single-pool swap intent from a verified quote receipt.
+
+    Restrictions:
+    - Only supports receipts with exactly one leg and one hop (single pool).
+    - Multi-hop/split receipts are rejected (future work: route intents).
+    """
+    if not isinstance(slippage_bps, int) or isinstance(slippage_bps, bool) or slippage_bps < 0 or slippage_bps > 10_000:
+        raise ValueError("slippage_bps must be an int in [0, 10_000]")
+
+    # Import lazily to avoid coupling agent code to routing modules unless used.
+    from src.core.quote_receipts import verify_route_quote_receipt
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)  # type: ignore[arg-type]
+    if not ok:
+        raise ValueError(f"invalid_quote_receipt:{err}")
+
+    body = receipt.get("body", {})
+    if not isinstance(body, dict):
+        raise ValueError("invalid_quote_receipt_body")
+    kind = str(body.get("kind", "")).strip().lower()
+    if kind not in {"exact_in", "exact_out"}:
+        raise ValueError("invalid_quote_receipt_kind")
+
+    legs = body.get("legs")
+    if not isinstance(legs, list) or len(legs) != 1:
+        raise ValueError("unsupported_multi_leg_receipt")
+    hops = legs[0].get("hops") if isinstance(legs[0], dict) else None
+    if not isinstance(hops, list) or len(hops) != 1:
+        raise ValueError("unsupported_multi_hop_receipt")
+
+    hop = hops[0]
+    if not isinstance(hop, dict):
+        raise ValueError("invalid_quote_receipt_hop")
+    pool_id = str(hop.get("pool_id", "")).strip()
+    asset_in = str(hop.get("asset_in", "")).strip()
+    asset_out = str(hop.get("asset_out", "")).strip()
+    if not pool_id or not asset_in or not asset_out or asset_in == asset_out:
+        raise ValueError("invalid_quote_receipt_hop_fields")
+
+    receipt_hash = receipt.get("receipt_hash")
+    if not isinstance(receipt_hash, str) or not receipt_hash:
+        raise ValueError("invalid_quote_receipt_hash")
+
+    if kind == "exact_in":
+        amount_in = int(hop.get("amount_in", 0))
+        amount_out_quote = int(hop.get("amount_out", 0))
+        if amount_in <= 0 or amount_out_quote <= 0:
+            raise ValueError("invalid_quote_receipt_amounts")
+        # floor(amount_out_quote * (1 - s/10_000))
+        min_amount_out = (int(amount_out_quote) * (10_000 - int(slippage_bps))) // 10_000
+
+        if pokayoke_max_action is not None:
+            pool = pools_by_id.get(pool_id)
+            if pool is None:
+                raise ValueError("missing_pool")
+            _, decision = _preflight_swap_pokayoke_exact_in_cpmm(
+                pool=pool,
+                asset_in=asset_in,
+                asset_out=asset_out,
+                amount_in=int(amount_in),
+                user_slippage_bps=int(slippage_bps),
+                pending_volume_same_direction=int(pokayoke_pending_volume_same_direction),
+                confidence_bps=int(pokayoke_confidence_bps),
+                slippage_options_bps=pokayoke_slippage_options_bps,
+                max_attacker_amount_in=int(pokayoke_max_attacker_amount_in),
+            )
+            _enforce_pokayoke_max_action(decision=decision, max_action=str(pokayoke_max_action))
+
+        return create_swap_intent(
+            pool_id=pool_id,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in=int(amount_in),
+            min_amount_out=int(min_amount_out),
+            deadline=int(deadline),
+            sender_pubkey=sender_pubkey,
+            recipient=recipient,
+            salt=salt,
+            quote_receipt_hash=receipt_hash,
+        )
+
+    amount_out = int(hop.get("amount_out", 0))
+    amount_in_quote = int(hop.get("amount_in", 0))
+    if amount_out <= 0 or amount_in_quote <= 0:
+        raise ValueError("invalid_quote_receipt_amounts")
+    if pokayoke_max_action is not None:
+        raise ValueError("pokayoke_exact_out_unsupported")
+    # ceil(amount_in_quote * (1 + s/10_000))
+    max_amount_in = (int(amount_in_quote) * (10_000 + int(slippage_bps)) + 9_999) // 10_000
+    return create_swap_intent(
+        pool_id=pool_id,
+        asset_in=asset_in,
+        asset_out=asset_out,
+        amount_in=1,  # ignored for exact-out
+        min_amount_out=0,  # ignored for exact-out
+        deadline=int(deadline),
+        sender_pubkey=sender_pubkey,
+        exact_out=True,
+        amount_out=int(amount_out),
+        max_amount_in=int(max_amount_in),
+        recipient=recipient,
+        salt=salt,
+        quote_receipt_hash=receipt_hash,
+    )
+
+
+def create_swap_intents_from_quote_receipt(
+    *,
+    receipt: Dict[str, Any],
+    pools_by_id: Dict[str, Any],
+    sender_pubkey: PubKey,
+    deadline: int,
+    slippage_bps: int = 50,
+    pokayoke_max_action: Optional[str] = None,
+    pokayoke_pending_volume_same_direction: int = 0,
+    pokayoke_confidence_bps: int = 9500,
+    pokayoke_slippage_options_bps: Optional[list[int]] = None,
+    pokayoke_max_attacker_amount_in: int = 2000,
+    recipient: Optional[PubKey] = None,
+    salt: Optional[str] = None,
+    nonce_start: Optional[int] = None,
+) -> list[Intent]:
+    """
+    Create a list of swap intents from a verified quote receipt.
+
+    Supported receipt shapes (current):
+    - Multi-leg split routing where each leg has exactly one hop (parallel pools).
+    - All legs share the same (asset_in, asset_out) as the receipt body.
+
+    Not supported:
+    - Multi-hop legs (route ordering is not enforced by batch clearing today).
+    - Mixed asset pairs across legs.
+
+    Nonces:
+    - If nonce_start is provided, assign sequential u32 nonces in deterministic
+      pool_id order (nonce_start, nonce_start+1, ...).
+    """
+    if not isinstance(slippage_bps, int) or isinstance(slippage_bps, bool) or slippage_bps < 0 or slippage_bps > 10_000:
+        raise ValueError("slippage_bps must be an int in [0, 10_000]")
+    if nonce_start is not None:
+        if not isinstance(nonce_start, int) or isinstance(nonce_start, bool) or nonce_start <= 0 or nonce_start > 0xFFFFFFFF:
+            raise ValueError("nonce_start must be an int in [1, 2^32-1]")
+
+    from src.core.quote_receipts import verify_route_quote_receipt
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)  # type: ignore[arg-type]
+    if not ok:
+        raise ValueError(f"invalid_quote_receipt:{err}")
+
+    body = receipt.get("body", {})
+    if not isinstance(body, dict):
+        raise ValueError("invalid_quote_receipt_body")
+    kind = str(body.get("kind", "")).strip().lower()
+    if kind not in {"exact_in", "exact_out"}:
+        raise ValueError("invalid_quote_receipt_kind")
+
+    body_asset_in = str(body.get("asset_in", "")).strip()
+    body_asset_out = str(body.get("asset_out", "")).strip()
+    if not body_asset_in or not body_asset_out or body_asset_in == body_asset_out:
+        raise ValueError("invalid_quote_receipt_assets")
+
+    legs = body.get("legs")
+    if not isinstance(legs, list) or not legs:
+        raise ValueError("invalid_quote_receipt_legs")
+
+    receipt_hash = receipt.get("receipt_hash")
+    if not isinstance(receipt_hash, str) or not receipt_hash:
+        raise ValueError("invalid_quote_receipt_hash")
+
+    hop_rows: list[dict[str, Any]] = []
+    for leg in legs:
+        if not isinstance(leg, dict):
+            raise ValueError("invalid_quote_receipt_leg")
+        hops = leg.get("hops")
+        if not isinstance(hops, list) or len(hops) != 1:
+            raise ValueError("unsupported_multi_hop_receipt")
+        hop = hops[0]
+        if not isinstance(hop, dict):
+            raise ValueError("invalid_quote_receipt_hop")
+        hop_rows.append(hop)
+
+    # Canonicalize by pool_id to ensure deterministic intent list ordering and nonce assignment.
+    hop_rows.sort(key=lambda h: str(h.get("pool_id", "")))
+
+    intents: list[Intent] = []
+    for i, hop in enumerate(hop_rows):
+        pool_id = str(hop.get("pool_id", "")).strip()
+        asset_in = str(hop.get("asset_in", "")).strip()
+        asset_out = str(hop.get("asset_out", "")).strip()
+        if not pool_id or not asset_in or not asset_out or asset_in == asset_out:
+            raise ValueError("invalid_quote_receipt_hop_fields")
+        if asset_in != body_asset_in or asset_out != body_asset_out:
+            raise ValueError("unsupported_mixed_asset_pairs")
+
+        nonce = None
+        if nonce_start is not None:
+            nonce = int(nonce_start) + int(i)
+
+        if kind == "exact_in":
+            amount_in = int(hop.get("amount_in", 0))
+            amount_out_quote = int(hop.get("amount_out", 0))
+            if amount_in <= 0 or amount_out_quote <= 0:
+                raise ValueError("invalid_quote_receipt_amounts")
+            min_amount_out = (int(amount_out_quote) * (10_000 - int(slippage_bps))) // 10_000
+
+            if pokayoke_max_action is not None:
+                pool = pools_by_id.get(pool_id)
+                if pool is None:
+                    raise ValueError("missing_pool")
+                _, decision = _preflight_swap_pokayoke_exact_in_cpmm(
+                    pool=pool,
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_in=int(amount_in),
+                    user_slippage_bps=int(slippage_bps),
+                    pending_volume_same_direction=int(pokayoke_pending_volume_same_direction),
+                    confidence_bps=int(pokayoke_confidence_bps),
+                    slippage_options_bps=pokayoke_slippage_options_bps,
+                    max_attacker_amount_in=int(pokayoke_max_attacker_amount_in),
+                )
+                _enforce_pokayoke_max_action(decision=decision, max_action=str(pokayoke_max_action))
+
+            intents.append(
+                create_swap_intent(
+                    pool_id=pool_id,
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_in=int(amount_in),
+                    min_amount_out=int(min_amount_out),
+                    deadline=int(deadline),
+                    sender_pubkey=sender_pubkey,
+                    recipient=recipient,
+                    salt=salt,
+                    quote_receipt_hash=receipt_hash,
+                    nonce=nonce,
+                )
+            )
+            continue
+
+        amount_out = int(hop.get("amount_out", 0))
+        amount_in_quote = int(hop.get("amount_in", 0))
+        if amount_out <= 0 or amount_in_quote <= 0:
+            raise ValueError("invalid_quote_receipt_amounts")
+        if pokayoke_max_action is not None:
+            raise ValueError("pokayoke_exact_out_unsupported")
+        max_amount_in = (int(amount_in_quote) * (10_000 + int(slippage_bps)) + 9_999) // 10_000
+        intents.append(
+            create_swap_intent(
+                pool_id=pool_id,
+                asset_in=asset_in,
+                asset_out=asset_out,
+                amount_in=1,  # ignored for exact-out
+                min_amount_out=0,  # ignored for exact-out
+                deadline=int(deadline),
+                sender_pubkey=sender_pubkey,
+                exact_out=True,
+                amount_out=int(amount_out),
+                max_amount_in=int(max_amount_in),
+                recipient=recipient,
+                salt=salt,
+                quote_receipt_hash=receipt_hash,
+                nonce=nonce,
+            )
+        )
+
+    return intents
 
 
 def _generate_intent_id(
@@ -236,4 +617,3 @@ def verify_intent_signature(signed_intent: SignedIntent) -> bool:
         return bls.verify(message, signature_bytes, pubkey_bytes)
     except Exception:
         return False
-

@@ -6,7 +6,7 @@ import sys
 from dataclasses import replace
 
 from src.core.liquidity import create_pool
-from src.core.settlement import Fill, FillAction
+from src.core.settlement import Fill, FillAction, Settlement
 from src.integration import tau_gate
 from src.integration.tau_gate import TauGateConfig, validate_settlement_swaps
 from src.state.intents import Intent, IntentKind
@@ -18,10 +18,20 @@ def _mk_intent_id(n: int) -> str:
 
 def test_tau_gate_enabled_no_swaps_does_not_require_tau() -> None:
     intents: list[Intent] = []
-    fills: list[Fill] = []
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
     ok, err = validate_settlement_swaps(
         intents=intents,
-        settlement_fills=fills,
+        settlement=settlement,
         pre_pools={},
         config=TauGateConfig(enabled=True, tau_bin=None, allow_path_lookup=False),
     )
@@ -68,9 +78,21 @@ def test_tau_gate_catches_tau_runner_exceptions(monkeypatch) -> None:  # type: i
 
     monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _boom)
 
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intents[0].intent_id, FillAction.FILL)],
+        fills=fills,
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
     ok, err = validate_settlement_swaps(
         intents=intents,
-        settlement_fills=fills,
+        settlement=settlement,
         pre_pools={pool_id: pool},
         config=TauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
     )
@@ -78,8 +100,10 @@ def test_tau_gate_catches_tau_runner_exceptions(monkeypatch) -> None:  # type: i
     assert err and "RuntimeError" in err
 
 
-def test_tau_gate_fill_order_is_intent_order(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_tau_gate_execution_order_uses_included_intents(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     # Two independent pools + two intents; fills are deliberately reversed.
+    # The gate must use settlement.included_intents order (semantic execution order),
+    # not the fills list order.
     pk = "0x" + "11" * 48
     pool_id_a, pool_a, _ = create_pool(
         asset0="0x" + "01" * 32,
@@ -145,14 +169,26 @@ def test_tau_gate_fill_order_is_intent_order(monkeypatch) -> None:  # type: igno
 
     monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
 
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent_a.intent_id, FillAction.FILL), (intent_b.intent_id, FillAction.FILL)],
+        fills=fills,
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
     ok, err = validate_settlement_swaps(
         intents=intents,
-        settlement_fills=fills,
+        settlement=settlement,
         pre_pools={pool_id_a: pool_a, pool_id_b: pool_b},
         config=TauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
     )
     assert not ok
-    assert err and intent_b.intent_id in err
+    assert err and intent_a.intent_id in err
 
 
 def test_tau_gate_requires_absolute_tau_bin_when_path_lookup_disabled() -> None:
@@ -185,9 +221,20 @@ def test_tau_gate_requires_absolute_tau_bin_when_path_lookup_disabled() -> None:
         amount_in_filled=1000,
         amount_out_filled=900,
     )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.FILL)],
+        fills=[fill],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
     ok, err = validate_settlement_swaps(
         intents=[intent],
-        settlement_fills=[fill],
+        settlement=settlement,
         pre_pools={pool_id: pool},
         config=TauGateConfig(enabled=True, tau_bin="tau", allow_path_lookup=False),
     )
@@ -257,9 +304,21 @@ def test_tau_gate_supports_mixed_exact_in_and_exact_out_per_pool(monkeypatch) ->
 
     monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
 
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent_in.intent_id, FillAction.FILL), (intent_out.intent_id, FillAction.FILL)],
+        fills=fills,
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
     ok, err = validate_settlement_swaps(
         intents=[intent_in, intent_out],
-        settlement_fills=fills,
+        settlement=settlement,
         pre_pools={pool_id: pool},
         config=TauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
     )

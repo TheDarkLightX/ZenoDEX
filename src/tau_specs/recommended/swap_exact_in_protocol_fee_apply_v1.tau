@@ -1,0 +1,54 @@
+# TauSwap swap exact-in (protocol-fee apply gate, v1)
+#
+# Purpose: a Tau-executable gate for the post-state apply step when a protocol
+# fee share is removed from the pool's input reserve.
+#
+# - Tau enforces basic structural constraints and reserve transitions.
+# - Host/verifier supplies `proof_ok`, `binding_ok`, `fee_ok`, and `protocol_fee_ok` (fail-closed flags).
+#
+# This spec intentionally does NOT validate the CPMM pricing formula or fee rounding math in Tau.
+#
+# Recommended decomposition:
+# - `swap_fee_total_ceil_v1.tau` validates fee_total (ceil)
+# - `protocol_fee_floor_v1.tau` validates protocol_fee (floor of fee_total * share / 10_000)
+#
+# Stream mapping:
+# i1 = reserve_in (bv[32])
+# i2 = reserve_out (bv[32])
+# i3 = amount_in_gross (bv[32])
+# i4 = fee_bps (bv[32])
+# i5 = min_amount_out (bv[32])
+# i6 = amount_out (bv[32])         # externally computed
+# i7 = new_reserve_in (bv[32])
+# i8 = new_reserve_out (bv[32])
+# i9 = fee_total (bv[32])          # externally computed
+# i10 = protocol_fee (bv[32])      # externally computed
+# i11 = proof_ok (sbf)
+# i12 = binding_ok (sbf)
+# i13 = fee_ok (sbf)
+# i14 = protocol_fee_ok (sbf)
+# o1 = swap_exact_in_protocol_fee_apply_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <->
+  ((i11[t]:sbf = 1:sbf) &&
+   (i12[t]:sbf = 1:sbf) &&
+   (i13[t]:sbf = 1:sbf) &&
+   (i14[t]:sbf = 1:sbf) &&
+   (i1[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i2[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i3[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i6[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i4[t]:bv[32] <= { #x00002710 }:bv[32]) &&
+   (i9[t]:bv[32] < i3[t]:bv[32]) &&
+   (i10[t]:bv[32] <= i9[t]:bv[32]) &&
+   (i6[t]:bv[32] < i2[t]:bv[32]) &&
+   (i6[t]:bv[32] >= i5[t]:bv[32]) &&
+   # no-wrap add: tmp = reserve_in + amount_in
+   ((i1[t]:bv[32] + i3[t]:bv[32]) >= i1[t]:bv[32]) &&
+   # no-wrap sub: tmp >= protocol_fee
+   ((i1[t]:bv[32] + i3[t]:bv[32]) >= i10[t]:bv[32]) &&
+   (i7[t]:bv[32] = (i1[t]:bv[32] + i3[t]:bv[32]) - i10[t]:bv[32]) &&
+   (i8[t]:bv[32] = i2[t]:bv[32] - i6[t]:bv[32]))).
+

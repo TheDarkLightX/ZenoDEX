@@ -573,6 +573,7 @@ def apply_ops(
             lp_balances=state.lp_balances,
             block_timestamp=block_timestamp,
             tau_gate_config=config.tau_gate_config,
+            settlement_validation=config.dex_config.settlement_validation,
         )
         if not ok:
             return DexTxResult(ok=False, error=err or "operations invalid")

@@ -1,0 +1,36 @@
+# Price Impact Guard v1 - Oracle/Reference Quote Rail (DEX)
+#
+# MUTABILITY: UPDATABLE (via max_impact_bps input binding)
+# UPDATABLE_PARAMS: max_impact_bps (i3)
+# IMMUTABLE_INVARIANTS: actual_out >= ref_out * (1 - max_impact_bps/10_000)
+#
+# PURPOSE: Guard user execution quality by enforcing that the realized output
+# is not too far below a reference/oracle quote for the same trade.
+#
+# This is deliberately simple and integer-only:
+#   actual_out * 10_000 >= ref_out * (10_000 - max_impact_bps)
+#
+# Safe math:
+# - Require ref_out and actual_out <= floor((2^32-1)/10_000) to avoid overflow
+#   in the bps cross-multiplication.
+#
+# Stream mapping:
+# i1 = ref_out (bv[32])          # reference/oracle expected output
+# i2 = actual_out (bv[32])       # realized output
+# i3 = max_impact_bps (bv[32])   # 0..10_000
+# i4 = binding_ok (sbf)          # host asserts ref_out is correctly bound to oracle/state
+# o1 = price_impact_ok
+
+set charvar off
+
+# floor((2^32-1)/10000)
+max_safe_32() := { #x00068DB8 }:bv[32].
+
+safe_ok(v : bv[32]) := v <= max_safe_32().
+rate_ok(rate : bv[32]) := rate <= { #x00002710 }:bv[32].
+pos_ok(v : bv[32]) := v > { #x00000000 }:bv[32].
+
+impact_ok(ref_out : bv[32], actual_out : bv[32], impact_bps : bv[32]) := safe_ok(ref_out) && safe_ok(actual_out) && pos_ok(ref_out) && pos_ok(actual_out) && rate_ok(impact_bps) && ((actual_out * { #x00002710 }:bv[32]) >= (ref_out * ({ #x00002710 }:bv[32] - impact_bps))).
+
+always (o1[t]:sbf = 1:sbf <->
+  ((i4[t]:sbf = 1:sbf) && impact_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))).

@@ -106,3 +106,29 @@ def test_run_tau_spec_steps_cpmm_v1_slow() -> None:
     )
     outputs = run_tau_spec_steps(tau_bin=tau_bin, spec_path=CPMM_V1.path, steps=[step], timeout_s=60.0)
     assert outputs[0][CPMM_V1.gate_output] == 1
+
+
+def test_tau_python_bindings_parity_minimal(tmp_path, monkeypatch) -> None:
+    """
+    If Tau Python bindings are available, they must match the subprocess runner.
+
+    BVA notes:
+    - bv[16] domain: exercise {0, 1, max-1, max}
+    """
+    tau_bin = find_tau_bin()
+    if not tau_bin:
+        pytest.skip("tau not found (need subprocess runner for parity check)")
+
+    spec_path = tmp_path / "parity_bv16_copy.tau"
+    spec_path.write_text("i1[t]:bv[16]\no1[t]:bv[16]\nalways (o1[t]:bv[16] = i1[t]:bv[16]).\n")
+
+    steps = [{"i1": v} for v in (0, 1, 65534, 65535)]
+
+    try:
+        monkeypatch.setenv("TAU_USE_PY_BINDINGS", "1")
+        out_bindings = run_tau_spec_steps(tau_bin=None, spec_path=spec_path, steps=steps, timeout_s=2.0)
+    except Exception:
+        pytest.skip("Tau Python bindings not available (build with -DTAU_BUILD_BINDING_PYTHON=ON)")
+
+    out_subprocess = run_tau_spec_steps(tau_bin=tau_bin, spec_path=spec_path, steps=steps, timeout_s=2.0)
+    assert out_bindings == out_subprocess

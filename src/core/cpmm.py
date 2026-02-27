@@ -11,13 +11,14 @@ Algorithm Design:
 - Invariant: After each swap, x' * y' >= k (where k = x * y before swap, adjusted for fees)
 """
 
-import math
 from typing import Tuple
 
 from ..state.balances import Amount
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _kernel_compute_fee_total_v8
 from ..kernels.python.cpmm_swap_v8 import swap_exact_in as _kernel_swap_exact_in_v8
 from ..kernels.python.cpmm_swap_v8 import swap_exact_out as _kernel_swap_exact_out_v8
+from ..kernels.python.lp_math_v7 import burn_liquidity as _kernel_burn_liquidity_v7
+from ..kernels.python.lp_math_v7 import mint_liquidity_initial as _kernel_mint_liquidity_initial_v7
 
 # Minimum LP lock to prevent division by zero attacks
 MIN_LP_LOCK = 1000
@@ -96,6 +97,8 @@ def swap_exact_out(
     reserve_out: Amount,
     amount_out: Amount,
     fee_bps: int,
+    max_overdelivery_gap_abs: Amount | None = None,
+    max_overdelivery_gap_bps: int | None = None,
 ) -> Tuple[Amount, Tuple[Amount, Amount]]:
     """
     Compute required input amount for exact-out swap with deterministic rounding.
@@ -114,6 +117,12 @@ def swap_exact_out(
         amount_out: Exact output amount desired
         fee_bps: Fee in basis points (0-10000)
         
+    Args:
+        max_overdelivery_gap_abs: Optional absolute cap on exact-out overdelivery gap
+            (`amount_out_quote - amount_out`) under exact-in semantics.
+        max_overdelivery_gap_bps: Optional relative cap on overdelivery gap in bps
+            of requested `amount_out`.
+
     Returns:
         Tuple of (amount_in, (new_reserve_in, new_reserve_out))
         
@@ -131,6 +140,10 @@ def swap_exact_out(
         )
     if not (0 <= fee_bps <= 10000):
         raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
+    if max_overdelivery_gap_abs is not None and max_overdelivery_gap_abs < 0:
+        raise ValueError(f"max_overdelivery_gap_abs must be non-negative: {max_overdelivery_gap_abs}")
+    if max_overdelivery_gap_bps is not None and not (0 <= max_overdelivery_gap_bps <= 10000):
+        raise ValueError(f"max_overdelivery_gap_bps must be in [0, 10000]: {max_overdelivery_gap_bps}")
     
     res = _kernel_swap_exact_out_v8(
         reserve_in=reserve_in,
@@ -138,6 +151,19 @@ def swap_exact_out(
         amount_out=amount_out,
         fee_bps=fee_bps,
     )
+
+    # Optional policy guard for exact-out quote quality in small-reserve regimes.
+    if max_overdelivery_gap_abs is not None and res.overdelivery_gap > max_overdelivery_gap_abs:
+        raise ValueError(
+            f"overdelivery gap exceeds absolute policy: gap={res.overdelivery_gap} > {max_overdelivery_gap_abs}"
+        )
+    if max_overdelivery_gap_bps is not None:
+        # ceil(overdelivery_gap * 10_000 / amount_out)
+        gap_bps = ((res.overdelivery_gap * 10_000) + amount_out - 1) // amount_out
+        if gap_bps > max_overdelivery_gap_bps:
+            raise ValueError(
+                f"overdelivery gap exceeds bps policy: gap_bps={gap_bps} > {max_overdelivery_gap_bps}"
+            )
 
     # Verify invariant: with protocol_fee_share_bps=0, k must not decrease.
     if res.k_after < res.k_before:
@@ -183,15 +209,12 @@ def compute_lp_mint(
         raise ValueError(f"LP supply must be non-negative: {lp_supply}")
     
     if lp_supply == 0:
-        # First deposit: lp = floor(sqrt(amount0 * amount1)) - MIN_LP_LOCK
-        #
-        # Uniswap-v2-style behavior: require enough liquidity to cover the lock,
-        # otherwise the pool would start in a pathological state.
-        product = amount0 * amount1
-        lp = math.isqrt(product)
-        if lp <= MIN_LP_LOCK:
-            raise ValueError("Insufficient initial liquidity: sqrt(amount0*amount1) <= MIN_LP_LOCK")
-        lp = lp - MIN_LP_LOCK
+        # Delegate initial mint math to the (auditable) v7 kernel helper.
+        lp, _total_supply = _kernel_mint_liquidity_initial_v7(
+            amount0=int(amount0),
+            amount1=int(amount1),
+            min_lp_lock=int(MIN_LP_LOCK),
+        )
     else:
         # Subsequent deposits: proportional to existing supply
         if reserve0 == 0 or reserve1 == 0:
@@ -243,12 +266,12 @@ def compute_lp_burn(
         raise ValueError(f"Reserves must be non-negative: ({reserve0}, {reserve1})")
     if lp_supply <= 0:
         raise ValueError(f"LP supply must be positive: {lp_supply}")
-    
-    # Compute proportional amounts (round down)
-    amount0 = (lp_amount * reserve0) // lp_supply
-    amount1 = (lp_amount * reserve1) // lp_supply
-    
-    if amount0 < 0 or amount1 < 0:
-        raise ValueError(f"Computed amounts are negative: ({amount0}, {amount1})")
-    
-    return amount0, amount1
+
+    # Delegate burn math to the (auditable) v7 kernel helper.
+    res = _kernel_burn_liquidity_v7(
+        lp_amount=int(lp_amount),
+        reserve0=int(reserve0),
+        reserve1=int(reserve1),
+        total_supply=int(lp_supply),
+    )
+    return int(res.amount0_out), int(res.amount1_out)

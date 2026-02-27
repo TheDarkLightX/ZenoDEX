@@ -25,6 +25,7 @@ from .il_futures_math import compute_il_bps, compute_payout
 
 BPS_DENOM = 10_000
 MAX_AMOUNT = 1_000_000_000_000
+MAX_PREMIUM_AMOUNT = 100_000_000  # matches the v1 kernel's param domain
 
 
 @unique
@@ -43,7 +44,8 @@ class ILFEvent(Enum):
     """Events emitted by the IL futures market."""
     LONG_OPENED = "LongOpened"
     SHORT_OPENED = "ShortOpened"
-    POSITION_CLOSED = "PositionClosed"
+    LONG_CLOSED = "LongClosed"
+    SHORT_CLOSED = "ShortClosed"
     EPOCH_SNAPSHOTTED = "EpochSnapshotted"
     EPOCH_SETTLED = "EpochSettled"
     EPOCH_ADVANCED = "EpochAdvanced"
@@ -140,6 +142,8 @@ def _guard_open_long(state: ILFState, params: ILFActionParams) -> bool:
         return False  # exposure frozen from snapshot through end of epoch
     if params.amount <= 0 or params.premium_amount <= 0:
         return False
+    if params.premium_amount > MAX_PREMIUM_AMOUNT:
+        return False
     if state.long_exposure + params.amount > MAX_AMOUNT:
         return False
     if state.premium_pool + params.premium_amount > MAX_AMOUNT:
@@ -195,6 +199,8 @@ def _guard_snapshot(state: ILFState, params: ILFActionParams) -> bool:
         return False
     if params.reserve_x <= 0 or params.reserve_y <= 0:
         return False
+    if params.reserve_x > MAX_AMOUNT or params.reserve_y > MAX_AMOUNT:
+        return False
     return True
 
 
@@ -206,6 +212,8 @@ def _guard_settle(state: ILFState, params: ILFActionParams) -> bool:
     if not state.snapshot_taken:
         return False
     if params.current_reserve_x <= 0 or params.current_reserve_y <= 0:
+        return False
+    if params.current_reserve_x > MAX_AMOUNT or params.current_reserve_y > MAX_AMOUNT:
         return False
     return True
 
@@ -330,7 +338,12 @@ def _effect_open_short(state: ILFState, params: ILFActionParams) -> ILFEffect:
 
 
 def _effect_close(state: ILFState, params: ILFActionParams) -> ILFEffect:
-    return ILFEffect(event=ILFEvent.POSITION_CLOSED)
+    # Kernel spec distinguishes long vs short closes.
+    if params.close_long:
+        return ILFEffect(event=ILFEvent.LONG_CLOSED)
+    if params.close_short:
+        return ILFEffect(event=ILFEvent.SHORT_CLOSED)
+    raise ValueError("invalid close params (expected exactly one of close_long/close_short)")
 
 
 def _effect_snapshot(state: ILFState, params: ILFActionParams) -> ILFEffect:
