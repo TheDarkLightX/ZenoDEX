@@ -402,6 +402,38 @@ actions:
                                 - { const: 9999 }
                             - { const: 10000 }
             - { param: "min_amount_out" }
+        # amount_out >= 1 (reject dust swaps that would output 0; matches cpmm_swap_v8 kernel)
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "pool_b" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "pool_a" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { const: 1 }
         # new_pool_b >= 1 (cannot drain to zero)
         - { op: ">=",
             args: [
@@ -694,6 +726,38 @@ actions:
                                 - { const: 9999 }
                             - { const: 10000 }
             - { param: "min_amount_out" }
+        # amount_out >= 1 (reject dust swaps that would output 0; matches cpmm_swap_v8 kernel)
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "pool_a" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "pool_b" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { const: 1 }
         # new_pool_a >= 1
         - { op: ">=",
             args: [

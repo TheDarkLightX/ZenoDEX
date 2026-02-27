@@ -1249,6 +1249,7 @@ def _process_liquidity_intent(
 ) -> Fill:
     """Process a single liquidity intent against the provided pool snapshot."""
     sender = intent.sender_pubkey
+    is_int = lambda x: isinstance(x, int) and not isinstance(x, bool)
 
     try:
         if intent.kind == IntentKind.ADD_LIQUIDITY:
@@ -1259,6 +1260,14 @@ def _process_liquidity_intent(
 
             if any(v is None for v in (amount0_desired, amount1_desired)):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="MISSING_PARAMS")
+            if not (is_int(amount0_desired) and amount0_desired > 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_int(amount1_desired) and amount1_desired > 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_int(amount0_min) and amount0_min >= 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_int(amount1_min) and amount1_min >= 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
 
             amount0_used, amount1_used, lp_minted = add_liquidity(
                 pool_state=pool_state,
@@ -1289,6 +1298,12 @@ def _process_liquidity_intent(
 
             if lp_amount is None:
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="MISSING_PARAMS")
+            if not (is_int(lp_amount) and lp_amount > 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_int(amount0_min) and amount0_min >= 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
+            if not (is_int(amount1_min) and amount1_min >= 0):
+                return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
 
             if lp_balances.get(sender, pool_state.pool_id) < lp_amount:
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INSUFFICIENT_LP")
@@ -1309,7 +1324,7 @@ def _process_liquidity_intent(
                 lp_burned=lp_amount,
             )
 
-    except (ValueError, ZeroDivisionError) as exc:
+    except (ValueError, TypeError, ZeroDivisionError) as exc:
         return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason=f"COMPUTATION_ERROR: {exc}")
 
     return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="UNKNOWN_INTENT_TYPE")
