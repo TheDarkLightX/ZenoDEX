@@ -22,6 +22,33 @@ python3 tools/tau_spec_runner_gui.py
 
 Note: Specs with long runs may take time; the GUI uses a 30s timeout.
 
+## Tau Frontier Explorer (ZAG-style, Internal)
+
+Searches a regret-focused Tau policy space, emits candidate `.tau` specs, and
+computes a Pareto frontier over safety/regret/fill/speed/simplicity.
+
+Run:
+```bash
+python3 tools/tau_frontier_explorer.py \
+  --out-dir runs/tau_frontier_explorer/latest \
+  --scenario-size 256 \
+  --max-candidates 48
+```
+
+Optional deep Tau probe on top frontier candidates (slow/inconclusive-friendly):
+```bash
+python3 tools/tau_frontier_explorer.py \
+  --out-dir runs/tau_frontier_explorer/probe \
+  --tau-probe-top-k 3 \
+  --tau-probe-steps 1 \
+  --tau-probe-timeout-s 45
+```
+
+Artifacts:
+- `.../candidates/*.tau` generated candidate specs
+- `.../tau_frontier_report.json` full results + frontier
+- `.../tau_frontier_frontier.json` frontier-only rows
+
 ## Boundary Value Analysis (BVA) Helpers (Internal)
 
 Static BVA suggestions + optional dynamic "boundary mining":
