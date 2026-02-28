@@ -1,0 +1,56 @@
+# Perp Risk Envelope (proof-gated) v1
+#
+# PURPOSE:
+# Fast structural risk gate with fail-closed proof/binding requirements.
+#
+# INPUT STREAMS:
+# i1  = mark_price (bv[32])
+# i2  = oracle_price (bv[32])
+# i3  = prev_mark_price (bv[32])
+# i4  = prev_oracle_price (bv[32])
+# i5  = open_interest (bv[32])
+# i6  = max_open_interest (bv[32])
+# i7  = funding_abs_bps (bv[32])
+# i8  = funding_cap_bps (bv[32])
+# i9  = liq_penalty_bps (bv[32])
+# i10 = liq_penalty_cap_bps (bv[32])
+# i11 = insurance_balance (bv[32])
+# i12 = insurance_floor (bv[32])
+# i13 = stale_oracle_flag (sbf)
+# i14 = breaker_active_flag (sbf)
+# i15 = proof_ok (sbf)
+# i16 = binding_ok (sbf)
+# i17 = has_open_positions (sbf)
+# i18 = margin_ratio_bps (bv[32])
+# i19 = maint_margin_bps (bv[32])
+# i20 = max_mark_oracle_gap_abs (bv[32])
+# i21 = max_mark_drift_abs (bv[32])
+# i22 = max_oracle_drift_abs (bv[32])
+#
+# OUTPUT STREAMS:
+# o1  = mark_oracle_gap_ok
+# o2  = mark_drift_ok
+# o3  = oracle_drift_ok
+# o4  = oi_cap_ok
+# o5  = funding_cap_ok
+# o6  = liq_penalty_cap_ok
+# o7  = insurance_floor_ok
+# o8  = stale_guard_ok
+# o9  = breaker_guard_ok
+# o10 = margin_guard_ok
+# o11 = risk_envelope_ok
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> ((((i1[t]:bv[32] >= i2[t]:bv[32]) && ((i1[t]:bv[32] - i2[t]:bv[32]) <= i20[t]:bv[32])) || ((i1[t]:bv[32] < i2[t]:bv[32]) && ((i2[t]:bv[32] - i1[t]:bv[32]) <= i20[t]:bv[32]))))) &&
+  (o2[t]:sbf = 1:sbf <-> ((((i1[t]:bv[32] >= i3[t]:bv[32]) && ((i1[t]:bv[32] - i3[t]:bv[32]) <= i21[t]:bv[32])) || ((i1[t]:bv[32] < i3[t]:bv[32]) && ((i3[t]:bv[32] - i1[t]:bv[32]) <= i21[t]:bv[32]))))) &&
+  (o3[t]:sbf = 1:sbf <-> ((((i2[t]:bv[32] >= i4[t]:bv[32]) && ((i2[t]:bv[32] - i4[t]:bv[32]) <= i22[t]:bv[32])) || ((i2[t]:bv[32] < i4[t]:bv[32]) && ((i4[t]:bv[32] - i2[t]:bv[32]) <= i22[t]:bv[32]))))) &&
+  (o4[t]:sbf = 1:sbf <-> (i5[t]:bv[32] <= i6[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> (i7[t]:bv[32] <= i8[t]:bv[32])) &&
+  (o6[t]:sbf = 1:sbf <-> (i9[t]:bv[32] <= i10[t]:bv[32])) &&
+  (o7[t]:sbf = 1:sbf <-> (i11[t]:bv[32] >= i12[t]:bv[32])) &&
+  (o8[t]:sbf = 1:sbf <-> ((i13[t]:sbf = 0:sbf) || (i15[t]:sbf = 1:sbf))) &&
+  (o9[t]:sbf = 1:sbf <-> ((i14[t]:sbf = 0:sbf) || (i15[t]:sbf = 1:sbf))) &&
+  (o10[t]:sbf = 1:sbf <-> ((i17[t]:sbf = 0:sbf) || (i18[t]:bv[32] >= i19[t]:bv[32]))) &&
+  (o11[t]:sbf = 1:sbf <-> ((((i1[t]:bv[32] >= i2[t]:bv[32]) && ((i1[t]:bv[32] - i2[t]:bv[32]) <= i20[t]:bv[32])) || ((i1[t]:bv[32] < i2[t]:bv[32]) && ((i2[t]:bv[32] - i1[t]:bv[32]) <= i20[t]:bv[32]))) && (((i1[t]:bv[32] >= i3[t]:bv[32]) && ((i1[t]:bv[32] - i3[t]:bv[32]) <= i21[t]:bv[32])) || ((i1[t]:bv[32] < i3[t]:bv[32]) && ((i3[t]:bv[32] - i1[t]:bv[32]) <= i21[t]:bv[32]))) && (((i2[t]:bv[32] >= i4[t]:bv[32]) && ((i2[t]:bv[32] - i4[t]:bv[32]) <= i22[t]:bv[32])) || ((i2[t]:bv[32] < i4[t]:bv[32]) && ((i4[t]:bv[32] - i2[t]:bv[32]) <= i22[t]:bv[32]))) && (i5[t]:bv[32] <= i6[t]:bv[32]) && (i7[t]:bv[32] <= i8[t]:bv[32]) && (i9[t]:bv[32] <= i10[t]:bv[32]) && (i11[t]:bv[32] >= i12[t]:bv[32]) && ((i13[t]:sbf = 0:sbf) || (i15[t]:sbf = 1:sbf)) && ((i14[t]:sbf = 0:sbf) || (i15[t]:sbf = 1:sbf)) && ((i17[t]:sbf = 0:sbf) || (i18[t]:bv[32] >= i19[t]:bv[32])) && (i15[t]:sbf = 1:sbf) && (i16[t]:sbf = 1:sbf))).

@@ -2172,7 +2172,7 @@ actions:
               else: { var: "u1_b" }
             - { param: "amount_b_desired" }
         # Check min constraints for the ratio-preserving used amounts.
-        # cond_ratio := floor(amount_a_desired * pool_b / pool_a) <= amount_b_desired
+        # cond_ratio := amount_a_desired * pool_b <= amount_b_desired * pool_a
         # used_a := ite(cond_ratio, amount_a_desired, floor(amount_b_desired * pool_a / pool_b))
         # used_b := ite(cond_ratio, floor(amount_a_desired * pool_b / pool_a), amount_b_desired)
         - op: ">="
@@ -2181,11 +2181,8 @@ actions:
               cond:
                 op: "<="
                 args:
-                  - op: "div"
-                    args:
-                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                      - { var: "pool_a" }
-                  - { param: "amount_b_desired" }
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
               then: { param: "amount_a_desired" }
               else:
                 op: "div"
@@ -2199,11 +2196,8 @@ actions:
               cond:
                 op: "<="
                 args:
-                  - op: "div"
-                    args:
-                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                      - { var: "pool_a" }
-                  - { param: "amount_b_desired" }
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
               then:
                 op: "div"
                 args:
@@ -2222,11 +2216,8 @@ actions:
                       cond:
                         op: "<="
                         args:
-                          - op: "div"
-                            args:
-                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                              - { var: "pool_a" }
-                          - { param: "amount_b_desired" }
+                          - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                          - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                       then: { param: "amount_a_desired" }
                       else:
                         op: "div"
@@ -2247,11 +2238,8 @@ actions:
                       cond:
                         op: "<="
                         args:
-                          - op: "div"
-                            args:
-                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                              - { var: "pool_a" }
-                          - { param: "amount_b_desired" }
+                          - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                          - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                       then:
                         op: "div"
                         args:
@@ -2271,11 +2259,8 @@ actions:
                   cond:
                     op: "<="
                     args:
-                      - op: "div"
-                        args:
-                          - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                          - { var: "pool_a" }
-                      - { param: "amount_b_desired" }
+                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                      - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                   then: { param: "amount_a_desired" }
                   else:
                     op: "div"
@@ -2292,11 +2277,8 @@ actions:
                   cond:
                     op: "<="
                     args:
-                      - op: "div"
-                        args:
-                          - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                          - { var: "pool_a" }
-                      - { param: "amount_b_desired" }
+                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                      - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                   then:
                     op: "div"
                     args:
@@ -2322,11 +2304,8 @@ actions:
                                 cond:
                                   op: "<="
                                   args:
-                                    - op: "div"
-                                      args:
-                                        - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                        - { var: "pool_a" }
-                                    - { param: "amount_b_desired" }
+                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                                 then: { param: "amount_a_desired" }
                                 else:
                                   op: "div"
@@ -2343,11 +2322,8 @@ actions:
                                 cond:
                                   op: "<="
                                   args:
-                                    - op: "div"
-                                      args:
-                                        - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                        - { var: "pool_a" }
-                                    - { param: "amount_b_desired" }
+                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                                 then:
                                   op: "div"
                                   args:
@@ -2365,11 +2341,8 @@ actions:
                             cond:
                               op: "<="
                               args:
-                                - op: "div"
-                                  args:
-                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                    - { var: "pool_a" }
-                                - { param: "amount_b_desired" }
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                             then: { param: "amount_a_desired" }
                             else:
                               op: "div"
@@ -2387,11 +2360,8 @@ actions:
                             cond:
                               op: "<="
                               args:
-                                - op: "div"
-                                  args:
-                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                    - { var: "pool_a" }
-                                - { param: "amount_b_desired" }
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                             then:
                               op: "div"
                               args:
@@ -2415,11 +2385,8 @@ actions:
                 cond:
                   op: "<="
                   args:
-                    - op: "div"
-                      args:
-                        - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                        - { var: "pool_a" }
-                    - { param: "amount_b_desired" }
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                 then: { param: "amount_a_desired" }
                 else:
                   op: "div"
@@ -2439,11 +2406,8 @@ actions:
                 cond:
                   op: "<="
                   args:
-                    - op: "div"
-                      args:
-                        - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                        - { var: "pool_a" }
-                    - { param: "amount_b_desired" }
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                 then: { param: "amount_a_desired" }
                 else:
                   op: "div"
@@ -2463,11 +2427,8 @@ actions:
                 cond:
                   op: "<="
                   args:
-                    - op: "div"
-                      args:
-                        - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                        - { var: "pool_a" }
-                    - { param: "amount_b_desired" }
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                 then:
                   op: "div"
                   args:
@@ -2487,11 +2448,8 @@ actions:
                 cond:
                   op: "<="
                   args:
-                    - op: "div"
-                      args:
-                        - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                        - { var: "pool_a" }
-                    - { param: "amount_b_desired" }
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                 then:
                   op: "div"
                   args:
@@ -2508,11 +2466,8 @@ actions:
               cond:
                 op: "<="
                 args:
-                  - op: "div"
-                    args:
-                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                      - { var: "pool_a" }
-                  - { param: "amount_b_desired" }
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
               then: { param: "amount_a_desired" }
               else:
                 op: "div"
@@ -2528,11 +2483,8 @@ actions:
               cond:
                 op: "<="
                 args:
-                  - op: "div"
-                    args:
-                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                      - { var: "pool_a" }
-                  - { param: "amount_b_desired" }
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
               then:
                 op: "div"
                 args:
@@ -2560,11 +2512,8 @@ actions:
                               cond:
                                 op: "<="
                                 args:
-                                  - op: "div"
-                                    args:
-                                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                      - { var: "pool_a" }
-                                  - { param: "amount_b_desired" }
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                               then: { param: "amount_a_desired" }
                               else:
                                 op: "div"
@@ -2581,11 +2530,8 @@ actions:
                               cond:
                                 op: "<="
                                 args:
-                                  - op: "div"
-                                    args:
-                                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                      - { var: "pool_a" }
-                                  - { param: "amount_b_desired" }
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                               then:
                                 op: "div"
                                 args:
@@ -2603,11 +2549,8 @@ actions:
                           cond:
                             op: "<="
                             args:
-                              - op: "div"
-                                args:
-                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                  - { var: "pool_a" }
-                              - { param: "amount_b_desired" }
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                           then: { param: "amount_a_desired" }
                           else:
                             op: "div"
@@ -2625,11 +2568,8 @@ actions:
                           cond:
                             op: "<="
                             args:
-                              - op: "div"
-                                args:
-                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                  - { var: "pool_a" }
-                              - { param: "amount_b_desired" }
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                           then:
                             op: "div"
                             args:
@@ -2659,11 +2599,8 @@ actions:
                               cond:
                                 op: "<="
                                 args:
-                                  - op: "div"
-                                    args:
-                                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                      - { var: "pool_a" }
-                                  - { param: "amount_b_desired" }
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                               then: { param: "amount_a_desired" }
                               else:
                                 op: "div"
@@ -2680,11 +2617,8 @@ actions:
                               cond:
                                 op: "<="
                                 args:
-                                  - op: "div"
-                                    args:
-                                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                      - { var: "pool_a" }
-                                  - { param: "amount_b_desired" }
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                               then:
                                 op: "div"
                                 args:
@@ -2702,11 +2636,8 @@ actions:
                           cond:
                             op: "<="
                             args:
-                              - op: "div"
-                                args:
-                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                  - { var: "pool_a" }
-                              - { param: "amount_b_desired" }
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                           then: { param: "amount_a_desired" }
                           else:
                             op: "div"
@@ -2724,11 +2655,8 @@ actions:
                           cond:
                             op: "<="
                             args:
-                              - op: "div"
-                                args:
-                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                  - { var: "pool_a" }
-                              - { param: "amount_b_desired" }
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                           then:
                             op: "div"
                             args:
@@ -2755,11 +2683,8 @@ actions:
                             cond:
                               op: "<="
                               args:
-                                - op: "div"
-                                  args:
-                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                    - { var: "pool_a" }
-                                - { param: "amount_b_desired" }
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                             then: { param: "amount_a_desired" }
                             else:
                               op: "div"
@@ -2776,11 +2701,8 @@ actions:
                             cond:
                               op: "<="
                               args:
-                                - op: "div"
-                                  args:
-                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                    - { var: "pool_a" }
-                                - { param: "amount_b_desired" }
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                             then:
                               op: "div"
                               args:
@@ -2798,11 +2720,8 @@ actions:
                         cond:
                           op: "<="
                           args:
-                            - op: "div"
-                              args:
-                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                - { var: "pool_a" }
-                            - { param: "amount_b_desired" }
+                            - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                            - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                         then: { param: "amount_a_desired" }
                         else:
                           op: "div"
@@ -2820,11 +2739,8 @@ actions:
                         cond:
                           op: "<="
                           args:
-                            - op: "div"
-                              args:
-                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
-                                - { var: "pool_a" }
-                            - { param: "amount_b_desired" }
+                            - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                            - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
                         then:
                           op: "div"
                           args:
