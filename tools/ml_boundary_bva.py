@@ -780,6 +780,150 @@ def _evalrecord_with_reward_and_tags(
     )
 
 
+def _derive_witness_fixed_param_sets(
+    *,
+    state: Mapping[str, object],
+    base_params: Mapping[str, object],
+    param_types: Mapping[str, Any],
+) -> list[dict[str, object]]:
+    """
+    Generate a small set of state-conditioned parameter assignments.
+
+    Motivation:
+    Some kernels are "proof-carrying" and require cross-field consistency,
+    e.g. `witness_reserve_in == reserve_in` and `witness_reserve_out == reserve_out`.
+    Plain boundary enumeration (varying one param at a time) can fail to ever
+    reach an OK transition. This helper proposes a bounded set of candidates
+    that are consistent with the current pre-state.
+    """
+    witness_values: dict[str, int] = {}
+    for pid in sorted(param_types.keys(), key=str):
+        if not str(pid).startswith("witness_"):
+            continue
+        sid = str(pid)[len("witness_") :]
+        v = state.get(sid)
+        if isinstance(v, int) and not isinstance(v, bool):
+            witness_values[str(pid)] = int(v)
+
+    if not witness_values:
+        return []
+
+    fixed: dict[str, object] = {str(k): base_params[k] for k in sorted(base_params.keys(), key=str)}
+    for k, v in witness_values.items():
+        fixed[str(k)] = int(v)
+
+    proposals: list[dict[str, object]] = [dict(fixed)]
+
+    def add_variant(**overrides: object) -> None:
+        p = dict(fixed)
+        for k, v in overrides.items():
+            p[str(k)] = v
+        proposals.append(p)
+
+    def add_int_param_points(pid: str, *, extra: list[int] | None = None) -> None:
+        t = param_types.get(pid)
+        if t is None or str(getattr(t, "kind", "")) != "int":
+            return
+        lo = int(getattr(t, "min", 0))
+        hi = int(getattr(t, "max", 0))
+        mid = (lo + hi) // 2
+        vals = [lo, lo + 1, lo + 2, mid, hi, hi - 1]
+        if extra:
+            vals.extend(list(extra))
+        seen: set[int] = set()
+        for v in vals:
+            if int(v) < int(lo) or int(v) > int(hi):
+                continue
+            if int(v) in seen:
+                continue
+            seen.add(int(v))
+            add_variant(**{pid: int(v)})
+
+    # Common "swap-like" params.
+    add_int_param_points("amount_in")
+    add_int_param_points("min_amount_out")
+    add_int_param_points("max_amount_in")
+
+    reserve_out = state.get("reserve_out")
+    extra_out: list[int] = []
+    if isinstance(reserve_out, int) and not isinstance(reserve_out, bool):
+        extra_out = [int(reserve_out) - 1, int(reserve_out), int(reserve_out) + 1]
+    add_int_param_points("amount_out", extra=extra_out)
+
+    # Combined "likely-to-succeed" proposals: some proof-carrying kernels require
+    # multiple params to move together (e.g. `amount_in` and `min_amount_out`),
+    # otherwise we can get stuck exploring only GuardFalse / ParamType.
+    if "amount_in" in param_types and "min_amount_out" in param_types:
+        t_in = param_types.get("amount_in")
+        t_min = param_types.get("min_amount_out")
+        if (
+            t_in is not None
+            and t_min is not None
+            and str(getattr(t_in, "kind", "")) == "int"
+            and str(getattr(t_min, "kind", "")) == "int"
+        ):
+            lo_in = int(getattr(t_in, "min", 0))
+            hi_in = int(getattr(t_in, "max", 0))
+            lo_min = int(getattr(t_min, "min", 0))
+            mid_in = (lo_in + hi_in) // 2
+            in_points = [lo_in, lo_in + 1, lo_in + 2, mid_in]
+            seen: set[int] = set()
+            for v in in_points:
+                vv = int(v)
+                if vv < int(lo_in) or vv > int(hi_in):
+                    continue
+                if vv in seen:
+                    continue
+                seen.add(vv)
+                add_variant(amount_in=int(vv), min_amount_out=int(lo_min))
+
+    # A combined "likely-to-succeed" proposal for exact-out kernels: make the
+    # max bound permissive and choose a near-drain boundary.
+    if "amount_out" in param_types and "max_amount_in" in param_types:
+        t_out = param_types.get("amount_out")
+        t_max = param_types.get("max_amount_in")
+        if (
+            t_out is not None
+            and t_max is not None
+            and str(getattr(t_out, "kind", "")) == "int"
+            and str(getattr(t_max, "kind", "")) == "int"
+        ):
+            lo_out = int(getattr(t_out, "min", 0))
+            hi_out = int(getattr(t_out, "max", 0))
+            hi_max = int(getattr(t_max, "max", 0))
+            mid_out = (lo_out + hi_out) // 2
+
+            # Combined variants at low/mid output with permissive max bound,
+            # to increase chance of an OK transition in bounded trader states.
+            out_points = [lo_out, lo_out + 1, lo_out + 2, mid_out]
+            seen2: set[int] = set()
+            for v in out_points:
+                vv = int(v)
+                if vv < int(lo_out) or vv > int(hi_out):
+                    continue
+                if vv in seen2:
+                    continue
+                seen2.add(vv)
+                add_variant(amount_out=int(vv), max_amount_in=int(hi_max))
+
+            target_out = lo_out
+            if isinstance(reserve_out, int) and not isinstance(reserve_out, bool):
+                target_out = int(reserve_out) - 1
+            target_out = max(int(lo_out), min(int(hi_out), int(target_out)))
+            add_variant(amount_out=int(target_out), max_amount_in=int(hi_max))
+
+    # Deduplicate deterministically.
+    out: list[dict[str, object]] = []
+    seen_sig: set[str] = set()
+    for p in proposals:
+        sig = _json_dumps({str(k): p[k] for k in sorted(p.keys(), key=str)})
+        if sig in seen_sig:
+            continue
+        seen_sig.add(sig)
+        out.append(p)
+    return out
+
+
 def _refine_pair_bisection(
     *,
     ir: Any,
@@ -902,6 +1046,9 @@ def _ucb_generate_for_action(
     pre_state_by_sig: dict[str, dict[str, object]] = {}
     rng = random.Random(int(seed))
 
+    named_types = ir.named_types()
+    param_types = _action_param_type_map(action=action, named_types=named_types)
+
     if not state_pool_seed:
         raise ValueError("state_pool_seed must be non-empty")
     seed_pool = [{str(k): st[k] for k in sorted(st.keys(), key=str)} for st in state_pool_seed]
@@ -925,6 +1072,9 @@ def _ucb_generate_for_action(
         if rec0.next_state is not None:
             viable_states.append(st)
 
+    saw_ok = False
+    derived_evals = 0
+    derived_budget = 64
     iters = max(int(iterations_per_action), int(cases_per_action) * 4, len(candidates) * 2)
     for i in range(iters):
         idx = -1
@@ -961,6 +1111,8 @@ def _ucb_generate_for_action(
             st = state_pool[int(rng.randrange(len(state_pool)))]
         rec = _evaluate_candidate(ir=ir, ctx=ctx, state=st, candidate=cand, state_types=state_types)
         pre_state_by_sig.setdefault(_state_sig(rec.pre_state), dict(rec.pre_state))
+        if rec.next_state is not None:
+            saw_ok = True
 
         nov_key = (
             _json_dumps({"a": rec.action, "p": rec.params}),
@@ -990,6 +1142,51 @@ def _ucb_generate_for_action(
             pair_density_bonus = 0.6 / (1.0 + float(nearest))
         seen_outcomes_by_state.setdefault(pre_sig, []).append((dict(rec.params), str(rec.outcome_key)))
 
+        # If we haven't seen any OK transitions yet, try a small number of
+        # state-conditioned "witness-fixed" proposals to break out of
+        # cross-field constraint dead-ends (e.g. witness freshness).
+        if not saw_ok and derived_evals < int(derived_budget):
+            derived = _derive_witness_fixed_param_sets(
+                state=rec.pre_state,
+                base_params=rec.params,
+                param_types=param_types,
+            )
+            for p in derived:
+                if derived_evals >= int(derived_budget):
+                    break
+                if _json_dumps(p) == _json_dumps(rec.params):
+                    continue
+                derived_evals += 1
+                cand2 = _candidate_from_params(
+                    action_id=str(action.id),
+                    params=p,
+                    param_types=param_types,
+                    extra_tags=("derived:witness_fixed",),
+                    boundary_score_boost=0.25,
+                )
+                rec2 = _evaluate_candidate(ir=ir, ctx=ctx, state=st, candidate=cand2, state_types=state_types)
+                pre_state_by_sig.setdefault(_state_sig(rec2.pre_state), dict(rec2.pre_state))
+                if rec2.next_state is not None:
+                    saw_ok = True
+
+                nov2 = (
+                    _json_dumps({"a": rec2.action, "p": rec2.params}),
+                    str(rec2.outcome_key),
+                    _state_sig(rec2.pre_state),
+                )
+                if nov2 not in novelty_seen:
+                    novelty_seen.add(nov2)
+                    gathered.append(rec2)
+
+                pre_sig2 = _state_sig(rec2.pre_state)
+                seen_outcomes_by_state.setdefault(pre_sig2, []).append((dict(rec2.params), str(rec2.outcome_key)))
+
+                if rec2.next_state is not None and len(state_pool) < int(max_states):
+                    sig2 = _state_sig(rec2.next_state)
+                    if sig2 not in state_seen:
+                        state_seen.add(sig2)
+                        state_pool.append(dict(rec2.next_state))
+
         observed = float(rec.reward) + float(novelty_bonus) + float(pair_density_bonus)
         total += 1
         pulls[idx] += 1
@@ -1000,9 +1197,6 @@ def _ucb_generate_for_action(
             if sig not in state_seen:
                 state_seen.add(sig)
                 state_pool.append(dict(rec.next_state))
-
-    named_types = ir.named_types()
-    param_types = _action_param_type_map(action=action, named_types=named_types)
 
     if int(refine_pairs_per_action) > 0 and int(refine_max_steps) > 0:
         # Build a small set of (close) outcome-crossing pairs per pre-state, then bisect.
