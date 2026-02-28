@@ -515,29 +515,62 @@ def parse_definitions(spec_text: str) -> dict[str, TauDefinition]:
     """
     Parse Tau definitions from normalized spec text.
 
-    We only handle the simple, line-based form used throughout this repo:
+    Supports both single-line and multiline definitions:
 
         name(a : bv[16], b : bv[16]) := <expr>.
+        name(a : bv[16], b : bv[16]) :=
+          <expr_part_1> &&
+          <expr_part_2>.
 
     The returned bodies are un-terminated (no trailing '.').
     """
     defs: dict[str, TauDefinition] = {}
-    for line in spec_text.splitlines():
+    lines = spec_text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
+            i += 1
             continue
         if re.match(r"^always\b", stripped):
+            i += 1
             continue
         # Skip stream declaration hints like `i1[t]:bv[16]`.
         if _STREAM_DECL_RE.match(line):
+            i += 1
             continue
         if re.match(r"^\s*[io]\d+\s*:", line):
+            i += 1
             continue
 
-        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)\s*:=\s*(.*)\.\s*$", stripped)
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)\s*:=\s*(.*)$", stripped)
         if not match:
+            i += 1
             continue
-        name, params_raw, body = match.group(1), match.group(2), match.group(3)
+
+        name, params_raw = match.group(1), match.group(2)
+        body_parts: list[str] = []
+        first_body = match.group(3).strip()
+        if first_body:
+            body_parts.append(first_body)
+
+        while True:
+            if body_parts and body_parts[-1].endswith("."):
+                break
+            i += 1
+            if i >= len(lines):
+                raise ValueError(f"unterminated definition body for {name}(..)")
+            nxt = lines[i].strip()
+            if not nxt or nxt.startswith("#"):
+                continue
+            body_parts.append(nxt)
+
+        body_joined = " ".join(body_parts).strip()
+        if not body_joined.endswith("."):
+            raise ValueError(f"unterminated definition body for {name}(..)")
+        body = body_joined[:-1].strip()
+
         params: list[str] = []
         for p in [p.strip() for p in params_raw.split(",") if p.strip()]:
             # Allow `x : bv[16]` and tolerate stray type-like tokens.
@@ -547,7 +580,9 @@ def parse_definitions(spec_text: str) -> dict[str, TauDefinition]:
             if not p_name or not _IDENT_RE.fullmatch(p_name):
                 raise ValueError(f"Invalid parameter name in {name}(..): {p!r}")
             params.append(p_name)
-        defs[name] = TauDefinition(name=name, params=tuple(params), body=body.strip())
+
+        defs[name] = TauDefinition(name=name, params=tuple(params), body=body)
+        i += 1
     return defs
 
 

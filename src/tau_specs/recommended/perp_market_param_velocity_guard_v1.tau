@@ -1,0 +1,48 @@
+# Perp Market Parameter Velocity Guard v1
+#
+# PURPOSE:
+# Minimize parameter-shock regret by bounding per-update deltas and enforcing
+# explicit direction permissions while positions are open.
+#
+# i1 = has_open_positions (sbf)
+# i2 = param_sensitive (sbf)
+# i3 = old_value (bv[32])
+# i4 = new_value (bv[32])
+# i5 = max_abs_delta (bv[32])
+# i6 = allow_increase_when_open (sbf)
+# i7 = allow_decrease_when_open (sbf)
+# i8 = proof_ok (sbf)
+# i9 = binding_ok (sbf)
+#
+# o1 = abs_delta_ok
+# o2 = open_position_direction_ok
+# o3 = param_velocity_safe
+# o4 = proof_gated_param_velocity_safe
+
+set charvar off
+
+abs_delta_ok(old_value : bv[32], new_value : bv[32], max_abs_delta : bv[32]) :=
+  ((new_value >= old_value) && ((new_value - old_value) <= max_abs_delta)) ||
+  ((old_value > new_value) && ((old_value - new_value) <= max_abs_delta)).
+
+open_position_direction_ok(has_open_positions : sbf, param_sensitive : sbf, old_value : bv[32], new_value : bv[32], allow_increase_when_open : sbf, allow_decrease_when_open : sbf) :=
+  (has_open_positions = 0:sbf) ||
+  (param_sensitive = 0:sbf) ||
+  (new_value = old_value) ||
+  ((new_value > old_value) && (allow_increase_when_open = 1:sbf)) ||
+  ((old_value > new_value) && (allow_decrease_when_open = 1:sbf)).
+
+param_velocity_safe(has_open_positions : sbf, param_sensitive : sbf, old_value : bv[32], new_value : bv[32], max_abs_delta : bv[32], allow_increase_when_open : sbf, allow_decrease_when_open : sbf) :=
+  abs_delta_ok(old_value, new_value, max_abs_delta) &&
+  open_position_direction_ok(has_open_positions, param_sensitive, old_value, new_value, allow_increase_when_open, allow_decrease_when_open).
+
+proof_gated_param_velocity_safe(has_open_positions : sbf, param_sensitive : sbf, old_value : bv[32], new_value : bv[32], max_abs_delta : bv[32], allow_increase_when_open : sbf, allow_decrease_when_open : sbf, proof_ok : sbf, binding_ok : sbf) :=
+  param_velocity_safe(has_open_positions, param_sensitive, old_value, new_value, max_abs_delta, allow_increase_when_open, allow_decrease_when_open) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> abs_delta_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> open_position_direction_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:bv[32], i4[t]:bv[32], i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> param_velocity_safe(i1[t]:sbf, i2[t]:sbf, i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf, i7[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> proof_gated_param_velocity_safe(i1[t]:sbf, i2[t]:sbf, i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)).
