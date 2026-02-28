@@ -1,0 +1,49 @@
+# Perp Funding Velocity Guard v1
+#
+# PURPOSE:
+# Bound absolute funding rate and per-update funding velocity, and require
+# minimum update interval when updates are requested.
+#
+# i1 = prev_funding_abs_bps (bv[32])
+# i2 = curr_funding_abs_bps (bv[32])
+# i3 = max_funding_abs_bps (bv[32])
+# i4 = max_funding_step_bps (bv[32])
+# i5 = update_requested (sbf)
+# i6 = elapsed_since_last_update (bv[32])
+# i7 = min_update_interval (bv[32])
+# i8 = proof_ok (sbf)
+# i9 = binding_ok (sbf)
+#
+# o1 = funding_cap_ok
+# o2 = funding_step_ok
+# o3 = interval_ok
+# o4 = funding_update_safe
+# o5 = proof_gated_funding_update_safe
+
+set charvar off
+
+funding_cap_ok(curr_funding_abs_bps : bv[32], max_funding_abs_bps : bv[32]) := curr_funding_abs_bps <= max_funding_abs_bps.
+
+funding_step_ok(prev_funding_abs_bps : bv[32], curr_funding_abs_bps : bv[32], max_funding_step_bps : bv[32]) :=
+  ((curr_funding_abs_bps >= prev_funding_abs_bps) && ((curr_funding_abs_bps - prev_funding_abs_bps) <= max_funding_step_bps)) ||
+  ((curr_funding_abs_bps < prev_funding_abs_bps) && ((prev_funding_abs_bps - curr_funding_abs_bps) <= max_funding_step_bps)).
+
+interval_ok(update_requested : sbf, elapsed_since_last_update : bv[32], min_update_interval : bv[32]) :=
+  (update_requested = 0:sbf) || (elapsed_since_last_update >= min_update_interval).
+
+funding_update_safe(prev_funding_abs_bps : bv[32], curr_funding_abs_bps : bv[32], max_funding_abs_bps : bv[32], max_funding_step_bps : bv[32], update_requested : sbf, elapsed_since_last_update : bv[32], min_update_interval : bv[32]) :=
+  funding_cap_ok(curr_funding_abs_bps, max_funding_abs_bps) &&
+  funding_step_ok(prev_funding_abs_bps, curr_funding_abs_bps, max_funding_step_bps) &&
+  interval_ok(update_requested, elapsed_since_last_update, min_update_interval).
+
+proof_gated_funding_update_safe(prev_funding_abs_bps : bv[32], curr_funding_abs_bps : bv[32], max_funding_abs_bps : bv[32], max_funding_step_bps : bv[32], update_requested : sbf, elapsed_since_last_update : bv[32], min_update_interval : bv[32], proof_ok : sbf, binding_ok : sbf) :=
+  funding_update_safe(prev_funding_abs_bps, curr_funding_abs_bps, max_funding_abs_bps, max_funding_step_bps, update_requested, elapsed_since_last_update, min_update_interval) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> funding_cap_ok(i2[t]:bv[32], i3[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> funding_step_ok(i1[t]:bv[32], i2[t]:bv[32], i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> interval_ok(i5[t]:sbf, i6[t]:bv[32], i7[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> funding_update_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf, i6[t]:bv[32], i7[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_funding_update_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:sbf, i6[t]:bv[32], i7[t]:bv[32], i8[t]:sbf, i9[t]:sbf)).

@@ -1,0 +1,52 @@
+# Perp Cross-Margin Health Guard v1
+#
+# PURPOSE:
+# Guard account solvency and margin headroom before allowing sensitive actions.
+#
+# i1 = has_open_positions (sbf)
+# i2 = equity (bv[64])
+# i3 = liabilities (bv[64])
+# i4 = init_margin_req (bv[64])
+# i5 = maint_margin_req (bv[64])
+# i6 = unrealized_pnl_abs (bv[64])
+# i7 = max_unrealized_pnl_abs (bv[64])
+# i8 = proof_ok (sbf)
+# i9 = binding_ok (sbf)
+#
+# o1 = liabilities_covered
+# o2 = init_headroom_ok
+# o3 = maint_headroom_ok
+# o4 = pnl_bound_ok
+# o5 = account_health_ok
+# o6 = proof_gated_account_health_ok
+
+set charvar off
+
+liabilities_covered(equity : bv[64], liabilities : bv[64]) := equity >= liabilities.
+
+init_headroom_ok(equity : bv[64], liabilities : bv[64], init_margin_req : bv[64]) :=
+  liabilities_covered(equity, liabilities) && ((equity - liabilities) >= init_margin_req).
+
+maint_headroom_ok(equity : bv[64], liabilities : bv[64], maint_margin_req : bv[64]) :=
+  liabilities_covered(equity, liabilities) && ((equity - liabilities) >= maint_margin_req).
+
+pnl_bound_ok(unrealized_pnl_abs : bv[64], max_unrealized_pnl_abs : bv[64]) := unrealized_pnl_abs <= max_unrealized_pnl_abs.
+
+account_health_ok(has_open_positions : sbf, equity : bv[64], liabilities : bv[64], init_margin_req : bv[64], maint_margin_req : bv[64], unrealized_pnl_abs : bv[64], max_unrealized_pnl_abs : bv[64]) :=
+  (has_open_positions = 0:sbf) ||
+  (init_headroom_ok(equity, liabilities, init_margin_req) &&
+   maint_headroom_ok(equity, liabilities, maint_margin_req) &&
+   pnl_bound_ok(unrealized_pnl_abs, max_unrealized_pnl_abs)).
+
+proof_gated_account_health_ok(has_open_positions : sbf, equity : bv[64], liabilities : bv[64], init_margin_req : bv[64], maint_margin_req : bv[64], unrealized_pnl_abs : bv[64], max_unrealized_pnl_abs : bv[64], proof_ok : sbf, binding_ok : sbf) :=
+  account_health_ok(has_open_positions, equity, liabilities, init_margin_req, maint_margin_req, unrealized_pnl_abs, max_unrealized_pnl_abs) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> liabilities_covered(i2[t]:bv[64], i3[t]:bv[64])) &&
+  (o2[t]:sbf = 1:sbf <-> init_headroom_ok(i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) &&
+  (o3[t]:sbf = 1:sbf <-> maint_headroom_ok(i2[t]:bv[64], i3[t]:bv[64], i5[t]:bv[64])) &&
+  (o4[t]:sbf = 1:sbf <-> pnl_bound_ok(i6[t]:bv[64], i7[t]:bv[64])) &&
+  (o5[t]:sbf = 1:sbf <-> account_health_ok(i1[t]:sbf, i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64])) &&
+  (o6[t]:sbf = 1:sbf <-> proof_gated_account_health_ok(i1[t]:sbf, i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:sbf, i9[t]:sbf)).

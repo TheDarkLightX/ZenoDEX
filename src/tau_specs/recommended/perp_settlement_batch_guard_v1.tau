@@ -1,0 +1,43 @@
+# Perp Settlement Batch Guard v1
+#
+# PURPOSE:
+# Bound settlement batch size and batch payout against insurance availability.
+#
+# i1 = settlement_batch_size (bv[32])
+# i2 = max_batch_size (bv[32])
+# i3 = settlement_payout (bv[32])
+# i4 = max_batch_payout (bv[32])
+# i5 = insurance_balance (bv[32])
+# i6 = proof_ok (sbf)
+# i7 = binding_ok (sbf)
+#
+# o1 = batch_size_ok
+# o2 = batch_payout_cap_ok
+# o3 = insurance_cover_ok
+# o4 = settlement_batch_safe
+# o5 = proof_gated_settlement_batch_safe
+
+set charvar off
+
+batch_size_ok(settlement_batch_size : bv[32], max_batch_size : bv[32]) := settlement_batch_size <= max_batch_size.
+
+batch_payout_cap_ok(settlement_payout : bv[32], max_batch_payout : bv[32]) := settlement_payout <= max_batch_payout.
+
+insurance_cover_ok(settlement_payout : bv[32], insurance_balance : bv[32]) := settlement_payout <= insurance_balance.
+
+settlement_batch_safe(settlement_batch_size : bv[32], max_batch_size : bv[32], settlement_payout : bv[32], max_batch_payout : bv[32], insurance_balance : bv[32]) :=
+  batch_size_ok(settlement_batch_size, max_batch_size) &&
+  batch_payout_cap_ok(settlement_payout, max_batch_payout) &&
+  insurance_cover_ok(settlement_payout, insurance_balance).
+
+proof_gated_settlement_batch_safe(settlement_batch_size : bv[32], max_batch_size : bv[32], settlement_payout : bv[32], max_batch_payout : bv[32], insurance_balance : bv[32], proof_ok : sbf, binding_ok : sbf) :=
+  settlement_batch_safe(settlement_batch_size, max_batch_size, settlement_payout, max_batch_payout, insurance_balance) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> batch_size_ok(i1[t]:bv[32], i2[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> batch_payout_cap_ok(i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> insurance_cover_ok(i3[t]:bv[32], i5[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> settlement_batch_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_settlement_batch_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf, i7[t]:sbf)).

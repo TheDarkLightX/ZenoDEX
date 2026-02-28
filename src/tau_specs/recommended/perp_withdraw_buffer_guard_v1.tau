@@ -1,0 +1,48 @@
+# Perp Insurance Withdraw Buffer Guard v1
+#
+# PURPOSE:
+# Enforce per-epoch withdrawal caps and minimum post-withdraw buffers on the
+# insurance fund.
+#
+# i1 = insurance_balance (bv[32])
+# i2 = pending_withdrawal (bv[32])
+# i3 = reserved_buffer (bv[32])
+# i4 = min_balance_after (bv[32])
+# i5 = max_withdrawal_per_epoch (bv[32])
+# i6 = proof_ok (sbf)
+# i7 = binding_ok (sbf)
+#
+# o1 = epoch_cap_ok
+# o2 = final_balance_ok
+# o3 = buffer_respected
+# o4 = withdraw_safe
+# o5 = proof_gated_withdraw_safe
+
+set charvar off
+
+epoch_cap_ok(pending_withdrawal : bv[32], max_withdrawal_per_epoch : bv[32]) := pending_withdrawal <= max_withdrawal_per_epoch.
+
+final_balance_ok(insurance_balance : bv[32], pending_withdrawal : bv[32], min_balance_after : bv[32]) :=
+  (insurance_balance >= pending_withdrawal) &&
+  ((insurance_balance - pending_withdrawal) >= min_balance_after).
+
+buffer_respected(insurance_balance : bv[32], pending_withdrawal : bv[32], reserved_buffer : bv[32]) :=
+  (insurance_balance >= pending_withdrawal) &&
+  ((insurance_balance - pending_withdrawal) >= reserved_buffer).
+
+withdraw_safe(insurance_balance : bv[32], pending_withdrawal : bv[32], reserved_buffer : bv[32], min_balance_after : bv[32], max_withdrawal_per_epoch : bv[32]) :=
+  epoch_cap_ok(pending_withdrawal, max_withdrawal_per_epoch) &&
+  final_balance_ok(insurance_balance, pending_withdrawal, min_balance_after) &&
+  buffer_respected(insurance_balance, pending_withdrawal, reserved_buffer).
+
+proof_gated_withdraw_safe(insurance_balance : bv[32], pending_withdrawal : bv[32], reserved_buffer : bv[32], min_balance_after : bv[32], max_withdrawal_per_epoch : bv[32], proof_ok : sbf, binding_ok : sbf) :=
+  withdraw_safe(insurance_balance, pending_withdrawal, reserved_buffer, min_balance_after, max_withdrawal_per_epoch) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> epoch_cap_ok(i2[t]:bv[32], i5[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> final_balance_ok(i1[t]:bv[32], i2[t]:bv[32], i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> buffer_respected(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> withdraw_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_withdraw_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf, i7[t]:sbf)).
