@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.integration.tau_runner import TauDefinition, inline_definitions, normalize_spec_text
+from src.integration.tau_runner import TauDefinition, inline_definitions, normalize_spec_text, parse_definitions
 
 
 def test_normalize_spec_text_collapses_multiline_always_and_preserves_bv_hash() -> None:
@@ -35,3 +35,25 @@ def test_inline_definitions_detects_recursive_definitions() -> None:
     with pytest.raises(ValueError, match="max_depth"):
         inline_definitions("f(a)", defs, max_depth=3)
 
+
+def test_parse_definitions_supports_multiline_bodies() -> None:
+    spec = """
+foo(a : bv[32], b : bv[32]) :=
+  (a <= b) &&
+  (b <= { #x00002710 }:bv[32]).
+always (o1[t]:sbf = 1:sbf <-> foo(i1[t]:bv[32], i2[t]:bv[32])).
+""".lstrip()
+
+    normalized = normalize_spec_text(spec)
+    defs = parse_definitions(normalized)
+    assert "foo" in defs
+    assert defs["foo"].params == ("a", "b")
+    assert defs["foo"].body.startswith("(a <= b)")
+
+    always_expr = normalized.splitlines()[-1].split("always", 1)[1].strip().removesuffix(".").strip()
+    expanded = inline_definitions(always_expr, defs)
+    assert "foo(" not in expanded
+    assert "(a <= b)" not in expanded  # formals replaced
+    assert "i1[t]:bv[32]" in expanded
+    assert "i2[t]:bv[32]" in expanded
+    assert "<=" in expanded
