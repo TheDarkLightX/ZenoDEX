@@ -257,6 +257,60 @@
           "spec_path": "src/tau_specs/recommended/zusd_withdraw_sp_guard_v1.tau"
         }
       ]
+    },
+    "perp_liquidation_oracle_sanity": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/perp_liquidation_oracle_sanity_guard_v1.tau"
+        }
+      ]
+    },
+    "perp_market_param_velocity": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/perp_market_param_velocity_guard_v1.tau"
+        }
+      ]
+    },
+    "swap_execution_regret": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/swap_execution_regret_guard_v1.tau"
+        }
+      ]
+    },
+    "resource_budget": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/resource_budget_guard_v1.tau"
+        }
+      ]
+    },
+    "resource_artifact_binding": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/resource_artifact_binding_guard_v1.tau"
+        }
+      ]
+    },
+    "resource_load_shedding_regret": {
+      "variants": [
+        {
+          "variant_id": "proof_gated_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/resource_load_shedding_regret_guard_v1.tau"
+        }
+      ]
     }
   }
 }

@@ -1,0 +1,53 @@
+# Perp Liquidation Oracle Sanity Guard v1
+#
+# PURPOSE:
+# Minimize liquidation surprise regret by requiring healthy oracle conditions
+# and maintenance breach before liquidation can proceed.
+#
+# NOTE:
+# Host computes price/arithmetic checks and passes them as sbf flags.
+# This keeps Tau execution low-latency.
+#
+# i1 = liquidation_requested (sbf)
+# i2 = account_under_maint (sbf)
+# i3 = oracle_seen (sbf)
+# i4 = oracle_fresh_ok (sbf)
+# i5 = mark_oracle_gap_ok (sbf)
+# i6 = breaker_inactive (sbf)
+# i7 = proof_ok (sbf)
+# i8 = binding_ok (sbf)
+#
+# o1 = oracle_ready
+# o2 = liquidation_preconditions_ok
+# o3 = liquidation_oracle_sanity_safe
+# o4 = proof_gated_liquidation_oracle_sanity_safe
+
+set charvar off
+
+oracle_ready(oracle_seen : sbf, oracle_fresh_ok : sbf, mark_oracle_gap_ok : sbf, breaker_inactive : sbf) :=
+  (oracle_seen = 1:sbf) &&
+  (oracle_fresh_ok = 1:sbf) &&
+  (mark_oracle_gap_ok = 1:sbf) &&
+  (breaker_inactive = 1:sbf).
+
+liquidation_preconditions_ok(liquidation_requested : sbf, account_under_maint : sbf, oracle_seen : sbf, oracle_fresh_ok : sbf, mark_oracle_gap_ok : sbf, breaker_inactive : sbf) :=
+  (liquidation_requested = 0:sbf) ||
+  (
+    (liquidation_requested = 1:sbf) &&
+    (account_under_maint = 1:sbf) &&
+    oracle_ready(oracle_seen, oracle_fresh_ok, mark_oracle_gap_ok, breaker_inactive)
+  ).
+
+liquidation_oracle_sanity_safe(liquidation_requested : sbf, account_under_maint : sbf, oracle_seen : sbf, oracle_fresh_ok : sbf, mark_oracle_gap_ok : sbf, breaker_inactive : sbf) :=
+  liquidation_preconditions_ok(liquidation_requested, account_under_maint, oracle_seen, oracle_fresh_ok, mark_oracle_gap_ok, breaker_inactive).
+
+proof_gated_liquidation_oracle_sanity_safe(liquidation_requested : sbf, account_under_maint : sbf, oracle_seen : sbf, oracle_fresh_ok : sbf, mark_oracle_gap_ok : sbf, breaker_inactive : sbf, proof_ok : sbf, binding_ok : sbf) :=
+  liquidation_oracle_sanity_safe(liquidation_requested, account_under_maint, oracle_seen, oracle_fresh_ok, mark_oracle_gap_ok, breaker_inactive) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> oracle_ready(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> liquidation_preconditions_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> liquidation_oracle_sanity_safe(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> proof_gated_liquidation_oracle_sanity_safe(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)).

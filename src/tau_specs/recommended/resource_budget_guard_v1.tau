@@ -1,0 +1,54 @@
+# Resource Budget Guard v1
+#
+# PURPOSE:
+# Gate execution under high load using host-aggregated resource checks.
+#
+# DESIGN:
+# Host performs heavy CPU/GPU/RAM/storage/queue analysis and passes compact
+# boolean summaries. Tau composes the summaries deterministically.
+#
+# i1  = core_limits_ok (sbf)
+# i2  = cache_path_ok (sbf)
+# i3  = backpressure_clear_ok (sbf)
+# i4  = retry_budget_ok (sbf)
+# i5  = io_backlog_ok (sbf)
+# i6  = witness_complete_ok (sbf)
+# i7  = policy_epoch_ok (sbf)
+# i8  = telemetry_fresh_ok (sbf)
+# i9  = require_telemetry_fresh (sbf)
+# i10 = require_cache_path (sbf)
+# i11 = proof_ok (sbf)
+# i12 = binding_ok (sbf)
+#
+# o1 = operational_ok
+# o2 = admission_ok
+# o3 = proof_gated_admission_ok
+
+set charvar off
+
+optional_req(required : sbf, observed_ok : sbf) :=
+  (required = 0:sbf) ||
+  (observed_ok = 1:sbf).
+
+operational_ok(backpressure_clear_ok : sbf, retry_budget_ok : sbf, io_backlog_ok : sbf, witness_complete_ok : sbf, policy_epoch_ok : sbf, telemetry_fresh_ok : sbf, require_telemetry_fresh : sbf) :=
+  (backpressure_clear_ok = 1:sbf) &&
+  (retry_budget_ok = 1:sbf) &&
+  (io_backlog_ok = 1:sbf) &&
+  (witness_complete_ok = 1:sbf) &&
+  (policy_epoch_ok = 1:sbf) &&
+  optional_req(require_telemetry_fresh, telemetry_fresh_ok).
+
+admission_ok(core_limits_ok : sbf, cache_path_ok : sbf, backpressure_clear_ok : sbf, retry_budget_ok : sbf, io_backlog_ok : sbf, witness_complete_ok : sbf, policy_epoch_ok : sbf, telemetry_fresh_ok : sbf, require_telemetry_fresh : sbf, require_cache_path : sbf) :=
+  (core_limits_ok = 1:sbf) &&
+  optional_req(require_cache_path, cache_path_ok) &&
+  operational_ok(backpressure_clear_ok, retry_budget_ok, io_backlog_ok, witness_complete_ok, policy_epoch_ok, telemetry_fresh_ok, require_telemetry_fresh).
+
+proof_gated_admission_ok(core_limits_ok : sbf, cache_path_ok : sbf, backpressure_clear_ok : sbf, retry_budget_ok : sbf, io_backlog_ok : sbf, witness_complete_ok : sbf, policy_epoch_ok : sbf, telemetry_fresh_ok : sbf, require_telemetry_fresh : sbf, require_cache_path : sbf, proof_ok : sbf, binding_ok : sbf) :=
+  admission_ok(core_limits_ok, cache_path_ok, backpressure_clear_ok, retry_budget_ok, io_backlog_ok, witness_complete_ok, policy_epoch_ok, telemetry_fresh_ok, require_telemetry_fresh, require_cache_path) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> operational_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> admission_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> proof_gated_admission_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)).

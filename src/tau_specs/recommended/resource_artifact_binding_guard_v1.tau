@@ -1,0 +1,63 @@
+# Resource Artifact Binding Guard v1
+#
+# PURPOSE:
+# Bind heavy host-side compute artifacts to deterministic execution decisions.
+#
+# DESIGN:
+# Host computes expensive checks (hash consistency, replay scans, quorum checks,
+# artifact integrity) and passes compact booleans into Tau.
+#
+# i1  = hash_binding_ok (sbf)
+# i2  = anti_replay_ok (sbf)
+# i3  = signer_attestation_ok (sbf)
+# i4  = optional_artifacts_ok (sbf)
+# i5  = epoch_match_ok (sbf)
+# i6  = require_signer_attestation (sbf)
+# i7  = require_optional_artifacts (sbf)
+# i8  = require_replay_guard (sbf)
+# i9  = proof_ok (sbf)
+# i10 = binding_ok (sbf)
+# i11 = quorum_hysteresis_ok (sbf)
+# i12 = policy_hash_fresh_ok (sbf)
+#
+# o1 = artifact_core_ok
+# o2 = replay_and_signer_ok
+# o3 = attachments_ok
+# o4 = artifact_binding_ok
+# o5 = proof_gated_artifact_binding_ok
+
+set charvar off
+
+optional_req(required : sbf, observed_ok : sbf) :=
+  (required = 0:sbf) ||
+  (observed_ok = 1:sbf).
+
+artifact_core_ok(hash_binding_ok : sbf, epoch_match_ok : sbf, policy_hash_fresh_ok : sbf) :=
+  (hash_binding_ok = 1:sbf) &&
+  (epoch_match_ok = 1:sbf) &&
+  (policy_hash_fresh_ok = 1:sbf).
+
+replay_and_signer_ok(anti_replay_ok : sbf, signer_attestation_ok : sbf, require_replay_guard : sbf, require_signer_attestation : sbf, quorum_hysteresis_ok : sbf) :=
+  optional_req(require_replay_guard, anti_replay_ok) &&
+  optional_req(require_signer_attestation, signer_attestation_ok) &&
+  (quorum_hysteresis_ok = 1:sbf).
+
+attachments_ok(optional_artifacts_ok : sbf, require_optional_artifacts : sbf) :=
+  optional_req(require_optional_artifacts, optional_artifacts_ok).
+
+artifact_binding_ok(hash_binding_ok : sbf, anti_replay_ok : sbf, signer_attestation_ok : sbf, optional_artifacts_ok : sbf, epoch_match_ok : sbf, require_signer_attestation : sbf, require_optional_artifacts : sbf, require_replay_guard : sbf, quorum_hysteresis_ok : sbf, policy_hash_fresh_ok : sbf) :=
+  artifact_core_ok(hash_binding_ok, epoch_match_ok, policy_hash_fresh_ok) &&
+  replay_and_signer_ok(anti_replay_ok, signer_attestation_ok, require_replay_guard, require_signer_attestation, quorum_hysteresis_ok) &&
+  attachments_ok(optional_artifacts_ok, require_optional_artifacts).
+
+proof_gated_artifact_binding_ok(hash_binding_ok : sbf, anti_replay_ok : sbf, signer_attestation_ok : sbf, optional_artifacts_ok : sbf, epoch_match_ok : sbf, require_signer_attestation : sbf, require_optional_artifacts : sbf, require_replay_guard : sbf, proof_ok : sbf, binding_ok : sbf, quorum_hysteresis_ok : sbf, policy_hash_fresh_ok : sbf) :=
+  artifact_binding_ok(hash_binding_ok, anti_replay_ok, signer_attestation_ok, optional_artifacts_ok, epoch_match_ok, require_signer_attestation, require_optional_artifacts, require_replay_guard, quorum_hysteresis_ok, policy_hash_fresh_ok) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> artifact_core_ok(i1[t]:sbf, i5[t]:sbf, i12[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> replay_and_signer_ok(i2[t]:sbf, i3[t]:sbf, i8[t]:sbf, i6[t]:sbf, i11[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> attachments_ok(i4[t]:sbf, i7[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> artifact_binding_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i11[t]:sbf, i12[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_artifact_binding_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)).

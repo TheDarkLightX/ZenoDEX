@@ -1,0 +1,59 @@
+# Swap Execution Regret Guard v1
+#
+# PURPOSE:
+# Minimize user regret by combining host-computed limit checks with optional
+# certificate requirements in one fast proof-gated policy.
+#
+# NOTE:
+# Host computes all heavy arithmetic checks and passes boolean flags.
+# Tau enforces structural policy composition only.
+#
+# i1  = regret_within_limit_ok (sbf)
+# i2  = impact_within_limit_ok (sbf)
+# i3  = quote_age_within_limit_ok (sbf)
+# i4  = hop_count_within_limit_ok (sbf)
+# i5  = route_cert_ok (sbf)
+# i6  = oracle_fresh_ok (sbf)
+# i7  = not_expired_ok (sbf)
+# i8  = require_route_cert (sbf)
+# i9  = require_oracle_fresh (sbf)
+# i10 = require_not_expired (sbf)
+# i11 = proof_ok (sbf)
+# i12 = binding_ok (sbf)
+#
+# o1 = limits_ok
+# o2 = certs_ok
+# o3 = execute_safe
+# o4 = proof_gated_execute_safe
+
+set charvar off
+
+limits_ok(regret_within_limit_ok : sbf, impact_within_limit_ok : sbf, quote_age_within_limit_ok : sbf, hop_count_within_limit_ok : sbf) :=
+  (regret_within_limit_ok = 1:sbf) &&
+  (impact_within_limit_ok = 1:sbf) &&
+  (quote_age_within_limit_ok = 1:sbf) &&
+  (hop_count_within_limit_ok = 1:sbf).
+
+requirement_ok(required : sbf, observed_ok : sbf) :=
+  (required = 0:sbf) ||
+  (observed_ok = 1:sbf).
+
+certs_ok(route_cert_ok : sbf, oracle_fresh_ok : sbf, not_expired_ok : sbf, require_route_cert : sbf, require_oracle_fresh : sbf, require_not_expired : sbf) :=
+  requirement_ok(require_route_cert, route_cert_ok) &&
+  requirement_ok(require_oracle_fresh, oracle_fresh_ok) &&
+  requirement_ok(require_not_expired, not_expired_ok).
+
+execute_safe(regret_within_limit_ok : sbf, impact_within_limit_ok : sbf, quote_age_within_limit_ok : sbf, hop_count_within_limit_ok : sbf, route_cert_ok : sbf, oracle_fresh_ok : sbf, not_expired_ok : sbf, require_route_cert : sbf, require_oracle_fresh : sbf, require_not_expired : sbf) :=
+  limits_ok(regret_within_limit_ok, impact_within_limit_ok, quote_age_within_limit_ok, hop_count_within_limit_ok) &&
+  certs_ok(route_cert_ok, oracle_fresh_ok, not_expired_ok, require_route_cert, require_oracle_fresh, require_not_expired).
+
+proof_gated_execute_safe(regret_within_limit_ok : sbf, impact_within_limit_ok : sbf, quote_age_within_limit_ok : sbf, hop_count_within_limit_ok : sbf, route_cert_ok : sbf, oracle_fresh_ok : sbf, not_expired_ok : sbf, require_route_cert : sbf, require_oracle_fresh : sbf, require_not_expired : sbf, proof_ok : sbf, binding_ok : sbf) :=
+  execute_safe(regret_within_limit_ok, impact_within_limit_ok, quote_age_within_limit_ok, hop_count_within_limit_ok, route_cert_ok, oracle_fresh_ok, not_expired_ok, require_route_cert, require_oracle_fresh, require_not_expired) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> limits_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> certs_ok(i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> execute_safe(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> proof_gated_execute_safe(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)).
