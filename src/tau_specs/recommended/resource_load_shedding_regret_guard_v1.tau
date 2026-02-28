@@ -1,0 +1,70 @@
+# Resource Load Shedding Regret Guard v1
+#
+# PURPOSE:
+# Compose resource admission, artifact binding, and user-regret safety under
+# normal and load-shedding modes.
+#
+# i1  = resource_admission_ok (sbf)
+# i2  = artifact_binding_ok (sbf)
+# i3  = user_regret_ok (sbf)
+# i4  = user_impact_ok (sbf)
+# i5  = quote_fresh_ok (sbf)
+# i6  = route_cert_ok (sbf)
+# i7  = require_route_cert (sbf)
+# i8  = load_shedding_mode (sbf)
+# i9  = emergency_override_ok (sbf)
+# i10 = strict_regret_mode (sbf)
+# i11 = proof_ok (sbf)
+# i12 = binding_ok (sbf)
+#
+# o1 = user_safety_ok
+# o2 = certs_ok
+# o3 = normal_path_ok
+# o4 = shed_path_ok
+# o5 = final_admission_ok
+# o6 = proof_gated_final_admission_ok
+
+set charvar off
+
+optional_req(required : sbf, observed_ok : sbf) :=
+  (required = 0:sbf) ||
+  (observed_ok = 1:sbf).
+
+user_safety_ok(user_regret_ok : sbf, user_impact_ok : sbf, quote_fresh_ok : sbf) :=
+  (user_regret_ok = 1:sbf) &&
+  (user_impact_ok = 1:sbf) &&
+  (quote_fresh_ok = 1:sbf).
+
+certs_ok(route_cert_ok : sbf, require_route_cert : sbf) :=
+  optional_req(require_route_cert, route_cert_ok).
+
+normal_path_ok(resource_admission_ok : sbf, artifact_binding_ok : sbf, user_regret_ok : sbf, user_impact_ok : sbf, quote_fresh_ok : sbf, route_cert_ok : sbf, require_route_cert : sbf, load_shedding_mode : sbf) :=
+  (load_shedding_mode = 0:sbf) &&
+  (resource_admission_ok = 1:sbf) &&
+  (artifact_binding_ok = 1:sbf) &&
+  user_safety_ok(user_regret_ok, user_impact_ok, quote_fresh_ok) &&
+  certs_ok(route_cert_ok, require_route_cert).
+
+shed_path_ok(artifact_binding_ok : sbf, user_regret_ok : sbf, user_impact_ok : sbf, quote_fresh_ok : sbf, route_cert_ok : sbf, require_route_cert : sbf, load_shedding_mode : sbf, emergency_override_ok : sbf, strict_regret_mode : sbf) :=
+  (load_shedding_mode = 1:sbf) &&
+  (emergency_override_ok = 1:sbf) &&
+  (artifact_binding_ok = 1:sbf) &&
+  certs_ok(route_cert_ok, require_route_cert) &&
+  ((strict_regret_mode = 0:sbf) || user_safety_ok(user_regret_ok, user_impact_ok, quote_fresh_ok)).
+
+final_admission_ok(resource_admission_ok : sbf, artifact_binding_ok : sbf, user_regret_ok : sbf, user_impact_ok : sbf, quote_fresh_ok : sbf, route_cert_ok : sbf, require_route_cert : sbf, load_shedding_mode : sbf, emergency_override_ok : sbf, strict_regret_mode : sbf) :=
+  normal_path_ok(resource_admission_ok, artifact_binding_ok, user_regret_ok, user_impact_ok, quote_fresh_ok, route_cert_ok, require_route_cert, load_shedding_mode) ||
+  shed_path_ok(artifact_binding_ok, user_regret_ok, user_impact_ok, quote_fresh_ok, route_cert_ok, require_route_cert, load_shedding_mode, emergency_override_ok, strict_regret_mode).
+
+proof_gated_final_admission_ok(resource_admission_ok : sbf, artifact_binding_ok : sbf, user_regret_ok : sbf, user_impact_ok : sbf, quote_fresh_ok : sbf, route_cert_ok : sbf, require_route_cert : sbf, load_shedding_mode : sbf, emergency_override_ok : sbf, strict_regret_mode : sbf, proof_ok : sbf, binding_ok : sbf) :=
+  final_admission_ok(resource_admission_ok, artifact_binding_ok, user_regret_ok, user_impact_ok, quote_fresh_ok, route_cert_ok, require_route_cert, load_shedding_mode, emergency_override_ok, strict_regret_mode) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> user_safety_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> certs_ok(i6[t]:sbf, i7[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> normal_path_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> shed_path_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> final_admission_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o6[t]:sbf = 1:sbf <-> proof_gated_final_admission_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)).
