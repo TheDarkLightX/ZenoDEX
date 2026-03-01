@@ -111,15 +111,19 @@ JOBS="$(command -v nproc >/dev/null 2>&1 && nproc || echo 4)"
 # (-Werror, unified tau.h generation, etc). Keep tiny, local build-fix patches
 # in-repo so experimentation stays reproducible.
 if [[ "${REF}" == "feature/bitblasting" ]] || [[ "${REF}" == "origin/feature/bitblasting" ]]; then
-  PATCH="${ROOT_REAL}/tools/patches/tau-lang/feature-bitblasting-buildfix.patch"
-  if [[ -f "${PATCH}" ]]; then
-    if git -C "${TAU_DIR_REAL}" apply --reverse --check "${PATCH}" >/dev/null 2>&1; then
-      echo "Tau patch already applied: $(basename "${PATCH}")"
-    else
-      echo "Applying Tau patch: $(basename "${PATCH}")"
-      git -C "${TAU_DIR_REAL}" apply "${PATCH}"
+  for PATCH in \
+    "${ROOT_REAL}/tools/patches/tau-lang/feature-bitblasting-buildfix.patch" \
+    "${ROOT_REAL}/tools/patches/tau-lang/feature-bitblasting-semanticfix.patch"
+  do
+    if [[ -f "${PATCH}" ]]; then
+      if git -C "${TAU_DIR_REAL}" apply --reverse --check "${PATCH}" >/dev/null 2>&1; then
+        echo "Tau patch already applied: $(basename "${PATCH}")"
+      else
+        echo "Applying Tau patch: $(basename "${PATCH}")"
+        git -C "${TAU_DIR_REAL}" apply "${PATCH}"
+      fi
     fi
-  fi
+  done
 fi
 
 CMAKE_ARGS=(-DCMAKE_BUILD_TYPE="${BUILD_TYPE}")
