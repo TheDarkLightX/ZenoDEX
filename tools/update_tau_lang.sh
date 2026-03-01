@@ -85,7 +85,18 @@ ROOT_BUILD="${ROOT_REAL}"
 ROOT_SYMLINK=""
 if [[ "${ROOT_REAL}" == *" "* ]]; then
   SAFE_BASE="$(basename "${ROOT_REAL}" | tr ' ' '_' )"
-  ROOT_SYMLINK="/tmp/codex_ws_${SAFE_BASE}_$$"
+  # Use a stable symlink path so CMake caches remain valid across rebuilds.
+  # (CMake stores absolute source/build paths in CMakeCache.txt.)
+  ROOT_SYMLINK="/tmp/codex_ws_${SAFE_BASE}"
+  if [[ -L "${ROOT_SYMLINK}" ]]; then
+    # If the symlink points somewhere else (e.g. after moving the repo), refresh it.
+    if [[ "$(readlink "${ROOT_SYMLINK}")" != "${ROOT_REAL}" ]]; then
+      rm -f "${ROOT_SYMLINK}"
+    fi
+  elif [[ -e "${ROOT_SYMLINK}" ]]; then
+    echo "error: ${ROOT_SYMLINK} exists and is not a symlink; remove it or choose a different workspace path" >&2
+    exit 2
+  fi
   if [[ ! -e "${ROOT_SYMLINK}" ]]; then
     ln -s "${ROOT_REAL}" "${ROOT_SYMLINK}"
   fi
@@ -130,7 +141,8 @@ JOBS="$(command -v nproc >/dev/null 2>&1 && nproc || echo 4)"
 if [[ "${REF}" == "feature/bitblasting" ]] || [[ "${REF}" == "origin/feature/bitblasting" ]]; then
   for PATCH in \
     "${ROOT_REAL}/tools/patches/tau-lang/feature-bitblasting-buildfix.patch" \
-    "${ROOT_REAL}/tools/patches/tau-lang/feature-bitblasting-semanticfix.patch"
+    "${ROOT_REAL}/tools/patches/tau-lang/feature-bitblasting-semanticfix.patch" \
+    "${ROOT_REAL}/tools/patches/tau-lang/local-cvc5-bv-perfopts.patch"
   do
     if [[ -f "${PATCH}" ]]; then
       if git -C "${TAU_DIR_REAL}" apply --reverse --check "${PATCH}" >/dev/null 2>&1; then
@@ -159,7 +171,3 @@ cmake --build "${TAU_DIR_BUILD}/${BUILD_DIR}" -j "${JOBS}"
 echo
 echo "tau-lang git: $(git -C "${TAU_DIR_REAL}" rev-parse HEAD)"
 "${TAU_DIR_REAL}/${BUILD_DIR}/tau" --version
-
-if [[ -n "${ROOT_SYMLINK}" ]]; then
-  rm -f "${ROOT_SYMLINK}" || true
-fi
