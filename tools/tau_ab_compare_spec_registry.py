@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
+from statistics import median
 from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,6 +96,39 @@ def _run_one(
     raise ValueError(f"unsupported mode: {mode!r}")
 
 
+def _parse_env_kv(items: Optional[list[str]]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for raw in items or []:
+        s = str(raw).strip()
+        if not s:
+            continue
+        if "=" not in s:
+            raise ValueError(f"env override must be KEY=VAL, got: {raw!r}")
+        k, v = s.split("=", 1)
+        k = k.strip()
+        v = v.strip()
+        if not k:
+            raise ValueError(f"env override must have non-empty KEY, got: {raw!r}")
+        out[k] = v
+    return out
+
+
+@contextmanager
+def _patched_env(kv: dict[str, str]):
+    old: dict[str, Optional[str]] = {}
+    try:
+        for k, v in kv.items():
+            old[k] = os.environ.get(k)
+            os.environ[k] = v
+        yield
+    finally:
+        for k, prev in old.items():
+            if prev is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="A/B compare Tau binaries on tests/tau/spec_registry.json traces.")
     ap.add_argument(
@@ -102,11 +138,27 @@ def main() -> int:
         help="Registry JSON (default: tests/tau/spec_registry.json).",
     )
     ap.add_argument("--timeout-s", type=float, default=60.0, help="Per-spec timeout (seconds).")
+    ap.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="Repeat each spec N times and report median times (default: 1).",
+    )
     ap.add_argument("--out", type=Path, default=Path("runs/tau_ab_compare_spec_registry/latest.json"))
     ap.add_argument("--a-tau-bin", type=Path, help="Tau binary A (default: auto-detect; or set TAU_BIN).")
     ap.add_argument("--b-tau-bin", type=Path, required=True, help="Tau binary B.")
     ap.add_argument("--a-experimental", action="store_true", help="Run A with --experimental.")
     ap.add_argument("--b-experimental", action="store_true", help="Run B with --experimental.")
+    ap.add_argument(
+        "--a-env",
+        action="append",
+        help="Environment override for A (repeatable KEY=VAL).",
+    )
+    ap.add_argument(
+        "--b-env",
+        action="append",
+        help="Environment override for B (repeatable KEY=VAL).",
+    )
     ap.add_argument("--include-skip", action="store_true", help="Also run registry entries marked mode=skip.")
     ap.add_argument(
         "--only",
@@ -125,6 +177,7 @@ def main() -> int:
     )
     args = ap.parse_args()
 
+    repeats = max(1, int(getattr(args, "repeat", 1)))
     reg_path = args.spec_registry if args.spec_registry.is_absolute() else (ROOT / args.spec_registry)
     data = _load_json(reg_path)
     specs = list(data.get("specs", []))
@@ -140,6 +193,9 @@ def main() -> int:
     if not tau_a:
         raise SystemExit("tau binary A not found (set TAU_BIN=/path/to/tau or pass --a-tau-bin)")
     tau_b = str(args.b_tau_bin)
+
+    a_env = _parse_env_kv(getattr(args, "a_env", None))
+    b_env = _parse_env_kv(getattr(args, "b_env", None))
 
     rows: list[dict[str, Any]] = []
     ok = True
@@ -182,27 +238,60 @@ def main() -> int:
         print(f"[tau-ab] running {sid} ({mode}, {len(steps)} step(s))", file=sys.stderr)
         t0 = time.perf_counter()
         try:
-            t0a = time.perf_counter()
-            a_out = _run_one(
-                tau_bin=tau_a,
-                experimental=bool(args.a_experimental),
-                mode=mode,
-                spec_path=spec_path,
-                steps=steps,
-                timeout_s=float(args.timeout_s),
-            )
-            elapsed_a_s = float(time.perf_counter() - t0a)
+            a_out: dict[int, dict[str, int]] = {}
+            b_out: dict[int, dict[str, int]] = {}
+            a_ref: Optional[dict[int, dict[str, int]]] = None
+            b_ref: Optional[dict[int, dict[str, int]]] = None
+            elapsed_a_s_samples: list[float] = []
+            elapsed_b_s_samples: list[float] = []
 
-            t0b = time.perf_counter()
-            b_out = _run_one(
-                tau_bin=tau_b,
-                experimental=bool(args.b_experimental),
-                mode=mode,
-                spec_path=spec_path,
-                steps=steps,
-                timeout_s=float(args.timeout_s),
-            )
-            elapsed_b_s = float(time.perf_counter() - t0b)
+            # Run paired A/B trials to reduce drift and to detect nondeterministic outputs.
+            # Alternate order (AB, BA, AB, ...) to reduce systematic warm-cache bias.
+            for rep in range(repeats):
+                # rep even: A then B. rep odd: B then A.
+                for side in ("a", "b") if (rep % 2 == 0) else ("b", "a"):
+                    if side == "a":
+                        t0a = time.perf_counter()
+                        with _patched_env(a_env):
+                            a_rep = _run_one(
+                                tau_bin=tau_a,
+                                experimental=bool(args.a_experimental),
+                                mode=mode,
+                                spec_path=spec_path,
+                                steps=steps,
+                                timeout_s=float(args.timeout_s),
+                            )
+                        elapsed_a_s = float(time.perf_counter() - t0a)
+                        elapsed_a_s_samples.append(elapsed_a_s)
+
+                        if a_ref is None:
+                            a_ref = a_rep
+                            a_out = a_rep
+                        else:
+                            det_ok, det_detail = _compare_ab(a_outputs=a_ref, b_outputs=a_rep, step_count=len(steps))
+                            if not det_ok:
+                                raise RuntimeError(f"{sid}: nondeterministic A output at rep={rep}: {det_detail}")
+                    else:
+                        t0b = time.perf_counter()
+                        with _patched_env(b_env):
+                            b_rep = _run_one(
+                                tau_bin=tau_b,
+                                experimental=bool(args.b_experimental),
+                                mode=mode,
+                                spec_path=spec_path,
+                                steps=steps,
+                                timeout_s=float(args.timeout_s),
+                            )
+                        elapsed_b_s = float(time.perf_counter() - t0b)
+                        elapsed_b_s_samples.append(elapsed_b_s)
+
+                        if b_ref is None:
+                            b_ref = b_rep
+                            b_out = b_rep
+                        else:
+                            det_ok, det_detail = _compare_ab(a_outputs=b_ref, b_outputs=b_rep, step_count=len(steps))
+                            if not det_ok:
+                                raise RuntimeError(f"{sid}: nondeterministic B output at rep={rep}: {det_detail}")
 
             elapsed_s = float(time.perf_counter() - t0)
 
@@ -210,6 +299,8 @@ def main() -> int:
             exp_ok_b, exp_detail_b = _compare_expected(expected=expected, outputs=b_out)
             ab_ok, ab_detail = _compare_ab(a_outputs=a_out, b_outputs=b_out, step_count=len(steps))
 
+            elapsed_a_s = float(median(elapsed_a_s_samples))
+            elapsed_b_s = float(median(elapsed_b_s_samples))
             row = {
                 "id": sid,
                 "mode": mode,
@@ -218,6 +309,9 @@ def main() -> int:
                 "elapsed_s": elapsed_s,
                 "elapsed_a_s": elapsed_a_s,
                 "elapsed_b_s": elapsed_b_s,
+                "elapsed_a_s_samples": [float(x) for x in elapsed_a_s_samples],
+                "elapsed_b_s_samples": [float(x) for x in elapsed_b_s_samples],
+                "repeat": int(repeats),
                 "per_step_a_ms": (elapsed_a_s * 1000.0) / float(max(1, len(steps))),
                 "per_step_b_ms": (elapsed_b_s * 1000.0) / float(max(1, len(steps))),
                 "expected_ok_a": bool(exp_ok_a),
@@ -255,8 +349,8 @@ def main() -> int:
         "ok": bool(ok),
         "registry": str(reg_path),
         "timeout_s": float(args.timeout_s),
-        "run_a": {"tau_bin": str(tau_a), "experimental": bool(args.a_experimental)},
-        "run_b": {"tau_bin": str(tau_b), "experimental": bool(args.b_experimental)},
+        "run_a": {"tau_bin": str(tau_a), "experimental": bool(args.a_experimental), "env": dict(a_env)},
+        "run_b": {"tau_bin": str(tau_b), "experimental": bool(args.b_experimental), "env": dict(b_env)},
         "rows": rows,
     }
 
