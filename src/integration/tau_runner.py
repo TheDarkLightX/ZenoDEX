@@ -1141,6 +1141,19 @@ def run_tau_spec_steps_spec_mode_with_trace(
         raise ValueError(f"too many Tau steps: {len(steps)} > 10000")
     if not tau_bin:
         raise ValueError("tau_bin must be provided")
+
+    tau_bin_path = Path(str(tau_bin)).expanduser()
+    if not tau_bin_path.is_absolute():
+        # Spec-mode uses a temp working directory, so resolve relative tau paths
+        # to the repo root for robustness (mirrors run_tau_spec_steps behavior).
+        tau_bin_path = (ROOT / tau_bin_path).resolve()
+    else:
+        tau_bin_path = tau_bin_path.resolve()
+    if not tau_bin_path.exists() or not tau_bin_path.is_file():
+        raise FileNotFoundError(f"Tau binary not found: {tau_bin_path}")
+    if not os.access(str(tau_bin_path), os.X_OK):
+        raise PermissionError(f"Tau binary not executable: {tau_bin_path}")
+    tau_bin = str(tau_bin_path)
     if not spec_path.exists():
         raise FileNotFoundError(f"Tau spec not found: {spec_path}")
 
