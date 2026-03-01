@@ -5,8 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-TAU_BIN=""
-if [ -x "$PROJECT_ROOT/external/tau-nightly/usr/bin/tau" ]; then
+TAU_BIN="${TAU_BIN:-}"
+if [ -n "${TAU_BIN}" ] && [ -x "${TAU_BIN}" ]; then
+  : # explicit override (used for benchmarking/testing alternate Tau builds)
+elif [ -x "$PROJECT_ROOT/external/tau-nightly/usr/bin/tau" ]; then
   TAU_BIN="$PROJECT_ROOT/external/tau-nightly/usr/bin/tau"
 elif [ -f "$PROJECT_ROOT/external/tau-lang/build-Release/tau" ]; then
   TAU_BIN="$PROJECT_ROOT/external/tau-lang/build-Release/tau"
@@ -16,6 +18,11 @@ elif command -v tau >/dev/null 2>&1; then
   TAU_BIN="$(command -v tau)"
 else
   echo "Tau compiler not found. Build it at external/tau-lang/build-Release/tau" >&2
+  exit 1
+fi
+
+if [ -z "${TAU_BIN}" ] || [ ! -x "${TAU_BIN}" ]; then
+  echo "Tau compiler not found/executable. Set TAU_BIN=/path/to/tau or build it at external/tau-lang/build-Release/tau" >&2
   exit 1
 fi
 
