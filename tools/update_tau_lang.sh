@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-usage: tools/update_tau_lang.sh [--ref <git-ref>] [--build-dir <dir>] [--python-bindings]
+usage: tools/update_tau_lang.sh [--ref <git-ref>] [--build-dir <dir>] [--tau-dir <dir>] [--python-bindings]
 
 Updates (or clones) external/tau-lang and builds a Tau binary.
 
@@ -13,6 +13,10 @@ Examples:
 
   # Build the bitblasting branch into a separate build dir (recommended for A/B benchmarking)
   tools/update_tau_lang.sh --ref feature/bitblasting --build-dir build-Release-bitblasting
+
+  # Keep separate clones for baseline vs experimental branches (recommended)
+  tools/update_tau_lang.sh --ref main --tau-dir external/tau-lang --build-dir build-Release
+  tools/update_tau_lang.sh --ref feature/bitblasting --tau-dir external/tau-lang-bitblasting --build-dir build-Release-bitblasting
 
   # Build with Python bindings enabled (optional tooling; not for consensus-critical verification)
   tools/update_tau_lang.sh --python-bindings
@@ -24,6 +28,7 @@ ROOT_REAL="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 REF="main"
 BUILD_DIR="build-Release"
 BUILD_TYPE="Release"
+TAU_DIR_REL="external/tau-lang"
 PY_BINDINGS=0
 
 while [[ $# -gt 0 ]]; do
@@ -34,6 +39,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --build-dir)
       BUILD_DIR="${2:-}"
+      shift 2
+      ;;
+    --tau-dir)
+      TAU_DIR_REL="${2:-}"
       shift 2
       ;;
     --python-bindings)
@@ -60,6 +69,14 @@ if [[ -z "${BUILD_DIR}" ]]; then
   echo "error: --build-dir must be non-empty" >&2
   exit 2
 fi
+if [[ -z "${TAU_DIR_REL}" ]]; then
+  echo "error: --tau-dir must be non-empty" >&2
+  exit 2
+fi
+if [[ "${TAU_DIR_REL}" == /* ]]; then
+  echo "error: --tau-dir must be a repo-relative path (e.g., external/tau-lang)" >&2
+  exit 2
+fi
 
 # Tau's CMake build currently breaks when the source/build path contains spaces.
 # Work around by building through a no-space symlink path while keeping the repo
@@ -76,11 +93,11 @@ if [[ "${ROOT_REAL}" == *" "* ]]; then
   echo "Note: workspace path contains spaces; building Tau via symlink: ${ROOT_BUILD}"
 fi
 
-TAU_DIR_REAL="${ROOT_REAL}/external/tau-lang"
-TAU_DIR_BUILD="${ROOT_BUILD}/external/tau-lang"
+TAU_DIR_REAL="${ROOT_REAL}/${TAU_DIR_REL}"
+TAU_DIR_BUILD="${ROOT_BUILD}/${TAU_DIR_REL}"
 
 if [[ ! -d "${TAU_DIR_REAL}" ]]; then
-  mkdir -p "${ROOT_REAL}/external"
+  mkdir -p "$(dirname "${TAU_DIR_REAL}")"
   git clone https://github.com/IDNI/tau-lang "${TAU_DIR_REAL}"
 fi
 
@@ -119,8 +136,13 @@ if [[ "${REF}" == "feature/bitblasting" ]] || [[ "${REF}" == "origin/feature/bit
       if git -C "${TAU_DIR_REAL}" apply --reverse --check "${PATCH}" >/dev/null 2>&1; then
         echo "Tau patch already applied: $(basename "${PATCH}")"
       else
-        echo "Applying Tau patch: $(basename "${PATCH}")"
-        git -C "${TAU_DIR_REAL}" apply "${PATCH}"
+        if git -C "${TAU_DIR_REAL}" apply --check "${PATCH}" >/dev/null 2>&1; then
+          echo "Applying Tau patch: $(basename "${PATCH}")"
+          git -C "${TAU_DIR_REAL}" apply "${PATCH}"
+        else
+          echo "Warning: Tau patch no longer applies cleanly (possibly upstream changed). Skipping: $(basename "${PATCH}")" >&2
+          echo "  Patch path: ${PATCH}" >&2
+        fi
       fi
     fi
   done
