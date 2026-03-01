@@ -182,6 +182,7 @@ def main() -> int:
         print(f"[tau-ab] running {sid} ({mode}, {len(steps)} step(s))", file=sys.stderr)
         t0 = time.perf_counter()
         try:
+            t0a = time.perf_counter()
             a_out = _run_one(
                 tau_bin=tau_a,
                 experimental=bool(args.a_experimental),
@@ -190,6 +191,9 @@ def main() -> int:
                 steps=steps,
                 timeout_s=float(args.timeout_s),
             )
+            elapsed_a_s = float(time.perf_counter() - t0a)
+
+            t0b = time.perf_counter()
             b_out = _run_one(
                 tau_bin=tau_b,
                 experimental=bool(args.b_experimental),
@@ -198,6 +202,8 @@ def main() -> int:
                 steps=steps,
                 timeout_s=float(args.timeout_s),
             )
+            elapsed_b_s = float(time.perf_counter() - t0b)
+
             elapsed_s = float(time.perf_counter() - t0)
 
             exp_ok_a, exp_detail_a = _compare_expected(expected=expected, outputs=a_out)
@@ -210,6 +216,10 @@ def main() -> int:
                 "spec_path": str(spec_path),
                 "steps": len(steps),
                 "elapsed_s": elapsed_s,
+                "elapsed_a_s": elapsed_a_s,
+                "elapsed_b_s": elapsed_b_s,
+                "per_step_a_ms": (elapsed_a_s * 1000.0) / float(max(1, len(steps))),
+                "per_step_b_ms": (elapsed_b_s * 1000.0) / float(max(1, len(steps))),
                 "expected_ok_a": bool(exp_ok_a),
                 "expected_ok_b": bool(exp_ok_b),
                 "ab_ok": bool(ab_ok),
