@@ -1,0 +1,121 @@
+diff --git a/src/boolean_algebras/cvc5/cvc5_builders.tmpl.h b/src/boolean_algebras/cvc5/cvc5_builders.tmpl.h
+index 3d542e45..0249bd03 100644
+--- a/src/boolean_algebras/cvc5/cvc5_builders.tmpl.h
++++ b/src/boolean_algebras/cvc5/cvc5_builders.tmpl.h
+@@ -149,11 +149,11 @@ inline cvc5::Term make_bitvector_false() {
+ }
+ 
+ inline cvc5::Term make_bitvector_zero(const size_t size) {
+-	return cvc5_term_manager.mkBitVector(size, 1);
++	return cvc5_term_manager.mkBitVector(size, 0);
+ }
+ 
+ inline cvc5::Term make_bitvector_one(const size_t size) {
+ 	return cvc5_term_manager.mkBitVector(size, 1);
+ }
+ 
+-} // namespace idni::tau_lang
+\ No newline at end of file
++} // namespace idni::tau_lang
+diff --git a/src/heuristics/bv_ba_cvc5_simplification.tmpl.h b/src/heuristics/bv_ba_cvc5_simplification.tmpl.h
+index bb6e85bb..39991bb0 100644
+--- a/src/heuristics/bv_ba_cvc5_simplification.tmpl.h
++++ b/src/heuristics/bv_ba_cvc5_simplification.tmpl.h
+@@ -1,5 +1,7 @@
+ // To view the license please visit https://github.com/IDNI/tau-lang/blob/main/LICENSE.md
+ 
++#include <unordered_map>
++
+ #undef LOG_CHANNEL_NAME
+ #define LOG_CHANNEL_NAME "bv_ba-simplification"
+ 
+@@ -9,13 +11,13 @@ using namespace cvc5;
+ using namespace idni;
+ 
+ template<NodeType node>
+-tref cvc5_tree_to_tau_tree(bv n) {
+-#define rec(x) (cvc5_tree_to_tau_tree<node>(x)) // ease recursive calls
++tref cvc5_tree_to_tau_tree(bv n, const std::unordered_map<std::string, tref>* io_vars_by_name) {
++#define rec(x) (cvc5_tree_to_tau_tree<node>((x), io_vars_by_name)) // ease recursive calls
+ 	using tau = tree<node>;
+ 
+ 	DBG(LOG_INFO << "cvc5_tree_to_tau_tree/n: " << n.toString() << "\n";)
+ 
+-	auto from_collection = [](const bv& t, const auto& f) {
++	auto from_collection = [&](const bv& t, const auto& f) {
+ 		tref res = rec(t[0]);
+ 		for (size_t i = 1; i < t.getNumChildren(); ++i) {
+ 			res = f(res, rec(t[i]));
+@@ -27,8 +29,16 @@ tref cvc5_tree_to_tau_tree(bv n) {
+ 		std::string cvc5_var = v.toString();
+ 		DBG(LOG_TRACE << "cvc5_tree_to_tau_tree/get_var/cvc5_var: " << cvc5_var << "\n";)
+ 		// remove leading and trailing spaces `|`
+-		if (cvc5_var.front() == '|') cvc5_var.erase(0, 1);
+-		if (cvc5_var.back() == '|') cvc5_var.pop_back();
++		if (!cvc5_var.empty() && cvc5_var.front() == '|') cvc5_var.erase(0, 1);
++		if (!cvc5_var.empty() && cvc5_var.back() == '|') cvc5_var.pop_back();
++
++		// Preserve stream variables when we simplified through cvc5: cvc5 printing
++		// loses the io_var wrapper, so translate back using the original tau tref.
++		if (io_vars_by_name) {
++			if (auto it = io_vars_by_name->find(cvc5_var); it != io_vars_by_name->end()) {
++				return tau::get(tau::bf, it->second);
++			}
++		}
+ 		size_t bv_size = v.getSort().getBitVectorSize();
+ 		DBG(LOG_TRACE << "cvc5_tree_to_tau_tree/get_var/bv_size: " << bv_size << "\n";)
+ 		auto result = build_bf_variable<node>(cvc5_var, get_ba_type_id<node>(bv_type<node>(bv_size)));
+@@ -62,8 +72,14 @@ tref cvc5_tree_to_tau_tree(bv n) {
+ 			get_ba_type_id<node>(bv_type<node>(n.getSort().getBitVectorSize())));
+ 
+ 		case Kind::BITVECTOR_NOT: return build_bf_neg<node>(rec(n[0]));
+-		// TODO (HIGH) should be two's complement
+-		case Kind::BITVECTOR_NEG: return build_bf_neg<node>(rec(n[0]));
++		// CVC5's BITVECTOR_NEG is two's complement arithmetic negation.
++		// Tau's `bf_neg` is bitwise NOT, so implement negation as (0 - x).
++		case Kind::BITVECTOR_NEG: {
++			size_t width = n.getSort().getBitVectorSize();
++			auto type_id = get_ba_type_id<node>(bv_type<node>(width));
++			tref zero = build_bf_ba_constant<node>(make_bitvector_zero(width), type_id);
++			return build_bf_sub<node>(zero, rec(n[0]));
++		}
+ 		case Kind::BITVECTOR_AND: return from_collection(n, build_bf_and<node>);
+ 		case Kind::BITVECTOR_OR: return from_collection(n, build_bf_or<node>);
+ 		case Kind::BITVECTOR_XOR: return from_collection(n, build_bf_xor<node>);
+@@ -86,6 +102,11 @@ tref cvc5_tree_to_tau_tree(bv n) {
+ #undef rec
+ }
+ 
++template<NodeType node>
++tref cvc5_tree_to_tau_tree(bv n) {
++	return cvc5_tree_to_tau_tree<node>(n, nullptr);
++}
++
+ template<NodeType node>
+ tref bv_ba_cvc5_simplification(tref term) {
+ 	using tau = tree<node>;
+@@ -97,7 +118,16 @@ tref bv_ba_cvc5_simplification(tref term) {
+ 	DBG(LOG_TRACE << "bv_ba_cvc5_simplification/bv_term: " << bv_term.value().toString() << "\n";)
+ 	auto simplified_bv = normalize_bv(bv_term.value());
+ 	DBG(LOG_TRACE << "bv_ba_cvc5_simplification/simplified_bv: " << simplified_bv.toString() << "\n";)
+-	auto simplified_term = cvc5_tree_to_tau_tree<node>(simplified_bv);
++
++	std::unordered_map<std::string, tref> io_vars_by_name;
++	for (const auto& [tau_var, cvc5_term] : free_vars) {
++		std::string name = cvc5_term.toString();
++		if (!name.empty() && name.front() == '|') name.erase(0, 1);
++		if (!name.empty() && name.back() == '|') name.pop_back();
++		io_vars_by_name.emplace(std::move(name), tau_var);
++	}
++
++	auto simplified_term = cvc5_tree_to_tau_tree<node>(simplified_bv, &io_vars_by_name);
+ #ifdef DEBUG
+ 	if (simplified_term)
+ 		LOG_TRACE << "bv_ba_cvc5_simplification/simplified_term: " << tau::get(simplified_term) << "\n"
+@@ -106,4 +136,4 @@ tref bv_ba_cvc5_simplification(tref term) {
+ 	return simplified_term;
+ }
+ 
+-} // namespace idni::tau_lang
+\ No newline at end of file
++} // namespace idni::tau_lang
