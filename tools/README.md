@@ -22,6 +22,23 @@ python3 tools/tau_spec_runner_gui.py
 
 Note: Specs with long runs may take time; the GUI uses a 30s timeout.
 
+## Tau Lang Update / Bitblasting (Internal)
+
+Update/build Tau (default `main` into `external/tau-lang/build-Release/tau`):
+```bash
+tools/update_tau_lang.sh
+```
+
+Build an alternate Tau checkout into a separate build dir (useful for A/B benchmarking):
+```bash
+tools/update_tau_lang.sh --ref feature/bitblasting --build-dir build-Release-bitblasting
+```
+
+Most Tau tooling in this repo supports an explicit binary override via `TAU_BIN`:
+```bash
+TAU_BIN=external/tau-lang/build-Release-bitblasting/tau bash tests/tau/test_specs_syntax.sh
+```
+
 ## Tau Frontier Explorer (ZAG-style, Internal)
 
 Searches a regret-focused Tau policy space, emits candidate `.tau` specs, and

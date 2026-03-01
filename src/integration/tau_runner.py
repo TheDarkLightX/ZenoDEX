@@ -253,6 +253,16 @@ def _run_subprocess_with_output_caps(
 
 def find_tau_bin(project_root: Path = ROOT) -> Optional[str]:
     """Find a usable Tau binary in common locations or on PATH."""
+    env_tau = os.environ.get("TAU_BIN", "").strip()
+    if env_tau:
+        p = Path(os.path.expanduser(env_tau))
+        try:
+            if p.exists() and p.is_file() and os.access(str(p), os.X_OK):
+                return str(p)
+        except Exception:
+            # Best-effort: fall through to default search.
+            pass
+
     candidates = [
         project_root / "external" / "tau-lang" / "build-Release" / "tau",
         project_root / "external" / "tau-lang" / "build-Debug" / "tau",
@@ -823,6 +833,19 @@ def run_tau_spec_steps(
                 "tau_bin must be provided (or set TAU_USE_PY_BINDINGS=1 to enable Tau Python bindings fallback)"
             )
         return _run_tau_spec_steps_via_python_binding(spec_path, steps, timeout_s=timeout_s)
+
+    tau_bin_path = Path(str(tau_bin)).expanduser()
+    if not tau_bin_path.is_absolute():
+        # Many runners execute Tau with `cwd=spec_path.parent`, so relative `tau_bin`
+        # paths are fragile. Resolve relative to the repo root.
+        tau_bin_path = (ROOT / tau_bin_path).resolve()
+    else:
+        tau_bin_path = tau_bin_path.resolve()
+    if not tau_bin_path.exists() or not tau_bin_path.is_file():
+        raise FileNotFoundError(f"Tau binary not found: {tau_bin_path}")
+    if not os.access(str(tau_bin_path), os.X_OK):
+        raise PermissionError(f"Tau binary not executable: {tau_bin_path}")
+    tau_bin = str(tau_bin_path)
 
     spec_text = normalize_spec_text(spec_path.read_text(encoding="utf-8"))
     stream_types = extract_stream_types(spec_text)

@@ -1,0 +1,77 @@
+From eea8fb1fa79c0cf83b9d17429b42e53d333862c6 Mon Sep 17 00:00:00 2001
+From: DarkLightX <darklight@darkai.org>
+Date: Sat, 28 Feb 2026 19:01:48 -0500
+Subject: [PATCH] local: fix feature/bitblasting build under -Werror
+
+---
+ .../bv_ba_custom_simplification.tmpl.h           | 16 +++++++++-------
+ src/heuristics/bv_bitblasting.h                  |  4 ++--
+ 2 files changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/src/heuristics/bv_ba_custom_simplification.tmpl.h b/src/heuristics/bv_ba_custom_simplification.tmpl.h
+index 80b6fcb2..0a11a100 100644
+--- a/src/heuristics/bv_ba_custom_simplification.tmpl.h
++++ b/src/heuristics/bv_ba_custom_simplification.tmpl.h
+@@ -95,8 +95,6 @@ tref build_simplification(const trefs& arguments, const trefs& inverses, size_t
+ 
+ template<NodeType node>
+ void apply_block_operation(std::vector<std::pair<trefs, trefs>>& to_simplify, size_t inverse) {
+-	using tau = tree<node>;
+-
+ 	auto [right_args, right_invs] = to_simplify.back();	to_simplify.pop_back();
+ 
+ 	auto from_args = inverse ? right_invs : right_args;
+@@ -107,6 +105,8 @@ void apply_block_operation(std::vector<std::pair<trefs, trefs>>& to_simplify, si
+ 	to_simplify.back().second.insert(to_simplify.back().second.end(), from_invs.begin(), from_invs.end());
+ 
+ #ifdef DEBUG
++	using tau = tree<node>;
++
+ 	LOG_TRACE << "apply_block_operation/left_args: ";
+ 	for (const auto& arg : to_simplify.back().first) LOG_TRACE << "\t" << tau::get(arg).to_str() << " ";
+ 	LOG_TRACE << "\n";
+@@ -211,8 +211,6 @@ subtree_map<node, tref> simplify_blocks(const tref& n) {
+ 
+ template<NodeType node>
+ tref bv_ba_custom_simplification(const tref term) {
+-	using tau = tree<node>;
+-
+ 	auto changes = simplify_blocks<node>(term);
+ 	auto current = rewriter::replace<node>(term, changes);
+ 
+@@ -232,10 +230,14 @@ tref bv_ba_custom_simplification(const tref term) {
+ 
+ 	} while (tau::get(current) != tau::get(next));*/
+ 
+-	DBG(LOG_TRACE << "bv_ba_custom_simplification/term: " << tau::get(term).to_str() << "\n";)
+-	DBG(LOG_TRACE << "bv_ba_custom_simplification/current: " << tau::get(current).to_str() << "\n";)
++#ifdef DEBUG
++	using tau = tree<node>;
++
++	LOG_TRACE << "bv_ba_custom_simplification/term: " << tau::get(term).to_str() << "\n";
++	LOG_TRACE << "bv_ba_custom_simplification/current: " << tau::get(current).to_str() << "\n";
++#endif // DEBUG
+ 
+ 	return current;
+ }
+ 
+-} // namespace idni::tau_lang
+\ No newline at end of file
++} // namespace idni::tau_lang
+diff --git a/src/heuristics/bv_bitblasting.h b/src/heuristics/bv_bitblasting.h
+index f389734d..dc4ae2cc 100644
+--- a/src/heuristics/bv_bitblasting.h
++++ b/src/heuristics/bv_bitblasting.h
+@@ -27,6 +27,6 @@ bool bv_bitblasting_valid(tref term);
+ 
+ } // namespace idni::tau_lang
+ 
+-#include "bv_bitblasting.tmpl.h"
++#include "heuristics/bv_bitblasting.tmpl.h"
+ 
+-#endif // __IDNI__TAU__BV_BITBLASTING_H__
+\ No newline at end of file
++#endif // __IDNI__TAU__BV_BITBLASTING_H__
+-- 
+2.52.0
+

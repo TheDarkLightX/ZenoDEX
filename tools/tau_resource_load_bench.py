@@ -136,15 +136,20 @@ def main() -> int:
     ap.add_argument("--max-seconds", type=float, default=60.0)
     ap.add_argument("--out", type=Path, default=Path("runs/tau_resource_load_bench/latest.json"))
     ap.add_argument(
+        "--tau-bin",
+        type=Path,
+        help="Override Tau binary path (default: auto-detect; or set TAU_BIN=/path/to/tau).",
+    )
+    ap.add_argument(
         "--include-perp-risk",
         action="store_true",
         help="Include perp_risk_envelope_proof_gate_v1 in the benchmark set.",
     )
     args = ap.parse_args()
 
-    tau_bin = find_tau_bin(ROOT)
+    tau_bin = str(args.tau_bin) if getattr(args, "tau_bin", None) else find_tau_bin(ROOT)
     if not tau_bin:
-        raise SystemExit("tau binary not found")
+        raise SystemExit("tau binary not found (set TAU_BIN=/path/to/tau or build external/tau-lang/build-Release/tau)")
 
     bench_specs: list[tuple[str, Path, str, StepGen]] = [
         ("resource_budget_guard_v1", ROOT / "src/tau_specs/recommended/resource_budget_guard_v1.tau", "o3", _gen_resource_budget),
