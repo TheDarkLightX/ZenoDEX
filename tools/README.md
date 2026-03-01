@@ -35,9 +35,13 @@ tools/update_tau_lang.sh --ref feature/bitblasting --build-dir build-Release-bit
 ```
 
 Current status note (as of `tau-lang` `origin/feature/bitblasting` @ `d0e5bd6e`):
-- The branch is WIP and currently rejects many bv-stream formulas in `r`/`-x` mode with
-  “variable(s) must be quantified and cannot appear free”, so it cannot run most bv-heavy
-  DEX `.tau` specs yet. Keep it only for experimentation/A-B harness readiness.
+- Upstream is WIP. This repo applies small local patches at build time
+  (`tools/patches/tau-lang/feature-bitblasting-*.patch`) so it can execute our bv-heavy
+  `.tau` specs deterministically for A/B experiments (io-var preservation + correct
+  two's complement handling).
+- The actual `bv_bitblasting_*` implementation on that branch is still a stub, so any
+  performance deltas you observe today are primarily from simplification/rewriting, not a
+  real SAT bitblaster.
 
 Most Tau tooling in this repo supports an explicit binary override via `TAU_BIN`:
 ```bash
