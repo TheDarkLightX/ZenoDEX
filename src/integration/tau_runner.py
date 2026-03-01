@@ -814,6 +814,7 @@ def run_tau_spec_steps(
     steps: List[Dict[str, int]],
     *,
     timeout_s: float = 2.0,
+    experimental: bool = False,
 ) -> Dict[int, Dict[str, int]]:
     """
     Run a Tau spec over a list of concrete steps (IO harness, REPL mode).
@@ -894,8 +895,13 @@ def run_tau_spec_steps(
             skip_definitions=True,
         )
 
+        cmd = [tau_bin]
+        if experimental:
+            cmd.append("--experimental")
+        cmd += ["--severity", "error", "--charvar", "false"]
+
         rc, out, err = _run_subprocess_with_output_caps(
-            [tau_bin, "--severity", "error", "--charvar", "false"],
+            cmd,
             input_text=repl_script,
             cwd=spec_path.parent,
             timeout_s=timeout_s,

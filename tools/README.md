@@ -34,9 +34,22 @@ Build an alternate Tau checkout into a separate build dir (useful for A/B benchm
 tools/update_tau_lang.sh --ref feature/bitblasting --build-dir build-Release-bitblasting
 ```
 
+Current status note (as of `tau-lang` `origin/feature/bitblasting` @ `d0e5bd6e`):
+- The branch is WIP and currently rejects many bv-stream formulas in `r`/`-x` mode with
+  “variable(s) must be quantified and cannot appear free”, so it cannot run most bv-heavy
+  DEX `.tau` specs yet. Keep it only for experimentation/A-B harness readiness.
+
 Most Tau tooling in this repo supports an explicit binary override via `TAU_BIN`:
 ```bash
 TAU_BIN=external/tau-lang/build-Release-bitblasting/tau bash tests/tau/test_specs_syntax.sh
+```
+
+BV microbench / regression probe (internal):
+```bash
+python3 tools/tau_bv_solve_bench.py \
+  --a-tau-bin external/tau-lang/build-Release/tau \
+  --b-tau-bin external/tau-lang/build-Release-bitblasting/tau \
+  --steps 32 --timeout-s 10 --verify-witness
 ```
 
 ## Tau Frontier Explorer (ZAG-style, Internal)

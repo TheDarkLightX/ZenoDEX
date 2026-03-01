@@ -136,6 +136,11 @@ def main() -> int:
     ap.add_argument("--max-seconds", type=float, default=60.0)
     ap.add_argument("--out", type=Path, default=Path("runs/tau_resource_load_bench/latest.json"))
     ap.add_argument(
+        "--experimental",
+        action="store_true",
+        help="Run tau with --experimental enabled (useful for A/B benchmarking transitioning features).",
+    )
+    ap.add_argument(
         "--tau-bin",
         type=Path,
         help="Override Tau binary path (default: auto-detect; or set TAU_BIN=/path/to/tau).",
@@ -175,6 +180,7 @@ def main() -> int:
                 spec_path=spec_path,
                 steps=steps,
                 timeout_s=max_seconds,
+                experimental=bool(args.experimental),
             )
             elapsed = float(time.time() - t0)
             accepts = sum(1 for i in range(steps_n) if int(outputs.get(i, {}).get(gate_out, 0)) == 1)
@@ -184,6 +190,7 @@ def main() -> int:
                     "spec_path": str(spec_path),
                     "gate_output": gate_out,
                     "steps": steps_n,
+                    "experimental": bool(args.experimental),
                     "elapsed_s": elapsed,
                     "per_step_ms": (elapsed * 1000.0) / float(steps_n),
                     "accept_count": int(accepts),
@@ -211,6 +218,7 @@ def main() -> int:
         "tau_bin": str(tau_bin),
         "steps": steps_n,
         "max_seconds": max_seconds,
+        "experimental": bool(args.experimental),
         "results": results,
     }
 
