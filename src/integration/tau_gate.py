@@ -22,6 +22,8 @@ from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
+    SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
+    SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE,
     SWAP_BV32_SAFE_RANGE_GUARD_V1,
     SWAP_EXACT_IN_PROOF_GATE_V1,
     SWAP_EXACT_IN_V1,
@@ -30,6 +32,8 @@ from .tau_witness import (
     SWAP_EXACT_IN_V4,
     SWAP_EXACT_OUT_V4,
     TauSpecRef,
+    build_settlement_price_rails_aligned_v1_step,
+    build_settlement_v5_aligned_compact_bundle_step,
     build_swap_bv32_safe_range_guard_v1_step,
     build_swap_exact_in_proof_gate_v1_step,
     build_swap_exact_in_v1_step,
@@ -38,6 +42,19 @@ from .tau_witness import (
     build_swap_exact_in_v4_step,
     build_swap_exact_out_v4_step,
 )
+
+
+@dataclass(frozen=True)
+class TauSettlementModuleFlags:
+    cpmm_ok: int = 1
+    balance_ok: int = 1
+    token_ok: int = 1
+    buyback_floor_ok: int = 1
+    buyback_floor_fixedpoint_ok: int = 1
+    rebate_ok: int = 1
+    lock_weight_ok: int = 1
+    proof_ok: int = 1
+    binding_ok: int = 1
 
 
 @dataclass(frozen=True)
@@ -54,6 +71,9 @@ class TauGateConfig:
     tau_bin: Optional[str] = None
     allow_path_lookup: bool = False
     swap_profile: str = "legacy_auto"
+    settlement_profile: str = "off"
+    settlement_price_history: Optional[Tuple[int, int, int]] = None
+    settlement_module_flags: Optional[TauSettlementModuleFlags] = None
 
 
 def _require_gate_ok(
@@ -70,6 +90,27 @@ def _require_gate_ok(
         if int(value) != 1:
             return False, f"Tau gate failed ({gate_output}=0) for step {idx} (intent {intent_id})"
     return True, None
+
+
+def _require_single_gate_ok(
+    outputs_by_step: Dict[int, Dict[str, int]],
+    *,
+    spec_ref: TauSpecRef,
+    label: str,
+) -> Tuple[bool, Optional[str]]:
+    out = outputs_by_step.get(0, {})
+    value = out.get(spec_ref.gate_output)
+    if value is None:
+        return False, f"Tau missing {spec_ref.gate_output} for {label}"
+    if int(value) != 1:
+        return False, f"Tau gate failed ({spec_ref.gate_output}=0) for {label}"
+    return True, None
+
+
+def _intent_id_to_u64(intent_id: str) -> int:
+    if not isinstance(intent_id, str) or not intent_id.startswith("0x") or len(intent_id) <= 2:
+        raise ValueError(f"invalid intent_id for Tau witness: {intent_id!r}")
+    return int(intent_id, 16) & 0xFFFFFFFFFFFFFFFF
 
 
 def validate_settlement_swaps(
@@ -89,6 +130,12 @@ def validate_settlement_swaps(
     - `proof_gate_range_guard`:
       use the smaller proof-gated swap specs plus the explicit
       `swap_bv32_safe_range_guard_v1.tau` supplemental guard
+
+    Settlement profiles:
+    - `off`: no settlement-level Tau gate
+    - `aligned_price_rails_v1`: run the aligned canonical-order + price-history rail
+    - `aligned_compact_bundle_v5`: run the aligned compact bundle and require
+      explicit module flags in `config.settlement_module_flags`
     """
     if not config.enabled:
         return True, None
@@ -96,6 +143,8 @@ def validate_settlement_swaps(
     try:
         if config.swap_profile not in ("legacy_auto", "proof_gate_range_guard"):
             return False, f"Unsupported Tau swap_profile: {config.swap_profile}"
+        if config.settlement_profile not in ("off", "aligned_price_rails_v1", "aligned_compact_bundle_v5"):
+            return False, f"Unsupported Tau settlement_profile: {config.settlement_profile}"
 
         intents_by_id = {i.intent_id: i for i in intents}
         fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
@@ -398,8 +447,58 @@ def validate_settlement_swaps(
                 pool.reserve0 = pool.reserve0 - amount_out
             pools_mut[pool_id] = pool
 
-        # No swap steps => pass (do not require tau binary).
-        if not segments_in_order:
+        settlement_gate: Optional[Tuple[TauSpecRef, Dict[str, int], str]] = None
+        if config.settlement_profile != "off":
+            if config.settlement_price_history is None:
+                return False, f"Tau settlement_profile={config.settlement_profile} requires settlement_price_history=(price_pp, price_prev, price_curr)"
+            included_intent_ids = [intent_id for intent_id, _action in settlement.included_intents]
+            if len(included_intent_ids) != 4:
+                return False, f"Tau settlement_profile={config.settlement_profile} requires exactly 4 included intents, got {len(included_intent_ids)}"
+            a, b, c, d = (_intent_id_to_u64(intent_id) for intent_id in included_intent_ids)
+            price_pp, price_prev, price_curr = config.settlement_price_history
+            if config.settlement_profile == "aligned_price_rails_v1":
+                settlement_gate = (
+                    SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
+                    build_settlement_price_rails_aligned_v1_step(
+                        a=a,
+                        b=b,
+                        c=c,
+                        d=d,
+                        price_pp=price_pp,
+                        price_prev=price_prev,
+                        price_curr=price_curr,
+                    ),
+                    "settlement",
+                )
+            else:
+                flags = config.settlement_module_flags
+                if flags is None:
+                    return False, "Tau settlement_profile=aligned_compact_bundle_v5 requires settlement_module_flags"
+                settlement_gate = (
+                    SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE,
+                    build_settlement_v5_aligned_compact_bundle_step(
+                        a=a,
+                        b=b,
+                        c=c,
+                        d=d,
+                        price_pp=price_pp,
+                        price_prev=price_prev,
+                        price_curr=price_curr,
+                        cpmm_ok=flags.cpmm_ok,
+                        balance_ok=flags.balance_ok,
+                        token_ok=flags.token_ok,
+                        buyback_floor_ok=flags.buyback_floor_ok,
+                        buyback_floor_fixedpoint_ok=flags.buyback_floor_fixedpoint_ok,
+                        rebate_ok=flags.rebate_ok,
+                        lock_weight_ok=flags.lock_weight_ok,
+                        proof_ok=flags.proof_ok,
+                        binding_ok=flags.binding_ok,
+                    ),
+                    "settlement",
+                )
+
+        # No Tau work => pass (do not require tau binary).
+        if not segments_in_order and settlement_gate is None:
             return True, None
 
         if config.tau_bin:
@@ -425,6 +524,18 @@ def validate_settlement_swaps(
                 timeout_s=config.timeout_s,
             )
             ok, err = _require_gate_ok(outputs, gate_output=seg.spec_ref.gate_output, intent_ids=seg.intent_ids)
+            if not ok:
+                return False, err
+
+        if settlement_gate is not None:
+            spec_ref, step, label = settlement_gate
+            outputs = run_tau_spec_steps(
+                tau_bin=tau_bin,
+                spec_path=spec_ref.path,
+                steps=[step],
+                timeout_s=config.timeout_s,
+            )
+            ok, err = _require_single_gate_ok(outputs, spec_ref=spec_ref, label=label)
             if not ok:
                 return False, err
 

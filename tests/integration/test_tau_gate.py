@@ -8,7 +8,7 @@ from dataclasses import replace
 from src.core.liquidity import create_pool
 from src.core.settlement import Fill, FillAction, Settlement
 from src.integration import tau_gate
-from src.integration.tau_gate import TauGateConfig, validate_settlement_swaps
+from src.integration.tau_gate import TauGateConfig, TauSettlementModuleFlags, validate_settlement_swaps
 from src.state.intents import Intent, IntentKind
 
 
@@ -457,3 +457,254 @@ def test_tau_gate_rejects_unknown_swap_profile() -> None:
     )
     assert not ok
     assert err and "swap_profile" in err
+
+
+def test_tau_gate_settlement_price_profile_runs_aligned_rail(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    pk = "0x" + "11" * 48
+    pool_id, pool, _ = create_pool(
+        asset0="0x" + "01" * 32,
+        asset1="0x" + "02" * 32,
+        amount0=1_000_000,
+        amount1=1_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_mk_intent_id(i),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": pool.asset0,
+                "asset_out": pool.asset1,
+                "min_amount_out": 1,
+            },
+        )
+        for i in range(1, 5)
+    ]
+    fills = [
+        Fill(
+            intent_id=intent.intent_id,
+            action=FillAction.FILL,
+            reason="COW_NETTED",
+            amount_in_filled=1000,
+            amount_out_filled=900,
+        )
+        for intent in intents
+    ]
+    calls = []
+
+    def _fake_tau(*, spec_path, steps, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((spec_path.name, dict(steps[0])))
+        return {0: {"o1": 1}}
+
+    monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
+
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.FILL) for intent in intents],
+        fills=fills,
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    ok, err = validate_settlement_swaps(
+        intents=intents,
+        settlement=settlement,
+        pre_pools={pool_id: pool},
+        config=TauGateConfig(
+            enabled=True,
+            tau_bin=sys.executable,
+            allow_path_lookup=False,
+            settlement_profile="aligned_price_rails_v1",
+            settlement_price_history=(1000, 1001, 1002),
+        ),
+    )
+    assert ok, err
+    assert calls == [
+        (
+            "settlement_price_rails_aligned_v1.tau",
+            {
+                "i1": 1,
+                "i2": 2,
+                "i3": 3,
+                "i4": 4,
+                "i5": 1000,
+                "i6": 1001,
+                "i7": 1002,
+            },
+        )
+    ]
+
+
+def test_tau_gate_settlement_compact_bundle_uses_explicit_flags(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    pk = "0x" + "11" * 48
+    pool_id, pool, _ = create_pool(
+        asset0="0x" + "01" * 32,
+        asset1="0x" + "02" * 32,
+        amount0=1_000_000,
+        amount1=1_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_mk_intent_id(i),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": pool.asset0,
+                "asset_out": pool.asset1,
+                "min_amount_out": 1,
+            },
+        )
+        for i in range(1, 5)
+    ]
+    fills = [
+        Fill(
+            intent_id=intent.intent_id,
+            action=FillAction.FILL,
+            reason="COW_NETTED",
+            amount_in_filled=1000,
+            amount_out_filled=900,
+        )
+        for intent in intents
+    ]
+    calls = []
+
+    def _fake_tau(*, spec_path, steps, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((spec_path.name, dict(steps[0])))
+        return {0: {"o1": 0 if steps[0]["i13"] == 0 else 1}}
+
+    monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
+
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.FILL) for intent in intents],
+        fills=fills,
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    ok, err = validate_settlement_swaps(
+        intents=intents,
+        settlement=settlement,
+        pre_pools={pool_id: pool},
+        config=TauGateConfig(
+            enabled=True,
+            tau_bin=sys.executable,
+            allow_path_lookup=False,
+            settlement_profile="aligned_compact_bundle_v5",
+            settlement_price_history=(1000, 1001, 1002),
+            settlement_module_flags=TauSettlementModuleFlags(rebate_ok=0),
+        ),
+    )
+    assert not ok
+    assert err and "Tau gate failed" in err
+    assert calls == [
+        (
+            "settlement_v5_aligned_compact_bundle.tau",
+            {
+                "i1": 1,
+                "i2": 2,
+                "i3": 3,
+                "i4": 4,
+                "i5": 1000,
+                "i6": 1001,
+                "i7": 1002,
+                "i8": 1,
+                "i9": 1,
+                "i10": 1,
+                "i11": 1,
+                "i12": 1,
+                "i13": 0,
+                "i14": 1,
+                "i15": 1,
+                "i16": 1,
+            },
+        )
+    ]
+
+
+def test_tau_gate_settlement_profile_requires_four_intents() -> None:
+    pk = "0x" + "11" * 48
+    pool_id, pool, _ = create_pool(
+        asset0="0x" + "01" * 32,
+        asset1="0x" + "02" * 32,
+        amount0=1_000_000,
+        amount1=1_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_mk_intent_id(i),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": pool.asset0,
+                "asset_out": pool.asset1,
+                "min_amount_out": 1,
+            },
+        )
+        for i in range(1, 4)
+    ]
+    fills = [
+        Fill(
+            intent_id=intent.intent_id,
+            action=FillAction.FILL,
+            reason="COW_NETTED",
+            amount_in_filled=1000,
+            amount_out_filled=900,
+        )
+        for intent in intents
+    ]
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.FILL) for intent in intents],
+        fills=fills,
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    ok, err = validate_settlement_swaps(
+        intents=intents,
+        settlement=settlement,
+        pre_pools={pool_id: pool},
+        config=TauGateConfig(
+            enabled=True,
+            tau_bin=sys.executable,
+            allow_path_lookup=False,
+            settlement_profile="aligned_price_rails_v1",
+            settlement_price_history=(1000, 1001, 1002),
+        ),
+    )
+    assert not ok
+    assert err and "requires exactly 4 included intents" in err
