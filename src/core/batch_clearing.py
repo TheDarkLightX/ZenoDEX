@@ -553,7 +553,8 @@ def clear_batch_single_pool(
     """
     Process batch of intents for a single pool.
     
-    Deterministic: sort by limit price, process sequentially.
+    Deterministic: clear swaps under the selected ordering and process
+    liquidity intents in receive order.
     
     Args:
         intents: List of intents for this pool

@@ -58,6 +58,11 @@ def _make_single_swap_setup() -> tuple[DexState, list[Intent], str, str, str, st
     return state, intents, pool_id, pk, asset0, asset1
 
 
+def test_dex_config_default_swap_ordering_is_explicitly_greedy_ab_refined() -> None:
+    cfg = DexConfig()
+    assert cfg.swap_ordering == "greedy_ab_refined"
+
+
 def test_step_with_candidate_settlement_accepts_valid_candidate() -> None:
     state, intents, pool_id, pk, asset0, asset1 = _make_single_swap_setup()
     cfg = DexConfig(settlement_validation="strong_replay")
@@ -123,4 +128,3 @@ class TestStepWithCandidateSettlementBVA:
         r = step_with_candidate_settlement(cfg, state, intents, candidate_settlement=bad)
         assert not r.ok
         assert r.error is not None
-

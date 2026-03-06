@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.integration.operations import parse_settlement_envelope, parse_signed_intents
+from src.integration.operations import parse_settlement, parse_settlement_envelope, parse_signed_intents
 
 
 def _min_intent_dict(*, intent_id: str = "0x" + "11" * 32) -> dict[str, object]:
@@ -79,3 +79,61 @@ def test_parse_settlement_envelope_rejects_non_string_batch_ref() -> None:
     ops = {"3": {"module": "TauSwap", "version": "0.1", "batch_ref": 123}}
     with pytest.raises(ValueError, match="batch_ref must be a string"):
         parse_settlement_envelope(ops)
+
+
+def test_parse_settlement_treats_none_lists_as_empty() -> None:
+    settlement = parse_settlement(
+        {
+            "3": {
+                "module": "TauSwap",
+                "version": "0.1",
+                "included_intents": None,
+                "fills": None,
+                "balance_deltas": None,
+                "reserve_deltas": None,
+                "lp_deltas": None,
+            }
+        }
+    )
+    assert settlement is not None
+    assert settlement.included_intents == []
+    assert settlement.fills == []
+    assert settlement.balance_deltas == []
+    assert settlement.reserve_deltas == []
+    assert settlement.lp_deltas == []
+
+
+def test_parse_settlement_rejects_invalid_included_intent_action() -> None:
+    ops = {
+        "3": {
+            "module": "TauSwap",
+            "version": "0.1",
+            "included_intents": [["id-1", "UNKNOWN"]],
+        }
+    }
+    with pytest.raises(ValueError, match="Invalid action: UNKNOWN"):
+        parse_settlement(ops)
+
+
+def test_parse_settlement_rejects_non_object_fill_entry() -> None:
+    ops = {
+        "3": {
+            "module": "TauSwap",
+            "version": "0.1",
+            "fills": ["bad"],
+        }
+    }
+    with pytest.raises(ValueError, match="fills entries must be objects"):
+        parse_settlement(ops)
+
+
+def test_parse_settlement_rejects_non_object_event_entry() -> None:
+    ops = {
+        "3": {
+            "module": "TauSwap",
+            "version": "0.1",
+            "events": ["bad"],
+        }
+    }
+    with pytest.raises(ValueError, match="settlement.events entries must be objects"):
+        parse_settlement(ops)

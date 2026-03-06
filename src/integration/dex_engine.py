@@ -414,6 +414,86 @@ def _verify_proof_if_present(
     return True, None
 
 
+def _clean_error(message: Any, *, max_len: int = 200) -> str:
+    out = " ".join(str(message).strip().split())
+    return out if len(out) <= max_len else out[:max_len]
+
+
+def _validate_external_tool_policy(config: DexEngineConfig) -> Optional[str]:
+    tau_gate_enabled = bool(config.tau_gate_config and config.tau_gate_config.enabled)
+    proof_verifier_enabled = bool(config.proof_config.enabled)
+    if config.consensus_mode and (tau_gate_enabled or proof_verifier_enabled):
+        return "external tools not permitted in consensus_mode"
+    if (tau_gate_enabled or proof_verifier_enabled) and not config.allow_external_tools:
+        return "external tools disabled (set DexEngineConfig.allow_external_tools=True)"
+    return None
+
+
+def _validate_raw_settlement_op(config: DexEngineConfig, raw_settlement_op: Any) -> Optional[str]:
+    if raw_settlement_op is None:
+        return None
+    if not isinstance(raw_settlement_op, dict):
+        return "operations['3'] must be an object"
+    try:
+        bounded_json_utf8_size(raw_settlement_op, max_bytes=config.max_settlement_op_bytes)
+    except ValueError:
+        return "settlement operation too large"
+    except Exception as exc:
+        return f"invalid settlement operation: {exc}"
+
+    raw_fills = raw_settlement_op.get("fills")
+    if isinstance(raw_fills, list) and len(raw_fills) > config.max_settlement_fills:
+        return f"too many settlement fills: {len(raw_fills)} > {config.max_settlement_fills}"
+    return None
+
+
+def _validate_raw_intent_ops(config: DexEngineConfig, raw_intents: Any) -> Optional[str]:
+    if isinstance(raw_intents, list) and len(raw_intents) > config.max_intents:
+        return f"too many intents: {len(raw_intents)} > {config.max_intents}"
+    if not isinstance(raw_intents, list):
+        return None
+
+    total_raw_bytes = 0
+    for i, entry in enumerate(raw_intents):
+        try:
+            total_raw_bytes += bounded_json_utf8_size(entry, max_bytes=config.max_intent_entry_bytes)
+        except ValueError:
+            return f"intent operation too large: index {i}"
+        except Exception as exc:
+            return f"invalid intent operation: {exc}"
+        if total_raw_bytes > config.max_total_intent_entry_bytes:
+            return "total intent operation too large"
+    return None
+
+
+def _build_signing_payloads(
+    signed_intents: List[SignedIntentEnvelope],
+    *,
+    max_intent_bytes: int,
+    max_total_intent_bytes: int,
+) -> Tuple[List[Dict[str, Any]], List[bytes]]:
+    signing_dicts: List[Dict[str, Any]] = []
+    signing_payloads: List[bytes] = []
+    total_bytes = 0
+    for env in signed_intents:
+        signing_dict = _intent_signing_dict(env.intent)
+        signing_dicts.append(signing_dict)
+        try:
+            bounded_json_utf8_size(signing_dict, max_bytes=max_intent_bytes)
+            payload = canonical_json_bytes(signing_dict)
+        except ValueError as exc:
+            raise ValueError(f"intent signing payload too large: {env.intent.intent_id}") from exc
+        except Exception as exc:
+            raise ValueError(f"invalid intent signing payload: {env.intent.intent_id}") from exc
+        if len(payload) > max_intent_bytes:
+            raise ValueError(f"intent signing payload too large: {env.intent.intent_id}")
+        signing_payloads.append(payload)
+        total_bytes += len(payload)
+        if total_bytes > max_total_intent_bytes:
+            raise ValueError("total intent payload too large")
+    return signing_dicts, signing_payloads
+
+
 def apply_ops(
     *,
     config: DexEngineConfig,
@@ -429,54 +509,17 @@ def apply_ops(
     it is used only for signature policy (bypass for user-submitted intents).
     """
     try:
-        tau_gate_enabled = bool(config.tau_gate_config and config.tau_gate_config.enabled)
-        proof_verifier_enabled = bool(config.proof_config.enabled)
-        if config.consensus_mode and (tau_gate_enabled or proof_verifier_enabled):
-            return DexTxResult(ok=False, error="external tools not permitted in consensus_mode")
-        if (tau_gate_enabled or proof_verifier_enabled) and not config.allow_external_tools:
-            return DexTxResult(
-                ok=False,
-                error="external tools disabled (set DexEngineConfig.allow_external_tools=True)",
-            )
+        err = _validate_external_tool_policy(config)
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
 
-        raw_settlement_op = operations.get("3")
-        if raw_settlement_op is not None:
-            if not isinstance(raw_settlement_op, dict):
-                return DexTxResult(ok=False, error="operations['3'] must be an object")
-            try:
-                bounded_json_utf8_size(raw_settlement_op, max_bytes=config.max_settlement_op_bytes)
-            except ValueError:
-                return DexTxResult(ok=False, error="settlement operation too large")
-            except Exception as exc:
-                return DexTxResult(ok=False, error=f"invalid settlement operation: {exc}")
+        err = _validate_raw_settlement_op(config, operations.get("3"))
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
 
-            raw_fills = raw_settlement_op.get("fills")
-            if isinstance(raw_fills, list) and len(raw_fills) > config.max_settlement_fills:
-                return DexTxResult(
-                    ok=False,
-                    error=f"too many settlement fills: {len(raw_fills)} > {config.max_settlement_fills}",
-                )
-
-        raw_intents = operations.get("2")
-        if isinstance(raw_intents, list) and len(raw_intents) > config.max_intents:
-            return DexTxResult(ok=False, error=f"too many intents: {len(raw_intents)} > {config.max_intents}")
-        if isinstance(raw_intents, list):
-            # Apply DoS guards to the raw intent entries *before* parsing, to avoid large
-            # copies during normalization (dict comprehensions) inside parsing logic.
-            total_raw_bytes = 0
-            for i, entry in enumerate(raw_intents):
-                try:
-                    total_raw_bytes += bounded_json_utf8_size(entry, max_bytes=config.max_intent_entry_bytes)
-                except ValueError:
-                    return DexTxResult(ok=False, error=f"intent operation too large: index {i}")
-                except Exception as exc:
-                    return DexTxResult(ok=False, error=f"invalid intent operation: {exc}")
-                if total_raw_bytes > config.max_total_intent_entry_bytes:
-                    return DexTxResult(ok=False, error="total intent operation too large")
-
-        def _clean_error(s: str, *, max_len: int = 200) -> str:
-            out = " ".join(str(s).strip().split())
-            return out if len(out) <= max_len else out[:max_len]
+        err = _validate_raw_intent_ops(config, operations.get("2"))
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
 
         try:
             signed_intents = parse_signed_intents(operations)
@@ -487,25 +530,14 @@ def apply_ops(
         if len(signed_intents) > config.max_intents:
             return DexTxResult(ok=False, error=f"too many intents: {len(signed_intents)} > {config.max_intents}")
 
-        signing_dicts: List[Dict[str, Any]] = []
-        signing_payloads: List[bytes] = []
-        total_bytes = 0
-        for env in signed_intents:
-            d = _intent_signing_dict(env.intent)
-            signing_dicts.append(d)
-            try:
-                bounded_json_utf8_size(d, max_bytes=config.max_intent_bytes)
-                b = canonical_json_bytes(d)
-            except ValueError:
-                return DexTxResult(ok=False, error=f"intent signing payload too large: {env.intent.intent_id}")
-            except Exception:
-                return DexTxResult(ok=False, error=f"invalid intent signing payload: {env.intent.intent_id}")
-            if len(b) > config.max_intent_bytes:
-                return DexTxResult(ok=False, error=f"intent signing payload too large: {env.intent.intent_id}")
-            signing_payloads.append(b)
-            total_bytes += len(b)
-            if total_bytes > config.max_total_intent_bytes:
-                return DexTxResult(ok=False, error="total intent payload too large")
+        try:
+            signing_dicts, signing_payloads = _build_signing_payloads(
+                signed_intents,
+                max_intent_bytes=config.max_intent_bytes,
+                max_total_intent_bytes=config.max_total_intent_bytes,
+            )
+        except ValueError as exc:
+            return DexTxResult(ok=False, error=str(exc))
 
         intents = [env.intent for env in signed_intents]
 
@@ -525,8 +557,6 @@ def apply_ops(
         if not intents and settlement is not None:
             return DexTxResult(ok=False, error="settlement provided without intents")
         if proof is not None:
-            if not isinstance(settlement_env.proof, Mapping):
-                return DexTxResult(ok=False, error="proof must be an object")
             scheme_raw = proof.get("scheme")
             if isinstance(scheme_raw, str) and scheme_raw:
                 proof_scheme = scheme_raw

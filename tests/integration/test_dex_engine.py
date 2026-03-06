@@ -7,6 +7,7 @@ from src.core.dex import DexState
 from src.core.liquidity import create_pool
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation
+from src.integration.proof_verifier import ProofVerifierConfig
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 
@@ -27,6 +28,11 @@ def _create_pool_intent_dict(*, intent_id: str, sender: str, asset0: str, asset1
         "amount1": 2000,
         "created_at": 1,
     }
+
+
+def test_engine_config_default_swap_ordering_is_explicitly_greedy_ab_refined() -> None:
+    cfg = DexEngineConfig()
+    assert cfg.swap_ordering == "greedy_ab_refined"
 
 
 def test_engine_computes_settlement_when_missing() -> None:
@@ -131,6 +137,67 @@ def test_engine_rejects_large_raw_intent_before_parsing() -> None:
     assert not res.ok
     assert res.error is not None
     assert "intent operation too large" in res.error
+
+
+def test_engine_rejects_total_raw_intent_bytes_before_parsing() -> None:
+    sender = "0x" + "aa" * 48
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+
+    intent_a = _create_pool_intent_dict(
+        intent_id="0x" + "01" * 32,
+        sender=sender,
+        asset0=asset0,
+        asset1=asset1,
+    )
+    intent_b = _create_pool_intent_dict(
+        intent_id="0x" + "02" * 32,
+        sender=sender,
+        asset0=asset0,
+        asset1=asset1,
+    )
+    intent_a["note"] = "A" * 300
+    intent_b["note"] = "B" * 300
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            max_intent_entry_bytes=1024,
+            max_total_intent_entry_bytes=700,
+        ),
+        state=state,
+        operations={"2": [intent_a, intent_b]},
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert not res.ok
+    assert res.error is not None
+    assert "total intent operation too large" in res.error
+
+
+def test_engine_rejects_too_many_settlement_fills_before_parsing() -> None:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    settlement_op = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "fills": [{}, {}],
+    }
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            require_intent_signatures=False,
+            max_settlement_fills=1,
+        ),
+        state=state,
+        operations={"3": settlement_op},
+        block_timestamp=0,
+        tx_sender_pubkey=None,
+    )
+    assert not res.ok
+    assert res.error is not None
+    assert "too many settlement fills" in res.error
 
 
 def test_engine_unsigned_mode_rejects_tx_sender_mismatch() -> None:
@@ -320,3 +387,38 @@ def test_engine_accepts_semantically_equivalent_settlement_when_match_required()
         tx_sender_pubkey=sender,
     )
     assert res.ok, res.error
+
+
+def test_engine_rejects_oversized_proof_payload_before_verifier() -> None:
+    sender = "0x" + "aa" * 48
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+    intent_id = "0x" + "04" * 32
+
+    balances = BalanceTable()
+    balances.set(sender, min(asset0, asset1), 1000)
+    balances.set(sender, max(asset0, asset1), 2000)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable())
+
+    intent_dict = _create_pool_intent_dict(intent_id=intent_id, sender=sender, asset0=asset0, asset1=asset1)
+    from src.integration.operations import parse_intents
+
+    intents = parse_intents({"2": [intent_dict]})
+    settlement = compute_settlement(intents=intents, pools={}, balances=balances, lp_balances=state.lp_balances)
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["proof"] = {"scheme": "dummy", "blob": "x" * 512}
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=False,
+            require_intent_signatures=False,
+            proof_config=ProofVerifierConfig(max_proof_bytes=128),
+        ),
+        state=state,
+        operations={"2": [intent_dict], "3": settlement_op},
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert not res.ok
+    assert res.error is not None
+    assert "proof payload too large" in res.error
