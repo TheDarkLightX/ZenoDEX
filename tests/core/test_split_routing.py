@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from src.core import split_routing as split_routing_mod
 from src.core.split_routing import (
     PoolXY,
     best_split_two_pools_exact_in,
@@ -7,6 +10,35 @@ from src.core.split_routing import (
     exact_out_for_pool_exact_in,
     resolve_two_pool_split_search_params,
 )
+from tools.metamuse_split_routing_lane import DGSTR_CURATED_CASES
+
+
+def _count_profile_calls(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+    *,
+    search_profile: str,
+) -> tuple[tuple[int, int], int]:
+    orig = split_routing_mod.exact_out_for_pool_exact_in
+    calls = {"n": 0}
+
+    def wrapped(pool: PoolXY, amount: int) -> int:
+        calls["n"] = int(calls["n"]) + 1
+        return orig(pool, amount)
+
+    split_routing_mod.exact_out_for_pool_exact_in = wrapped  # type: ignore[assignment]
+    try:
+        result = best_split_two_pools_exact_in(
+            pool0,
+            pool1,
+            amount_in,
+            window=64,
+            search_profile=search_profile,
+        )
+    finally:
+        split_routing_mod.exact_out_for_pool_exact_in = orig  # type: ignore[assignment]
+    return result, int(calls["n"])
 
 
 def test_split_matches_bruteforce_small():
@@ -133,3 +165,47 @@ def test_adaptive_v6_extreme_regime_escalates_to_dense32_w128():
     win, prof = resolve_two_pool_split_search_params(p0, p1, 13704, search_profile="adaptive_v6", window=96)
     assert (win, prof) == (128, "dense32")
 
+
+@pytest.mark.parametrize(
+    "pool0,pool1,amount_in,expected",
+    [(case.pool0, case.pool1, case.amount_in, case.expected) for case in DGSTR_CURATED_CASES],
+)
+def test_dgstr_v1_matches_bruteforce_on_curated_easy_corpus(
+    pool0: PoolXY,
+    pool1: PoolXY,
+    amount_in: int,
+    expected: tuple[int, int],
+) -> None:
+    brute = brute_force_best_split_two_pools_exact_in(pool0, pool1, amount_in)
+    got = best_split_two_pools_exact_in(pool0, pool1, amount_in, window=64, search_profile="dgstr_v1")
+    assert brute == expected
+    assert got == expected
+
+
+def test_dgstr_v1_reduces_quote_calls_on_curated_easy_corpus() -> None:
+    dgstr_calls = 0
+    base_calls = 0
+    for case in DGSTR_CURATED_CASES:
+        pool0, pool1, amount_in, expected = case.pool0, case.pool1, case.amount_in, case.expected
+        got_dgstr, calls_dgstr = _count_profile_calls(pool0, pool1, amount_in, search_profile="dgstr_v1")
+        got_base, calls_base = _count_profile_calls(pool0, pool1, amount_in, search_profile="baseline_canon16")
+        assert got_dgstr == expected
+        assert got_base == expected
+        dgstr_calls += int(calls_dgstr)
+        base_calls += int(calls_base)
+    assert dgstr_calls < base_calls
+    assert dgstr_calls * 4 <= base_calls * 3
+
+
+def test_adaptive_v7_routes_easy_manifold_to_dgstr_v1() -> None:
+    p0 = PoolXY(x=125, y=153, fee_bps=119)
+    p1 = PoolXY(x=125, y=140, fee_bps=150)
+    win, prof = resolve_two_pool_split_search_params(p0, p1, 6055, search_profile="adaptive_v7", window=96)
+    assert (win, prof) == (64, "dgstr_v1")
+
+
+def test_adaptive_v7_keeps_dense32_on_known_hard_regime() -> None:
+    p0 = PoolXY(x=108, y=48, fee_bps=85)
+    p1 = PoolXY(x=83, y=41, fee_bps=35)
+    win, prof = resolve_two_pool_split_search_params(p0, p1, 8533, search_profile="adaptive_v7", window=96)
+    assert (win, prof) == (96, "dense32")

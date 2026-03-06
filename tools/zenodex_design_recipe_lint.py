@@ -35,6 +35,8 @@ BASE_CHECK_FALLBACK = {
     "il_insurance_status_quo_safe",
     "route_exact_out_2hop_value",
     "route_exact_out_no_2hop_value",
+    "dgstr_exact_match",
+    "dgstr_eval_count",
     "perp_lp_fee_share_guard",
     "perp_lp_fee_share_irrelevant",
     "perp_reserve_hardening_effect",

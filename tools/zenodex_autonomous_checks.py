@@ -5185,6 +5185,175 @@ def _check_route_exact_out_2hop_value(mode: str, timeout_s: int) -> dict[str, An
     }
 
 
+def _count_split_profile_calls(
+    *,
+    pool0: Any,
+    pool1: Any,
+    amount_in: int,
+    search_profile: str,
+) -> tuple[tuple[int, int], int]:
+    import src.core.split_routing as sr  # pylint: disable=import-outside-toplevel
+
+    orig = sr.exact_out_for_pool_exact_in
+    calls = {"n": 0}
+
+    def wrapped(pool: Any, amount: int) -> int:
+        calls["n"] = int(calls["n"]) + 1
+        return orig(pool, amount)
+
+    sr.exact_out_for_pool_exact_in = wrapped  # type: ignore[assignment]
+    try:
+        result = sr.best_split_two_pools_exact_in(
+            pool0,
+            pool1,
+            int(amount_in),
+            window=64,
+            search_profile=str(search_profile),
+        )
+    finally:
+        sr.exact_out_for_pool_exact_in = orig  # type: ignore[assignment]
+    return result, int(calls["n"])
+
+
+def _check_dgstr_exact_match(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s  # deterministic in-process check
+    t0 = time.time()
+    cmd = ["internal_python_eval", "dgstr_exact_match"]
+    try:
+        import sys  # pylint: disable=import-outside-toplevel
+
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from src.core.split_routing import (  # pylint: disable=import-outside-toplevel
+            best_split_two_pools_exact_in,
+            brute_force_best_split_two_pools_exact_in,
+        )
+        from tools.metamuse_split_routing_lane import DGSTR_CURATED_CASES  # pylint: disable=import-outside-toplevel
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    rows: list[dict[str, Any]] = []
+    mismatch: dict[str, Any] | None = None
+    for idx, case in enumerate(DGSTR_CURATED_CASES, 1):
+        brute = brute_force_best_split_two_pools_exact_in(case.pool0, case.pool1, int(case.amount_in))
+        got = best_split_two_pools_exact_in(case.pool0, case.pool1, int(case.amount_in), window=64, search_profile="dgstr_v1")
+        row = {
+            "case_index": int(idx),
+            "amount_in": int(case.amount_in),
+            "expected": {"amount_out": int(brute[0]), "split_a": int(brute[1])},
+            "got": {"amount_out": int(got[0]), "split_a": int(got[1])},
+        }
+        rows.append(row)
+        if brute != got and mismatch is None:
+            mismatch = row
+
+    signal = mismatch is None
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": None if signal else mismatch,
+        "metrics": {"case_count": len(rows), "matched": len(rows) if signal else len(rows) - 1, "rows": rows},
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
+def _check_dgstr_eval_count(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s  # deterministic in-process check
+    t0 = time.time()
+    cmd = ["internal_python_eval", "dgstr_eval_count"]
+    try:
+        import sys  # pylint: disable=import-outside-toplevel
+
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from tools.metamuse_split_routing_lane import DGSTR_CURATED_CASES  # pylint: disable=import-outside-toplevel
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    rows: list[dict[str, Any]] = []
+    dgstr_calls_total = 0
+    base_calls_total = 0
+    mismatch: dict[str, Any] | None = None
+    for idx, case in enumerate(DGSTR_CURATED_CASES, 1):
+        dgstr_result, dgstr_calls = _count_split_profile_calls(
+            pool0=case.pool0,
+            pool1=case.pool1,
+            amount_in=int(case.amount_in),
+            search_profile="dgstr_v1",
+        )
+        base_result, base_calls = _count_split_profile_calls(
+            pool0=case.pool0,
+            pool1=case.pool1,
+            amount_in=int(case.amount_in),
+            search_profile="baseline_canon16",
+        )
+        row = {
+            "case_index": int(idx),
+            "amount_in": int(case.amount_in),
+            "dgstr": {"result": {"amount_out": int(dgstr_result[0]), "split_a": int(dgstr_result[1])}, "calls": int(dgstr_calls)},
+            "baseline_canon16": {"result": {"amount_out": int(base_result[0]), "split_a": int(base_result[1])}, "calls": int(base_calls)},
+        }
+        rows.append(row)
+        if dgstr_result != base_result and mismatch is None:
+            mismatch = row
+        dgstr_calls_total += int(dgstr_calls)
+        base_calls_total += int(base_calls)
+
+    signal = bool(
+        mismatch is None
+        and dgstr_calls_total < base_calls_total
+        and dgstr_calls_total * 4 <= base_calls_total * 3
+    )
+    counterexample = mismatch
+    if counterexample is None and not signal:
+        counterexample = {
+            "dgstr_calls_total": int(dgstr_calls_total),
+            "baseline_calls_total": int(base_calls_total),
+        }
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": counterexample,
+        "metrics": {
+            "case_count": len(rows),
+            "dgstr_calls_total": int(dgstr_calls_total),
+            "baseline_calls_total": int(base_calls_total),
+            "dgstr_calls_mean": float(dgstr_calls_total) / float(max(1, len(rows))),
+            "baseline_calls_mean": float(base_calls_total) / float(max(1, len(rows))),
+            "rows": rows,
+        },
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
 def _check_batch_clearing_gap_exists(mode: str, timeout_s: int) -> dict[str, Any]:
     cmd = ["python3", "tools/morph_batch_clearing_miner.py", "--test", "--json"]
     cmd_res = _run_cmd(cmd, timeout_s=timeout_s)
@@ -6301,6 +6470,8 @@ CHECK_DISPATCH = {
     "il_insurance_status_quo_safe": None,  # populated below
     "route_exact_out_2hop_value": _check_route_exact_out_2hop_value,
     "route_exact_out_no_2hop_value": None,  # populated below
+    "dgstr_exact_match": _check_dgstr_exact_match,
+    "dgstr_eval_count": _check_dgstr_eval_count,
     "perp_lp_fee_share_guard": _check_perp_lp_fee_share_guard,
     "perp_lp_fee_share_irrelevant": None,  # populated below
     "perp_reserve_hardening_effect": _check_perp_reserve_hardening_effect,
