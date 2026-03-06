@@ -364,6 +364,30 @@ BATCHING_V1_4 = TauSpecRef(
     gate_output="o1",
 )
 
+BATCHING_V1_5_COMPACT_SINGLE_GATE = TauSpecRef(
+    spec_id="batching_v1_5_compact_single_gate",
+    path=RECOMMENDED_SPECS_DIR / "batching_v1_5_compact_single_gate.tau",
+    gate_output="o1",
+)
+
+BATCHING_ALL_DISTINCT_4_V1 = TauSpecRef(
+    spec_id="batching_all_distinct_4_v1",
+    path=RECOMMENDED_SPECS_DIR / "batching_all_distinct_4_v1.tau",
+    gate_output="o1",
+)
+
+BATCHING_LEFT_IN_RIGHT_4_V1 = TauSpecRef(
+    spec_id="batching_left_in_right_4_v1",
+    path=RECOMMENDED_SPECS_DIR / "batching_left_in_right_4_v1.tau",
+    gate_output="o1",
+)
+
+BATCHING_EXECUTED_SORTED_4_V1 = TauSpecRef(
+    spec_id="batching_executed_sorted_4_v1",
+    path=RECOMMENDED_SPECS_DIR / "batching_executed_sorted_4_v1.tau",
+    gate_output="o1",
+)
+
 BATCH_CANONICAL_V1_4 = TauSpecRef(
     spec_id="batch_canonical_v1_4",
     path=TAU_SPECS_DIR / "batch_canonical_v1_4.tau",
@@ -506,6 +530,48 @@ SETTLEMENT_V4_BUYBACK_FLOOR_REBATE_LOCK_PROOF_GATE = TauSpecRef(
     spec_id="settlement_v4_buyback_floor_rebate_lock_proof_gate",
     path=RECOMMENDED_SPECS_DIR / "settlement_v4_buyback_floor_rebate_lock_proof_gate.tau",
     gate_output="o11",
+)
+
+SWAP_BV32_SAFE_RANGE_GUARD_V1 = TauSpecRef(
+    spec_id="swap_bv32_safe_range_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "swap_bv32_safe_range_guard_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_CANONICAL_ORDER_V1 = TauSpecRef(
+    spec_id="settlement_canonical_order_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_canonical_order_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_NO_SANDWICH_ALIGNED_V1 = TauSpecRef(
+    spec_id="settlement_no_sandwich_aligned_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_no_sandwich_aligned_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_PRICE_STABILITY_V1 = TauSpecRef(
+    spec_id="settlement_price_stability_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_price_stability_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_PRICE_RAILS_ALIGNED_V1 = TauSpecRef(
+    spec_id="settlement_price_rails_aligned_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_price_rails_aligned_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_MODULE_FLAG_BUNDLE_V1 = TauSpecRef(
+    spec_id="settlement_module_flag_bundle_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_module_flag_bundle_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE = TauSpecRef(
+    spec_id="settlement_v5_aligned_compact_bundle",
+    path=RECOMMENDED_SPECS_DIR / "settlement_v5_aligned_compact_bundle.tau",
+    gate_output="o1",
 )
 
 
@@ -821,6 +887,115 @@ def build_settlement_v4_buyback_floor_rebate_lock_proof_gate_step(
         "i2": _u16("b", b),
         "i3": _u16("c", c),
         "i4": _u16("d", d),
+        "i5": _u16("price_pp", price_pp),
+        "i6": _u16("price_prev", price_prev),
+        "i7": _u16("price_curr", price_curr),
+        "i8": _sbf("cpmm_ok", cpmm_ok),
+        "i9": _sbf("balance_ok", balance_ok),
+        "i10": _sbf("token_ok", token_ok),
+        "i11": _sbf("buyback_floor_ok", buyback_floor_ok),
+        "i12": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
+        "i13": _sbf("rebate_ok", rebate_ok),
+        "i14": _sbf("lock_weight_ok", lock_weight_ok),
+        "i15": _sbf("proof_ok", proof_ok),
+        "i16": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_settlement_canonical_order_v1_step(*, a: int, b: int, c: int, d: int) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
+    }
+
+
+def build_settlement_no_sandwich_aligned_v1_step(*, price_pp: int, price_prev: int, price_curr: int) -> Dict[str, int]:
+    return {
+        "i1": _u16("price_pp", price_pp),
+        "i2": _u16("price_prev", price_prev),
+        "i3": _u16("price_curr", price_curr),
+    }
+
+
+def build_settlement_price_stability_v1_step(*, price_prev: int, price_curr: int) -> Dict[str, int]:
+    return {
+        "i1": _u16("price_prev", price_prev),
+        "i2": _u16("price_curr", price_curr),
+    }
+
+
+def build_settlement_price_rails_aligned_v1_step(
+    *,
+    a: int,
+    b: int,
+    c: int,
+    d: int,
+    price_pp: int,
+    price_prev: int,
+    price_curr: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
+        "i5": _u16("price_pp", price_pp),
+        "i6": _u16("price_prev", price_prev),
+        "i7": _u16("price_curr", price_curr),
+    }
+
+
+def build_settlement_module_flag_bundle_v1_step(
+    *,
+    cpmm_ok: int = 1,
+    balance_ok: int = 1,
+    token_ok: int = 1,
+    buyback_floor_ok: int = 1,
+    buyback_floor_fixedpoint_ok: int = 1,
+    rebate_ok: int = 1,
+    lock_weight_ok: int = 1,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("cpmm_ok", cpmm_ok),
+        "i2": _sbf("balance_ok", balance_ok),
+        "i3": _sbf("token_ok", token_ok),
+        "i4": _sbf("buyback_floor_ok", buyback_floor_ok),
+        "i5": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
+        "i6": _sbf("rebate_ok", rebate_ok),
+        "i7": _sbf("lock_weight_ok", lock_weight_ok),
+        "i8": _sbf("proof_ok", proof_ok),
+        "i9": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_settlement_v5_aligned_compact_bundle_step(
+    *,
+    a: int,
+    b: int,
+    c: int,
+    d: int,
+    price_pp: int,
+    price_prev: int,
+    price_curr: int,
+    cpmm_ok: int = 1,
+    balance_ok: int = 1,
+    token_ok: int = 1,
+    buyback_floor_ok: int = 1,
+    buyback_floor_fixedpoint_ok: int = 1,
+    rebate_ok: int = 1,
+    lock_weight_ok: int = 1,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
         "i5": _u16("price_pp", price_pp),
         "i6": _u16("price_prev", price_prev),
         "i7": _u16("price_curr", price_curr),
@@ -1349,6 +1524,70 @@ def build_batching_v1_4_step(
         "i6": _u64("executed_id_1", executed_id_1),
         "i7": _u64("executed_id_2", executed_id_2),
         "i8": _u64("executed_id_3", executed_id_3),
+    }
+
+
+def build_batching_v1_5_compact_single_gate_step(
+    *,
+    intent_id_0: int,
+    intent_id_1: int,
+    intent_id_2: int,
+    intent_id_3: int,
+    executed_id_0: int,
+    executed_id_1: int,
+    executed_id_2: int,
+    executed_id_3: int,
+) -> Dict[str, int]:
+    return build_batching_v1_4_step(
+        intent_id_0=intent_id_0,
+        intent_id_1=intent_id_1,
+        intent_id_2=intent_id_2,
+        intent_id_3=intent_id_3,
+        executed_id_0=executed_id_0,
+        executed_id_1=executed_id_1,
+        executed_id_2=executed_id_2,
+        executed_id_3=executed_id_3,
+    )
+
+
+def build_batching_all_distinct_4_v1_step(*, a: int, b: int, c: int, d: int) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
+    }
+
+
+def build_batching_left_in_right_4_v1_step(
+    *,
+    left_0: int,
+    left_1: int,
+    left_2: int,
+    left_3: int,
+    right_0: int,
+    right_1: int,
+    right_2: int,
+    right_3: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _u64("left_0", left_0),
+        "i2": _u64("left_1", left_1),
+        "i3": _u64("left_2", left_2),
+        "i4": _u64("left_3", left_3),
+        "i5": _u64("right_0", right_0),
+        "i6": _u64("right_1", right_1),
+        "i7": _u64("right_2", right_2),
+        "i8": _u64("right_3", right_3),
+    }
+
+
+def build_batching_executed_sorted_4_v1_step(*, a: int, b: int, c: int, d: int) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
     }
 
 
@@ -2373,6 +2612,25 @@ def build_swap_exact_out_proof_gate_v1_step(
     step["i9"] = _sbf("proof_ok", proof_ok)
     step["i10"] = _sbf("binding_ok", binding_ok)
     return step
+
+
+def build_swap_bv32_safe_range_guard_v1_step(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    delta_primary: int,
+    delta_secondary: int,
+    new_reserve_in: int,
+    new_reserve_out: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("reserve_in", reserve_in),
+        "i2": _bv32("reserve_out", reserve_out),
+        "i3": _bv32("delta_primary", delta_primary),
+        "i4": _bv32("delta_secondary", delta_secondary),
+        "i5": _bv32("new_reserve_in", new_reserve_in),
+        "i6": _bv32("new_reserve_out", new_reserve_out),
+    }
 
 
 def build_swap_exact_out_fee_proof_gate_v1_step(

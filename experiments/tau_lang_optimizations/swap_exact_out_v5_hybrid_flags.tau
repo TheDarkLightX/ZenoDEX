@@ -1,0 +1,48 @@
+# Experimental swap exact-out v5
+#
+# Optimization idea:
+# - keep cheap structural checks in Tau;
+# - move expensive pricing/k witnesses to host-computed sbf flags;
+# - expose intermediate diagnostics as outputs.
+#
+# Stream mapping:
+# i1 = reserve_in
+# i2 = reserve_out
+# i3 = amount_out
+# i4 = fee_bps
+# i5 = max_amount_in
+# i6 = amount_in
+# i7 = new_reserve_in
+# i8 = new_reserve_out
+# i9 = host_fee_math_ok
+# i10 = host_k_monotone_ok
+#
+# Outputs:
+# o1 = positive_inputs_ok
+# o2 = fee_bps_ok
+# o3 = slippage_ok
+# o4 = reserve_transition_ok
+# o5 = safe_mul_range_ok
+# o6 = host_formula_ok
+# o7 = swap_exact_out_valid
+
+set charvar off
+
+nonzero(x : bv[32]) := x > { #x00000000 }:bv[32].
+fee_bps_ok(fee : bv[32]) := fee <= { #x00002710 }:bv[32].
+safe_mul_input(x : bv[32]) := x <= { #x0000FFFF }:bv[32].
+positive_inputs_ok(rin : bv[32], rout : bv[32], ain : bv[32], aout : bv[32]) := nonzero(rin) && nonzero(rout) && nonzero(ain) && nonzero(aout).
+slippage_ok(rout : bv[32], max_in : bv[32], aout : bv[32], ain : bv[32]) := (aout < rout) && (ain <= max_in).
+reserve_transition_ok(rin : bv[32], rout : bv[32], ain : bv[32], aout : bv[32], new_rin : bv[32], new_rout : bv[32]) := (new_rin = (rin + ain)) && (new_rout = (rout - aout)).
+safe_mul_range_ok(rin : bv[32], rout : bv[32], ain : bv[32], aout : bv[32], new_rin : bv[32], new_rout : bv[32]) := safe_mul_input(rin) && safe_mul_input(rout) && safe_mul_input(ain) && safe_mul_input(aout) && safe_mul_input(new_rin) && safe_mul_input(new_rout).
+host_formula_ok(fee_ok : sbf, k_ok : sbf) := (fee_ok = 1:sbf) && (k_ok = 1:sbf).
+
+always (
+  (o1[t]:sbf = 1:sbf <-> positive_inputs_ok(i1[t]:bv[32], i2[t]:bv[32], i6[t]:bv[32], i3[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> fee_bps_ok(i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> slippage_ok(i2[t]:bv[32], i5[t]:bv[32], i3[t]:bv[32], i6[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> reserve_transition_ok(i1[t]:bv[32], i2[t]:bv[32], i6[t]:bv[32], i3[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> safe_mul_range_ok(i1[t]:bv[32], i2[t]:bv[32], i6[t]:bv[32], i3[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])) &&
+  (o6[t]:sbf = 1:sbf <-> host_formula_ok(i9[t]:sbf, i10[t]:sbf)) &&
+  (o7[t]:sbf = 1:sbf <-> (positive_inputs_ok(i1[t]:bv[32], i2[t]:bv[32], i6[t]:bv[32], i3[t]:bv[32]) && fee_bps_ok(i4[t]:bv[32]) && slippage_ok(i2[t]:bv[32], i5[t]:bv[32], i3[t]:bv[32], i6[t]:bv[32]) && reserve_transition_ok(i1[t]:bv[32], i2[t]:bv[32], i6[t]:bv[32], i3[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32]) && safe_mul_range_ok(i1[t]:bv[32], i2[t]:bv[32], i6[t]:bv[32], i3[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32]) && host_formula_ok(i9[t]:sbf, i10[t]:sbf)))
+).

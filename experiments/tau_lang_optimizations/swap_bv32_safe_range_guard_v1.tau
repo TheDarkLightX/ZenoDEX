@@ -1,0 +1,19 @@
+# Experimental generic bv[32] safe-range guard for swap traces
+#
+# Purpose:
+# - keep the overflow-avoidance policy separate from the structural swap gate;
+# - make the range constraint independently traceable;
+# - compose this with a proof-gated swap validator outside Tau.
+#
+# Inputs:
+# i1 = reserve_in
+# i2 = reserve_out
+# i3 = delta_primary
+# i4 = delta_secondary
+# i5 = new_reserve_in
+# i6 = new_reserve_out
+# o1 = safe_range_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i2[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i3[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i4[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i5[t]:bv[32] <= { #x0000FFFF }:bv[32]) && (i6[t]:bv[32] <= { #x0000FFFF }:bv[32]))).

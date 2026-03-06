@@ -1,0 +1,9 @@
+# Experimental batching 4-way strict ordering rail
+#
+# Inputs:
+# i1..i4 = executed ids
+# o1 = strictly_sorted_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[64] < i2[t]:bv[64]) && (i2[t]:bv[64] < i3[t]:bv[64]) && (i3[t]:bv[64] < i4[t]:bv[64]))).
