@@ -21,7 +21,7 @@ Determinism:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Callable, Tuple
 
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _fee_total_v8
 
@@ -165,7 +165,172 @@ def _search_profile_params(search_profile: str) -> tuple[str, int, bool, int]:
         return profile, 24, True, 0
     if profile == "dense32":
         return profile, 32, True, 0
+    if profile == "dgstr_v1":
+        # Experimental: discrete golden-section / ternary refinement plus bounded rescue scans.
+        # This profile is intentionally not the default; it targets easy regimes where the
+        # objective is close to unimodal and call-count reduction matters more than full-span coverage.
+        return profile, 8, False, 0
     raise ValueError(f"unsupported search_profile: {search_profile}")
+
+
+def _is_better_candidate(
+    cand: tuple[int, int] | None,
+    best: tuple[int, int] | None,
+) -> bool:
+    if cand is None:
+        return False
+    if best is None:
+        return True
+    return bool(cand[0] > best[0] or (cand[0] == best[0] and cand[1] < best[1]))
+
+
+def _scan_range_best(
+    *,
+    lo: int,
+    hi: int,
+    total_out: Callable[[int], int | None],
+) -> tuple[int, int] | None:
+    if lo > hi:
+        return None
+    best_out = -1
+    best_a = 0
+    for a in range(int(lo), int(hi) + 1):
+        tot = total_out(int(a))
+        if tot is None:
+            continue
+        if tot > best_out or (tot == best_out and int(a) < best_a):
+            best_out = int(tot)
+            best_a = int(a)
+    return None if best_out < 0 else (int(best_out), int(best_a))
+
+
+def _min_valid_amount_for_pool(
+    *,
+    pool: PoolXY,
+    amount_in_total: int,
+) -> int | None:
+    def is_valid(a: int) -> bool:
+        if a <= 0:
+            return False
+        try:
+            exact_out_for_pool_exact_in(pool, int(a))
+        except Exception:
+            return False
+        return True
+
+    if not is_valid(int(amount_in_total)):
+        return None
+    lo = 1
+    hi = int(amount_in_total)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if is_valid(int(mid)):
+            hi = mid
+        else:
+            lo = mid + 1
+    return int(lo)
+
+
+def _canonicalize_leftmost(
+    *,
+    lo_both: int,
+    candidate: tuple[int, int],
+    total_out: Callable[[int], int | None],
+) -> tuple[int, int]:
+    best_out, best_a = int(candidate[0]), int(candidate[1])
+    while best_a > int(lo_both):
+        prev = total_out(int(best_a) - 1)
+        if prev is None or int(prev) != int(best_out):
+            break
+        best_a -= 1
+    return int(best_out), int(best_a)
+
+
+def _search_dgstr_v1(
+    *,
+    lo_both: int,
+    hi_both: int,
+    a_star: int,
+    window: int,
+    total_out: Callable[[int], int | None],
+) -> tuple[int, int] | None:
+    """
+    Experimental search profile:
+    - sparse deterministic probes across the feasible interval,
+    - repeated discrete ternary refinement,
+    - bounded rescue scans around the strongest probe centers.
+
+    This is intentionally scoped to easy regimes and is not used as the default profile.
+    """
+    lo = int(lo_both)
+    hi = int(hi_both)
+    if lo > hi:
+        return None
+
+    point_vals: dict[int, int | None] = {}
+
+    def probe(a: int) -> int | None:
+        if not (lo <= int(a) <= hi):
+            return None
+        key = int(a)
+        if key not in point_vals:
+            point_vals[key] = total_out(key)
+        return point_vals[key]
+
+    best: tuple[int, int] | None = None
+    span = int(hi - lo)
+    centers = {int(lo), int(hi), int((lo + hi) // 2), int(a_star)}
+    if span > 0:
+        for i in range(1, 8):
+            centers.add(int(lo + (span * i) // 8))
+
+    for c in sorted(centers):
+        val = probe(int(c))
+        if val is None:
+            continue
+        cand = (int(val), int(c))
+        if _is_better_candidate(cand, best):
+            best = cand
+
+    cur_lo = int(lo)
+    cur_hi = int(hi)
+    while cur_hi - cur_lo > max(4 * int(window), 160):
+        span = int(cur_hi - cur_lo)
+        step = max(1, span // 3)
+        m1 = int(cur_lo + step)
+        m2 = int(cur_hi - step)
+        v1 = probe(int(m1))
+        v2 = probe(int(m2))
+        if v2 is None or (v1 is not None and int(v1) > int(v2)):
+            cur_hi = int(m2)
+        elif v1 is None or int(v2) > int(v1):
+            cur_lo = int(m1)
+        else:
+            cur_lo = int(m1)
+            cur_hi = int(m2)
+
+    ranked = [(int(v), int(a)) for a, v in point_vals.items() if v is not None]
+    ranked.sort(key=lambda t: (int(t[0]), -int(t[1])), reverse=True)
+
+    rescue_centers = [int(a) for _v, a in ranked[:6]]
+    rescue_centers.extend([int(cur_lo), int(cur_hi), int((cur_lo + cur_hi) // 2), int(a_star)])
+
+    seen: set[int] = set()
+    for c in rescue_centers:
+        if int(c) in seen:
+            continue
+        seen.add(int(c))
+        cand = _scan_range_best(
+            lo=max(int(lo), int(c) - int(window)),
+            hi=min(int(hi), int(c) + int(window)),
+            total_out=total_out,
+        )
+        if _is_better_candidate(cand, best):
+            best = cand
+
+    if best is None:
+        return None
+    return _canonicalize_leftmost(lo_both=int(lo), candidate=best, total_out=total_out)
 
 
 def _ratio_ge_num_denom(*, a: int, b: int, num: int, denom: int) -> bool:
@@ -213,9 +378,10 @@ def resolve_two_pool_split_search_params(
     - adaptive_v4: choose between (baseline_canon16,w64) and (dense24,w96) with stricter escalation
     - adaptive_v5: adaptive_v4 + high-fee/high-pressure escalation to dense32 tiers
     - adaptive_v6: tighter adaptive_v5 thresholds tuned to cut default-call cost while preserving stress quality
+    - adaptive_v7: adaptive_v6 hard-regime tiers, but route easy manifolds to experimental dgstr_v1
     """
     prof = str(search_profile).strip().lower()
-    if prof not in {"adaptive_v1", "adaptive_v2", "adaptive_v3", "adaptive_v4", "adaptive_v5", "adaptive_v6"}:
+    if prof not in {"adaptive_v1", "adaptive_v2", "adaptive_v3", "adaptive_v4", "adaptive_v5", "adaptive_v6", "adaptive_v7"}:
         return int(window), str(search_profile)
 
     if amount_in <= 0:
@@ -303,7 +469,7 @@ def resolve_two_pool_split_search_params(
             return 96, "dense24"
         return 64, "baseline_canon16"
 
-    if prof == "adaptive_v6":
+    if prof in {"adaptive_v6", "adaptive_v7"}:
         # v6 retunes v5 thresholds using supervised stress-holdout evidence:
         # - keep dense32 escalation for the stress miss manifold,
         # - reduce unnecessary dense32 activation on default regimes.
@@ -327,6 +493,8 @@ def resolve_two_pool_split_search_params(
             return 96, "dense32"
         if high6:
             return 96, "dense24"
+        if prof == "adaptive_v7":
+            return 64, "dgstr_v1"
         return 64, "baseline_canon16"
 
     # adaptive_v1 (legacy)
@@ -356,6 +524,7 @@ def best_split_two_pools_exact_in(
     - "baseline": legacy search schedule.
     - "dense24": denser deterministic coarse probes (24 bins) + local refinement.
     - "dense32": very dense deterministic coarse probes (32 bins) + local refinement.
+    - "dgstr_v1": experimental discrete golden-section / ternary refinement with bounded rescue scans.
 
     This is intended to be iteratively improved with counterexample mining.
     """
@@ -366,7 +535,7 @@ def best_split_two_pools_exact_in(
     # Allow adaptive profile names directly at the algorithm entrypoint.
     # This keeps call sites simple while retaining explicit deterministic resolution.
     profile = str(search_profile).strip().lower()
-    if profile in {"adaptive_v1", "adaptive_v2", "adaptive_v3", "adaptive_v4", "adaptive_v5", "adaptive_v6"}:
+    if profile in {"adaptive_v1", "adaptive_v2", "adaptive_v3", "adaptive_v4", "adaptive_v5", "adaptive_v6", "adaptive_v7"}:
         window, profile = resolve_two_pool_split_search_params(
             pool0,
             pool1,
@@ -399,54 +568,17 @@ def best_split_two_pools_exact_in(
         tot_cache[a] = tot
         return tot
 
-    def scan_range(lo: int, hi: int) -> tuple[int, int] | None:
-        if lo > hi:
-            return None
-        best_out = -1
-        best_a = 0
-        for a in range(lo, hi + 1):
-            tot = total_out(a)
-            if tot is None:
-                continue
-            if tot > best_out or (tot == best_out and a < best_a):
-                best_out = tot
-                best_a = a
-        return None if best_out < 0 else (best_out, best_a)
-
-    def is_valid(pool: PoolXY, a: int) -> bool:
-        if a <= 0:
-            return False
-        try:
-            exact_out_for_pool_exact_in(pool, a)
-        except Exception:
-            return False
-        return True
-
-    def min_valid_amount(pool: PoolXY) -> int | None:
-        if not is_valid(pool, amount_in):
-            return None
-        lo = 1
-        hi = amount_in
-        while lo < hi:
-            mid = (lo + hi) // 2
-            if is_valid(pool, mid):
-                hi = mid
-            else:
-                lo = mid + 1
-        return int(lo)
-
-    best_out = -1
-    best_a = 0
+    best: tuple[int, int] | None = None
     for a in (0, amount_in):
         tot = total_out(a)
         if tot is None:
             continue
-        if tot > best_out or (tot == best_out and a < best_a):
-            best_out = tot
-            best_a = a
+        cand = (int(tot), int(a))
+        if _is_better_candidate(cand, best):
+            best = cand
 
-    min0 = min_valid_amount(pool0)
-    min1 = min_valid_amount(pool1)
+    min0 = _min_valid_amount_for_pool(pool=pool0, amount_in_total=int(amount_in))
+    min1 = _min_valid_amount_for_pool(pool=pool1, amount_in_total=int(amount_in))
     if min0 is not None and min1 is not None:
         lo_both = min0
         hi_both = amount_in - min1
@@ -460,83 +592,93 @@ def best_split_two_pools_exact_in(
             )
             a_star = max(lo_both, min(hi_both, a_star))
 
-            span = hi_both - lo_both
-            centers = {lo_both, hi_both, (lo_both + hi_both) // 2, a_star}
-            if span > 0 and (force_dense_grid or span > int(grid_n) * int(window)):
-                # Deterministic coarse coverage grid; density controlled by search_profile.
-                for i in range(1, int(grid_n)):
-                    centers.add(lo_both + (span * i) // int(grid_n))
+            if profile == "dgstr_v1":
+                best_both = _search_dgstr_v1(
+                    lo_both=int(lo_both),
+                    hi_both=int(hi_both),
+                    a_star=int(a_star),
+                    window=int(window),
+                    total_out=total_out,
+                )
+            else:
+                span = hi_both - lo_both
+                centers = {lo_both, hi_both, (lo_both + hi_both) // 2, a_star}
+                if span > 0 and (force_dense_grid or span > int(grid_n) * int(window)):
+                    # Deterministic coarse coverage grid; density controlled by search_profile.
+                    for i in range(1, int(grid_n)):
+                        centers.add(lo_both + (span * i) // int(grid_n))
 
-            if int(left_sweep_k) > 0 and int(window) > 0:
-                # Deterministic extra coverage to the left of the continuous optimum.
-                #
-                # Motivation: under integer rounding, the set of maximizers can be disconnected; a local plateau
-                # walk-left only canonicalizes within the discovered segment. Adding a bounded left sweep reduces
-                # tie-break mismatches (min-a among maximizers) without forcing a full global scan.
-                for k in range(1, int(left_sweep_k) + 1):
-                    c = int(a_star) - int(k) * int(window)
-                    if c <= lo_both:
-                        centers.add(lo_both)
-                        break
-                    centers.add(c)
-
-            best_both: tuple[int, int] | None = None
-            for c in sorted(centers):
-                r_lo = max(lo_both, c - window)
-                r_hi = min(hi_both, c + window)
-                cand = scan_range(r_lo, r_hi)
-                if cand is None:
-                    continue
-                if best_both is None or cand[0] > best_both[0] or (cand[0] == best_both[0] and cand[1] < best_both[1]):
-                    best_both = cand
-
-            if best_both is not None:
-                # Refine by expanding around the current best within the both-valid interval.
-                refine_out, refine_a = best_both
-                half = max(1, int(window))
-                while True:
-                    r_lo = max(lo_both, refine_a - half)
-                    r_hi = min(hi_both, refine_a + half)
-                    cand = scan_range(r_lo, r_hi)
-                    if cand is not None:
-                        refine_out2, refine_a2 = cand
-                        if refine_out2 > refine_out or (refine_out2 == refine_out and refine_a2 < refine_a):
-                            refine_out, refine_a = refine_out2, refine_a2
-                    if r_lo == lo_both and r_hi == hi_both:
-                        break
-                    # If the best is at the edge of our scanned window, keep expanding.
+                if int(left_sweep_k) > 0 and int(window) > 0:
+                    # Deterministic extra coverage to the left of the continuous optimum.
                     #
-                    # Important: if the best is at the *global* boundary (lo_both/hi_both), naive expansion
-                    # degenerates into scanning the full span even when we already probed other centers.
-                    # This can create an O(D) call cliff in deep-liquidity regimes where the optimum is at a boundary.
-                    if refine_a in (r_lo, r_hi) and refine_a not in (lo_both, hi_both):
-                        half *= 2
-                        if half >= span:
-                            half = span
-                        continue
-                    break
-
-                # Canonicalize within a local plateau: walk left while output stays maximal.
-                a0 = refine_a
-                while a0 > lo_both:
-                    prev = total_out(a0 - 1)
-                    if prev is None or prev != refine_out:
-                        break
-                    a0 -= 1
-
-                if force_dense_grid:
-                    # Dense profiles pay a small extra pass to enforce global canonical tie-break:
-                    # choose the smallest feasible `a` that attains `refine_out`.
-                    for a_scan in range(lo_both, a0):
-                        tot_scan = total_out(a_scan)
-                        if tot_scan is not None and tot_scan == refine_out:
-                            a0 = a_scan
+                    # Motivation: under integer rounding, the set of maximizers can be disconnected; a local plateau
+                    # walk-left only canonicalizes within the discovered segment. Adding a bounded left sweep reduces
+                    # tie-break mismatches (min-a among maximizers) without forcing a full global scan.
+                    for k in range(1, int(left_sweep_k) + 1):
+                        c = int(a_star) - int(k) * int(window)
+                        if c <= lo_both:
+                            centers.add(lo_both)
                             break
-                best_both = (refine_out, a0)
+                        centers.add(c)
 
-                if best_both[0] > best_out or (best_both[0] == best_out and best_both[1] < best_a):
-                    best_out, best_a = best_both
+                best_both: tuple[int, int] | None = None
+                for c in sorted(centers):
+                    cand = _scan_range_best(
+                        lo=max(lo_both, c - window),
+                        hi=min(hi_both, c + window),
+                        total_out=total_out,
+                    )
+                    if _is_better_candidate(cand, best_both):
+                        best_both = cand
 
-    if best_out < 0:
+                if best_both is not None:
+                    # Refine by expanding around the current best within the both-valid interval.
+                    refine_out, refine_a = best_both
+                    half = max(1, int(window))
+                    while True:
+                        cand = _scan_range_best(
+                            lo=max(lo_both, refine_a - half),
+                            hi=min(hi_both, refine_a + half),
+                            total_out=total_out,
+                        )
+                        if _is_better_candidate(cand, (int(refine_out), int(refine_a))):
+                            assert cand is not None
+                            refine_out, refine_a = cand
+                        r_lo = max(lo_both, refine_a - half)
+                        r_hi = min(hi_both, refine_a + half)
+                        if r_lo == lo_both and r_hi == hi_both:
+                            break
+                        # If the best is at the edge of our scanned window, keep expanding.
+                        #
+                        # Important: if the best is at the *global* boundary (lo_both/hi_both), naive expansion
+                        # degenerates into scanning the full span even when we already probed other centers.
+                        # This can create an O(D) call cliff in deep-liquidity regimes where the optimum is at a boundary.
+                        if refine_a in (r_lo, r_hi) and refine_a not in (lo_both, hi_both):
+                            half *= 2
+                            if half >= span:
+                                half = span
+                            continue
+                        break
+
+                    best_both = _canonicalize_leftmost(
+                        lo_both=int(lo_both),
+                        candidate=(int(refine_out), int(refine_a)),
+                        total_out=total_out,
+                    )
+
+                    if force_dense_grid:
+                        # Dense profiles pay a small extra pass to enforce global canonical tie-break:
+                        # choose the smallest feasible `a` that attains `refine_out`.
+                        refine_out2, refine_a2 = best_both
+                        for a_scan in range(int(lo_both), int(refine_a2)):
+                            tot_scan = total_out(int(a_scan))
+                            if tot_scan is not None and int(tot_scan) == int(refine_out2):
+                                best_both = (int(refine_out2), int(a_scan))
+                                break
+
+            if _is_better_candidate(best_both, best):
+                best = best_both
+
+    if best is None:
         raise ValueError("no feasible split")
-    return best_out, best_a
+    return int(best[0]), int(best[1])
