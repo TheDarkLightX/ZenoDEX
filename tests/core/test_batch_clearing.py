@@ -208,8 +208,14 @@ def test_clear_batch_single_pool_optimal_ab_bounded_canonicalizes_lex_order() ->
         ),
     ]
 
-    fills_greedy = clear_batch_single_pool(intents, pool, balances, lp_balances)
-    assert [f.intent_id for f in fills_greedy] == [_iid(1), _iid(2), _iid(0)]
+    fills_limit_price = clear_batch_single_pool(
+        intents,
+        pool,
+        balances,
+        lp_balances,
+        swap_ordering="limit_price",
+    )
+    assert [f.intent_id for f in fills_limit_price] == [_iid(1), _iid(2), _iid(0)]
 
     fills_ab = clear_batch_single_pool(intents, pool, balances, lp_balances, swap_ordering="optimal_ab_bounded")
     assert [f.intent_id for f in fills_ab] == [_iid(0), _iid(1), _iid(2)]

@@ -1,0 +1,12 @@
+*
+!.docker/
+!.docker/**
+!Dockerfile
+!requirements.txt
+!src/
+!src/**
+!tests/
+!tests/**
+!tools/
+!tools/dex-ui/
+!tools/dex-ui/**

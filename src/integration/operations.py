@@ -9,7 +9,14 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 
 from ..state.intents import Intent, IntentKind
-from ..core.settlement import Settlement, FillAction
+from ..core.settlement import (
+    Settlement,
+    FillAction,
+    Fill,
+    BalanceDelta,
+    ReserveDelta,
+    LPDelta,
+)
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -64,6 +71,114 @@ class SettlementEnvelope:
     proof: Optional[Dict[str, Any]] = None
 
 
+def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"{name} must be a list")
+    return list(value)
+
+
+def _parse_fill_action(value: Any, *, name: str, error_prefix: str) -> FillAction:
+    action_s = _require_str(value, name=name, non_empty=True, max_len=64)
+    try:
+        return FillAction(action_s)
+    except ValueError as exc:
+        raise ValueError(f"{error_prefix}: {action_s}") from exc
+
+
+def _parse_included_intent_entry(entry: Any) -> tuple[str, FillAction]:
+    if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+        raise ValueError("included_intents entries must be [intent_id, action]")
+    intent_id_s = _require_str(entry[0], name="included_intents.intent_id", non_empty=True, max_len=256)
+    action = _parse_fill_action(
+        entry[1],
+        name="included_intents.action",
+        error_prefix="Invalid action",
+    )
+    return intent_id_s, action
+
+
+def _parse_included_intents(value: Any) -> list[tuple[str, FillAction]]:
+    return [_parse_included_intent_entry(entry) for entry in _require_list_or_empty(value, name="settlement.included_intents")]
+
+
+def _parse_fill(fill_data: Any) -> Fill:
+    if not isinstance(fill_data, dict):
+        raise ValueError("fills entries must be objects")
+
+    action = _parse_fill_action(
+        fill_data.get("action"),
+        name="fill.action",
+        error_prefix="Invalid fill action",
+    )
+    intent_id_s = _require_str(fill_data.get("intent_id"), name="fill.intent_id", non_empty=True, max_len=256)
+    reason = fill_data.get("reason")
+    if reason is not None:
+        reason = _require_str(reason, name="fill.reason", non_empty=False, max_len=4096)
+
+    return Fill(
+        intent_id=intent_id_s,
+        action=action,
+        reason=reason,
+        amount_in_filled=_optional_int(fill_data.get("amount_in_filled"), name="fill.amount_in_filled", non_negative=True),
+        amount_out_filled=_optional_int(
+            fill_data.get("amount_out_filled"), name="fill.amount_out_filled", non_negative=True
+        ),
+        fee_paid=_optional_int(fill_data.get("fee_paid"), name="fill.fee_paid", non_negative=True),
+        amount0_used=_optional_int(fill_data.get("amount0_used"), name="fill.amount0_used", non_negative=True),
+        amount1_used=_optional_int(fill_data.get("amount1_used"), name="fill.amount1_used", non_negative=True),
+        lp_minted=_optional_int(fill_data.get("lp_minted"), name="fill.lp_minted", non_negative=True),
+        amount0_out=_optional_int(fill_data.get("amount0_out"), name="fill.amount0_out", non_negative=True),
+        amount1_out=_optional_int(fill_data.get("amount1_out"), name="fill.amount1_out", non_negative=True),
+        lp_burned=_optional_int(fill_data.get("lp_burned"), name="fill.lp_burned", non_negative=True),
+    )
+
+
+def _parse_balance_delta(value: Any) -> BalanceDelta:
+    if not isinstance(value, dict):
+        raise ValueError("balance_deltas entries must be objects")
+    return BalanceDelta(
+        pubkey=_require_str(value.get("pubkey"), name="balance_delta.pubkey", non_empty=True, max_len=512),
+        asset=_require_str(value.get("asset"), name="balance_delta.asset", non_empty=True, max_len=256),
+        delta_add=_require_int(value.get("delta_add", 0), name="balance_delta.delta_add", non_negative=True),
+        delta_sub=_require_int(value.get("delta_sub", 0), name="balance_delta.delta_sub", non_negative=True),
+    )
+
+
+def _parse_reserve_delta(value: Any) -> ReserveDelta:
+    if not isinstance(value, dict):
+        raise ValueError("reserve_deltas entries must be objects")
+    return ReserveDelta(
+        pool_id=_require_str(value.get("pool_id"), name="reserve_delta.pool_id", non_empty=True, max_len=256),
+        asset=_require_str(value.get("asset"), name="reserve_delta.asset", non_empty=True, max_len=256),
+        delta_add=_require_int(value.get("delta_add", 0), name="reserve_delta.delta_add", non_negative=True),
+        delta_sub=_require_int(value.get("delta_sub", 0), name="reserve_delta.delta_sub", non_negative=True),
+    )
+
+
+def _parse_lp_delta(value: Any) -> LPDelta:
+    if not isinstance(value, dict):
+        raise ValueError("lp_deltas entries must be objects")
+    return LPDelta(
+        pubkey=_require_str(value.get("pubkey"), name="lp_delta.pubkey", non_empty=True, max_len=512),
+        pool_id=_require_str(value.get("pool_id"), name="lp_delta.pool_id", non_empty=True, max_len=256),
+        delta_add=_require_int(value.get("delta_add", 0), name="lp_delta.delta_add", non_negative=True),
+        delta_sub=_require_int(value.get("delta_sub", 0), name="lp_delta.delta_sub", non_negative=True),
+    )
+
+
+def _parse_events(value: Any) -> Optional[list[dict[str, Any]]]:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise ValueError("settlement.events must be a list")
+    for entry in value:
+        if not isinstance(entry, dict):
+            raise ValueError("settlement.events entries must be objects")
+    return value
+
+
 def parse_intents(operations: Dict[str, Any]) -> List[Intent]:
     """
     Parse intents from transaction operations["2"].
@@ -98,6 +213,43 @@ def parse_intents(operations: Dict[str, Any]) -> List[Intent]:
     return intents
 
 
+def _unpack_signed_intent_entry(entry: Any) -> tuple[Dict[str, Any], Optional[str]]:
+    signature = None
+    signature_in_dict = None
+
+    if isinstance(entry, list):
+        if len(entry) not in (1, 2):
+            raise ValueError("intent list entry must have length 1 or 2")
+        intent_data = entry[0]
+        if len(entry) == 2:
+            signature = entry[1]
+    else:
+        intent_data = entry
+
+    if not isinstance(intent_data, dict):
+        raise ValueError(f"intent entry must be a dict, got {type(intent_data)}")
+
+    # Never allow "signature" to leak into intent-specific fields.
+    if "signature" in intent_data:
+        signature_in_dict = intent_data.get("signature")
+        intent_data = {k: v for k, v in intent_data.items() if k != "signature"}
+
+    # If both envelope and dict provide signatures, reject ambiguity.
+    if signature is not None and signature_in_dict is not None:
+        if signature != signature_in_dict:
+            raise ValueError("signature provided twice (envelope + field) and differs")
+        raise ValueError("signature provided twice (envelope + field)")
+
+    if signature is None:
+        signature = signature_in_dict
+
+    if signature is not None and not isinstance(signature, str):
+        raise ValueError("signature must be a string")
+    if isinstance(signature, str) and len(signature) > 4096:
+        raise ValueError("signature too large")
+    return intent_data, signature
+
+
 def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelope]:
     """
     Parse intents from operations["2"] allowing optional per-intent signatures.
@@ -119,40 +271,8 @@ def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelop
     out: List[SignedIntentEnvelope] = []
     for i, entry in enumerate(intents_data):
         try:
-            signature = None
-            signature_in_dict = None
-
-            if isinstance(entry, list):
-                if len(entry) not in (1, 2):
-                    raise ValueError("intent list entry must have length 1 or 2")
-                intent_data = entry[0]
-                if len(entry) == 2:
-                    signature = entry[1]
-            else:
-                intent_data = entry
-
-            if not isinstance(intent_data, dict):
-                raise ValueError(f"intent entry must be a dict, got {type(intent_data)}")
-
-            # Never allow "signature" to leak into intent-specific fields.
-            if "signature" in intent_data:
-                signature_in_dict = intent_data.get("signature")
-                intent_data = {k: v for k, v in intent_data.items() if k != "signature"}
-
-            # If both envelope and dict provide signatures, reject ambiguity.
-            if signature is not None and signature_in_dict is not None:
-                if signature != signature_in_dict:
-                    raise ValueError("signature provided twice (envelope + field) and differs")
-                raise ValueError("signature provided twice (envelope + field)")
-
-            if signature is None:
-                signature = signature_in_dict
-
+            intent_data, signature = _unpack_signed_intent_entry(entry)
             intent = _parse_intent(intent_data)
-            if signature is not None and not isinstance(signature, str):
-                raise ValueError("signature must be a string")
-            if isinstance(signature, str) and len(signature) > 4096:
-                raise ValueError("signature too large")
             out.append(SignedIntentEnvelope(intent=intent, signature=signature))
         except Exception as e:
             raise ValueError(f"Failed to parse signed intent {i}: {e}") from e
@@ -291,10 +411,6 @@ def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:
     Returns:
         Settlement object
     """
-    from ..core.settlement import (
-        Fill, BalanceDelta, ReserveDelta, LPDelta
-    )
-    
     settlement_data = _require_dict_str_keys(settlement_data, name="settlement")
 
     module = _require_str(settlement_data.get("module"), name="settlement.module", non_empty=True, max_len=64)
@@ -305,110 +421,20 @@ def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:
     if version != "0.1":
         raise ValueError(f"Invalid version: {version}")
 
-    # Parse included_intents
-    included_intents_raw = settlement_data.get("included_intents", [])
-    if included_intents_raw is None:
-        included_intents_raw = []
-    if not isinstance(included_intents_raw, list):
-        raise ValueError("settlement.included_intents must be a list")
-    included_intents: list[tuple[str, FillAction]] = []
-    for entry in included_intents_raw:
-        if not isinstance(entry, (list, tuple)) or len(entry) != 2:
-            raise ValueError("included_intents entries must be [intent_id, action]")
-        intent_id, action_str = entry[0], entry[1]
-        intent_id_s = _require_str(intent_id, name="included_intents.intent_id", non_empty=True, max_len=256)
-        action_s = _require_str(action_str, name="included_intents.action", non_empty=True, max_len=64)
-        try:
-            action = FillAction(action_s)
-        except ValueError as exc:
-            raise ValueError(f"Invalid action: {action_s}") from exc
-        included_intents.append((intent_id_s, action))
-    
-    # Parse fills
-    fills_raw = settlement_data.get("fills", [])
-    if fills_raw is None:
-        fills_raw = []
-    if not isinstance(fills_raw, list):
-        raise ValueError("settlement.fills must be a list")
-    fills: list[Fill] = []
-    for fill_data in fills_raw:
-        if not isinstance(fill_data, dict):
-            raise ValueError("fills entries must be objects")
-
-        action_s = _require_str(fill_data.get("action"), name="fill.action", non_empty=True, max_len=64)
-        try:
-            action = FillAction(action_s)
-        except ValueError as exc:
-            raise ValueError(f"Invalid fill action: {action_s}") from exc
-
-        intent_id_s = _require_str(fill_data.get("intent_id"), name="fill.intent_id", non_empty=True, max_len=256)
-        reason = fill_data.get("reason")
-        if reason is not None:
-            reason = _require_str(reason, name="fill.reason", non_empty=False, max_len=4096)
-
-        fill = Fill(
-            intent_id=intent_id_s,
-            action=action,
-            reason=reason,
-            amount_in_filled=_optional_int(fill_data.get("amount_in_filled"), name="fill.amount_in_filled", non_negative=True),
-            amount_out_filled=_optional_int(
-                fill_data.get("amount_out_filled"), name="fill.amount_out_filled", non_negative=True
-            ),
-            fee_paid=_optional_int(fill_data.get("fee_paid"), name="fill.fee_paid", non_negative=True),
-            amount0_used=_optional_int(fill_data.get("amount0_used"), name="fill.amount0_used", non_negative=True),
-            amount1_used=_optional_int(fill_data.get("amount1_used"), name="fill.amount1_used", non_negative=True),
-            lp_minted=_optional_int(fill_data.get("lp_minted"), name="fill.lp_minted", non_negative=True),
-            amount0_out=_optional_int(fill_data.get("amount0_out"), name="fill.amount0_out", non_negative=True),
-            amount1_out=_optional_int(fill_data.get("amount1_out"), name="fill.amount1_out", non_negative=True),
-            lp_burned=_optional_int(fill_data.get("lp_burned"), name="fill.lp_burned", non_negative=True),
-        )
-        fills.append(fill)
-    
-    # Parse deltas
-    balance_deltas_raw = settlement_data.get("balance_deltas", [])
-    if balance_deltas_raw is None:
-        balance_deltas_raw = []
-    if not isinstance(balance_deltas_raw, list):
-        raise ValueError("settlement.balance_deltas must be a list")
-    balance_deltas: list[BalanceDelta] = []
-    for d in balance_deltas_raw:
-        if not isinstance(d, dict):
-            raise ValueError("balance_deltas entries must be objects")
-        pubkey = _require_str(d.get("pubkey"), name="balance_delta.pubkey", non_empty=True, max_len=512)
-        asset = _require_str(d.get("asset"), name="balance_delta.asset", non_empty=True, max_len=256)
-        delta_add = _require_int(d.get("delta_add", 0), name="balance_delta.delta_add", non_negative=True)
-        delta_sub = _require_int(d.get("delta_sub", 0), name="balance_delta.delta_sub", non_negative=True)
-        balance_deltas.append(BalanceDelta(pubkey=pubkey, asset=asset, delta_add=delta_add, delta_sub=delta_sub))
-
-    reserve_deltas_raw = settlement_data.get("reserve_deltas", [])
-    if reserve_deltas_raw is None:
-        reserve_deltas_raw = []
-    if not isinstance(reserve_deltas_raw, list):
-        raise ValueError("settlement.reserve_deltas must be a list")
-    reserve_deltas: list[ReserveDelta] = []
-    for d in reserve_deltas_raw:
-        if not isinstance(d, dict):
-            raise ValueError("reserve_deltas entries must be objects")
-        pool_id = _require_str(d.get("pool_id"), name="reserve_delta.pool_id", non_empty=True, max_len=256)
-        asset = _require_str(d.get("asset"), name="reserve_delta.asset", non_empty=True, max_len=256)
-        delta_add = _require_int(d.get("delta_add", 0), name="reserve_delta.delta_add", non_negative=True)
-        delta_sub = _require_int(d.get("delta_sub", 0), name="reserve_delta.delta_sub", non_negative=True)
-        reserve_deltas.append(ReserveDelta(pool_id=pool_id, asset=asset, delta_add=delta_add, delta_sub=delta_sub))
-
-    lp_deltas_raw = settlement_data.get("lp_deltas", [])
-    if lp_deltas_raw is None:
-        lp_deltas_raw = []
-    if not isinstance(lp_deltas_raw, list):
-        raise ValueError("settlement.lp_deltas must be a list")
-    lp_deltas: list[LPDelta] = []
-    for d in lp_deltas_raw:
-        if not isinstance(d, dict):
-            raise ValueError("lp_deltas entries must be objects")
-        pubkey = _require_str(d.get("pubkey"), name="lp_delta.pubkey", non_empty=True, max_len=512)
-        pool_id = _require_str(d.get("pool_id"), name="lp_delta.pool_id", non_empty=True, max_len=256)
-        delta_add = _require_int(d.get("delta_add", 0), name="lp_delta.delta_add", non_negative=True)
-        delta_sub = _require_int(d.get("delta_sub", 0), name="lp_delta.delta_sub", non_negative=True)
-        lp_deltas.append(LPDelta(pubkey=pubkey, pool_id=pool_id, delta_add=delta_add, delta_sub=delta_sub))
+    included_intents = _parse_included_intents(settlement_data.get("included_intents", []))
+    fills = [_parse_fill(fill_data) for fill_data in _require_list_or_empty(settlement_data.get("fills", []), name="settlement.fills")]
+    balance_deltas = [
+        _parse_balance_delta(entry)
+        for entry in _require_list_or_empty(settlement_data.get("balance_deltas", []), name="settlement.balance_deltas")
+    ]
+    reserve_deltas = [
+        _parse_reserve_delta(entry)
+        for entry in _require_list_or_empty(settlement_data.get("reserve_deltas", []), name="settlement.reserve_deltas")
+    ]
+    lp_deltas = [
+        _parse_lp_delta(entry)
+        for entry in _require_list_or_empty(settlement_data.get("lp_deltas", []), name="settlement.lp_deltas")
+    ]
 
     batch_ref = settlement_data.get("batch_ref", "")
     if batch_ref is None:
@@ -416,13 +442,7 @@ def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:
     if not isinstance(batch_ref, str):
         raise ValueError("settlement.batch_ref must be a string")
 
-    events = settlement_data.get("events")
-    if events is not None:
-        if not isinstance(events, list):
-            raise ValueError("settlement.events must be a list")
-        for e in events:
-            if not isinstance(e, dict):
-                raise ValueError("settlement.events entries must be objects")
+    events = _parse_events(settlement_data.get("events"))
     
     try:
         settlement = Settlement(
