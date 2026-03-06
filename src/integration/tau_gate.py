@@ -22,13 +22,19 @@ from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
+    SWAP_BV32_SAFE_RANGE_GUARD_V1,
+    SWAP_EXACT_IN_PROOF_GATE_V1,
     SWAP_EXACT_IN_V1,
     SWAP_EXACT_OUT_V1,
+    SWAP_EXACT_OUT_PROOF_GATE_V1,
     SWAP_EXACT_IN_V4,
     SWAP_EXACT_OUT_V4,
     TauSpecRef,
+    build_swap_bv32_safe_range_guard_v1_step,
+    build_swap_exact_in_proof_gate_v1_step,
     build_swap_exact_in_v1_step,
     build_swap_exact_out_v1_step,
+    build_swap_exact_out_proof_gate_v1_step,
     build_swap_exact_in_v4_step,
     build_swap_exact_out_v4_step,
 )
@@ -47,6 +53,7 @@ class TauGateConfig:
     timeout_s: float = 2.0
     tau_bin: Optional[str] = None
     allow_path_lookup: bool = False
+    swap_profile: str = "legacy_auto"
 
 
 def _require_gate_ok(
@@ -75,14 +82,21 @@ def validate_settlement_swaps(
     """
     Validate swap fills in a settlement using Tau specs (fail-closed).
 
-    Currently gates swap intent transitions via:
-    - preferred: `swap_exact_in_v4.tau` / `swap_exact_out_v4.tau` (includes sound k-guard under safe-range)
-    - fallback: `swap_exact_in_v1.tau` / `swap_exact_out_v1.tau` (structural only)
+    Profiles:
+    - `legacy_auto`:
+      preferred `swap_exact_in_v4.tau` / `swap_exact_out_v4.tau` under safe-range,
+      fallback to `swap_exact_in_v1.tau` / `swap_exact_out_v1.tau`
+    - `proof_gate_range_guard`:
+      use the smaller proof-gated swap specs plus the explicit
+      `swap_bv32_safe_range_guard_v1.tau` supplemental guard
     """
     if not config.enabled:
         return True, None
 
     try:
+        if config.swap_profile not in ("legacy_auto", "proof_gate_range_guard"):
+            return False, f"Unsupported Tau swap_profile: {config.swap_profile}"
+
         intents_by_id = {i.intent_id: i for i in intents}
         fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
 
@@ -242,16 +256,11 @@ def validate_settlement_swaps(
                 new_reserve_in = reserve_in + amount_in
                 new_reserve_out = reserve_out - amount_out
 
-                # v4 is sound but intentionally bounded (safe-range guard <= 0xFFFF).
-                use_v4 = all(
-                    isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 0xFFFF
-                    for v in (reserve_in, reserve_out, amount_in, min_amount_out, amount_out, new_reserve_in, new_reserve_out)
-                )
-                _append_swap_segment(
-                    pool_id=pool_id,
-                    spec_ref=SWAP_EXACT_IN_V4 if use_v4 else SWAP_EXACT_IN_V1,
-                    step=(
-                        build_swap_exact_in_v4_step(
+                if config.swap_profile == "proof_gate_range_guard":
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_IN_PROOF_GATE_V1,
+                        step=build_swap_exact_in_proof_gate_v1_step(
                             reserve_in=reserve_in,
                             reserve_out=reserve_out,
                             amount_in=amount_in,
@@ -260,21 +269,56 @@ def validate_settlement_swaps(
                             amount_out=amount_out,
                             new_reserve_in=new_reserve_in,
                             new_reserve_out=new_reserve_out,
-                        )
-                        if use_v4
-                        else build_swap_exact_in_v1_step(
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_BV32_SAFE_RANGE_GUARD_V1,
+                        step=build_swap_bv32_safe_range_guard_v1_step(
                             reserve_in=reserve_in,
                             reserve_out=reserve_out,
-                            amount_in=amount_in,
-                            fee_bps=pool.fee_bps,
-                            min_amount_out=min_amount_out,
-                            amount_out=amount_out,
+                            delta_primary=amount_in,
+                            delta_secondary=amount_out,
                             new_reserve_in=new_reserve_in,
                             new_reserve_out=new_reserve_out,
-                        )
-                    ),
-                    intent_id=intent.intent_id,
-                )
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                else:
+                    # v4 is sound but intentionally bounded (safe-range guard <= 0xFFFF).
+                    use_v4 = all(
+                        isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 0xFFFF
+                        for v in (reserve_in, reserve_out, amount_in, min_amount_out, amount_out, new_reserve_in, new_reserve_out)
+                    )
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_IN_V4 if use_v4 else SWAP_EXACT_IN_V1,
+                        step=(
+                            build_swap_exact_in_v4_step(
+                                reserve_in=reserve_in,
+                                reserve_out=reserve_out,
+                                amount_in=amount_in,
+                                fee_bps=pool.fee_bps,
+                                min_amount_out=min_amount_out,
+                                amount_out=amount_out,
+                                new_reserve_in=new_reserve_in,
+                                new_reserve_out=new_reserve_out,
+                            )
+                            if use_v4
+                            else build_swap_exact_in_v1_step(
+                                reserve_in=reserve_in,
+                                reserve_out=reserve_out,
+                                amount_in=amount_in,
+                                fee_bps=pool.fee_bps,
+                                min_amount_out=min_amount_out,
+                                amount_out=amount_out,
+                                new_reserve_in=new_reserve_in,
+                                new_reserve_out=new_reserve_out,
+                            )
+                        ),
+                        intent_id=intent.intent_id,
+                    )
             else:
                 max_amount_in = intent.get_field("max_amount_in", 0)
                 if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
@@ -282,15 +326,11 @@ def validate_settlement_swaps(
                 new_reserve_in = reserve_in + amount_in
                 new_reserve_out = reserve_out - amount_out
 
-                use_v4 = all(
-                    isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 0xFFFF
-                    for v in (reserve_in, reserve_out, amount_out, max_amount_in, amount_in, new_reserve_in, new_reserve_out)
-                )
-                _append_swap_segment(
-                    pool_id=pool_id,
-                    spec_ref=SWAP_EXACT_OUT_V4 if use_v4 else SWAP_EXACT_OUT_V1,
-                    step=(
-                        build_swap_exact_out_v4_step(
+                if config.swap_profile == "proof_gate_range_guard":
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_OUT_PROOF_GATE_V1,
+                        step=build_swap_exact_out_proof_gate_v1_step(
                             reserve_in=reserve_in,
                             reserve_out=reserve_out,
                             amount_out=amount_out,
@@ -299,21 +339,55 @@ def validate_settlement_swaps(
                             amount_in=amount_in,
                             new_reserve_in=new_reserve_in,
                             new_reserve_out=new_reserve_out,
-                        )
-                        if use_v4
-                        else build_swap_exact_out_v1_step(
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_BV32_SAFE_RANGE_GUARD_V1,
+                        step=build_swap_bv32_safe_range_guard_v1_step(
                             reserve_in=reserve_in,
                             reserve_out=reserve_out,
-                            amount_out=amount_out,
-                            fee_bps=pool.fee_bps,
-                            max_amount_in=max_amount_in,
-                            amount_in=amount_in,
+                            delta_primary=amount_out,
+                            delta_secondary=amount_in,
                             new_reserve_in=new_reserve_in,
                             new_reserve_out=new_reserve_out,
-                        )
-                    ),
-                    intent_id=intent.intent_id,
-                )
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                else:
+                    use_v4 = all(
+                        isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 0xFFFF
+                        for v in (reserve_in, reserve_out, amount_out, max_amount_in, amount_in, new_reserve_in, new_reserve_out)
+                    )
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_OUT_V4 if use_v4 else SWAP_EXACT_OUT_V1,
+                        step=(
+                            build_swap_exact_out_v4_step(
+                                reserve_in=reserve_in,
+                                reserve_out=reserve_out,
+                                amount_out=amount_out,
+                                fee_bps=pool.fee_bps,
+                                max_amount_in=max_amount_in,
+                                amount_in=amount_in,
+                                new_reserve_in=new_reserve_in,
+                                new_reserve_out=new_reserve_out,
+                            )
+                            if use_v4
+                            else build_swap_exact_out_v1_step(
+                                reserve_in=reserve_in,
+                                reserve_out=reserve_out,
+                                amount_out=amount_out,
+                                fee_bps=pool.fee_bps,
+                                max_amount_in=max_amount_in,
+                                amount_in=amount_in,
+                                new_reserve_in=new_reserve_in,
+                                new_reserve_out=new_reserve_out,
+                            )
+                        ),
+                        intent_id=intent.intent_id,
+                    )
 
             # Apply to pool snapshot for subsequent steps.
             if asset_in == pool.asset0:

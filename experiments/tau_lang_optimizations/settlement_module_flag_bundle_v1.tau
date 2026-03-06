@@ -1,0 +1,21 @@
+# Experimental settlement module flag bundle
+#
+# Purpose:
+# - keep non-price settlement components as explicit fail-closed flags;
+# - make their final composition traceable without reintroducing heavy Tau arithmetic.
+#
+# Inputs:
+# i1 = cpmm_ok
+# i2 = balance_ok
+# i3 = token_ok
+# i4 = buyback_floor_ok
+# i5 = buyback_floor_fixedpoint_ok
+# i6 = rebate_ok
+# i7 = lock_weight_ok
+# i8 = proof_ok
+# i9 = binding_ok
+# o1 = module_bundle_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf))).

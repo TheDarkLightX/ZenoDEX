@@ -26,6 +26,14 @@
           "spec_path": "src/tau_specs/recommended/swap_exact_in_proof_gate_v1.tau"
         },
         {
+          "variant_id": "proof_gate_v1_plus_safe_range_guard",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/swap_exact_in_proof_gate_v1.tau",
+          "supplemental_spec_paths": [
+            "src/tau_specs/recommended/swap_bv32_safe_range_guard_v1.tau"
+          ]
+        },
+        {
           "variant_id": "structural_v1",
           "profile": "tau_only_structural",
           "spec_path": "src/tau_specs/recommended/swap_exact_in_v1.tau"
@@ -43,6 +51,14 @@
           "variant_id": "proof_gate_v1",
           "profile": "fast_proof_gated",
           "spec_path": "src/tau_specs/recommended/swap_exact_out_proof_gate_v1.tau"
+        },
+        {
+          "variant_id": "proof_gate_v1_plus_safe_range_guard",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/swap_exact_out_proof_gate_v1.tau",
+          "supplemental_spec_paths": [
+            "src/tau_specs/recommended/swap_bv32_safe_range_guard_v1.tau"
+          ]
         },
         {
           "variant_id": "structural_v1",
@@ -79,9 +95,48 @@
           "spec_path": "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock_proof_gate.tau"
         },
         {
+          "variant_id": "aligned_compact_bundle_v5",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_v5_aligned_compact_bundle.tau"
+        },
+        {
+          "variant_id": "price_rails_aligned_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/settlement_price_rails_aligned_v1.tau"
+        },
+        {
+          "variant_id": "module_flag_bundle_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/settlement_module_flag_bundle_v1.tau"
+        },
+        {
           "variant_id": "full_v4_buyback_floor_rebate_lock",
           "profile": "tau_only_full_settlement",
           "spec_path": "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock.tau"
+        }
+      ]
+    },
+    "batching": {
+      "variants": [
+        {
+          "variant_id": "compact_single_gate_v1_5",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/batching_v1_5_compact_single_gate.tau"
+        },
+        {
+          "variant_id": "all_distinct_4_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/batching_all_distinct_4_v1.tau"
+        },
+        {
+          "variant_id": "left_in_right_4_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/batching_left_in_right_4_v1.tau"
+        },
+        {
+          "variant_id": "executed_sorted_4_v1",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/batching_executed_sorted_4_v1.tau"
         }
       ]
     },

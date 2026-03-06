@@ -324,3 +324,136 @@ def test_tau_gate_supports_mixed_exact_in_and_exact_out_per_pool(monkeypatch) ->
     )
     assert ok, err
     assert calls == [("swap_exact_in_v1.tau", 1), ("swap_exact_out_v1.tau", 1)]
+
+
+def test_tau_gate_proof_gate_range_guard_profile_runs_composed_specs(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    pk = "0x" + "11" * 48
+    pool_id, pool, _ = create_pool(
+        asset0="0x" + "01" * 32,
+        asset1="0x" + "02" * 32,
+        amount0=1_000_000,
+        amount1=1_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    intent_in = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_mk_intent_id(1),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": pool.asset0,
+            "asset_out": pool.asset1,
+            "min_amount_out": 1,
+        },
+    )
+    intent_out = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_mk_intent_id(2),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": pool.asset0,
+            "asset_out": pool.asset1,
+            "max_amount_in": 10_000,
+        },
+    )
+    fills = [
+        Fill(
+            intent_id=intent_in.intent_id,
+            action=FillAction.FILL,
+            amount_in_filled=1000,
+            amount_out_filled=900,
+        ),
+        Fill(
+            intent_id=intent_out.intent_id,
+            action=FillAction.FILL,
+            amount_in_filled=950,
+            amount_out_filled=800,
+        ),
+    ]
+
+    calls = []
+
+    def _fake_tau(*, spec_path, steps, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((spec_path.name, dict(steps[0])))
+        return {i: {"o1": 1} for i in range(len(steps))}
+
+    monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
+
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent_in.intent_id, FillAction.FILL), (intent_out.intent_id, FillAction.FILL)],
+        fills=fills,
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    ok, err = validate_settlement_swaps(
+        intents=[intent_in, intent_out],
+        settlement=settlement,
+        pre_pools={pool_id: pool},
+        config=TauGateConfig(
+            enabled=True,
+            tau_bin=sys.executable,
+            allow_path_lookup=False,
+            swap_profile="proof_gate_range_guard",
+        ),
+    )
+    assert ok, err
+    assert [name for name, _step in calls] == [
+        "swap_exact_in_proof_gate_v1.tau",
+        "swap_bv32_safe_range_guard_v1.tau",
+        "swap_exact_out_proof_gate_v1.tau",
+        "swap_bv32_safe_range_guard_v1.tau",
+    ]
+    assert calls[0][1]["i9"] == 1 and calls[0][1]["i10"] == 1
+    assert calls[1][1] == {
+        "i1": 1_000_000,
+        "i2": 1_000_000,
+        "i3": 1000,
+        "i4": 900,
+        "i5": 1_001_000,
+        "i6": 999_100,
+    }
+    assert calls[2][1]["i9"] == 1 and calls[2][1]["i10"] == 1
+    assert calls[3][1] == {
+        "i1": 1_001_000,
+        "i2": 999_100,
+        "i3": 800,
+        "i4": 950,
+        "i5": 1_001_950,
+        "i6": 998_300,
+    }
+
+
+def test_tau_gate_rejects_unknown_swap_profile() -> None:
+    ok, err = validate_settlement_swaps(
+        intents=[],
+        settlement=Settlement(
+            module="TauSwap",
+            version="0.1",
+            batch_ref="",
+            included_intents=[],
+            fills=[],
+            balance_deltas=[],
+            reserve_deltas=[],
+            lp_deltas=[],
+            events=None,
+        ),
+        pre_pools={},
+        config=TauGateConfig(enabled=True, tau_bin=None, allow_path_lookup=False, swap_profile="nope"),
+    )
+    assert not ok
+    assert err and "swap_profile" in err

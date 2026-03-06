@@ -1,0 +1,9 @@
+# Experimental batching 4-way distinctness rail
+#
+# Inputs:
+# i1..i4 = ids
+# o1 = all_distinct_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[64] != i2[t]:bv[64]) && (i1[t]:bv[64] != i3[t]:bv[64]) && (i1[t]:bv[64] != i4[t]:bv[64]) && (i2[t]:bv[64] != i3[t]:bv[64]) && (i2[t]:bv[64] != i4[t]:bv[64]) && (i3[t]:bv[64] != i4[t]:bv[64]))).

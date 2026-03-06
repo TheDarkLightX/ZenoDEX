@@ -1,0 +1,10 @@
+# Experimental settlement price-stability rail
+#
+# Inputs:
+# i1 = price_prev
+# i2 = price_curr
+# o1 = stable_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> (((i2[t]:bv[16] >= i1[t]:bv[16]) && (i2[t]:bv[16] - i1[t]:bv[16] < { #x0032 }:bv[16])) || ((i2[t]:bv[16] < i1[t]:bv[16]) && (i1[t]:bv[16] - i2[t]:bv[16] < { #x0032 }:bv[16])))).

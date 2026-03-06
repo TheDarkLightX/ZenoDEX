@@ -1,0 +1,32 @@
+# Experimental batching v1.5
+#
+# Same 4-intent batching rule as batching_v1_4, but exposes the component
+# checks separately so traces reveal why a batch failed.
+#
+# Inputs:
+# i1..i4 = included intent ids
+# i5..i8 = executed intent ids
+#
+# Outputs:
+# o1 = included_ids_distinct
+# o2 = executed_ids_distinct
+# o3 = executed_ids_included
+# o4 = included_ids_executed
+# o5 = executed_ids_sorted
+# o6 = batch_order_valid
+
+set charvar off
+
+all_distinct_4(a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (a != b) && (a != c) && (a != d) && (b != c) && (b != d) && (c != d).
+is_member_4(x : bv[64], a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (x = a) || (x = b) || (x = c) || (x = d).
+left_in_right_4(a : bv[64], b : bv[64], c : bv[64], d : bv[64], e : bv[64], f : bv[64], g : bv[64], h : bv[64]) := is_member_4(a, e, f, g, h) && is_member_4(b, e, f, g, h) && is_member_4(c, e, f, g, h) && is_member_4(d, e, f, g, h).
+is_strictly_increasing_4(a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (a < b) && (b < c) && (c < d).
+
+always (
+  (o1[t]:sbf = 1:sbf <-> all_distinct_4(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) &&
+  (o2[t]:sbf = 1:sbf <-> all_distinct_4(i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64])) &&
+  (o3[t]:sbf = 1:sbf <-> left_in_right_4(i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64], i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) &&
+  (o4[t]:sbf = 1:sbf <-> left_in_right_4(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64])) &&
+  (o5[t]:sbf = 1:sbf <-> is_strictly_increasing_4(i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64])) &&
+  (o6[t]:sbf = 1:sbf <-> (all_distinct_4(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]) && all_distinct_4(i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64]) && left_in_right_4(i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64], i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64]) && left_in_right_4(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64]) && is_strictly_increasing_4(i5[t]:bv[64], i6[t]:bv[64], i7[t]:bv[64], i8[t]:bv[64])))
+).
