@@ -25,6 +25,19 @@ This repo now includes a deterministic receipt format for that boundary:
 - `src/core/confidential_extension_receipts.py`
 - `src/kernels/dex/confidential_extension_tee_gate_v1.yaml`
 
+## Current sealed-bid experiment
+
+A bounded sealed-bid private-state experiment now exists in the repo:
+- `src/core/sealed_bid_auction.py`
+- `tools/metamuse_sealed_bid_lane.py`
+- `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
+
+Scope:
+- public commitment receipts hide quantity, price, and nonce
+- reveals bind to commitments
+- settlement is deterministic uniform-price for a fixed sell inventory
+- ESSO verifies the commit/reveal phase discipline; Python covers the bounded settlement experiment
+
 ## Where sMPC fits
 
 Use sMPC only where latency is secondary to trust minimization.
