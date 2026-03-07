@@ -58,6 +58,7 @@ _SWAP_ORDERING_OPTIMAL_AB_BOUNDED = "optimal_ab_bounded"
 _SWAP_ORDERING_GREEDY_AB = "greedy_ab"
 _SWAP_ORDERING_GREEDY_AB_REFINED = "greedy_ab_refined"
 _SWAP_ORDERING_GREEDY_AB_GLOBAL = "greedy_ab_global"
+_SWAP_ORDERING_MCI_AB_GLOBAL = "mci_ab_global"
 _SWAP_ORDERING_COW_PAIR_NETTING_V1 = "cow_pair_netting_v1"
 _SWAP_ORDERING_CHOICES = frozenset({
     _SWAP_ORDERING_LIMIT_PRICE,
@@ -65,6 +66,7 @@ _SWAP_ORDERING_CHOICES = frozenset({
     _SWAP_ORDERING_GREEDY_AB,
     _SWAP_ORDERING_GREEDY_AB_REFINED,
     _SWAP_ORDERING_GREEDY_AB_GLOBAL,
+    _SWAP_ORDERING_MCI_AB_GLOBAL,
     _SWAP_ORDERING_COW_PAIR_NETTING_V1,
 })
 
@@ -73,6 +75,8 @@ _SWAP_ORDERING_CHOICES = frozenset({
 _MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
 # Global pair-swap refinement can be expensive; cap intent count for this mode.
 _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
+# MCI insertion is heavier than greedy seeding; keep it opt-in and bounded.
+_MAX_SWAP_ORDERING_MCI_N = 18
 # Chunk size for settlement delta aggregation (invariant chunking promotion).
 _DELTA_AGG_CHUNK_SIZE = 128
 
@@ -644,6 +648,17 @@ def clear_batch_single_pool(
             pool_state=pool_state,
             reserves=current_reserves,
         )
+    elif post_swap_ordering == _SWAP_ORDERING_MCI_AB_GLOBAL:
+        mci = _order_swaps_mci_ab(
+            swap_intents,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
+        sorted_swaps = _refine_ab_ordering_global(
+            mci,
+            pool_state=pool_state,
+            reserves=current_reserves,
+        )
     else:
         sorted_swaps = _order_swaps_limit_price(swap_intents)
     
@@ -870,14 +885,9 @@ def _order_swaps_optimal_ab_bounded(
     best_order: Tuple[Intent, ...] | None = None
 
     for perm in itertools.permutations(intents):
-        A, B, order_ids = _objective_for_order(perm)
-        if best_order is None:
-            best_A, best_B, best_order_ids, best_order = A, B, order_ids, perm
-            continue
-
-        assert best_order_ids is not None
-        if A > best_A or (A == best_A and (B > best_B or (B == best_B and order_ids < best_order_ids))):
-            best_A, best_B, best_order_ids, best_order = A, B, order_ids, perm
+        cand_key = _ab_ordering_key(A_B_order=_objective_for_order(perm))
+        if best_order is None or _is_better_ab_key(cand_key, (best_A, best_B, best_order_ids or tuple())):
+            best_A, best_B, best_order_ids, best_order = cand_key[0], cand_key[1], cand_key[2], perm
 
     return list(best_order) if best_order is not None else _order_swaps_limit_price(intents)
 
@@ -1695,6 +1705,34 @@ def _eval_ordering_ab(
     return total_a, total_b
 
 
+def _ab_ordering_key(
+    ordering: List[Intent] | None = None,
+    pool_state: PoolState | None = None,
+    reserves: Tuple[Amount, Amount] | None = None,
+    *,
+    A_B_order: Tuple[Amount, Amount, Tuple[str, ...]] | None = None,
+) -> Tuple[int, int, Tuple[str, ...]]:
+    if A_B_order is not None:
+        return int(A_B_order[0]), int(A_B_order[1]), tuple(str(x) for x in A_B_order[2])
+    assert ordering is not None and pool_state is not None and reserves is not None
+    A, B = _eval_ordering_ab(ordering, pool_state, reserves)
+    return int(A), int(B), tuple(it.intent_id for it in ordering)
+
+
+def _is_better_ab_key(candidate: Tuple[int, int, Tuple[str, ...]], best: Tuple[int, int, Tuple[str, ...]]) -> bool:
+    cand_a, cand_b, cand_ids = candidate
+    best_a, best_b, best_ids = best
+    if cand_a > best_a:
+        return True
+    if cand_a < best_a:
+        return False
+    if cand_b > best_b:
+        return True
+    if cand_b < best_b:
+        return False
+    return cand_ids < best_ids
+
+
 def _greedy_marginal_ab(
     remaining: List[Intent],
     pool_state: PoolState,
@@ -1797,6 +1835,69 @@ def _order_swaps_greedy_ab(
     if greedy_ab >= limit_ab:
         return greedy_ordered
     return limit_ordered
+
+
+def _order_swaps_mci_ab(
+    intents: List[Intent],
+    *,
+    pool_state: PoolState,
+    reserves: Tuple[Amount, Amount],
+) -> List[Intent]:
+    """Marginal-contribution insertion seed for AB ordering.
+
+    Build the ordering incrementally by trying every remaining intent at every
+    insertion position and selecting the candidate with the best full `(A, B,
+    lex-order)` key. This is an experimental, bounded heuristic intended to
+    seed the existing global refinement pass with a stronger starting point
+    than the slippage-first greedy order.
+    """
+    if len(intents) <= 1:
+        return list(intents)
+    if len(intents) > _MAX_SWAP_ORDERING_MCI_N:
+        greedy = _order_swaps_greedy_ab(intents, pool_state=pool_state, reserves=reserves)
+        return _refine_b_ordering(greedy, pool_state=pool_state, reserves=reserves)
+
+    first_asset_in = intents[0].get_field("asset_in")
+    first_asset_out = intents[0].get_field("asset_out")
+    if not isinstance(first_asset_in, str) or not isinstance(first_asset_out, str):
+        return _order_swaps_limit_price(intents)
+    if first_asset_in == first_asset_out:
+        return _order_swaps_limit_price(intents)
+    if not (
+        (first_asset_in == pool_state.asset0 and first_asset_out == pool_state.asset1)
+        or (first_asset_in == pool_state.asset1 and first_asset_out == pool_state.asset0)
+    ):
+        return _order_swaps_limit_price(intents)
+    for it in intents[1:]:
+        if it.get_field("asset_in") != first_asset_in or it.get_field("asset_out") != first_asset_out:
+            return _order_swaps_limit_price(intents)
+
+    remaining = sorted(intents, key=lambda it: it.intent_id)
+    ordered: List[Intent] = []
+
+    while remaining:
+        best_idx = -1
+        best_order: List[Intent] | None = None
+        best_key: Tuple[int, int, Tuple[str, ...]] | None = None
+        for rem_idx, candidate in enumerate(remaining):
+            for pos in range(len(ordered) + 1):
+                trial = ordered[:pos] + [candidate] + ordered[pos:]
+                trial_key = _ab_ordering_key(trial, pool_state, reserves)
+                if best_order is None or _is_better_ab_key(
+                    trial_key,
+                    best_key if best_key is not None else (-1, -1, tuple()),
+                ):
+                    best_idx = rem_idx
+                    best_order = trial
+                    best_key = trial_key
+        if best_order is None or best_idx < 0:
+            break
+        ordered = best_order
+        remaining.pop(best_idx)
+
+    if len(ordered) != len(intents):
+        return _order_swaps_limit_price(intents)
+    return ordered
 
 
 def _refine_b_ordering(

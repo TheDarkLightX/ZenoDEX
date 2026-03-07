@@ -1,0 +1,23 @@
+# Burn receipt replay/policy guard v1.
+# i1 = do_burn (sbf)
+# i2 = receipt_bound (sbf)
+# i3 = nullifier_unused (sbf)
+# i4 = policy_ok (sbf)
+# o1 = replay_guard_valid
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    (
+      (
+        (i1[t]:sbf = 0:sbf) ||
+        (
+          (i1[t]:sbf = 1:sbf) &&
+          (i2[t]:sbf = 1:sbf) &&
+          (i3[t]:sbf = 1:sbf) &&
+          (i4[t]:sbf = 1:sbf)
+        )
+      )
+    )
+  ).

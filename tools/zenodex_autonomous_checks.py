@@ -5354,6 +5354,268 @@ def _check_dgstr_eval_count(mode: str, timeout_s: int) -> dict[str, Any]:
     }
 
 
+def _check_batch_mci_vs_bruteforce(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s  # deterministic in-process check
+    t0 = time.time()
+    cmd = ["internal_python_eval", "batch_mci_vs_bruteforce"]
+    try:
+        import sys  # pylint: disable=import-outside-toplevel
+
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from src.core.batch_clearing import (  # pylint: disable=import-outside-toplevel
+            _eval_ordering_ab,
+            _order_swaps_mci_ab,
+            _order_swaps_optimal_ab_bounded,
+            _refine_ab_ordering_global,
+        )
+        from tools.metamuse_batch_ordering_lane import (  # pylint: disable=import-outside-toplevel
+            BATCH_MCI_CURATED_CASES,
+            build_case_balances,
+            build_case_pool_and_intents,
+        )
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    rows: list[dict[str, Any]] = []
+    mismatch: dict[str, Any] | None = None
+    for idx, case in enumerate(BATCH_MCI_CURATED_CASES, 1):
+        pool, intents = build_case_pool_and_intents(case)
+        balances = build_case_balances(case)
+        reserves = (pool.reserve0, pool.reserve1)
+        mci_seed = _order_swaps_mci_ab(intents, pool_state=pool, reserves=reserves)
+        mci_order = _refine_ab_ordering_global(mci_seed, pool_state=pool, reserves=reserves)
+        optimal_order = _order_swaps_optimal_ab_bounded(
+            intents,
+            pool_state=pool,
+            balances=balances,
+            reserves=reserves,
+        )
+        mci_ab = tuple(int(x) for x in _eval_ordering_ab(mci_order, pool, reserves))
+        optimal_ab = tuple(int(x) for x in _eval_ordering_ab(optimal_order, pool, reserves))
+        row = {
+            "case_index": int(idx),
+            "expected_ab": {"A": int(case.expected_ab[0]), "B": int(case.expected_ab[1])},
+            "mci_ab_global": {"A": int(mci_ab[0]), "B": int(mci_ab[1])},
+            "optimal_ab_bounded": {"A": int(optimal_ab[0]), "B": int(optimal_ab[1])},
+        }
+        rows.append(row)
+        if mismatch is None and (mci_ab != case.expected_ab or optimal_ab != case.expected_ab):
+            mismatch = row
+
+    signal = mismatch is None
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": mismatch,
+        "metrics": {"case_count": len(rows), "matched": len(rows) if signal else len(rows) - 1, "rows": rows},
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
+def _check_batch_mci_vs_greedy(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s  # deterministic in-process check
+    t0 = time.time()
+    cmd = ["internal_python_eval", "batch_mci_vs_greedy"]
+    try:
+        import sys  # pylint: disable=import-outside-toplevel
+
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from src.core.batch_clearing import (  # pylint: disable=import-outside-toplevel
+            _eval_ordering_ab,
+            _order_swaps_greedy_ab,
+            _order_swaps_mci_ab,
+            _refine_ab_ordering_global,
+            _refine_b_ordering,
+        )
+        from tools.metamuse_batch_ordering_lane import (  # pylint: disable=import-outside-toplevel
+            BATCH_MCI_CURATED_CASES,
+            build_case_pool_and_intents,
+        )
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    rows: list[dict[str, Any]] = []
+    mismatch: dict[str, Any] | None = None
+    improvement_count = 0
+    for idx, case in enumerate(BATCH_MCI_CURATED_CASES, 1):
+        pool, intents = build_case_pool_and_intents(case)
+        reserves = (pool.reserve0, pool.reserve1)
+        mci_seed = _order_swaps_mci_ab(intents, pool_state=pool, reserves=reserves)
+        mci_order = _refine_ab_ordering_global(mci_seed, pool_state=pool, reserves=reserves)
+        greedy_seed = _order_swaps_greedy_ab(intents, pool_state=pool, reserves=reserves)
+        greedy_order = _refine_ab_ordering_global(
+            _refine_b_ordering(greedy_seed, pool_state=pool, reserves=reserves),
+            pool_state=pool,
+            reserves=reserves,
+        )
+        mci_ab = tuple(int(x) for x in _eval_ordering_ab(mci_order, pool, reserves))
+        greedy_ab = tuple(int(x) for x in _eval_ordering_ab(greedy_order, pool, reserves))
+        row = {
+            "case_index": int(idx),
+            "expected_ab": {"A": int(case.expected_ab[0]), "B": int(case.expected_ab[1])},
+            "baseline_ab": {"A": int(case.baseline_ab[0]), "B": int(case.baseline_ab[1])},
+            "mci_ab_global": {"A": int(mci_ab[0]), "B": int(mci_ab[1])},
+            "greedy_ab_global": {"A": int(greedy_ab[0]), "B": int(greedy_ab[1])},
+        }
+        rows.append(row)
+        if mci_ab > greedy_ab:
+            improvement_count += 1
+        if mismatch is None and (mci_ab != case.expected_ab or greedy_ab != case.baseline_ab or not (mci_ab > greedy_ab)):
+            mismatch = row
+
+    signal = mismatch is None and improvement_count == len(rows)
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": mismatch,
+        "metrics": {
+            "case_count": len(rows),
+            "improvement_count": int(improvement_count),
+            "rows": rows,
+        },
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
+def _check_burn_receipt_replay_rejected(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s  # deterministic in-process check
+    t0 = time.time()
+    cmd = ["internal_python_eval", "burn_receipt_replay_rejected"]
+    try:
+        import sys  # pylint: disable=import-outside-toplevel
+
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from tools.metamuse_burn_receipt_lane import (  # pylint: disable=import-outside-toplevel
+            BURN_RECEIPT_CURATED_STEPS,
+            verify_burn_receipt_step,
+        )
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    replay_step = BURN_RECEIPT_CURATED_STEPS[1]
+    pass_step = BURN_RECEIPT_CURATED_STEPS[0]
+    replay_ok = verify_burn_receipt_step(replay_step)
+    pass_ok = verify_burn_receipt_step(pass_step)
+    signal = (not replay_ok) and pass_ok
+    counterexample = None if signal else {"replay_ok": replay_ok, "pass_ok": pass_ok}
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": counterexample,
+        "metrics": {"replay_expected": 0, "replay_got": int(replay_ok), "pass_expected": 1, "pass_got": int(pass_ok)},
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
+def _check_burn_receipt_accounting_model(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s  # deterministic in-process check
+    t0 = time.time()
+    cmd = ["internal_python_eval", "burn_receipt_accounting_model"]
+    try:
+        import sys  # pylint: disable=import-outside-toplevel
+
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from tools.metamuse_burn_receipt_lane import (  # pylint: disable=import-outside-toplevel
+            BURN_RECEIPT_CURATED_STEPS,
+            verify_burn_receipt_step,
+        )
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    rows: list[dict[str, Any]] = []
+    mismatch: dict[str, Any] | None = None
+    accepted_burn_sum = 0
+    accepted_batch_delta_sum = 0
+    for idx, step in enumerate(BURN_RECEIPT_CURATED_STEPS, 1):
+        got = int(1 if verify_burn_receipt_step(step) else 0)
+        row = {"case_index": int(idx), "expected_valid": int(step.expected_valid), "got_valid": int(got)}
+        rows.append(row)
+        if got == 1:
+            accepted_burn_sum += int(step.burn_amount)
+            accepted_batch_delta_sum += int(step.batch_burn_sum_after) - int(step.batch_burn_sum_before)
+        if mismatch is None and got != int(step.expected_valid):
+            mismatch = row
+
+    signal = mismatch is None and accepted_burn_sum == accepted_batch_delta_sum
+    if mismatch is None and not signal:
+        mismatch = {
+            "accepted_burn_sum": int(accepted_burn_sum),
+            "accepted_batch_delta_sum": int(accepted_batch_delta_sum),
+        }
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": mismatch,
+        "metrics": {
+            "case_count": len(rows),
+            "accepted_burn_sum": int(accepted_burn_sum),
+            "accepted_batch_delta_sum": int(accepted_batch_delta_sum),
+            "rows": rows,
+        },
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
 def _check_batch_clearing_gap_exists(mode: str, timeout_s: int) -> dict[str, Any]:
     cmd = ["python3", "tools/morph_batch_clearing_miner.py", "--test", "--json"]
     cmd_res = _run_cmd(cmd, timeout_s=timeout_s)
@@ -6881,6 +7143,10 @@ CHECK_DISPATCH["perp_v2_oracle_divergence_exists"] = _check_perp_v2_oracle_diver
 CHECK_DISPATCH["curve_selection_unsafe_exists"] = _check_curve_selection_unsafe_exists
 CHECK_DISPATCH["split_routing_regression_exists"] = _check_split_routing_regression_exists
 CHECK_DISPATCH["batch_clearing_invariant_break_exists"] = _check_batch_clearing_invariant_break_exists
+CHECK_DISPATCH["batch_mci_vs_bruteforce"] = _check_batch_mci_vs_bruteforce
+CHECK_DISPATCH["batch_mci_vs_greedy"] = _check_batch_mci_vs_greedy
+CHECK_DISPATCH["burn_receipt_replay_rejected"] = _check_burn_receipt_replay_rejected
+CHECK_DISPATCH["burn_receipt_accounting_model"] = _check_burn_receipt_accounting_model
 
 
 def _run_dynamic_check(check_id: str, mode: str, timeout_s: int) -> dict[str, Any] | None:
