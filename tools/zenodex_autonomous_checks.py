@@ -5616,6 +5616,119 @@ def _check_burn_receipt_accounting_model(mode: str, timeout_s: int) -> dict[str,
     }
 
 
+def _check_sealed_bid_private_state_surface_safe(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s
+    t0 = time.time()
+    cmd = ["internal_python_eval", "sealed_bid_private_state_surface_safe"]
+    try:
+        import sys
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from src.core.sealed_bid_auction import RevealedSealedBid, make_sealed_bid_commit_receipt, settle_uniform_price_sealed_bids
+        from tools.metamuse_sealed_bid_lane import SEALED_BID_CURATED_CASES
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    unsafe_case: dict[str, Any] | None = None
+    rows: list[dict[str, Any]] = []
+    for idx, case in enumerate(SEALED_BID_CURATED_CASES, 1):
+        receipts = [
+            make_sealed_bid_commit_receipt(
+                batch_id=case.batch_id,
+                bidder_id=bid.bidder_id,
+                commitment=bid.commitment,
+                commit_epoch=1,
+                reveal_deadline_epoch=2,
+                units_for_sale=case.units_for_sale,
+            )
+            for bid in case.bids
+        ]
+        leaked = any(any(k in r["body"] for k in ("quantity", "limit_price", "nonce")) for r in receipts)
+        revealed = [
+            RevealedSealedBid(bidder_id=bid.bidder_id, commitment=bid.commitment, quantity=bid.quantity, limit_price=bid.limit_price)
+            for bid in case.bids
+        ]
+        s1 = settle_uniform_price_sealed_bids(units_for_sale=case.units_for_sale, bids=revealed)
+        s2 = settle_uniform_price_sealed_bids(units_for_sale=case.units_for_sale, bids=list(reversed(revealed)))
+        nondeterministic = (s1.clearing_price != s2.clearing_price) or ([ (f.bidder_id, f.filled_quantity) for f in s1.fills ] != [ (f.bidder_id, f.filled_quantity) for f in s2.fills ])
+        row = {
+            "case_index": int(idx),
+            "leaked": bool(leaked),
+            "nondeterministic": bool(nondeterministic),
+        }
+        rows.append(row)
+        if unsafe_case is None and (leaked or nondeterministic):
+            unsafe_case = row
+
+    signal = unsafe_case is None
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": unsafe_case,
+        "metrics": {"case_count": len(rows), "rows": rows},
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
+def _check_sealed_bid_uniform_price_model(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s
+    t0 = time.time()
+    cmd = ["internal_python_eval", "sealed_bid_uniform_price_model"]
+    try:
+        import sys
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from tools.metamuse_sealed_bid_lane import SEALED_BID_CURATED_CASES, verify_sealed_bid_case
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    rows: list[dict[str, Any]] = []
+    mismatch: dict[str, Any] | None = None
+    for idx, case in enumerate(SEALED_BID_CURATED_CASES, 1):
+        ok, detail = verify_sealed_bid_case(case)
+        row = {"case_index": int(idx), "ok": bool(ok), **detail}
+        rows.append(row)
+        if mismatch is None and not ok:
+            mismatch = row
+
+    signal = mismatch is None
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": mismatch,
+        "metrics": {"case_count": len(rows), "rows": rows},
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
 def _check_batch_clearing_gap_exists(mode: str, timeout_s: int) -> dict[str, Any]:
     cmd = ["python3", "tools/morph_batch_clearing_miner.py", "--test", "--json"]
     cmd_res = _run_cmd(cmd, timeout_s=timeout_s)
@@ -7147,6 +7260,8 @@ CHECK_DISPATCH["batch_mci_vs_bruteforce"] = _check_batch_mci_vs_bruteforce
 CHECK_DISPATCH["batch_mci_vs_greedy"] = _check_batch_mci_vs_greedy
 CHECK_DISPATCH["burn_receipt_replay_rejected"] = _check_burn_receipt_replay_rejected
 CHECK_DISPATCH["burn_receipt_accounting_model"] = _check_burn_receipt_accounting_model
+CHECK_DISPATCH["sealed_bid_private_state_surface_safe"] = _check_sealed_bid_private_state_surface_safe
+CHECK_DISPATCH["sealed_bid_uniform_price_model"] = _check_sealed_bid_uniform_price_model
 
 
 def _run_dynamic_check(check_id: str, mode: str, timeout_s: int) -> dict[str, Any] | None:

@@ -9,6 +9,8 @@ from tools.zenodex_autonomous_checks import (
     _check_batch_mci_vs_greedy,
     _check_burn_receipt_accounting_model,
     _check_burn_receipt_replay_rejected,
+    _check_sealed_bid_private_state_surface_safe,
+    _check_sealed_bid_uniform_price_model,
     _check_dgstr_eval_count,
     _check_dgstr_exact_match,
 )
@@ -154,3 +156,35 @@ def test_metamuse_workflow_supports_exact_out_lane(tmp_path: Path) -> None:
     row = result["summary"]["rows"][0]
     assert row["refute_check"] == "route_exact_out_2hop_value"
     assert row["support_check"] == "route_exact_out_2hop_value"
+
+
+def test_sealed_bid_checks_pass() -> None:
+    leak = _check_sealed_bid_private_state_surface_safe("refute", 30)
+    model = _check_sealed_bid_uniform_price_model("support", 30)
+    assert leak["status"] == "fail"
+    assert leak["signal"] is True
+    assert model["status"] == "pass"
+    assert model["signal"] is True
+
+
+def test_metamuse_workflow_supports_sealed_bid_lane(tmp_path: Path) -> None:
+    out_dir = tmp_path / "metamuse_sealed_bid_lane"
+    cmd = [
+        "python3",
+        "tools/zenodex_metamuse_workflow.py",
+        "--lane",
+        "sealed_bid_private_state_v1",
+        "--out-dir",
+        str(out_dir),
+        "--run-checks",
+    ]
+    subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, check=True)
+    packet = json.loads((out_dir / "epoch_packet.json").read_text(encoding="utf-8"))
+    result = json.loads((out_dir / "result.json").read_text(encoding="utf-8"))
+    assert packet["lane"]["lane_id"] == "sealed_bid_private_state_v1"
+    assert len(packet["hypotheses"]) == 1
+    assert result["runner"]["rc"] == 0
+    row = result["summary"]["rows"][0]
+    assert row["refute_check"] == "sealed_bid_private_state_surface_safe"
+    assert row["support_check"] == "sealed_bid_uniform_price_model"
+    assert row["final_status"] == "supported"
