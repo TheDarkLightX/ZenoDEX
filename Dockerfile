@@ -91,7 +91,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Set environment defaults (runtime can override via docker-compose env)
 ENV PYTHONUNBUFFERED=1
-ENV TAU_NET_RPC="https://alpha-rpc.tau.net"
+ENV TAU_NET_RPC=""
 ENV LOG_LEVEL="info"
 ENV API_HOST="127.0.0.1"
 ENV API_PORT="8000"
