@@ -16,7 +16,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
-from tools.permissionless_solver_proof_mining_claim import validate_proof_mining_claim_artifact
+from tools.permissionless_solver_proof_mining_claim import fallback_proposal_hash, validate_proof_mining_claim_artifact
 
 
 def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
@@ -96,6 +96,11 @@ def _extract_reward_artifact(reward_artifact: Mapping[str, Any]) -> dict[str, An
             "payout_amount": payout_amount,
             "reward_pool_before": reward_pool_before,
             "reward_pool_after": reward_pool_after,
+            "proposal_hash": fallback_proposal_hash(
+                round_id=round_id,
+                job_digest=job_digest,
+                witness_hash=_require_str(winner.get("witness_sha256"), name="reward_artifact.body.winner.witness_sha256"),
+            ),
         }
     elif schema == "zenodex/permissionless_solver_proof_mining_claim/v1":
         return validate_proof_mining_claim_artifact(reward_artifact, require_admissible=True)
@@ -151,6 +156,7 @@ def build_round_ledger_record(
             "reward_pool_after": _require_int(artifact.get("reward_pool_after"), name="reward_pool_after"),
         },
         "round_hash": round_hash,
+        "proposal_hash": _require_str(artifact.get("proposal_hash"), name="proposal_hash"),
         "reward_artifact_schema": _require_str(artifact.get("schema"), name="reward_artifact_schema"),
         "reward_artifact_hash": _require_str(artifact.get("artifact_hash"), name="reward_artifact_hash"),
         "prev_record_hash": str(prev_record_hash),
@@ -162,6 +168,7 @@ def verify_ledger_rows(rows: list[Mapping[str, Any]]) -> tuple[bool, str]:
     prev = ""
     prev_pool_after: int | None = None
     seen_round_ids: set[str] = set()
+    seen_proposal_hashes: set[str] = set()
     seen_artifact_hashes: set[str] = set()
     for idx, row in enumerate(rows):
         body = _require_mapping(row.get("body"), name=f"ledger[{idx}].body")
@@ -174,6 +181,10 @@ def verify_ledger_rows(rows: list[Mapping[str, Any]]) -> tuple[bool, str]:
         if round_id in seen_round_ids:
             return False, f"duplicate round_id at row {idx}"
         seen_round_ids.add(round_id)
+        proposal_hash = _require_str(body.get("proposal_hash"), name=f"ledger[{idx}].body.proposal_hash")
+        if proposal_hash in seen_proposal_hashes:
+            return False, f"duplicate proposal_hash at row {idx}"
+        seen_proposal_hashes.add(proposal_hash)
         artifact_hash = _require_str(body.get("reward_artifact_hash"), name=f"ledger[{idx}].body.reward_artifact_hash")
         if artifact_hash in seen_artifact_hashes:
             return False, f"duplicate reward_artifact_hash at row {idx}"
