@@ -8,6 +8,31 @@ This API is for operators who already have a verified DEX proof context and want
 
 The endpoint is advisory and mirrors the plugin's fail-closed checks before a `ZenoProofMining.submit_proof` operation is sent on-chain.
 
+## CLI preflight
+
+Use the shell wrapper if you want the same check without hand-crafting HTTP requests:
+
+```bash
+python3 tools/permissionless_proof_mining_status.py \
+  --claim ./proof_claim.json \
+  --chain-balances ./chain_balances.json \
+  --tx-sender-pubkey 0x<sender-pubkey> \
+  --expected-proposal-hash sha256:<proposal_hash>
+```
+
+To call a running API server instead of evaluating locally:
+
+```bash
+python3 tools/permissionless_proof_mining_status.py \
+  --api-url http://127.0.0.1:8080 \
+  --claim ./proof_claim.json \
+  --chain-balances ./chain_balances.json \
+  --tx-sender-pubkey 0x<sender-pubkey> \
+  --expected-proposal-hash sha256:<proposal_hash>
+```
+
+The command exits `0` when the claim is submit-ready and nonzero when the claim is not claimable or the API call fails.
+
 ## Request body
 
 ```json
