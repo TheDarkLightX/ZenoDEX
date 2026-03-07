@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+import json
+import threading
+from http.client import HTTPConnection
+
+
+def _start_test_server():
+    from src.integration import api_server
+
+    httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
+    httpd.cors_origins = set()  # type: ignore[attr-defined]
+    httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)  # type: ignore[attr-defined]
+    httpd.perps_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_api_enabled = False  # type: ignore[attr-defined]
+    httpd.dex_api_enabled = True  # type: ignore[attr-defined]
+    httpd.demo_api_token = ""  # type: ignore[attr-defined]
+
+    t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+    t.start()
+    host, port = httpd.server_address[:2]
+    return httpd, t, str(host), int(port)
+
+
+def _stop_test_server(httpd, thread: threading.Thread) -> None:
+    httpd.shutdown()
+    httpd.server_close()
+    thread.join(timeout=2.0)
+
+
+def _claim(*, miner_id: str, reward_pool_before: int) -> dict:
+    from src.core.proof_mining_claims import build_proof_mining_claim
+
+    return build_proof_mining_claim(
+        round_obj={
+            "schema": "zenodex/improvement_bounty_round/v1",
+            "ok": True,
+            "job_digest": "job-api",
+            "winner": {
+                "miner_id": miner_id,
+                "witness_sha256": "witness-api",
+                "improvement_u64": 5,
+            },
+            "candidates": [],
+            "argmax_certificate": None,
+        },
+        round_id="round-api",
+        reward_pool_before=reward_pool_before,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=1,
+    )
+
+
+def test_api_server_proof_mining_status_claimable(monkeypatch) -> None:
+    sender = "0x" + "11" * 48
+    reward_pool = "0x" + "99" * 48
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+    claim = _claim(miner_id=sender, reward_pool_before=20)
+    httpd, thread, host, port = _start_test_server()
+    try:
+        req = {
+            "app_state_json": "",
+            "chain_balances": {reward_pool: 20, sender: 0},
+            "claim": claim,
+            "tx_sender_pubkey": sender,
+            "expected_proposal_hash": claim["body"]["proposal_hash"],
+        }
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/proof_mining_status",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        status = body["status"]
+        assert status["claimable"] is True
+        assert status["reward_amount"] == 4
+        assert status["reward_pool_after"] == 16
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_api_server_proof_mining_status_requires_expected_hash(monkeypatch) -> None:
+    sender = "0x" + "22" * 48
+    reward_pool = "0x" + "88" * 48
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+    claim = _claim(miner_id=sender, reward_pool_before=20)
+    httpd, thread, host, port = _start_test_server()
+    try:
+        req = {
+            "app_state_json": "",
+            "chain_balances": {reward_pool: 20, sender: 0},
+            "claim": claim,
+            "tx_sender_pubkey": sender,
+        }
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/proof_mining_status",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 400
+        assert body["ok"] is False
+        assert body["error"] == "missing_expected_proposal_hash"
+    finally:
+        _stop_test_server(httpd, thread)
