@@ -218,6 +218,9 @@ Current honest posture:
   `(round_id, job_digest, witness_hash)` so the artifact is still content-addressed
 - neither path is yet a full chain-wide issuance market on its own
 
+Operator preflight for the runtime reward path is exposed via `POST /api/dex/proof_mining_status`.
+See `docs/PROOF_MINING_OPERATOR_API.md` for the request/response contract and the exact checks mirrored from the Tau plugin.
+
 ## Production posture
 
 Current best-practice posture for the public path:
