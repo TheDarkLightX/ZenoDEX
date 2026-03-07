@@ -1,4 +1,49 @@
 import json
+import sys
+
+
+def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
+    from src.integration.operations import parse_intents
+
+    intent = parse_intents({"2": [intent_dict]})[0]
+    return {
+        "module": intent.module,
+        "version": intent.version,
+        "kind": intent.kind.value,
+        "intent_id": intent.intent_id,
+        "sender_pubkey": intent.sender_pubkey,
+        "deadline": intent.deadline,
+        "fields": intent.fields or {},
+        **({"salt": intent.salt} if intent.salt is not None else {}),
+    }
+
+
+def _parse_single_intent(intent_dict: dict):
+    from src.integration.operations import parse_intents
+
+    return parse_intents({"2": [intent_dict]})[0]
+
+
+def _settlement_commitment_dict_from_settlement(settlement_obj: dict) -> dict:
+    out = {k: v for k, v in settlement_obj.items() if k not in ("batch_ref", "events", "proof")}
+    fills = out.get("fills") or []
+    out["fills"] = [
+        {k: v for k, v in fill.items() if v is not None and k != "reason"} for fill in fills if isinstance(fill, dict)
+    ]
+    return out
+
+
+def _batch_commitment(*, signing_dicts: list[dict], settlement_obj: dict) -> str:
+    from src.state.canonical import CANONICAL_ENCODING_VERSION, canonical_json_bytes, domain_sep_bytes, sha256_hex
+
+    payload = {
+        "schema": "zenodex_batch",
+        "schema_version": 1,
+        "canonical_encoding_version": CANONICAL_ENCODING_VERSION,
+        "intents": signing_dicts,
+        "settlement": _settlement_commitment_dict_from_settlement(settlement_obj),
+    }
+    return sha256_hex(domain_sep_bytes("dex_batch", version=1) + canonical_json_bytes(payload))
 
 
 def test_apply_app_tx_sync_only(monkeypatch):
@@ -534,3 +579,294 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
     )
     assert ok2 is False
     assert err2 == "token op[0].deadline expired"
+
+
+def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(monkeypatch):
+    from src.core.batch_clearing import compute_settlement
+    from src.core.proof_mining_claims import build_proof_mining_claim
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.dex_engine import DexEngineConfig, apply_ops
+    from src.integration.dex_snapshot import state_from_snapshot
+    from src.integration.operations import create_settlement_operation
+    from src.integration.proof_verifier import ProofVerifierConfig
+    from src.state.lp import LPTable
+    from src.state.state_root import compute_state_root
+
+    sender = "0x" + "11" * 48
+    reward_pool = "0x" + "99" * 48
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+
+    verifier_cmd = [sys.executable, "-c", "import sys; sys.stdin.buffer.read(); print('{\"ok\":true}')"]
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+    monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "0")
+    monkeypatch.setenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", "0")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    monkeypatch.setenv("TAU_DEX_ALLOW_EXTERNAL_TOOLS", "1")
+    monkeypatch.setenv("TAU_DEX_CONSENSUS_MODE", "0")
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps(verifier_cmd))
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+
+    ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={sender: 123, reward_pool: 20},
+        operations={"7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]}},
+        tx_sender_pubkey=sender,
+        block_timestamp=1,
+    )
+    assert ok0 is True
+    assert err0 is None
+
+    state0 = state_from_snapshot(json.loads(app_state_json0))
+    intent = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "ab" * 32,
+        "sender_pubkey": sender,
+        "deadline": 9999999999,
+        "nonce": 1,
+        "asset0": asset0,
+        "asset1": asset1,
+        "fee_bps": 30,
+        "amount0": 1000,
+        "amount1": 2000,
+    }
+    parsed_intent = _parse_single_intent(intent)
+    settlement = compute_settlement(
+        intents=[parsed_intent],
+        pools=state0.pools,
+        balances=state0.balances,
+        lp_balances=state0.lp_balances,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    pre_state_commitment = compute_state_root(
+        balances=state0.balances,
+        pools=state0.pools,
+        lp_balances=state0.lp_balances or LPTable(),
+    )
+    batch_commitment = _batch_commitment(
+        signing_dicts=[_intent_signing_dict_from_tx_intent(intent)],
+        settlement_obj=settlement_op,
+    )
+    settlement_op["proof"] = {
+        "pre_state_commitment": pre_state_commitment,
+        "batch_commitment": batch_commitment,
+        "scheme": "dummy",
+    }
+
+    preview = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=False,
+            require_intent_signatures=False,
+            allow_external_tools=True,
+            consensus_mode=False,
+            chain_id="tau-local",
+            proof_config=ProofVerifierConfig(enabled=True, verifier_cmd=verifier_cmd),
+        ),
+        state=state0,
+        operations={"2": [intent], "3": settlement_op},
+        block_timestamp=2,
+        tx_sender_pubkey=sender,
+    )
+    assert preview.ok is True
+    assert preview.proof_mining_context is not None
+    ctx = preview.proof_mining_context
+    claim = build_proof_mining_claim(
+        round_obj={
+            "schema": "zenodex/improvement_bounty_round/v1",
+            "ok": True,
+            "job_digest": "job-proof-1",
+            "winner": {
+                "miner_id": sender,
+                "witness_sha256": ctx.witness_hash,
+                "improvement_u64": 7,
+            },
+            "candidates": [],
+            "argmax_certificate": None,
+        },
+        round_id="round-proof-1",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=2,
+        chain_id=ctx.chain_id,
+        prev_state_hash=ctx.prev_state_hash,
+        batch_hash=ctx.batch_hash,
+        dex_hash_after=ctx.dex_hash_after,
+    )
+
+    ok1, app_state_json1, _hash1, balances_patch1, err1 = plugin.apply_app_tx(
+        app_state_json=app_state_json0,
+        chain_balances={sender: 123, reward_pool: 20},
+        operations={
+            "5": [intent],
+            "6": settlement_op,
+            "10": {"module": "ZenoProofMining", "action": "submit_proof", "claim": claim},
+        },
+        tx_sender_pubkey=sender,
+        block_timestamp=2,
+    )
+    assert ok1 is True
+    assert err1 is None
+    assert balances_patch1 == {reward_pool: 16, sender: 127}
+
+    parsed = json.loads(app_state_json1)
+    assert parsed["schema"] == "zenodex/tau_app_state/v1"
+    assert parsed["proof_mining"]["schema"] == "zenodex/proof_mining_runtime_state/v1"
+    assert parsed["proof_mining"]["reward_pool_pubkey"] == reward_pool
+    assert parsed["proof_mining"]["reward_pool_balance"] == 16
+    assert parsed["proof_mining"]["total_paid"] == 4
+    claimed_slots = parsed["proof_mining"]["claimed_slots"]
+    assert isinstance(claimed_slots, list) and len(claimed_slots) == 1
+    assert claimed_slots[0]["proposal_hash"] == ctx.proposal_hash
+
+    ok2, synced_json, _hash2, synced_patch, err2 = plugin.apply_app_tx(
+        app_state_json=app_state_json1,
+        chain_balances=balances_patch1,
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=3,
+    )
+    assert ok2 is True
+    assert err2 is None
+    assert synced_patch is None
+    assert json.loads(synced_json)["schema"] == "zenodex/tau_app_state/v1"
+
+    ok3, _state3, _hash3, _patch3, err3 = plugin.apply_app_tx(
+        app_state_json=app_state_json1,
+        chain_balances={reward_pool: 15, sender: 127},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=4,
+    )
+    assert ok3 is False
+    assert err3 == "proof mining reward pool balance drift"
+
+
+def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
+    from src.core.batch_clearing import compute_settlement
+    from src.core.proof_mining_claims import build_proof_mining_claim
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.dex_engine import DexEngineConfig, apply_ops
+    from src.integration.dex_snapshot import state_from_snapshot
+    from src.integration.operations import create_settlement_operation
+    from src.integration.proof_verifier import ProofVerifierConfig
+    from src.state.state_root import compute_state_root
+
+    sender = "0x" + "22" * 48
+    reward_pool = "0x" + "88" * 48
+    asset0 = "0x" + "33" * 32
+    asset1 = "0x" + "44" * 32
+
+    verifier_cmd = [sys.executable, "-c", "import sys; sys.stdin.buffer.read(); print('{\"ok\":true}')"]
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+    monkeypatch.setenv("TAU_DEX_REQUIRE_INTENT_SIGS", "0")
+    monkeypatch.setenv("TAU_DEX_ALLOW_MISSING_SETTLEMENT", "0")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    monkeypatch.setenv("TAU_DEX_ALLOW_EXTERNAL_TOOLS", "1")
+    monkeypatch.setenv("TAU_DEX_CONSENSUS_MODE", "0")
+    monkeypatch.setenv("TAU_DEX_PROOF_VERIFIER_CMD_JSON", json.dumps(verifier_cmd))
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+
+    ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={sender: 50, reward_pool: 20},
+        operations={"7": {"mint": [[sender, asset0, 10_000], [sender, asset1, 10_000]]}},
+        tx_sender_pubkey=sender,
+        block_timestamp=1,
+    )
+    assert ok0 is True
+    assert err0 is None
+
+    state0 = state_from_snapshot(json.loads(app_state_json0))
+    intent = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "cd" * 32,
+        "sender_pubkey": sender,
+        "deadline": 9999999999,
+        "nonce": 1,
+        "asset0": asset0,
+        "asset1": asset1,
+        "fee_bps": 30,
+        "amount0": 1000,
+        "amount1": 2000,
+    }
+    parsed_intent = _parse_single_intent(intent)
+    settlement = compute_settlement(
+        intents=[parsed_intent],
+        pools=state0.pools,
+        balances=state0.balances,
+        lp_balances=state0.lp_balances,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["proof"] = {
+        "pre_state_commitment": compute_state_root(
+            balances=state0.balances,
+            pools=state0.pools,
+            lp_balances=state0.lp_balances,
+        ),
+        "batch_commitment": _batch_commitment(
+            signing_dicts=[_intent_signing_dict_from_tx_intent(intent)],
+            settlement_obj=settlement_op,
+        ),
+        "scheme": "dummy",
+    }
+    preview = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=False,
+            require_intent_signatures=False,
+            allow_external_tools=True,
+            consensus_mode=False,
+            chain_id="tau-local",
+            proof_config=ProofVerifierConfig(enabled=True, verifier_cmd=verifier_cmd),
+        ),
+        state=state0,
+        operations={"2": [intent], "3": settlement_op},
+        block_timestamp=2,
+        tx_sender_pubkey=sender,
+    )
+    assert preview.ok is True
+    assert preview.proof_mining_context is not None
+    ctx = preview.proof_mining_context
+    claim = build_proof_mining_claim(
+        round_obj={
+            "schema": "zenodex/improvement_bounty_round/v1",
+            "ok": True,
+            "job_digest": "job-proof-2",
+            "winner": {
+                "miner_id": sender,
+                "witness_sha256": ctx.witness_hash,
+                "improvement_u64": 7,
+            },
+            "candidates": [],
+            "argmax_certificate": None,
+        },
+        round_id="round-proof-2",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=2,
+        chain_id=ctx.chain_id,
+        prev_state_hash=ctx.prev_state_hash,
+        batch_hash=ctx.batch_hash,
+        dex_hash_after="sha256:wrong",
+    )
+
+    ok1, _state1, _hash1, _patch1, err1 = plugin.apply_app_tx(
+        app_state_json=app_state_json0,
+        chain_balances={sender: 50, reward_pool: 20},
+        operations={
+            "5": [intent],
+            "6": settlement_op,
+            "10": {"module": "ZenoProofMining", "action": "submit_proof", "claim": claim},
+        },
+        tx_sender_pubkey=sender,
+        block_timestamp=2,
+    )
+    assert ok1 is False
+    assert err1 == "proof mining claim proposal_hash mismatch"
