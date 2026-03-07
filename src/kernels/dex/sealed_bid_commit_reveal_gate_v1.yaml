@@ -1,0 +1,273 @@
+# [FORGE] Sealed Bid Commit-Reveal Gate v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "sealed_bid_commit_reveal_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded commit/reveal gate for sealed-bid private-state auctions.
+
+    Scope:
+      - Formalizes phase discipline and aggregate safety only.
+      - Public commitments happen in Commit phase.
+      - Reveals are accepted only in Reveal phase with commitment/nonce flags.
+      - Settlement can fill only revealed units and only after Reveal closes.
+
+observables:
+  state_vars: ["phase", "current_epoch", "commit_count", "reveal_count", "total_revealed_units", "total_filled_units", "units_for_sale", "commit_deadline_epoch", "reveal_deadline_epoch"]
+  effects: ["event", "phase_out", "accepted", "units_out"]
+
+types:
+  - id: "t_phase"
+    type:
+      kind: "enum"
+      symbols: ["Commit", "Reveal", "Settle", "Complete"]
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["EpochAdvanced", "BidCommitted", "RevealOpened", "BidRevealed", "SettlementOpened", "UnitsFilled", "AuctionCompleted"]
+
+state_vars:
+  - id: "phase"
+    role: "control"
+    type: { ref: "t_phase" }
+  - id: "current_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 31 }
+  - id: "commit_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "reveal_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "total_revealed_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 63 }
+  - id: "total_filled_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 63 }
+  - id: "units_for_sale"
+    role: "control"
+    type: { kind: "int", min: 1, max: 63 }
+  - id: "commit_deadline_epoch"
+    role: "control"
+    type: { kind: "int", min: 0, max: 31 }
+  - id: "reveal_deadline_epoch"
+    role: "control"
+    type: { kind: "int", min: 0, max: 31 }
+
+invariants:
+  - id: "inv_commit_deadline_le_reveal_deadline"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "commit_deadline_epoch" }, { var: "reveal_deadline_epoch" }]
+
+  - id: "inv_reveal_count_bounded_by_commit_count"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "reveal_count" }, { var: "commit_count" }]
+
+  - id: "inv_filled_bounded_by_revealed"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "total_filled_units" }, { var: "total_revealed_units" }]
+
+  - id: "inv_filled_bounded_by_supply"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "total_filled_units" }, { var: "units_for_sale" }]
+
+  - id: "inv_complete_only_after_settle"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "Complete" }]
+        - op: ">="
+          args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }]
+
+init:
+  - var: "phase"
+    expr: { enum: "Commit" }
+  - var: "current_epoch"
+    expr: { const: 0 }
+  - var: "commit_count"
+    expr: { const: 0 }
+  - var: "reveal_count"
+    expr: { const: 0 }
+  - var: "total_revealed_units"
+    expr: { const: 0 }
+  - var: "total_filled_units"
+    expr: { const: 0 }
+  - var: "units_for_sale"
+    expr: { const: 10 }
+  - var: "commit_deadline_epoch"
+    expr: { const: 1 }
+  - var: "reveal_deadline_epoch"
+    expr: { const: 2 }
+
+actions:
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 4 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "current_epoch" }, { param: "delta" }]
+        - { const: 31 }
+    updates:
+      - var: "current_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "current_epoch" }, { param: "delta" }]
+    effects:
+      event: { enum: "EpochAdvanced" }
+      phase_out: { var: "phase" }
+      accepted: { bool: false }
+      units_out: { const: 0 }
+
+  - id: "commit_bid"
+    params:
+      - id: "commitment_bound"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Commit" }] }
+        - { op: "<=", args: [{ var: "current_epoch" }, { var: "commit_deadline_epoch" }] }
+        - { op: "=", args: [{ param: "commitment_bound" }, { bool: true }] }
+        - { op: "<", args: [{ var: "commit_count" }, { const: 8 }] }
+    updates:
+      - var: "commit_count"
+        expr:
+          op: "+"
+          args: [{ var: "commit_count" }, { const: 1 }]
+    effects:
+      event: { enum: "BidCommitted" }
+      phase_out: { var: "phase" }
+      accepted: { bool: true }
+      units_out: { const: 0 }
+
+  - id: "open_reveal"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Commit" }] }
+        - { op: ">", args: [{ var: "current_epoch" }, { var: "commit_deadline_epoch" }] }
+        - { op: ">", args: [{ var: "commit_count" }, { const: 0 }] }
+    updates:
+      - var: "phase"
+        expr: { enum: "Reveal" }
+    effects:
+      event: { enum: "RevealOpened" }
+      phase_out: { enum: "Reveal" }
+      accepted: { bool: true }
+      units_out: { const: 0 }
+
+  - id: "reveal_bid"
+    params:
+      - id: "reveal_units"
+        type: { kind: "int", min: 1, max: 31 }
+      - id: "commitment_match"
+        type: { kind: "bool" }
+      - id: "nonce_unused"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Reveal" }] }
+        - { op: "<=", args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }] }
+        - { op: "=", args: [{ param: "commitment_match" }, { bool: true }] }
+        - { op: "=", args: [{ param: "nonce_unused" }, { bool: true }] }
+        - { op: "<", args: [{ var: "reveal_count" }, { var: "commit_count" }] }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "total_revealed_units" }, { param: "reveal_units" }] },
+              { const: 63 }
+            ]
+          }
+    updates:
+      - var: "reveal_count"
+        expr:
+          op: "+"
+          args: [{ var: "reveal_count" }, { const: 1 }]
+      - var: "total_revealed_units"
+        expr:
+          op: "+"
+          args: [{ var: "total_revealed_units" }, { param: "reveal_units" }]
+    effects:
+      event: { enum: "BidRevealed" }
+      phase_out: { var: "phase" }
+      accepted: { bool: true }
+      units_out: { param: "reveal_units" }
+
+  - id: "open_settlement"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Reveal" }] }
+        - { op: ">", args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }] }
+        - { op: ">", args: [{ var: "reveal_count" }, { const: 0 }] }
+    updates:
+      - var: "phase"
+        expr: { enum: "Settle" }
+    effects:
+      event: { enum: "SettlementOpened" }
+      phase_out: { enum: "Settle" }
+      accepted: { bool: true }
+      units_out: { const: 0 }
+
+  - id: "fill_units"
+    params:
+      - id: "fill_units"
+        type: { kind: "int", min: 1, max: 31 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Settle" }] }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "total_filled_units" }, { param: "fill_units" }] },
+              { var: "units_for_sale" }
+            ]
+          }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "total_filled_units" }, { param: "fill_units" }] },
+              { var: "total_revealed_units" }
+            ]
+          }
+    updates:
+      - var: "total_filled_units"
+        expr:
+          op: "+"
+          args: [{ var: "total_filled_units" }, { param: "fill_units" }]
+    effects:
+      event: { enum: "UnitsFilled" }
+      phase_out: { var: "phase" }
+      accepted: { bool: true }
+      units_out: { param: "fill_units" }
+
+  - id: "finalize_auction"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Settle" }] }
+        - { op: ">", args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }] }
+    updates:
+      - var: "phase"
+        expr: { enum: "Complete" }
+    effects:
+      event: { enum: "AuctionCompleted" }
+      phase_out: { enum: "Complete" }
+      accepted: { bool: true }
+      units_out: { const: 0 }
