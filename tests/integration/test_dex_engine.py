@@ -104,6 +104,7 @@ def test_engine_accepts_proof_fields_when_verifier_disabled() -> None:
         tx_sender_pubkey=sender,
     )
     assert res.ok, res.error
+    assert res.proof_mining_context is None
 
 
 def test_engine_rejects_large_raw_intent_before_parsing() -> None:
