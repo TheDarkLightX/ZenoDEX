@@ -57,8 +57,6 @@ _LEGACY_PERP_OPS_KEY = "5"
 _APP_STATE_SCHEMA = "zenodex/tau_app_state/v1"
 _APP_STATE_VERSION = 1
 _MAX_APP_STATE_JSON_BYTES = 6_000_000
-
-
 def _canonical_state_and_hash(
     state: DexState,
     *,
