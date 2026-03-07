@@ -230,6 +230,8 @@ Then review the full tier rationale in `src/tau_specs/RISK_TIERS.md`, and explor
 - `external/`: Tau dependencies (git-ignored)
 
 ## Confidential Extensions and Sealed-Bid Auctions
+- Plain-language explainer: `docs/CONFIDENTIAL_FEATURES_USE_CASES.md`
+- Operator beta runbook: `docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md`
 - **TEE-first confidential extensions**: attested sidecars can meter private routing / risk logic without exposing source code.
   - Runtime receipts: `src/core/confidential_extension_receipts.py`
   - Attestation bridge: `src/integration/confidential_attestation.py`
@@ -245,6 +247,17 @@ Then review the full tier rationale in `src/tau_specs/RISK_TIERS.md`, and explor
 - **Disaster-state catalog**: explicit terminal hazards and their discharge actions.
   - Catalog doc: `docs/SEALED_BID_DISASTER_STATE_CATALOG.md`
   - Replay tool: `python3 tools/sealed_bid_disaster_catalog.py`
+
+Who this is for:
+- large trades that would leak too much intent on a public path
+- batch auctions / token sales where hidden bids improve fairness
+- private RFQ / institutional flow
+- strategy providers who want to get paid for private execution logic
+
+Who this is not for:
+- ordinary retail swaps where the public path is simpler and faster
+- always-on low-latency execution where extra coordination hurts UX
+- use cases that need encrypted on-chain state rather than private off-chain execution
 
 Useful commands:
 ```bash
@@ -295,6 +308,7 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/SPECIFICATION.md`
 - `docs/ECOSYSTEM_STRATEGY.md`
 - `docs/ECOSYSTEM_GRAPH.md`
+- `docs/CONFIDENTIAL_FEATURES_USE_CASES.md`
 - `docs/TAU_LANGUAGE_CONSTRAINTS.md`
 - `docs/TAU_ARCHITECTURE.md`
 - `docs/REVISION_PIPELINE.md`

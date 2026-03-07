@@ -1,6 +1,13 @@
 # React + Vite
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend for ZenoDEX. This merge branch keeps the current public Swap / Pools / ZDEX Stats surfaces and adds a Confidential tab for the TEE and sealed-bid beta surface.
+
+The Confidential tab is informational and status-oriented:
+- who the feature is for
+- when confidential execution helps
+- when the normal public path is better
+- which formal checks back the current beta posture
+- the live beta posture from `/api/confidential/status` when served with the API
 
 Currently, two official plugins are available:
 
