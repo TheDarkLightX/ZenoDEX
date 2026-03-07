@@ -53,6 +53,35 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     return _require_mapping(obj, name=str(path))
 
 
+def fallback_proposal_hash(*, round_id: str, job_digest: str, witness_hash: str) -> str:
+    binding = {
+        "mode": "round_fallback_v1",
+        "round_id": _require_str(round_id, name="round_id"),
+        "job_digest": _require_str(job_digest, name="job_digest"),
+        "witness_hash": _require_str(witness_hash, name="witness_hash"),
+    }
+    return sha256_hex(domain_sep_bytes("permissionless_solver_proposal_fallback", version=1) + canonical_json_bytes(binding))
+
+
+def explicit_proposal_hash(
+    *,
+    chain_id: str,
+    prev_state_hash: str,
+    batch_hash: str,
+    witness_hash: str,
+    dex_hash_after: str,
+) -> str:
+    binding = {
+        "mode": "explicit_v1",
+        "chain_id": _require_str(chain_id, name="chain_id"),
+        "prev_state_hash": _require_str(prev_state_hash, name="prev_state_hash"),
+        "batch_hash": _require_str(batch_hash, name="batch_hash"),
+        "witness_hash": _require_str(witness_hash, name="witness_hash"),
+        "dex_hash_after": _require_str(dex_hash_after, name="dex_hash_after"),
+    }
+    return sha256_hex(domain_sep_bytes("proof_mining_proposal", version=1) + canonical_json_bytes(binding))
+
+
 def proof_mining_claim_hash(body: Mapping[str, Any]) -> str:
     return sha256_hex(domain_sep_bytes("permissionless_solver_proof_mining_claim", version=1) + canonical_json_bytes(dict(body)))
 
@@ -86,6 +115,10 @@ def build_proof_mining_claim(
     policy_ok: int = 1,
     nonce_ok: int = 1,
     unclaimed_ok: int = 1,
+    chain_id: str = "",
+    prev_state_hash: str = "",
+    batch_hash: str = "",
+    dex_hash_after: str = "",
     allow_rejected: bool = False,
 ) -> dict[str, Any]:
     if bool(round_obj.get("ok")) is not True:
@@ -113,6 +146,39 @@ def build_proof_mining_claim(
         raise ValueError("winner improvement out of u64 range")
 
     job_digest = _require_str(round_obj.get("job_digest"), name="round.job_digest")
+    witness_hash = witness_sha256
+    explicit_binding_fields = [chain_id, prev_state_hash, batch_hash, dex_hash_after]
+    explicit_count = sum(1 for value in explicit_binding_fields if str(value).strip())
+    if 0 < explicit_count < len(explicit_binding_fields):
+        raise ValueError("explicit proposal binding requires chain_id, prev_state_hash, batch_hash, and dex_hash_after together")
+    if explicit_count == len(explicit_binding_fields):
+        proposal_binding = {
+            "mode": "explicit_v1",
+            "chain_id": _require_str(chain_id, name="chain_id"),
+            "prev_state_hash": _require_str(prev_state_hash, name="prev_state_hash"),
+            "batch_hash": _require_str(batch_hash, name="batch_hash"),
+            "witness_hash": witness_hash,
+            "dex_hash_after": _require_str(dex_hash_after, name="dex_hash_after"),
+        }
+        proposal_hash = explicit_proposal_hash(
+            chain_id=proposal_binding["chain_id"],
+            prev_state_hash=proposal_binding["prev_state_hash"],
+            batch_hash=proposal_binding["batch_hash"],
+            witness_hash=proposal_binding["witness_hash"],
+            dex_hash_after=proposal_binding["dex_hash_after"],
+        )
+    else:
+        proposal_binding = {
+            "mode": "round_fallback_v1",
+            "round_id": str(round_id),
+            "job_digest": job_digest,
+            "witness_hash": witness_hash,
+        }
+        proposal_hash = fallback_proposal_hash(
+            round_id=str(round_id),
+            job_digest=job_digest,
+            witness_hash=witness_hash,
+        )
     reward_amount = schedule_reward_amount(base_reward=base_reward, epoch=epoch)
     reward_pool_after = int(reward_pool) - int(reward_amount)
 
@@ -145,6 +211,8 @@ def build_proof_mining_claim(
         "schema": "zenodex/permissionless_solver_proof_mining_claim/v1",
         "round_id": str(round_id),
         "job_digest": job_digest,
+        "proposal_hash": proposal_hash,
+        "proposal_binding": proposal_binding,
         "winner": {
             "miner_id": miner_id,
             "witness_sha256": witness_sha256,
@@ -186,9 +254,33 @@ def validate_proof_mining_claim_artifact(
         raise ValueError("claim_hash mismatch")
 
     winner = _require_mapping(body.get("winner"), name="claim.body.winner")
+    witness_hash = _require_str(winner.get("witness_sha256"), name="claim.body.winner.witness_sha256")
     improvement_u64 = _require_int(winner.get("improvement_u64"), name="claim.body.winner.improvement_u64")
     if improvement_u64 <= 0:
         raise ValueError("winner improvement must be positive")
+
+    proposal_binding = _require_mapping(body.get("proposal_binding"), name="claim.body.proposal_binding")
+    binding_mode = _require_str(proposal_binding.get("mode"), name="claim.body.proposal_binding.mode")
+    if binding_mode == "explicit_v1":
+        expected_proposal_hash = explicit_proposal_hash(
+            chain_id=_require_str(proposal_binding.get("chain_id"), name="claim.body.proposal_binding.chain_id"),
+            prev_state_hash=_require_str(proposal_binding.get("prev_state_hash"), name="claim.body.proposal_binding.prev_state_hash"),
+            batch_hash=_require_str(proposal_binding.get("batch_hash"), name="claim.body.proposal_binding.batch_hash"),
+            witness_hash=_require_str(proposal_binding.get("witness_hash"), name="claim.body.proposal_binding.witness_hash"),
+            dex_hash_after=_require_str(proposal_binding.get("dex_hash_after"), name="claim.body.proposal_binding.dex_hash_after"),
+        )
+    elif binding_mode == "round_fallback_v1":
+        expected_proposal_hash = fallback_proposal_hash(
+            round_id=_require_str(proposal_binding.get("round_id"), name="claim.body.proposal_binding.round_id"),
+            job_digest=_require_str(proposal_binding.get("job_digest"), name="claim.body.proposal_binding.job_digest"),
+            witness_hash=_require_str(proposal_binding.get("witness_hash"), name="claim.body.proposal_binding.witness_hash"),
+        )
+    else:
+        raise ValueError("unsupported proposal binding mode")
+    if _require_str(body.get("proposal_hash"), name="claim.body.proposal_hash") != expected_proposal_hash:
+        raise ValueError("proposal_hash mismatch")
+    if _require_str(proposal_binding.get("witness_hash"), name="claim.body.proposal_binding.witness_hash") != witness_hash:
+        raise ValueError("proposal binding witness mismatch")
 
     bounded_model = _require_mapping(body.get("bounded_model"), name="claim.body.bounded_model")
     if _require_str(bounded_model.get("reward_kind"), name="claim.body.bounded_model.reward_kind") != "TreasuryTransfer":
@@ -251,6 +343,7 @@ def validate_proof_mining_claim_artifact(
         "reward_pool_after": reward_pool_after,
         "proposal_slot": _require_int(bounded_model.get("proposal_slot"), name="claim.body.bounded_model.proposal_slot"),
         "prover_id": _require_int(bounded_model.get("prover_id"), name="claim.body.bounded_model.prover_id"),
+        "proposal_hash": expected_proposal_hash,
     }
 
 
@@ -264,6 +357,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--epoch", type=int, required=True)
     parser.add_argument("--proposal-slot", type=int, required=True)
     parser.add_argument("--prover-id", type=int, required=True)
+    parser.add_argument("--chain-id", default="", help="Optional explicit proposal binding field")
+    parser.add_argument("--prev-state-hash", default="", help="Optional explicit proposal binding field")
+    parser.add_argument("--batch-hash", default="", help="Optional explicit proposal binding field")
+    parser.add_argument("--dex-hash-after", default="", help="Optional explicit proposal binding field")
     parser.add_argument("--proof-ok", type=int, default=1)
     parser.add_argument("--binding-ok", type=int, default=1)
     parser.add_argument("--policy-ok", type=int, default=1)
@@ -289,6 +386,10 @@ def main(argv: list[str] | None = None) -> int:
         policy_ok=int(args.policy_ok),
         nonce_ok=int(args.nonce_ok),
         unclaimed_ok=int(args.unclaimed_ok),
+        chain_id=str(args.chain_id),
+        prev_state_hash=str(args.prev_state_hash),
+        batch_hash=str(args.batch_hash),
+        dex_hash_after=str(args.dex_hash_after),
         allow_rejected=bool(args.allow_gate_fail),
     )
     Path(args.output).write_text(json.dumps(claim, indent=2, sort_keys=True) + "\n", encoding="utf-8")
