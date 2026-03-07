@@ -4,6 +4,7 @@ import SwapInterface from './components/SwapInterface';
 import PoolDashboard from './components/PoolDashboard';
 import TokenStats from './components/TokenStats';
 import PerpTradingView from './components/perps/PerpTradingView';
+import ConfidentialWorkbench from './components/ConfidentialWorkbench.jsx';
 import { PerpProvider } from './lib/PerpProvider.jsx';
 import { DemoModeProvider } from './lib/DemoModeProvider.jsx';
 import WalletConnect from './components/WalletConnect';
@@ -15,6 +16,7 @@ const APP_TABS = [
   { id: 'pools', label: 'Pools' },
   { id: 'stats', label: 'ZDEX Stats' },
   { id: 'perps', label: 'Perpetuals' },
+  { id: 'confidential', label: 'Confidential' },
 ];
 
 function App() {
@@ -78,6 +80,12 @@ function App() {
                 <PerpTradingView wallet={wallet} />
               </PerpProvider>
             </DemoModeProvider>
+          </div>
+        )}
+
+        {activeTab === 'confidential' && (
+          <div className="animate-fade-in">
+            <ConfidentialWorkbench />
           </div>
         )}
       </main>

@@ -19,6 +19,7 @@ if str(TOOLS_DIR) not in sys.path:
 from metamuse_batch_ordering_lane import lane_packet as batch_ordering_lane_packet
 from metamuse_burn_receipt_lane import lane_packet as burn_receipt_lane_packet
 from metamuse_exact_out_lane import lane_packet as exact_out_lane_packet
+from metamuse_sealed_bid_bond_lane import lane_packet as sealed_bid_bond_lane_packet
 from metamuse_sealed_bid_lane import lane_packet as sealed_bid_lane_packet
 from metamuse_split_routing_lane import lane_packet as split_routing_lane_packet
 
@@ -29,6 +30,7 @@ LANE_PACKET_FACTORIES = {
     "burn_receipt_kernel_v1": burn_receipt_lane_packet,
     "exact_out_multihop_value": exact_out_lane_packet,
     "sealed_bid_private_state_v1": sealed_bid_lane_packet,
+    "sealed_bid_non_reveal_bond_v1": sealed_bid_bond_lane_packet,
 }
 
 
