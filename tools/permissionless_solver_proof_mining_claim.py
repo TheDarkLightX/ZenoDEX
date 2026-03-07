@@ -258,6 +258,8 @@ def validate_proof_mining_claim_artifact(
     improvement_u64 = _require_int(winner.get("improvement_u64"), name="claim.body.winner.improvement_u64")
     if improvement_u64 <= 0:
         raise ValueError("winner improvement must be positive")
+    if improvement_u64 > 0xFFFFFFFFFFFFFFFF:
+        raise ValueError("winner improvement out of u64 range")
 
     proposal_binding = _require_mapping(body.get("proposal_binding"), name="claim.body.proposal_binding")
     binding_mode = _require_str(proposal_binding.get("mode"), name="claim.body.proposal_binding.mode")
@@ -270,11 +272,17 @@ def validate_proof_mining_claim_artifact(
             dex_hash_after=_require_str(proposal_binding.get("dex_hash_after"), name="claim.body.proposal_binding.dex_hash_after"),
         )
     elif binding_mode == "round_fallback_v1":
+        binding_round_id = _require_str(proposal_binding.get("round_id"), name="claim.body.proposal_binding.round_id")
+        binding_job_digest = _require_str(proposal_binding.get("job_digest"), name="claim.body.proposal_binding.job_digest")
         expected_proposal_hash = fallback_proposal_hash(
-            round_id=_require_str(proposal_binding.get("round_id"), name="claim.body.proposal_binding.round_id"),
-            job_digest=_require_str(proposal_binding.get("job_digest"), name="claim.body.proposal_binding.job_digest"),
+            round_id=binding_round_id,
+            job_digest=binding_job_digest,
             witness_hash=_require_str(proposal_binding.get("witness_hash"), name="claim.body.proposal_binding.witness_hash"),
         )
+        if binding_round_id != _require_str(body.get("round_id"), name="claim.body.round_id"):
+            raise ValueError("proposal binding round_id mismatch")
+        if binding_job_digest != _require_str(body.get("job_digest"), name="claim.body.job_digest"):
+            raise ValueError("proposal binding job_digest mismatch")
     else:
         raise ValueError("unsupported proposal binding mode")
     if _require_str(body.get("proposal_hash"), name="claim.body.proposal_hash") != expected_proposal_hash:
@@ -285,6 +293,12 @@ def validate_proof_mining_claim_artifact(
     bounded_model = _require_mapping(body.get("bounded_model"), name="claim.body.bounded_model")
     if _require_str(bounded_model.get("reward_kind"), name="claim.body.bounded_model.reward_kind") != "TreasuryTransfer":
         raise ValueError("unsupported reward kind")
+    proposal_slot = _require_int(bounded_model.get("proposal_slot"), name="claim.body.bounded_model.proposal_slot")
+    if proposal_slot < 0 or proposal_slot > MAX_PROPOSAL_SLOT:
+        raise ValueError("proposal_slot out of range")
+    prover_id = _require_int(bounded_model.get("prover_id"), name="claim.body.bounded_model.prover_id")
+    if prover_id < 0 or prover_id > MAX_PROVER_ID:
+        raise ValueError("prover_id out of range")
     base_reward = _require_int(bounded_model.get("base_reward"), name="claim.body.bounded_model.base_reward")
     epoch = _require_int(bounded_model.get("epoch"), name="claim.body.bounded_model.epoch")
     reward_amount = _require_int(bounded_model.get("reward_amount"), name="claim.body.bounded_model.reward_amount")
@@ -338,11 +352,13 @@ def validate_proof_mining_claim_artifact(
         "round_id": _require_str(body.get("round_id"), name="claim.body.round_id"),
         "job_digest": _require_str(body.get("job_digest"), name="claim.body.job_digest"),
         "winner": winner,
+        "base_reward": base_reward,
+        "epoch": epoch,
         "payout_amount": reward_amount,
         "reward_pool_before": reward_pool_before,
         "reward_pool_after": reward_pool_after,
-        "proposal_slot": _require_int(bounded_model.get("proposal_slot"), name="claim.body.bounded_model.proposal_slot"),
-        "prover_id": _require_int(bounded_model.get("prover_id"), name="claim.body.bounded_model.prover_id"),
+        "proposal_slot": proposal_slot,
+        "prover_id": prover_id,
         "proposal_hash": expected_proposal_hash,
     }
 

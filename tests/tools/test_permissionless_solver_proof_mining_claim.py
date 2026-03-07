@@ -197,6 +197,54 @@ def test_build_proof_mining_claim_rejects_partial_explicit_binding() -> None:
         )
 
 
+def test_validate_proof_mining_claim_rejects_fallback_binding_round_mismatch() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=9),
+        round_id="round-proof-8",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+    )
+    claim["body"]["proposal_binding"]["round_id"] = "other-round"
+    claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
+    with pytest.raises(ValueError, match="proposal binding round_id mismatch"):
+        validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
+def test_validate_proof_mining_claim_rejects_out_of_range_bounded_model_fields() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=9),
+        round_id="round-proof-9",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+    )
+    claim["body"]["bounded_model"]["proposal_slot"] = 8
+    claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
+    with pytest.raises(ValueError, match="proposal_slot out of range"):
+        validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
+def test_validate_proof_mining_claim_rejects_improvement_u64_overflow() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=9),
+        round_id="round-proof-10",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+    )
+    claim["body"]["winner"]["improvement_u64"] = 0x1_0000_0000_0000_0000
+    claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
+    with pytest.raises(ValueError, match="winner improvement out of u64 range"):
+        validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
 def test_claim_cli_emits_output(tmp_path: Path) -> None:
     round_path = tmp_path / "round.json"
     out_path = tmp_path / "claim.json"
