@@ -6,8 +6,10 @@ import sys
 
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
+from src.core.proof_mining_claims import explicit_proposal_hash
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation
+from src.integration.proof_mining_context import dex_snapshot_hash, proof_payload_hash
 from src.integration.proof_verifier import MisconfiguredProofVerifier, ProofVerifierConfig, SubprocessProofVerifier, make_proof_verifier
 from src.state.canonical import CANONICAL_ENCODING_VERSION, canonical_json_bytes, domain_sep_bytes, sha256_hex
 from src.state.balances import BalanceTable
@@ -359,6 +361,22 @@ def test_engine_accepts_proof_when_commitments_match_and_verifier_ok() -> None:
         tx_sender_pubkey=sender,
     )
     assert res.ok, res.error
+    assert res.proof_mining_context is not None
+    ctx = res.proof_mining_context
+    assert ctx.chain_id == "tau-net-alpha"
+    assert ctx.prev_state_hash == pre_state_commitment
+    assert ctx.batch_hash == batch_commitment
+    assert ctx.witness_hash == proof_payload_hash(settlement_obj_with_proof["proof"])
+    assert res.state is not None
+    assert ctx.dex_hash_after == dex_snapshot_hash(res.state)
+    assert ctx.proposal_hash == explicit_proposal_hash(
+        chain_id=ctx.chain_id,
+        prev_state_hash=ctx.prev_state_hash,
+        batch_hash=ctx.batch_hash,
+        witness_hash=ctx.witness_hash,
+        dex_hash_after=ctx.dex_hash_after,
+    )
+    assert ctx.proof_scheme == "dummy"
 
 
 def test_engine_proof_commitment_ignores_optional_nulls_and_reject_reasons() -> None:
