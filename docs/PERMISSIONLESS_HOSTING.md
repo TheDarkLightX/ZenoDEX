@@ -186,7 +186,11 @@ python3 tools/permissionless_solver_proof_mining_claim.py \
   --base-reward 16 \
   --epoch 2 \
   --proposal-slot 0 \
-  --prover-id 0
+  --prover-id 0 \
+  --chain-id tau-testnet-alpha \
+  --prev-state-hash sha256:prev_state \
+  --batch-hash sha256:batch \
+  --dex-hash-after sha256:dex_after
 ```
 
 That claim uses the same bounded halving schedule as
@@ -209,6 +213,9 @@ Current honest posture:
 
 - the prototype payout plan is still useful for local/operator rounds
 - the proof-mining claim is the fail-closed bridge to the existing Tau reward gate
+- when explicit binding fields are supplied, uniqueness is tracked by `proposal_hash`
+- without explicit binding fields, the claim falls back to a deterministic hash of
+  `(round_id, job_digest, witness_hash)` so the artifact is still content-addressed
 - neither path is yet a full chain-wide issuance market on its own
 
 ## Production posture
