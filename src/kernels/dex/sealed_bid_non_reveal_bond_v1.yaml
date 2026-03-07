@@ -1,0 +1,356 @@
+# [FORGE] Sealed Bid Non-Reveal Bond v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "sealed_bid_non_reveal_bond_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded bond-accounting kernel for sealed-bid commit/reveal auctions.
+
+    Scope:
+      - Each committed bid posts one fixed bond amount.
+      - A revealed bid gets its bond refunded.
+      - An unrevealed bid gets its bond slashed.
+      - Exact bond conservation is maintained.
+
+observables:
+  state_vars: ["phase", "commit_count", "reveal_count", "slashed_bid_count", "escrow_bonds", "refunded_bonds", "slashed_bonds", "total_bonds_posted", "bond_per_commit", "current_epoch", "commit_deadline_epoch", "reveal_deadline_epoch"]
+  effects: ["event", "phase_out", "accepted", "bond_delta"]
+
+types:
+  - id: "t_phase"
+    type:
+      kind: "enum"
+      symbols: ["Commit", "Reveal", "Slash", "Complete"]
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["EpochAdvanced", "BondedCommit", "RevealOpened", "BondRefunded", "SlashOpened", "BondSlashed", "BondFinalized"]
+
+state_vars:
+  - id: "phase"
+    role: "control"
+    type: { ref: "t_phase" }
+  - id: "commit_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "reveal_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "slashed_bid_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "escrow_bonds"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "refunded_bonds"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "slashed_bonds"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "total_bonds_posted"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "bond_per_commit"
+    role: "control"
+    type: { kind: "int", min: 1, max: 31 }
+  - id: "current_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 31 }
+  - id: "commit_deadline_epoch"
+    role: "control"
+    type: { kind: "int", min: 0, max: 31 }
+  - id: "reveal_deadline_epoch"
+    role: "control"
+    type: { kind: "int", min: 0, max: 31 }
+
+invariants:
+  - id: "inv_deadline_order"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "commit_deadline_epoch" }, { var: "reveal_deadline_epoch" }]
+
+  - id: "inv_reveals_and_slashes_bounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "reveal_count" }, { var: "slashed_bid_count" }]
+        - { var: "commit_count" }
+
+  - id: "inv_bond_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - op: "+"
+              args: [{ var: "escrow_bonds" }, { var: "refunded_bonds" }]
+            - { var: "slashed_bonds" }
+        - { var: "total_bonds_posted" }
+
+  - id: "inv_complete_zero_escrow"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { enum: "Complete" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "escrow_bonds" }, { const: 0 }] }
+            - { op: "=",
+                args: [
+                  { op: "+", args: [{ var: "reveal_count" }, { var: "slashed_bid_count" }] },
+                  { var: "commit_count" }
+                ]
+              }
+
+init:
+  - var: "phase"
+    expr: { enum: "Commit" }
+  - var: "commit_count"
+    expr: { const: 0 }
+  - var: "reveal_count"
+    expr: { const: 0 }
+  - var: "slashed_bid_count"
+    expr: { const: 0 }
+  - var: "escrow_bonds"
+    expr: { const: 0 }
+  - var: "refunded_bonds"
+    expr: { const: 0 }
+  - var: "slashed_bonds"
+    expr: { const: 0 }
+  - var: "total_bonds_posted"
+    expr: { const: 0 }
+  - var: "bond_per_commit"
+    expr: { const: 5 }
+  - var: "current_epoch"
+    expr: { const: 0 }
+  - var: "commit_deadline_epoch"
+    expr: { const: 1 }
+  - var: "reveal_deadline_epoch"
+    expr: { const: 2 }
+
+actions:
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 4 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "current_epoch" }, { param: "delta" }]
+        - { const: 31 }
+    updates:
+      - var: "current_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "current_epoch" }, { param: "delta" }]
+    effects:
+      event: { enum: "EpochAdvanced" }
+      phase_out: { var: "phase" }
+      accepted: { bool: false }
+      bond_delta: { const: 0 }
+
+  - id: "post_bonded_commit"
+    params:
+      - id: "commitment_bound"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Commit" }] }
+        - { op: "<=", args: [{ var: "current_epoch" }, { var: "commit_deadline_epoch" }] }
+        - { op: "=", args: [{ param: "commitment_bound" }, { bool: true }] }
+        - { op: "<", args: [{ var: "commit_count" }, { const: 8 }] }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "escrow_bonds" }, { var: "bond_per_commit" }] },
+              { const: 255 }
+            ]
+          }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "total_bonds_posted" }, { var: "bond_per_commit" }] },
+              { const: 255 }
+            ]
+          }
+    updates:
+      - var: "commit_count"
+        expr:
+          op: "+"
+          args: [{ var: "commit_count" }, { const: 1 }]
+      - var: "escrow_bonds"
+        expr:
+          op: "+"
+          args: [{ var: "escrow_bonds" }, { var: "bond_per_commit" }]
+      - var: "total_bonds_posted"
+        expr:
+          op: "+"
+          args: [{ var: "total_bonds_posted" }, { var: "bond_per_commit" }]
+    effects:
+      event: { enum: "BondedCommit" }
+      phase_out: { var: "phase" }
+      accepted: { bool: true }
+      bond_delta: { var: "bond_per_commit" }
+
+  - id: "finalize_empty_bonds"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Commit" }] }
+        - { op: "=", args: [{ var: "commit_count" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "escrow_bonds" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "current_epoch" }, { var: "commit_deadline_epoch" }] }
+    updates:
+      - var: "phase"
+        expr: { enum: "Complete" }
+    effects:
+      event: { enum: "BondFinalized" }
+      phase_out: { enum: "Complete" }
+      accepted: { bool: true }
+      bond_delta: { const: 0 }
+
+  - id: "open_reveal"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Commit" }] }
+        - { op: ">", args: [{ var: "current_epoch" }, { var: "commit_deadline_epoch" }] }
+        - { op: ">", args: [{ var: "commit_count" }, { const: 0 }] }
+    updates:
+      - var: "phase"
+        expr: { enum: "Reveal" }
+    effects:
+      event: { enum: "RevealOpened" }
+      phase_out: { enum: "Reveal" }
+      accepted: { bool: true }
+      bond_delta: { const: 0 }
+
+  - id: "reveal_and_refund"
+    params:
+      - id: "commitment_match"
+        type: { kind: "bool" }
+      - id: "nonce_unused"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Reveal" }] }
+        - { op: "<=", args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }] }
+        - { op: "=", args: [{ param: "commitment_match" }, { bool: true }] }
+        - { op: "=", args: [{ param: "nonce_unused" }, { bool: true }] }
+        - { op: "<",
+            args: [
+              { op: "+", args: [{ var: "reveal_count" }, { var: "slashed_bid_count" }] },
+              { var: "commit_count" }
+            ]
+          }
+        - { op: ">=", args: [{ var: "escrow_bonds" }, { var: "bond_per_commit" }] }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "refunded_bonds" }, { var: "bond_per_commit" }] },
+              { const: 255 }
+            ]
+          }
+    updates:
+      - var: "reveal_count"
+        expr:
+          op: "+"
+          args: [{ var: "reveal_count" }, { const: 1 }]
+      - var: "escrow_bonds"
+        expr:
+          op: "-"
+          args: [{ var: "escrow_bonds" }, { var: "bond_per_commit" }]
+      - var: "refunded_bonds"
+        expr:
+          op: "+"
+          args: [{ var: "refunded_bonds" }, { var: "bond_per_commit" }]
+    effects:
+      event: { enum: "BondRefunded" }
+      phase_out: { var: "phase" }
+      accepted: { bool: true }
+      bond_delta: { var: "bond_per_commit" }
+
+  - id: "open_slash"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Reveal" }] }
+        - { op: ">", args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }] }
+    updates:
+      - var: "phase"
+        expr: { enum: "Slash" }
+    effects:
+      event: { enum: "SlashOpened" }
+      phase_out: { enum: "Slash" }
+      accepted: { bool: true }
+      bond_delta: { const: 0 }
+
+  - id: "slash_one_non_reveal"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Slash" }] }
+        - { op: "<",
+            args: [
+              { op: "+", args: [{ var: "reveal_count" }, { var: "slashed_bid_count" }] },
+              { var: "commit_count" }
+            ]
+          }
+        - { op: ">=", args: [{ var: "escrow_bonds" }, { var: "bond_per_commit" }] }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "slashed_bonds" }, { var: "bond_per_commit" }] },
+              { const: 255 }
+            ]
+          }
+    updates:
+      - var: "slashed_bid_count"
+        expr:
+          op: "+"
+          args: [{ var: "slashed_bid_count" }, { const: 1 }]
+      - var: "escrow_bonds"
+        expr:
+          op: "-"
+          args: [{ var: "escrow_bonds" }, { var: "bond_per_commit" }]
+      - var: "slashed_bonds"
+        expr:
+          op: "+"
+          args: [{ var: "slashed_bonds" }, { var: "bond_per_commit" }]
+    effects:
+      event: { enum: "BondSlashed" }
+      phase_out: { var: "phase" }
+      accepted: { bool: true }
+      bond_delta: { var: "bond_per_commit" }
+
+  - id: "finalize_bonds"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Slash" }] }
+        - { op: "=", args: [{ var: "escrow_bonds" }, { const: 0 }] }
+        - { op: "=",
+            args: [
+              { op: "+", args: [{ var: "reveal_count" }, { var: "slashed_bid_count" }] },
+              { var: "commit_count" }
+            ]
+          }
+    updates:
+      - var: "phase"
+        expr: { enum: "Complete" }
+    effects:
+      event: { enum: "BondFinalized" }
+      phase_out: { enum: "Complete" }
+      accepted: { bool: true }
+      bond_delta: { const: 0 }

@@ -31,12 +31,15 @@ A bounded sealed-bid private-state experiment now exists in the repo:
 - `src/core/sealed_bid_auction.py`
 - `tools/metamuse_sealed_bid_lane.py`
 - `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
+- `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
 
 Scope:
 - public commitment receipts hide quantity, price, and nonce
 - reveals bind to commitments
 - settlement is deterministic uniform-price for a fixed sell inventory
-- ESSO verifies the commit/reveal phase discipline; Python covers the bounded settlement experiment
+- non-reveal bids are slashed via a separate bond-accounting kernel
+- ESSO verifies the commit/reveal phase discipline and the non-reveal bond kernel; Python covers the bounded settlement experiment
+- named terminal-path hazards are catalogued and replay-checked in `docs/SEALED_BID_DISASTER_STATE_CATALOG.md` and `tools/sealed_bid_disaster_catalog.py`
 
 ## Where sMPC fits
 

@@ -5729,6 +5729,136 @@ def _check_sealed_bid_uniform_price_model(mode: str, timeout_s: int) -> dict[str
     }
 
 
+def _check_sealed_bid_bond_surface_safe(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s
+    t0 = time.time()
+    cmd = ["internal_python_eval", "sealed_bid_bond_surface_safe"]
+    try:
+        import sys
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from src.core.sealed_bid_bonds import BondedSealedBidCommit, SealedBidRevealRef, settle_sealed_bid_non_reveal_bonds
+        from tools.metamuse_sealed_bid_bond_lane import SEALED_BID_BOND_CURATED_CASES
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    bad_case = None
+    rows: list[dict[str, Any]] = []
+    for idx, case in enumerate(SEALED_BID_BOND_CURATED_CASES, 1):
+        outcome = settle_sealed_bid_non_reveal_bonds(
+            commits=[BondedSealedBidCommit(c.bidder_id, c.commitment, c.bond_amount) for c in case.commits],
+            reveals=[SealedBidRevealRef(bidder_id, commitment) for bidder_id, commitment in case.reveals],
+        )
+        no_free_non_reveal = int(outcome.total_slashed) == sum(
+            int(c.bond_amount)
+            for c in case.commits
+            if (str(c.bidder_id), str(c.commitment)) not in set((str(b), str(cm)) for b, cm in case.reveals)
+        )
+        conserved = int(outcome.total_bonded) == int(outcome.total_refunded + outcome.total_slashed)
+        row = {
+            "case_index": int(idx),
+            "no_free_non_reveal": bool(no_free_non_reveal),
+            "conserved": bool(conserved),
+            "total_bonded": int(outcome.total_bonded),
+            "total_refunded": int(outcome.total_refunded),
+            "total_slashed": int(outcome.total_slashed),
+        }
+        rows.append(row)
+        if bad_case is None and (not no_free_non_reveal or not conserved):
+            bad_case = row
+
+    signal = bad_case is None
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": bad_case,
+        "metrics": {"case_count": len(rows), "rows": rows},
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
+def _check_sealed_bid_bond_exhaustive_small(mode: str, timeout_s: int) -> dict[str, Any]:
+    del timeout_s
+    t0 = time.time()
+    cmd = ["internal_python_eval", "sealed_bid_bond_exhaustive_small"]
+    try:
+        import sys
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from src.core.sealed_bid_bonds import BondedSealedBidCommit, SealedBidRevealRef, settle_sealed_bid_non_reveal_bonds
+    except Exception as exc:
+        return {
+            "status": "inconclusive",
+            "reason": "import_error",
+            "signal": None,
+            "counterexample": {"error": str(exc)},
+            "metrics": {},
+            "command": cmd,
+            "duration_s": float(time.time() - t0),
+            "stdout_tail": "",
+            "stderr_tail": str(exc)[-1200:],
+        }
+
+    checked = 0
+    mismatch = None
+    bidder_ids = ["a", "b", "c"]
+    for commit_count in range(0, 4):
+        commits = [BondedSealedBidCommit(bidder_ids[i], f"c{i}", bond_amount=((i % 3) + 1)) for i in range(commit_count)]
+        max_mask = 1 << commit_count
+        for mask in range(max_mask):
+            reveals = [SealedBidRevealRef(bidder_ids[i], f"c{i}") for i in range(commit_count) if (mask >> i) & 1]
+            outcome = settle_sealed_bid_non_reveal_bonds(commits=commits, reveals=reveals)
+            checked += 1
+            expected_refunded = sum(commits[i].bond_amount for i in range(commit_count) if (mask >> i) & 1)
+            expected_slashed = sum(commits[i].bond_amount for i in range(commit_count) if ((mask >> i) & 1) == 0)
+            if not (
+                int(outcome.total_refunded) == int(expected_refunded)
+                and int(outcome.total_slashed) == int(expected_slashed)
+                and int(outcome.total_bonded) == int(expected_refunded + expected_slashed)
+                and int(outcome.refunded_bid_count) == bin(mask).count("1")
+                and int(outcome.slashed_bid_count) == int(commit_count - bin(mask).count("1"))
+            ):
+                mismatch = {
+                    "commit_count": int(commit_count),
+                    "mask": int(mask),
+                    "expected_refunded": int(expected_refunded),
+                    "expected_slashed": int(expected_slashed),
+                    "got_refunded": int(outcome.total_refunded),
+                    "got_slashed": int(outcome.total_slashed),
+                    "got_total_bonded": int(outcome.total_bonded),
+                }
+                break
+        if mismatch is not None:
+            break
+
+    signal = mismatch is None
+    return {
+        "status": _mode_status(mode=mode, signal=signal),
+        "reason": "ok",
+        "signal": signal,
+        "counterexample": mismatch,
+        "metrics": {"checked_cases": int(checked)},
+        "command": cmd,
+        "duration_s": float(time.time() - t0),
+        "stdout_tail": "",
+        "stderr_tail": "",
+    }
+
+
 def _check_batch_clearing_gap_exists(mode: str, timeout_s: int) -> dict[str, Any]:
     cmd = ["python3", "tools/morph_batch_clearing_miner.py", "--test", "--json"]
     cmd_res = _run_cmd(cmd, timeout_s=timeout_s)
@@ -7262,6 +7392,8 @@ CHECK_DISPATCH["burn_receipt_replay_rejected"] = _check_burn_receipt_replay_reje
 CHECK_DISPATCH["burn_receipt_accounting_model"] = _check_burn_receipt_accounting_model
 CHECK_DISPATCH["sealed_bid_private_state_surface_safe"] = _check_sealed_bid_private_state_surface_safe
 CHECK_DISPATCH["sealed_bid_uniform_price_model"] = _check_sealed_bid_uniform_price_model
+CHECK_DISPATCH["sealed_bid_bond_surface_safe"] = _check_sealed_bid_bond_surface_safe
+CHECK_DISPATCH["sealed_bid_bond_exhaustive_small"] = _check_sealed_bid_bond_exhaustive_small
 
 
 def _run_dynamic_check(check_id: str, mode: str, timeout_s: int) -> dict[str, Any] | None:

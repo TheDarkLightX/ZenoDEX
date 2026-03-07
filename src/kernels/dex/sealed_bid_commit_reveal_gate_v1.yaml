@@ -154,6 +154,23 @@ actions:
       accepted: { bool: true }
       units_out: { const: 0 }
 
+  - id: "finalize_empty_auction"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Commit" }] }
+        - { op: "=", args: [{ var: "commit_count" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }] }
+    updates:
+      - var: "phase"
+        expr: { enum: "Complete" }
+    effects:
+      event: { enum: "AuctionCompleted" }
+      phase_out: { enum: "Complete" }
+      accepted: { bool: true }
+      units_out: { const: 0 }
+
   - id: "open_reveal"
     params: []
     guard:
@@ -263,6 +280,25 @@ actions:
       args:
         - { op: "=", args: [{ var: "phase" }, { enum: "Settle" }] }
         - { op: ">", args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }] }
+    updates:
+      - var: "phase"
+        expr: { enum: "Complete" }
+    effects:
+      event: { enum: "AuctionCompleted" }
+      phase_out: { enum: "Complete" }
+      accepted: { bool: true }
+      units_out: { const: 0 }
+
+  - id: "finalize_no_reveal_auction"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "phase" }, { enum: "Reveal" }] }
+        - { op: ">", args: [{ var: "current_epoch" }, { var: "reveal_deadline_epoch" }] }
+        - { op: "=", args: [{ var: "reveal_count" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "total_revealed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "total_filled_units" }, { const: 0 }] }
     updates:
       - var: "phase"
         expr: { enum: "Complete" }
