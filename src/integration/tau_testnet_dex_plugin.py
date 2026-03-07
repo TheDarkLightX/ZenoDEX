@@ -24,13 +24,21 @@ from dataclasses import replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from ..core.dex import DexState
-from ..state.canonical import canonical_hex_fixed_allow_0x
+from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.balances import BalanceTable, NATIVE_ASSET
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from .dex_engine import DexEngineConfig, apply_ops
 from .dex_snapshot import snapshot_from_state, state_from_snapshot
 from .perp_engine import PerpEngineConfig, apply_perp_ops
+from .proof_mining_runtime import (
+    ProofMiningRuntimeState,
+    apply_proof_mining_claim,
+    initialize_proof_mining_runtime_state,
+    proof_mining_runtime_state_from_obj,
+    proof_mining_runtime_state_to_obj,
+)
+from .proof_verifier import ProofVerifierConfig
 
 
 _DEX_INTENTS_KEY = "5"
@@ -38,16 +46,30 @@ _DEX_SETTLEMENT_KEY = "6"
 _DEX_FAUCET_KEY = "7"
 _PERP_OPS_KEY = "8"
 _TOKEN_OPS_KEY = "9"
+_PROOF_MINING_OPS_KEY = "10"
 
 _LEGACY_DEX_INTENTS_KEY = "2"
 _LEGACY_DEX_SETTLEMENT_KEY = "3"
 _LEGACY_DEX_FAUCET_KEY = "4"
 _LEGACY_PERP_OPS_KEY = "5"
 
-
-def _canonical_state_and_hash(state: DexState) -> Tuple[str, str]:
+_APP_STATE_SCHEMA = "zenodex/tau_app_state/v1"
+def _canonical_state_and_hash(
+    state: DexState,
+    *,
+    proof_mining_state: Optional[ProofMiningRuntimeState] = None,
+) -> Tuple[str, str]:
     snap = snapshot_from_state(state)
-    canonical = snap.canonical_bytes()
+    if proof_mining_state is None:
+        canonical = snap.canonical_bytes()
+        return canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest()
+    payload = {
+        "schema": _APP_STATE_SCHEMA,
+        "version": 1,
+        "dex_state": snap.data,
+        "proof_mining": proof_mining_runtime_state_to_obj(proof_mining_state),
+    }
+    canonical = canonical_json_bytes(payload)
     return canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest()
 
 
@@ -99,16 +121,59 @@ def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
     return copied
 
 
-def _load_state(app_state_json: str) -> DexState:
+def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be an object")
+    return value
+
+
+def _parse_cmd_json_env(name: str) -> Optional[list[str]]:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return None
+    obj = json.loads(raw)
+    if not isinstance(obj, list) or not obj:
+        raise ValueError(f"{name} must be a non-empty JSON array")
+    cmd: list[str] = []
+    for idx, entry in enumerate(obj):
+        if not isinstance(entry, str) or not entry:
+            raise ValueError(f"{name}[{idx}] must be a non-empty string")
+        cmd.append(str(entry))
+    return cmd
+
+
+def _build_proof_verifier_config() -> ProofVerifierConfig:
+    cmd = _parse_cmd_json_env("TAU_DEX_PROOF_VERIFIER_CMD_JSON")
+    timeout_raw = os.environ.get("TAU_DEX_PROOF_VERIFIER_TIMEOUT_S", "").strip()
+    timeout_s = 10.0
+    if timeout_raw:
+        timeout_s = float(timeout_raw)
+    allow_path_lookup = _bool_env("TAU_DEX_PROOF_VERIFIER_ALLOW_PATH_LOOKUP", default=False)
+    return ProofVerifierConfig(
+        enabled=bool(cmd),
+        verifier_cmd=cmd,
+        allow_path_lookup=bool(allow_path_lookup),
+        timeout_s=float(timeout_s),
+    )
+
+
+def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRuntimeState]]:
     raw = (app_state_json or "").strip()
     if not raw:
-        return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+        return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()), None
     try:
         obj = json.loads(raw)
     except Exception as exc:
         raise ValueError(f"invalid app_state_json: {exc}") from exc
     try:
-        return state_from_snapshot(obj)
+        if isinstance(obj, Mapping) and obj.get("schema") == _APP_STATE_SCHEMA:
+            dex_state = state_from_snapshot(_require_mapping(obj.get("dex_state"), name="app_state.dex_state"))
+            proof_obj = obj.get("proof_mining")
+            if proof_obj is None:
+                return dex_state, None
+            proof_state = proof_mining_runtime_state_from_obj(_require_mapping(proof_obj, name="app_state.proof_mining"))
+            return dex_state, proof_state
+        return state_from_snapshot(obj), None
     except Exception as exc:
         raise ValueError(f"invalid app_state snapshot: {exc}") from exc
 
@@ -244,6 +309,13 @@ def _resolve_token_operator_pubkey() -> Optional[str]:
     if not raw:
         return None
     return _canonical_pubkey(raw, name="TAU_DEX_TOKEN_OPERATOR_PUBKEY")
+
+
+def _resolve_proof_mining_pool_pubkey() -> Optional[str]:
+    raw = os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip()
+    if not raw:
+        return None
+    return _canonical_pubkey(raw, name="TAU_DEX_PROOF_MINING_POOL_PUBKEY")
 
 
 def _enforce_deadline(*, op: Mapping[str, Any], block_timestamp: int, op_name: str) -> Optional[str]:
@@ -490,6 +562,107 @@ def _select_token_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _select_proof_mining_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if _PROOF_MINING_OPS_KEY in operations:
+        out[_PROOF_MINING_OPS_KEY] = operations.get(_PROOF_MINING_OPS_KEY)
+    return out
+
+
+def _apply_proof_mining_op(
+    *,
+    state: DexState,
+    proof_mining_state: Optional[ProofMiningRuntimeState],
+    proof_mining_op: Any,
+    proof_mining_context: Any,
+    tx_sender_pubkey: str,
+    chain_balances: Mapping[str, int],
+) -> Tuple[bool, DexState, Optional[ProofMiningRuntimeState], Optional[str]]:
+    if proof_mining_op is None:
+        return True, state, proof_mining_state, None
+    if proof_mining_context is None:
+        return False, state, proof_mining_state, "proof mining claim requires verified DEX proof context"
+    if not isinstance(proof_mining_op, Mapping):
+        return False, state, proof_mining_state, "proof mining op must be an object"
+    op = dict(proof_mining_op)
+    module = str(op.get("module", "ZenoProofMining"))
+    action = str(op.get("action", "")).strip().lower()
+    if module != "ZenoProofMining":
+        return False, state, proof_mining_state, "proof mining op module must be ZenoProofMining"
+    if action != "submit_proof":
+        return False, state, proof_mining_state, "proof mining op action unsupported"
+    extra = set(op.keys()) - {"module", "version", "action", "claim", "recipient_pubkey"}
+    if extra:
+        return False, state, proof_mining_state, f"proof mining op unknown fields: {sorted(extra)}"
+    claim_artifact = op.get("claim")
+    if not isinstance(claim_artifact, Mapping):
+        return False, state, proof_mining_state, "proof mining op claim must be an object"
+    reward_pool_pubkey = _resolve_proof_mining_pool_pubkey()
+    if reward_pool_pubkey is None:
+        return False, state, proof_mining_state, "proof mining disabled (set TAU_DEX_PROOF_MINING_POOL_PUBKEY)"
+    try:
+        sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
+    except Exception as exc:
+        return False, state, proof_mining_state, str(exc)
+    recipient_raw = op.get("recipient_pubkey")
+    if recipient_raw is not None:
+        try:
+            recipient = _canonical_pubkey(recipient_raw, name="proof mining recipient_pubkey")
+        except Exception as exc:
+            return False, state, proof_mining_state, str(exc)
+        if recipient != sender:
+            return False, state, proof_mining_state, "proof mining recipient_pubkey mismatch"
+    claim_body = _require_mapping(claim_artifact.get("body"), name="proof mining claim.body")
+    winner = _require_mapping(claim_body.get("winner"), name="proof mining claim.body.winner")
+    try:
+        winner_pubkey = _canonical_pubkey(winner.get("miner_id"), name="proof mining claim winner.miner_id")
+    except Exception as exc:
+        return False, state, proof_mining_state, f"proof mining reward requires canonical winner.miner_id: {exc}"
+    if winner_pubkey != sender:
+        return False, state, proof_mining_state, "proof mining winner.miner_id mismatch"
+    claim_proposal_hash = str(claim_body.get("proposal_hash", ""))
+    if claim_proposal_hash != str(getattr(proof_mining_context, "proposal_hash", "")):
+        return False, state, proof_mining_state, "proof mining claim proposal_hash mismatch"
+    actual_pool_balance = int(chain_balances.get(reward_pool_pubkey, 0))
+    if actual_pool_balance < 0:
+        return False, state, proof_mining_state, "reward pool chain balance must be non-negative"
+    runtime_state = proof_mining_state
+    if runtime_state is None:
+        try:
+            runtime_state = initialize_proof_mining_runtime_state(
+                reward_pool_pubkey=reward_pool_pubkey,
+                reward_pool_balance=actual_pool_balance,
+                claim_artifact=claim_artifact,
+            )
+        except Exception as exc:
+            return False, state, proof_mining_state, str(exc)
+    if runtime_state.reward_pool_pubkey != reward_pool_pubkey:
+        return False, state, proof_mining_state, "proof mining reward pool pubkey mismatch"
+    try:
+        next_runtime_state, result = apply_proof_mining_claim(
+            runtime_state=runtime_state,
+            claim_artifact=claim_artifact,
+            actual_reward_pool_balance=actual_pool_balance,
+        )
+    except Exception as exc:
+        return False, state, proof_mining_state, str(exc)
+    if not result.ok or result.effects is None:
+        return False, state, proof_mining_state, result.error_message or "proof mining manager rejected"
+    reward_amount = int(result.effects.get("reward_amount", 0))
+    if reward_amount <= 0:
+        return False, state, proof_mining_state, "proof mining reward_amount invalid"
+    balances = _copy_balance_table(state.balances)
+    pool_balance = int(balances.get(reward_pool_pubkey, NATIVE_ASSET))
+    if pool_balance != actual_pool_balance:
+        return False, state, proof_mining_state, "reward pool native balance out of sync"
+    recipient_balance = int(balances.get(sender, NATIVE_ASSET))
+    if pool_balance < reward_amount:
+        return False, state, proof_mining_state, "reward pool insufficient native balance"
+    balances.set(reward_pool_pubkey, NATIVE_ASSET, pool_balance - reward_amount)
+    balances.set(sender, NATIVE_ASSET, recipient_balance + reward_amount)
+    return True, replace(state, balances=balances), next_runtime_state, None
+
+
 def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
     operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
     oracle_pubkey = os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
@@ -527,13 +700,19 @@ def apply_app_tx(
     allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
     allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)
     require_intent_sigs = _bool_env("TAU_DEX_REQUIRE_INTENT_SIGS", default=True)
+    allow_external_tools = _bool_env("TAU_DEX_ALLOW_EXTERNAL_TOOLS", default=False)
+    consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
 
     try:
-        state = _load_state(app_state_json)
+        state, proof_mining_state = _load_state(app_state_json)
     except Exception as exc:
         return False, app_state_json, "", None, str(exc)
     state = _sync_native_balances(state, chain_balances=chain_balances)
+    if proof_mining_state is not None:
+        actual_reward_pool_balance = int(chain_balances.get(proof_mining_state.reward_pool_pubkey, 0))
+        if actual_reward_pool_balance != int(proof_mining_state.snapshot.reward_pool_balance):
+            return False, app_state_json, "", None, "proof mining reward pool balance drift"
 
     faucet_op = operations.get(_DEX_FAUCET_KEY, operations.get(_LEGACY_DEX_FAUCET_KEY))
     ok, state, err = _apply_faucet(state, faucet_op, allow=allow_faucet)
@@ -543,10 +722,11 @@ def apply_app_tx(
     dex_ops = _select_dex_ops(operations)
     perp_ops = _select_perp_ops(operations)
     token_ops = _select_token_ops(operations)
+    proof_mining_ops = _select_proof_mining_ops(operations)
 
     # Sync-only call: no ops, but we still update the snapshot/hash so native balances stay consistent.
-    if not dex_ops and not perp_ops and not token_ops:
-        canonical, app_hash = _canonical_state_and_hash(state)
+    if not dex_ops and not perp_ops and not token_ops and not proof_mining_ops:
+        canonical, app_hash = _canonical_state_and_hash(state, proof_mining_state=proof_mining_state)
         return True, canonical, app_hash, None, None
 
     next_state = state
@@ -560,22 +740,46 @@ def apply_app_tx(
         if not ok:
             return False, app_state_json, "", None, token_err or "token op rejected"
 
+    try:
+        proof_verifier_config = _build_proof_verifier_config()
+    except Exception as exc:
+        return False, app_state_json, "", None, str(exc)
+
+    dex_result = None
     if dex_ops:
         engine_cfg = DexEngineConfig(
             allow_missing_settlement=bool(allow_missing_settlement),
             require_intent_signatures=bool(require_intent_sigs),
             chain_id=chain_id,
+            allow_external_tools=bool(allow_external_tools),
+            consensus_mode=bool(consensus_mode),
+            proof_config=proof_verifier_config,
         )
-        res = apply_ops(
+        dex_result = apply_ops(
             config=engine_cfg,
             state=next_state,
             operations=dex_ops,
             block_timestamp=int(block_timestamp),
             tx_sender_pubkey=tx_sender_pubkey,
         )
-        if not res.ok or res.state is None:
-            return False, app_state_json, "", None, res.error or "DEX rejected"
-        next_state = res.state
+        if not dex_result.ok or dex_result.state is None:
+            return False, app_state_json, "", None, dex_result.error or "DEX rejected"
+        next_state = dex_result.state
+
+    if proof_mining_ops:
+        if perp_ops:
+            return False, app_state_json, "", None, "proof mining claim cannot be combined with perps"
+        proof_mining_op = proof_mining_ops.get(_PROOF_MINING_OPS_KEY)
+        ok, next_state, proof_mining_state, proof_err = _apply_proof_mining_op(
+            state=next_state,
+            proof_mining_state=proof_mining_state,
+            proof_mining_op=proof_mining_op,
+            proof_mining_context=None if dex_result is None else dex_result.proof_mining_context,
+            tx_sender_pubkey=tx_sender_pubkey,
+            chain_balances=chain_balances,
+        )
+        if not ok:
+            return False, app_state_json, "", None, proof_err or "proof mining rejected"
 
     if perp_ops:
         perp_cfg = _build_perp_engine_config(chain_id=chain_id)
@@ -591,5 +795,5 @@ def apply_app_tx(
         next_state = perp_res.state
 
     balances_patch = _balances_patch_for_native(before=chain_balances, after_state=next_state)
-    canonical, app_hash = _canonical_state_and_hash(next_state)
+    canonical, app_hash = _canonical_state_and_hash(next_state, proof_mining_state=proof_mining_state)
     return True, canonical, app_hash, balances_patch, None
