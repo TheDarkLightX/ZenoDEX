@@ -1,7 +1,7 @@
 export const CONFIDENTIAL_SURFACE = {
   summary: {
     title: 'Confidential Extensions',
-    subtitle: 'TEE-first private execution, sealed-bid auctions, and fail-closed accounting rails.',
+    subtitle: 'Private execution help for large trades, fairer hidden-bid auctions, and auditable payments to strategy providers.',
     verifiedAt: '2026-03-07',
   },
   checks: [
@@ -57,9 +57,20 @@ export const CONFIDENTIAL_SURFACE = {
     },
   ],
   useCases: [
-    'Premium routing and risk scoring behind attested TEE sidecars',
-    'Batch auctions where bids stay private until the reveal window',
-    'Provider payments with replay-sensitive receipts and bounded attestation age',
+    'Large trades that would leak too much intent on the normal public path',
+    'Token sales or batch auctions where users should not expose bids early',
+    'Private RFQ and institutional flow that needs better execution quality',
+    'Strategy providers who want to monetize private routing or risk logic',
+  ],
+  notDefaultFor: [
+    'Normal retail swaps where the public path is simpler and faster',
+    'Always-on low-latency flows where extra auction coordination would hurt UX',
+    'On-chain encrypted-state use cases that need FHE rather than TEE-backed execution',
+  ],
+  userBenefits: [
+    'Reveal less of your strategy before execution',
+    'Reduce copy-trading and early bid undercutting',
+    'Use private execution logic without trusting a black-box API blindly',
   ],
   disasterCatalog: [
     {
