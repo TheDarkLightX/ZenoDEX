@@ -2,6 +2,23 @@
 
 This repo can run the Tau Testnet Alpha node locally and bind the DEX state into blocks via a **generic app bridge**.
 
+## Optional compose profile
+
+If you want a packaged local-node-first stack instead of starting the Tau node by
+hand, use:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.permissionless.yml --profile local-node up -d
+```
+
+This requires:
+
+- `external/tau-testnet` to exist in the repo checkout
+- Docker or Podman
+
+The optional `tau-local` service keeps the public path independent from a
+managed RPC vendor and reuses this repo's existing app bridge.
+
 ### 1) Install dependencies
 
 Recommended: use a venv.
