@@ -120,30 +120,32 @@ def main() -> int:
         if not hid:
             continue
         by_id[hid] = h
-        check_id = str(h.get("support_recipe", h.get("falsification_recipe", "")))
+        refute_check_id = str(h.get("falsification_recipe", h.get("support_recipe", "")))
+        support_check_id = str(h.get("support_recipe", h.get("falsification_recipe", "")))
         timeout_s = int(h.get("timeout_s", 180))
 
         hdir = results_dir / _safe_token(hid, max_len=180)
         hdir.mkdir(parents=True, exist_ok=True)
 
         started = int(time.time())
-        ref_json = hdir / f"{_safe_token(hid)}_refute_{_safe_token(check_id)}.json"
-        refute = _run_check(check_id=check_id, mode="refute", timeout_s=timeout_s, json_out=ref_json)
+        ref_json = hdir / f"{_safe_token(hid)}_refute_{_safe_token(refute_check_id)}.json"
+        refute = _run_check(check_id=refute_check_id, mode="refute", timeout_s=timeout_s, json_out=ref_json)
 
         support: dict[str, Any] | None = None
         final_status = "inconclusive"
         if (refute.get("payload") or {}).get("status") == "pass":
             final_status = "falsified"
         else:
-            sup_json = hdir / f"{_safe_token(hid)}_support_{_safe_token(check_id)}.json"
-            support = _run_check(check_id=check_id, mode="support", timeout_s=timeout_s, json_out=sup_json)
+            sup_json = hdir / f"{_safe_token(hid)}_support_{_safe_token(support_check_id)}.json"
+            support = _run_check(check_id=support_check_id, mode="support", timeout_s=timeout_s, json_out=sup_json)
             if (support.get("payload") or {}).get("status") == "pass":
                 final_status = "supported"
 
         finished = int(time.time())
         rec = {
             "hypothesis_id": hid,
-            "check": check_id,
+            "refute_check": refute_check_id,
+            "support_check": support_check_id,
             "started_at": started,
             "finished_at": finished,
             "duration_s": max(0, finished - started),
@@ -158,7 +160,8 @@ def main() -> int:
         summary_rows.append(
             {
                 "hypothesis_id": hid,
-                "check": check_id,
+                "refute_check": refute_check_id,
+                "support_check": support_check_id,
                 "final_status": final_status,
                 "duration_s": rec["duration_s"],
             }
@@ -221,4 +224,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

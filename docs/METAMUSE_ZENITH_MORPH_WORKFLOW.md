@@ -43,7 +43,11 @@ It reuses the existing supervised runner and `tools/zenodex_autonomous_checks.py
 
 ## Repo Artifacts
 
-- Lane spec and curated corpus: `tools/metamuse_split_routing_lane.py`
+- Lane specs and curated corpora:
+  - `tools/metamuse_split_routing_lane.py`
+  - `tools/metamuse_batch_ordering_lane.py`
+  - `tools/metamuse_burn_receipt_lane.py`
+  - `tools/metamuse_exact_out_lane.py`
 - Workflow runner: `tools/zenodex_metamuse_workflow.py`
 - Prompt template: `tools/metamuse/agent_prompt.md`
 - Schemas:
@@ -101,29 +105,44 @@ Input:
 }
 ```
 
-## First Lane: DGSTR Split Routing
+## Current Lanes
 
-The first integrated lane targets exact-in split routing for two CPMM pools.
+### DGSTR Split Routing
+- Targets exact-in split routing for two CPMM pools.
+- Current bounded claims:
+  - `dgstr_v1` is experimental, not the default profile.
+  - `adaptive_v7` keeps `adaptive_v6` hard-regime escalations and only routes easy manifolds to `dgstr_v1`.
+  - Promotion evidence is bounded to the curated corpus and quote-call comparison checks.
 
-Current bounded claims:
-- `dgstr_v1` is experimental, not the default profile.
-- `adaptive_v7` keeps `adaptive_v6` hard-regime escalations and only routes easy manifolds to `dgstr_v1`.
-- Promotion evidence is bounded to the curated corpus and quote-call comparison checks.
+### MCI Batch Ordering
+- Targets same-direction exact-in batch ordering.
+- Adds `mci_ab_global`, an experimental marginal-contribution insertion seed ahead of the existing global AB refinement.
+- Promotion evidence is bounded to a curated witness family checked against `optimal_ab_bounded`.
+
+### Burn Receipt Kernel
+- Targets audited buyback/burn accounting rather than routing or execution quality.
+- Adds a decomposed burn-receipt rail family: replay guard, amount guard, supply guard, and batch-sum guard.
+- Promotion evidence is bounded to curated replay/accounting cases plus Tau production traces.
+
+### Exact-Out Multihop Value
+- Targets exact-out routing research.
+- Adds a witness lane proving that 2-hop exact-out can strictly beat direct exact-out on a replayable topology.
+- Promotion evidence is bounded to dual-checked Python + Z3 witness replay, not a new runtime router.
 
 ## How To Run
 
 Dry run:
 ```bash
 python3 tools/zenodex_metamuse_workflow.py \
-  --lane split_routing_exact_in_dgstr \
-  --out-dir runs/metamuse/split_routing_exact_in_dgstr
+  --lane batch_ordering_mci_ab \
+  --out-dir runs/metamuse/batch_ordering_mci_ab
 ```
 
 With support/refute checks:
 ```bash
 python3 tools/zenodex_metamuse_workflow.py \
-  --lane split_routing_exact_in_dgstr \
-  --out-dir runs/metamuse/split_routing_exact_in_dgstr \
+  --lane burn_receipt_kernel_v1 \
+  --out-dir runs/metamuse/burn_receipt_kernel_v1 \
   --run-checks
 ```
 

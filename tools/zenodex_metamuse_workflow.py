@@ -16,7 +16,18 @@ TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-from metamuse_split_routing_lane import lane_packet
+from metamuse_batch_ordering_lane import lane_packet as batch_ordering_lane_packet
+from metamuse_burn_receipt_lane import lane_packet as burn_receipt_lane_packet
+from metamuse_exact_out_lane import lane_packet as exact_out_lane_packet
+from metamuse_split_routing_lane import lane_packet as split_routing_lane_packet
+
+
+LANE_PACKET_FACTORIES = {
+    "split_routing_exact_in_dgstr": split_routing_lane_packet,
+    "batch_ordering_mci_ab": batch_ordering_lane_packet,
+    "burn_receipt_kernel_v1": burn_receipt_lane_packet,
+    "exact_out_multihop_value": exact_out_lane_packet,
+}
 
 
 def _write_json(path: Path, obj: Any) -> None:
@@ -43,8 +54,11 @@ def _run_cmd(cmd: list[str], *, cwd: Path) -> dict[str, Any]:
     }
 
 
-def build_epoch_packet() -> dict[str, Any]:
-    lane = lane_packet()
+def build_epoch_packet(lane_id: str) -> dict[str, Any]:
+    factory = LANE_PACKET_FACTORIES.get(str(lane_id).strip())
+    if factory is None:
+        raise ValueError(f"unsupported lane: {lane_id}")
+    lane = factory()
     return {
         "schema": "zenodex/metamuse-epoch/v1",
         "generated_at_unix": int(time.time()),
@@ -77,11 +91,8 @@ def main() -> int:
     ap.add_argument("--run-checks", action="store_true")
     args = ap.parse_args()
 
-    if str(args.lane).strip() != "split_routing_exact_in_dgstr":
-        raise SystemExit(f"unsupported lane: {args.lane}")
-
     out_dir = (ROOT / args.out_dir).resolve() if not args.out_dir.is_absolute() else args.out_dir
-    packet = build_epoch_packet()
+    packet = build_epoch_packet(str(args.lane).strip())
     _write_json(out_dir / "epoch_packet.json", packet)
     _write_json(out_dir / "waypoints.json", packet["waypoints"])
     _write_json(out_dir / "stimuli.json", packet["stimuli"])

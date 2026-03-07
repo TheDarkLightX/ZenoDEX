@@ -1,0 +1,28 @@
+# Burn receipt supply guard v1.
+# i1 = do_burn (sbf)
+# i2 = burn_amount (bv[32])
+# i3 = supply_before (bv[32])
+# i4 = supply_after (bv[32])
+# o1 = supply_guard_valid
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <->
+    (
+      (i2[t]:bv[32] <= { #x00007FFF }:bv[32]) &&
+      (i3[t]:bv[32] <= { #x0000FFFF }:bv[32]) &&
+      (i4[t]:bv[32] <= { #x0000FFFF }:bv[32]) &&
+      (
+        (
+          (i1[t]:sbf = 0:sbf) &&
+          (i4[t]:bv[32] = i3[t]:bv[32])
+        ) ||
+        (
+          (i1[t]:sbf = 1:sbf) &&
+          (i3[t]:bv[32] >= i2[t]:bv[32]) &&
+          (i4[t]:bv[32] = (i3[t]:bv[32] - i2[t]:bv[32]))
+        )
+      )
+    )
+  ).

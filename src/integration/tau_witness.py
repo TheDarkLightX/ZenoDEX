@@ -406,6 +406,30 @@ TOKENOMICS_BUYBACK_BURN_V2 = TauSpecRef(
     gate_output="o1",
 )
 
+BURN_RECEIPT_REPLAY_GUARD_V1 = TauSpecRef(
+    spec_id="burn_receipt_replay_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "burn_receipt_replay_guard_v1.tau",
+    gate_output="o1",
+)
+
+BURN_RECEIPT_AMOUNT_GUARD_V1 = TauSpecRef(
+    spec_id="burn_receipt_amount_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "burn_receipt_amount_guard_v1.tau",
+    gate_output="o1",
+)
+
+BURN_RECEIPT_SUPPLY_GUARD_V1 = TauSpecRef(
+    spec_id="burn_receipt_supply_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "burn_receipt_supply_guard_v1.tau",
+    gate_output="o1",
+)
+
+BURN_RECEIPT_BATCH_SUM_GUARD_V1 = TauSpecRef(
+    spec_id="burn_receipt_batch_sum_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "burn_receipt_batch_sum_guard_v1.tau",
+    gate_output="o1",
+)
+
 PROTOCOL_TOKEN_V1 = TauSpecRef(
     spec_id="protocol_token_v1",
     path=RECOMMENDED_SPECS_DIR / "protocol_token_v1.tau",
@@ -1808,6 +1832,79 @@ def build_tokenomics_buyback_burn_v2_step(
         "i5": _sbf("buyback_triggered", buyback_triggered),
         "i6": int(burn_amount),
         "i7": int(burn_limit),
+    }
+def build_burn_receipt_replay_guard_v1_step(
+    *,
+    do_burn: int,
+    receipt_bound: int,
+    nullifier_unused: int,
+    policy_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("do_burn", do_burn),
+        "i2": _sbf("receipt_bound", receipt_bound),
+        "i3": _sbf("nullifier_unused", nullifier_unused),
+        "i4": _sbf("policy_ok", policy_ok),
+    }
+
+
+def build_burn_receipt_amount_guard_v1_step(
+    *,
+    do_burn: int,
+    burn_amount: int,
+    receipt_amount: int,
+    burn_budget: int,
+) -> Dict[str, int]:
+    for name, v in (("burn_amount", burn_amount), ("receipt_amount", receipt_amount), ("burn_budget", burn_budget)):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0x7FFF:
+            raise ValueError(f"{name} out of amount-guard safe-range (0..32767): {v!r}")
+    return {
+        "i1": _sbf("do_burn", do_burn),
+        "i2": int(burn_amount),
+        "i3": int(receipt_amount),
+        "i4": int(burn_budget),
+    }
+
+
+def build_burn_receipt_supply_guard_v1_step(
+    *,
+    do_burn: int,
+    burn_amount: int,
+    supply_before: int,
+    supply_after: int,
+) -> Dict[str, int]:
+    if not isinstance(burn_amount, int) or isinstance(burn_amount, bool) or burn_amount < 0 or burn_amount > 0x7FFF:
+        raise ValueError(f"burn_amount out of supply-guard safe-range (0..32767): {burn_amount!r}")
+    for name, v in (("supply_before", supply_before), ("supply_after", supply_after)):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0xFFFF:
+            raise ValueError(f"{name} out of supply-guard safe-range (0..65535): {v!r}")
+    return {
+        "i1": _sbf("do_burn", do_burn),
+        "i2": int(burn_amount),
+        "i3": int(supply_before),
+        "i4": int(supply_after),
+    }
+
+
+def build_burn_receipt_batch_sum_guard_v1_step(
+    *,
+    do_burn: int,
+    burn_amount: int,
+    batch_burn_sum_before: int,
+    batch_burn_sum_after: int,
+) -> Dict[str, int]:
+    for name, v in (("burn_amount", burn_amount), ("batch_burn_sum_before", batch_burn_sum_before)):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0x7FFF:
+            raise ValueError(f"{name} out of batch-sum safe-range (0..32767): {v!r}")
+    if not isinstance(batch_burn_sum_after, int) or isinstance(batch_burn_sum_after, bool) or batch_burn_sum_after < 0 or batch_burn_sum_after > 0xFFFF:
+        raise ValueError(
+            f"batch_burn_sum_after out of batch-sum safe-range (0..65535): {batch_burn_sum_after!r}"
+        )
+    return {
+        "i1": _sbf("do_burn", do_burn),
+        "i2": int(burn_amount),
+        "i3": int(batch_burn_sum_before),
+        "i4": int(batch_burn_sum_after),
     }
 
 
