@@ -1,0 +1,92 @@
+# Proof Mining Operator API
+
+This API is for operators who already have a verified DEX proof context and want to know whether a proof-mining claim is currently submit-ready.
+
+## Endpoint
+
+`POST /api/dex/proof_mining_status`
+
+The endpoint is advisory and mirrors the plugin's fail-closed checks before a `ZenoProofMining.submit_proof` operation is sent on-chain.
+
+## Request body
+
+```json
+{
+  "app_state_json": "{...}",
+  "chain_balances": {
+    "0x<reward-pool-pubkey>": 20,
+    "0x<sender-pubkey>": 123
+  },
+  "claim": {
+    "body": { "...": "proof mining claim artifact" },
+    "claim_hash": "sha256:..."
+  },
+  "tx_sender_pubkey": "0x<48-byte-pubkey>",
+  "expected_proposal_hash": "sha256:..."
+}
+```
+
+## Required environment
+
+- `TAU_DEX_PROOF_MINING_POOL_PUBKEY`
+
+Without that env var, the endpoint returns `enabled=false` and `claimable=false`.
+
+## Response shape
+
+```json
+{
+  "ok": true,
+  "status": {
+    "enabled": true,
+    "claimable": true,
+    "error": null,
+    "reward_pool_pubkey": "0x...",
+    "proposal_hash": "sha256:...",
+    "reward_amount": 4,
+    "reward_pool_before": 20,
+    "reward_pool_after": 16,
+    "checks": {
+      "reward_pool_configured": true,
+      "sender_valid": true,
+      "claim_valid": true,
+      "winner_matches_sender": true,
+      "proposal_hash_matches_context": true,
+      "reward_pool_balance_non_negative": true,
+      "runtime_state_present": false,
+      "reward_pool_pubkey_matches_state": false,
+      "reward_pool_balance_matches_state": false,
+      "runtime_apply_ok": true
+    }
+  }
+}
+```
+
+If the endpoint can parse the request but the claim should not be submitted, it still returns `200` with `claimable=false` and a concrete `error` string.
+
+Malformed requests return `400`.
+
+## What it checks
+
+The endpoint mirrors the runtime path in `src/integration/tau_testnet_dex_plugin.py`:
+
+- reward-pool env is configured
+- sender pubkey is canonical
+- claim artifact passes validation
+- `winner.miner_id` matches `tx_sender_pubkey`
+- `claim.proposal_hash` matches `expected_proposal_hash`
+- reward-pool chain balance is non-negative
+- wrapped proof-mining runtime state, if present, matches the configured reward pool
+- wrapped proof-mining runtime state, if present, matches the live reward-pool balance
+- the bounded proof-mining manager still accepts the claim
+
+## Intended use
+
+Use this before building the final operation bundle:
+
+1. run the DEX proof-verification path off-chain and get `proposal_hash`
+2. build the proof-mining claim artifact
+3. call `/api/dex/proof_mining_status`
+4. only submit `ZenoProofMining.submit_proof` if `claimable=true`
+
+This is not a replacement for the on-chain/plugin checks. It is a preflight surface so operators can fail early and avoid sending obviously bad claims.
