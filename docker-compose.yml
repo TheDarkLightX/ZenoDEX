@@ -20,7 +20,8 @@ services:
       # Expose UI only by default. Keep API internal unless explicitly enabled.
       - "${UI_PORT:-3000}:8080" # UI served via nginx (unprivileged port)
     environment:
-      - TAU_NET_RPC=${TAU_NET_RPC:-https://alpha-rpc.tau.net}
+      # Local-first: leave empty unless you intentionally want a remote Tau RPC.
+      - TAU_NET_RPC=${TAU_NET_RPC:-}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       # Default-deny CORS; operators must set explicit origins (comma-separated).
       - CORS_ORIGINS=${CORS_ORIGINS:-}

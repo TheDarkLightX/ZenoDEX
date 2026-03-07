@@ -37,9 +37,44 @@ Open `http://127.0.0.1:5173`.
 ## Environment
 
 - `VITE_DEMO_MODE=true|false`: demo mode uses mock data and does not call the API.
+- `VITE_BASE_PATH=/`: optional Vite base path. Use `./` for IPFS / subpath-hosted static builds.
 - `API_PROXY_TARGET=http://127.0.0.1:8000`: Vite dev-server proxy target for `/api/*` requests (keeps requests same-origin in the browser).
 - `VITE_API_BASE=http://127.0.0.1:8000`: optional base URL for API requests (use for non-proxied setups / production; empty = same-origin).
 - `VITE_API_TOKEN=<token>`: optional bearer token. If `DEMO_API_TOKEN` is set on the API server, set `VITE_API_TOKEN` to the same value.
+
+## Runtime Config
+
+Static deployments can override frontend behavior without rebuilding by editing:
+
+- `public/zenodex-config.json`
+
+Supported runtime keys:
+
+- `apiBase`
+- `demoMode`
+
+This is useful for IPFS/static hosting where one bundle may be reused against
+different operator APIs.
+
+## IPFS / Static Hosting
+
+For an IPFS-ready bundle with relative asset paths:
+
+```bash
+bash ../publish_ui_ipfs.sh
+```
+
+Optionally set:
+
+```bash
+VITE_API_BASE=https://operator.example bash ../publish_ui_ipfs.sh
+```
+
+The publisher also writes:
+
+- `generated/ipfs_ui/release_manifest.json`
+
+so operators can mirror or audit the exact static artifact they are serving.
 
 ## Security Notes (Dev API)
 
