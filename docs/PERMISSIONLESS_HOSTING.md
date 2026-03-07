@@ -220,6 +220,7 @@ Current honest posture:
 
 Operator preflight for the runtime reward path is exposed via `POST /api/dex/proof_mining_status`.
 See `docs/PROOF_MINING_OPERATOR_API.md` for the request/response contract and the exact checks mirrored from the Tau plugin.
+A shell wrapper is also available: `python3 tools/permissionless_proof_mining_status.py ...` for local or HTTP-backed preflight.
 
 ## Production posture
 
