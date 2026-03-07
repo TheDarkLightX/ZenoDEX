@@ -243,3 +243,49 @@ def test_round_ledger_verify_detects_pool_continuity_gap(tmp_path: Path) -> None
     ok, msg = verify_ledger_rows(rows)
     assert ok is False
     assert "reward pool continuity mismatch" in msg
+
+
+def test_round_ledger_verify_detects_duplicate_proposal_hash(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "ledger.jsonl"
+    claim_1 = build_proof_mining_claim(
+        round_obj=_round_obj(round_id="r1", miner_id="alice", witness_sha256="sha:a", improvement_u64=7, job_digest="job1"),
+        round_id="r1",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+    )
+    claim_2 = build_proof_mining_claim(
+        round_obj=_round_obj(round_id="r2", miner_id="bob", witness_sha256="sha:a", improvement_u64=9, job_digest="job2"),
+        round_id="r2",
+        reward_pool_before=16,
+        base_reward=8,
+        epoch=2,
+        proposal_slot=1,
+        prover_id=1,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+    )
+    r1 = build_round_ledger_record(
+        round_obj=_round_obj(round_id="r1", miner_id="alice", witness_sha256="sha:a", improvement_u64=7, job_digest="job1"),
+        reward_artifact=claim_1,
+        prev_record_hash="",
+    )
+    append_round_record(ledger_path=ledger_path, record=r1)
+    r2 = build_round_ledger_record(
+        round_obj=_round_obj(round_id="r2", miner_id="bob", witness_sha256="sha:a", improvement_u64=9, job_digest="job2"),
+        reward_artifact=claim_2,
+        prev_record_hash=r1["record_hash"],
+    )
+    append_round_record(ledger_path=ledger_path, record=r2)
+    rows = [json.loads(line) for line in ledger_path.read_text(encoding="utf-8").splitlines()]
+    ok, msg = verify_ledger_rows(rows)
+    assert ok is False
+    assert "duplicate proposal_hash" in msg

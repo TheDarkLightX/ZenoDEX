@@ -9,6 +9,8 @@ import pytest
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from tools.permissionless_solver_proof_mining_claim import (
     build_proof_mining_claim,
+    explicit_proposal_hash,
+    fallback_proposal_hash,
     proof_mining_claim_hash,
     validate_proof_mining_claim_artifact,
     schedule_reward_amount,
@@ -75,6 +77,11 @@ def test_build_proof_mining_claim_matches_tau_gate_inputs() -> None:
     assert body["budget"]["reward_pool_after"] == 16
     assert body["bounded_model"]["reward_amount"] == 4
     assert body["conditions"]["tau_gate_expected_ok"] is True
+    assert body["proposal_hash"] == fallback_proposal_hash(
+        round_id="round-proof-1",
+        job_digest="job1",
+        witness_hash="sha:a",
+    )
     assert claim["claim_hash"]
 
     tau_bin = find_tau_bin()
@@ -149,6 +156,45 @@ def test_validate_proof_mining_claim_rejects_reward_schedule_mismatch() -> None:
     claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
     with pytest.raises(ValueError, match="reward schedule mismatch"):
         validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
+def test_build_proof_mining_claim_supports_explicit_proposal_binding() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=9),
+        round_id="round-proof-6",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+    )
+    body = claim["body"]
+    assert body["proposal_binding"]["mode"] == "explicit_v1"
+    assert body["proposal_hash"] == explicit_proposal_hash(
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        witness_hash="sha:a",
+        dex_hash_after="sha256:after",
+    )
+
+
+def test_build_proof_mining_claim_rejects_partial_explicit_binding() -> None:
+    with pytest.raises(ValueError, match="explicit proposal binding requires"):
+        build_proof_mining_claim(
+            round_obj=_round_obj(improvement_u64=9),
+            round_id="round-proof-7",
+            reward_pool_before=20,
+            base_reward=8,
+            epoch=1,
+            proposal_slot=0,
+            prover_id=0,
+            chain_id="tau-testnet-alpha",
+        )
 
 
 def test_claim_cli_emits_output(tmp_path: Path) -> None:
