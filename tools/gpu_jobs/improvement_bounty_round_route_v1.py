@@ -38,6 +38,7 @@ from tools.proof_verifiers.route_improvement_v1 import verify_route_improvement_
 
 U64_MAX = 0xFFFFFFFFFFFFFFFF
 U32_MAX = 0xFFFFFFFF
+BPS_DENOM = 10_000
 
 
 def _sha256_file(path: Path) -> str:
@@ -251,6 +252,91 @@ def _emit_argmax_stream_cert(
     }
 
 
+def _compute_payout_amount(
+    *,
+    improvement_u64: int,
+    reward_pool_before: int,
+    base_reward: int,
+    improvement_reward_bps: int,
+    max_reward: int,
+) -> int:
+    for value, name in (
+        (improvement_u64, "improvement_u64"),
+        (reward_pool_before, "reward_pool_before"),
+        (base_reward, "base_reward"),
+        (improvement_reward_bps, "improvement_reward_bps"),
+        (max_reward, "max_reward"),
+    ):
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise TypeError(f"{name} must be an int")
+        if value < 0:
+            raise ValueError(f"{name} must be non-negative")
+    if improvement_reward_bps > BPS_DENOM:
+        raise ValueError("improvement_reward_bps out of range")
+    if max_reward < base_reward:
+        raise ValueError("max_reward must be >= base_reward")
+    if improvement_u64 <= 0 or reward_pool_before <= 0:
+        return 0
+
+    variable_reward = (int(improvement_u64) * int(improvement_reward_bps)) // int(BPS_DENOM)
+    reward = int(base_reward) + int(variable_reward)
+    if reward > int(max_reward):
+        reward = int(max_reward)
+    if reward > int(reward_pool_before):
+        reward = int(reward_pool_before)
+    return int(reward)
+
+
+def _build_payout_plan(
+    *,
+    round_obj: Mapping[str, Any],
+    round_id: str,
+    reward_pool_before: int,
+    base_reward: int,
+    improvement_reward_bps: int,
+    max_reward: int,
+) -> Dict[str, Any]:
+    if not isinstance(round_id, str) or not round_id:
+        raise ValueError("round_id must be non-empty")
+    if not bool(round_obj.get("ok")):
+        raise ValueError("round must be ok")
+
+    winner = _require_mapping(round_obj.get("winner"), name="winner")
+    improvement_u64 = _require_int(winner.get("improvement_u64"), name="winner.improvement_u64")
+    payout_amount = _compute_payout_amount(
+        improvement_u64=improvement_u64,
+        reward_pool_before=int(reward_pool_before),
+        base_reward=int(base_reward),
+        improvement_reward_bps=int(improvement_reward_bps),
+        max_reward=int(max_reward),
+    )
+    payout_body = {
+        "schema": "zenodex/permissionless_solver_payout_plan/v1",
+        "round_id": str(round_id),
+        "job_digest": str(round_obj.get("job_digest") or ""),
+        "winner": {
+            "miner_id": _require_str(winner.get("miner_id"), name="winner.miner_id"),
+            "witness_sha256": _require_str(winner.get("witness_sha256"), name="winner.witness_sha256"),
+            "improvement_u64": int(improvement_u64),
+            "payout_amount": int(payout_amount),
+        },
+        "budget": {
+            "reward_pool_before": int(reward_pool_before),
+            "reward_pool_after": int(int(reward_pool_before) - int(payout_amount)),
+            "base_reward": int(base_reward),
+            "improvement_reward_bps": int(improvement_reward_bps),
+            "max_reward": int(max_reward),
+        },
+        "conditions": {
+            "round_ok": True,
+            "positive_improvement": bool(improvement_u64 > 0),
+            "winner_only": True,
+        },
+    }
+    payout_hash = sha256_hex(domain_sep_bytes("permissionless_solver_payout_plan", version=1) + canonical_json_bytes(payout_body))
+    return {"body": payout_body, "plan_hash": payout_hash}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -261,6 +347,12 @@ def main() -> None:
     )
     ap.add_argument("--output", required=True, help="Path to write round result JSON.")
     ap.add_argument("--emit-argmax-steps", default="", help="Optional path to write argmax-stream certificate JSON.")
+    ap.add_argument("--emit-payout-plan", default="", help="Optional path to write solver payout plan JSON.")
+    ap.add_argument("--round-id", default="", help="Required when --emit-payout-plan is used.")
+    ap.add_argument("--reward-pool-before", type=int, default=0, help="Available reward budget before payout planning.")
+    ap.add_argument("--base-reward", type=int, default=0, help="Fixed winner reward component.")
+    ap.add_argument("--improvement-reward-bps", type=int, default=0, help="Variable winner reward component per improvement unit, scaled by 1e4.")
+    ap.add_argument("--max-reward", type=int, default=0, help="Hard cap on winner reward.")
     ap.add_argument(
         "--require-positive-improvement",
         action="store_true",
@@ -352,6 +444,17 @@ def main() -> None:
         "argmax_certificate": cert_obj or None,
     }
     Path(args.output).write_text(json.dumps(out_obj, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    if str(args.emit_payout_plan).strip():
+        payout_plan = _build_payout_plan(
+            round_obj=out_obj,
+            round_id=str(args.round_id),
+            reward_pool_before=int(args.reward_pool_before),
+            base_reward=int(args.base_reward),
+            improvement_reward_bps=int(args.improvement_reward_bps),
+            max_reward=int(args.max_reward),
+        )
+        Path(str(args.emit_payout_plan)).write_text(json.dumps(payout_plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
