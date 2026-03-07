@@ -1,0 +1,148 @@
+# [FORGE] Confidential Extension TEE Gate v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "confidential_extension_tee_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    TEE-first metering kernel for closed-source extensions.
+
+    Scope:
+      - Checks local accounting and freshness conditions for a confidential extension call.
+      - Models enclave approval as a bounded measurement id equality against an approved allowlist entry.
+      - Does not model attestation signature verification; that remains an external pre-check.
+
+    Why this kernel exists:
+      - Lets the DEX treat closed-source extensions as metered, replay-sensitive advisory services.
+      - Keeps consensus-critical logic fail-closed while letting secret code live in an enclave.
+
+observables:
+  state_vars: ["current_epoch", "approved_measurement_id", "user_credit", "provider_payout", "total_credit_const"]
+  effects: ["event", "accepted", "fee_charged", "measurement_id_out"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["EpochAdvanced", "ExtensionExecuted"]
+
+state_vars:
+  - id: "current_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "approved_measurement_id"
+    role: "control"
+    type: { kind: "int", min: 0, max: 15 }
+  - id: "user_credit"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "provider_payout"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "total_credit_const"
+    role: "data"
+    type: { kind: "int", min: 0, max: 510 }
+
+invariants:
+  - id: "inv_credit_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args: [{ var: "user_credit" }, { var: "provider_payout" }]
+        - { var: "total_credit_const" }
+
+  - id: "inv_epoch_bounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "current_epoch" }, { const: 255 }]
+
+init:
+  - var: "current_epoch"
+    expr: { const: 0 }
+  - var: "approved_measurement_id"
+    expr: { const: 1 }
+  - var: "user_credit"
+    expr: { const: 40 }
+  - var: "provider_payout"
+    expr: { const: 9 }
+  - var: "total_credit_const"
+    expr: { const: 49 }
+
+actions:
+  - id: "advance_epoch"
+    params:
+      - id: "delta"
+        type: { kind: "int", min: 1, max: 15 }
+    guard:
+      op: "<="
+      args:
+        - op: "+"
+          args: [{ var: "current_epoch" }, { param: "delta" }]
+        - { const: 255 }
+    updates:
+      - var: "current_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "current_epoch" }, { param: "delta" }]
+    effects:
+      event: { enum: "EpochAdvanced" }
+      accepted: { bool: false }
+      fee_charged: { const: 0 }
+      measurement_id_out: { var: "approved_measurement_id" }
+
+  - id: "consume_attested_extension"
+    params:
+      - id: "measurement_id"
+        type: { kind: "int", min: 0, max: 15 }
+      - id: "attestation_epoch"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "max_attestation_age"
+        type: { kind: "int", min: 0, max: 15 }
+      - id: "fee_charged"
+        type: { kind: "int", min: 1, max: 63 }
+      - id: "receipt_fee"
+        type: { kind: "int", min: 1, max: 63 }
+      - id: "policy_ok"
+        type: { kind: "bool" }
+      - id: "nonce_unused"
+        type: { kind: "bool" }
+      - id: "output_bound_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "measurement_id" }, { var: "approved_measurement_id" }] }
+        - { op: "=", args: [{ param: "policy_ok" }, { bool: true }] }
+        - { op: "=", args: [{ param: "nonce_unused" }, { bool: true }] }
+        - { op: "=", args: [{ param: "output_bound_ok" }, { bool: true }] }
+        - { op: ">=", args: [{ var: "current_epoch" }, { param: "attestation_epoch" }] }
+        - { op: "<=",
+            args: [
+              { op: "-", args: [{ var: "current_epoch" }, { param: "attestation_epoch" }] },
+              { param: "max_attestation_age" }
+            ]
+          }
+        - { op: "=", args: [{ param: "fee_charged" }, { param: "receipt_fee" }] }
+        - { op: ">=", args: [{ var: "user_credit" }, { param: "fee_charged" }] }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "provider_payout" }, { param: "fee_charged" }] },
+              { const: 255 }
+            ]
+          }
+    updates:
+      - var: "user_credit"
+        expr:
+          op: "-"
+          args: [{ var: "user_credit" }, { param: "fee_charged" }]
+      - var: "provider_payout"
+        expr:
+          op: "+"
+          args: [{ var: "provider_payout" }, { param: "fee_charged" }]
+    effects:
+      event: { enum: "ExtensionExecuted" }
+      accepted: { bool: true }
+      fee_charged: { param: "fee_charged" }
+      measurement_id_out: { param: "measurement_id" }
