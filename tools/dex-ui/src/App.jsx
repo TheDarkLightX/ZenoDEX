@@ -25,7 +25,8 @@ function App() {
   const { upsertTransaction } = useTransactionCenter();
 
   return (
-    <div className="app-container">
+    <DemoModeProvider>
+      <div className="app-container">
       {/* Header */}
       <header className="header">
         <div className="logo">
@@ -75,11 +76,9 @@ function App() {
 
         {activeTab === 'perps' && (
           <div className="animate-fade-in">
-            <DemoModeProvider>
-              <PerpProvider wallet={wallet} onTransaction={upsertTransaction}>
-                <PerpTradingView wallet={wallet} />
-              </PerpProvider>
-            </DemoModeProvider>
+            <PerpProvider wallet={wallet} onTransaction={upsertTransaction}>
+              <PerpTradingView wallet={wallet} />
+            </PerpProvider>
           </div>
         )}
 
@@ -102,7 +101,8 @@ function App() {
       </footer>
 
       <TransactionDrawer />
-    </div>
+      </div>
+    </DemoModeProvider>
   );
 }
 

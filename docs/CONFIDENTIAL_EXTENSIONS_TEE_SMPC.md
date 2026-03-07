@@ -9,6 +9,8 @@ Reason:
 - It fits low-latency advisory services such as premium routing, private quoting, and confidential risk scoring.
 - It lets us meter usage and pay providers without exposing extension code.
 
+For a plain-language explanation of who this is for and when to use it, see `docs/CONFIDENTIAL_FEATURES_USE_CASES.md`.
+
 ## What the TEE surface should do
 
 A confidential extension should be treated as an attested advisory sidecar.

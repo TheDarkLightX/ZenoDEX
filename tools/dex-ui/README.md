@@ -1,6 +1,13 @@
 # ZenoDEX UI (React + Vite)
 
-Frontend for ZenoDEX: Swap, Pools, and Perpetuals screens.
+Frontend for ZenoDEX: Swap, Pools, Perpetuals, and a Confidential tab for the TEE / sealed-bid feature surface.
+
+The Confidential tab is not just a status page. It explains:
+- who the feature is for,
+- why a user would choose it,
+- when the normal public path is better,
+- which formal checks back the current experiment.
+- and, in live mode, the current beta posture from `GET /api/confidential/status`.
 
 ## Dev Server
 

@@ -925,6 +925,15 @@ class _Handler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/confidential/status":
+            status = getattr(self.server, "confidential_feature_status", None)  # type: ignore[attr-defined]
+            if not isinstance(status, dict):
+                from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
+
+                status = load_confidential_feature_status_from_env().to_public_dict()
+            self._write_json(200, {"ok": True, "status": status}, cors_origin=cors_origin)
+            return
+
         # Demo/dev routes (gated by env vars in main()).
         if self._maybe_handle_perps_api(method="GET", path=path, cors_origin=cors_origin, raw_body=None):
             return
@@ -985,6 +994,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     zusd_enabled = _env_str("ZUSD_API_ENABLED", "false").lower() in ("1", "true", "yes")
     dex_enabled = _env_str("DEX_API_ENABLED", "false").lower() in ("1", "true", "yes")
     demo_api_token = _env_str("DEMO_API_TOKEN", "")
+    from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
+    confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
 
     if (perps_enabled or zusd_enabled or dex_enabled) and (not demo_api_token) and (not _is_loopback_host(host)):
         print(
@@ -1001,11 +1012,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     httpd.zusd_api_enabled = zusd_enabled  # type: ignore[attr-defined]
     httpd.dex_api_enabled = dex_enabled  # type: ignore[attr-defined]
     httpd.demo_api_token = demo_api_token  # type: ignore[attr-defined]
+    httpd.confidential_feature_status = confidential_feature_status  # type: ignore[attr-defined]
 
     print(
         f"zenodex-api listening on http://{host}:{port} "
         f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
-        f"perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled}, demo_api_token_set={bool(demo_api_token)})"
+        f"perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled}, "
+        f"confidential_stage={confidential_feature_status.get('stage')}, demo_api_token_set={bool(demo_api_token)})"
     )
     httpd.serve_forever(poll_interval=0.25)
     return 0
