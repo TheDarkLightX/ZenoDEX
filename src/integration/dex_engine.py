@@ -39,6 +39,7 @@ from .operations import (
     parse_settlement_envelope,
     parse_signed_intents,
 )
+from .proof_mining_context import ProofMiningContext, build_proof_mining_context
 from .proof_verifier import MisconfiguredProofVerifier, ProofVerifier, ProofVerifierConfig, make_proof_verifier
 from .tau_gate import TauGateConfig
 from .validation import validate_operations
@@ -172,6 +173,7 @@ class DexTxResult:
     state: Optional[DexState] = None
     settlement: Optional[Settlement] = None
     error: Optional[str] = None
+    proof_mining_context: Optional[ProofMiningContext] = None
 
 
 def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional[int] = None) -> bytes:
@@ -695,6 +697,19 @@ def apply_ops(
             fee_accumulator=next_fee_state,
             perps=state.perps,
         )
-        return DexTxResult(ok=True, state=next_state, settlement=settlement)
+        proof_mining_context: Optional[ProofMiningContext] = None
+        if proof is not None and verifier_enforcing:
+            try:
+                proof_mining_context = build_proof_mining_context(
+                    chain_id=config.chain_id,
+                    prev_state_hash=pre_state_commitment,
+                    batch_hash=batch_commitment,
+                    proof=proof,
+                    next_state=next_state,
+                    proof_scheme=proof_scheme,
+                )
+            except Exception as exc:
+                return DexTxResult(ok=False, error=f"invalid proof mining context: {exc}")
+        return DexTxResult(ok=True, state=next_state, settlement=settlement, proof_mining_context=proof_mining_context)
     except Exception:
         return DexTxResult(ok=False, error="internal error")

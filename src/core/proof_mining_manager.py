@@ -10,7 +10,7 @@ import yaml
 from ESSO.ir.schema import CandidateIR
 from ESSO.kernel.runner import Command, prepare_step_context, step_ctx
 
-from tools.permissionless_solver_proof_mining_claim import validate_proof_mining_claim_artifact
+from .proof_mining_claims import validate_proof_mining_claim_artifact
 
 
 _PROOF_MINING_MANAGER_MODEL = Path(__file__).resolve().parents[1].joinpath("kernels", "dex", "proof_mining_manager_v1.yaml")
