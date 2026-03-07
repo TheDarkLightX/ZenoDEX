@@ -1,0 +1,121 @@
+# [FORGE] Burn Receipt Accounting v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "burn_receipt_accounting_v1"
+  created_by: "zenodex"
+  notes: |
+    Decomposed burn-accounting kernel for public buyback/burn receipts.
+
+    Scope:
+      - Applies one receipt-backed burn at a time.
+      - Checks receipt amount binding, policy flags, remaining budget, and supply conservation.
+      - Models a public batch burn accumulator for cheap audit recomputation.
+
+observables:
+  state_vars: ["supply", "batch_burn_sum", "remaining_burn_budget", "total_supply_const"]
+  effects: ["event", "burn_valid", "burn_amount"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols: ["NoBurn", "BurnApplied"]
+
+state_vars:
+  - id: "supply"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "batch_burn_sum"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "remaining_burn_budget"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "total_supply_const"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+
+invariants:
+  - id: "inv_supply_plus_batch_sum_conserved"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args: [{ var: "supply" }, { var: "batch_burn_sum" }]
+        - { var: "total_supply_const" }
+
+  - id: "inv_budget_bounded"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "remaining_burn_budget" }, { var: "total_supply_const" }]
+
+init:
+  - var: "supply"
+    expr: { const: 100 }
+  - var: "batch_burn_sum"
+    expr: { const: 0 }
+  - var: "remaining_burn_budget"
+    expr: { const: 30 }
+  - var: "total_supply_const"
+    expr: { const: 100 }
+
+actions:
+  - id: "no_burn_receipt"
+    params:
+      - id: "receipt_amount"
+        type: { kind: "int", min: 0, max: 0 }
+    guard:
+      op: "="
+      args: [{ param: "receipt_amount" }, { const: 0 }]
+    updates: []
+    effects:
+      event: { enum: "NoBurn" }
+      burn_valid: { bool: true }
+      burn_amount: { const: 0 }
+
+  - id: "burn_with_receipt"
+    params:
+      - id: "burn_amount"
+        type: { kind: "int", min: 1, max: 63 }
+      - id: "receipt_amount"
+        type: { kind: "int", min: 1, max: 63 }
+      - id: "receipt_bound"
+        type: { kind: "bool" }
+      - id: "nullifier_unused"
+        type: { kind: "bool" }
+      - id: "policy_ok"
+        type: { kind: "bool" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "receipt_bound" }, { bool: true }] }
+        - { op: "=", args: [{ param: "nullifier_unused" }, { bool: true }] }
+        - { op: "=", args: [{ param: "policy_ok" }, { bool: true }] }
+        - { op: "=", args: [{ param: "burn_amount" }, { param: "receipt_amount" }] }
+        - { op: ">=", args: [{ var: "remaining_burn_budget" }, { param: "burn_amount" }] }
+        - { op: ">=", args: [{ var: "supply" }, { param: "burn_amount" }] }
+        - { op: "<=",
+            args: [
+              { op: "+", args: [{ var: "batch_burn_sum" }, { param: "burn_amount" }] },
+              { var: "total_supply_const" }
+            ]
+          }
+    updates:
+      - var: "supply"
+        expr:
+          op: "-"
+          args: [{ var: "supply" }, { param: "burn_amount" }]
+      - var: "batch_burn_sum"
+        expr:
+          op: "+"
+          args: [{ var: "batch_burn_sum" }, { param: "burn_amount" }]
+      - var: "remaining_burn_budget"
+        expr:
+          op: "-"
+          args: [{ var: "remaining_burn_budget" }, { param: "burn_amount" }]
+    effects:
+      event: { enum: "BurnApplied" }
+      burn_valid: { bool: true }
+      burn_amount: { param: "burn_amount" }
