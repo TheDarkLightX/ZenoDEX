@@ -229,6 +229,30 @@ Then review the full tier rationale in `src/tau_specs/RISK_TIERS.md`, and explor
 - `tests/`: test scripts and spec checks
 - `external/`: Tau dependencies (git-ignored)
 
+## Confidential Extensions and Sealed-Bid Auctions
+- **TEE-first confidential extensions**: attested sidecars can meter private routing / risk logic without exposing source code.
+  - Runtime receipts: `src/core/confidential_extension_receipts.py`
+  - Attestation bridge: `src/integration/confidential_attestation.py`
+  - ESSO gate: `src/kernels/dex/confidential_extension_tee_gate_v1.yaml`
+- **Sealed-bid private-state lane**: bounded commit/reveal auction with deterministic uniform-price settlement.
+  - Experiment core: `src/core/sealed_bid_auction.py`
+  - ESSO gate: `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
+  - MetaMuse lane: `tools/metamuse_sealed_bid_lane.py`
+- **Non-reveal bond kernel**: closes the free-griefing path for non-reveal bidders.
+  - Accounting core: `src/core/sealed_bid_bonds.py`
+  - ESSO gate: `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
+  - MetaMuse lane: `tools/metamuse_sealed_bid_bond_lane.py`
+- **Disaster-state catalog**: explicit terminal hazards and their discharge actions.
+  - Catalog doc: `docs/SEALED_BID_DISASTER_STATE_CATALOG.md`
+  - Replay tool: `python3 tools/sealed_bid_disaster_catalog.py`
+
+Useful commands:
+```bash
+python3 tools/sealed_bid_disaster_catalog.py
+python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_private_state_v1 --out-dir runs/metamuse/sealed_bid_private_state_v1 --run-checks
+python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_non_reveal_bond_v1 --out-dir runs/metamuse/sealed_bid_non_reveal_bond_v1 --run-checks
+```
+
 ## Experimental Curves (Research)
 ZenoDex is designed to support multiple **integer-auditable AMM curves** (CFMM invariants). The production path is CPMM;
 other curves live behind “research / not-default” status until they have strong evidence (tests + specs + proofs).
