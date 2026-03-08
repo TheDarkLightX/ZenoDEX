@@ -995,7 +995,7 @@ class _Handler(BaseHTTPRequestHandler):
         path = (self.path or "").split("?", 1)[0]
 
         raw_body = None
-        if path.startswith("/api/perps/") or path.startswith("/api/zusd/"):
+        if path.startswith("/api/perps/") or path.startswith("/api/zusd/") or path.startswith("/api/dex/"):
             ctype = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
             if ctype and ctype != "application/json":
                 self._write_json(415, {"ok": False, "error": "unsupported_media_type"}, cors_origin=cors_origin)
