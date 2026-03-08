@@ -24,6 +24,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKIP_DOCKER=0
 SKIP_UI=0
 IMAGE_TAG="${IMAGE_TAG:-zenodex:local}"
+KERNEL_JSON=""
+UI_AUDIT_JSON=""
+UI_AUDIT_LOG=""
+TRIVY_JSON=""
+
+cleanup() {
+  rm -f "$KERNEL_JSON" "$UI_AUDIT_JSON" "$UI_AUDIT_LOG" "$TRIVY_JSON"
+}
+trap cleanup EXIT
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -52,18 +61,67 @@ echo "[gate] installing python requirements"
 python -m pip install --upgrade --quiet pip
 pip install --quiet -r requirements.txt
 
+KERNEL_JSON="$(mktemp)"
+echo "[gate] running kernel assurance (manifest-backed)"
+python tools/dex_kernel_assurance.py --pretty >"$KERNEL_JSON"
+python - "$KERNEL_JSON" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+assert data.get("ok") is True, data
+print("[gate] kernel assurance OK")
+PY
+
 echo "[gate] running pytest"
 pytest -q
 
-echo "[gate] running kernel assurance (manifest-backed)"
-python tools/dex_kernel_assurance.py --pretty >/tmp/zenodex_kernel_assurance.json
-python -c "import json; d=json.load(open('/tmp/zenodex_kernel_assurance.json')); assert d.get('ok') is True, d"
-echo "[gate] kernel assurance OK"
-
 if [[ "$SKIP_UI" -eq 0 ]]; then
   if [[ -d tools/dex-ui ]]; then
+    UI_AUDIT_JSON="$(mktemp)"
+    UI_AUDIT_LOG="$(mktemp)"
     echo "[gate] running npm audit (UI)"
-    (cd tools/dex-ui && npm audit --json | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const j=JSON.parse(d);const m=j.metadata?.vulnerabilities||{};const bad=(m.high||0)+(m.critical||0); if(bad>0){console.error(j); process.exit(1);} console.log('[gate] npm audit OK');});")
+    (
+      cd tools/dex-ui
+      npm audit --json >"$UI_AUDIT_JSON" 2>"$UI_AUDIT_LOG" || true
+      node - "$UI_AUDIT_JSON" "$UI_AUDIT_LOG" <<'NODE'
+const fs = require('fs');
+
+const jsonPath = process.argv[2];
+const logPath = process.argv[3];
+const raw = fs.readFileSync(jsonPath, 'utf8').trim();
+const stderr = fs.readFileSync(logPath, 'utf8').trim();
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
+}
+
+if (!raw) {
+  fail(`[gate] npm audit produced no JSON output${stderr ? `\n${stderr}` : ''}`);
+}
+
+let data;
+try {
+  data = JSON.parse(raw);
+} catch (err) {
+  fail(`[gate] npm audit emitted invalid JSON: ${err.message}${stderr ? `\n${stderr}` : ''}`);
+}
+
+if (data.error) {
+  fail(`[gate] npm audit failed: ${JSON.stringify(data.error, null, 2)}`);
+}
+
+const meta = (data.metadata && data.metadata.vulnerabilities) || {};
+const bad = Number(meta.high || 0) + Number(meta.critical || 0);
+if (bad > 0) {
+  fail(JSON.stringify(data, null, 2));
+}
+
+console.log('[gate] npm audit OK');
+NODE
+    )
   else
     echo "[gate] tools/dex-ui not present; skipping UI audit"
   fi
@@ -77,23 +135,49 @@ if [[ "$SKIP_DOCKER" -eq 0 ]]; then
 
   TRIVY_DIR="tools/_secbin"
   TRIVY_BIN="$TRIVY_DIR/trivy"
+  TRIVY_VERSION="0.69.3"
+  TRIVY_SHA256="1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
+  TRIVY_TARBALL="$TRIVY_DIR/trivy.tar.gz"
   mkdir -p "$TRIVY_DIR"
 
-  if [[ ! -x "$TRIVY_BIN" ]]; then
-    echo "[gate] trivy not found; downloading"
-    # Pin to a known-good release for determinism.
-    TRIVY_VERSION="0.68.2"
-    curl -fsSL -o "$TRIVY_DIR/trivy.tar.gz" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-    tar -xzf "$TRIVY_DIR/trivy.tar.gz" -C "$TRIVY_DIR" trivy
-    rm -f "$TRIVY_DIR/trivy.tar.gz"
+  NEED_TRIVY_DOWNLOAD=1
+  if [[ -x "$TRIVY_BIN" ]]; then
+    CURRENT_TRIVY_VERSION="$("$TRIVY_BIN" --version 2>/dev/null | awk '/^Version:/ {print $2; exit}')"
+    if [[ "$CURRENT_TRIVY_VERSION" == "$TRIVY_VERSION" ]]; then
+      NEED_TRIVY_DOWNLOAD=0
+    else
+      echo "[gate] refreshing trivy: have ${CURRENT_TRIVY_VERSION:-unknown}, need $TRIVY_VERSION"
+      rm -f "$TRIVY_BIN"
+    fi
   fi
 
+  if [[ "$NEED_TRIVY_DOWNLOAD" -eq 1 ]]; then
+    echo "[gate] trivy not found at pinned version; downloading"
+    curl -fsSL -o "$TRIVY_TARBALL" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+    ACTUAL_SHA256="$(sha256sum "$TRIVY_TARBALL" | awk '{print $1}')"
+    if [[ "$ACTUAL_SHA256" != "$TRIVY_SHA256" ]]; then
+      echo "[gate] trivy checksum mismatch: expected $TRIVY_SHA256, got $ACTUAL_SHA256" >&2
+      exit 1
+    fi
+    tar -xzf "$TRIVY_TARBALL" -C "$TRIVY_DIR" trivy
+    rm -f "$TRIVY_TARBALL"
+    INSTALLED_TRIVY_VERSION="$("$TRIVY_BIN" --version 2>/dev/null | awk '/^Version:/ {print $2; exit}')"
+    if [[ "$INSTALLED_TRIVY_VERSION" != "$TRIVY_VERSION" ]]; then
+      echo "[gate] trivy version mismatch after download: expected $TRIVY_VERSION, got ${INSTALLED_TRIVY_VERSION:-unknown}" >&2
+      exit 1
+    fi
+  fi
+
+  TRIVY_JSON="$(mktemp)"
   echo "[gate] scanning built artifact (HIGH/CRITICAL w/ fixes)"
   "$TRIVY_BIN" clean --all >/dev/null 2>&1 || true
-  "$TRIVY_BIN" image --quiet --format json --severity CRITICAL,HIGH --ignore-unfixed --timeout 20m "$IMAGE_TAG" > /tmp/zenodex_trivy.json
-  python - <<'PY'
+  "$TRIVY_BIN" image --quiet --format json --severity CRITICAL,HIGH --ignore-unfixed --timeout 20m "$IMAGE_TAG" > "$TRIVY_JSON"
+  python - "$TRIVY_JSON" <<'PY'
 import json
-d=json.load(open('/tmp/zenodex_trivy.json'))
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    d = json.load(f)
 bad=[]
 for r in d.get('Results') or []:
   for v in r.get('Vulnerabilities') or []:

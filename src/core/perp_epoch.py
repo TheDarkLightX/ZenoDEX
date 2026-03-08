@@ -294,9 +294,57 @@ def perp_epoch_isolated_v3_fee_pool_max_quote() -> int:
 
 def perp_epoch_isolated_v2_native_initial_state() -> dict[str, Value]:
     from .perp_v2 import initial_state
+
+    return _perp_epoch_isolated_v2_native_state_to_dict(initial_state())
+
+
+_PERP_EPOCH_ISOLATED_V2_EXPORTED_STATE_KEYS: tuple[str, ...] = (
+    "now_epoch",
+    "breaker_active",
+    "breaker_last_trigger_epoch",
+    "clearing_price_seen",
+    "clearing_price_epoch",
+    "clearing_price_e8",
+    "oracle_seen",
+    "oracle_last_update_epoch",
+    "index_price_e8",
+    "max_oracle_staleness_epochs",
+    "max_oracle_move_bps",
+    "initial_margin_bps",
+    "maintenance_margin_bps",
+    "depeg_buffer_bps",
+    "liquidation_penalty_bps",
+    "max_position_abs",
+    "position_base",
+    "entry_price_e8",
+    "collateral_quote",
+    "fee_pool_quote",
+    "funding_rate_bps",
+    "funding_cap_bps",
+    "funding_paid_cumulative",
+    "insurance_balance",
+    "initial_insurance",
+    "fee_income",
+    "claims_paid",
+    "min_notional_for_bounty",
+    "funding_last_applied_epoch",
+    "liquidated_this_step",
+)
+
+
+def _perp_epoch_isolated_v2_native_state_to_dict(state) -> dict[str, Value]:
     from .perp_v2.state import state_to_dict
 
-    return state_to_dict(initial_state())
+    full = state_to_dict(state)
+    return {key: full[key] for key in _PERP_EPOCH_ISOLATED_V2_EXPORTED_STATE_KEYS}
+
+
+def _perp_epoch_isolated_v2_native_state_from_dict(state: Mapping[str, Value]):
+    from .perp_v2.state import state_from_dict
+
+    widened = dict(state)
+    widened.setdefault("epoch_phase", "Open")
+    return state_from_dict(widened)
 
 
 def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
@@ -323,11 +371,13 @@ def _action_params_from_dict(action: str, params: Mapping[str, Value] | None):
         Action.APPLY_FUNDING: [("new_rate_bps", "new_rate_bps")],
         Action.DEPOSIT_INSURANCE: [("amount", "amount")],
         Action.APPLY_INSURANCE_CLAIM: [("claim_amount", "claim_amount")],
+        Action.PARTIAL_LIQUIDATE: [("fraction_bps", "fraction_bps")],
     }
     _auth_actions = frozenset({
         Action.DEPOSIT_COLLATERAL, Action.WITHDRAW_COLLATERAL,
         Action.SET_POSITION, Action.CLEAR_BREAKER,
         Action.APPLY_FUNDING, Action.APPLY_INSURANCE_CLAIM,
+        Action.PARTIAL_LIQUIDATE,
     })
 
     p = dict(params or {})
@@ -365,6 +415,41 @@ def perp_epoch_isolated_v2_native_apply(
     *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
 ) -> PerpStepResult:
     from .perp_v2 import step
+
+    try:
+        perp_state = _perp_epoch_isolated_v2_native_state_from_dict(state)
+        action_params = _action_params_from_dict(action, params)
+    except (KeyError, TypeError, ValueError) as exc:
+        return PerpStepResult(ok=False, error=str(exc))
+
+    result = step(perp_state, action_params)
+    if not result.accepted:
+        return PerpStepResult(ok=False, error=result.rejection)
+
+    return PerpStepResult(
+        ok=True,
+        state=_perp_epoch_isolated_v2_native_state_to_dict(result.state),
+        effects=_effect_to_dict(result.effect),
+    )
+
+
+def perp_epoch_isolated_v2_native_fee_pool_max_quote() -> int:
+    from .perp_v2.math import MAX_COLLATERAL
+
+    return MAX_COLLATERAL
+
+
+def perp_epoch_isolated_v3_native_initial_state() -> dict[str, Value]:
+    from .perp_v2 import initial_state
+    from .perp_v2.state import state_to_dict
+
+    return state_to_dict(initial_state())
+
+
+def perp_epoch_isolated_v3_native_apply(
+    *, state: Mapping[str, Value], action: str, params: Mapping[str, Value] | None = None
+) -> PerpStepResult:
+    from .perp_v2 import step
     from .perp_v2.state import state_from_dict, state_to_dict
 
     try:
@@ -384,16 +469,6 @@ def perp_epoch_isolated_v2_native_apply(
     )
 
 
-def perp_epoch_isolated_v2_native_fee_pool_max_quote() -> int:
-    from .perp_v2.math import MAX_COLLATERAL
-
-    return MAX_COLLATERAL
-
-
-# v3 native backend is the same hand-written implementation (perp_v2 package) but
-# corresponds to the v3 kernel spec (`perp_epoch_isolated_v3.yaml`).
-perp_epoch_isolated_v3_native_initial_state = perp_epoch_isolated_v2_native_initial_state
-perp_epoch_isolated_v3_native_apply = perp_epoch_isolated_v2_native_apply
 perp_epoch_isolated_v3_native_fee_pool_max_quote = perp_epoch_isolated_v2_native_fee_pool_max_quote
 
 
