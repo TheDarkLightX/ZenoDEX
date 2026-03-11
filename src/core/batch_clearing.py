@@ -1602,10 +1602,9 @@ def apply_settlement(
             raise ValueError(f"Negative reserve: {pool_id}, {asset}, {current} + {net}")
         if asset == pool.asset0:
             pool.reserve0 = new_reserve
-        elif asset == pool.asset1:
-            pool.reserve1 = new_reserve
         else:
-            raise ValueError(f"Asset {asset} not in pool {pool_id}")
+            # `get_reserve(asset)` above already guarantees membership.
+            pool.reserve1 = new_reserve
 
     # Apply LP deltas (order-independent): net per pool for supply, per (pubkey, pool_id) for balances.
     supply_net: Dict[str, Amount] = defaultdict(int)
@@ -1920,13 +1919,10 @@ def _order_swaps_mci_ab(
                     best_idx = rem_idx
                     best_order = trial
                     best_key = trial_key
-        if best_order is None or best_idx < 0:
-            break
+        assert best_order is not None and best_idx >= 0
         ordered = best_order
         remaining.pop(best_idx)
 
-    if len(ordered) != len(intents):
-        return _order_swaps_limit_price(intents)
     return ordered
 
 
@@ -2027,11 +2023,6 @@ def _refine_ab_ordering_global(
 
                 if not better:
                     continue
-
-                # Deterministic tie-break: prefer smallest (i, j) for equal (A, B).
-                if cand_a == best_a and cand_b == best_b and best_pair is not None:
-                    if (i, j) >= best_pair:
-                        continue
 
                 best_pair = (i, j)
                 best_a = cand_a

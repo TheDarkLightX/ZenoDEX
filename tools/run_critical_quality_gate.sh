@@ -37,6 +37,7 @@ CRITICAL_TESTS=(
   tests/core/test_liquidity.py
   tests/core/test_dex_v7_ref_parity.py
   tests/core/test_batch_clearing.py
+  tests/core/test_batch_clearing_coverage_edges.py
   tests/core/test_batch_auction_settler_v1_ref_parity.py
   tests/core/test_batch_clearing_properties.py
   tests/core/test_batch_greedy.py
@@ -98,6 +99,7 @@ echo "== critical: ruff =="
   src/state/volatility.py \
   tests/core/test_domain_bounds.py \
   tests/core/test_batch_clearing_properties.py \
+  tests/core/test_batch_clearing_coverage_edges.py \
   tests/core/test_batch_auction_settler_v1_ref_parity.py \
   tests/core/test_quote_receipts.py \
   tests/core/test_quote_receipts_fuzz.py \
