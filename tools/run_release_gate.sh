@@ -23,6 +23,15 @@ require_module() {
   fi
 }
 
+require_file() {
+  local label="$1"
+  local path="$2"
+  if [[ ! -f "$path" ]]; then
+    echo "error: missing required file for $label: $path" >&2
+    exit 2
+  fi
+}
+
 run_if_present() {
   local label="$1"
   local path="$2"
@@ -62,10 +71,10 @@ run_if_present "derivatives evidence" "$ROOT_DIR/tools/run_derivatives_evidence.
 echo "== release: coverage map refresh =="
 "$PY" "$ROOT_DIR/tools/zenodex_core_coverage_map.py"
 
-if [[ -f "$ROOT_DIR/tools/system_spec_lint.py" && -f "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml" ]]; then
-  echo "== release: system-spec lint =="
-  "$PY" "$ROOT_DIR/tools/system_spec_lint.py" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
-fi
+require_file "system-spec lint" "$ROOT_DIR/tools/system_spec_lint.py"
+require_file "system-spec compose" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
+echo "== release: system-spec lint =="
+"$PY" "$ROOT_DIR/tools/system_spec_lint.py" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
 
 echo "== release: dependency audit =="
 "$PY" -m pip_audit -r "$ROOT_DIR/requirements.txt"
