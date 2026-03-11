@@ -6,7 +6,7 @@ import sys
 from dataclasses import replace
 
 from src.core.liquidity import create_pool
-from src.core.settlement import Fill, FillAction
+from src.core.settlement import Fill, FillAction, Settlement
 from src.integration import tau_gate
 from src.integration.tau_gate import TauGateConfig, validate_settlement_swaps
 from src.state.intents import Intent, IntentKind
@@ -16,19 +16,36 @@ def _mk_intent_id(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
+def _settlement_from_fills(intents: list[Intent], fills: list[Fill]) -> Settlement:
+    intent_ids = {intent.intent_id for intent in intents}
+    included = [(fill.intent_id, fill.action) for fill in fills if fill.intent_id in intent_ids]
+    return Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=included,
+        fills=fills,
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+
 def test_tau_gate_enabled_no_swaps_does_not_require_tau() -> None:
     intents: list[Intent] = []
     fills: list[Fill] = []
+    settlement = _settlement_from_fills(intents, fills)
     ok, err = validate_settlement_swaps(
         intents=intents,
-        settlement_fills=fills,
+        settlement=settlement,
         pre_pools={},
         config=TauGateConfig(enabled=True, tau_bin=None, allow_path_lookup=False),
     )
     assert ok, err
 
 
-def test_tau_gate_catches_tau_runner_exceptions(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_tau_gate_catches_tau_runner_exceptions(monkeypatch) -> None:
     pool_id, pool, _ = create_pool(
         asset0="0x" + "01" * 32,
         asset1="0x" + "02" * 32,
@@ -63,14 +80,15 @@ def test_tau_gate_catches_tau_runner_exceptions(monkeypatch) -> None:  # type: i
         )
     ]
 
-    def _boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+    def _boom(*args, **kwargs):
         raise RuntimeError("tau crashed")
 
     monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _boom)
 
+    settlement = _settlement_from_fills(intents, fills)
     ok, err = validate_settlement_swaps(
         intents=intents,
-        settlement_fills=fills,
+        settlement=settlement,
         pre_pools={pool_id: pool},
         config=TauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
     )
@@ -78,7 +96,7 @@ def test_tau_gate_catches_tau_runner_exceptions(monkeypatch) -> None:  # type: i
     assert err and "RuntimeError" in err
 
 
-def test_tau_gate_fill_order_is_intent_order(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_tau_gate_fill_order_is_intent_order(monkeypatch) -> None:
     # Two independent pools + two intents; fills are deliberately reversed.
     pk = "0x" + "11" * 48
     pool_id_a, pool_a, _ = create_pool(
@@ -139,15 +157,16 @@ def test_tau_gate_fill_order_is_intent_order(monkeypatch) -> None:  # type: igno
         ),
     ]
 
-    def _fake_tau(*args, **kwargs):  # type: ignore[no-untyped-def]
+    def _fake_tau(*args, **kwargs):
         # Fail only step 0; caller should attribute it to the first fill in the settlement list.
         return {0: {"o1": 0}, 1: {"o1": 1}}
 
     monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
 
+    settlement = _settlement_from_fills(intents, fills)
     ok, err = validate_settlement_swaps(
         intents=intents,
-        settlement_fills=fills,
+        settlement=settlement,
         pre_pools={pool_id_a: pool_a, pool_id_b: pool_b},
         config=TauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
     )
@@ -185,9 +204,10 @@ def test_tau_gate_requires_absolute_tau_bin_when_path_lookup_disabled() -> None:
         amount_in_filled=1000,
         amount_out_filled=900,
     )
+    settlement = _settlement_from_fills([intent], [fill])
     ok, err = validate_settlement_swaps(
         intents=[intent],
-        settlement_fills=[fill],
+        settlement=settlement,
         pre_pools={pool_id: pool},
         config=TauGateConfig(enabled=True, tau_bin="tau", allow_path_lookup=False),
     )
@@ -195,7 +215,7 @@ def test_tau_gate_requires_absolute_tau_bin_when_path_lookup_disabled() -> None:
     assert err and "absolute" in err
 
 
-def test_tau_gate_supports_mixed_exact_in_and_exact_out_per_pool(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_tau_gate_supports_mixed_exact_in_and_exact_out_per_pool(monkeypatch) -> None:
     pk = "0x" + "11" * 48
     pool_id, pool, _ = create_pool(
         asset0="0x" + "01" * 32,
@@ -251,15 +271,16 @@ def test_tau_gate_supports_mixed_exact_in_and_exact_out_per_pool(monkeypatch) ->
 
     calls = []
 
-    def _fake_tau(*, spec_path, steps, **kwargs):  # type: ignore[no-untyped-def]
+    def _fake_tau(*, spec_path, steps, **kwargs):
         calls.append((spec_path.name, len(steps)))
         return {i: {"o1": 1} for i in range(len(steps))}
 
     monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
 
+    settlement = _settlement_from_fills([intent_in, intent_out], fills)
     ok, err = validate_settlement_swaps(
         intents=[intent_in, intent_out],
-        settlement_fills=fills,
+        settlement=settlement,
         pre_pools={pool_id: pool},
         config=TauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
     )
