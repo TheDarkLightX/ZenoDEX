@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from src.state.intents import Intent, IntentKind
-from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
+from src.state.nonces import NonceTable, copy_nonce_table, validate_and_apply_intent_nonce_batch
 
 PK_48B = "0x" + "11" * 48
 
@@ -100,3 +100,57 @@ def test_validate_and_apply_nonce_batch_accepts_nonce_free_batch_in_backward_com
     assert ok is True
     assert err is None
     assert updated is not None
+
+
+def test_nonce_table_rejects_invalid_stored_nonce_and_copy_canonicalizes() -> None:
+    table = NonceTable()
+    table._last[PK_48B] = True  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="invalid stored nonce"):
+        table.get_last(PK_48B)
+
+    src = NonceTable()
+    src.set_last(PK_48B.upper().replace("0X", "0x"), 9)
+    copied = copy_nonce_table(src)
+    assert copied.get(PK_48B) == 9
+
+    copied.apply_accept(PK_48B, 10)
+    assert copied.get_last(PK_48B) == 10
+
+
+@pytest.mark.parametrize("bad_nonce", [True, 0, -1, 0xFFFFFFFF + 1])
+def test_validate_and_apply_nonce_batch_rejects_invalid_nonce_values(bad_nonce: int) -> None:
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[_intent(nonce=bad_nonce)],
+        require_all_nonces=True,
+    )
+    assert ok is False
+    assert err == "Missing/invalid nonce"
+    assert updated is None
+
+
+def test_validate_and_apply_nonce_batch_rejects_invalid_sender_pubkey() -> None:
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[_intent(sender="not-hex", nonce=1)],
+        require_all_nonces=True,
+    )
+    assert ok is False
+    assert err is not None
+    assert "invalid sender_pubkey for nonce accounting" in err
+    assert updated is None
+
+
+def test_validate_and_apply_nonce_batch_returns_copy_for_empty_batch() -> None:
+    table = NonceTable()
+    table.set_last(PK_48B, 4)
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=table,
+        intents=[],
+        require_all_nonces=True,
+    )
+    assert ok is True
+    assert err is None
+    assert updated is not None
+    assert updated is not table
+    assert updated.get_last(PK_48B) == 4

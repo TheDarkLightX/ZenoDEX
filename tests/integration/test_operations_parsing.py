@@ -4,6 +4,7 @@ import pytest
 
 from src.integration.operations import (
     SignedIntentEnvelope,
+    _parse_intent,
     create_intent_operation,
     create_signed_intent_operation,
     create_settlement_operation,
@@ -151,6 +152,16 @@ def test_parse_settlement_envelope_extracts_legacy_zk_proof() -> None:
     assert env.proof == {"pi": 2}
 
 
+def test_parse_settlement_envelope_rejects_invalid_top_level_shapes() -> None:
+    with pytest.raises(ValueError, match="operations must be an object"):
+        parse_settlement_envelope([])  # type: ignore[arg-type]
+
+    assert parse_settlement_envelope({}) is None
+
+    with pytest.raises(ValueError, match=r"operations\['3'\] must be a dict"):
+        parse_settlement_envelope({"3": []})
+
+
 def test_parse_settlement_envelope_rejects_double_proof() -> None:
     ops = {"3": {"module": "TauSwap", "version": "0.1", "proof": {}, "zk_proof": {}}}
     with pytest.raises(ValueError, match="provided twice"):
@@ -194,6 +205,9 @@ def test_parse_settlement_treats_none_lists_as_empty() -> None:
 def test_parse_intents_handles_missing_group_and_rejects_invalid_shapes() -> None:
     assert parse_intents({}) == []
 
+    with pytest.raises(ValueError, match="operations must be an object"):
+        parse_intents([])  # type: ignore[arg-type]
+
     with pytest.raises(ValueError, match=r"operations\['2'\] must be a list"):
         parse_intents({"2": {}})
 
@@ -219,6 +233,15 @@ def test_parse_signed_intents_rejects_invalid_intent_envelope_fields() -> None:
     with pytest.raises(ValueError, match="intent.salt must be non-empty"):
         parse_signed_intents({"2": [{**_min_intent_dict(), "salt": ""}]})
 
+    with pytest.raises(ValueError, match="intent.deadline must be non-negative"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), "deadline": -1}]})
+
+    with pytest.raises(ValueError, match="Invalid module: NopeSwap"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), "module": "NopeSwap"}]})
+
+    with pytest.raises(ValueError, match="Invalid version: 9.9"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), "version": "9.9"}]})
+
     with pytest.raises(ValueError, match="Invalid intent kind: NOPE"):
         parse_signed_intents({"2": [{**_min_intent_dict(), "kind": "NOPE"}]})
 
@@ -236,6 +259,9 @@ def test_parse_settlement_rejects_invalid_included_intent_action() -> None:
     }
     with pytest.raises(ValueError, match="Invalid action: UNKNOWN"):
         parse_settlement(ops)
+
+    with pytest.raises(ValueError, match="included_intents entries must be \\[intent_id, action\\]"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "included_intents": [["id-only"]]}})
 
 
 def test_parse_settlement_rejects_non_object_fill_entry() -> None:
@@ -304,6 +330,25 @@ def test_parse_settlement_rejects_invalid_delta_entries_and_batch_ref_types() ->
         parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "batch_ref": 123}})
 
 
+def test_parse_settlement_rejects_invalid_module_version_and_constructor_failures() -> None:
+    with pytest.raises(ValueError, match="Invalid module: NopeSwap"):
+        parse_settlement({"3": {"module": "NopeSwap", "version": "0.1"}})
+
+    with pytest.raises(ValueError, match="Invalid version: 9.9"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "9.9"}})
+
+    with pytest.raises(ValueError, match="Invalid settlement: included_intents contains duplicate intent_id entries"):
+        parse_settlement(
+            {
+                "3": {
+                    "module": "TauSwap",
+                    "version": "0.1",
+                    "included_intents": [["id-1", "REJECT"], ["id-1", "REJECT"]],
+                }
+            }
+        )
+
+
 def test_parse_settlement_accepts_none_batch_ref_and_create_omits_empty_events() -> None:
     settlement = parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "batch_ref": None}})
     assert settlement is not None
@@ -323,3 +368,34 @@ def test_parse_settlement_accepts_none_batch_ref_and_create_omits_empty_events()
         )
     )
     assert "events" not in created["3"]
+
+
+def test_create_intent_operation_includes_salt_and_accepts_empty_fields() -> None:
+    salted = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "44" * 32,
+        sender_pubkey="pk",
+        deadline=1,
+        salt="pepper",
+        fields={},
+    )
+    plain = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "55" * 32,
+        sender_pubkey="pk",
+        deadline=1,
+        fields=None,
+    )
+
+    ops = create_intent_operation([salted, plain])
+    assert ops["2"][0]["salt"] == "pepper"
+    assert "salt" not in ops["2"][1]
+
+
+def test_parse_intent_rejects_non_object_input() -> None:
+    with pytest.raises(ValueError, match="intent must be an object"):
+        _parse_intent([])  # type: ignore[arg-type]

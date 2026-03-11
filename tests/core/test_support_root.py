@@ -165,6 +165,13 @@ def test_compute_support_state_root_rejects_wrong_table_types() -> None:
             lp_balances={},
             support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=()),
         )
+    with pytest.raises(TypeError, match="support must be a BatchStateSupport"):
+        compute_support_state_root(  # type: ignore[arg-type]
+            balances=BalanceTable(),
+            pools={},
+            lp_balances=LPTable(),
+            support={},
+        )
 
 
 def test_compute_support_state_root_omits_missing_pools_and_zero_entries() -> None:
@@ -187,6 +194,195 @@ def test_compute_support_state_root_omits_missing_pools_and_zero_entries() -> No
     )
     assert isinstance(root_empty, str) and root_empty.startswith("0x")
     assert root_empty == root_zero
+
+
+def test_derive_batch_state_support_covers_invalid_create_pool_and_missing_pool_variants() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "02" * 32
+    asset1 = "0x" + "01" * 32
+    valid_asset0 = "0x" + "03" * 32
+    valid_asset1 = "0x" + "04" * 32
+    pool_id = compute_pool_id(valid_asset0, valid_asset1, 30, curve_tag="CPMM", curve_params="")
+
+    missing_asset1 = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(10),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": valid_asset0, "asset1": None, "fee_bps": 30},
+    )
+    bool_fee = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(11),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": valid_asset0, "asset1": valid_asset1, "fee_bps": True},
+    )
+    noncanonical_assets = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(12),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": asset0, "asset1": asset1, "fee_bps": 30},
+    )
+    invalid_swap = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(13),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": "", "asset_in": "", "asset_out": valid_asset1, "amount_in": 1, "min_amount_out": 0},
+    )
+    remove_missing_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(14),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={},
+    )
+    add_unknown_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(15),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": pool_id, "amount0_desired": 1, "amount1_desired": 1},
+    )
+
+    support = derive_batch_state_support(
+        [missing_asset1, bool_fee, noncanonical_assets, invalid_swap, remove_missing_pool, add_unknown_pool],
+        pools={},
+    )
+    assert set(support.balance_keys) == {
+        (pk, valid_asset0),
+        (pk, valid_asset1),
+        (pk, asset0),
+        (pk, asset1),
+    }
+    assert support.pool_ids == (pool_id,)
+    assert support.lp_keys == ()
+
+
+def test_derive_batch_state_support_reads_add_liquidity_from_existing_pool_and_created_pool() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    asset2 = "0x" + "03" * 32
+    asset3 = "0x" + "04" * 32
+    existing_pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    created_pool_id = compute_pool_id(asset2, asset3, 20, curve_tag="CPMM", curve_params="")
+
+    existing_add = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(16),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": existing_pool_id},
+    )
+    create_pool = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(17),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"asset0": asset2, "asset1": asset3, "fee_bps": 20},
+    )
+    created_add = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(18),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": created_pool_id},
+    )
+
+    support = derive_batch_state_support(
+        [existing_add, create_pool, created_add],
+        pools={existing_pool_id: _pool(existing_pool_id, asset0, asset1)},
+    )
+    assert set(support.balance_keys) == {(pk, asset0), (pk, asset1), (pk, asset2), (pk, asset3)}
+    assert set(support.pool_ids) == {existing_pool_id, created_pool_id}
+
+
+def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknown_kind() -> None:
+    pk = "0x" + "11" * 48
+
+    missing_pool_add = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(19),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={},
+    )
+    unknown = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(20),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={},
+    )
+    unknown.kind = "UNKNOWN_KIND"  # type: ignore[assignment]
+
+    support = derive_batch_state_support([missing_pool_add, unknown], pools={})
+    assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=())
+
+
+def test_compute_support_state_root_covers_positive_lp_section_unknown_status_and_invalid_pool_scalars() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 7)
+    lp = LPTable()
+    lp.set(pk, pool_id, 9)
+    support = BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(pool_id,), lp_keys=((pk, pool_id),))
+    root = compute_support_state_root(
+        balances=balances,
+        pools={pool_id: _pool(pool_id, asset0, asset1)},
+        lp_balances=lp,
+        support=support,
+    )
+    assert root.startswith("0x")
+
+    bad_status = _pool(pool_id, asset0, asset1)
+    bad_status.status = object()  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="unknown pool status"):
+        compute_support_state_root(
+            balances=BalanceTable(),
+            pools={pool_id: bad_status},
+            lp_balances=LPTable(),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=()),
+        )
+
+    bad_reserve = _pool(pool_id, asset0, asset1)
+    bad_reserve.reserve0 = True  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="invalid pool reserve0"):
+        compute_support_state_root(
+            balances=BalanceTable(),
+            pools={pool_id: bad_reserve},
+            lp_balances=LPTable(),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=()),
+        )
 
 
 def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> None:

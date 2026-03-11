@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.intent_normal_form import is_in_normal_form, normalize_intents, require_normal_form
+from src.core.intent_normal_form import (
+    _swap_limit_price,
+    is_in_normal_form,
+    iter_pool_partitions,
+    normalize_intents,
+    require_normal_form,
+)
 from src.state.intents import Intent, IntentKind
 
 
@@ -283,8 +289,6 @@ def test_normal_form_rejects_invalid_swap_fields() -> None:
 
 
 def test_iter_pool_partitions_groups_by_normalized_pool_order() -> None:
-    from src.core.intent_normal_form import iter_pool_partitions
-
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
@@ -335,3 +339,193 @@ def test_iter_pool_partitions_groups_by_normalized_pool_order() -> None:
     partitions = list(iter_pool_partitions([pool_b_swap, create_pool, pool_a_swap]))
     assert [pool_id for pool_id, _ in partitions] == [None, pool_a, pool_b]
     assert [bucket[0].intent_id for _, bucket in partitions] == [create_pool.intent_id, pool_a_swap.intent_id, pool_b_swap.intent_id]
+
+
+def test_normal_form_rejects_non_int_and_non_string_fields() -> None:
+    pk = "0x" + "11" * 48
+
+    bad_pool_id = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(10),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": ""},
+    )
+    with pytest.raises(ValueError, match="intent.fields.pool_id must be a non-empty string"):
+        normalize_intents([bad_pool_id])
+
+    bad_submission_order = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(11),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": "0x" + "aa" * 32, "submission_order": True},
+    )
+    with pytest.raises(ValueError, match="lp.submission_order must be an int"):
+        normalize_intents([bad_submission_order])
+
+
+def test_normal_form_rejects_negative_min_out_and_nonpositive_exact_out_amount() -> None:
+    pk = "0x" + "11" * 48
+    pool_id = "0x" + "aa" * 32
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    negative_min_out = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(12),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 10,
+            "min_amount_out": -1,
+        },
+    )
+    with pytest.raises(ValueError, match="swap.min_amount_out must be >= 0"):
+        normalize_intents([negative_min_out])
+
+    nonpositive_exact_out = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_iid(13),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_out": 0,
+            "max_amount_in": 1,
+        },
+    )
+    with pytest.raises(ValueError, match="swap.amount_out must be > 0"):
+        normalize_intents([nonpositive_exact_out])
+
+
+def test_swap_limit_price_rejects_non_swap_intent() -> None:
+    pk = "0x" + "11" * 48
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(14),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": "0x" + "aa" * 32, "submission_order": 1},
+    )
+    with pytest.raises(ValueError, match="not a swap intent"):
+        _swap_limit_price(intent)
+
+
+def test_normal_form_places_defensive_unknown_kind_after_known_pool_actions() -> None:
+    pk = "0x" + "11" * 48
+    pool_id = "0x" + "aa" * 32
+    swap = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(15),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": "0x" + "01" * 32,
+            "asset_out": "0x" + "02" * 32,
+            "amount_in": 10,
+            "min_amount_out": 1,
+        },
+    )
+    unknown = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(16),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": pool_id},
+    )
+    unknown.kind = "UNKNOWN_KIND"  # type: ignore[assignment]
+
+    normalized = normalize_intents([unknown, swap]).intent_ids
+    assert normalized == [swap.intent_id, unknown.intent_id]
+
+
+def test_require_normal_form_rejects_out_of_order_batch() -> None:
+    pk = "0x" + "11" * 48
+    pool_id = "0x" + "aa" * 32
+    later = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(18),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": "0x" + "01" * 32,
+            "asset_out": "0x" + "02" * 32,
+            "amount_in": 10,
+            "min_amount_out": 1,
+        },
+    )
+    earlier = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(17),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": "0x" + "01" * 32,
+            "asset_out": "0x" + "02" * 32,
+            "amount_in": 10,
+            "min_amount_out": 1,
+        },
+    )
+    with pytest.raises(ValueError, match="intents not in normal form"):
+        require_normal_form([later, earlier])
+
+
+def test_iter_pool_partitions_groups_multiple_intents_in_same_bucket() -> None:
+    pk = "0x" + "11" * 48
+    pool_id = "0x" + "aa" * 32
+    first = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(19),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": "0x" + "01" * 32,
+            "asset_out": "0x" + "02" * 32,
+            "amount_in": 10,
+            "min_amount_out": 2,
+        },
+    )
+    second = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(20),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": pool_id, "submission_order": 7},
+    )
+
+    partitions = list(iter_pool_partitions([second, first]))
+    assert len(partitions) == 1
+    assert partitions[0][0] == pool_id
+    assert [intent.intent_id for intent in partitions[0][1]] == [first.intent_id, second.intent_id]
