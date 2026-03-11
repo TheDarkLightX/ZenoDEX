@@ -34,6 +34,7 @@ CRITICAL_TESTS=(
   tests/core/test_cpmm.py
   tests/core/test_cpmm_ref_parity.py
   tests/core/test_cpmm_u256_safety.py
+  tests/core/test_liquidity.py
   tests/core/test_dex_v7_ref_parity.py
   tests/core/test_batch_clearing.py
   tests/core/test_batch_auction_settler_v1_ref_parity.py
@@ -50,7 +51,10 @@ CRITICAL_TESTS=(
   tests/integration/test_perps_api.py
   tests/integration/test_tau_gate_boundary.py
   tests/integration/test_validation_uses_strong_settlement_gate.py
+  tests/state/test_balances.py
   tests/state/test_intents.py
+  tests/state/test_lp.py
+  tests/state/test_volatility.py
 )
 
 COVERAGE_TARGETS=(
@@ -96,6 +100,8 @@ echo "== critical: ruff =="
   tests/core/test_batch_clearing_properties.py \
   tests/core/test_batch_auction_settler_v1_ref_parity.py \
   tests/core/test_quote_receipts.py \
+  tests/core/test_quote_receipts_fuzz.py \
+  tests/core/test_liquidity.py \
   tests/core/test_perp_v2/test_submodules.py \
   tests/core/test_settlement_strong_validator.py \
   tests/core/test_intent_normal_form.py \
@@ -104,12 +110,25 @@ echo "== critical: ruff =="
   tests/core/test_volatility_tier_ref_parity.py \
   tests/core/test_dex_step_candidate_settlement.py \
   tests/integration/test_dex_engine_helpers.py \
+  tests/integration/test_operations_fuzz.py \
+  tests/integration/test_proof_verifier_fuzz.py \
   tests/integration/test_proof_verifier_unit.py \
   tests/integration/test_replay_protection.py \
   tests/integration/test_tau_gate_boundary.py \
   tests/integration/test_validation_uses_strong_settlement_gate.py \
+  tests/state/test_balances.py \
   tests/state/test_nonces.py \
-  tests/state/test_intents.py
+  tests/state/test_intents.py \
+  tests/state/test_lp.py \
+  tests/state/test_volatility.py
+
+echo "== critical: shell syntax =="
+bash -n \
+  "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh" \
+  "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh" \
+  "$ROOT_DIR/tools/run_acceptance_tcb_fuzz_gate.sh" \
+  "$ROOT_DIR/tools/run_critical_quality_gate.sh" \
+  "$ROOT_DIR/tools/run_release_gate.sh"
 
 echo "== critical: mypy =="
 "$PY" -m mypy
