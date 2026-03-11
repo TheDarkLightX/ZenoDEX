@@ -39,7 +39,7 @@ What these numbers mean:
 - We treat coverage as necessary but not sufficient. High branch coverage is used to measure test reach, not to replace proofs, parity, or fail-closed design.
 - We only publish an assurance claim when the required replay files are tracked in the repo and the gate scripts fail closed if they are missing.
 
-For the public replay workflow and the exact assurance lanes, see [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
+For the public replay workflow and the exact assurance lanes, see [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md). For a fuller breakdown of what is and is not at the published bar, see [docs/ASSURANCE.md](docs/ASSURANCE.md).
 
 ## Why this repo exists
 - **Formal correctness** for DEX settlement and tokenomics
