@@ -5,10 +5,10 @@ A settlement represents a proposed execution of a set of intents in a batch.
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Any
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
-from ..state.balances import PubKey, AssetId, Amount
+from ..state.balances import Amount, AssetId, PubKey
 
 # Type alias
 PoolId = str  # 32-byte hex string

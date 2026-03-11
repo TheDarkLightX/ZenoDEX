@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from src.core.amm_dispatch import swap_exact_in_for_pool
+import copy
+from typing import Any, Callable
+
+import pytest
+
+from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
     make_route_quote_receipt,
     pool_state_fingerprint,
@@ -23,6 +28,88 @@ def _pool(pid: str, a0: str, a1: str, r0: int, r1: int, fee_bps: int = 0) -> Poo
         status=PoolStatus.ACTIVE,
         created_at=0,
     )
+
+
+def _single_hop_exact_in_receipt() -> tuple[dict[str, Any], dict[str, PoolState]]:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0),
+    }
+    pool = pools["p_ab"]
+    amount_in = 100
+    amount_out, _ = swap_exact_in_for_pool(
+        pool,
+        reserve_in=int(pool.reserve0),
+        reserve_out=int(pool.reserve1),
+        amount_in=amount_in,
+    )
+    body = {
+        "schema": "zenodex/route_quote_receipt/v1",
+        "kind": "exact_in",
+        "asset_in": "A",
+        "asset_out": "B",
+        "amount_in": amount_in,
+        "amount_out": int(amount_out),
+        "legs": [
+            {
+                "amount_in": amount_in,
+                "amount_out": int(amount_out),
+                "hops": [
+                    {
+                        "pool_id": "p_ab",
+                        "asset_in": "A",
+                        "asset_out": "B",
+                        "amount_in": amount_in,
+                        "amount_out": int(amount_out),
+                    }
+                ],
+            }
+        ],
+        "pools": {
+            "p_ab": pool_state_fingerprint(pool),
+        },
+    }
+    return {"body": body, "receipt_hash": receipt_hash(body)}, pools
+
+
+def _single_hop_exact_out_receipt() -> tuple[dict[str, Any], dict[str, PoolState]]:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0),
+    }
+    pool = pools["p_ab"]
+    amount_out = 50
+    amount_in, _ = swap_exact_out_for_pool(
+        pool,
+        reserve_in=int(pool.reserve0),
+        reserve_out=int(pool.reserve1),
+        amount_out=amount_out,
+    )
+    body = {
+        "schema": "zenodex/route_quote_receipt/v1",
+        "kind": "exact_out",
+        "asset_in": "A",
+        "asset_out": "B",
+        "amount_in": int(amount_in),
+        "amount_out": amount_out,
+        "legs": [
+            {
+                "amount_in": int(amount_in),
+                "amount_out": amount_out,
+                "hops": [
+                    {
+                        "pool_id": "p_ab",
+                        "asset_in": "A",
+                        "asset_out": "B",
+                        "amount_in": int(amount_in),
+                        "amount_out": amount_out,
+                    }
+                ],
+            }
+        ],
+        "pools": {
+            "p_ab": pool_state_fingerprint(pool),
+        },
+    }
+    return {"body": body, "receipt_hash": receipt_hash(body)}, pools
 
 
 def test_quote_receipt_exact_in_roundtrip() -> None:
@@ -289,3 +376,147 @@ def test_quote_receipt_verifier_rejects_asset_chain_mismatch() -> None:
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
     assert not ok
     assert err == "hop_asset_chain_mismatch"
+
+
+def test_make_route_quote_receipt_rejects_invalid_kind() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    body = receipt["body"]
+    quote = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in=body["asset_in"],
+        asset_out=body["asset_out"],
+        amount_in=body["amount_in"],
+    )
+    assert quote is not None
+    with pytest.raises(ValueError, match="kind must be 'exact_in' or 'exact_out'"):
+        make_route_quote_receipt(kind="bad_kind", quote=quote, pools_by_id=pools)
+
+
+def test_make_route_quote_receipt_rejects_missing_pool_for_hop() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1_000, 1_000, 0),
+        "p_ac": _pool("p_ac", "A", "C", 1_000, 1_000, 0),
+        "p_cb": _pool("p_cb", "C", "B", 1_000, 1_000, 0),
+    }
+    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert quote is not None
+    missing_pool_id = quote.legs[0].hops[0].pool_id
+    pools_without_hop = {pid: pool for pid, pool in pools.items() if pid != missing_pool_id}
+    with pytest.raises(ValueError, match=f"missing pool for hop\\.pool_id='{missing_pool_id}'"):
+        make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools_without_hop)
+
+
+def _mutate_missing_body(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated.pop("body", None)
+    return mutated, pools
+
+
+def _mutate_hash_mismatch(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["receipt_hash"] = "0xdeadbeef"
+    return mutated, pools
+
+
+def _mutate_bad_schema(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["schema"] = "zenodex/route_quote_receipt/v999"
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+def _mutate_bad_body_assets(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["asset_out"] = mutated["body"]["asset_in"]
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+def _mutate_bad_pool_fingerprint_shape(
+    receipt: dict[str, Any], pools: dict[str, PoolState]
+) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["pools"]["p_ab"] = 123
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+def _mutate_bad_hops_shape(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["legs"][0]["hops"] = []
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+def _mutate_bad_pool_direction(
+    receipt: dict[str, Any], pools: dict[str, PoolState]
+) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    hop = mutated["body"]["legs"][0]["hops"][0]
+    hop["asset_in"] = "A"
+    hop["asset_out"] = "C"
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+def _mutate_leg_amount_in_mismatch(
+    receipt: dict[str, Any], pools: dict[str, PoolState]
+) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["legs"][0]["amount_in"] += 1
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+def _mutate_leg_amount_out_mismatch(
+    receipt: dict[str, Any], pools: dict[str, PoolState]
+) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["legs"][0]["amount_out"] += 1
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+def _mutate_totals_mismatch(receipt: dict[str, Any], pools: dict[str, PoolState]) -> tuple[dict[str, Any], dict[str, PoolState]]:
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["amount_out"] += 1
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    return mutated, pools
+
+
+@pytest.mark.parametrize(
+    ("mutator", "expected_err"),
+    [
+        (_mutate_missing_body, "missing_body"),
+        (_mutate_hash_mismatch, "hash_mismatch"),
+        (_mutate_bad_schema, "bad_schema"),
+        (_mutate_bad_body_assets, "bad_body_assets"),
+        (_mutate_bad_pool_fingerprint_shape, "bad_pool_fingerprint"),
+        (_mutate_bad_hops_shape, "bad_hops"),
+        (_mutate_bad_pool_direction, "bad_pool_direction"),
+        (_mutate_leg_amount_in_mismatch, "leg_amount_in_mismatch"),
+        (_mutate_leg_amount_out_mismatch, "leg_amount_out_mismatch"),
+        (_mutate_totals_mismatch, "totals_mismatch"),
+    ],
+)
+def test_quote_receipt_verifier_rejects_malformed_single_hop_receipts(
+    mutator: Callable[[dict[str, Any], dict[str, PoolState]], tuple[dict[str, Any], dict[str, PoolState]]],
+    expected_err: str,
+) -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    mutated_receipt, mutated_pools = mutator(receipt, pools)
+    ok, err = verify_route_quote_receipt(mutated_receipt, pools_by_id=mutated_pools)
+    assert not ok
+    assert err == expected_err
+
+
+def test_quote_receipt_verifier_rejects_exact_out_impossible_hop_as_quote_error() -> None:
+    receipt, pools = _single_hop_exact_out_receipt()
+    mutated = copy.deepcopy(receipt)
+    mutated["body"]["legs"][0]["hops"][0]["amount_out"] = 2_000
+    mutated["body"]["legs"][0]["amount_out"] = 2_000
+    mutated["body"]["amount_out"] = 2_000
+    mutated["receipt_hash"] = receipt_hash(mutated["body"])
+    ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
+    assert not ok
+    assert err == "hop_quote_error"

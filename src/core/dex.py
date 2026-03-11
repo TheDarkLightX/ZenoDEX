@@ -38,6 +38,9 @@ class DexConfig:
     # - "strong_replay": replay-check fills vs kernels/intents (no witness required)
     # - "strong_proof_carrying": require per-swap reserve witnesses and replay-check
     settlement_validation: str = "strong_proof_carrying"
+    # Quote-bound snapshot markers are only accepted after a higher layer
+    # validates and strips raw receipt transport metadata.
+    allow_snapshot_bound_quote_bindings: bool = False
 
 
 @dataclass(frozen=True)
@@ -94,6 +97,7 @@ def _validate_and_apply_settlement(
             pre_lp_balances=state.lp_balances,
             mode=str(config.settlement_validation),
             allow_cow_netting=bool(allow_cow),
+            allow_snapshot_bound_quote_bindings=bool(config.allow_snapshot_bound_quote_bindings),
         )
     if not ok:
         return DexStepResult(ok=False, error=err or "settlement invalid")

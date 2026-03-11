@@ -1,0 +1,60 @@
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+  "deprecated",
+  "experiments",
+  "external",
+  "generated",
+  "tools/dex-ui",
+]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["B011"]
+
+[tool.mypy]
+python_version = "3.11"
+pretty = true
+show_error_codes = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+no_implicit_optional = true
+check_untyped_defs = true
+ignore_missing_imports = true
+follow_imports = "skip"
+files = [
+  "src/core/batch_clearing.py",
+  "src/core/domain_limits.py",
+  "src/core/cpmm.py",
+  "src/core/dex.py",
+  "src/core/liquidity.py",
+  "src/core/perp_v2/engine.py",
+  "src/core/quote_receipts.py",
+  "src/core/settlement.py",
+  "src/core/settlement_strong_validator.py",
+  "src/core/volatility_tier.py",
+  "src/integration/validation.py",
+  "src/integration/perps_api.py",
+  "src/state/balances.py",
+  "src/state/intents.py",
+  "src/state/lp.py",
+  "src/state/volatility.py",
+]
+
+[tool.coverage.run]
+branch = true
+source = [
+  "src/core",
+  "src/state",
+  "src/kernels/python",
+  "src/integration",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

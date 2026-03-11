@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from src.agents.intent_signer import create_swap_intent_from_quote_receipt
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexConfig, DexState, step, step_with_candidate_settlement
 from src.core.liquidity import create_pool
+from src.core.quote_receipts import make_route_quote_receipt
+from src.core.routing import best_route_exact_in_2hop
 from src.core.settlement import Settlement
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
+from src.state.pools import PoolState, PoolStatus
 
 
 def _iid(n: int) -> str:
@@ -110,6 +114,49 @@ def _make_two_create_pool_setup(
     return DexState(balances=balances, pools={}, lp_balances=LPTable()), intents, pk
 
 
+def _make_snapshot_bound_quote_setup() -> tuple[DexState, list[Intent]]:
+    sender = "0x" + "aa" * 48
+    pools = {
+        "p_ab": PoolState(
+            pool_id="p_ab",
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=2_000,
+            fee_bps=10,
+            curve_tag="CPMM",
+            curve_params="",
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        )
+    }
+
+    quote = best_route_exact_in_2hop(
+        pools_by_id=pools,
+        asset_in="A",
+        asset_out="B",
+        amount_in=123,
+    )
+    assert quote is not None
+    receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools)
+    intent = create_swap_intent_from_quote_receipt(
+        receipt=receipt,
+        pools_by_id=pools,
+        sender_pubkey=sender,
+        deadline=9999999999,
+        slippage_bps=0,
+    )
+    intent.fields.pop("quote_receipt_hash", None)
+    intent.fields.pop("quote_receipt_leg_index", None)
+
+    balances = BalanceTable()
+    balances.set(sender, "A", 10_000)
+    balances.set(sender, "B", 0)
+    state = DexState(balances=balances, pools=pools, lp_balances=LPTable())
+    return state, [intent]
+
+
 def test_dex_config_default_swap_ordering_is_explicitly_greedy_ab_refined() -> None:
     cfg = DexConfig()
     assert cfg.swap_ordering == "greedy_ab_refined"
@@ -182,6 +229,58 @@ def test_step_with_candidate_settlement_rejects_mixed_nonce_presence() -> None:
     assert not result.ok
     assert result.error is not None
     assert "nonce" in result.error
+
+
+def test_step_rejects_snapshot_bound_quote_binding_without_explicit_opt_in() -> None:
+    state, intents = _make_snapshot_bound_quote_setup()
+
+    result = step(DexConfig(settlement_validation="strong_replay"), state, intents)
+
+    assert not result.ok
+    assert result.error is not None
+    assert "quote receipt snapshot binding requires validated engine witness" in result.error
+    assert f"intent_id='{intents[0].intent_id}'" in result.error
+
+
+def test_step_accepts_snapshot_bound_quote_binding_with_explicit_opt_in() -> None:
+    state, intents = _make_snapshot_bound_quote_setup()
+
+    result = step(
+        DexConfig(
+            settlement_validation="strong_replay",
+            allow_snapshot_bound_quote_bindings=True,
+        ),
+        state,
+        intents,
+    )
+
+    assert result.ok, result.error
+    assert result.state is not None
+
+
+def test_step_with_candidate_settlement_accepts_snapshot_bound_quote_binding_with_opt_in() -> None:
+    state, intents = _make_snapshot_bound_quote_setup()
+    cfg = DexConfig(
+        settlement_validation="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    candidate = compute_settlement(
+        intents=intents,
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+        swap_ordering=str(cfg.swap_ordering),
+    )
+
+    result = step_with_candidate_settlement(
+        cfg,
+        state,
+        intents,
+        candidate_settlement=candidate,
+    )
+
+    assert result.ok, result.error
+    assert result.state is not None
 
 
 class TestStepWithCandidateSettlementBVA:

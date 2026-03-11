@@ -15,6 +15,13 @@ from __future__ import annotations
 
 from typing import Callable
 
+from ..domain_limits import (
+    PERP_ADVANCE_EPOCH_DELTA_MAX,
+    PERP_PARAM_AMOUNT_MAX,
+    PERP_POSITION_MAX,
+    PERP_RATE_BPS_MAX,
+    is_strict_int,
+)
 from .effects import (
     effect_advance_epoch,
     effect_apply_funding,
@@ -28,6 +35,7 @@ from .effects import (
     effect_settle_epoch,
     effect_withdraw_collateral,
 )
+from .errors import PerpGuardError, PerpInvariantError, PerpOverflowError
 from .guards import (
     guard_advance_epoch,
     guard_apply_funding,
@@ -41,7 +49,6 @@ from .guards import (
     guard_settle_epoch,
     guard_withdraw_collateral,
 )
-from .errors import PerpGuardError, PerpInvariantError, PerpOverflowError
 from .invariants import check_all
 from .types import Action, ActionParams, Effect, PerpState, StepResult
 from .updates import (
@@ -100,41 +107,36 @@ _DISPATCH: dict[Action, tuple[GuardFn, UpdateFn, EffectFn]] = {
 
 # -- Parameter domain bounds (from YAML param type specs) --------------------
 
-MAX_PARAM_AMOUNT: int = 1_000_000_000_000  # shared max for amounts/prices
-MAX_DELTA: int = 10_000
-MAX_POSITION: int = 1_000_000
-MAX_RATE_BPS: int = 10_000
-
 # Per-action bounds: list of (field_name, min_val, max_val).
 _PARAM_BOUNDS: dict[Action, list[tuple[str, int, int]]] = {
     Action.ADVANCE_EPOCH: [
-        ("delta", 1, MAX_DELTA),
+        ("delta", 1, PERP_ADVANCE_EPOCH_DELTA_MAX),
     ],
     Action.PUBLISH_CLEARING_PRICE: [
-        ("price_e8", 1, MAX_PARAM_AMOUNT),
+        ("price_e8", 1, PERP_PARAM_AMOUNT_MAX),
     ],
     Action.SETTLE_EPOCH: [],
     Action.DEPOSIT_COLLATERAL: [
-        ("amount", 1, MAX_PARAM_AMOUNT),
+        ("amount", 1, PERP_PARAM_AMOUNT_MAX),
     ],
     Action.WITHDRAW_COLLATERAL: [
-        ("amount", 1, MAX_PARAM_AMOUNT),
+        ("amount", 1, PERP_PARAM_AMOUNT_MAX),
     ],
     Action.SET_POSITION: [
-        ("new_position_base", -MAX_POSITION, MAX_POSITION),
+        ("new_position_base", -PERP_POSITION_MAX, PERP_POSITION_MAX),
     ],
     Action.CLEAR_BREAKER: [],
     Action.APPLY_FUNDING: [
-        ("new_rate_bps", -MAX_RATE_BPS, MAX_RATE_BPS),
+        ("new_rate_bps", -PERP_RATE_BPS_MAX, PERP_RATE_BPS_MAX),
     ],
     Action.DEPOSIT_INSURANCE: [
-        ("amount", 1, MAX_PARAM_AMOUNT),
+        ("amount", 1, PERP_PARAM_AMOUNT_MAX),
     ],
     Action.APPLY_INSURANCE_CLAIM: [
-        ("claim_amount", 1, MAX_PARAM_AMOUNT),
+        ("claim_amount", 1, PERP_PARAM_AMOUNT_MAX),
     ],
     Action.PARTIAL_LIQUIDATE: [
-        ("fraction_bps", 0, MAX_RATE_BPS),
+        ("fraction_bps", 0, PERP_RATE_BPS_MAX),
     ],
 }
 
@@ -149,11 +151,6 @@ _AUTH_ACTIONS: set[Action] = {
     Action.PARTIAL_LIQUIDATE,
 }
 
-
-def _is_strict_int(value: object) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
-
-
 def _validate_params(params: ActionParams) -> str | None:
     """Check parameter domain bounds. Returns rejection reason or None."""
     if params.action in _AUTH_ACTIONS and not isinstance(params.auth_ok, bool):
@@ -164,7 +161,7 @@ def _validate_params(params: ActionParams) -> str | None:
         return None
     for field, lo, hi in bounds:
         val = getattr(params, field)
-        if not _is_strict_int(val):
+        if not is_strict_int(val):
             return f"param_domain:{field}"
         if val < lo or val > hi:
             return f"param_domain:{field}"
