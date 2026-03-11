@@ -82,3 +82,32 @@ def test_mul_div_floor_gcd_reduction_can_avoid_u256_mul_overflow() -> None:
     assert will_mul_overflow(256, a, b) is True
     out = mul_div_floor_gcd_reduced_u256(a=a, b=b, c=c)
     assert out == 1 << 199
+
+
+def test_fee_total_helpers_reject_invalid_inputs() -> None:
+    with pytest.raises(ValueError, match="gross_in must be non-negative"):
+        fee_total_ceil_bigint(-1, 1)
+    with pytest.raises(ValueError, match="fee_bps out of range"):
+        fee_total_ceil_bigint(1, 10_001)
+
+    with pytest.raises(ValueError, match="gross_in must be non-negative"):
+        fee_total_ceil_decomposed(-1, 1)
+    with pytest.raises(ValueError, match="fee_bps out of range"):
+        fee_total_ceil_decomposed(1, 10_001)
+
+
+def test_mul_div_floor_gcd_reduction_rejects_invalid_inputs_and_reports_intractable_case() -> None:
+    with pytest.raises(ValueError, match="a,b must be non-negative and c must be positive"):
+        mul_div_floor_gcd_reduced_u256(a=-1, b=1, c=1)
+    with pytest.raises(ValueError, match="inputs must fit in u256"):
+        mul_div_floor_gcd_reduced_u256(a=U256_MAX + 1, b=1, c=1)
+
+    assert mul_div_floor_gcd_reduced_u256(a=U256_MAX, b=2, c=1) is None
+
+
+def test_cpmm_exact_in_u256_overflow_report_rejects_bad_types_and_u256_bounds() -> None:
+    with pytest.raises(TypeError, match="reserve_in must be an int"):
+        analyze_cpmm_exact_in_u256_overflows(reserve_in=1.5, reserve_out=1, amount_in=1, fee_bps=0)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="inputs must fit in u256"):
+        analyze_cpmm_exact_in_u256_overflows(reserve_in=U256_MAX + 1, reserve_out=1, amount_in=1, fee_bps=0)

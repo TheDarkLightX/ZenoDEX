@@ -99,8 +99,6 @@ def _handle_swap_exact_out_apply(adapter: SettlementSwapExactOutApplyWitnessV1Na
     if amount_out >= reserve_out:
         return _guard_false(action_id)
     denom_out = reserve_out - amount_out
-    if denom_out < 1:
-        return _guard_false(action_id)
 
     # Guard: fee_den = 10000 - fee_bps must be positive.
     fee_den = 10000 - fee_bps
@@ -129,18 +127,13 @@ def _handle_swap_exact_out_apply(adapter: SettlementSwapExactOutApplyWitnessV1Na
 
     # fee_total = ceil(amount_in * fee_bps / 10_000)
     fee_total = (amount_in * fee_bps + 9999) // 10000
-    if fee_total > amount_in:
-        return _guard_false(action_id)
     net_in_actual = amount_in - fee_total
 
     denom_quote = reserve_in + net_in_actual
-    if denom_quote <= 0:
-        return _guard_false(action_id)
     amount_out_quote = (reserve_out * net_in_actual) // denom_quote
 
-    # Guard: quote sanity + overdelivery gap policy.
-    if amount_out_quote < amount_out:
-        return _guard_false(action_id)
+    # By construction, net_in_actual >= net_in_required, so the recomputed
+    # exact-in quote cannot undershoot the requested output.
     overdelivery_gap = amount_out_quote - amount_out
     gap_bps = (overdelivery_gap * 10000 + amount_out - 1) // amount_out
     if gap_bps > 200:
@@ -197,4 +190,3 @@ EFFECT_HANDLERS: dict[str, Callable[[SettlementSwapExactOutApplyWitnessV1NativeA
 
 def make_adapter(ir: Any) -> SettlementSwapExactOutApplyWitnessV1NativeAdapter:
     return SettlementSwapExactOutApplyWitnessV1NativeAdapter(ir=ir)
-

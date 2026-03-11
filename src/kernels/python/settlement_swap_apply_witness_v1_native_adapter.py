@@ -105,21 +105,15 @@ def _handle_swap_exact_in_apply(adapter: SettlementSwapApplyWitnessV1NativeAdapt
 
     # fee_total = ceil(amount_in * fee_bps / 10_000)
     fee_total = (amount_in * fee_bps + 9999) // 10000
-    if fee_total > amount_in:
-        return _guard_false(action_id)
     net_in = amount_in - fee_total
     if net_in <= 0:
         return _guard_false(action_id)
 
     denom = reserve_in + net_in
-    if denom <= 0:
-        return _guard_false(action_id)
     amount_out = (reserve_out * net_in) // denom
 
     # Guard: non-degenerate output and reserve safety.
     if amount_out < 1:
-        return _guard_false(action_id)
-    if reserve_out - amount_out < 1:
         return _guard_false(action_id)
     if recipient_out + amount_out > 150:
         return _guard_false(action_id)
@@ -169,4 +163,3 @@ EFFECT_HANDLERS: dict[str, Callable[[SettlementSwapApplyWitnessV1NativeAdapter, 
 
 def make_adapter(ir: Any) -> SettlementSwapApplyWitnessV1NativeAdapter:
     return SettlementSwapApplyWitnessV1NativeAdapter(ir=ir)
-

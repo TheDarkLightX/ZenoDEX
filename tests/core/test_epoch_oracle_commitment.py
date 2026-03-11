@@ -24,7 +24,7 @@ def test_registry_commit_is_monotonic_and_unique() -> None:
         reg.commit(EpochOracleCommitment(epoch=2, price_e8=99_000_000, timestamp=3, source_hash="dup"))
 
     with pytest.raises(ValueError):
-        reg.commit(EpochOracleCommitment(epoch=1, price_e8=99_000_000, timestamp=3, source_hash="back"))
+        reg.commit(EpochOracleCommitment(epoch=0, price_e8=99_000_000, timestamp=3, source_hash="back"))
 
 
 def test_create_module_views_share_same_price_and_hash() -> None:
@@ -74,3 +74,35 @@ def test_cross_module_arbitrage_monotone_in_gap() -> None:
             arbs.append(estimate_cross_module_arbitrage_bps(base, other, 1_000_000))
         assert arbs == sorted(arbs)
 
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"epoch": -1, "price_e8": 100, "timestamp": 1, "source_hash": "h"}, "epoch must be non-negative"),
+        ({"epoch": 1, "price_e8": 0, "timestamp": 1, "source_hash": "h"}, "price_e8 must be positive"),
+        ({"epoch": 1, "price_e8": 100, "timestamp": -1, "source_hash": "h"}, "timestamp must be non-negative"),
+        ({"epoch": 1, "price_e8": 100, "timestamp": 1, "source_hash": ""}, "source_hash must be non-empty"),
+    ],
+)
+def test_epoch_oracle_commitment_rejects_invalid_fields(kwargs: dict[str, object], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        EpochOracleCommitment(**kwargs)
+
+
+def test_registry_get_and_get_price_cover_missing_and_present_epochs() -> None:
+    reg = OracleRegistry()
+    commitment = EpochOracleCommitment(epoch=3, price_e8=123, timestamp=7, source_hash="src")
+    reg.commit(commitment)
+
+    assert reg.get(3) == commitment
+    assert reg.get(99) is None
+    assert reg.get_price_e8(3) == 123
+    with pytest.raises(KeyError, match="No oracle commitment for epoch 99"):
+        reg.get_price_e8(99)
+
+
+def test_cross_module_arbitrage_rejects_bad_prices_and_zeroes_non_positive_trade_size() -> None:
+    with pytest.raises(ValueError, match="Prices must be positive"):
+        estimate_cross_module_arbitrage_bps(0, 100, 1)
+
+    assert estimate_cross_module_arbitrage_bps(100, 101, 0) == 0
