@@ -29,6 +29,9 @@ fi
 
 export PYTHONPATH="$ROOT_DIR/external/ESSO${PYTHONPATH:+:$PYTHONPATH}"
 
+VERIFY_ROOT="$ROOT_DIR/internal/esso_verify/derivatives"
+mkdir -p "$VERIFY_ROOT"
+
 echo "== derivatives: claims registry format check =="
 "$PY" "$ROOT_DIR/tools/check_claims_registry.py"
 
@@ -47,30 +50,43 @@ echo "== derivatives: kernel inductiveness (verify-multi) =="
   "$ROOT_DIR/src/kernels/dex/funding_rate_market_v1.yaml" \
   --solvers z3,cvc5 \
   --timeout-ms 60000 \
-  --determinism-trials 2
+  --determinism-trials 2 \
+  --output "$VERIFY_ROOT/funding_rate_market_v1" \
+  --write-report
 
 "$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/funding_rate_market_v1_1.yaml" \
   --solvers z3 \
   --timeout-ms 60000 \
-  --determinism-trials 2
+  --determinism-trials 2 \
+  --output "$VERIFY_ROOT/funding_rate_market_v1_1" \
+  --write-report
 
 "$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/il_futures_market_v1.yaml" \
   --solvers z3,cvc5 \
   --timeout-ms 60000 \
-  --determinism-trials 2
+  --determinism-trials 2 \
+  --output "$VERIFY_ROOT/il_futures_market_v1" \
+  --write-report
 
 "$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/curve_selection_market_v1.yaml" \
   --solvers z3,cvc5 \
   --timeout-ms 60000 \
-  --determinism-trials 2
+  --determinism-trials 2 \
+  --output "$VERIFY_ROOT/curve_selection_market_v1" \
+  --write-report
 
 "$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/volatility_tier_controller_v1.yaml" \
   --solvers z3,cvc5 \
   --timeout-ms 60000 \
-  --determinism-trials 2
+  --determinism-trials 2 \
+  --output "$VERIFY_ROOT/volatility_tier_controller_v1" \
+  --write-report
+
+echo "== derivatives: manifest check =="
+"$PY" "$ROOT_DIR/tools/check_derivatives_evidence_manifest.py"
 
 echo "ok"
