@@ -37,6 +37,32 @@ _MODE_STRONG_PROOF_CARRYING = "strong_proof_carrying"
 _VALIDATION_MODES = frozenset({_MODE_STRONG_REPLAY, _MODE_STRONG_PROOF_CARRYING})
 
 
+def _format_error_details(**kwargs: object) -> str:
+    parts: list[str] = []
+    for key, value in kwargs.items():
+        if value is None:
+            continue
+        parts.append(f"{key}={value!r}")
+    return ", ".join(parts)
+
+
+def _quote_binding_error(reason: str, **kwargs: object) -> str:
+    details = _format_error_details(**kwargs)
+    if not details:
+        return reason
+    return f"{reason}: {details}"
+
+
+def _quote_binding_context(intent: Intent) -> dict[str, object]:
+    return {
+        "intent_id": intent.intent_id,
+        "quote_hash": intent.get_field("quote_receipt_hash"),
+        "quote_pool_fingerprint": intent.get_field("quote_pool_fingerprint"),
+        "leg_index": intent.get_field("quote_receipt_leg_index"),
+        "pool_id": intent.get_field("pool_id"),
+    }
+
+
 def validate_settlement_strong(
     *,
     settlement: Settlement,
@@ -153,21 +179,45 @@ def _validate_settlement_strong_impl(
             or quote_leg_index is not None
         )
         if has_quote_binding and it.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-            return fail(f"quote receipt binding only supported for swap intents: intent_id={intent_id}")
+            return fail(
+                _quote_binding_error(
+                    "quote receipt binding only supported for swap intents",
+                    **_quote_binding_context(it),
+                    intent_kind=it.kind.value,
+                )
+            )
         if quote_leg_index is not None and (
             not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0
         ):
-            return fail(f"invalid quote_receipt_leg_index for intent_id={intent_id}")
+            return fail(_quote_binding_error("invalid quote_receipt_leg_index", **_quote_binding_context(it)))
         if quote_leg_index is not None:
-            return fail(f"quote receipt transport metadata requires validated engine witness: intent_id={intent_id}")
+            return fail(
+                _quote_binding_error(
+                    "quote receipt transport metadata requires validated engine witness",
+                    **_quote_binding_context(it),
+                    guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
+                )
+            )
         if quote_receipt_hash is not None:
             if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
-                return fail(f"invalid quote_receipt_hash for intent_id={intent_id}")
-            return fail(f"quote receipt transport metadata requires validated engine witness: intent_id={intent_id}")
+                return fail(_quote_binding_error("invalid quote_receipt_hash", **_quote_binding_context(it)))
+            return fail(
+                _quote_binding_error(
+                    "quote receipt transport metadata requires validated engine witness",
+                    **_quote_binding_context(it),
+                    guidance="strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation",
+                )
+            )
         if quote_pool_fp is not None and (not isinstance(quote_pool_fp, str) or not quote_pool_fp):
-            return fail(f"missing quote_pool_fingerprint for intent_id={intent_id}")
+            return fail(_quote_binding_error("missing quote_pool_fingerprint", **_quote_binding_context(it)))
         if quote_pool_fp is not None and not allow_snapshot_bound_quote_bindings:
-            return fail(f"quote receipt snapshot binding requires validated engine witness: intent_id={intent_id}")
+            return fail(
+                _quote_binding_error(
+                    "quote receipt snapshot binding requires validated engine witness",
+                    **_quote_binding_context(it),
+                    guidance="only pass sanitized quote_pool_fingerprint through the validated engine path",
+                )
+            )
 
         if action == FillAction.REJECT:
             continue
@@ -284,8 +334,15 @@ def _validate_settlement_strong_impl(
             if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
                 return fail(f"swap asset mismatch for intent_id={intent_id}")
             if quote_pool_fp is not None:
-                if pool_state_fingerprint(pool) != quote_pool_fp:
-                    return fail(f"quote receipt pool snapshot mismatch for intent_id={intent_id}")
+                actual_pool_fp = pool_state_fingerprint(pool)
+                if actual_pool_fp != quote_pool_fp:
+                    return fail(
+                        _quote_binding_error(
+                            "quote receipt pool snapshot mismatch",
+                            **_quote_binding_context(it),
+                            actual_pool_fingerprint=actual_pool_fp,
+                        )
+                    )
 
             # CoW netting semantics (optional): direct user-to-user swap, no pool reserve changes.
             if f.reason == "COW_NETTED":
