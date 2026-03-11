@@ -45,12 +45,12 @@ class ProofVerifierConfig:
 class ProofVerifier:
     """Interface for verifying a proof payload."""
 
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         raise NotImplementedError
 
 
 class DisabledProofVerifier(ProofVerifier):
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         return False, "proof verification disabled"
 
 
@@ -58,7 +58,7 @@ class MisconfiguredProofVerifier(ProofVerifier):
     def __init__(self, reason: str) -> None:
         self._reason = str(reason)
 
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         return False, self._reason
 
 
@@ -66,7 +66,7 @@ class UnsupportedPlatformProofVerifier(ProofVerifier):
     def __init__(self, reason: str) -> None:
         self._reason = str(reason)
 
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         return False, self._reason
 
 
@@ -107,7 +107,7 @@ class SubprocessProofVerifier(ProofVerifier):
         self._max_stdout = int(max_stdout_bytes)
         self._max_stderr = int(max_stderr_bytes)
 
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         if not isinstance(payload, Mapping):
             return False, "payload must be an object"
 
@@ -207,7 +207,7 @@ class SubprocessProofVerifier(ProofVerifier):
 
                 for stream in ready_w:
                     try:
-                        n = stream.write(stdin_view[stdin_off : stdin_off + 4096])
+                        n_written: object = stream.write(stdin_view[stdin_off : stdin_off + 4096])
                     except BrokenPipeError:
                         _kill_proc_group()
                         _wait_after_kill()
@@ -219,8 +219,14 @@ class SubprocessProofVerifier(ProofVerifier):
                         _wait_after_kill()
                         return False, "proof verifier stdin error"
 
-                    if n is None:
+                    if n_written is None:
                         n = 0
+                    elif isinstance(n_written, int) and not isinstance(n_written, bool):
+                        n = n_written
+                    else:
+                        _kill_proc_group()
+                        _wait_after_kill()
+                        return False, "proof verifier stdin invalid write result"
                     stdin_off += int(n)
                     if stdin_off >= len(stdin_view):
                         stdin_open = False
@@ -233,24 +239,28 @@ class SubprocessProofVerifier(ProofVerifier):
 
                 for stream in ready_r:
                     try:
-                        chunk = stream.read(4096)
+                        chunk_obj: object = stream.read(4096)
                     except BlockingIOError:
                         continue
                     except Exception:
                         _kill_proc_group()
                         _wait_after_kill()
                         return False, "proof verifier stdout/stderr read error"
-                    if not chunk:
+                    if not chunk_obj:
                         if stream is proc.stdout:
                             stdout_open = False
                         else:
                             stderr_open = False
                         continue
 
-                    if isinstance(chunk, str):
-                        chunk_b = chunk.encode("utf-8", errors="replace")
+                    if isinstance(chunk_obj, str):
+                        chunk_b = chunk_obj.encode("utf-8", errors="replace")
+                    elif isinstance(chunk_obj, (bytes, bytearray, memoryview)):
+                        chunk_b = bytes(chunk_obj)
                     else:
-                        chunk_b = bytes(chunk)
+                        _kill_proc_group()
+                        _wait_after_kill()
+                        return False, "proof verifier returned invalid stream chunk"
 
                     if stream is proc.stdout:
                         stdout_buf += chunk_b
@@ -302,9 +312,9 @@ class SubprocessProofVerifier(ProofVerifier):
             if ok is True:
                 return True, None
             if ok is False:
-                err = result.get("error")
-                if isinstance(err, str) and err:
-                    return False, err
+                error_value = result.get("error")
+                if isinstance(error_value, str) and error_value:
+                    return False, error_value
                 return False, "proof rejected"
 
             return False, "invalid verifier output (missing ok)"
