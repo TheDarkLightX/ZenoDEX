@@ -67,8 +67,6 @@ def _swap_limit_price(intent: Intent) -> int:
             raise IntentNormalFormError("swap.max_amount_in must be > 0")
         if amount_out <= 0:
             raise IntentNormalFormError("swap.amount_out must be > 0")
-        if max_amount_in < 0:
-            raise IntentNormalFormError("swap.max_amount_in must be >= 0")
         return (amount_out * 10**18) // max_amount_in
 
     raise IntentNormalFormError(f"not a swap intent: {intent.kind}")
@@ -180,4 +178,3 @@ def iter_pool_partitions(intents: Sequence[Intent]) -> Iterable[Tuple[Optional[s
     for pool_id in order:
         out.append((pool_id, buckets[pool_id]))
     return out
-

@@ -22,7 +22,6 @@ from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
 from ..state.pools import PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
-from .batch_clearing import _parse_create_pool_event_payload
 from .batch_clearing import validate_settlement as validate_settlement_legacy
 from .cpmm import MIN_LP_LOCK, compute_fee_total
 from .domain_limits import is_strict_int
@@ -145,8 +144,6 @@ def _validate_settlement_strong_impl(
         return False, f"settlement fills contains intent_ids not in input intents: {extra_fill_ids}"
     fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
     for intent_id, action in settlement.included_intents:
-        if intent_id not in intents_by_id:
-            return False, f"settlement references unknown intent_id: {intent_id}"
         f = fill_by_id.get(intent_id)
         if f is None:
             if action == FillAction.FILL:
@@ -222,9 +219,7 @@ def _validate_settlement_strong_impl(
         if action == FillAction.REJECT:
             continue
 
-        f = fill_by_id.get(intent_id)
-        if f is None or f.action != FillAction.FILL:
-            return fail(f"missing or non-FILL Fill for intent_id={intent_id}")
+        f = fill_by_id[intent_id]
 
         sender: PubKey = it.sender_pubkey
         recipient: PubKey = it.get_field("recipient", sender)
@@ -613,30 +608,6 @@ def _validate_settlement_strong_impl(
     got_events_norm = settlement.events or []
     if got_events_norm != exp_events_norm:
         return False, "events mismatch vs replay"
-
-    # Extra sanity: ensure created pool events are parseable into PoolState (including curve config).
-    for ev in got_events_norm:
-        if ev.get("type") != "CREATE_POOL":
-            return False, f"unsupported event type: {ev.get('type')!r}"
-        try:
-            pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at = (
-                _parse_create_pool_event_payload(ev)
-            )
-            PoolState(
-                pool_id=pool_id,
-                asset0=asset0,
-                asset1=asset1,
-                reserve0=0,
-                reserve1=0,
-                fee_bps=fee_bps,
-                lp_supply=0,
-                status=status,
-                created_at=created_at,
-                curve_tag=curve_tag,
-                curve_params=curve_params,
-            )
-        except Exception as exc:
-            return False, f"invalid CREATE_POOL event payload: {exc}"
 
     # Defense-in-depth: ensure basic conservation/non-negativity in addition to replay checks.
     # This is essential when a fill type does not touch pool reserves (e.g. COW_NETTED),

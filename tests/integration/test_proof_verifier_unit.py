@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Sequence
-from typing import Any
 
 import pytest
 
@@ -377,6 +376,128 @@ def test_subprocess_verifier_handles_none_write_before_success(monkeypatch: pyte
     assert verifier.verify({"ok": True}) == (True, None)
 
 
+def test_subprocess_verifier_rejects_empty_payload_close_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    proc = _FakeProc(
+        stdin=_FakeStream("stdin", close_exc=RuntimeError("close failed")),
+        stdout=_FakeStream("stdout"),
+        stderr=_FakeStream("stderr"),
+    )
+    _patch_fake_process(
+        monkeypatch,
+        proc,
+        proof_bytes=b"",
+        schedule=[],
+    )
+
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=256,
+        max_stderr_bytes=256,
+    )
+    assert verifier.verify({"ok": True}) == (False, "proof verifier stdin close error")
+
+
+def test_subprocess_verifier_rejects_stdin_write_error_variants(monkeypatch: pytest.MonkeyPatch) -> None:
+    proof_bytes = b'{"ok":true}'
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=256,
+        max_stderr_bytes=256,
+    )
+
+    broken_pipe = _FakeProc(stdin=_FakeStream("stdin", writes=[BrokenPipeError()]))
+    kill_calls: list[tuple[int, int]] = []
+    _patch_fake_process(monkeypatch, broken_pipe, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
+    monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: kill_calls.append((pid, sig)))
+    assert verifier.verify({"ok": True}) == (False, "proof verifier stdin broken pipe")
+    assert kill_calls
+
+    blocking = _FakeProc(
+        stdin=_FakeStream("stdin", writes=[BlockingIOError(), len(proof_bytes)]),
+        stdout=_FakeStream("stdout", reads=[b'{"ok": true}', b""]),
+        stderr=_FakeStream("stderr", reads=[b""]),
+        poll_results=[0],
+    )
+    _patch_fake_process(
+        monkeypatch,
+        blocking,
+        proof_bytes=proof_bytes,
+        schedule=[(set(), {"stdin"}), ({"stdout", "stderr"}, {"stdin"}), ({"stdout"}, set())],
+    )
+    assert verifier.verify({"ok": True}) == (True, None)
+
+    generic_error = _FakeProc(stdin=_FakeStream("stdin", writes=[RuntimeError("boom")], close_exc=None))
+    _patch_fake_process(monkeypatch, generic_error, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
+    assert verifier.verify({"ok": True}) == (False, "proof verifier stdin error")
+
+
+def test_subprocess_verifier_rejects_stdin_close_and_read_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    proof_bytes = b'{"ok":true}'
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=256,
+        max_stderr_bytes=256,
+    )
+
+    close_error = _FakeProc(stdin=_FakeStream("stdin", writes=[len(proof_bytes)], close_exc=RuntimeError("close failed")))
+    _patch_fake_process(monkeypatch, close_error, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
+    assert verifier.verify({"ok": True}) == (False, "proof verifier stdin close error")
+
+    read_blocking = _FakeProc(
+        stdin=_FakeStream("stdin", writes=[len(proof_bytes)]),
+        stdout=_FakeStream("stdout", reads=[BlockingIOError(), b'{"ok": true}', b""]),
+        stderr=_FakeStream("stderr", reads=[b""]),
+        poll_results=[0],
+    )
+    _patch_fake_process(
+        monkeypatch,
+        read_blocking,
+        proof_bytes=proof_bytes,
+        schedule=[(set(), {"stdin"}), ({"stdout", "stderr"}, set()), ({"stdout"}, set()), ({"stdout"}, set())],
+    )
+    assert verifier.verify({"ok": True}) == (True, None)
+
+    read_error = _FakeProc(
+        stdin=_FakeStream("stdin", writes=[len(proof_bytes)]),
+        stdout=_FakeStream("stdout", reads=[RuntimeError("read failed")]),
+        stderr=_FakeStream("stderr"),
+    )
+    _patch_fake_process(monkeypatch, read_error, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"}), ({"stdout"}, set())])
+    assert verifier.verify({"ok": True}) == (False, "proof verifier stdout/stderr read error")
+
+
+def test_subprocess_verifier_covers_stderr_eof_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=256,
+        max_stderr_bytes=256,
+    )
+
+    stderr_only = _FakeProc(
+        stdout=_FakeStream("stdout", reads=[b""]),
+        stderr=_FakeStream("stderr", reads=[b"noise", b""]),
+        poll_results=[0],
+    )
+    _patch_fake_process(
+        monkeypatch,
+        stderr_only,
+        proof_bytes=b"",
+        schedule=[({"stdout", "stderr"}, set()), ({"stderr"}, set())],
+    )
+    ok, err = verifier.verify({"ok": True})
+    assert ok is False
+    assert err is not None
+    assert "invalid verifier output" in err
+
+
 def test_subprocess_verifier_rejects_wait_timeout_and_exit_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     proof_bytes = b'{"ok":true}'
 
@@ -424,6 +545,98 @@ def test_subprocess_verifier_rejects_wait_timeout_and_exit_failure(monkeypatch: 
     )
 
     assert verifier.verify({"ok": True}) == (False, "proof verifier did not exit")
+
+
+def test_subprocess_verifier_rejects_wait_deadline_expiry_and_cleanup_wait_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    proof_bytes = b'{"ok":true}'
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=256,
+        max_stderr_bytes=256,
+    )
+
+    deadline_proc = _FakeProc(
+        stdin=_FakeStream("stdin", writes=[len(proof_bytes)]),
+        stdout=_FakeStream("stdout", reads=[b""]),
+        stderr=_FakeStream("stderr", reads=[b""]),
+        poll_results=[None],
+        wait_results=[0],
+    )
+    _patch_fake_process(
+        monkeypatch,
+        deadline_proc,
+        proof_bytes=proof_bytes,
+        schedule=[(set(), {"stdin"}), ({"stdout", "stderr"}, set())],
+    )
+    monotonic_values = iter([0.0, 0.5, 1.5])
+    monkeypatch.setattr(proof_verifier.time, "monotonic", lambda: next(monotonic_values))
+    assert verifier.verify({"ok": True}) == (False, "proof verification timed out")
+
+    cleanup_proc = _FakeProc(stdin=_FakeStream("stdin", writes=[BrokenPipeError()]), wait_results=[RuntimeError("wait failed")])
+    _patch_fake_process(monkeypatch, cleanup_proc, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
+    monkeypatch.setattr(proof_verifier.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(RuntimeError("kill failed")))
+    assert verifier.verify({"ok": True}) == (False, "proof verifier stdin broken pipe")
+
+
+def test_subprocess_verifier_covers_kill_fallback_wait_deadline_and_finally_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
+    proof_bytes = b'{"ok":true}'
+
+    class _KillRaisesProc(_FakeProc):
+        def kill(self) -> None:
+            raise RuntimeError("kill failed")
+
+    broken_proc = _KillRaisesProc(stdin=_FakeStream("stdin", writes=[BrokenPipeError()]))
+    _patch_fake_process(monkeypatch, broken_proc, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
+    monkeypatch.setattr(proof_verifier.os, "killpg", lambda pid, sig: (_ for _ in ()).throw(RuntimeError("killpg failed")))
+
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=256,
+        max_stderr_bytes=256,
+    )
+    assert verifier.verify({"ok": True}) == (False, "proof verifier stdin broken pipe")
+
+    wait_deadline_proc = _FakeProc(
+        stdout=_FakeStream("stdout", reads=[b""]),
+        stderr=_FakeStream("stderr", reads=[b""]),
+        poll_results=[None],
+        wait_results=[0],
+    )
+    _patch_fake_process(
+        monkeypatch,
+        wait_deadline_proc,
+        proof_bytes=b"",
+        schedule=[({"stdout", "stderr"}, set())],
+    )
+    monotonic_values = iter([0.0, 0.1, 1.5])
+    monkeypatch.setattr(proof_verifier.time, "monotonic", lambda: next(monotonic_values))
+    assert verifier.verify({"ok": True}) == (False, "proof verification timed out")
+
+    class _PollZeroCleanupWaitProc(_FakeProc):
+        def poll(self) -> object:
+            return 0
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            raise RuntimeError("cleanup wait failed")
+
+    cleanup_proc = _PollZeroCleanupWaitProc(
+        stdout=_FakeStream("stdout", reads=[b'{"ok": true}', b""]),
+        stderr=_FakeStream("stderr", reads=[b""]),
+    )
+    _patch_fake_process(
+        monkeypatch,
+        cleanup_proc,
+        proof_bytes=b"",
+        schedule=[({"stdout", "stderr"}, set()), ({"stdout"}, set())],
+    )
+    monkeypatch.setattr(proof_verifier.time, "monotonic", lambda: 0.0)
+    assert verifier.verify({"ok": True}) == (True, None)
 
 
 def test_make_proof_verifier_covers_platform_and_cmd_validation(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
