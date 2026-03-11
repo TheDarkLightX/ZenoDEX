@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import pytest
 
-from src.integration.operations import parse_settlement, parse_settlement_envelope, parse_signed_intents
+from src.integration.operations import (
+    SignedIntentEnvelope,
+    create_intent_operation,
+    create_signed_intent_operation,
+    parse_settlement,
+    parse_settlement_envelope,
+    parse_signed_intents,
+)
+from src.state.intents import Intent, IntentKind
 
 
 def _min_intent_dict(*, intent_id: str = "0x" + "11" * 32) -> dict[str, object]:
@@ -32,9 +40,40 @@ def test_parse_signed_intents_accepts_envelope_format() -> None:
     assert envs[0].signature == "0xsig2"
 
 
+def test_parse_signed_intents_accepts_quote_receipt_field() -> None:
+    receipt = {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": "0xabc"}
+    ops = {"2": [{**_min_intent_dict(), "quote_receipt": receipt}]}
+    envs = parse_signed_intents(ops)
+    assert len(envs) == 1
+    assert envs[0].quote_receipt == receipt
+    assert "quote_receipt" not in (envs[0].intent.fields or {})
+
+
+def test_parse_signed_intents_accepts_envelope_format_with_quote_receipt() -> None:
+    receipt = {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": "0xabc"}
+    ops = {"2": [[_min_intent_dict(), "0xsig2", receipt]]}
+    envs = parse_signed_intents(ops)
+    assert len(envs) == 1
+    assert envs[0].signature == "0xsig2"
+    assert envs[0].quote_receipt == receipt
+
+
 def test_parse_signed_intents_rejects_double_signature() -> None:
     ops = {"2": [[{**_min_intent_dict(), "signature": "0xsig"}, "0xsig"]]}
     with pytest.raises(ValueError, match="signature provided twice"):
+        parse_signed_intents(ops)
+
+
+def test_parse_signed_intents_rejects_double_quote_receipt() -> None:
+    receipt = {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": "0xabc"}
+    ops = {"2": [[{**_min_intent_dict(), "quote_receipt": receipt}, "0xsig", receipt]]}
+    with pytest.raises(ValueError, match="quote_receipt provided twice"):
+        parse_signed_intents(ops)
+
+
+def test_parse_signed_intents_rejects_malformed_quote_receipt_envelope() -> None:
+    ops = {"2": [[_min_intent_dict(), {"not": "a receipt"}]]}
+    with pytest.raises(ValueError, match=r"quote_receipt\.body must be an object"):
         parse_signed_intents(ops)
 
 
@@ -54,6 +93,33 @@ def test_parse_signed_intents_rejects_oversized_signature() -> None:
     ops = {"2": [{**_min_intent_dict(), "signature": "x" * 4097}]}
     with pytest.raises(ValueError, match="signature too large"):
         parse_signed_intents(ops)
+
+
+def test_create_signed_intent_operation_roundtrips_transport_metadata() -> None:
+    receipt = {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": "0xabc"}
+    env = parse_signed_intents({"2": [{**_min_intent_dict(), "signature": "0xsig", "quote_receipt": receipt}]})[0]
+    ops = create_signed_intent_operation([env])
+    assert ops["2"][0]["signature"] == "0xsig"
+    assert ops["2"][0]["quote_receipt"] == receipt
+
+    reparsed = parse_signed_intents(ops)
+    assert len(reparsed) == 1
+    assert reparsed[0].signature == "0xsig"
+    assert reparsed[0].quote_receipt == receipt
+
+
+def test_create_intent_operation_rejects_quote_receipt_reserved_key() -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "33" * 32,
+        sender_pubkey="pk",
+        deadline=1,
+        fields={"quote_receipt": {"receipt_hash": "0xabc"}},
+    )
+    with pytest.raises(ValueError, match="reserved key: quote_receipt"):
+        create_intent_operation([intent])
 
 
 def test_parse_settlement_envelope_extracts_proof() -> None:

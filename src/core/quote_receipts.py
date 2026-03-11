@@ -14,6 +14,7 @@ This supports:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any, Dict, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
@@ -116,8 +117,51 @@ def _pool_reserves_for_hop(pool: PoolState, *, asset_in: str, asset_out: str) ->
     return None
 
 
+def _replay_and_apply_hop(
+    *,
+    pool: PoolState,
+    kind: str,
+    asset_in: str,
+    asset_out: str,
+    amount_in: int,
+    amount_out: int,
+) -> Tuple[bool, str, PoolState | None]:
+    reserves = _pool_reserves_for_hop(pool, asset_in=asset_in, asset_out=asset_out)
+    if reserves is None:
+        return False, "bad_pool_direction", None
+    rin, rout = reserves
+
+    try:
+        if kind == "exact_in":
+            quoted_out, (next_rin, next_rout) = swap_exact_in_for_pool(
+                pool,
+                reserve_in=rin,
+                reserve_out=rout,
+                amount_in=int(amount_in),
+            )
+            if int(quoted_out) != int(amount_out):
+                return False, "hop_quote_mismatch", None
+        else:
+            quoted_in, (next_rin, next_rout) = swap_exact_out_for_pool(
+                pool,
+                reserve_in=rin,
+                reserve_out=rout,
+                amount_out=int(amount_out),
+            )
+            if int(quoted_in) != int(amount_in):
+                return False, "hop_quote_mismatch", None
+    except Exception:
+        return False, "hop_quote_error", None
+
+    if asset_in == pool.asset0 and asset_out == pool.asset1:
+        return True, "ok", replace(pool, reserve0=int(next_rin), reserve1=int(next_rout))
+    if asset_in == pool.asset1 and asset_out == pool.asset0:
+        return True, "ok", replace(pool, reserve0=int(next_rout), reserve1=int(next_rin))
+    return False, "bad_pool_direction", None
+
+
 def verify_route_quote_receipt(
-    receipt: Dict[str, Any],
+    receipt: object,
     *,
     pools_by_id: Dict[str, PoolState],
 ) -> Tuple[bool, str]:
@@ -169,6 +213,7 @@ def verify_route_quote_receipt(
             return False, "missing_pool"
         if pool_state_fingerprint(pool) != fp:
             return False, "pool_snapshot_mismatch"
+    working_pools = {pid: replace(pools_by_id[pid]) for pid in pools}
 
     # Verify hop-by-hop quote semantics.
     legs = body.get("legs")
@@ -199,9 +244,9 @@ def verify_route_quote_receipt(
                 return False, "bad_pool_id"
             if pid not in pools:
                 return False, "missing_pool_fingerprint"
-            pool = pools_by_id.get(pid)
+            pool = working_pools.get(pid)
             if pool is None:
-                return False, "missing_pool"
+                return False, "missing_working_pool"
 
             asset_in = hop.get("asset_in")
             asset_out = hop.get("asset_out")
@@ -213,10 +258,6 @@ def verify_route_quote_receipt(
             else:
                 if asset_in != prev_asset_out:
                     return False, "hop_asset_chain_mismatch"
-            reserves = _pool_reserves_for_hop(pool, asset_in=asset_in, asset_out=asset_out)
-            if reserves is None:
-                return False, "bad_pool_direction"
-            rin, rout = reserves
 
             amt_in = int(hop.get("amount_in", 0))
             amt_out = int(hop.get("amount_out", 0))
@@ -226,17 +267,17 @@ def verify_route_quote_receipt(
             if prev_out is not None and amt_in != prev_out:
                 return False, "hop_chain_mismatch"
 
-            try:
-                if kind == "exact_in":
-                    out, _ = swap_exact_in_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_in=int(amt_in))
-                    if int(out) != int(amt_out):
-                        return False, "hop_quote_mismatch"
-                else:
-                    inn, _ = swap_exact_out_for_pool(pool, reserve_in=rin, reserve_out=rout, amount_out=int(amt_out))
-                    if int(inn) != int(amt_in):
-                        return False, "hop_quote_mismatch"
-            except Exception:
-                return False, "hop_quote_error"
+            ok, err, next_pool = _replay_and_apply_hop(
+                pool=pool,
+                kind=kind,
+                asset_in=asset_in,
+                asset_out=asset_out,
+                amount_in=int(amt_in),
+                amount_out=int(amt_out),
+            )
+            if not ok or next_pool is None:
+                return False, err
+            working_pools[pid] = next_pool
 
             prev_out = int(amt_out)
             prev_asset_out = str(asset_out)

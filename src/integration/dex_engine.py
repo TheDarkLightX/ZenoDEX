@@ -18,6 +18,7 @@ from ..core.batch_clearing import apply_settlement_pure, compute_settlement
 from ..core.dex import DexConfig, DexState
 from ..core.fees import split_fee_with_dust_carry
 from ..core.intent_normal_form import IntentNormalFormError, require_normal_form
+from ..core.quote_receipts import verify_route_quote_receipt
 from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
 from ..state.canonical import (
@@ -29,9 +30,9 @@ from ..state.canonical import (
     sha256_hex,
 )
 from ..state.intents import Intent
+from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
-from ..state.nonces import NonceTable
 from .operations import (
     SignedIntentEnvelope,
     SettlementEnvelope,
@@ -55,60 +56,71 @@ except Exception:  # pragma: no cover - optional dependency
 
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 
-_U32_MAX = 0xFFFFFFFF
+_FAULT_STAGES = (
+    "after_raw_validation",
+    "after_intent_parse",
+    "after_settlement_parse",
+    "after_preconditions",
+    "after_signature_verification",
+    "after_nonce_validation",
+    "after_settlement_compute",
+    "after_settlement_validation",
+    "after_proof_verification",
+    "after_apply_pure",
+)
 
 
-def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
-    copied = NonceTable()
-    for pk, last in nonces.get_all().items():
-        copied.set_last(pk, int(last))
-    return copied
+def _format_error_details(**kwargs: Any) -> str:
+    parts: list[str] = []
+    for key, value in kwargs.items():
+        if value is None:
+            continue
+        parts.append(f"{key}={value!r}")
+    return ", ".join(parts)
 
 
-def _require_int_u32_pos(value: Any, *, name: str) -> int:
-    if not isinstance(value, int) or isinstance(value, bool):
-        raise ValueError(f"{name} must be an int")
-    if value <= 0:
-        raise ValueError(f"{name} must be a positive int")
-    if value > _U32_MAX:
-        raise ValueError(f"{name} must fit in u32")
-    return int(value)
+def _quote_receipt_error(reason: str, **kwargs: Any) -> str:
+    details = _format_error_details(**kwargs)
+    if not details:
+        return reason
+    return f"{reason}: {details}"
+
+
+def _quote_receipt_intent_context(intent: Intent) -> dict[str, Any]:
+    return {
+        "intent_id": intent.intent_id,
+        "quote_hash": intent.get_field("quote_receipt_hash"),
+        "leg_index": intent.get_field("quote_receipt_leg_index"),
+        "pool_id": intent.get_field("pool_id"),
+        "asset_in": intent.get_field("asset_in"),
+        "asset_out": intent.get_field("asset_out"),
+    }
 
 
 def _validate_and_apply_nonce_batch(*, nonces: NonceTable, intents: list[Intent]) -> tuple[bool, str | None, NonceTable | None]:
-    """
-    Replay protection policy (v1):
-    - Every intent must include a positive u32 nonce under `intent.fields["nonce"]`.
-    - Per sender, the batch nonces must be a contiguous range:
-        {last+1, ..., last+k}
-      where `last` is the sender's last accepted nonce.
-    - Input order may be arbitrary (we validate as a set).
-    """
-    per_sender: dict[str, list[int]] = {}
-    for intent in intents:
-        fields = intent.fields or {}
-        nonce_raw = fields.get("nonce") if isinstance(fields, dict) else None
-        try:
-            nonce = _require_int_u32_pos(nonce_raw, name="nonce")
-        except Exception:
-            return False, "Missing/invalid nonce", None
-        try:
-            sender = canonical_hex_fixed_allow_0x(intent.sender_pubkey, nbytes=48, name="sender_pubkey")
-        except Exception as exc:
-            return False, f"invalid sender_pubkey for nonce accounting: {exc}", None
-        per_sender.setdefault(sender, []).append(int(nonce))
+    return validate_and_apply_intent_nonce_batch(
+        nonces=nonces,
+        intents=intents,
+        require_all_nonces=True,
+    )
 
-    updated = _copy_nonce_table(nonces)
-    for sender, nonce_list in per_sender.items():
-        if len(nonce_list) != len(set(nonce_list)):
-            return False, "duplicate nonce in batch", None
-        nonce_list_sorted = sorted(nonce_list)
-        last = int(updated.get_last(sender))
-        expected = list(range(last + 1, last + 1 + len(nonce_list_sorted)))
-        if nonce_list_sorted != expected:
-            return False, "nonce sequence invalid", None
-        updated.set_last(sender, expected[-1])
-    return True, None, updated
+
+@dataclass(frozen=True)
+class DexFaultInjectionConfig:
+    """
+    Test-only fault injection for fail-closed anomaly coverage.
+
+    `fail_at_stage` must be one of the stable stage ids in `_FAULT_STAGES`.
+    """
+
+    fail_at_stage: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        stage = self.fail_at_stage
+        if stage is None:
+            return
+        if stage not in _FAULT_STAGES:
+            raise ValueError(f"unknown fault injection stage: {stage}")
 
 
 @dataclass(frozen=True)
@@ -166,6 +178,10 @@ class DexEngineConfig:
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
 
+    # Test-only anomaly hook. Must not be enabled in production/testnet configs.
+    enable_test_fault_injection: bool = False
+    fault_injection: Optional[DexFaultInjectionConfig] = None
+
 
 @dataclass(frozen=True)
 class DexTxResult:
@@ -174,6 +190,12 @@ class DexTxResult:
     settlement: Optional[Settlement] = None
     error: Optional[str] = None
     proof_mining_context: Optional[ProofMiningContext] = None
+
+
+class _InjectedFault(RuntimeError):
+    def __init__(self, stage: str) -> None:
+        super().__init__(f"fault injected: {stage}")
+        self.stage = stage
 
 
 def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional[int] = None) -> bytes:
@@ -421,6 +443,14 @@ def _clean_error(message: Any, *, max_len: int = 200) -> str:
     return out if len(out) <= max_len else out[:max_len]
 
 
+def _fault_stage(config: DexEngineConfig, stage: str) -> None:
+    fault = config.fault_injection
+    if fault is None:
+        return
+    if fault.fail_at_stage == stage:
+        raise _InjectedFault(stage)
+
+
 def _validate_external_tool_policy(config: DexEngineConfig) -> Optional[str]:
     tau_gate_enabled = bool(config.tau_gate_config and config.tau_gate_config.enabled)
     proof_verifier_enabled = bool(config.proof_config.enabled)
@@ -468,6 +498,292 @@ def _validate_raw_intent_ops(config: DexEngineConfig, raw_intents: Any) -> Optio
     return None
 
 
+def _validate_intent_preconditions(
+    *,
+    intents: List[Intent],
+    settlement: Optional[Settlement],
+    block_timestamp: int,
+) -> Optional[str]:
+    if not intents and settlement is not None:
+        return "settlement provided without intents"
+    for intent in intents:
+        if int(intent.deadline) < int(block_timestamp):
+            return f"Intent expired: {intent.intent_id}"
+    return None
+
+
+def _validate_intent_against_quote_receipt(intent: Intent, receipt: Mapping[str, Any]) -> Optional[str]:
+    if intent.kind.value not in {"SWAP_EXACT_IN", "SWAP_EXACT_OUT"}:
+        return _quote_receipt_error(
+            "quote receipt only supported for swap intents",
+            **_quote_receipt_intent_context(intent),
+            intent_kind=intent.kind.value,
+        )
+
+    body = receipt.get("body")
+    if not isinstance(body, Mapping):
+        return _quote_receipt_error("invalid quote receipt body", **_quote_receipt_intent_context(intent))
+    kind = str(body.get("kind", "")).strip().lower()
+    expected_kind = "exact_in" if intent.kind.value == "SWAP_EXACT_IN" else "exact_out"
+    if kind != expected_kind:
+        return _quote_receipt_error(
+            "quote receipt kind mismatch",
+            **_quote_receipt_intent_context(intent),
+            expected_kind=expected_kind,
+            receipt_kind=kind,
+        )
+
+    pool_id = intent.get_field("pool_id")
+    asset_in = intent.get_field("asset_in")
+    asset_out = intent.get_field("asset_out")
+    if not isinstance(pool_id, str) or not isinstance(asset_in, str) or not isinstance(asset_out, str):
+        return _quote_receipt_error(
+            "invalid quote receipt-bound swap fields",
+            **_quote_receipt_intent_context(intent),
+        )
+
+    pools = body.get("pools")
+    if not isinstance(pools, Mapping):
+        return _quote_receipt_error("invalid quote receipt pools", **_quote_receipt_intent_context(intent))
+    quote_pool_fp = intent.get_field("quote_pool_fingerprint")
+    if quote_pool_fp is not None:
+        if not isinstance(quote_pool_fp, str) or not quote_pool_fp:
+            return _quote_receipt_error("invalid quote_pool_fingerprint", **_quote_receipt_intent_context(intent))
+        if pools.get(pool_id) != quote_pool_fp:
+            return _quote_receipt_error(
+                "quote receipt pool fingerprint mismatch",
+                **_quote_receipt_intent_context(intent),
+                quoted_pool_fingerprint=quote_pool_fp,
+                receipt_pool_fingerprint=pools.get(pool_id),
+            )
+
+    legs = body.get("legs")
+    if not isinstance(legs, list) or not legs:
+        return _quote_receipt_error("invalid quote receipt legs", **_quote_receipt_intent_context(intent))
+
+    leg_index_raw = intent.get_field("quote_receipt_leg_index")
+    candidate_legs: list[tuple[int, Any]]
+    if leg_index_raw is not None:
+        if not isinstance(leg_index_raw, int) or isinstance(leg_index_raw, bool) or leg_index_raw < 0:
+            return _quote_receipt_error("invalid quote_receipt_leg_index", **_quote_receipt_intent_context(intent))
+        if leg_index_raw >= len(legs):
+            return _quote_receipt_error(
+                "quote receipt leg index out of range",
+                **_quote_receipt_intent_context(intent),
+                receipt_leg_count=len(legs),
+            )
+        candidate_legs = [(int(leg_index_raw), legs[int(leg_index_raw)])]
+    else:
+        candidate_legs = list(enumerate(legs))
+
+    saw_multi_hop_match = False
+    for _leg_index, leg in candidate_legs:
+        if not isinstance(leg, Mapping):
+            continue
+        hops = leg.get("hops")
+        if isinstance(hops, list) and len(hops) != 1:
+            for raw_hop in hops:
+                if not isinstance(raw_hop, Mapping):
+                    continue
+                hop_pool_id = str(raw_hop.get("pool_id", "")).strip()
+                hop_asset_in = str(raw_hop.get("asset_in", "")).strip()
+                hop_asset_out = str(raw_hop.get("asset_out", "")).strip()
+                if hop_pool_id == pool_id and hop_asset_in == asset_in and hop_asset_out == asset_out:
+                    saw_multi_hop_match = True
+                    if leg_index_raw is not None:
+                        return _quote_receipt_error(
+                            "quote receipt multi-hop leg unsupported for direct intent binding",
+                            **_quote_receipt_intent_context(intent),
+                            hop_count=len(hops),
+                        )
+            continue
+        if not isinstance(hops, list) or len(hops) != 1:
+            continue
+        hop = hops[0]
+        if not isinstance(hop, Mapping):
+            continue
+
+        hop_pool_id = str(hop.get("pool_id", "")).strip()
+        hop_asset_in = str(hop.get("asset_in", "")).strip()
+        hop_asset_out = str(hop.get("asset_out", "")).strip()
+        if hop_pool_id != pool_id or hop_asset_in != asset_in or hop_asset_out != asset_out:
+            continue
+
+        hop_amount_in = hop.get("amount_in")
+        hop_amount_out = hop.get("amount_out")
+        if not isinstance(hop_amount_in, int) or isinstance(hop_amount_in, bool):
+            continue
+        if not isinstance(hop_amount_out, int) or isinstance(hop_amount_out, bool):
+            continue
+
+        if intent.kind.value == "SWAP_EXACT_IN":
+            amount_in = intent.get_field("amount_in")
+            min_amount_out = intent.get_field("min_amount_out", 0)
+            if not isinstance(amount_in, int) or isinstance(amount_in, bool):
+                return _quote_receipt_error("invalid amount_in for quote receipt binding", **_quote_receipt_intent_context(intent))
+            if not isinstance(min_amount_out, int) or isinstance(min_amount_out, bool) or min_amount_out < 0:
+                return _quote_receipt_error(
+                    "invalid min_amount_out for quote receipt binding",
+                    **_quote_receipt_intent_context(intent),
+                )
+            if int(amount_in) == int(hop_amount_in) and int(min_amount_out) <= int(hop_amount_out):
+                return None
+            return _quote_receipt_error(
+                "exact-in quote receipt leg mismatch",
+                **_quote_receipt_intent_context(intent),
+                quoted_amount_in=int(hop_amount_in),
+                quoted_amount_out=int(hop_amount_out),
+                amount_in=int(amount_in),
+                min_amount_out=int(min_amount_out),
+            )
+
+        amount_out = intent.get_field("amount_out")
+        max_amount_in = intent.get_field("max_amount_in")
+        if not isinstance(amount_out, int) or isinstance(amount_out, bool):
+            return _quote_receipt_error("invalid amount_out for quote receipt binding", **_quote_receipt_intent_context(intent))
+        if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
+            return _quote_receipt_error(
+                "invalid max_amount_in for quote receipt binding",
+                **_quote_receipt_intent_context(intent),
+            )
+        if int(amount_out) == int(hop_amount_out) and int(max_amount_in) >= int(hop_amount_in):
+            return None
+        return _quote_receipt_error(
+            "exact-out quote receipt leg mismatch",
+            **_quote_receipt_intent_context(intent),
+            quoted_amount_in=int(hop_amount_in),
+            quoted_amount_out=int(hop_amount_out),
+            amount_out=int(amount_out),
+            max_amount_in=int(max_amount_in),
+        )
+
+    if saw_multi_hop_match:
+        return _quote_receipt_error(
+            "quote receipt multi-hop leg unsupported for direct intent binding",
+            **_quote_receipt_intent_context(intent),
+        )
+    if leg_index_raw is not None:
+        return _quote_receipt_error("intent does not match quote receipt leg", **_quote_receipt_intent_context(intent))
+    return _quote_receipt_error("intent does not match quote receipt", **_quote_receipt_intent_context(intent))
+
+
+def _validate_quote_receipt_witnesses(
+    *,
+    signed_intents: List[SignedIntentEnvelope],
+    pools: Dict[str, Any],
+) -> Optional[str]:
+    grouped_by_hash: Dict[str, List[SignedIntentEnvelope]] = {}
+    for env in signed_intents:
+        quote_hash = env.intent.get_field("quote_receipt_hash")
+        receipt = env.quote_receipt
+        if quote_hash is not None and receipt is None:
+            return _quote_receipt_error("missing quote receipt witness", **_quote_receipt_intent_context(env.intent))
+        if receipt is None:
+            continue
+        if quote_hash is None:
+            return _quote_receipt_error(
+                "quote receipt provided without quote_receipt_hash",
+                **_quote_receipt_intent_context(env.intent),
+                witness_hash=receipt.get("receipt_hash") if isinstance(receipt, Mapping) else None,
+            )
+        if not isinstance(quote_hash, str) or not quote_hash:
+            return _quote_receipt_error("invalid quote_receipt_hash", **_quote_receipt_intent_context(env.intent))
+        ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+        if not ok:
+            return _quote_receipt_error(
+                "invalid quote receipt",
+                **_quote_receipt_intent_context(env.intent),
+                verifier_error=(err or "rejected"),
+            )
+        if receipt.get("receipt_hash") != quote_hash:
+            return _quote_receipt_error(
+                "quote receipt hash mismatch",
+                **_quote_receipt_intent_context(env.intent),
+                witness_hash=receipt.get("receipt_hash"),
+            )
+        leg_index = env.intent.get_field("quote_receipt_leg_index")
+        if not isinstance(leg_index, int) or isinstance(leg_index, bool) or leg_index < 0:
+            return _quote_receipt_error(
+                "missing quote_receipt_leg_index",
+                **_quote_receipt_intent_context(env.intent),
+                guidance="direct quote-bound intents must bind exactly one receipt leg",
+            )
+        grouped_by_hash.setdefault(str(quote_hash), []).append(env)
+        err = _validate_intent_against_quote_receipt(env.intent, receipt)
+        if err is not None:
+            return err
+
+    for quote_hash, envs in grouped_by_hash.items():
+        receipt = envs[0].quote_receipt
+        body = receipt.get("body") if isinstance(receipt, Mapping) else None
+        legs = body.get("legs") if isinstance(body, Mapping) else None
+        if not isinstance(legs, list) or not legs:
+            return f"invalid quote receipt legs: {envs[0].intent.intent_id}"
+
+        observed_leg_indices: List[int] = []
+        for env in envs:
+            leg_index = env.intent.get_field("quote_receipt_leg_index")
+            if not isinstance(leg_index, int) or isinstance(leg_index, bool) or leg_index < 0:
+                return _quote_receipt_error(
+                    "missing quote_receipt_leg_index",
+                    **_quote_receipt_intent_context(env.intent),
+                    guidance="direct quote-bound intents must bind exactly one receipt leg",
+                )
+            observed_leg_indices.append(int(leg_index))
+
+        duplicate_leg_indices = sorted(
+            {
+                leg_index
+                for leg_index in observed_leg_indices
+                if observed_leg_indices.count(leg_index) > 1
+            }
+        )
+        if duplicate_leg_indices:
+            return _quote_receipt_error(
+                "duplicate quote receipt leg binding",
+                quote_hash=quote_hash,
+                duplicate_leg_indices=duplicate_leg_indices,
+                intent_ids=[env.intent.intent_id for env in envs],
+            )
+
+        required_leg_indices = set(range(len(legs)))
+        if set(observed_leg_indices) != required_leg_indices:
+            return _quote_receipt_error(
+                "incomplete quote receipt leg coverage",
+                quote_hash=quote_hash,
+                expected_leg_indices=sorted(required_leg_indices),
+                observed_leg_indices=sorted(observed_leg_indices),
+                intent_ids=[env.intent.intent_id for env in envs],
+            )
+    return None
+
+
+def _sanitize_intents_after_quote_receipt_validation(intents: List[Intent]) -> List[Intent]:
+    """
+    Strip transport-only quote receipt witness fields after engine-side witness
+    validation. The strong validator should only consume the stale-snapshot
+    marker (`quote_pool_fingerprint`) and not raw receipt transport metadata.
+    """
+    out: List[Intent] = []
+    for intent in intents:
+        fields = dict(intent.fields or {})
+        fields.pop("quote_receipt_hash", None)
+        fields.pop("quote_receipt_leg_index", None)
+        out.append(
+            Intent(
+                module=intent.module,
+                version=intent.version,
+                kind=intent.kind,
+                intent_id=intent.intent_id,
+                sender_pubkey=intent.sender_pubkey,
+                deadline=intent.deadline,
+                salt=intent.salt,
+                fields=fields,
+            )
+        )
+    return out
+
+
 def _build_signing_payloads(
     signed_intents: List[SignedIntentEnvelope],
     *,
@@ -511,6 +827,9 @@ def apply_ops(
     it is used only for signature policy (bypass for user-submitted intents).
     """
     try:
+        if config.fault_injection is not None and not bool(config.enable_test_fault_injection):
+            return DexTxResult(ok=False, error="fault injection disabled")
+
         err = _validate_external_tool_policy(config)
         if err is not None:
             return DexTxResult(ok=False, error=err)
@@ -522,6 +841,7 @@ def apply_ops(
         err = _validate_raw_intent_ops(config, operations.get("2"))
         if err is not None:
             return DexTxResult(ok=False, error=err)
+        _fault_stage(config, "after_raw_validation")
 
         try:
             signed_intents = parse_signed_intents(operations)
@@ -531,21 +851,7 @@ def apply_ops(
             return DexTxResult(ok=False, error="invalid intents")
         if len(signed_intents) > config.max_intents:
             return DexTxResult(ok=False, error=f"too many intents: {len(signed_intents)} > {config.max_intents}")
-
-        try:
-            signing_dicts, signing_payloads = _build_signing_payloads(
-                signed_intents,
-                max_intent_bytes=config.max_intent_bytes,
-                max_total_intent_bytes=config.max_total_intent_bytes,
-            )
-        except ValueError as exc:
-            return DexTxResult(ok=False, error=str(exc))
-
-        intents = [env.intent for env in signed_intents]
-
-        ok, err, next_nonces = _validate_and_apply_nonce_batch(nonces=state.nonces, intents=intents)
-        if not ok:
-            return DexTxResult(ok=False, error=err or "nonce policy rejected")
+        _fault_stage(config, "after_intent_parse")
 
         try:
             settlement_env = parse_settlement_envelope(operations)
@@ -556,8 +862,6 @@ def apply_ops(
         settlement = settlement_env.settlement if settlement_env else None
         proof = settlement_env.proof if settlement_env else None
         proof_scheme: Optional[str] = None
-        if not intents and settlement is not None:
-            return DexTxResult(ok=False, error="settlement provided without intents")
         if proof is not None:
             scheme_raw = proof.get("scheme")
             if isinstance(scheme_raw, str) and scheme_raw:
@@ -568,6 +872,50 @@ def apply_ops(
                 return DexTxResult(ok=False, error="proof payload too large")
             except Exception:
                 return DexTxResult(ok=False, error="invalid proof payload encoding")
+        _fault_stage(config, "after_settlement_parse")
+
+        intents = [env.intent for env in signed_intents]
+        err = _validate_intent_preconditions(
+            intents=intents,
+            settlement=settlement,
+            block_timestamp=block_timestamp,
+        )
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
+        _fault_stage(config, "after_preconditions")
+
+        try:
+            signing_dicts, signing_payloads = _build_signing_payloads(
+                signed_intents,
+                max_intent_bytes=config.max_intent_bytes,
+                max_total_intent_bytes=config.max_total_intent_bytes,
+            )
+        except ValueError as exc:
+            return DexTxResult(ok=False, error=str(exc))
+
+        ok, err = _verify_all_intent_signatures(
+            signed_intents,
+            require=config.require_intent_signatures,
+            tx_sender_pubkey=tx_sender_pubkey,
+            allow_tx_sender_bypass=config.allow_unsigned_intents_if_tx_sender_matches,
+            signing_payloads=signing_payloads,
+            chain_id=config.chain_id,
+        )
+        if not ok:
+            return DexTxResult(ok=False, error=err)
+        _fault_stage(config, "after_signature_verification")
+
+        err = _validate_quote_receipt_witnesses(signed_intents=signed_intents, pools=state.pools)
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
+        validation_intents = _sanitize_intents_after_quote_receipt_validation(intents)
+
+        next_nonces: Optional[NonceTable] = None
+        if intents:
+            ok, err, next_nonces = _validate_and_apply_nonce_batch(nonces=state.nonces, intents=intents)
+            if not ok:
+                return DexTxResult(ok=False, error=err or "nonce policy rejected")
+        _fault_stage(config, "after_nonce_validation")
 
         # Compute settlement deterministically and (optionally) require an exact match.
         computed_settlement: Optional[Settlement] = None
@@ -593,12 +941,13 @@ def apply_ops(
                 if got != expected:
                     return DexTxResult(ok=False, error="settlement mismatch")
                 settlement = computed_settlement
+        _fault_stage(config, "after_settlement_compute")
 
         verifier = make_proof_verifier(config.proof_config)
         verifier_enforcing = bool(config.proof_config.enabled)
 
         ok, err = validate_operations(
-            intents=intents,
+            intents=validation_intents,
             settlement=settlement,
             balances=state.balances,
             pools=state.pools,
@@ -606,26 +955,18 @@ def apply_ops(
             block_timestamp=block_timestamp,
             tau_gate_config=config.tau_gate_config,
             settlement_validation=config.dex_config.settlement_validation,
+            swap_ordering=str(config.swap_ordering),
+            quote_bindings_validated=True,
         )
         if not ok:
             return DexTxResult(ok=False, error=err or "operations invalid")
-
-        ok, err = _verify_all_intent_signatures(
-            signed_intents,
-            require=config.require_intent_signatures,
-            tx_sender_pubkey=tx_sender_pubkey,
-            allow_tx_sender_bypass=config.allow_unsigned_intents_if_tx_sender_matches,
-            signing_payloads=signing_payloads,
-            chain_id=config.chain_id,
-        )
-        if not ok:
-            return DexTxResult(ok=False, error=err)
+        _fault_stage(config, "after_settlement_validation")
 
         pre_state_commitment = "0x0"
         batch_commitment = "0x0"
         if proof is not None and verifier_enforcing:
             try:
-                require_normal_form(intents, strict_lp_order=False)
+                require_normal_form(intents, strict_lp_order=True)
             except IntentNormalFormError as exc:
                 return DexTxResult(ok=False, error=f"intents not in normal form: {_clean_error(exc)}")
 
@@ -696,6 +1037,7 @@ def apply_ops(
         )
         if not ok:
             return DexTxResult(ok=False, error=err)
+        _fault_stage(config, "after_proof_verification")
         if settlement is None:
             # No DEX ops; state unchanged.
             return DexTxResult(ok=True, state=state, settlement=None)
@@ -706,6 +1048,7 @@ def apply_ops(
             pools=state.pools,
             lp_balances=state.lp_balances,
         )
+        _fault_stage(config, "after_apply_pure")
 
         # Optional fee split accounting (dust carry). This is a local/accounting module
         # and does not mutate balances/pools unless a future module consumes it.
@@ -742,5 +1085,7 @@ def apply_ops(
             except Exception as exc:
                 return DexTxResult(ok=False, error=f"invalid proof mining context: {exc}")
         return DexTxResult(ok=True, state=next_state, settlement=settlement, proof_mining_context=proof_mining_context)
+    except _InjectedFault as exc:
+        return DexTxResult(ok=False, error=str(exc))
     except Exception:
         return DexTxResult(ok=False, error="internal error")

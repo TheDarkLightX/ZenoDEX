@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from src.core.batch_clearing import compute_settlement
-from src.core.batch_clearing import validate_settlement
-from src.core.dex import DexConfig, DexState, step as dex_step
+from src.core.batch_clearing import compute_settlement, validate_settlement
+from src.core.dex import DexConfig, DexState
+from src.core.dex import step as dex_step
 from src.core.liquidity import create_pool
-from src.core.settlement import BalanceDelta, Fill, FillAction, ReserveDelta, Settlement
+from src.core.quote_receipts import pool_state_fingerprint
+from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
 from src.core.settlement_strong_validator import validate_settlement_strong
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
@@ -15,6 +16,30 @@ from src.state.pools import PoolState, PoolStatus, compute_pool_id
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+def _setup_liquidity_context() -> tuple[str, str, str, str, PoolState, BalanceTable, LPTable]:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id, pool, lp_minted = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+
+    lp_balances = LPTable()
+    lp_balances.set(pk, pool_id, lp_minted)
+    lp_balances.set("0x" + "00" * 48, pool_id, pool.lp_supply - lp_minted)
+    return pk, asset0, asset1, pool_id, pool, balances, lp_balances
 
 
 def test_legacy_validate_allows_k_decrease_but_strong_rejects() -> None:
@@ -350,3 +375,710 @@ def test_strong_validator_rejects_nonconserving_cow_netted_settlement() -> None:
     )
     assert ok_strong is False
     assert err_strong is not None
+
+
+def test_strong_validator_rejects_stale_quote_receipt_pool_fingerprint() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    quoted_pool = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    drifted_pool = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_001,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 0)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(20),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100,
+            "min_amount_out": 1,
+            "quote_pool_fingerprint": pool_state_fingerprint(quoted_pool),
+        },
+    )
+
+    settlement = compute_settlement(
+        intents=[intent],
+        pools={pool_id: drifted_pool},
+        balances=balances,
+        lp_balances=LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: drifted_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is False
+    assert err is not None
+    assert "quote receipt pool snapshot mismatch" in err
+
+
+def test_strong_validator_rejects_quote_receipt_binding_on_non_swap_intent() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(21),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 30,
+            "amount0": 2_000_000,
+            "amount1": 2_000_000,
+            "quote_receipt_hash": "0xdeadbeef",
+            "quote_pool_fingerprint": "not-applicable",
+        },
+    )
+
+    settlement = compute_settlement(
+        intents=[intent],
+        pools={},
+        balances=balances,
+        lp_balances=LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"quote receipt binding only supported for swap intents: intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_quote_receipt_leg_index_without_hash() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 0)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(22),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100,
+            "min_amount_out": 1,
+            "quote_receipt_leg_index": 0,
+        },
+    )
+
+    settlement = compute_settlement(
+        intents=[intent],
+        pools={pool_id: pool_state},
+        balances=balances,
+        lp_balances=LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"quote receipt transport metadata requires validated engine witness: intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_invalid_quote_receipt_leg_index() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 0)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(23),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100,
+            "min_amount_out": 1,
+            "quote_receipt_hash": "0xdeadbeef",
+            "quote_pool_fingerprint": pool_state_fingerprint(pool_state),
+            "quote_receipt_leg_index": -1,
+        },
+    )
+
+    settlement = compute_settlement(
+        intents=[intent],
+        pools={pool_id: pool_state},
+        balances=balances,
+        lp_balances=LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid quote_receipt_leg_index for intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_unsanitized_quote_receipt_hash_without_engine_witness() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 0)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(24),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100,
+            "min_amount_out": 1,
+            "quote_receipt_hash": "0xdeadbeef",
+            "quote_pool_fingerprint": pool_state_fingerprint(pool_state),
+            "quote_receipt_leg_index": 0,
+        },
+    )
+
+    settlement = compute_settlement(
+        intents=[intent],
+        pools={pool_id: pool_state},
+        balances=balances,
+        lp_balances=LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"quote receipt transport metadata requires validated engine witness: intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_duplicate_balance_delta_keys() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(30),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 1000,
+            "min_amount_out": 1,
+        },
+    )
+
+    settlement = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
+    first_delta = settlement.balance_deltas[0]
+    settlement.balance_deltas = [
+        BalanceDelta(
+            pubkey=first_delta.pubkey,
+            asset=first_delta.asset,
+            delta_add=first_delta.delta_add,
+            delta_sub=400,
+        ),
+        BalanceDelta(
+            pubkey=first_delta.pubkey,
+            asset=first_delta.asset,
+            delta_add=0,
+            delta_sub=first_delta.delta_sub - 400,
+        ),
+        *settlement.balance_deltas[1:],
+    ]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "balance_deltas contains duplicate keys"
+
+
+def test_strong_validator_rejects_zero_delta_entry() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(31),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 1000,
+            "min_amount_out": 1,
+        },
+    )
+
+    settlement = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
+    settlement.balance_deltas.append(
+        BalanceDelta(pubkey=pk, asset=asset0, delta_add=0, delta_sub=0)
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "balance_deltas contains a zero entry"
+
+
+def test_strong_validator_rejects_stringly_typed_create_pool_amounts() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+
+    valid_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=_iid(40),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 30,
+            "amount0": 2_000_000,
+            "amount1": 2_000_000,
+        },
+    )
+
+    settlement = compute_settlement([valid_intent], {}, balances, LPTable())
+    ok_valid, err_valid = validate_settlement_strong(
+        settlement=settlement,
+        intents=[valid_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok_valid is True, err_valid
+
+    malformed_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id=valid_intent.intent_id,
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "asset0": asset0,
+            "asset1": asset1,
+            "fee_bps": 30,
+            "amount0": "2000000",
+            "amount1": 2_000_000,
+        },
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[malformed_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid CREATE_POOL amount0 for intent_id={valid_intent.intent_id}"
+
+
+def test_strong_validator_rejects_stringly_typed_add_liquidity_amounts() -> None:
+    pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
+
+    valid_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(41),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "amount0_desired": 100_000,
+            "amount1_desired": 100_000,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+
+    settlement = compute_settlement([valid_intent], {pool_id: pool}, balances, lp_balances)
+    ok_valid, err_valid = validate_settlement_strong(
+        settlement=settlement,
+        intents=[valid_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok_valid is True, err_valid
+
+    malformed_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=valid_intent.intent_id,
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "amount0_desired": "100000",
+            "amount1_desired": 100_000,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[malformed_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount0_desired for intent_id={valid_intent.intent_id}"
+
+
+def test_strong_validator_rejects_stringly_typed_remove_liquidity_amounts() -> None:
+    pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
+    del asset0
+    del asset1
+
+    valid_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(42),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "lp_amount": 1_000,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+
+    settlement = compute_settlement([valid_intent], {pool_id: pool}, balances, lp_balances)
+    ok_valid, err_valid = validate_settlement_strong(
+        settlement=settlement,
+        intents=[valid_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok_valid is True, err_valid
+
+    malformed_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=valid_intent.intent_id,
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "lp_amount": "1000",
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[malformed_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid lp_amount for intent_id={valid_intent.intent_id}"
+
+
+def test_strong_validator_rejects_duplicate_reserve_delta_keys() -> None:
+    pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
+    del asset0
+    del asset1
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(43),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "amount0_desired": 100_000,
+            "amount1_desired": 100_000,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+
+    settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    first_delta = settlement.reserve_deltas[0]
+    settlement.reserve_deltas = [
+        ReserveDelta(
+            pool_id=first_delta.pool_id,
+            asset=first_delta.asset,
+            delta_add=first_delta.delta_add // 2,
+            delta_sub=0,
+        ),
+        ReserveDelta(
+            pool_id=first_delta.pool_id,
+            asset=first_delta.asset,
+            delta_add=first_delta.delta_add - (first_delta.delta_add // 2),
+            delta_sub=0,
+        ),
+        *settlement.reserve_deltas[1:],
+    ]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "reserve_deltas contains duplicate keys"
+
+
+def test_strong_validator_rejects_duplicate_lp_delta_keys() -> None:
+    pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
+    del asset0
+    del asset1
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(44),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "amount0_desired": 100_000,
+            "amount1_desired": 100_000,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+
+    settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    first_delta = settlement.lp_deltas[0]
+    settlement.lp_deltas = [
+        LPDelta(
+            pubkey=first_delta.pubkey,
+            pool_id=first_delta.pool_id,
+            delta_add=first_delta.delta_add // 2,
+            delta_sub=0,
+        ),
+        LPDelta(
+            pubkey=first_delta.pubkey,
+            pool_id=first_delta.pool_id,
+            delta_add=first_delta.delta_add - (first_delta.delta_add // 2),
+            delta_sub=0,
+        ),
+        *settlement.lp_deltas[1:],
+    ]
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "lp_deltas contains duplicate keys"

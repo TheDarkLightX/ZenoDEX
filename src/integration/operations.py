@@ -52,6 +52,17 @@ def _require_dict_str_keys(value: Any, *, name: str) -> Dict[str, Any]:
     return value
 
 
+def _parse_quote_receipt_transport(value: Any, *, name: str) -> Dict[str, Any]:
+    receipt = _require_dict_str_keys(value, name=name)
+    body = receipt.get("body")
+    receipt_hash = receipt.get("receipt_hash")
+    if not isinstance(body, dict):
+        raise ValueError(f"{name}.body must be an object")
+    if not isinstance(receipt_hash, str) or not receipt_hash:
+        raise ValueError(f"{name}.receipt_hash must be a non-empty string")
+    return receipt
+
+
 @dataclass(frozen=True)
 class SignedIntentEnvelope:
     """
@@ -63,6 +74,7 @@ class SignedIntentEnvelope:
 
     intent: Intent
     signature: Optional[str] = None
+    quote_receipt: Optional[Dict[str, Any]] = None
 
 
 @dataclass(frozen=True)
@@ -132,6 +144,16 @@ def _parse_fill(fill_data: Any) -> Fill:
         amount0_out=_optional_int(fill_data.get("amount0_out"), name="fill.amount0_out", non_negative=True),
         amount1_out=_optional_int(fill_data.get("amount1_out"), name="fill.amount1_out", non_negative=True),
         lp_burned=_optional_int(fill_data.get("lp_burned"), name="fill.lp_burned", non_negative=True),
+        reserve_in_before=_optional_int(
+            fill_data.get("reserve_in_before"),
+            name="fill.reserve_in_before",
+            non_negative=True,
+        ),
+        reserve_out_before=_optional_int(
+            fill_data.get("reserve_out_before"),
+            name="fill.reserve_out_before",
+            non_negative=True,
+        ),
     )
 
 
@@ -213,16 +235,24 @@ def parse_intents(operations: Dict[str, Any]) -> List[Intent]:
     return intents
 
 
-def _unpack_signed_intent_entry(entry: Any) -> tuple[Dict[str, Any], Optional[str]]:
+def _unpack_signed_intent_entry(entry: Any) -> tuple[Dict[str, Any], Optional[str], Optional[Dict[str, Any]]]:
     signature = None
     signature_in_dict = None
+    quote_receipt = None
+    quote_receipt_in_dict = None
 
     if isinstance(entry, list):
-        if len(entry) not in (1, 2):
-            raise ValueError("intent list entry must have length 1 or 2")
+        if len(entry) not in (1, 2, 3):
+            raise ValueError("intent list entry must have length 1, 2, or 3")
         intent_data = entry[0]
         if len(entry) == 2:
+            if isinstance(entry[1], dict):
+                quote_receipt = entry[1]
+            else:
+                signature = entry[1]
+        if len(entry) == 3:
             signature = entry[1]
+            quote_receipt = entry[2]
     else:
         intent_data = entry
 
@@ -233,6 +263,9 @@ def _unpack_signed_intent_entry(entry: Any) -> tuple[Dict[str, Any], Optional[st
     if "signature" in intent_data:
         signature_in_dict = intent_data.get("signature")
         intent_data = {k: v for k, v in intent_data.items() if k != "signature"}
+    if "quote_receipt" in intent_data:
+        quote_receipt_in_dict = intent_data.get("quote_receipt")
+        intent_data = {k: v for k, v in intent_data.items() if k != "quote_receipt"}
 
     # If both envelope and dict provide signatures, reject ambiguity.
     if signature is not None and signature_in_dict is not None:
@@ -247,7 +280,14 @@ def _unpack_signed_intent_entry(entry: Any) -> tuple[Dict[str, Any], Optional[st
         raise ValueError("signature must be a string")
     if isinstance(signature, str) and len(signature) > 4096:
         raise ValueError("signature too large")
-    return intent_data, signature
+
+    if quote_receipt is not None and quote_receipt_in_dict is not None:
+        raise ValueError("quote_receipt provided twice (envelope + field)")
+    if quote_receipt is None:
+        quote_receipt = quote_receipt_in_dict
+    if quote_receipt is not None:
+        quote_receipt = _parse_quote_receipt_transport(quote_receipt, name="quote_receipt")
+    return intent_data, signature, quote_receipt
 
 
 def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelope]:
@@ -255,8 +295,10 @@ def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelop
     Parse intents from operations["2"] allowing optional per-intent signatures.
 
     Accepted formats for each entry:
-    1) intent dict with optional "signature" field
+    1) intent dict with optional "signature" and/or "quote_receipt" fields
     2) [intent_dict, signature_hex]
+    3) [intent_dict, quote_receipt_obj]
+    4) [intent_dict, signature_hex, quote_receipt_obj]
     """
     if not isinstance(operations, Mapping):
         raise ValueError(f"operations must be an object, got {type(operations)}")
@@ -271,9 +313,9 @@ def parse_signed_intents(operations: Dict[str, Any]) -> List[SignedIntentEnvelop
     out: List[SignedIntentEnvelope] = []
     for i, entry in enumerate(intents_data):
         try:
-            intent_data, signature = _unpack_signed_intent_entry(entry)
+            intent_data, signature, quote_receipt = _unpack_signed_intent_entry(entry)
             intent = _parse_intent(intent_data)
-            out.append(SignedIntentEnvelope(intent=intent, signature=signature))
+            out.append(SignedIntentEnvelope(intent=intent, signature=signature, quote_receipt=quote_receipt))
         except Exception as e:
             raise ValueError(f"Failed to parse signed intent {i}: {e}") from e
     return out
@@ -472,7 +514,17 @@ def create_intent_operation(intents: List[Intent]) -> Dict[str, Any]:
     Returns:
         Dictionary for operations["2"]
     """
-    reserved_keys = {"module", "version", "kind", "intent_id", "sender_pubkey", "deadline", "salt", "signature"}
+    reserved_keys = {
+        "module",
+        "version",
+        "kind",
+        "intent_id",
+        "sender_pubkey",
+        "deadline",
+        "salt",
+        "signature",
+        "quote_receipt",
+    }
 
     intents_data = []
     for intent in intents:
@@ -496,6 +548,22 @@ def create_intent_operation(intents: List[Intent]) -> Dict[str, Any]:
         
         intents_data.append(intent_dict)
     
+    return {"2": intents_data}
+
+
+def create_signed_intent_operation(signed_intents: List[SignedIntentEnvelope]) -> Dict[str, Any]:
+    """
+    Create operations["2"] from signed intent envelopes, preserving transport-only
+    metadata such as per-intent signatures and attached quote receipt witnesses.
+    """
+    base = create_intent_operation([env.intent for env in signed_intents])
+    intents_data = base["2"]
+    for entry, env in zip(intents_data, signed_intents):
+        if env.signature is not None:
+            _require_str(env.signature, name="signature", non_empty=True, max_len=4096)
+            entry["signature"] = env.signature
+        if env.quote_receipt is not None:
+            entry["quote_receipt"] = _parse_quote_receipt_transport(env.quote_receipt, name="quote_receipt")
     return {"2": intents_data}
 
 
@@ -531,6 +599,8 @@ def create_settlement_operation(settlement: Settlement) -> Dict[str, Any]:
                 "amount0_out": fill.amount0_out,
                 "amount1_out": fill.amount1_out,
                 "lp_burned": fill.lp_burned,
+                "reserve_in_before": fill.reserve_in_before,
+                "reserve_out_before": fill.reserve_out_before,
             }
             for fill in settlement.fills
         ],

@@ -6,6 +6,7 @@ import sys
 
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
+from src.core.liquidity import create_pool
 from src.core.proof_mining_claims import explicit_proposal_hash
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation
@@ -483,6 +484,87 @@ def test_subprocess_verifier_rejects_non_canonical_payload() -> None:
     assert ok is False
     assert err is not None
     assert "invalid proof payload encoding" in err
+
+
+def test_engine_proof_requires_submission_order_for_liquidity_intents() -> None:
+    sender = "0x" + "aa" * 48
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+    intent_id = "0x" + "09" * 32
+
+    pool_id, pool, _lp_minted = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000,
+        amount1=2_000,
+        fee_bps=30,
+        creator_pubkey=sender,
+        created_at=1,
+    )
+
+    balances = BalanceTable()
+    balances.set(sender, asset0, 10_000)
+    balances.set(sender, asset1, 10_000)
+    state = DexState(balances=balances, pools={pool_id: pool}, lp_balances=LPTable())
+
+    intent_dict = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "ADD_LIQUIDITY",
+        "intent_id": intent_id,
+        "sender_pubkey": sender,
+        "deadline": 9999999999,
+        "nonce": 1,
+        "pool_id": pool_id,
+        "amount0_desired": 100,
+        "amount1_desired": 100,
+        "amount0_min": 0,
+        "amount1_min": 0,
+    }
+
+    from src.integration.operations import parse_intents
+
+    intent = parse_intents({"2": [intent_dict]})[0]
+    settlement = compute_settlement(
+        intents=[intent],
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+    )
+    settlement_obj = create_settlement_operation(settlement)["3"]
+
+    pre_state_commitment = compute_state_root(
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+    )
+    batch_commitment = _batch_commitment(
+        signing_dicts=[_intent_signing_dict_from_tx_intent(intent_dict)],
+        settlement_obj=settlement_obj,
+    )
+    settlement_obj_with_proof = dict(settlement_obj)
+    settlement_obj_with_proof["proof"] = {
+        "pre_state_commitment": pre_state_commitment,
+        "batch_commitment": batch_commitment,
+    }
+
+    cmd = [sys.executable, "-c", "import sys; sys.stdin.buffer.read(); print('{\"ok\":true}')"]
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=False,
+            require_intent_signatures=False,
+            allow_external_tools=True,
+            consensus_mode=False,
+            proof_config=ProofVerifierConfig(enabled=True, verifier_cmd=cmd),
+        ),
+        state=state,
+        operations={"2": [intent_dict], "3": settlement_obj_with_proof},
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert not res.ok
+    assert res.error is not None
+    assert "submission_order" in res.error
 
 
 def test_subprocess_verifier_limits_stdout() -> None:
