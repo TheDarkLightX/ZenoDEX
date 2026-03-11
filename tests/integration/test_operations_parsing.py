@@ -6,10 +6,13 @@ from src.integration.operations import (
     SignedIntentEnvelope,
     create_intent_operation,
     create_signed_intent_operation,
+    create_settlement_operation,
+    parse_intents,
     parse_settlement,
     parse_settlement_envelope,
     parse_signed_intents,
 )
+from src.core.settlement import Settlement
 from src.state.intents import Intent, IntentKind
 
 
@@ -64,6 +67,12 @@ def test_parse_signed_intents_rejects_double_signature() -> None:
         parse_signed_intents(ops)
 
 
+def test_parse_signed_intents_rejects_differing_double_signature() -> None:
+    ops = {"2": [[{**_min_intent_dict(), "signature": "0xsig-a"}, "0xsig-b"]]}
+    with pytest.raises(ValueError, match="signature provided twice \\(envelope \\+ field\\) and differs"):
+        parse_signed_intents(ops)
+
+
 def test_parse_signed_intents_rejects_double_quote_receipt() -> None:
     receipt = {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": "0xabc"}
     ops = {"2": [[{**_min_intent_dict(), "quote_receipt": receipt}, "0xsig", receipt]]}
@@ -74,6 +83,12 @@ def test_parse_signed_intents_rejects_double_quote_receipt() -> None:
 def test_parse_signed_intents_rejects_malformed_quote_receipt_envelope() -> None:
     ops = {"2": [[_min_intent_dict(), {"not": "a receipt"}]]}
     with pytest.raises(ValueError, match=r"quote_receipt\.body must be an object"):
+        parse_signed_intents(ops)
+
+
+def test_parse_signed_intents_rejects_quote_receipt_without_hash() -> None:
+    ops = {"2": [[_min_intent_dict(), {"body": {"schema": "zenodex/route_quote_receipt/v1"}, "receipt_hash": ""}]]}
+    with pytest.raises(ValueError, match=r"quote_receipt\.receipt_hash must be a non-empty string"):
         parse_signed_intents(ops)
 
 
@@ -129,6 +144,13 @@ def test_parse_settlement_envelope_extracts_proof() -> None:
     assert env.proof == {"pi": 1}
 
 
+def test_parse_settlement_envelope_extracts_legacy_zk_proof() -> None:
+    ops = {"3": {"module": "TauSwap", "version": "0.1", "zk_proof": {"pi": 2}}}
+    env = parse_settlement_envelope(ops)
+    assert env is not None
+    assert env.proof == {"pi": 2}
+
+
 def test_parse_settlement_envelope_rejects_double_proof() -> None:
     ops = {"3": {"module": "TauSwap", "version": "0.1", "proof": {}, "zk_proof": {}}}
     with pytest.raises(ValueError, match="provided twice"):
@@ -169,6 +191,41 @@ def test_parse_settlement_treats_none_lists_as_empty() -> None:
     assert settlement.lp_deltas == []
 
 
+def test_parse_intents_handles_missing_group_and_rejects_invalid_shapes() -> None:
+    assert parse_intents({}) == []
+
+    with pytest.raises(ValueError, match=r"operations\['2'\] must be a list"):
+        parse_intents({"2": {}})
+
+    with pytest.raises(ValueError, match="Failed to parse intent 0: Missing required field: module"):
+        parse_intents({"2": [{"version": "0.1"}]})
+
+
+def test_parse_signed_intents_rejects_invalid_operations_shapes() -> None:
+    with pytest.raises(ValueError, match="operations must be an object"):
+        parse_signed_intents([])  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match=r"operations\['2'\] must be a list"):
+        parse_signed_intents({"2": {}})
+
+    with pytest.raises(ValueError, match="intent list entry must have length 1, 2, or 3"):
+        parse_signed_intents({"2": [[_min_intent_dict(), "a", "b", "c"]]})
+
+    with pytest.raises(ValueError, match="intent entry must be a dict"):
+        parse_signed_intents({"2": [[123]]})
+
+
+def test_parse_signed_intents_rejects_invalid_intent_envelope_fields() -> None:
+    with pytest.raises(ValueError, match="intent.salt must be non-empty"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), "salt": ""}]})
+
+    with pytest.raises(ValueError, match="Invalid intent kind: NOPE"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), "kind": "NOPE"}]})
+
+    with pytest.raises(ValueError, match="intent keys must be strings"):
+        parse_signed_intents({"2": [{**_min_intent_dict(), 1: "bad-key"}]})  # type: ignore[dict-item]
+
+
 def test_parse_settlement_rejects_invalid_included_intent_action() -> None:
     ops = {
         "3": {
@@ -203,3 +260,66 @@ def test_parse_settlement_rejects_non_object_event_entry() -> None:
     }
     with pytest.raises(ValueError, match="settlement.events entries must be objects"):
         parse_settlement(ops)
+
+
+def test_parse_settlement_rejects_invalid_top_level_shapes_and_scalars() -> None:
+    with pytest.raises(ValueError, match="operations must be an object"):
+        parse_settlement([])  # type: ignore[arg-type]
+
+    assert parse_settlement({}) is None
+
+    with pytest.raises(ValueError, match=r"operations\['3'\] must be a dict"):
+        parse_settlement({"3": []})
+
+    with pytest.raises(ValueError, match="settlement.included_intents must be a list"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "included_intents": {}}})
+
+    with pytest.raises(ValueError, match="settlement.fills must be a list"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "fills": {}}})
+
+    with pytest.raises(ValueError, match="settlement.balance_deltas must be a list"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "balance_deltas": {}}})
+
+    with pytest.raises(ValueError, match="settlement.reserve_deltas must be a list"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "reserve_deltas": {}}})
+
+    with pytest.raises(ValueError, match="settlement.lp_deltas must be a list"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "lp_deltas": {}}})
+
+    with pytest.raises(ValueError, match="settlement.events must be a list"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "events": {}}})
+
+
+def test_parse_settlement_rejects_invalid_delta_entries_and_batch_ref_types() -> None:
+    with pytest.raises(ValueError, match="balance_deltas entries must be objects"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "balance_deltas": [1]}})
+
+    with pytest.raises(ValueError, match="reserve_deltas entries must be objects"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "reserve_deltas": [1]}})
+
+    with pytest.raises(ValueError, match="lp_deltas entries must be objects"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "lp_deltas": [1]}})
+
+    with pytest.raises(ValueError, match="settlement.batch_ref must be a string"):
+        parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "batch_ref": 123}})
+
+
+def test_parse_settlement_accepts_none_batch_ref_and_create_omits_empty_events() -> None:
+    settlement = parse_settlement({"3": {"module": "TauSwap", "version": "0.1", "batch_ref": None}})
+    assert settlement is not None
+    assert settlement.batch_ref == ""
+
+    created = create_settlement_operation(
+        Settlement(
+            module="TauSwap",
+            version="0.1",
+            batch_ref="",
+            included_intents=[],
+            fills=[],
+            balance_deltas=[],
+            reserve_deltas=[],
+            lp_deltas=[],
+            events=[],
+        )
+    )
+    assert "events" not in created["3"]
