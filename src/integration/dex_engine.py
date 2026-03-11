@@ -46,12 +46,15 @@ from .tau_gate import TauGateConfig
 from .validation import validate_operations
 
 
-try:
-    from py_ecc.bls import G2Basic
+G2Basic: Any | None
 
+try:
+    from py_ecc.bls import G2Basic as _PyEccG2Basic
+
+    G2Basic = _PyEccG2Basic
     _BLS_AVAILABLE = True
 except Exception:  # pragma: no cover - optional dependency
-    G2Basic = None  # type: ignore[assignment]
+    G2Basic = None
     _BLS_AVAILABLE = False
 
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
@@ -228,8 +231,6 @@ def _hex_to_bytes_allow_0x(hex_str: str, *, name: str, expected_nbytes: Optional
 def _pubkey_bytes48_or_none(value: Optional[str], *, name: str) -> Optional[bytes]:
     if value is None:
         return None
-    if not isinstance(value, str):
-        return None
     try:
         return _hex_to_bytes_allow_0x(value, name=name, expected_nbytes=48)
     except Exception:
@@ -308,13 +309,14 @@ def _verify_intent_signature_bytes(
 ) -> Tuple[bool, Optional[str]]:
     if not _BLS_AVAILABLE:
         return False, "py_ecc (BLS) not available"
+    assert G2Basic is not None
     try:
         pubkey_bytes = _hex_to_bytes_allow_0x(sender_pubkey_hex, name="sender_pubkey", expected_nbytes=48)
         sig_bytes = _hex_to_bytes_allow_0x(signature_hex, name="signature", expected_nbytes=96)
 
         msg = domain_sep_bytes(f"dex_intent_sig:{chain_id}", version=1) + signing_payload_bytes
         msg_hash = hashlib.sha256(msg).digest()
-        ok = bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))  # type: ignore[attr-defined]
+        ok = bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
         if not ok:
             return False, "invalid intent signature"
         return True, None
@@ -385,7 +387,7 @@ def _verify_proof_if_present(
     batch_commitment: str,
     max_verifier_payload_bytes: int,
 ) -> Tuple[bool, Optional[str]]:
-    proof = settlement_env.proof if settlement_env else None
+    proof: object = settlement_env.proof if settlement_env else None
     if proof is None:
         if require_proof and intents:
             return False, "missing required proof"
@@ -688,12 +690,12 @@ def _validate_quote_receipt_witnesses(
             )
         if not isinstance(quote_hash, str) or not quote_hash:
             return _quote_receipt_error("invalid quote_receipt_hash", **_quote_receipt_intent_context(env.intent))
-        ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+        ok, receipt_verify_err = verify_route_quote_receipt(receipt, pools_by_id=pools)
         if not ok:
             return _quote_receipt_error(
                 "invalid quote receipt",
                 **_quote_receipt_intent_context(env.intent),
-                verifier_error=(err or "rejected"),
+                verifier_error=(receipt_verify_err or "rejected"),
             )
         if receipt.get("receipt_hash") != quote_hash:
             return _quote_receipt_error(
@@ -709,9 +711,9 @@ def _validate_quote_receipt_witnesses(
                 guidance="direct quote-bound intents must bind exactly one receipt leg",
             )
         grouped_by_hash.setdefault(str(quote_hash), []).append(env)
-        err = _validate_intent_against_quote_receipt(env.intent, receipt)
-        if err is not None:
-            return err
+        intent_receipt_err = _validate_intent_against_quote_receipt(env.intent, receipt)
+        if intent_receipt_err is not None:
+            return intent_receipt_err
 
     for quote_hash, envs in grouped_by_hash.items():
         receipt = envs[0].quote_receipt
@@ -965,6 +967,8 @@ def apply_ops(
         pre_state_commitment = "0x0"
         batch_commitment = "0x0"
         if proof is not None and verifier_enforcing:
+            if settlement is None:
+                return DexTxResult(ok=False, error="proof requires settlement")
             try:
                 require_normal_form(intents, strict_lp_order=True)
             except IntentNormalFormError as exc:
