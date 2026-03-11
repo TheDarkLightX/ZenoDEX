@@ -45,12 +45,12 @@ class ProofVerifierConfig:
 class ProofVerifier:
     """Interface for verifying a proof payload."""
 
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         raise NotImplementedError
 
 
 class DisabledProofVerifier(ProofVerifier):
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         return False, "proof verification disabled"
 
 
@@ -58,7 +58,7 @@ class MisconfiguredProofVerifier(ProofVerifier):
     def __init__(self, reason: str) -> None:
         self._reason = str(reason)
 
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         return False, self._reason
 
 
@@ -66,7 +66,7 @@ class UnsupportedPlatformProofVerifier(ProofVerifier):
     def __init__(self, reason: str) -> None:
         self._reason = str(reason)
 
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         return False, self._reason
 
 
@@ -107,7 +107,7 @@ class SubprocessProofVerifier(ProofVerifier):
         self._max_stdout = int(max_stdout_bytes)
         self._max_stderr = int(max_stderr_bytes)
 
-    def verify(self, payload: Mapping[str, Any]) -> Tuple[bool, Optional[str]]:
+    def verify(self, payload: object) -> Tuple[bool, Optional[str]]:
         if not isinstance(payload, Mapping):
             return False, "payload must be an object"
 
@@ -317,9 +317,9 @@ class SubprocessProofVerifier(ProofVerifier):
             if ok is True:
                 return True, None
             if ok is False:
-                err = result.get("error")
-                if isinstance(err, str) and err:
-                    return False, err
+                error_value = result.get("error")
+                if isinstance(error_value, str) and error_value:
+                    return False, error_value
                 return False, "proof rejected"
 
             return False, "invalid verifier output (missing ok)"
