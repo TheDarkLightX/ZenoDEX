@@ -74,6 +74,7 @@ COVERAGE_TARGETS=(
 
 echo "== critical: ruff =="
 "$PY" -m ruff check \
+  tools/acceptance_tcb_mutation_harness.py \
   tools/check_acceptance_tcb_coverage.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
@@ -104,8 +105,10 @@ echo "== critical: ruff =="
   tests/core/test_dex_step_candidate_settlement.py \
   tests/integration/test_dex_engine_helpers.py \
   tests/integration/test_proof_verifier_unit.py \
+  tests/integration/test_replay_protection.py \
   tests/integration/test_tau_gate_boundary.py \
   tests/integration/test_validation_uses_strong_settlement_gate.py \
+  tests/state/test_nonces.py \
   tests/state/test_intents.py
 
 echo "== critical: mypy =="

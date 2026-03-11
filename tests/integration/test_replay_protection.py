@@ -263,6 +263,51 @@ def test_replay_protection_rejects_missing_nonce_field() -> None:
     assert "Missing/invalid nonce" in res.error or "nonce" in res.error
 
 
+def test_replay_protection_rejects_mixed_nonce_presence_in_batch() -> None:
+    sender = "0x" + "aa" * 48
+    a0 = "0x" + "11" * 32
+    a1 = "0x" + "22" * 32
+    a2 = "0x" + "33" * 32
+    a3 = "0x" + "44" * 32
+
+    balances = BalanceTable()
+    for asset in (a0, a1, a2, a3):
+        balances.set(sender, asset, 10_000)
+    state0 = DexState(balances=balances, pools={}, lp_balances=LPTable())
+
+    intent1 = _create_pool_intent(
+        intent_id="0x" + "01" * 32,
+        sender=sender,
+        nonce=1,
+        asset0=a0,
+        asset1=a1,
+        amount0=1000,
+        amount1=1000,
+        created_at=1,
+    )
+    intent2 = _create_pool_intent(
+        intent_id="0x" + "02" * 32,
+        sender=sender,
+        nonce=None,
+        asset0=a2,
+        asset1=a3,
+        amount0=1000,
+        amount1=1000,
+        created_at=2,
+    )
+
+    res = apply_ops(
+        config=DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False),
+        state=state0,
+        operations={"2": [intent1, intent2]},
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert not res.ok
+    assert res.error is not None
+    assert "nonce presence must be consistent across batch" in res.error or "nonce" in res.error
+
+
 def test_sender_pubkey_is_canonicalized_for_nonce_accounting() -> None:
     sender_raw = "0x" + "AA" * 48
     sender = sender_raw.lower()
