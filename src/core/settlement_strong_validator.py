@@ -15,17 +15,19 @@ recomputes canonical deltas/events and requires exact match.
 from __future__ import annotations
 
 from dataclasses import replace
-from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
-from ..state.balances import Amount, AssetId, BalanceTable, PubKey
+from ..state.balances import AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
+from ..state.pools import PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from .batch_clearing import _parse_create_pool_event_payload
 from .batch_clearing import validate_settlement as validate_settlement_legacy
 from .cpmm import MIN_LP_LOCK, compute_fee_total
+from .domain_limits import is_strict_int
 from .liquidity import add_liquidity, create_pool, remove_liquidity
+from .quote_receipts import pool_state_fingerprint
 from .settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
@@ -44,6 +46,7 @@ def validate_settlement_strong(
     pre_lp_balances: Optional[LPTable] = None,
     mode: str = _MODE_STRONG_REPLAY,
     allow_cow_netting: bool = False,
+    allow_snapshot_bound_quote_bindings: bool = False,
 ) -> Tuple[bool, Optional[str]]:
     """
     Fail-closed wrapper around the strong validator implementation.
@@ -60,6 +63,7 @@ def validate_settlement_strong(
             pre_lp_balances=pre_lp_balances,
             mode=mode,
             allow_cow_netting=allow_cow_netting,
+            allow_snapshot_bound_quote_bindings=allow_snapshot_bound_quote_bindings,
         )
     except Exception as exc:
         detail = str(exc).strip()
@@ -81,6 +85,7 @@ def _validate_settlement_strong_impl(
     pre_lp_balances: Optional[LPTable] = None,
     mode: str = _MODE_STRONG_REPLAY,
     allow_cow_netting: bool = False,
+    allow_snapshot_bound_quote_bindings: bool = False,
 ) -> Tuple[bool, Optional[str]]:
     """
     Strong settlement validation.
@@ -139,6 +144,31 @@ def _validate_settlement_strong_impl(
 
     for intent_id, action in settlement.included_intents:
         it = intents_by_id[intent_id]
+        quote_receipt_hash = it.get_field("quote_receipt_hash")
+        quote_pool_fp = it.get_field("quote_pool_fingerprint")
+        quote_leg_index = it.get_field("quote_receipt_leg_index")
+        has_quote_binding = (
+            quote_receipt_hash is not None
+            or quote_pool_fp is not None
+            or quote_leg_index is not None
+        )
+        if has_quote_binding and it.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+            return fail(f"quote receipt binding only supported for swap intents: intent_id={intent_id}")
+        if quote_leg_index is not None and (
+            not is_strict_int(quote_leg_index) or int(quote_leg_index) < 0
+        ):
+            return fail(f"invalid quote_receipt_leg_index for intent_id={intent_id}")
+        if quote_leg_index is not None:
+            return fail(f"quote receipt transport metadata requires validated engine witness: intent_id={intent_id}")
+        if quote_receipt_hash is not None:
+            if not isinstance(quote_receipt_hash, str) or not quote_receipt_hash:
+                return fail(f"invalid quote_receipt_hash for intent_id={intent_id}")
+            return fail(f"quote receipt transport metadata requires validated engine witness: intent_id={intent_id}")
+        if quote_pool_fp is not None and (not isinstance(quote_pool_fp, str) or not quote_pool_fp):
+            return fail(f"missing quote_pool_fingerprint for intent_id={intent_id}")
+        if quote_pool_fp is not None and not allow_snapshot_bound_quote_bindings:
+            return fail(f"quote receipt snapshot binding requires validated engine witness: intent_id={intent_id}")
+
         if action == FillAction.REJECT:
             continue
 
@@ -162,16 +192,27 @@ def _validate_settlement_strong_impl(
             curve_params = it.get_field("curve_params", None)
             if any(v is None for v in (asset0, asset1, fee_bps, amount0, amount1)):
                 return fail(f"missing CREATE_POOL fields for intent_id={intent_id}")
+            if not isinstance(asset0, str) or not isinstance(asset1, str):
+                return fail(f"invalid CREATE_POOL asset ids for intent_id={intent_id}")
+            if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
+                return fail(f"invalid CREATE_POOL fee_bps for intent_id={intent_id}")
+            if not is_strict_int(amount0) or amount0 <= 0:
+                return fail(f"invalid CREATE_POOL amount0 for intent_id={intent_id}")
+            if not is_strict_int(amount1) or amount1 <= 0:
+                return fail(f"invalid CREATE_POOL amount1 for intent_id={intent_id}")
+            if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
+                return fail(f"invalid CREATE_POOL created_at for intent_id={intent_id}")
+            created_at_value = 0 if created_at is None else created_at
 
             try:
                 pool_id, created_pool, lp_minted = create_pool(
                     asset0=asset0,
                     asset1=asset1,
-                    amount0=int(amount0),
-                    amount1=int(amount1),
-                    fee_bps=int(fee_bps),
+                    amount0=amount0,
+                    amount1=amount1,
+                    fee_bps=fee_bps,
                     creator_pubkey=sender,
-                    created_at=int(created_at),
+                    created_at=created_at_value,
                     curve_tag=curve_tag,
                     curve_params=curve_params,
                 )
@@ -242,6 +283,9 @@ def _validate_settlement_strong_impl(
                 return fail(f"pool not active for intent_id={intent_id}: {pool.status}")
             if {asset_in, asset_out} != {pool.asset0, pool.asset1} or asset_in == asset_out:
                 return fail(f"swap asset mismatch for intent_id={intent_id}")
+            if quote_pool_fp is not None:
+                if pool_state_fingerprint(pool) != quote_pool_fp:
+                    return fail(f"quote receipt pool snapshot mismatch for intent_id={intent_id}")
 
             # CoW netting semantics (optional): direct user-to-user swap, no pool reserve changes.
             if f.reason == "COW_NETTED":
@@ -395,14 +439,22 @@ def _validate_settlement_strong_impl(
             amount1_min = it.get_field("amount1_min", 0)
             if any(v is None for v in (amount0_desired, amount1_desired)):
                 return fail(f"missing ADD_LIQUIDITY fields for intent_id={intent_id}")
+            if not is_strict_int(amount0_desired) or amount0_desired <= 0:
+                return fail(f"invalid amount0_desired for intent_id={intent_id}")
+            if not is_strict_int(amount1_desired) or amount1_desired <= 0:
+                return fail(f"invalid amount1_desired for intent_id={intent_id}")
+            if not is_strict_int(amount0_min) or amount0_min < 0:
+                return fail(f"invalid amount0_min for intent_id={intent_id}")
+            if not is_strict_int(amount1_min) or amount1_min < 0:
+                return fail(f"invalid amount1_min for intent_id={intent_id}")
 
             try:
                 amount0_used, amount1_used, lp_minted = add_liquidity(
                     pool_state=pool,
-                    amount0_desired=int(amount0_desired),
-                    amount1_desired=int(amount1_desired),
-                    amount0_min=int(amount0_min),
-                    amount1_min=int(amount1_min),
+                    amount0_desired=amount0_desired,
+                    amount1_desired=amount1_desired,
+                    amount0_min=amount0_min,
+                    amount1_min=amount1_min,
                 )
             except Exception as exc:
                 return fail(f"ADD_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
@@ -440,13 +492,19 @@ def _validate_settlement_strong_impl(
             amount1_min = it.get_field("amount1_min", 0)
             if lp_amount is None:
                 return fail(f"missing REMOVE_LIQUIDITY lp_amount for intent_id={intent_id}")
+            if not is_strict_int(lp_amount) or lp_amount <= 0:
+                return fail(f"invalid lp_amount for intent_id={intent_id}")
+            if not is_strict_int(amount0_min) or amount0_min < 0:
+                return fail(f"invalid amount0_min for intent_id={intent_id}")
+            if not is_strict_int(amount1_min) or amount1_min < 0:
+                return fail(f"invalid amount1_min for intent_id={intent_id}")
 
             try:
                 amount0_out, amount1_out = remove_liquidity(
                     pool_state=pool,
-                    lp_amount=int(lp_amount),
-                    amount0_min=int(amount0_min),
-                    amount1_min=int(amount1_min),
+                    lp_amount=lp_amount,
+                    amount0_min=amount0_min,
+                    amount1_min=amount1_min,
                 )
             except Exception as exc:
                 return fail(f"REMOVE_LIQUIDITY computation error for intent_id={intent_id}: {exc}")
@@ -503,31 +561,22 @@ def _validate_settlement_strong_impl(
     for ev in got_events_norm:
         if ev.get("type") != "CREATE_POOL":
             return False, f"unsupported event type: {ev.get('type')!r}"
-        pool_id = ev.get("pool_id")
-        asset0 = ev.get("asset0")
-        asset1 = ev.get("asset1")
-        fee_bps = ev.get("fee_bps")
-        curve_tag = ev.get("curve_tag", CURVE_TAG_CPMM)
-        curve_params = ev.get("curve_params", "")
-        status_str = ev.get("status", PoolStatus.ACTIVE.value)
-        created_at = ev.get("created_at", 0)
         try:
-            status = PoolStatus(status_str)
-        except Exception as exc:
-            return False, f"invalid CREATE_POOL status: {exc}"
-        try:
+            pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at = (
+                _parse_create_pool_event_payload(ev)
+            )
             PoolState(
-                pool_id=str(pool_id),
-                asset0=str(asset0),
-                asset1=str(asset1),
+                pool_id=pool_id,
+                asset0=asset0,
+                asset1=asset1,
                 reserve0=0,
                 reserve1=0,
-                fee_bps=int(fee_bps),
+                fee_bps=fee_bps,
                 lp_supply=0,
                 status=status,
-                created_at=int(created_at),
-                curve_tag=str(curve_tag),
-                curve_params=str(curve_params),
+                created_at=created_at,
+                curve_tag=curve_tag,
+                curve_params=curve_params,
             )
         except Exception as exc:
             return False, f"invalid CREATE_POOL event payload: {exc}"
@@ -617,42 +666,66 @@ def _check_canonical_deltas(settlement: Settlement) -> Tuple[bool, Optional[str]
 
     # Balance deltas
     bal_keys: List[Tuple[PubKey, AssetId]] = []
-    for d in settlement.balance_deltas:
-        if not isinstance(d.delta_add, int) or isinstance(d.delta_add, bool) or d.delta_add < 0:
+    for balance_delta in settlement.balance_deltas:
+        if (
+            not isinstance(balance_delta.delta_add, int)
+            or isinstance(balance_delta.delta_add, bool)
+            or balance_delta.delta_add < 0
+        ):
             return False, "balance_deltas contains invalid delta_add"
-        if not isinstance(d.delta_sub, int) or isinstance(d.delta_sub, bool) or d.delta_sub < 0:
+        if (
+            not isinstance(balance_delta.delta_sub, int)
+            or isinstance(balance_delta.delta_sub, bool)
+            or balance_delta.delta_sub < 0
+        ):
             return False, "balance_deltas contains invalid delta_sub"
-        if d.delta_add == 0 and d.delta_sub == 0:
+        if balance_delta.delta_add == 0 and balance_delta.delta_sub == 0:
             return False, "balance_deltas contains a zero entry"
-        bal_keys.append((d.pubkey, d.asset))
+        bal_keys.append((balance_delta.pubkey, balance_delta.asset))
     ok, err = _check_unique_sorted(bal_keys, "balance_deltas")
     if not ok:
         return ok, err
 
     # Reserve deltas
     res_keys: List[Tuple[str, AssetId]] = []
-    for d in settlement.reserve_deltas:
-        if not isinstance(d.delta_add, int) or isinstance(d.delta_add, bool) or d.delta_add < 0:
+    for reserve_delta in settlement.reserve_deltas:
+        if (
+            not isinstance(reserve_delta.delta_add, int)
+            or isinstance(reserve_delta.delta_add, bool)
+            or reserve_delta.delta_add < 0
+        ):
             return False, "reserve_deltas contains invalid delta_add"
-        if not isinstance(d.delta_sub, int) or isinstance(d.delta_sub, bool) or d.delta_sub < 0:
+        if (
+            not isinstance(reserve_delta.delta_sub, int)
+            or isinstance(reserve_delta.delta_sub, bool)
+            or reserve_delta.delta_sub < 0
+        ):
             return False, "reserve_deltas contains invalid delta_sub"
-        if d.delta_add == 0 and d.delta_sub == 0:
+        if reserve_delta.delta_add == 0 and reserve_delta.delta_sub == 0:
             return False, "reserve_deltas contains a zero entry"
-        res_keys.append((d.pool_id, d.asset))
+        res_keys.append((reserve_delta.pool_id, reserve_delta.asset))
     ok, err = _check_unique_sorted(res_keys, "reserve_deltas")
     if not ok:
         return ok, err
 
     # LP deltas
     lp_keys: List[Tuple[PubKey, str]] = []
-    for d in settlement.lp_deltas:
-        if not isinstance(d.delta_add, int) or isinstance(d.delta_add, bool) or d.delta_add < 0:
+    for lp_delta in settlement.lp_deltas:
+        if (
+            not isinstance(lp_delta.delta_add, int)
+            or isinstance(lp_delta.delta_add, bool)
+            or lp_delta.delta_add < 0
+        ):
             return False, "lp_deltas contains invalid delta_add"
-        if not isinstance(d.delta_sub, int) or isinstance(d.delta_sub, bool) or d.delta_sub < 0:
+        if (
+            not isinstance(lp_delta.delta_sub, int)
+            or isinstance(lp_delta.delta_sub, bool)
+            or lp_delta.delta_sub < 0
+        ):
             return False, "lp_deltas contains invalid delta_sub"
-        if d.delta_add == 0 and d.delta_sub == 0:
+        if lp_delta.delta_add == 0 and lp_delta.delta_sub == 0:
             return False, "lp_deltas contains a zero entry"
-        lp_keys.append((d.pubkey, d.pool_id))
+        lp_keys.append((lp_delta.pubkey, lp_delta.pool_id))
     ok, err = _check_unique_sorted(lp_keys, "lp_deltas")
     if not ok:
         return ok, err

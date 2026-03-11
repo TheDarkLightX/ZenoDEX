@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
+from src.agents.intent_signer import create_swap_intent_from_quote_receipt
+from src.core.batch_clearing import compute_settlement
+from src.core.quote_receipts import make_route_quote_receipt
+from src.core.routing import best_route_exact_in_2hop
 from src.core.settlement import BalanceDelta, Fill, FillAction, ReserveDelta, Settlement
-from src.integration.validation import validate_operations
+from src.integration.tau_gate import TauGateConfig
+from src.integration.validation import apply_operations, validate_operations
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
@@ -92,3 +99,437 @@ def test_validate_operations_rejects_k_decrease_settlement() -> None:
     assert ok is False
     assert err is not None
 
+
+def test_validate_operations_accepts_cow_netted_settlement_when_swap_ordering_matches() -> None:
+    pk_a = "0x" + "11" * 48
+    pk_b = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000_000,
+        reserve1=1_000_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    pools = {pool_id: pool_state}
+
+    balances = BalanceTable()
+    balances.set(pk_a, asset0, 1_000)
+    balances.set(pk_a, asset1, 0)
+    balances.set(pk_b, asset0, 0)
+    balances.set(pk_b, asset1, 2_000)
+
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(11),
+            sender_pubkey=pk_a,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 100,
+                "min_amount_out": 150,
+            },
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(12),
+            sender_pubkey=pk_b,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset1,
+                "asset_out": asset0,
+                "amount_in": 200,
+                "min_amount_out": 90,
+            },
+        ),
+    ]
+    settlement = compute_settlement(
+        intents,
+        pools,
+        balances,
+        LPTable(),
+        swap_ordering="cow_pair_netting_v1",
+    )
+
+    ok_default, _err_default = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+    )
+    assert ok_default is False
+
+    ok_cow, err_cow = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        swap_ordering="cow_pair_netting_v1",
+    )
+    assert ok_cow is True
+    assert err_cow is None
+
+
+def test_validate_operations_accepts_empty_batch_without_settlement() -> None:
+    ok, err = validate_operations(
+        intents=[],
+        settlement=None,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_validate_operations_rejects_unsanitized_quote_bound_intent_without_engine_path() -> None:
+    pk = "0x" + "11" * 48
+    pools = {
+        "p_ab": PoolState(
+            pool_id="p_ab",
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=2_000,
+            fee_bps=10,
+            curve_tag="CPMM",
+            curve_params="",
+            lp_supply=0,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        )
+    }
+
+    balances = BalanceTable()
+    balances.set(pk, "A", 10_000)
+    balances.set(pk, "B", 0)
+
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=123)
+    assert q is not None
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    intent = create_swap_intent_from_quote_receipt(
+        receipt=receipt,
+        pools_by_id=pools,
+        sender_pubkey=pk,
+        deadline=9999999999,
+        slippage_bps=0,
+    )
+    settlement = compute_settlement(
+        intents=[intent],
+        pools=pools,
+        balances=balances,
+        lp_balances=LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+    )
+    assert ok is False
+    assert err == f"quote receipt transport metadata requires validated engine witness: intent_id={intent.intent_id}"
+
+
+def test_validate_operations_requires_explicit_opt_in_for_snapshot_bound_quote_binding() -> None:
+    pk = "0x" + "11" * 48
+    pools = {
+        "p_ab": PoolState(
+            pool_id="p_ab",
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=2_000,
+            fee_bps=10,
+            curve_tag="CPMM",
+            curve_params="",
+            lp_supply=0,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        )
+    }
+
+    balances = BalanceTable()
+    balances.set(pk, "A", 10_000)
+    balances.set(pk, "B", 0)
+
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=123)
+    assert q is not None
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    intent = create_swap_intent_from_quote_receipt(
+        receipt=receipt,
+        pools_by_id=pools,
+        sender_pubkey=pk,
+        deadline=9999999999,
+        slippage_bps=0,
+    )
+    intent.fields.pop("quote_receipt_hash", None)
+    intent.fields.pop("quote_receipt_leg_index", None)
+
+    settlement = compute_settlement(
+        intents=[intent],
+        pools=pools,
+        balances=balances,
+        lp_balances=LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    ok_default, err_default = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+    )
+    assert ok_default is False
+    assert err_default == f"quote receipt snapshot binding requires validated engine witness: intent_id={intent.intent_id}"
+
+    ok_validated, err_validated = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        quote_bindings_validated=True,
+    )
+    assert ok_validated is True
+    assert err_validated is None
+
+
+def test_validate_operations_rejects_settlement_without_intents() -> None:
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    ok, err = validate_operations(
+        intents=[],
+        settlement=settlement,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+    )
+    assert ok is False
+    assert err == "Settlement provided without intents"
+
+
+def test_validate_operations_rejects_intents_without_settlement() -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(50),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={
+            "pool_id": "0x" + "22" * 32,
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=None,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+    )
+    assert ok is False
+    assert err == "Settlement required when intents are present"
+
+
+def test_validate_operations_rejects_expired_intent() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 0)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(51),
+        sender_pubkey=pk,
+        deadline=5,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = compute_settlement([intent], {pool_id: pool_state}, balances, LPTable())
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=balances,
+        pools={pool_id: pool_state},
+        lp_balances=LPTable(),
+        block_timestamp=6,
+    )
+    assert ok is False
+    assert err == f"Intent expired: {intent.intent_id}"
+
+
+def test_validate_operations_sanitizes_tau_gate_rejection(monkeypatch: pytest.MonkeyPatch) -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(52),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={
+            "pool_id": "0x" + "22" * 32,
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.REJECT)],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    monkeypatch.setattr("src.integration.validation.validate_settlement_strong", lambda *args, **kwargs: (True, None))
+    monkeypatch.setattr(
+        "src.integration.tau_gate.validate_settlement_swaps",
+        lambda *args, **kwargs: (False, "first line\nsecond line " + ("x" * 300)),
+    )
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+        tau_gate_config=TauGateConfig(enabled=True),
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith("Tau gate rejected settlement: ")
+    assert "\n" not in err
+    assert len(err) <= len("Tau gate rejected settlement: ") + 200
+
+
+def test_apply_operations_applies_valid_swap_settlement() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    pools = {pool_id: pool_state}
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000)
+    balances.set(pk, asset1, 0)
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(53),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = compute_settlement([intent], pools, balances, LPTable())
+
+    apply_operations(settlement, balances, pools, LPTable())
+
+    assert balances.get(pk, asset0) == 9_900
+    assert balances.get(pk, asset1) > 0
+    assert pools[pool_id].reserve0 == 1_100
+    assert pools[pool_id].reserve1 < 1_000

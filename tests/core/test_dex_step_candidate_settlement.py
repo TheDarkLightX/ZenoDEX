@@ -58,6 +58,58 @@ def _make_single_swap_setup() -> tuple[DexState, list[Intent], str, str, str, st
     return state, intents, pool_id, pk, asset0, asset1
 
 
+def _make_two_create_pool_setup(
+    *,
+    nonce_a: int | None,
+    nonce_b: int | None,
+) -> tuple[DexState, list[Intent], str]:
+    pk = "0x" + "77" * 48
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+    asset2 = "0x" + "33" * 32
+    asset3 = "0x" + "44" * 32
+
+    balances = BalanceTable()
+    for asset in (asset0, asset1, asset2, asset3):
+        balances.set(pk, asset, 10_000_000)
+
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id=_iid(11),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "asset0": asset0,
+                "asset1": asset1,
+                "fee_bps": 30,
+                "amount0": 1000,
+                "amount1": 1000,
+                **({"nonce": int(nonce_a)} if nonce_a is not None else {}),
+            },
+        ),
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id=_iid(12),
+            sender_pubkey=pk,
+            deadline=9999999999,
+            fields={
+                "asset0": asset2,
+                "asset1": asset3,
+                "fee_bps": 30,
+                "amount0": 1000,
+                "amount1": 1000,
+                **({"nonce": int(nonce_b)} if nonce_b is not None else {}),
+            },
+        ),
+    ]
+    return DexState(balances=balances, pools={}, lp_balances=LPTable()), intents, pk
+
+
 def test_dex_config_default_swap_ordering_is_explicitly_greedy_ab_refined() -> None:
     cfg = DexConfig()
     assert cfg.swap_ordering == "greedy_ab_refined"
@@ -65,6 +117,7 @@ def test_dex_config_default_swap_ordering_is_explicitly_greedy_ab_refined() -> N
 
 def test_step_with_candidate_settlement_accepts_valid_candidate() -> None:
     state, intents, pool_id, pk, asset0, asset1 = _make_single_swap_setup()
+    intents[0].set_field("nonce", 1)
     cfg = DexConfig(settlement_validation="strong_replay")
 
     candidate = compute_settlement(
@@ -97,6 +150,38 @@ def test_step_with_candidate_settlement_accepts_valid_candidate() -> None:
     )
     assert r_candidate.state.pools[pool_id].reserve0 == r_internal.state.pools[pool_id].reserve0
     assert r_candidate.state.pools[pool_id].reserve1 == r_internal.state.pools[pool_id].reserve1
+    assert r_candidate.state.nonces.get_last(pk) == 1
+    assert r_internal.state.nonces.get_last(pk) == 1
+
+
+def test_step_advances_nonce_state_for_valid_out_of_order_batch() -> None:
+    state, intents, pk = _make_two_create_pool_setup(nonce_a=2, nonce_b=1)
+
+    result = step(DexConfig(settlement_validation="strong_replay"), state, intents)
+
+    assert result.ok, result.error
+    assert result.state is not None
+    assert state.nonces.get_last(pk) == 0
+    assert result.state.nonces.get_last(pk) == 2
+
+
+def test_step_with_candidate_settlement_rejects_mixed_nonce_presence() -> None:
+    state, intents, _pk = _make_two_create_pool_setup(nonce_a=1, nonce_b=None)
+    cfg = DexConfig(settlement_validation="strong_replay")
+
+    candidate = compute_settlement(
+        intents=intents,
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+        swap_ordering=str(cfg.swap_ordering),
+    )
+
+    result = step_with_candidate_settlement(cfg, state, intents, candidate_settlement=candidate)
+
+    assert not result.ok
+    assert result.error is not None
+    assert "nonce" in result.error
 
 
 class TestStepWithCandidateSettlementBVA:

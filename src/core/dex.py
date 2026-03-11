@@ -15,14 +15,14 @@ from typing import Any, Dict, List, Optional
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
-from ..state.nonces import NonceTable
+from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.pools import PoolState
-from .batch_clearing import compute_settlement, validate_settlement, apply_settlement_pure
+from .batch_clearing import apply_settlement_pure, compute_settlement, validate_settlement
 from .fees import FeeAccumulatorState, FeeSplitParams, FeeSplitResult, split_fee_with_dust_carry
 from .oracle import OracleState
 from .perps import PerpsState
-from .settlement_strong_validator import validate_settlement_strong
 from .settlement import Settlement
+from .settlement_strong_validator import validate_settlement_strong
 from .vault import VaultState
 
 
@@ -74,6 +74,7 @@ def _validate_and_apply_settlement(
     state: DexState,
     intents: List[Intent],
     settlement: Settlement,
+    next_nonces: NonceTable,
 ) -> DexStepResult:
     """Fail-closed settlement acceptance gate + pure application."""
     if config.settlement_validation == "legacy":
@@ -119,7 +120,7 @@ def _validate_and_apply_settlement(
         balances=next_balances,
         pools=next_pools,
         lp_balances=next_lp,
-        nonces=state.nonces,
+        nonces=next_nonces,
         vault=state.vault,
         oracle=state.oracle,
         fee_accumulator=next_fee_state,
@@ -146,7 +147,20 @@ def step_with_candidate_settlement(
 ) -> DexStepResult:
     """Verifier path: accept an externally proposed settlement (proof-carrying friendly)."""
     try:
-        return _validate_and_apply_settlement(config, state, intents, candidate_settlement)
+        ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
+            nonces=state.nonces,
+            intents=intents,
+            require_all_nonces=False,
+        )
+        if not ok:
+            return DexStepResult(ok=False, error=err or "nonce policy rejected")
+        return _validate_and_apply_settlement(
+            config,
+            state,
+            intents,
+            candidate_settlement,
+            next_nonces or state.nonces,
+        )
     except Exception as exc:
         return DexStepResult(ok=False, error=str(exc))
 
@@ -158,6 +172,13 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
     This function is pure: it returns a new DexState and structured effects.
     """
     try:
+        ok, err, next_nonces = validate_and_apply_intent_nonce_batch(
+            nonces=state.nonces,
+            intents=intents,
+            require_all_nonces=False,
+        )
+        if not ok:
+            return DexStepResult(ok=False, error=err or "nonce policy rejected")
         settlement = compute_settlement(
             intents=intents,
             pools=state.pools,
@@ -165,6 +186,12 @@ def step(config: DexConfig, state: DexState, intents: List[Intent]) -> DexStepRe
             lp_balances=state.lp_balances,
             swap_ordering=str(config.swap_ordering),
         )
-        return _validate_and_apply_settlement(config, state, intents, settlement)
+        return _validate_and_apply_settlement(
+            config,
+            state,
+            intents,
+            settlement,
+            next_nonces or state.nonces,
+        )
     except Exception as exc:
         return DexStepResult(ok=False, error=str(exc))

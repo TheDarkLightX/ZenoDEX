@@ -74,7 +74,7 @@ def test_create_swap_intent_from_quote_receipt_pokayoke_exact_out_unsupported() 
     quote = RouteQuote(asset_in="AGRS", asset_out="USDC", amount_in=amount_in, amount_out=amount_out, legs=(leg,))
     receipt = make_route_quote_receipt(kind="exact_out", quote=quote, pools_by_id=pools_by_id)
 
-    with pytest.raises(ValueError, match=r"pokayoke_exact_out_unsupported"):
+    with pytest.raises(ValueError, match=r"pokayoke_exact_out_unsupported: kind='exact_out', pool_id='pool_test_0'"):
         create_swap_intent_from_quote_receipt(
             receipt=receipt,
             pools_by_id=pools_by_id,
@@ -83,4 +83,3 @@ def test_create_swap_intent_from_quote_receipt_pokayoke_exact_out_unsupported() 
             slippage_bps=10,
             pokayoke_max_action="confirm",
         )
-

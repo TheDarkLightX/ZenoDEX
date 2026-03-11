@@ -7,15 +7,15 @@ In production, this would call the Tau Docker container to validate operations.
 
 from __future__ import annotations
 
-from typing import List, Dict, Tuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
-from ..state.intents import Intent
-from ..core.settlement import Settlement
-from ..state.balances import BalanceTable
-from ..state.pools import PoolState
-from ..state.lp import LPTable
 from ..core.batch_clearing import apply_settlement
+from ..core.settlement import Settlement
 from ..core.settlement_strong_validator import validate_settlement_strong
+from ..state.balances import BalanceTable
+from ..state.intents import Intent
+from ..state.lp import LPTable
+from ..state.pools import PoolState
 
 if TYPE_CHECKING:
     from .tau_gate import TauGateConfig
@@ -31,6 +31,8 @@ def validate_operations(
     *,
     tau_gate_config: Optional["TauGateConfig"] = None,
     settlement_validation: str = "strong_proof_carrying",
+    swap_ordering: str = "greedy_ab_refined",
+    quote_bindings_validated: bool = False,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate TauSwap operations using Tau Language validation.
@@ -61,6 +63,7 @@ def validate_operations(
     
     # Check that settlement covers all intents
     if settlement:
+        allow_cow_netting = str(swap_ordering) == "cow_pair_netting_v1"
         # Validate settlement (fail-closed): bind deltas to intents + kernel-backed swap math.
         is_valid, error = validate_settlement_strong(
             settlement=settlement,
@@ -69,7 +72,8 @@ def validate_operations(
             pre_pools=pools,
             pre_lp_balances=lp_balances,
             mode=str(settlement_validation),
-            allow_cow_netting=False,
+            allow_cow_netting=bool(allow_cow_netting),
+            allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
         )
         if not is_valid:
             return False, error

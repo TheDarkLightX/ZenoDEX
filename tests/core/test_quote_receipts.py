@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from src.core.amm_dispatch import swap_exact_in_for_pool
-from src.core.quote_receipts import make_route_quote_receipt, verify_route_quote_receipt
-from src.core.quote_receipts import pool_state_fingerprint, receipt_hash
+from src.core.quote_receipts import (
+    make_route_quote_receipt,
+    pool_state_fingerprint,
+    receipt_hash,
+    verify_route_quote_receipt,
+)
 from src.core.routing import best_route_exact_in_2hop, best_route_exact_out_2hop
 from src.state.pools import PoolState, PoolStatus
 
@@ -70,6 +74,142 @@ def test_quote_receipt_exact_out_split_roundtrip() -> None:
     assert len(q.legs) == 2
 
     receipt = make_route_quote_receipt(kind="exact_out", quote=q, pools_by_id=pools)
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+    assert ok, err
+
+
+def test_quote_receipt_verifier_rejects_repeated_pool_split_with_stale_second_leg() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+    pool = pools["p_ab"]
+    amount_in_leg = 100
+    out1, _next1 = swap_exact_in_for_pool(
+        pool,
+        reserve_in=int(pool.reserve0),
+        reserve_out=int(pool.reserve1),
+        amount_in=amount_in_leg,
+    )
+
+    body = {
+        "schema": "zenodex/route_quote_receipt/v1",
+        "kind": "exact_in",
+        "asset_in": "A",
+        "asset_out": "B",
+        "amount_in": 2 * amount_in_leg,
+        "amount_out": 2 * int(out1),
+        "legs": [
+            {
+                "amount_in": amount_in_leg,
+                "amount_out": int(out1),
+                "hops": [
+                    {
+                        "pool_id": "p_ab",
+                        "asset_in": "A",
+                        "asset_out": "B",
+                        "amount_in": amount_in_leg,
+                        "amount_out": int(out1),
+                    }
+                ],
+            },
+            {
+                "amount_in": amount_in_leg,
+                "amount_out": int(out1),
+                "hops": [
+                    {
+                        "pool_id": "p_ab",
+                        "asset_in": "A",
+                        "asset_out": "B",
+                        "amount_in": amount_in_leg,
+                        "amount_out": int(out1),
+                    }
+                ],
+            },
+        ],
+        "pools": {
+            "p_ab": pool_state_fingerprint(pool),
+        },
+    }
+    receipt = {"body": body, "receipt_hash": receipt_hash(body)}
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+    assert not ok
+    assert err == "hop_quote_mismatch"
+
+
+def test_quote_receipt_verifier_accepts_repeated_pool_split_with_stateful_legs() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 0),
+    }
+    pool = pools["p_ab"]
+    amount_in_leg = 100
+    out1, (r0_after_1, r1_after_1) = swap_exact_in_for_pool(
+        pool,
+        reserve_in=int(pool.reserve0),
+        reserve_out=int(pool.reserve1),
+        amount_in=amount_in_leg,
+    )
+    pool_after_1 = PoolState(
+        pool_id=pool.pool_id,
+        asset0=pool.asset0,
+        asset1=pool.asset1,
+        reserve0=int(r0_after_1),
+        reserve1=int(r1_after_1),
+        fee_bps=int(pool.fee_bps),
+        lp_supply=int(pool.lp_supply),
+        status=pool.status,
+        created_at=int(pool.created_at),
+        curve_tag=pool.curve_tag,
+        curve_params=pool.curve_params,
+    )
+    out2, _next2 = swap_exact_in_for_pool(
+        pool_after_1,
+        reserve_in=int(pool_after_1.reserve0),
+        reserve_out=int(pool_after_1.reserve1),
+        amount_in=amount_in_leg,
+    )
+
+    body = {
+        "schema": "zenodex/route_quote_receipt/v1",
+        "kind": "exact_in",
+        "asset_in": "A",
+        "asset_out": "B",
+        "amount_in": 2 * amount_in_leg,
+        "amount_out": int(out1) + int(out2),
+        "legs": [
+            {
+                "amount_in": amount_in_leg,
+                "amount_out": int(out1),
+                "hops": [
+                    {
+                        "pool_id": "p_ab",
+                        "asset_in": "A",
+                        "asset_out": "B",
+                        "amount_in": amount_in_leg,
+                        "amount_out": int(out1),
+                    }
+                ],
+            },
+            {
+                "amount_in": amount_in_leg,
+                "amount_out": int(out2),
+                "hops": [
+                    {
+                        "pool_id": "p_ab",
+                        "asset_in": "A",
+                        "asset_out": "B",
+                        "amount_in": amount_in_leg,
+                        "amount_out": int(out2),
+                    }
+                ],
+            },
+        ],
+        "pools": {
+            "p_ab": pool_state_fingerprint(pool),
+        },
+    }
+    receipt = {"body": body, "receipt_hash": receipt_hash(body)}
+
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
     assert ok, err
 
