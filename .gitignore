@@ -23,6 +23,11 @@ generated/*
 !generated/derivatives_python/*_ref.py
 !generated/volatility_tier_controller_v1_python_ref/
 !generated/volatility_tier_controller_v1_python_ref/volatility_tier_controller_v1_ref.py
+!generated/batch_auction_settler_v1/
+generated/batch_auction_settler_v1/*
+!generated/batch_auction_settler_v1/python_ref/
+generated/batch_auction_settler_v1/python_ref/*
+!generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py
 !generated/perp_python/
 !generated/perp_python/*_ref.py
 

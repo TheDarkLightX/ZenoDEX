@@ -66,6 +66,7 @@ echo "== release: tau traces =="
 
 run_if_present "perps evidence" "$ROOT_DIR/tools/run_perps_evidence.sh"
 run_if_present "spot proof assurance" "$ROOT_DIR/tools/run_spot_proof_assurance_gate.sh"
+run_if_present "spot evidence" "$ROOT_DIR/tools/run_spot_evidence.sh"
 run_if_present "derivatives evidence" "$ROOT_DIR/tools/run_derivatives_evidence.sh"
 
 echo "== release: coverage map refresh =="
