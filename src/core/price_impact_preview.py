@@ -91,8 +91,6 @@ def compute_price_impact_bps(
 
     numerator = (net_in * reserve_out) - (amount_out * reserve_in)
     denominator = net_in * reserve_out
-    if denominator <= 0:
-        return BPS_SCALE
     return max(0, min(BPS_SCALE, numerator * BPS_SCALE // denominator))
 
 
@@ -156,8 +154,6 @@ def price_impact_preview(
     reserve_in_after, reserve_out_after = _after_pending(pv=int(pending_volume_same_direction))
     if pending_volume_same_direction == 0:
         amount_out_worst_case = amount_out_best_case
-    elif reserve_out_after <= 0:
-        amount_out_worst_case = 0
     else:
         amount_out_worst_case, _ = compute_isolated_output(
             reserve_in=int(reserve_in_after),
@@ -166,15 +162,10 @@ def price_impact_preview(
             fee_bps=fee_bps,
         )
 
-    if amount_out_worst_case > amount_out_best_case:
-        amount_out_worst_case = amount_out_best_case
-
     pending_volume_at_confidence = int(pending_volume_same_direction) * int(confidence_bps) // BPS_SCALE
     reserve_in_conf, reserve_out_conf = _after_pending(pv=int(pending_volume_at_confidence))
     if pending_volume_at_confidence == 0:
         amount_out_at_confidence = amount_out_best_case
-    elif reserve_out_conf <= 0:
-        amount_out_at_confidence = 0
     else:
         amount_out_at_confidence, _ = compute_isolated_output(
             reserve_in=int(reserve_in_conf),

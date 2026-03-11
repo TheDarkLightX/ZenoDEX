@@ -62,8 +62,6 @@ def fee_bps_from_stress_policy(
         raise ValueError("amount_in must be non-negative")
 
     stress_bps = (int(amount_in) * 10_000) // int(reserve_in)
-    if stress_bps < 0:
-        stress_bps = 0
     if stress_bps > 10_000:
         stress_bps = 10_000
 
@@ -73,4 +71,3 @@ def fee_bps_from_stress_policy(
     if fee > int(policy.max_fee_bps):
         fee = int(policy.max_fee_bps)
     return int(fee)
-

@@ -196,8 +196,6 @@ def slippage_advice_exact_in_cpmm(
             status = "inconclusive_mev"
         elif rec_assessment.sandwich_max_profit > 0:
             status = "mev_conflict"
-        elif rec_mev_safe is not None and int(rec_revert_safe) > int(rec_mev_safe):
-            status = "mev_conflict"
 
     return SlippageAdvice(
         best_amount_out=best_out,
