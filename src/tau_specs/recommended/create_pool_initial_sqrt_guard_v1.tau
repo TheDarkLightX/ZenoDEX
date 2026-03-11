@@ -1,0 +1,37 @@
+# Create Pool Initial Sqrt Guard v1 - Deterministic Initial LP Mint (DEX)
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS:
+#   sqrt_floor = floor(sqrt(amount0 * amount1))
+#   lp_minted  = sqrt_floor - MIN_LP_LOCK
+#
+# PURPOSE: Validate externally computed initial LP mint for a new CPMM pool.
+#
+# Safe math:
+# - Restrict amount0/amount1/sqrt_floor to the u32 range (<= 0xFFFFFFFF) and use bv[64] arithmetic.
+# - For u32 inputs, product and squares fit in bv[64] without overflow: (2^32-1)^2 < 2^64.
+#
+# Stream mapping:
+# i1 = amount0 (bv[64])
+# i2 = amount1 (bv[64])
+# i3 = sqrt_floor (bv[64])      # claimed floor sqrt(amount0*amount1)
+# i4 = lp_minted (bv[64])       # claimed (excluding MIN_LP_LOCK)
+# o1 = create_pool_sqrt_ok
+
+set charvar off
+
+min_lp_lock() := { #x00000000000003E8 }:bv[64].  # 1000
+
+u32_max() := { #x00000000FFFFFFFF }:bv[64].
+u32_ok(v : bv[64]) := v <= u32_max().
+
+nonzero_ok(v : bv[64]) := v > { #x0000000000000000 }:bv[64].
+
+sqrt_witness_ok(a0 : bv[64], a1 : bv[64], r : bv[64]) := ((r * r) <= (a0 * a1)) && (((a0 * a1) - (r * r)) < ((r * { #x0000000000000002 }:bv[64]) + { #x0000000000000001 }:bv[64])).
+
+lp_minted_ok(r : bv[64], minted : bv[64]) := (r > min_lp_lock()) && (minted = (r - min_lp_lock())) && (minted > { #x0000000000000000 }:bv[64]).
+
+create_pool_sqrt_ok(a0 : bv[64], a1 : bv[64], r : bv[64], minted : bv[64]) := u32_ok(a0) && u32_ok(a1) && u32_ok(r) && u32_ok(minted) && nonzero_ok(a0) && nonzero_ok(a1) && sqrt_witness_ok(a0, a1, r) && lp_minted_ok(r, minted).
+
+always (o1[t]:sbf = 1:sbf <-> create_pool_sqrt_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])).

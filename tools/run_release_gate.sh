@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+if [[ -n "${PYTHON:-}" ]]; then
+  PY="$PYTHON"
+elif [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
+  PY="$ROOT_DIR/.venv/bin/python"
+else
+  PY="python3"
+fi
+
+require_module() {
+  local module="$1"
+  local package_hint="$2"
+  if ! "$PY" -c "import importlib.util as u, sys; sys.exit(0 if u.find_spec('$module') else 1)"; then
+    echo "error: missing python module '$module'" >&2
+    echo "hint: install dev tooling with '$PY -m pip install -r requirements-dev.txt'" >&2
+    echo "hint: expected package: $package_hint" >&2
+    exit 2
+  fi
+}
+
+require_file() {
+  local label="$1"
+  local path="$2"
+  if [[ ! -f "$path" ]]; then
+    echo "error: missing required file for $label: $path" >&2
+    exit 2
+  fi
+}
+
+run_if_present() {
+  local label="$1"
+  local path="$2"
+  if [[ ! -f "$path" ]]; then
+    echo "error: expected artifact runner '$path' for $label" >&2
+    exit 2
+  fi
+  echo "== release: $label =="
+  bash "$path"
+}
+
+require_module "pytest" "pytest"
+require_module "pip_audit" "pip-audit"
+
+echo "== release: critical quality gate =="
+bash "$ROOT_DIR/tools/run_critical_quality_gate.sh"
+
+echo "== release: acceptance mutation gate =="
+bash "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh"
+
+echo "== release: acceptance fuzz gate =="
+bash "$ROOT_DIR/tools/run_acceptance_tcb_fuzz_gate.sh"
+
+echo "== release: snapshot recovery gate =="
+bash "$ROOT_DIR/tools/run_snapshot_recovery_gate.sh"
+
+echo "== release: tau syntax =="
+bash "$ROOT_DIR/tests/tau/test_specs_syntax.sh"
+
+echo "== release: tau traces =="
+"$PY" -m pytest -q "$ROOT_DIR/tests/tau/test_spec_registry_traces.py"
+
+run_if_present "perps evidence" "$ROOT_DIR/tools/run_perps_evidence.sh"
+run_if_present "spot proof assurance" "$ROOT_DIR/tools/run_spot_proof_assurance_gate.sh"
+run_if_present "spot evidence" "$ROOT_DIR/tools/run_spot_evidence.sh"
+run_if_present "derivatives evidence" "$ROOT_DIR/tools/run_derivatives_evidence.sh"
+
+echo "== release: coverage map refresh =="
+"$PY" "$ROOT_DIR/tools/zenodex_core_coverage_map.py"
+
+require_file "system-spec lint" "$ROOT_DIR/tools/system_spec_lint.py"
+require_file "system-spec compose" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
+echo "== release: system-spec lint =="
+"$PY" "$ROOT_DIR/tools/system_spec_lint.py" "$ROOT_DIR/src/kernels/dex/zenodex_system_compose_v2.yaml"
+
+echo "== release: dependency audit =="
+"$PY" -m pip_audit -r "$ROOT_DIR/requirements.txt"
+
+echo "ok"

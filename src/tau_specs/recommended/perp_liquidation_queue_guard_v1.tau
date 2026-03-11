@@ -1,0 +1,45 @@
+# Perp Liquidation Queue Guard v1
+#
+# PURPOSE:
+# Bound liquidation queue pressure and per-block liquidation throughput while
+# enforcing insurance-floor availability.
+#
+# i1 = queue_depth (bv[32])
+# i2 = max_queue_depth (bv[32])
+# i3 = liquidations_this_block (bv[32])
+# i4 = max_liquidations_per_block (bv[32])
+# i5 = insurance_balance (bv[32])
+# i6 = insurance_floor (bv[32])
+# i7 = proof_ok (sbf)
+# i8 = binding_ok (sbf)
+#
+# o1 = queue_ok
+# o2 = block_rate_ok
+# o3 = insurance_floor_ok
+# o4 = liquidation_queue_safe
+# o5 = proof_gated_liquidation_queue_safe
+
+set charvar off
+
+queue_ok(queue_depth : bv[32], max_queue_depth : bv[32]) := queue_depth <= max_queue_depth.
+
+block_rate_ok(liquidations_this_block : bv[32], max_liquidations_per_block : bv[32]) := liquidations_this_block <= max_liquidations_per_block.
+
+insurance_floor_ok(insurance_balance : bv[32], insurance_floor : bv[32]) := insurance_balance >= insurance_floor.
+
+liquidation_queue_safe(queue_depth : bv[32], max_queue_depth : bv[32], liquidations_this_block : bv[32], max_liquidations_per_block : bv[32], insurance_balance : bv[32], insurance_floor : bv[32]) :=
+  queue_ok(queue_depth, max_queue_depth) &&
+  block_rate_ok(liquidations_this_block, max_liquidations_per_block) &&
+  insurance_floor_ok(insurance_balance, insurance_floor).
+
+proof_gated_liquidation_queue_safe(queue_depth : bv[32], max_queue_depth : bv[32], liquidations_this_block : bv[32], max_liquidations_per_block : bv[32], insurance_balance : bv[32], insurance_floor : bv[32], proof_ok : sbf, binding_ok : sbf) :=
+  liquidation_queue_safe(queue_depth, max_queue_depth, liquidations_this_block, max_liquidations_per_block, insurance_balance, insurance_floor) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> queue_ok(i1[t]:bv[32], i2[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> block_rate_ok(i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> insurance_floor_ok(i5[t]:bv[32], i6[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> liquidation_queue_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_liquidation_queue_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:sbf, i8[t]:sbf)).

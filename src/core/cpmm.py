@@ -11,13 +11,21 @@ Algorithm Design:
 - Invariant: After each swap, x' * y' >= k (where k = x * y before swap, adjusted for fees)
 """
 
-import math
 from typing import Tuple
 
-from ..state.balances import Amount
 from ..kernels.python.cpmm_swap_v8 import compute_fee_total as _kernel_compute_fee_total_v8
 from ..kernels.python.cpmm_swap_v8 import swap_exact_in as _kernel_swap_exact_in_v8
 from ..kernels.python.cpmm_swap_v8 import swap_exact_out as _kernel_swap_exact_out_v8
+from ..kernels.python.lp_math_v7 import burn_liquidity as _kernel_burn_liquidity_v7
+from ..kernels.python.lp_math_v7 import mint_liquidity_initial as _kernel_mint_liquidity_initial_v7
+from ..state.balances import Amount
+from .domain_limits import (
+    DEX_LP_AMOUNT_MAX,
+    DEX_LP_SUPPLY_MAX,
+    DEX_POOL_RESERVE_MAX,
+    DEX_SWAP_AMOUNT_MAX,
+    require_int_range,
+)
 
 # Minimum LP lock to prevent division by zero attacks
 MIN_LP_LOCK = 1000
@@ -30,8 +38,8 @@ def compute_fee_total(gross_amount: Amount, fee_bps: int) -> Amount:
     This matches the fee rule used by the v8 swap kernel:
         fee_total = ceil(gross_amount * fee_bps / 10_000)
     """
-    if gross_amount < 0:
-        raise ValueError(f"gross_amount must be non-negative: {gross_amount}")
+    require_int_range("gross_amount", gross_amount, minimum=0, maximum=DEX_SWAP_AMOUNT_MAX)
+    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
     return _kernel_compute_fee_total_v8(gross_in=gross_amount, fee_bps=fee_bps)
 
 
@@ -69,12 +77,15 @@ def swap_exact_in(
         ValueError: If inputs are invalid or would violate invariants
     """
     # Input validation
-    if reserve_in < 0 or reserve_out < 0:
-        raise ValueError(f"Reserves must be non-negative: ({reserve_in}, {reserve_out})")
-    if amount_in <= 0:
-        raise ValueError(f"amount_in must be positive: {amount_in}")
-    if not (0 <= fee_bps <= 10000):
-        raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
+    require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("amount_in", amount_in, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
+    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
+    if reserve_in + amount_in > DEX_POOL_RESERVE_MAX:
+        raise ValueError(
+            f"swap would exceed reserve_in domain max {DEX_POOL_RESERVE_MAX}: "
+            f"{reserve_in} + {amount_in}"
+        )
     
     res = _kernel_swap_exact_in_v8(
         reserve_in=reserve_in,
@@ -96,6 +107,8 @@ def swap_exact_out(
     reserve_out: Amount,
     amount_out: Amount,
     fee_bps: int,
+    max_overdelivery_gap_abs: Amount | None = None,
+    max_overdelivery_gap_bps: int | None = None,
 ) -> Tuple[Amount, Tuple[Amount, Amount]]:
     """
     Compute required input amount for exact-out swap with deterministic rounding.
@@ -114,6 +127,12 @@ def swap_exact_out(
         amount_out: Exact output amount desired
         fee_bps: Fee in basis points (0-10000)
         
+    Args:
+        max_overdelivery_gap_abs: Optional absolute cap on exact-out overdelivery gap
+            (`amount_out_quote - amount_out`) under exact-in semantics.
+        max_overdelivery_gap_bps: Optional relative cap on overdelivery gap in bps
+            of requested `amount_out`.
+
     Returns:
         Tuple of (amount_in, (new_reserve_in, new_reserve_out))
         
@@ -121,16 +140,23 @@ def swap_exact_out(
         ValueError: If inputs are invalid or would violate invariants
     """
     # Input validation
-    if reserve_in < 0 or reserve_out < 0:
-        raise ValueError(f"Reserves must be non-negative: ({reserve_in}, {reserve_out})")
-    if amount_out <= 0:
-        raise ValueError(f"amount_out must be positive: {amount_out}")
+    require_int_range("reserve_in", reserve_in, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("reserve_out", reserve_out, minimum=1, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("amount_out", amount_out, minimum=1, maximum=DEX_SWAP_AMOUNT_MAX)
     if amount_out >= reserve_out:
         raise ValueError(
             f"Cannot drain full reserve: amount_out ({amount_out}) >= reserve_out ({reserve_out})"
         )
-    if not (0 <= fee_bps <= 10000):
-        raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
+    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
+    if max_overdelivery_gap_abs is not None:
+        require_int_range(
+            "max_overdelivery_gap_abs",
+            max_overdelivery_gap_abs,
+            minimum=0,
+            maximum=DEX_SWAP_AMOUNT_MAX,
+        )
+    if max_overdelivery_gap_bps is not None:
+        require_int_range("max_overdelivery_gap_bps", max_overdelivery_gap_bps, minimum=0, maximum=10000)
     
     res = _kernel_swap_exact_out_v8(
         reserve_in=reserve_in,
@@ -138,6 +164,19 @@ def swap_exact_out(
         amount_out=amount_out,
         fee_bps=fee_bps,
     )
+
+    # Optional policy guard for exact-out quote quality in small-reserve regimes.
+    if max_overdelivery_gap_abs is not None and res.overdelivery_gap > max_overdelivery_gap_abs:
+        raise ValueError(
+            f"overdelivery gap exceeds absolute policy: gap={res.overdelivery_gap} > {max_overdelivery_gap_abs}"
+        )
+    if max_overdelivery_gap_bps is not None:
+        # ceil(overdelivery_gap * 10_000 / amount_out)
+        gap_bps = ((res.overdelivery_gap * 10_000) + amount_out - 1) // amount_out
+        if gap_bps > max_overdelivery_gap_bps:
+            raise ValueError(
+                f"overdelivery gap exceeds bps policy: gap_bps={gap_bps} > {max_overdelivery_gap_bps}"
+            )
 
     # Verify invariant: with protocol_fee_share_bps=0, k must not decrease.
     if res.k_after < res.k_before:
@@ -175,27 +214,33 @@ def compute_lp_mint(
     Raises:
         ValueError: If inputs are invalid
     """
-    if reserve0 < 0 or reserve1 < 0:
-        raise ValueError(f"Reserves must be non-negative: ({reserve0}, {reserve1})")
-    if amount0 <= 0 or amount1 <= 0:
-        raise ValueError(f"Deposit amounts must be positive: ({amount0}, {amount1})")
-    if lp_supply < 0:
-        raise ValueError(f"LP supply must be non-negative: {lp_supply}")
-    
+    require_int_range("reserve0", reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("reserve1", reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("amount0", amount0, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount1", amount1, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("lp_supply", lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
+
     if lp_supply == 0:
-        # First deposit: lp = floor(sqrt(amount0 * amount1)) - MIN_LP_LOCK
-        #
-        # Uniswap-v2-style behavior: require enough liquidity to cover the lock,
-        # otherwise the pool would start in a pathological state.
-        product = amount0 * amount1
-        lp = math.isqrt(product)
-        if lp <= MIN_LP_LOCK:
-            raise ValueError("Insufficient initial liquidity: sqrt(amount0*amount1) <= MIN_LP_LOCK")
-        lp = lp - MIN_LP_LOCK
+        # Delegate initial mint math to the (auditable) v7 kernel helper.
+        lp, _total_supply = _kernel_mint_liquidity_initial_v7(
+            amount0=int(amount0),
+            amount1=int(amount1),
+            min_lp_lock=int(MIN_LP_LOCK),
+        )
     else:
         # Subsequent deposits: proportional to existing supply
         if reserve0 == 0 or reserve1 == 0:
             raise ValueError("Cannot add liquidity to empty pool")
+        if reserve0 + amount0 > DEX_POOL_RESERVE_MAX:
+            raise ValueError(
+                f"deposit would exceed reserve0 domain max {DEX_POOL_RESERVE_MAX}: "
+                f"{reserve0} + {amount0}"
+            )
+        if reserve1 + amount1 > DEX_POOL_RESERVE_MAX:
+            raise ValueError(
+                f"deposit would exceed reserve1 domain max {DEX_POOL_RESERVE_MAX}: "
+                f"{reserve1} + {amount1}"
+            )
         
         # Compute proportional LP for each asset (round down)
         lp0 = (amount0 * lp_supply) // reserve0
@@ -235,20 +280,18 @@ def compute_lp_burn(
     Raises:
         ValueError: If inputs are invalid
     """
-    if lp_amount <= 0:
-        raise ValueError(f"LP amount must be positive: {lp_amount}")
+    require_int_range("lp_amount", lp_amount, minimum=1, maximum=DEX_LP_SUPPLY_MAX)
     if lp_amount > lp_supply:
         raise ValueError(f"Cannot burn more LP than supply: {lp_amount} > {lp_supply}")
-    if reserve0 < 0 or reserve1 < 0:
-        raise ValueError(f"Reserves must be non-negative: ({reserve0}, {reserve1})")
-    if lp_supply <= 0:
-        raise ValueError(f"LP supply must be positive: {lp_supply}")
-    
-    # Compute proportional amounts (round down)
-    amount0 = (lp_amount * reserve0) // lp_supply
-    amount1 = (lp_amount * reserve1) // lp_supply
-    
-    if amount0 < 0 or amount1 < 0:
-        raise ValueError(f"Computed amounts are negative: ({amount0}, {amount1})")
-    
-    return amount0, amount1
+    require_int_range("reserve0", reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("reserve1", reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("lp_supply", lp_supply, minimum=1, maximum=DEX_LP_SUPPLY_MAX)
+
+    # Delegate burn math to the (auditable) v7 kernel helper.
+    res = _kernel_burn_liquidity_v7(
+        lp_amount=int(lp_amount),
+        reserve0=int(reserve0),
+        reserve1=int(reserve1),
+        total_supply=int(lp_supply),
+    )
+    return int(res.amount0_out), int(res.amount1_out)

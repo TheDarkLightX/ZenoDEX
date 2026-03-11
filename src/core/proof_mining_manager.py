@@ -1,21 +1,14 @@
 from __future__ import annotations
 
 import hashlib
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Mapping
 
 import yaml
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_ESSO_ROOT = _REPO_ROOT / "external" / "ESSO"
-if _ESSO_ROOT.exists():
-    sys.path.insert(0, str(_ESSO_ROOT))
-
 from ESSO.ir.schema import CandidateIR
-from ESSO.kernel.interpreter import Command, prepare_step_context, step_ctx
+from ESSO.kernel.runner import Command, prepare_step_context, step_ctx
 
 from .proof_mining_claims import validate_proof_mining_claim_artifact
 

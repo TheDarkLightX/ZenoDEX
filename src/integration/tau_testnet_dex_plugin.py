@@ -54,6 +54,10 @@ _LEGACY_DEX_FAUCET_KEY = "4"
 _LEGACY_PERP_OPS_KEY = "5"
 
 _APP_STATE_SCHEMA = "zenodex/tau_app_state/v1"
+_APP_STATE_VERSION = 1
+_MAX_APP_STATE_JSON_BYTES = 6_000_000
+
+
 def _canonical_state_and_hash(
     state: DexState,
     *,
@@ -65,7 +69,7 @@ def _canonical_state_and_hash(
         return canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest()
     payload = {
         "schema": _APP_STATE_SCHEMA,
-        "version": 1,
+        "version": _APP_STATE_VERSION,
         "dex_state": snap.data,
         "proof_mining": proof_mining_runtime_state_to_obj(proof_mining_state),
     }
@@ -83,6 +87,28 @@ def _bool_env(name: str, *, default: bool) -> bool:
     if v in {"0", "false", "no", "off"}:
         return False
     return bool(default)
+
+
+def _maybe_decode_custom_stream_value(value: Any) -> Any:
+    """
+    Upstream tau-testnet restricts custom operation streams (keys beyond 0/1) to
+    `str|int` (or lists thereof). Our client encodes structured ops as canonical
+    JSON strings; this helper decodes those strings back to objects.
+    """
+    if not isinstance(value, str):
+        return value
+    raw = value.strip()
+    if not raw:
+        return value
+    if raw[0] not in "{[":
+        return value
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return value
+    if isinstance(parsed, (dict, list)):
+        return parsed
+    return value
 
 
 def _copy_balance_table(balances: BalanceTable) -> BalanceTable:
@@ -139,12 +165,22 @@ def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRunt
     raw = (app_state_json or "").strip()
     if not raw:
         return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable()), None
+    if len(raw.encode("utf-8")) > _MAX_APP_STATE_JSON_BYTES:
+        raise ValueError("app_state_json too large")
     try:
         obj = json.loads(raw)
     except Exception as exc:
         raise ValueError(f"invalid app_state_json: {exc}") from exc
     try:
-        if isinstance(obj, Mapping) and obj.get("schema") == _APP_STATE_SCHEMA:
+        if isinstance(obj, Mapping) and any(key in obj for key in ("schema", "dex_state", "proof_mining")):
+            schema = obj.get("schema")
+            if schema != _APP_STATE_SCHEMA:
+                raise ValueError(f"unsupported app_state schema: {schema!r}")
+            version = obj.get("version", _APP_STATE_VERSION)
+            if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
+                raise ValueError("app_state.version must be a positive int")
+            if version != _APP_STATE_VERSION:
+                raise ValueError(f"unsupported app_state version: {version}")
             dex_state = state_from_snapshot(_require_mapping(obj.get("dex_state"), name="app_state.dex_state"))
             proof_obj = obj.get("proof_mining")
             if proof_obj is None:
@@ -665,6 +701,15 @@ def apply_app_tx(
         return False, app_state_json, "", None, "operations must be an object"
     if not isinstance(chain_balances, dict):
         return False, app_state_json, "", None, "chain_balances must be an object"
+
+    decoded_ops: Dict[str, Any] = {}
+    for k, v in operations.items():
+        key = str(k)
+        if key in ("0", "1"):
+            decoded_ops[key] = v
+        else:
+            decoded_ops[key] = _maybe_decode_custom_stream_value(v)
+    operations = decoded_ops
 
     allow_faucet = _bool_env("TAU_DEX_FAUCET", default=False)
     allow_missing_settlement = _bool_env("TAU_DEX_ALLOW_MISSING_SETTLEMENT", default=True)

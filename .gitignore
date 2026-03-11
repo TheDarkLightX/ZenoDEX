@@ -3,8 +3,38 @@ external/
 internal/
 node_modules/
 
+# Generated artifacts:
+# - Keep only the small Python `*_ref.py` oracles (spec-derived) used by CI parity tests.
+# - Ignore everything else under `generated/` (run logs, large harness outputs, etc).
+generated/
+!generated/
+generated/*
+!generated/cpmm_python/
+!generated/cpmm_python/cpmm_swap_ref.py
+!generated/dex_v7_python/
+!generated/dex_v7_python/*_ref.py
+!generated/dex_v8_python/
+!generated/dex_v8_python/*_ref.py
+!generated/liquidity_python/
+!generated/liquidity_python/*_ref.py
+!generated/vault_python/
+!generated/vault_python/*_ref.py
+!generated/derivatives_python/
+!generated/derivatives_python/*_ref.py
+!generated/volatility_tier_controller_v1_python_ref/
+!generated/volatility_tier_controller_v1_python_ref/volatility_tier_controller_v1_ref.py
+!generated/batch_auction_settler_v1/
+generated/batch_auction_settler_v1/*
+!generated/batch_auction_settler_v1/python_ref/
+generated/batch_auction_settler_v1/python_ref/*
+!generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py
+!generated/perp_python/
+!generated/perp_python/*_ref.py
+
 # Local dev scratch (not part of repo)
 .claude/
+.agents/
+temp_algo_lab/
 
 # Python
 __pycache__/
@@ -37,6 +67,7 @@ venv/
 env/
 ENV/
 .venv_audit/
+.venv_gpu/
 
 # IDE
 .vscode/
@@ -55,6 +86,7 @@ htmlcov/
 
 # Documentation
 docs/_build/
+docs/spot_dex_assurance_plan.md
 
 # OS
 .DS_Store

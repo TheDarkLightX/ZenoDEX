@@ -196,9 +196,6 @@ class SubprocessProofVerifier(ProofVerifier):
                 if stdin_open and stdin_off < len(stdin_view):
                     wlist.append(proc.stdin)
 
-                if not rlist and not wlist:
-                    break
-
                 try:
                     ready_r, ready_w, _ = select.select(rlist, wlist, [], min(0.1, remaining))
                 except Exception:
@@ -246,7 +243,7 @@ class SubprocessProofVerifier(ProofVerifier):
                     if not chunk:
                         if stream is proc.stdout:
                             stdout_open = False
-                        elif stream is proc.stderr:
+                        else:
                             stderr_open = False
                         continue
 
@@ -272,10 +269,6 @@ class SubprocessProofVerifier(ProofVerifier):
                     break
 
             rc = proc.poll()
-            if stdin_off < len(stdin_view):
-                _kill_proc_group()
-                _wait_after_kill()
-                return False, "proof verifier stdin incomplete write"
             if rc is None:
                 try:
                     remaining = deadline - time.monotonic()

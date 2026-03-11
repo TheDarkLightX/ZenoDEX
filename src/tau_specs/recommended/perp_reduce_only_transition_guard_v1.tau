@@ -1,0 +1,32 @@
+# Perp Reduce-Only Transition Guard v1
+#
+# PURPOSE:
+# In reduce-only mode, absolute position size must not increase.
+#
+# i1 = reduce_only_flag (sbf)
+# i2 = position_before_abs (bv[32])
+# i3 = position_after_abs (bv[32])
+# i4 = proof_ok (sbf)
+# i5 = binding_ok (sbf)
+#
+# o1 = reduction_ok
+# o2 = transition_safe
+# o3 = proof_gated_transition_safe
+
+set charvar off
+
+reduction_ok(reduce_only_flag : sbf, position_before_abs : bv[32], position_after_abs : bv[32]) :=
+  (reduce_only_flag = 0:sbf) || (position_after_abs <= position_before_abs).
+
+transition_safe(reduce_only_flag : sbf, position_before_abs : bv[32], position_after_abs : bv[32]) :=
+  reduction_ok(reduce_only_flag, position_before_abs, position_after_abs).
+
+proof_gated_transition_safe(reduce_only_flag : sbf, position_before_abs : bv[32], position_after_abs : bv[32], proof_ok : sbf, binding_ok : sbf) :=
+  transition_safe(reduce_only_flag, position_before_abs, position_after_abs) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> reduction_ok(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> transition_safe(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> proof_gated_transition_safe(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:sbf, i5[t]:sbf)).

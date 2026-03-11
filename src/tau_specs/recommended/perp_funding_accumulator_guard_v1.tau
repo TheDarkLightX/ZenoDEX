@@ -1,0 +1,37 @@
+# Perp Funding Accumulator Guard v1
+#
+# PURPOSE:
+# Keep cumulative absolute funding monotone with bounded per-step increments.
+#
+# i1 = prev_cum_abs_funding (bv[64])
+# i2 = curr_cum_abs_funding (bv[64])
+# i3 = max_step_abs_funding (bv[64])
+# i4 = proof_ok (sbf)
+# i5 = binding_ok (sbf)
+#
+# o1 = monotone_ok
+# o2 = step_ok
+# o3 = accumulator_safe
+# o4 = proof_gated_accumulator_safe
+
+set charvar off
+
+monotone_ok(prev_cum_abs_funding : bv[64], curr_cum_abs_funding : bv[64]) := curr_cum_abs_funding >= prev_cum_abs_funding.
+
+step_ok(prev_cum_abs_funding : bv[64], curr_cum_abs_funding : bv[64], max_step_abs_funding : bv[64]) :=
+  monotone_ok(prev_cum_abs_funding, curr_cum_abs_funding) &&
+  ((curr_cum_abs_funding - prev_cum_abs_funding) <= max_step_abs_funding).
+
+accumulator_safe(prev_cum_abs_funding : bv[64], curr_cum_abs_funding : bv[64], max_step_abs_funding : bv[64]) :=
+  step_ok(prev_cum_abs_funding, curr_cum_abs_funding, max_step_abs_funding).
+
+proof_gated_accumulator_safe(prev_cum_abs_funding : bv[64], curr_cum_abs_funding : bv[64], max_step_abs_funding : bv[64], proof_ok : sbf, binding_ok : sbf) :=
+  accumulator_safe(prev_cum_abs_funding, curr_cum_abs_funding, max_step_abs_funding) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> monotone_ok(i1[t]:bv[64], i2[t]:bv[64])) &&
+  (o2[t]:sbf = 1:sbf <-> step_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64])) &&
+  (o3[t]:sbf = 1:sbf <-> accumulator_safe(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64])) &&
+  (o4[t]:sbf = 1:sbf <-> proof_gated_accumulator_safe(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:sbf, i5[t]:sbf)).

@@ -1,0 +1,12 @@
+# Experimental settlement price rails, aligned-input compact form
+#
+# Inputs:
+# i1..i4 = order ids
+# i5 = price_prevprev
+# i6 = price_prev
+# i7 = price_curr
+# o1 = rails_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> (((i1[t]:bv[16] < i2[t]:bv[16]) && (i2[t]:bv[16] < i3[t]:bv[16]) && (i3[t]:bv[16] < i4[t]:bv[16])) && ((((i5[t]:bv[16] <= i6[t]:bv[16]) && (i6[t]:bv[16] <= i7[t]:bv[16])) || ((i5[t]:bv[16] >= i6[t]:bv[16]) && (i6[t]:bv[16] >= i7[t]:bv[16])))) && ((((i7[t]:bv[16] >= i6[t]:bv[16]) && (i7[t]:bv[16] - i6[t]:bv[16] < { #x0032 }:bv[16])) || ((i7[t]:bv[16] < i6[t]:bv[16]) && (i6[t]:bv[16] - i7[t]:bv[16] < { #x0032 }:bv[16])))))).

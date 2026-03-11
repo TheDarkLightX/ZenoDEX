@@ -1,0 +1,29 @@
+# Perp Oracle Quorum Median Guard v1
+#
+# PURPOSE:
+# Enforce basic quorum ordering, bounded spread around median, and bounded
+# median drift between updates.
+#
+# i1 = min_observed_price (bv[32])
+# i2 = median_observed_price (bv[32])
+# i3 = max_observed_price (bv[32])
+# i4 = prev_median_price (bv[32])
+# i5 = max_spread_abs (bv[32])
+# i6 = max_median_drift_abs (bv[32])
+# i7 = proof_ok (sbf)
+# i8 = binding_ok (sbf)
+#
+# o1 = ordering_ok
+# o2 = spread_ok
+# o3 = median_drift_ok
+# o4 = quorum_median_safe
+# o5 = proof_gated_quorum_median_safe
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] <= i2[t]:bv[32]) && (i2[t]:bv[32] <= i3[t]:bv[32]))) &&
+  (o2[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] <= i3[t]:bv[32]) && ((i3[t]:bv[32] - i1[t]:bv[32]) <= i5[t]:bv[32]))) &&
+  (o3[t]:sbf = 1:sbf <-> (((i2[t]:bv[32] >= i4[t]:bv[32]) && ((i2[t]:bv[32] - i4[t]:bv[32]) <= i6[t]:bv[32])) || ((i2[t]:bv[32] < i4[t]:bv[32]) && ((i4[t]:bv[32] - i2[t]:bv[32]) <= i6[t]:bv[32])))) &&
+  (o4[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] <= i2[t]:bv[32]) && (i2[t]:bv[32] <= i3[t]:bv[32]) && (i1[t]:bv[32] <= i3[t]:bv[32]) && ((i3[t]:bv[32] - i1[t]:bv[32]) <= i5[t]:bv[32]) && (((i2[t]:bv[32] >= i4[t]:bv[32]) && ((i2[t]:bv[32] - i4[t]:bv[32]) <= i6[t]:bv[32])) || ((i2[t]:bv[32] < i4[t]:bv[32]) && ((i4[t]:bv[32] - i2[t]:bv[32]) <= i6[t]:bv[32]))))) &&
+  (o5[t]:sbf = 1:sbf <-> ((i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i1[t]:bv[32] <= i2[t]:bv[32]) && (i2[t]:bv[32] <= i3[t]:bv[32]) && (i1[t]:bv[32] <= i3[t]:bv[32]) && ((i3[t]:bv[32] - i1[t]:bv[32]) <= i5[t]:bv[32]) && (((i2[t]:bv[32] >= i4[t]:bv[32]) && ((i2[t]:bv[32] - i4[t]:bv[32]) <= i6[t]:bv[32])) || ((i2[t]:bv[32] < i4[t]:bv[32]) && ((i4[t]:bv[32] - i2[t]:bv[32]) <= i6[t]:bv[32]))))).

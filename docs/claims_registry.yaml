@@ -414,6 +414,125 @@ claims:
       theorems:
         - Proofs.ZenoDEX.no_replay_in_later_valid_seq
 
+  - id: lean:cpmm:fee_ceil_decomposition
+    status: proved
+    layer: math
+    statement: >
+      The overflow-safer fee decomposition used by the CPMM safety lane is exact:
+      ceil(gross*fee_bps/10000) equals the quotient/remainder decomposition over gross/10000.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.FeeCeilDecomposition"
+      files:
+        - lean-mathlib/Proofs/FeeCeilDecomposition.lean
+        - lean-mathlib/Proofs/CPMMInvariants.lean
+      theorems:
+        - CPMMInvariants.computeFee_decomposed
+
+  - id: lean:cpmm_v8_exact_out:sufficient_and_minimal
+    status: proved
+    layer: math
+    statement: >
+      Under the theorem preconditions `0 < reserve_in`, `amount_out < reserve_out`, and
+      `fee_bps < 10000`, the exact-out CPMM v8 construction is sufficient and minimal:
+      the computed gross input yields the requested output bound, and any strictly smaller
+      gross input fails it.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.CpmmSwapV8ExactOutMinimality"
+      files:
+        - lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean
+      theorems:
+        - TauSwap.CPMM.V8.swap_exact_out_sufficient_and_minimal
+
+  - id: lean:cpmm_settlement:valid_swap_preserves_k
+    status: proved
+    layer: math
+    statement: >
+      A valid CPMM swap transition preserves the real pool invariant: post-swap K is at least
+      the pre-swap K.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.CPMMSettlement"
+      files:
+        - lean-mathlib/Proofs/CPMMSettlement.lean
+        - lean-mathlib/Proofs/CPMMInvariants.lean
+      theorems:
+        - CPMMSettlement.valid_swap_preserves_K
+
+  - id: lean:batch_auction:canonical_min_key
+    status: proved
+    layer: math
+    statement: >
+      The batch-auction canonicalization rule has a unique deterministic winner under the
+      total key ((volume desc, surplus desc), order asc), and the winner dominates every candidate.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.BatchAuctionCanonical"
+      files:
+        - lean-mathlib/Proofs/BatchAuctionCanonical.lean
+      theorems:
+        - TauSwap.Batch.exists_unique_canonical
+        - TauSwap.Batch.canonical_dominates
+
+  - id: smt:settlement_swap_apply_witness_v1:inductive_z3_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The proof-carrying exact-in settlement witness kernel is inductive (k=1) and cross-verified
+      by both Z3 and CVC5 under a fail-closed, multi-solver SMT verification model.
+    evidence:
+      kind: smt
+      check:
+        - cmd: bash tools/run_spot_proof_assurance_gate.sh
+      files:
+        - src/kernels/dex/settlement_swap_apply_witness_v1.yaml
+
+  - id: shell:settlement_swap_apply_witness_v1:native_adapter_equiv
+    status: supported
+    layer: implementation
+    statement: >
+      The native exact-in settlement witness adapter passes ESSO shell verification against the
+      kernel semantics with deterministic replay fingerprints.
+    evidence:
+      kind: shell
+      check:
+        - cmd: bash tools/run_spot_proof_assurance_gate.sh
+      files:
+        - src/kernels/dex/settlement_swap_apply_witness_v1.yaml
+        - src/kernels/python/settlement_swap_apply_witness_v1_native_adapter.py
+
+  - id: smt:settlement_swap_exact_out_apply_witness_v1:inductive_z3_cvc5
+    status: supported
+    layer: spec
+    statement: >
+      The proof-carrying exact-out settlement witness kernel is inductive (k=1) and cross-verified
+      by both Z3 and CVC5 under a fail-closed, multi-solver SMT verification model.
+    evidence:
+      kind: smt
+      check:
+        - cmd: bash tools/run_spot_proof_assurance_gate.sh
+      files:
+        - src/kernels/dex/settlement_swap_exact_out_apply_witness_v1.yaml
+
+  - id: shell:settlement_swap_exact_out_apply_witness_v1:native_adapter_equiv
+    status: supported
+    layer: implementation
+    statement: >
+      The native exact-out settlement witness adapter passes ESSO shell verification against the
+      kernel semantics with deterministic replay fingerprints.
+    evidence:
+      kind: shell
+      check:
+        - cmd: bash tools/run_spot_proof_assurance_gate.sh
+      files:
+        - src/kernels/dex/settlement_swap_exact_out_apply_witness_v1.yaml
+        - src/kernels/python/settlement_swap_exact_out_apply_witness_v1_native_adapter.py
+
   - id: lean:zenodex_routing:foldl_argmin_key_le_all
     status: proved
     layer: math

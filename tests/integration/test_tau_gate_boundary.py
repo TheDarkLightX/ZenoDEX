@@ -30,7 +30,7 @@ def test_tau_gate_crash_is_converted_to_rejection(monkeypatch: pytest.MonkeyPatc
         events=None,
     )
 
-    monkeypatch.setattr("src.integration.validation.validate_settlement", lambda *args, **kwargs: (True, None))
+    monkeypatch.setattr("src.integration.validation.validate_settlement_strong", lambda *args, **kwargs: (True, None))
     monkeypatch.setattr("src.integration.tau_gate.validate_settlement_swaps", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
 
     ok, err = validate_operations(

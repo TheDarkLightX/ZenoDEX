@@ -1,0 +1,41 @@
+# Perp Open Interest Delta Guard v1
+#
+# PURPOSE:
+# Bound open-interest updates by absolute delta and hard cap, with optional
+# proof/binding fail-closed gates for host-verified flows.
+#
+# i1 = has_open_positions (sbf)
+# i2 = prev_open_interest (bv[32])
+# i3 = new_open_interest (bv[32])
+# i4 = max_oi_delta_abs (bv[32])
+# i5 = max_open_interest (bv[32])
+# i6 = proof_ok (sbf)
+# i7 = binding_ok (sbf)
+#
+# o1 = oi_delta_ok
+# o2 = oi_cap_ok
+# o3 = oi_update_safe
+# o4 = proof_gated_oi_update_safe
+
+set charvar off
+
+within_delta(curr : bv[32], prev : bv[32], max_delta : bv[32]) :=
+  ((curr >= prev) && ((curr - prev) <= max_delta)) ||
+  ((curr < prev) && ((prev - curr) <= max_delta)).
+
+oi_cap_ok(new_oi : bv[32], max_oi : bv[32]) := new_oi <= max_oi.
+
+oi_update_safe(has_open_positions : sbf, prev_oi : bv[32], new_oi : bv[32], max_delta : bv[32], max_oi : bv[32]) :=
+  oi_cap_ok(new_oi, max_oi) &&
+  ((has_open_positions = 0:sbf) || within_delta(new_oi, prev_oi, max_delta)).
+
+proof_gated_oi_update_safe(has_open_positions : sbf, prev_oi : bv[32], new_oi : bv[32], max_delta : bv[32], max_oi : bv[32], proof_ok : sbf, binding_ok : sbf) :=
+  oi_update_safe(has_open_positions, prev_oi, new_oi, max_delta, max_oi) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> within_delta(i3[t]:bv[32], i2[t]:bv[32], i4[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> oi_cap_ok(i3[t]:bv[32], i5[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> oi_update_safe(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> proof_gated_oi_update_safe(i1[t]:sbf, i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf, i7[t]:sbf)).

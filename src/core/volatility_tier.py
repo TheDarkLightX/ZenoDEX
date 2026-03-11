@@ -19,8 +19,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum, unique
+from typing import TypeGuard, cast
 
-from ..state.volatility import TierEffects, TierState, tier_effects
+from ..state.volatility import BPS_DENOM, TierEffects, TierState, tier_effects
 
 
 @unique
@@ -58,6 +59,52 @@ class TierStepResult:
     rejection: str | None = None
 
 
+def _is_plain_int(value: object) -> TypeGuard[int]:
+    """Return True for ints but reject bools."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _validate_observe_params(params: TierActionParams) -> str | None:
+    """Validate observe params against the kernel domain."""
+    epoch = cast(object, params.epoch)
+    volatility_bps = cast(object, params.volatility_bps)
+    data_ok = cast(object, params.data_ok)
+    if not _is_plain_int(epoch) or not (0 <= epoch <= 1_000_000_000):
+        return "epoch"
+    if not _is_plain_int(volatility_bps) or not (0 <= volatility_bps <= BPS_DENOM):
+        return "volatility_bps"
+    if not isinstance(data_ok, bool):
+        return "data_ok"
+    return None
+
+
+def _validate_configure_params(params: TierActionParams) -> str | None:
+    """Validate configure params against the kernel domain."""
+    caller_is_admin = cast(object, params.caller_is_admin)
+    new_t1_bps = cast(object, params.new_t1_bps)
+    new_t2_bps = cast(object, params.new_t2_bps)
+    new_t3_bps = cast(object, params.new_t3_bps)
+    if not isinstance(caller_is_admin, bool):
+        return "caller_is_admin"
+    if not _is_plain_int(new_t1_bps) or not (0 <= new_t1_bps <= BPS_DENOM):
+        return "new_t1_bps"
+    if not _is_plain_int(new_t2_bps) or not (0 <= new_t2_bps <= BPS_DENOM):
+        return "new_t2_bps"
+    if not _is_plain_int(new_t3_bps) or not (0 <= new_t3_bps <= BPS_DENOM):
+        return "new_t3_bps"
+    return None
+
+
+def _validate_params(params: TierActionParams) -> str | None:
+    """Dispatch action-specific param validation."""
+    action = cast(object, params.action)
+    if action is TierAction.OBSERVE:
+        return _validate_observe_params(params)
+    if action is TierAction.CONFIGURE:
+        return _validate_configure_params(params)
+    return None
+
+
 
 # ---------------------------------------------------------------------------
 # Guards
@@ -73,11 +120,6 @@ def _guard_configure(state: TierState, params: TierActionParams) -> bool:
     if not params.caller_is_admin:
         return False
     if not (params.new_t1_bps <= params.new_t2_bps <= params.new_t3_bps):
-        return False
-    # Thresholds must be in valid range [0, BPS_DENOM]
-    if not (0 <= params.new_t1_bps <= 10_000):
-        return False
-    if not (0 <= params.new_t3_bps <= 10_000):
         return False
     return True
 
@@ -159,6 +201,10 @@ def step(state: TierState, params: TierActionParams) -> TierStepResult:
     entry = _DISPATCH.get(params.action)
     if entry is None:
         return TierStepResult(accepted=False, rejection=f"unknown_action:{params.action}")
+
+    invalid_param = _validate_params(params)
+    if invalid_param is not None:
+        return TierStepResult(accepted=False, rejection=f"invalid_param:{invalid_param}")
 
     guard_fn, update_fn = entry
 

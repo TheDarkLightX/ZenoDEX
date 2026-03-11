@@ -1,0 +1,28 @@
+# Perp Liquidation Auction Slippage Guard v1
+#
+# PURPOSE:
+# Bound liquidation auction discount from mark and enforce bounded lot sizes.
+#
+# i1 = mark_price (bv[32])
+# i2 = auction_price (bv[32])
+# i3 = max_discount_abs (bv[32])
+# i4 = lot_size (bv[32])
+# i5 = min_lot_size (bv[32])
+# i6 = max_lot_size (bv[32])
+# i7 = proof_ok (sbf)
+# i8 = binding_ok (sbf)
+#
+# o1 = discount_params_ok
+# o2 = lot_bounds_ok
+# o3 = discount_ok
+# o4 = auction_slippage_safe
+# o5 = proof_gated_auction_slippage_safe
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (i3[t]:bv[32] <= i1[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> ((i5[t]:bv[32] <= i6[t]:bv[32]) && (i4[t]:bv[32] >= i5[t]:bv[32]) && (i4[t]:bv[32] <= i6[t]:bv[32]))) &&
+  (o3[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] >= i2[t]:bv[32]) && ((i1[t]:bv[32] - i2[t]:bv[32]) <= i3[t]:bv[32]))) &&
+  (o4[t]:sbf = 1:sbf <-> ((i3[t]:bv[32] <= i1[t]:bv[32]) && (i5[t]:bv[32] <= i6[t]:bv[32]) && (i4[t]:bv[32] >= i5[t]:bv[32]) && (i4[t]:bv[32] <= i6[t]:bv[32]) && (i1[t]:bv[32] >= i2[t]:bv[32]) && ((i1[t]:bv[32] - i2[t]:bv[32]) <= i3[t]:bv[32]))) &&
+  (o5[t]:sbf = 1:sbf <-> ((i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i3[t]:bv[32] <= i1[t]:bv[32]) && (i5[t]:bv[32] <= i6[t]:bv[32]) && (i4[t]:bv[32] >= i5[t]:bv[32]) && (i4[t]:bv[32] <= i6[t]:bv[32]) && (i1[t]:bv[32] >= i2[t]:bv[32]) && ((i1[t]:bv[32] - i2[t]:bv[32]) <= i3[t]:bv[32]))).

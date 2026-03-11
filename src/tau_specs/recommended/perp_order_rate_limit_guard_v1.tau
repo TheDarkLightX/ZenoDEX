@@ -1,0 +1,44 @@
+# Perp Order Rate-Limit Guard v1
+#
+# PURPOSE:
+# Enforce bounded order, cancel, and replace counts with a total op budget.
+#
+# i1 = orders_in_window (bv[32])
+# i2 = cancels_in_window (bv[32])
+# i3 = replaces_in_window (bv[32])
+# i4 = max_orders_in_window (bv[32])
+# i5 = max_cancels_in_window (bv[32])
+# i6 = max_replaces_in_window (bv[32])
+# i7 = max_total_ops_in_window (bv[32])
+#
+# o1 = orders_ok
+# o2 = cancels_ok
+# o3 = replaces_ok
+# o4 = total_ops_ok
+# o5 = order_rate_limit_safe
+
+set charvar off
+
+orders_ok(orders_in_window : bv[32], max_orders_in_window : bv[32]) := orders_in_window <= max_orders_in_window.
+
+cancels_ok(cancels_in_window : bv[32], max_cancels_in_window : bv[32]) := cancels_in_window <= max_cancels_in_window.
+
+replaces_ok(replaces_in_window : bv[32], max_replaces_in_window : bv[32]) := replaces_in_window <= max_replaces_in_window.
+
+total_ops_ok(orders_in_window : bv[32], cancels_in_window : bv[32], replaces_in_window : bv[32], max_total_ops_in_window : bv[32]) :=
+  (max_total_ops_in_window >= orders_in_window) &&
+  ((max_total_ops_in_window - orders_in_window) >= cancels_in_window) &&
+  (((max_total_ops_in_window - orders_in_window) - cancels_in_window) >= replaces_in_window).
+
+order_rate_limit_safe(orders_in_window : bv[32], cancels_in_window : bv[32], replaces_in_window : bv[32], max_orders_in_window : bv[32], max_cancels_in_window : bv[32], max_replaces_in_window : bv[32], max_total_ops_in_window : bv[32]) :=
+  orders_ok(orders_in_window, max_orders_in_window) &&
+  cancels_ok(cancels_in_window, max_cancels_in_window) &&
+  replaces_ok(replaces_in_window, max_replaces_in_window) &&
+  total_ops_ok(orders_in_window, cancels_in_window, replaces_in_window, max_total_ops_in_window).
+
+always
+  (o1[t]:sbf = 1:sbf <-> orders_ok(i1[t]:bv[32], i4[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> cancels_ok(i2[t]:bv[32], i5[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> replaces_ok(i3[t]:bv[32], i6[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> total_ops_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i7[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> order_rate_limit_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32])).

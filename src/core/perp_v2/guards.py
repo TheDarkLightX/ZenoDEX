@@ -20,7 +20,6 @@ from .math import (
     init_margin_req,
     is_liquidatable,
     is_oracle_fresh,
-    is_settle_oracle_usable,
     liq_penalty_capped,
     maint_margin_req,
     partial_liq_penalty_capped,
@@ -58,22 +57,6 @@ def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
     if state.clearing_price_epoch != state.now_epoch:
         return False
     if state.oracle_last_update_epoch >= state.now_epoch:
-        return False
-    # Scientist-driven anti-manipulation hardening:
-    # settlement requires a usable oracle snapshot (seen + positive index + not stale),
-    # except for the deterministic bootstrap settle (no oracle yet, flat position).
-    bootstrap_oracle = (
-        (not state.oracle_seen)
-        and state.index_price_e8 == 0
-        and state.position_base == 0
-    )
-    if (not bootstrap_oracle) and (not is_settle_oracle_usable(
-        state.now_epoch,
-        state.oracle_last_update_epoch,
-        state.max_oracle_staleness_epochs,
-        state.oracle_seen,
-        state.index_price_e8,
-    )):
         return False
 
     sp = settle_price(

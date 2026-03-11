@@ -1,3 +1,9 @@
+---
+title: README
+type: note
+permalink: autonomous-tau-dex-review/src/tau-specs/recommended/readme
+---
+
 # Recommended Tau Specs - Profiles (Risk and Performance)
 
 This folder contains Tau specs intended for reuse and integration.
@@ -6,6 +12,12 @@ Because Tau execution time can vary widely based on the shape of a spec, we keep
 
 - **Faster** and smaller Tau gates (usually "proof-gated") for production verification budgets.
 - **More complete** Tau-only specs that may be slower but reduce trust assumptions.
+
+Recent optimized additions from the experiment harness are intentionally decomposed:
+
+- `batching_v1_5_compact_single_gate.tau` is the current fast batching candidate.
+- `swap_bv32_safe_range_guard_v1.tau` is designed to supplement the proof-gated swap specs when you want the trace-backed `proof_gate + safe_range` posture.
+- `settlement_price_rails_aligned_v1.tau`, `settlement_module_flag_bundle_v1.tau`, and `settlement_v5_aligned_compact_bundle.tau` expose the aligned-input settlement posture that was validated against curated execution traces.
 
 The canonical mapping from component to "profile" lives in:
 
@@ -18,6 +30,7 @@ These are the main profiles we use when selecting a spec version:
 - **fast_proof_gated**
   - Tau checks a small structural gate and requires `proof_ok` + `binding_ok` (fail-closed flags) from an external verifier.
   - Expected to be the most predictable under tight block verification budgets.
+  - Some variants also declare `supplemental_spec_paths`; those extra Tau guards are part of the intended composed policy and should be executed fail-closed alongside the primary spec.
 
 - **tau_only_structural**
   - Tau checks structural constraints and state transitions, but may not validate full pricing math.

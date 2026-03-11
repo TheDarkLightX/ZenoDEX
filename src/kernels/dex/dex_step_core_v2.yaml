@@ -1,0 +1,2909 @@
+# [FORGE] DEX Step Core v2 (proof target for src/core/dex.step)
+#
+# Intent:
+# - Model the consensus-critical DEX step as a bounded, verifiable state machine.
+# - Cover the core intent kinds supported by `validate_settlement_strong`:
+#     CREATE_POOL, SWAP_EXACT_IN, SWAP_EXACT_OUT, ADD_LIQUIDITY, REMOVE_LIQUIDITY
+# - Prove inductive safety invariants:
+#     * per-asset conservation across two users + one pool
+#     * non-negativity + boundedness
+#     * LP supply accounting (lp_supply == sum(lp_balances) + lock)
+#     * pool-init consistency (uninitialized pool has zero reserves/supply; initialized pool has lock)
+#
+# Notes:
+# - This kernel is a *semantic model*; runtime may use different representations.
+# - Exact-out includes the overdelivery-gap cap used by the Python core (default 200 bps).
+#
+# Representation: reduce
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "dex_step_core_v2"
+  created_by: "zenodex"
+  notes: |
+    Core DEX step model for formal verification.
+
+    State surface (bounded):
+      - Two users u0/u1 with balances in assets (A,B)
+      - One pool with reserves (pool_a,pool_b), fee_bps, and LP supply accounting
+      - LP balances for u0/u1 plus a locked MIN_LP_LOCK amount
+
+    Actions:
+      - create_pool: initializes the pool and mints LP with a sqrt witness
+      - swap_a_for_b / swap_b_for_a: exact-in swaps against the pool
+      - swap_a_for_b_exact_out / swap_b_for_a_exact_out: exact-out swaps against the pool
+      - add_liquidity / remove_liquidity: ratio-preserving mint/burn with deterministic rounding
+
+observables:
+  state_vars:
+    [
+      "pool_initialized",
+      "fee_bps",
+      "u0_a",
+      "u0_b",
+      "u1_a",
+      "u1_b",
+      "pool_a",
+      "pool_b",
+      "u0_lp",
+      "u1_lp",
+      "lock_lp",
+      "lp_supply",
+    ]
+  effects: ["event"]
+
+types: []
+
+state_vars:
+  - id: "pool_initialized"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+  - id: "fee_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 9999 } # exact-out requires fee_bps < 10000
+
+  # User balances (two users, two assets).
+  - id: "u0_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "u0_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "u1_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "u1_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+
+  # Pool reserves (0 when uninitialized; positive when initialized).
+  - id: "pool_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "pool_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+
+  # LP accounting (all LP lives in u0/u1 plus lock).
+  - id: "u0_lp"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "u1_lp"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "lock_lp"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "lp_supply"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+
+  # Conservation witnesses (fixed across all steps).
+  - id: "total_a_const"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6000000000 }
+  - id: "total_b_const"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6000000000 }
+
+init:
+  - var: "pool_initialized"
+    expr: { const: 0 }
+  - var: "fee_bps"
+    expr: { const: 30 }
+  - var: "u0_a"
+    expr: { const: 2000000 }
+  - var: "u0_b"
+    expr: { const: 2000000 }
+  - var: "u1_a"
+    expr: { const: 2000000 }
+  - var: "u1_b"
+    expr: { const: 2000000 }
+  - var: "pool_a"
+    expr: { const: 0 }
+  - var: "pool_b"
+    expr: { const: 0 }
+  - var: "u0_lp"
+    expr: { const: 0 }
+  - var: "u1_lp"
+    expr: { const: 0 }
+  - var: "lock_lp"
+    expr: { const: 0 }
+  - var: "lp_supply"
+    expr: { const: 0 }
+  - var: "total_a_const"
+    expr: { const: 4000000 }
+  - var: "total_b_const"
+    expr: { const: 4000000 }
+
+invariants:
+  # Per-asset conservation across (u0,u1,pool).
+  - id: "inv_total_a_conserved"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - op: "+"
+              args: [{ var: "u0_a" }, { var: "u1_a" }]
+            - { var: "pool_a" }
+        - { var: "total_a_const" }
+
+  - id: "inv_total_b_conserved"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - op: "+"
+              args: [{ var: "u0_b" }, { var: "u1_b" }]
+            - { var: "pool_b" }
+        - { var: "total_b_const" }
+
+  # LP accounting: when initialized, lp_supply is exactly the sum of user LP plus lock.
+  - id: "inv_lp_supply_accounting"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "pool_initialized" }, { const: 1 }]
+        - op: "="
+          args:
+            - { var: "lp_supply" }
+            - op: "+"
+              args:
+                - op: "+"
+                  args: [{ var: "u0_lp" }, { var: "u1_lp" }]
+                - { var: "lock_lp" }
+
+  # Pool init consistency (uninitialized => zero pool state; initialized => lock present).
+  - id: "inv_pool_init_consistency"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "pool_initialized" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pool_a" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "pool_b" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "lp_supply" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "u0_lp" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "u1_lp" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "lock_lp" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "pool_initialized" }, { const: 1 }] }
+            - { op: ">", args: [{ var: "pool_a" }, { const: 0 }] }
+            - { op: ">", args: [{ var: "pool_b" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "lock_lp" }, { const: 1000 }] }
+            - { op: ">=", args: [{ var: "lp_supply" }, { const: 1000 }] }
+
+  # Non-negativity + bounds (state var domains are already bounded; keep explicit non-negativity).
+  - id: "inv_nonnegative"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "u0_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "u0_b" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "u1_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "u1_b" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "pool_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "pool_b" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "u0_lp" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "u1_lp" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "lock_lp" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "lp_supply" }, { const: 0 }] }
+
+actions:
+  - id: "create_pool"
+    params:
+      - id: "creator"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "amount_a"
+        type: { kind: "int", min: 1001, max: 1000000000 }
+      - id: "amount_b"
+        type: { kind: "int", min: 1001, max: 1000000000 }
+      - id: "sqrt_product"
+        type: { kind: "int", min: 1001, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pool_initialized" }, { const: 0 }] }
+        # Creator must be able to pay both deposits.
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "creator" }, { const: 0 }] }
+              then: { var: "u0_a" }
+              else: { var: "u1_a" }
+            - { param: "amount_a" }
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "creator" }, { const: 0 }] }
+              then: { var: "u0_b" }
+              else: { var: "u1_b" }
+            - { param: "amount_b" }
+        # Verify sqrt witness: s^2 <= a*b < (s+1)^2
+        - { op: "<=",
+            args: [
+              { op: "*", args: [{ param: "sqrt_product" }, { param: "sqrt_product" }] },
+              { op: "*", args: [{ param: "amount_a" }, { param: "amount_b" }] }
+            ]
+          }
+        - { op: "<",
+            args: [
+              { op: "*", args: [{ param: "amount_a" }, { param: "amount_b" }] },
+              { op: "*",
+                args: [
+                  { op: "+", args: [{ param: "sqrt_product" }, { const: 1 }] },
+                  { op: "+", args: [{ param: "sqrt_product" }, { const: 1 }] }
+                ]
+              }
+            ]
+          }
+        # minted = sqrt_product - 1000 must be positive and in-domain.
+        - { op: ">", args: [{ param: "sqrt_product" }, { const: 1000 }] }
+        - { op: "<=",
+            args: [
+              { op: "-", args: [{ param: "sqrt_product" }, { const: 1000 }] },
+              { const: 3000000000 }
+            ]
+          }
+        # Post-state bounds.
+        - { op: "<=", args: [{ param: "amount_a" }, { const: 3000000000 }] }
+        - { op: "<=", args: [{ param: "amount_b" }, { const: 3000000000 }] }
+    updates:
+      - var: "pool_initialized"
+        expr: { const: 1 }
+      - var: "pool_a"
+        expr: { param: "amount_a" }
+      - var: "pool_b"
+        expr: { param: "amount_b" }
+      - var: "lock_lp"
+        expr: { const: 1000 }
+      - var: "lp_supply"
+        expr: { param: "sqrt_product" }
+      - var: "u0_lp"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "creator" }, { const: 0 }] }
+          then:
+            op: "-"
+            args: [{ param: "sqrt_product" }, { const: 1000 }]
+          else: { var: "u0_lp" }
+      - var: "u1_lp"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "creator" }, { const: 1 }] }
+          then:
+            op: "-"
+            args: [{ param: "sqrt_product" }, { const: 1000 }]
+          else: { var: "u1_lp" }
+      - var: "u0_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "creator" }, { const: 0 }] }
+          then: { op: "-", args: [{ var: "u0_a" }, { param: "amount_a" }] }
+          else: { var: "u0_a" }
+      - var: "u1_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "creator" }, { const: 1 }] }
+          then: { op: "-", args: [{ var: "u1_a" }, { param: "amount_a" }] }
+          else: { var: "u1_a" }
+      - var: "u0_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "creator" }, { const: 0 }] }
+          then: { op: "-", args: [{ var: "u0_b" }, { param: "amount_b" }] }
+          else: { var: "u0_b" }
+      - var: "u1_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "creator" }, { const: 1 }] }
+          then: { op: "-", args: [{ var: "u1_b" }, { param: "amount_b" }] }
+          else: { var: "u1_b" }
+    effects:
+      event: { const: 1 }
+
+  - id: "swap_a_for_b"
+    params:
+      - id: "trader"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "recipient"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "min_amount_out"
+        type: { kind: "int", min: 0, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pool_initialized" }, { const: 1 }] }
+        - { op: ">", args: [{ var: "pool_a" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "pool_b" }, { const: 0 }] }
+        # Trader can pay amount_in of A.
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "trader" }, { const: 0 }] }
+              then: { var: "u0_a" }
+              else: { var: "u1_a" }
+            - { param: "amount_in" }
+        # net_in > 0
+        - op: ">"
+          args:
+            - op: "-"
+              args:
+                - { param: "amount_in" }
+                - op: "div"
+                  args:
+                    - op: "+"
+                      args:
+                        - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                        - { const: 9999 }
+                    - { const: 10000 }
+            - { const: 0 }
+        # amount_out >= min_amount_out
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "pool_b" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "pool_a" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { param: "min_amount_out" }
+        # amount_out >= 1 (reject dust swaps that would output 0; matches cpmm_swap_v8 kernel)
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "pool_b" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "pool_a" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { const: 1 }
+        # new_pool_b >= 1 (cannot drain to zero)
+        - { op: ">=",
+            args: [
+              { op: "-",
+                args: [
+                  { var: "pool_b" },
+                  { op: "div",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "pool_b" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "+",
+                        args: [
+                          { var: "pool_a" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 1 }
+            ]
+          }
+        # Post-state bounds.
+        - { op: "<=", args: [{ op: "+", args: [{ var: "pool_a" }, { param: "amount_in" }] }, { const: 3000000000 }] }
+        # Recipient balance bound (asset B): recipient_b + amount_out <= MAX.
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - op: "ite"
+                  cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+                  then: { var: "u0_b" }
+                  else: { var: "u1_b" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - { var: "pool_b" }
+                        - op: "-"
+                          args:
+                            - { param: "amount_in" }
+                            - op: "div"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                    - { const: 9999 }
+                                - { const: 10000 }
+                    - op: "+"
+                      args:
+                        - { var: "pool_a" }
+                        - op: "-"
+                          args:
+                            - { param: "amount_in" }
+                            - op: "div"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                    - { const: 9999 }
+                                - { const: 10000 }
+            - { const: 3000000000 }
+    updates:
+      - var: "u0_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "trader" }, { const: 0 }] }
+          then: { op: "-", args: [{ var: "u0_a" }, { param: "amount_in" }] }
+          else: { var: "u0_a" }
+      - var: "u1_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "trader" }, { const: 1 }] }
+          then: { op: "-", args: [{ var: "u1_a" }, { param: "amount_in" }] }
+          else: { var: "u1_a" }
+      - var: "u0_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u0_b" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - { var: "pool_b" }
+                      - op: "-"
+                        args:
+                          - { param: "amount_in" }
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+                  - op: "+"
+                    args:
+                      - { var: "pool_a" }
+                      - op: "-"
+                        args:
+                          - { param: "amount_in" }
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+          else: { var: "u0_b" }
+      - var: "u1_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 1 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u1_b" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - { var: "pool_b" }
+                      - op: "-"
+                        args:
+                          - { param: "amount_in" }
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+                  - op: "+"
+                    args:
+                      - { var: "pool_a" }
+                      - op: "-"
+                        args:
+                          - { param: "amount_in" }
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+          else: { var: "u1_b" }
+      - var: "pool_a"
+        expr: { op: "+", args: [{ var: "pool_a" }, { param: "amount_in" }] }
+      - var: "pool_b"
+        expr:
+          op: "-"
+          args:
+            - { var: "pool_b" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "pool_b" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "pool_a" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+    effects:
+      event: { const: 2 }
+
+  - id: "swap_b_for_a"
+    params:
+      - id: "trader"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "recipient"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "amount_in"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "min_amount_out"
+        type: { kind: "int", min: 0, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pool_initialized" }, { const: 1 }] }
+        - { op: ">", args: [{ var: "pool_a" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "pool_b" }, { const: 0 }] }
+        # Trader can pay amount_in of B.
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "trader" }, { const: 0 }] }
+              then: { var: "u0_b" }
+              else: { var: "u1_b" }
+            - { param: "amount_in" }
+        # net_in > 0
+        - op: ">"
+          args:
+            - op: "-"
+              args:
+                - { param: "amount_in" }
+                - op: "div"
+                  args:
+                    - op: "+"
+                      args:
+                        - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                        - { const: 9999 }
+                    - { const: 10000 }
+            - { const: 0 }
+        # amount_out >= min_amount_out, where out is in A and in-reserve is pool_b.
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "pool_a" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "pool_b" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { param: "min_amount_out" }
+        # amount_out >= 1 (reject dust swaps that would output 0; matches cpmm_swap_v8 kernel)
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "pool_a" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "pool_b" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+            - { const: 1 }
+        # new_pool_a >= 1
+        - { op: ">=",
+            args: [
+              { op: "-",
+                args: [
+                  { var: "pool_a" },
+                  { op: "div",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { var: "pool_a" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      { op: "+",
+                        args: [
+                          { var: "pool_b" },
+                          { op: "-",
+                            args: [
+                              { param: "amount_in" },
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] },
+                                      { const: 9999 }
+                                    ]
+                                  },
+                                  { const: 10000 }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { const: 1 }
+            ]
+          }
+        # Post-state bounds.
+        - { op: "<=", args: [{ op: "+", args: [{ var: "pool_b" }, { param: "amount_in" }] }, { const: 3000000000 }] }
+        # Recipient balance bound (asset A): recipient_a + amount_out <= MAX.
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - op: "ite"
+                  cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+                  then: { var: "u0_a" }
+                  else: { var: "u1_a" }
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - { var: "pool_a" }
+                        - op: "-"
+                          args:
+                            - { param: "amount_in" }
+                            - op: "div"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                    - { const: 9999 }
+                                - { const: 10000 }
+                    - op: "+"
+                      args:
+                        - { var: "pool_b" }
+                        - op: "-"
+                          args:
+                            - { param: "amount_in" }
+                            - op: "div"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                    - { const: 9999 }
+                                - { const: 10000 }
+            - { const: 3000000000 }
+    updates:
+      - var: "u0_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "trader" }, { const: 0 }] }
+          then: { op: "-", args: [{ var: "u0_b" }, { param: "amount_in" }] }
+          else: { var: "u0_b" }
+      - var: "u1_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "trader" }, { const: 1 }] }
+          then: { op: "-", args: [{ var: "u1_b" }, { param: "amount_in" }] }
+          else: { var: "u1_b" }
+      - var: "u0_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u0_a" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - { var: "pool_a" }
+                      - op: "-"
+                        args:
+                          - { param: "amount_in" }
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+                  - op: "+"
+                    args:
+                      - { var: "pool_b" }
+                      - op: "-"
+                        args:
+                          - { param: "amount_in" }
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+          else: { var: "u0_a" }
+      - var: "u1_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 1 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u1_a" }
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - { var: "pool_a" }
+                      - op: "-"
+                        args:
+                          - { param: "amount_in" }
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+                  - op: "+"
+                    args:
+                      - { var: "pool_b" }
+                      - op: "-"
+                        args:
+                          - { param: "amount_in" }
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                  - { const: 9999 }
+                              - { const: 10000 }
+          else: { var: "u1_a" }
+      - var: "pool_b"
+        expr: { op: "+", args: [{ var: "pool_b" }, { param: "amount_in" }] }
+      - var: "pool_a"
+        expr:
+          op: "-"
+          args:
+            - { var: "pool_a" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - { var: "pool_a" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "+"
+                  args:
+                    - { var: "pool_b" }
+                    - op: "-"
+                      args:
+                        - { param: "amount_in" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ param: "amount_in" }, { var: "fee_bps" }] }
+                                - { const: 9999 }
+                            - { const: 10000 }
+    effects:
+      event: { const: 3 }
+
+  - id: "swap_a_for_b_exact_out"
+    params:
+      - id: "trader"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "recipient"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "amount_out"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "max_amount_in"
+        type: { kind: "int", min: 0, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pool_initialized" }, { const: 1 }] }
+        - { op: ">", args: [{ var: "pool_a" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "pool_b" }, { const: 0 }] }
+
+        # Cannot drain the pool: amount_out < pool_b and post pool_b >= 1.
+        - { op: "<", args: [{ param: "amount_out" }, { var: "pool_b" }] }
+        - { op: ">=", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+
+        # fee_den = 10000 - fee_bps must be positive (fee_bps < 10000 by type, but explicit).
+        - { op: ">", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 0 }] }
+
+        # amount_in = ceil(net_in_required * 10000 / (10000 - fee_bps)),
+        # net_in_required = ceil(pool_a * amount_out / (pool_b - amount_out)).
+        # Require amount_in <= max_amount_in.
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                  { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                ]
+                              },
+                              { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                            ]
+                          },
+                          { const: 10000 }
+                        ]
+                      },
+                      { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                    ]
+                  },
+                  { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                ]
+              },
+              { param: "max_amount_in" }
+            ]
+          }
+
+        # Trader can pay amount_in of A.
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "trader" }, { const: 0 }] }
+              then: { var: "u0_a" }
+              else: { var: "u1_a" }
+            - { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                  { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                ]
+                              },
+                              { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                            ]
+                          },
+                          { const: 10000 }
+                        ]
+                      },
+                      { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                    ]
+                  },
+                  { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                ]
+              }
+
+        # Post-state bounds.
+        - { op: "<=",
+            args: [
+              { op: "+",
+                args: [
+                  { var: "pool_a" },
+                  { op: "div",
+                    args: [
+                      { op: "+",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                      { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                    ]
+                                  },
+                                  { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          },
+                          { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                        ]
+                      },
+                      { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                    ]
+                  }
+                ]
+              },
+              { const: 3000000000 }
+            ]
+          }
+
+        # Recipient balance bound (asset B): recipient_b + amount_out <= MAX.
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - op: "ite"
+                  cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+                  then: { var: "u0_b" }
+                  else: { var: "u1_b" }
+                - { param: "amount_out" }
+            - { const: 3000000000 }
+
+        # Quote sanity: amount_out_quote >= amount_out.
+        - { op: ">=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "*",
+                    args: [
+                      { var: "pool_b" },
+                      { op: "-",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { op: "div",
+                                        args: [
+                                          { op: "+",
+                                            args: [
+                                              { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                              { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                            ]
+                                          },
+                                          { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                        ]
+                                      },
+                                      { const: 10000 }
+                                    ]
+                                  },
+                                  { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                ]
+                              },
+                              { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                            ]
+                          },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { op: "div",
+                                        args: [
+                                          { op: "+",
+                                            args: [
+                                              { op: "*",
+                                                args: [
+                                                  { op: "div",
+                                                    args: [
+                                                      { op: "+",
+                                                        args: [
+                                                          { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                                          { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                        ]
+                                                      },
+                                                      { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                                    ]
+                                                  },
+                                                  { const: 10000 }
+                                                ]
+                                              },
+                                              { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                            ]
+                                          },
+                                          { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                        ]
+                                      },
+                                      { var: "fee_bps" }
+                                    ]
+                                  },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { var: "pool_a" },
+                      { op: "-",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { op: "div",
+                                        args: [
+                                          { op: "+",
+                                            args: [
+                                              { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                              { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                            ]
+                                          },
+                                          { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                        ]
+                                      },
+                                      { const: 10000 }
+                                    ]
+                                  },
+                                  { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                ]
+                              },
+                              { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                            ]
+                          },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { op: "div",
+                                        args: [
+                                          { op: "+",
+                                            args: [
+                                              { op: "*",
+                                                args: [
+                                                  { op: "div",
+                                                    args: [
+                                                      { op: "+",
+                                                        args: [
+                                                          { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                                          { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                        ]
+                                                      },
+                                                      { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                                    ]
+                                                  },
+                                                  { const: 10000 }
+                                                ]
+                                              },
+                                              { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                            ]
+                                          },
+                                          { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                        ]
+                                      },
+                                      { var: "fee_bps" }
+                                    ]
+                                  },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { param: "amount_out" }
+            ]
+          }
+
+        # Overdelivery gap policy: gap_bps <= 200.
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { op: "-",
+                            args: [
+                              { op: "div",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { var: "pool_b" },
+                                      { op: "-",
+                                        args: [
+                                          { op: "div",
+                                            args: [
+                                              { op: "+",
+                                                args: [
+                                                  { op: "*",
+                                                    args: [
+                                                      { op: "div",
+                                                        args: [
+                                                          { op: "+",
+                                                            args: [
+                                                              { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                                              { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                            ]
+                                                          },
+                                                          { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                                        ]
+                                                      },
+                                                      { const: 10000 }
+                                                    ]
+                                                  },
+                                                  { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                                ]
+                                              },
+                                              { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                            ]
+                                          },
+                                          { op: "div",
+                                            args: [
+                                              { op: "+",
+                                                args: [
+                                                  { op: "*",
+                                                    args: [
+                                                      { op: "div",
+                                                        args: [
+                                                          { op: "+",
+                                                            args: [
+                                                              { op: "*",
+                                                                args: [
+                                                                  { op: "div",
+                                                                    args: [
+                                                                      { op: "+",
+                                                                        args: [
+                                                                          { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                                                          { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                                        ]
+                                                                      },
+                                                                      { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                                                    ]
+                                                                  },
+                                                                  { const: 10000 }
+                                                                ]
+                                                              },
+                                                              { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                                            ]
+                                                          },
+                                                          { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                                        ]
+                                                      },
+                                                      { var: "fee_bps" }
+                                                    ]
+                                                  },
+                                                  { const: 9999 }
+                                                ]
+                                              },
+                                              { const: 10000 }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { op: "+",
+                                    args: [
+                                      { var: "pool_a" },
+                                      { op: "-",
+                                        args: [
+                                          { op: "div",
+                                            args: [
+                                              { op: "+",
+                                                args: [
+                                                  { op: "*",
+                                                    args: [
+                                                      { op: "div",
+                                                        args: [
+                                                          { op: "+",
+                                                            args: [
+                                                              { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                                              { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                            ]
+                                                          },
+                                                          { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                                        ]
+                                                      },
+                                                      { const: 10000 }
+                                                    ]
+                                                  },
+                                                  { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                                ]
+                                              },
+                                              { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                            ]
+                                          },
+                                          { op: "div",
+                                            args: [
+                                              { op: "+",
+                                                args: [
+                                                  { op: "*",
+                                                    args: [
+                                                      { op: "div",
+                                                        args: [
+                                                          { op: "+",
+                                                            args: [
+                                                              { op: "*",
+                                                                args: [
+                                                                  { op: "div",
+                                                                    args: [
+                                                                      { op: "+",
+                                                                        args: [
+                                                                          { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] },
+                                                                          { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                                        ]
+                                                                      },
+                                                                      { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                                                    ]
+                                                                  },
+                                                                  { const: 10000 }
+                                                                ]
+                                                              },
+                                                              { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                                            ]
+                                                          },
+                                                          { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                                        ]
+                                                      },
+                                                      { var: "fee_bps" }
+                                                    ]
+                                                  },
+                                                  { const: 9999 }
+                                                ]
+                                              },
+                                              { const: 10000 }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { param: "amount_out" }
+                            ]
+                          },
+                          { const: 10000 }
+                        ]
+                      },
+                      { op: "-", args: [{ param: "amount_out" }, { const: 1 }] }
+                    ]
+                  },
+                  { param: "amount_out" }
+                ]
+              },
+              { const: 200 }
+            ]
+          }
+    updates:
+      - var: "u0_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "trader" }, { const: 0 }] }
+          then:
+            op: "-"
+            args:
+              - { var: "u0_a" }
+              - op: "div"
+                args:
+                  - op: "+"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                  - { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                              - { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                          - { const: 10000 }
+                      - { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                  - { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+          else: { var: "u0_a" }
+      - var: "u1_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "trader" }, { const: 1 }] }
+          then:
+            op: "-"
+            args:
+              - { var: "u1_a" }
+              - op: "div"
+                args:
+                  - op: "+"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                  - { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                              - { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                          - { const: 10000 }
+                      - { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                  - { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+          else: { var: "u1_a" }
+      - var: "u0_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+          then: { op: "+", args: [{ var: "u0_b" }, { param: "amount_out" }] }
+          else: { var: "u0_b" }
+      - var: "u1_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 1 }] }
+          then: { op: "+", args: [{ var: "u1_b" }, { param: "amount_out" }] }
+          else: { var: "u1_b" }
+      - var: "pool_a"
+        expr:
+          op: "+"
+          args:
+            - { var: "pool_a" }
+            - op: "div"
+              args:
+                - op: "+"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                - { op: "-", args: [{ op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }, { const: 1 }] }
+                            - { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                        - { const: 10000 }
+                    - { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                - { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+      - var: "pool_b"
+        expr: { op: "-", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+    effects:
+      event: { const: 6 }
+
+  - id: "swap_b_for_a_exact_out"
+    params:
+      - id: "trader"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "recipient"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "amount_out"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "max_amount_in"
+        type: { kind: "int", min: 0, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pool_initialized" }, { const: 1 }] }
+        - { op: ">", args: [{ var: "pool_a" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "pool_b" }, { const: 0 }] }
+
+        # Cannot drain the pool: amount_out < pool_a and post pool_a >= 1.
+        - { op: "<", args: [{ param: "amount_out" }, { var: "pool_a" }] }
+        - { op: ">=", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+
+        # fee_den = 10000 - fee_bps must be positive.
+        - { op: ">", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 0 }] }
+
+        # amount_in = ceil(net_in_required * 10000 / (10000 - fee_bps)),
+        # net_in_required = ceil(pool_b * amount_out / (pool_a - amount_out)).
+        # Require amount_in <= max_amount_in.
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                  { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                ]
+                              },
+                              { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                            ]
+                          },
+                          { const: 10000 }
+                        ]
+                      },
+                      { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                    ]
+                  },
+                  { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                ]
+              },
+              { param: "max_amount_in" }
+            ]
+          }
+
+        # Trader can pay amount_in of B.
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "trader" }, { const: 0 }] }
+              then: { var: "u0_b" }
+              else: { var: "u1_b" }
+            - { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                  { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                ]
+                              },
+                              { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                            ]
+                          },
+                          { const: 10000 }
+                        ]
+                      },
+                      { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                    ]
+                  },
+                  { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                ]
+              }
+
+        # Post-state bounds.
+        - { op: "<=",
+            args: [
+              { op: "+",
+                args: [
+                  { var: "pool_b" },
+                  { op: "div",
+                    args: [
+                      { op: "+",
+                        args: [
+                          { op: "*",
+                            args: [
+                              { op: "div",
+                                args: [
+                                  { op: "+",
+                                    args: [
+                                      { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                      { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                    ]
+                                  },
+                                  { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          },
+                          { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                        ]
+                      },
+                      { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                    ]
+                  }
+                ]
+              },
+              { const: 3000000000 }
+            ]
+          }
+
+        # Recipient balance bound (asset A): recipient_a + amount_out <= MAX.
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - op: "ite"
+                  cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+                  then: { var: "u0_a" }
+                  else: { var: "u1_a" }
+                - { param: "amount_out" }
+            - { const: 3000000000 }
+
+        # Quote sanity: amount_out_quote >= amount_out.
+        - { op: ">=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "*",
+                    args: [
+                      { var: "pool_a" },
+                      { op: "-",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { op: "div",
+                                        args: [
+                                          { op: "+",
+                                            args: [
+                                              { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                              { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                            ]
+                                          },
+                                          { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                        ]
+                                      },
+                                      { const: 10000 }
+                                    ]
+                                  },
+                                  { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                ]
+                              },
+                              { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                            ]
+                          },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { op: "div",
+                                        args: [
+                                          { op: "+",
+                                            args: [
+                                              { op: "*",
+                                                args: [
+                                                  { op: "div",
+                                                    args: [
+                                                      { op: "+",
+                                                        args: [
+                                                          { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                                          { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                        ]
+                                                      },
+                                                      { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                                    ]
+                                                  },
+                                                  { const: 10000 }
+                                                ]
+                                              },
+                                              { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                            ]
+                                          },
+                                          { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                        ]
+                                      },
+                                      { var: "fee_bps" }
+                                    ]
+                                  },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  { op: "+",
+                    args: [
+                      { var: "pool_b" },
+                      { op: "-",
+                        args: [
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { op: "div",
+                                        args: [
+                                          { op: "+",
+                                            args: [
+                                              { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                              { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                            ]
+                                          },
+                                          { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                        ]
+                                      },
+                                      { const: 10000 }
+                                    ]
+                                  },
+                                  { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                ]
+                              },
+                              { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                            ]
+                          },
+                          { op: "div",
+                            args: [
+                              { op: "+",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { op: "div",
+                                        args: [
+                                          { op: "+",
+                                            args: [
+                                              { op: "*",
+                                                args: [
+                                                  { op: "div",
+                                                    args: [
+                                                      { op: "+",
+                                                        args: [
+                                                          { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                                          { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                        ]
+                                                      },
+                                                      { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                                    ]
+                                                  },
+                                                  { const: 10000 }
+                                                ]
+                                              },
+                                              { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                            ]
+                                          },
+                                          { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                        ]
+                                      },
+                                      { var: "fee_bps" }
+                                    ]
+                                  },
+                                  { const: 9999 }
+                                ]
+                              },
+                              { const: 10000 }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              { param: "amount_out" }
+            ]
+          }
+
+        # Overdelivery gap policy: gap_bps <= 200.
+        - { op: "<=",
+            args: [
+              { op: "div",
+                args: [
+                  { op: "+",
+                    args: [
+                      { op: "*",
+                        args: [
+                          { op: "-",
+                            args: [
+                              { op: "div",
+                                args: [
+                                  { op: "*",
+                                    args: [
+                                      { var: "pool_a" },
+                                      { op: "-",
+                                        args: [
+                                          { op: "div",
+                                            args: [
+                                              { op: "+",
+                                                args: [
+                                                  { op: "*",
+                                                    args: [
+                                                      { op: "div",
+                                                        args: [
+                                                          { op: "+",
+                                                            args: [
+                                                              { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                                              { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                            ]
+                                                          },
+                                                          { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                                        ]
+                                                      },
+                                                      { const: 10000 }
+                                                    ]
+                                                  },
+                                                  { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                                ]
+                                              },
+                                              { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                            ]
+                                          },
+                                          { op: "div",
+                                            args: [
+                                              { op: "+",
+                                                args: [
+                                                  { op: "*",
+                                                    args: [
+                                                      { op: "div",
+                                                        args: [
+                                                          { op: "+",
+                                                            args: [
+                                                              { op: "*",
+                                                                args: [
+                                                                  { op: "div",
+                                                                    args: [
+                                                                      { op: "+",
+                                                                        args: [
+                                                                          { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                                                          { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                                        ]
+                                                                      },
+                                                                      { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                                                    ]
+                                                                  },
+                                                                  { const: 10000 }
+                                                                ]
+                                                              },
+                                                              { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                                            ]
+                                                          },
+                                                          { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                                        ]
+                                                      },
+                                                      { var: "fee_bps" }
+                                                    ]
+                                                  },
+                                                  { const: 9999 }
+                                                ]
+                                              },
+                                              { const: 10000 }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  { op: "+",
+                                    args: [
+                                      { var: "pool_b" },
+                                      { op: "-",
+                                        args: [
+                                          { op: "div",
+                                            args: [
+                                              { op: "+",
+                                                args: [
+                                                  { op: "*",
+                                                    args: [
+                                                      { op: "div",
+                                                        args: [
+                                                          { op: "+",
+                                                            args: [
+                                                              { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                                              { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                            ]
+                                                          },
+                                                          { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                                        ]
+                                                      },
+                                                      { const: 10000 }
+                                                    ]
+                                                  },
+                                                  { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                                ]
+                                              },
+                                              { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                            ]
+                                          },
+                                          { op: "div",
+                                            args: [
+                                              { op: "+",
+                                                args: [
+                                                  { op: "*",
+                                                    args: [
+                                                      { op: "div",
+                                                        args: [
+                                                          { op: "+",
+                                                            args: [
+                                                              { op: "*",
+                                                                args: [
+                                                                  { op: "div",
+                                                                    args: [
+                                                                      { op: "+",
+                                                                        args: [
+                                                                          { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] },
+                                                                          { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                                                                        ]
+                                                                      },
+                                                                      { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                                                                    ]
+                                                                  },
+                                                                  { const: 10000 }
+                                                                ]
+                                                              },
+                                                              { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                                                            ]
+                                                          },
+                                                          { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+                                                        ]
+                                                      },
+                                                      { var: "fee_bps" }
+                                                    ]
+                                                  },
+                                                  { const: 9999 }
+                                                ]
+                                              },
+                                              { const: 10000 }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              { param: "amount_out" }
+                            ]
+                          },
+                          { const: 10000 }
+                        ]
+                      },
+                      { op: "-", args: [{ param: "amount_out" }, { const: 1 }] }
+                    ]
+                  },
+                  { param: "amount_out" }
+                ]
+              },
+              { const: 200 }
+            ]
+          }
+    updates:
+      - var: "u0_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "trader" }, { const: 0 }] }
+          then:
+            op: "-"
+            args:
+              - { var: "u0_b" }
+              - op: "div"
+                args:
+                  - op: "+"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                  - { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                              - { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                          - { const: 10000 }
+                      - { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                  - { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+          else: { var: "u0_b" }
+      - var: "u1_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "trader" }, { const: 1 }] }
+          then:
+            op: "-"
+            args:
+              - { var: "u1_b" }
+              - op: "div"
+                args:
+                  - op: "+"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "div"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                  - { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                              - { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                          - { const: 10000 }
+                      - { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                  - { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+          else: { var: "u1_b" }
+      - var: "u0_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+          then: { op: "+", args: [{ var: "u0_a" }, { param: "amount_out" }] }
+          else: { var: "u0_a" }
+      - var: "u1_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 1 }] }
+          then: { op: "+", args: [{ var: "u1_a" }, { param: "amount_out" }] }
+          else: { var: "u1_a" }
+      - var: "pool_b"
+        expr:
+          op: "+"
+          args:
+            - { var: "pool_b" }
+            - op: "div"
+              args:
+                - op: "+"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - { op: "*", args: [{ var: "pool_b" }, { param: "amount_out" }] }
+                                - { op: "-", args: [{ op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }, { const: 1 }] }
+                            - { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+                        - { const: 10000 }
+                    - { op: "-", args: [{ op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }, { const: 1 }] }
+                - { op: "-", args: [{ const: 10000 }, { var: "fee_bps" }] }
+      - var: "pool_a"
+        expr: { op: "-", args: [{ var: "pool_a" }, { param: "amount_out" }] }
+    effects:
+      event: { const: 7 }
+
+  - id: "add_liquidity"
+    params:
+      - id: "provider"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "lp_recipient"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "amount_a_desired"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "amount_b_desired"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "amount_a_min"
+        type: { kind: "int", min: 0, max: 1000000000 }
+      - id: "amount_b_min"
+        type: { kind: "int", min: 0, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pool_initialized" }, { const: 1 }] }
+        - { op: ">", args: [{ var: "pool_a" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "pool_b" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "lp_supply" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "lock_lp" }, { const: 1000 }] }
+        # Provider can pay desired amounts (used <= desired; check against desired suffices).
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "provider" }, { const: 0 }] }
+              then: { var: "u0_a" }
+              else: { var: "u1_a" }
+            - { param: "amount_a_desired" }
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "provider" }, { const: 0 }] }
+              then: { var: "u0_b" }
+              else: { var: "u1_b" }
+            - { param: "amount_b_desired" }
+        # Check min constraints for the ratio-preserving used amounts.
+        # cond_ratio := amount_a_desired * pool_b <= amount_b_desired * pool_a
+        # used_a := ite(cond_ratio, amount_a_desired, floor(amount_b_desired * pool_a / pool_b))
+        # used_b := ite(cond_ratio, floor(amount_a_desired * pool_b / pool_a), amount_b_desired)
+        - op: ">="
+          args:
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+              then: { param: "amount_a_desired" }
+              else:
+                op: "div"
+                args:
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                  - { var: "pool_b" }
+            - { param: "amount_a_min" }
+        - op: ">="
+          args:
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+              then:
+                op: "div"
+                args:
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { var: "pool_a" }
+              else: { param: "amount_b_desired" }
+            - { param: "amount_b_min" }
+        # lp0 := floor(used_a * lp_supply / pool_a) >= 1
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "<="
+                        args:
+                          - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                          - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                      then: { param: "amount_a_desired" }
+                      else:
+                        op: "div"
+                        args:
+                          - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                          - { var: "pool_b" }
+                    - { var: "lp_supply" }
+                - { var: "pool_a" }
+            - { const: 1 }
+        # lp1 := floor(used_b * lp_supply / pool_b) >= 1
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "ite"
+                      cond:
+                        op: "<="
+                        args:
+                          - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                          - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                      then:
+                        op: "div"
+                        args:
+                          - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                          - { var: "pool_a" }
+                      else: { param: "amount_b_desired" }
+                    - { var: "lp_supply" }
+                - { var: "pool_b" }
+            - { const: 1 }
+        # Post-state bounds: pool reserves and lp supply remain in-domain.
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "pool_a" }
+                - op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                      - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                  then: { param: "amount_a_desired" }
+                  else:
+                    op: "div"
+                    args:
+                      - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                      - { var: "pool_b" }
+            - { const: 3000000000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "pool_b" }
+                - op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                      - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                  then:
+                    op: "div"
+                    args:
+                      - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                      - { var: "pool_a" }
+                  else: { param: "amount_b_desired" }
+            - { const: 3000000000 }
+        # lp_supply + lp_minted <= max
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "lp_supply" }
+                - op: "ite"
+                  cond:
+                    op: "<="
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "ite"
+                                cond:
+                                  op: "<="
+                                  args:
+                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                                then: { param: "amount_a_desired" }
+                                else:
+                                  op: "div"
+                                  args:
+                                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                                    - { var: "pool_b" }
+                              - { var: "lp_supply" }
+                          - { var: "pool_a" }
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "ite"
+                                cond:
+                                  op: "<="
+                                  args:
+                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                                then:
+                                  op: "div"
+                                  args:
+                                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                    - { var: "pool_a" }
+                                else: { param: "amount_b_desired" }
+                              - { var: "lp_supply" }
+                          - { var: "pool_b" }
+                  then:
+                    op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "ite"
+                            cond:
+                              op: "<="
+                              args:
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                            then: { param: "amount_a_desired" }
+                            else:
+                              op: "div"
+                              args:
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                                - { var: "pool_b" }
+                          - { var: "lp_supply" }
+                      - { var: "pool_a" }
+                  else:
+                    op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "ite"
+                            cond:
+                              op: "<="
+                              args:
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                            then:
+                              op: "div"
+                              args:
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { var: "pool_a" }
+                            else: { param: "amount_b_desired" }
+                          - { var: "lp_supply" }
+                      - { var: "pool_b" }
+            - { const: 3000000000 }
+    updates:
+      # used_a/used_b inline.
+      - var: "u0_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "provider" }, { const: 0 }] }
+          then:
+            op: "-"
+            args:
+              - { var: "u0_a" }
+              - op: "ite"
+                cond:
+                  op: "<="
+                  args:
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                then: { param: "amount_a_desired" }
+                else:
+                  op: "div"
+                  args:
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                    - { var: "pool_b" }
+          else: { var: "u0_a" }
+      - var: "u1_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "provider" }, { const: 1 }] }
+          then:
+            op: "-"
+            args:
+              - { var: "u1_a" }
+              - op: "ite"
+                cond:
+                  op: "<="
+                  args:
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                then: { param: "amount_a_desired" }
+                else:
+                  op: "div"
+                  args:
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                    - { var: "pool_b" }
+          else: { var: "u1_a" }
+      - var: "u0_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "provider" }, { const: 0 }] }
+          then:
+            op: "-"
+            args:
+              - { var: "u0_b" }
+              - op: "ite"
+                cond:
+                  op: "<="
+                  args:
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                then:
+                  op: "div"
+                  args:
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { var: "pool_a" }
+                else: { param: "amount_b_desired" }
+          else: { var: "u0_b" }
+      - var: "u1_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "provider" }, { const: 1 }] }
+          then:
+            op: "-"
+            args:
+              - { var: "u1_b" }
+              - op: "ite"
+                cond:
+                  op: "<="
+                  args:
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                then:
+                  op: "div"
+                  args:
+                    - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                    - { var: "pool_a" }
+                else: { param: "amount_b_desired" }
+          else: { var: "u1_b" }
+      - var: "pool_a"
+        expr:
+          op: "+"
+          args:
+            - { var: "pool_a" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+              then: { param: "amount_a_desired" }
+              else:
+                op: "div"
+                args:
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                  - { var: "pool_b" }
+      - var: "pool_b"
+        expr:
+          op: "+"
+          args:
+            - { var: "pool_b" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+              then:
+                op: "div"
+                args:
+                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                  - { var: "pool_a" }
+              else: { param: "amount_b_desired" }
+      # lp_minted := min(lp0, lp1)
+      - var: "u0_lp"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "lp_recipient" }, { const: 0 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u0_lp" }
+              - op: "ite"
+                cond:
+                  op: "<="
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: "<="
+                                args:
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                              then: { param: "amount_a_desired" }
+                              else:
+                                op: "div"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                                  - { var: "pool_b" }
+                            - { var: "lp_supply" }
+                        - { var: "pool_a" }
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: "<="
+                                args:
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                              then:
+                                op: "div"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { var: "pool_a" }
+                              else: { param: "amount_b_desired" }
+                            - { var: "lp_supply" }
+                        - { var: "pool_b" }
+                then:
+                  op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "ite"
+                          cond:
+                            op: "<="
+                            args:
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                          then: { param: "amount_a_desired" }
+                          else:
+                            op: "div"
+                            args:
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                              - { var: "pool_b" }
+                        - { var: "lp_supply" }
+                    - { var: "pool_a" }
+                else:
+                  op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "ite"
+                          cond:
+                            op: "<="
+                            args:
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                          then:
+                            op: "div"
+                            args:
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { var: "pool_a" }
+                          else: { param: "amount_b_desired" }
+                        - { var: "lp_supply" }
+                    - { var: "pool_b" }
+          else: { var: "u0_lp" }
+      - var: "u1_lp"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "lp_recipient" }, { const: 1 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u1_lp" }
+              - op: "ite"
+                cond:
+                  op: "<="
+                  args:
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: "<="
+                                args:
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                              then: { param: "amount_a_desired" }
+                              else:
+                                op: "div"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                                  - { var: "pool_b" }
+                            - { var: "lp_supply" }
+                        - { var: "pool_a" }
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "ite"
+                              cond:
+                                op: "<="
+                                args:
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                              then:
+                                op: "div"
+                                args:
+                                  - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                  - { var: "pool_a" }
+                              else: { param: "amount_b_desired" }
+                            - { var: "lp_supply" }
+                        - { var: "pool_b" }
+                then:
+                  op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "ite"
+                          cond:
+                            op: "<="
+                            args:
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                          then: { param: "amount_a_desired" }
+                          else:
+                            op: "div"
+                            args:
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                              - { var: "pool_b" }
+                        - { var: "lp_supply" }
+                    - { var: "pool_a" }
+                else:
+                  op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "ite"
+                          cond:
+                            op: "<="
+                            args:
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                          then:
+                            op: "div"
+                            args:
+                              - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                              - { var: "pool_a" }
+                          else: { param: "amount_b_desired" }
+                        - { var: "lp_supply" }
+                    - { var: "pool_b" }
+          else: { var: "u1_lp" }
+      - var: "lp_supply"
+        expr:
+          op: "+"
+          args:
+            - { var: "lp_supply" }
+            - op: "ite"
+              cond:
+                op: "<="
+                args:
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "ite"
+                            cond:
+                              op: "<="
+                              args:
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                            then: { param: "amount_a_desired" }
+                            else:
+                              op: "div"
+                              args:
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                                - { var: "pool_b" }
+                          - { var: "lp_supply" }
+                      - { var: "pool_a" }
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "ite"
+                            cond:
+                              op: "<="
+                              args:
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                            then:
+                              op: "div"
+                              args:
+                                - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                                - { var: "pool_a" }
+                            else: { param: "amount_b_desired" }
+                          - { var: "lp_supply" }
+                      - { var: "pool_b" }
+              then:
+                op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: "<="
+                          args:
+                            - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                            - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                        then: { param: "amount_a_desired" }
+                        else:
+                          op: "div"
+                          args:
+                            - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                            - { var: "pool_b" }
+                      - { var: "lp_supply" }
+                  - { var: "pool_a" }
+              else:
+                op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: "<="
+                          args:
+                            - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                            - { op: "*", args: [{ param: "amount_b_desired" }, { var: "pool_a" }] }
+                        then:
+                          op: "div"
+                          args:
+                            - { op: "*", args: [{ param: "amount_a_desired" }, { var: "pool_b" }] }
+                            - { var: "pool_a" }
+                        else: { param: "amount_b_desired" }
+                      - { var: "lp_supply" }
+                  - { var: "pool_b" }
+    effects:
+      event: { const: 4 }
+
+  - id: "remove_liquidity"
+    params:
+      - id: "burner"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "recipient"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "lp_amount"
+        type: { kind: "int", min: 1, max: 1000000000 }
+      - id: "amount_a_min"
+        type: { kind: "int", min: 0, max: 1000000000 }
+      - id: "amount_b_min"
+        type: { kind: "int", min: 0, max: 1000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pool_initialized" }, { const: 1 }] }
+        - { op: ">", args: [{ var: "lp_supply" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "lock_lp" }, { const: 1000 }] }
+        # Burner must own lp_amount.
+        - op: ">="
+          args:
+            - op: "ite"
+              cond: { op: "=", args: [{ param: "burner" }, { const: 0 }] }
+              then: { var: "u0_lp" }
+              else: { var: "u1_lp" }
+            - { param: "lp_amount" }
+        # Outputs meet mins.
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_a" }] }
+                - { var: "lp_supply" }
+            - { param: "amount_a_min" }
+        - op: ">="
+          args:
+            - op: "div"
+              args:
+                - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_b" }] }
+                - { var: "lp_supply" }
+            - { param: "amount_b_min" }
+        # Recipient post-balance bounds (assets A and B).
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - op: "ite"
+                  cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+                  then: { var: "u0_a" }
+                  else: { var: "u1_a" }
+                - op: "div"
+                  args:
+                    - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_a" }] }
+                    - { var: "lp_supply" }
+            - { const: 3000000000 }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - op: "ite"
+                  cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+                  then: { var: "u0_b" }
+                  else: { var: "u1_b" }
+                - op: "div"
+                  args:
+                    - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_b" }] }
+                    - { var: "lp_supply" }
+            - { const: 3000000000 }
+    updates:
+      - var: "u0_lp"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "burner" }, { const: 0 }] }
+          then: { op: "-", args: [{ var: "u0_lp" }, { param: "lp_amount" }] }
+          else: { var: "u0_lp" }
+      - var: "u1_lp"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "burner" }, { const: 1 }] }
+          then: { op: "-", args: [{ var: "u1_lp" }, { param: "lp_amount" }] }
+          else: { var: "u1_lp" }
+      - var: "lp_supply"
+        expr: { op: "-", args: [{ var: "lp_supply" }, { param: "lp_amount" }] }
+      - var: "pool_a"
+        expr:
+          op: "-"
+          args:
+            - { var: "pool_a" }
+            - op: "div"
+              args:
+                - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_a" }] }
+                - { var: "lp_supply" }
+      - var: "pool_b"
+        expr:
+          op: "-"
+          args:
+            - { var: "pool_b" }
+            - op: "div"
+              args:
+                - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_b" }] }
+                - { var: "lp_supply" }
+      - var: "u0_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u0_a" }
+              - op: "div"
+                args:
+                  - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_a" }] }
+                  - { var: "lp_supply" }
+          else: { var: "u0_a" }
+      - var: "u1_a"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 1 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u1_a" }
+              - op: "div"
+                args:
+                  - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_a" }] }
+                  - { var: "lp_supply" }
+          else: { var: "u1_a" }
+      - var: "u0_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 0 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u0_b" }
+              - op: "div"
+                args:
+                  - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_b" }] }
+                  - { var: "lp_supply" }
+          else: { var: "u0_b" }
+      - var: "u1_b"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ param: "recipient" }, { const: 1 }] }
+          then:
+            op: "+"
+            args:
+              - { var: "u1_b" }
+              - op: "div"
+                args:
+                  - { op: "*", args: [{ param: "lp_amount" }, { var: "pool_b" }] }
+                  - { var: "lp_supply" }
+          else: { var: "u1_b" }
+    effects:
+      event: { const: 5 }
