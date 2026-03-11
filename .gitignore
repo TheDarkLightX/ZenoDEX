@@ -81,6 +81,7 @@ htmlcov/
 
 # Documentation
 docs/_build/
+docs/spot_dex_assurance_plan.md
 
 # OS
 .DS_Store
