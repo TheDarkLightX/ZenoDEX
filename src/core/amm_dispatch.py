@@ -9,29 +9,23 @@ from __future__ import annotations
 
 from typing import Tuple
 
+from ..kernels.python.settlement_swap_runtime_v1 import (
+    CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+)
 from ..state.balances import Amount
 from ..state.pools import (
     CURVE_TAG_CPMM,
     CURVE_TAG_CUBIC_SUM_V1,
-    CURVE_TAG_SUM_BOOST_V1,
     CURVE_TAG_QUARTIC_BLEND_V1,
     CURVE_TAG_QUINTIC_BLEND_V1,
+    CURVE_TAG_SUM_BOOST_V1,
     PoolState,
     parse_cubic_sum_params,
-    parse_sum_boost_params,
     parse_quartic_blend_params,
     parse_quintic_blend_params,
+    parse_sum_boost_params,
 )
-from . import cpmm
-from . import cubic_sum_amm
-from . import quartic_blend_amm
-from . import quintic_blend_amm
-from . import sum_boost_amm
-
-# Global safety policy for CPMM exact-out in routing/execution paths.
-# The raw CPMM exact-out quote can overdeliver on integer lattices in edge regimes.
-# We cap that quote gap to avoid pathological user overpayment while preserving most quotes.
-CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT = 200
+from . import cpmm, cubic_sum_amm, quartic_blend_amm, quintic_blend_amm, sum_boost_amm
 
 
 def swap_exact_in_for_pool(

@@ -28,6 +28,26 @@ require_module "pytest_cov" "pytest-cov"
 require_module "ruff" "ruff"
 require_module "mypy" "mypy"
 
+require_file() {
+  local label="$1"
+  local path="$2"
+  if [[ ! -f "$path" ]]; then
+    echo "error: missing required file for $label: $path" >&2
+    exit 2
+  fi
+}
+
+require_file "cpmm exported ref" "$ROOT_DIR/generated/cpmm_python/cpmm_swap_ref.py"
+require_file "dex v7 cpmm exported ref" "$ROOT_DIR/generated/dex_v7_python/cpmm_swap_v7_ref.py"
+require_file "dex v7 fee exported ref" "$ROOT_DIR/generated/dex_v7_python/fee_calculation_v7_ref.py"
+require_file "dex v7 lp mint exported ref" "$ROOT_DIR/generated/dex_v7_python/lp_mint_v7_ref.py"
+require_file "dex v7 lp ratio exported ref" "$ROOT_DIR/generated/dex_v7_python/lp_ratio_calculator_v7_ref.py"
+require_file "dex v7 circuit breaker exported ref" "$ROOT_DIR/generated/dex_v7_python/circuit_breaker_v7_ref.py"
+require_file "dex step core exported ref" "$ROOT_DIR/generated/dex_v8_python/dex_step_core_v2_ref.py"
+require_file "vault exported ref" "$ROOT_DIR/generated/vault_python/vault_manager_ref.py"
+require_file "volatility tier exported ref" "$ROOT_DIR/generated/volatility_tier_controller_v1_python_ref/volatility_tier_controller_v1_ref.py"
+require_file "batch auction exported ref" "$ROOT_DIR/generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py"
+
 CRITICAL_TESTS=(
   tests/core/test_domain_bounds.py
   tests/core/test_functional_core_no_floats.py
@@ -39,12 +59,16 @@ CRITICAL_TESTS=(
   tests/core/test_batch_clearing.py
   tests/core/test_batch_clearing_coverage_edges.py
   tests/core/test_batch_auction_settler_v1_ref_parity.py
+  tests/core/test_batch_auction_settler_v1_witness.py
+  tests/core/test_settlement_swap_runtime_v1.py
   tests/core/test_batch_clearing_properties.py
   tests/core/test_batch_greedy.py
   tests/core/test_batch_clearing_b_refinement.py
   tests/core/test_batch_clearing_global_refinement.py
+  tests/core/test_dex_step.py
   tests/core/test_dex_step_candidate_settlement.py
   tests/core/test_quote_receipts.py
+  tests/core/test_settlement.py
   tests/core/test_settlement_strong_validator.py
   tests/core/test_volatility_tier.py
   tests/core/test_volatility_tier_ref_parity.py
@@ -71,6 +95,8 @@ COVERAGE_TARGETS=(
   --cov=src.core.perp_v2
   --cov=src.integration.perps_api
   --cov=src.integration.validation
+  --cov=src.kernels.python.batch_auction_settler_v1_witness
+  --cov=src.kernels.python.settlement_swap_runtime_v1
   --cov=src.state.balances
   --cov=src.state.intents
   --cov=src.state.lp
@@ -93,6 +119,8 @@ echo "== critical: ruff =="
   src/core/perp_v2 \
   src/integration/perps_api.py \
   src/integration/validation.py \
+  src/kernels/python/batch_auction_settler_v1_witness.py \
+  src/kernels/python/settlement_swap_runtime_v1.py \
   src/state/balances.py \
   src/state/intents.py \
   src/state/lp.py \
@@ -101,8 +129,11 @@ echo "== critical: ruff =="
   tests/core/test_batch_clearing_properties.py \
   tests/core/test_batch_clearing_coverage_edges.py \
   tests/core/test_batch_auction_settler_v1_ref_parity.py \
+  tests/core/test_batch_auction_settler_v1_witness.py \
+  tests/core/test_settlement_swap_runtime_v1.py \
   tests/core/test_quote_receipts.py \
   tests/core/test_quote_receipts_fuzz.py \
+  tests/core/test_settlement.py \
   tests/core/test_liquidity.py \
   tests/core/test_perp_v2/test_submodules.py \
   tests/core/test_settlement_strong_validator.py \
@@ -110,6 +141,7 @@ echo "== critical: ruff =="
   tests/core/test_support_root.py \
   tests/core/test_volatility_tier.py \
   tests/core/test_volatility_tier_ref_parity.py \
+  tests/core/test_dex_step.py \
   tests/core/test_dex_step_candidate_settlement.py \
   tests/integration/test_dex_engine_helpers.py \
   tests/integration/test_operations_fuzz.py \
