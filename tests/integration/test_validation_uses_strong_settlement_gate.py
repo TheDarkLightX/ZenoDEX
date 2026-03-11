@@ -256,7 +256,10 @@ def test_validate_operations_rejects_unsanitized_quote_bound_intent_without_engi
         settlement_validation="strong_replay",
     )
     assert ok is False
-    assert err == f"quote receipt transport metadata requires validated engine witness: intent_id={intent.intent_id}"
+    assert err is not None
+    assert "quote receipt transport metadata requires validated engine witness" in err
+    assert f"intent_id='{intent.intent_id}'" in err
+    assert "strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation" in err
 
 
 def test_validate_operations_requires_explicit_opt_in_for_snapshot_bound_quote_binding() -> None:
@@ -312,7 +315,10 @@ def test_validate_operations_requires_explicit_opt_in_for_snapshot_bound_quote_b
         settlement_validation="strong_replay",
     )
     assert ok_default is False
-    assert err_default == f"quote receipt snapshot binding requires validated engine witness: intent_id={intent.intent_id}"
+    assert err_default is not None
+    assert "quote receipt snapshot binding requires validated engine witness" in err_default
+    assert f"intent_id='{intent.intent_id}'" in err_default
+    assert "only pass sanitized quote_pool_fingerprint through the validated engine path" in err_default
 
     ok_validated, err_validated = validate_operations(
         intents=[intent],

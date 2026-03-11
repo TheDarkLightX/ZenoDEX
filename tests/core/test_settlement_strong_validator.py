@@ -451,6 +451,9 @@ def test_strong_validator_rejects_stale_quote_receipt_pool_fingerprint() -> None
     assert ok is False
     assert err is not None
     assert "quote receipt pool snapshot mismatch" in err
+    assert f"intent_id='{intent.intent_id}'" in err
+    assert f"quote_pool_fingerprint='{pool_state_fingerprint(quoted_pool)}'" in err
+    assert "actual_pool_fingerprint=" in err
 
 
 def test_strong_validator_rejects_quote_receipt_binding_on_non_swap_intent() -> None:
@@ -497,7 +500,10 @@ def test_strong_validator_rejects_quote_receipt_binding_on_non_swap_intent() -> 
         mode="strong_replay",
     )
     assert ok is False
-    assert err == f"quote receipt binding only supported for swap intents: intent_id={intent.intent_id}"
+    assert err is not None
+    assert "quote receipt binding only supported for swap intents" in err
+    assert f"intent_id='{intent.intent_id}'" in err
+    assert "intent_kind='CREATE_POOL'" in err
 
 
 def test_strong_validator_rejects_quote_receipt_leg_index_without_hash() -> None:
@@ -558,7 +564,10 @@ def test_strong_validator_rejects_quote_receipt_leg_index_without_hash() -> None
         mode="strong_replay",
     )
     assert ok is False
-    assert err == f"quote receipt transport metadata requires validated engine witness: intent_id={intent.intent_id}"
+    assert err is not None
+    assert "quote receipt transport metadata requires validated engine witness" in err
+    assert f"intent_id='{intent.intent_id}'" in err
+    assert "strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation" in err
 
 
 def test_strong_validator_rejects_invalid_quote_receipt_leg_index() -> None:
@@ -621,7 +630,9 @@ def test_strong_validator_rejects_invalid_quote_receipt_leg_index() -> None:
         mode="strong_replay",
     )
     assert ok is False
-    assert err == f"invalid quote_receipt_leg_index for intent_id={intent.intent_id}"
+    assert err is not None
+    assert "invalid quote_receipt_leg_index" in err
+    assert f"intent_id='{intent.intent_id}'" in err
 
 
 def test_strong_validator_rejects_unsanitized_quote_receipt_hash_without_engine_witness() -> None:
@@ -684,7 +695,10 @@ def test_strong_validator_rejects_unsanitized_quote_receipt_hash_without_engine_
         mode="strong_replay",
     )
     assert ok is False
-    assert err == f"quote receipt transport metadata requires validated engine witness: intent_id={intent.intent_id}"
+    assert err is not None
+    assert "quote receipt transport metadata requires validated engine witness" in err
+    assert f"intent_id='{intent.intent_id}'" in err
+    assert "strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation" in err
 
 
 def test_strong_validator_rejects_duplicate_balance_delta_keys() -> None:
