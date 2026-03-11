@@ -7,7 +7,7 @@ that are collected and settled in batches.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from .balances import PubKey
 

@@ -418,16 +418,14 @@ def test_unstake_effect_reports_returned() -> None:
 # Edge cases
 # ---------------------------------------------------------------------------
 
-def test_negative_revenue_delta_clamped() -> None:
-    """Negative revenue deltas are clamped to zero."""
+def test_negative_revenue_delta_rejected() -> None:
+    """Negative revenue deltas are rejected (kernel domain is non-negative deltas)."""
     s = CSState(revenue_0=100)
     r = step(s, CSActionParams(
         action=CSAction.ADVANCE_EPOCH,
         revenue_deltas=(-50, 0, 0, 0, 0),
     ))
-    assert r.accepted
-    # Negative delta clamped to 0 → revenue stays at 100
-    assert r.state.get_revenue(0) == 100
+    assert not r.accepted
 
 
 def test_stake_max_amount_boundary() -> None:

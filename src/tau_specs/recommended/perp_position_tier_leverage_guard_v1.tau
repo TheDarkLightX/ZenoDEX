@@ -1,0 +1,52 @@
+# Perp Position Tier Leverage Guard v1
+#
+# PURPOSE:
+# Enforce notional-tier leverage limits with monotone tier caps.
+#
+# i1 = position_notional (bv[32])
+# i2 = tier1_cap (bv[32])
+# i3 = tier2_cap (bv[32])
+# i4 = tier3_cap (bv[32])
+# i5 = leverage_bps (bv[32])
+# i6 = max_leverage_tier1_bps (bv[32])
+# i7 = max_leverage_tier2_bps (bv[32])
+# i8 = max_leverage_tier3_bps (bv[32])
+#
+# o1 = tiers_monotone
+# o2 = in_supported_tier
+# o3 = leverage_ok
+# o4 = position_guard_ok
+
+set charvar off
+
+tiers_monotone(tier1_cap : bv[32], tier2_cap : bv[32], tier3_cap : bv[32]) :=
+  (tier1_cap <= tier2_cap) && (tier2_cap <= tier3_cap).
+
+in_tier1(position_notional : bv[32], tier1_cap : bv[32]) := position_notional <= tier1_cap.
+
+in_tier2(position_notional : bv[32], tier1_cap : bv[32], tier2_cap : bv[32]) :=
+  (position_notional > tier1_cap) && (position_notional <= tier2_cap).
+
+in_tier3(position_notional : bv[32], tier2_cap : bv[32], tier3_cap : bv[32]) :=
+  (position_notional > tier2_cap) && (position_notional <= tier3_cap).
+
+in_supported_tier(position_notional : bv[32], tier1_cap : bv[32], tier2_cap : bv[32], tier3_cap : bv[32]) :=
+  in_tier1(position_notional, tier1_cap) ||
+  in_tier2(position_notional, tier1_cap, tier2_cap) ||
+  in_tier3(position_notional, tier2_cap, tier3_cap).
+
+leverage_ok(position_notional : bv[32], tier1_cap : bv[32], tier2_cap : bv[32], tier3_cap : bv[32], leverage_bps : bv[32], max_leverage_tier1_bps : bv[32], max_leverage_tier2_bps : bv[32], max_leverage_tier3_bps : bv[32]) :=
+  (in_tier1(position_notional, tier1_cap) && (leverage_bps <= max_leverage_tier1_bps)) ||
+  (in_tier2(position_notional, tier1_cap, tier2_cap) && (leverage_bps <= max_leverage_tier2_bps)) ||
+  (in_tier3(position_notional, tier2_cap, tier3_cap) && (leverage_bps <= max_leverage_tier3_bps)).
+
+position_guard_ok(position_notional : bv[32], tier1_cap : bv[32], tier2_cap : bv[32], tier3_cap : bv[32], leverage_bps : bv[32], max_leverage_tier1_bps : bv[32], max_leverage_tier2_bps : bv[32], max_leverage_tier3_bps : bv[32]) :=
+  tiers_monotone(tier1_cap, tier2_cap, tier3_cap) &&
+  in_supported_tier(position_notional, tier1_cap, tier2_cap, tier3_cap) &&
+  leverage_ok(position_notional, tier1_cap, tier2_cap, tier3_cap, leverage_bps, max_leverage_tier1_bps, max_leverage_tier2_bps, max_leverage_tier3_bps).
+
+always
+  (o1[t]:sbf = 1:sbf <-> tiers_monotone(i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> in_supported_tier(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> leverage_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> position_guard_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:bv[32], i7[t]:bv[32], i8[t]:bv[32])).

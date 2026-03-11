@@ -1,0 +1,23 @@
+{
+  "goals": [
+    {
+      "id": "G_settle_epoch2",
+      "formula": "F state.oracle_last_update_epoch.2",
+      "required_in_release": true
+    },
+    {
+      "id": "G_publish_seen",
+      "formula": "F state.clearing_price_seen",
+      "required_in_release": true
+    },
+    {
+      "id": "G_never_seen",
+      "formula": "G !state.clearing_price_seen",
+      "required_in_release": false
+    }
+  ],
+  "required_goal_ids": [
+    "G_settle_epoch2",
+    "G_publish_seen"
+  ]
+}

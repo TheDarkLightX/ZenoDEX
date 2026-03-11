@@ -25,8 +25,9 @@ import json
 import re
 import threading
 import time
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+from ..core.domain_limits import PERP_PARAM_AMOUNT_MAX, PERP_POSITION_MAX
 from ..core.perp_v2 import (
     Action,
     ActionParams,
@@ -36,21 +37,18 @@ from ..core.perp_v2 import (
 )
 from ..core.perp_v2.math import (
     BPS_SCALE,
-    MAX_COLLATERAL,
     liquidation_price_e8,
     maint_margin_req,
     notional_quote,
     pnl_quote,
 )
-from ..core.perp_v2.state import state_to_dict
 from ..core.perps import (
-    PERP_ISOLATED_GLOBAL_KEYS,
+    PERPS_STATE_VERSION,
     PerpAccountState,
     PerpAnyMarketState,
     PerpClearinghouse2pMarketState,
     PerpMarketState,
     PerpsState,
-    PERPS_STATE_VERSION,
 )
 
 # ---------------------------------------------------------------------------
@@ -59,9 +57,6 @@ from ..core.perps import (
 
 MAX_POST_BODY: int = 65_536  # 64 KiB
 MAX_DEMO_ACCOUNTS_PER_MARKET: int = 2_000
-# Param-domain bounds (match `src/core/perp_v2/engine.py`).
-MAX_PARAM_AMOUNT: int = 1_000_000_000_000
-MAX_POSITION_BASE: int = 1_000_000
 
 _HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
 _MARKET_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
@@ -574,7 +569,7 @@ def _handle_collateral(
         return perps, history, (400, {"ok": False, "error": "invalid_action"})
     if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
         return perps, history, (400, {"ok": False, "error": "invalid_amount"})
-    if int(amount) > int(MAX_PARAM_AMOUNT):
+    if int(amount) > int(PERP_PARAM_AMOUNT_MAX):
         return perps, history, (400, {"ok": False, "error": "invalid_amount"})
 
     market = perps.get_market(market_id)
@@ -641,7 +636,7 @@ def _handle_set_position(
         return perps, history, (400, {"ok": False, "error": "invalid_pubkey"})
     if isinstance(new_position_base, bool) or not isinstance(new_position_base, int):
         return perps, history, (400, {"ok": False, "error": "invalid_newPositionBase"})
-    if abs(int(new_position_base)) > int(MAX_POSITION_BASE):
+    if abs(int(new_position_base)) > int(PERP_POSITION_MAX):
         return perps, history, (400, {"ok": False, "error": "invalid_newPositionBase"})
 
     market = perps.get_market(market_id)
@@ -650,10 +645,10 @@ def _handle_set_position(
     if not isinstance(market, PerpMarketState):
         return perps, history, (400, {"ok": False, "error": "unsupported_market_kind"})
 
-    max_abs = int(market.global_state.get("max_position_abs", MAX_POSITION_BASE))
-    # Param domain bound is always enforced by the kernel (`MAX_POSITION_BASE`).
+    max_abs = int(market.global_state.get("max_position_abs", PERP_POSITION_MAX))
+    # Param domain bound is always enforced by the kernel (`PERP_POSITION_MAX`).
     # Also enforce a stricter per-market bound when configured.
-    effective_max_abs = min(MAX_POSITION_BASE, max_abs) if max_abs > 0 else MAX_POSITION_BASE
+    effective_max_abs = min(PERP_POSITION_MAX, max_abs) if max_abs > 0 else PERP_POSITION_MAX
     if abs(int(new_position_base)) > effective_max_abs:
         return perps, history, (400, {"ok": False, "error": "invalid_newPositionBase"})
 
@@ -717,7 +712,7 @@ def _handle_insurance(
         return perps, history, (400, {"ok": False, "error": "invalid_pubkey"})
     if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
         return perps, history, (400, {"ok": False, "error": "invalid_amount"})
-    if int(amount) > int(MAX_PARAM_AMOUNT):
+    if int(amount) > int(PERP_PARAM_AMOUNT_MAX):
         return perps, history, (400, {"ok": False, "error": "invalid_amount"})
 
     market = perps.get_market(market_id)
@@ -844,7 +839,7 @@ def _dispatch_post(
     return _handle_insurance(perps, history, parsed)
 
 
-def get_oracle_sync_snapshot(market_id: str) -> Optional[Dict[str, int]]:
+def get_oracle_sync_snapshot(market_id: str) -> Optional[Dict[str, int | str]]:
     """Return a deterministic oracle snapshot for cross-module sync checks."""
     target = str(market_id or "").strip()
     if not target:

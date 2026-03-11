@@ -4,10 +4,16 @@ Liquidity management operations: create pool, add/remove liquidity.
 
 from typing import Optional, Tuple
 
-from ..state.pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
-from ..state.balances import AssetId, Amount
-from .cpmm import compute_lp_mint, compute_lp_burn, MIN_LP_LOCK
 from ..kernels.python.lp_math_v7 import optimal_liquidity
+from ..state.balances import Amount, AssetId
+from ..state.pools import PoolState, PoolStatus, compute_pool_id, normalize_curve_config
+from .cpmm import MIN_LP_LOCK, compute_lp_burn, compute_lp_mint
+from .domain_limits import (
+    DEX_LP_AMOUNT_MAX,
+    DEX_LP_SUPPLY_MAX,
+    DEX_POOL_RESERVE_MAX,
+    require_int_range,
+)
 
 
 def create_pool(
@@ -50,15 +56,17 @@ def create_pool(
     Raises:
         ValueError: If inputs are invalid
     """
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        raise TypeError("asset ids must be strings")
+
     # Validate canonical ordering
     if asset0 >= asset1:
         raise ValueError(f"Assets must be in canonical order: {asset0} < {asset1}")
-    
-    if amount0 <= 0 or amount1 <= 0:
-        raise ValueError(f"Initial deposits must be positive: ({amount0}, {amount1})")
-    
-    if not (0 <= fee_bps <= 10000):
-        raise ValueError(f"fee_bps must be in [0, 10000]: {fee_bps}")
+
+    require_int_range("amount0", amount0, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount1", amount1, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("fee_bps", fee_bps, minimum=0, maximum=10000)
+    require_int_range("created_at", created_at, minimum=0)
     
     curve_tag_norm, curve_params_norm = normalize_curve_config(curve_tag=curve_tag, curve_params=curve_params)
     pool_id = compute_pool_id(asset0, asset1, fee_bps, curve_tag=curve_tag_norm, curve_params=curve_params_norm)
@@ -117,12 +125,17 @@ def add_liquidity(
     """
     if pool_state.status != PoolStatus.ACTIVE:
         raise ValueError(f"Pool is not active: {pool_state.status}")
-    
+
+    require_int_range("pool_state.reserve0", pool_state.reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.reserve1", pool_state.reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.lp_supply", pool_state.lp_supply, minimum=0, maximum=DEX_LP_SUPPLY_MAX)
     if pool_state.reserve0 == 0 or pool_state.reserve1 == 0:
         raise ValueError("Cannot add liquidity to empty pool")
-    
-    if amount0_desired <= 0 or amount1_desired <= 0:
-        raise ValueError(f"Desired amounts must be positive: ({amount0_desired}, {amount1_desired})")
+
+    require_int_range("amount0_desired", amount0_desired, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount1_desired", amount1_desired, minimum=1, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount0_min", amount0_min, minimum=0, maximum=DEX_LP_AMOUNT_MAX)
+    require_int_range("amount1_min", amount1_min, minimum=0, maximum=DEX_LP_AMOUNT_MAX)
     
     opt = optimal_liquidity(
         reserve0=pool_state.reserve0,
@@ -182,10 +195,14 @@ def remove_liquidity(
     """
     if pool_state.status != PoolStatus.ACTIVE:
         raise ValueError(f"Pool is not active: {pool_state.status}")
-    
-    if lp_amount <= 0:
-        raise ValueError(f"LP amount must be positive: {lp_amount}")
-    
+
+    require_int_range("pool_state.reserve0", pool_state.reserve0, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.reserve1", pool_state.reserve1, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("pool_state.lp_supply", pool_state.lp_supply, minimum=1, maximum=DEX_LP_SUPPLY_MAX)
+    require_int_range("lp_amount", lp_amount, minimum=1, maximum=DEX_LP_SUPPLY_MAX)
+    require_int_range("amount0_min", amount0_min, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+    require_int_range("amount1_min", amount1_min, minimum=0, maximum=DEX_POOL_RESERVE_MAX)
+
     if lp_amount > pool_state.lp_supply:
         raise ValueError(
             f"Cannot burn more LP than supply: {lp_amount} > {pool_state.lp_supply}"

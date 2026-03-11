@@ -1,0 +1,41 @@
+# Perp Account Net Exposure Guard v1
+#
+# PURPOSE:
+# Bound net and gross directional exposure of an account.
+#
+# i1 = long_notional (bv[64])
+# i2 = short_notional (bv[64])
+# i3 = max_net_exposure (bv[64])
+# i4 = max_gross_exposure (bv[64])
+# i5 = proof_ok (sbf)
+# i6 = binding_ok (sbf)
+#
+# o1 = net_exposure_ok
+# o2 = gross_exposure_ok
+# o3 = exposure_safe
+# o4 = proof_gated_exposure_safe
+
+set charvar off
+
+net_exposure_ok(long_notional : bv[64], short_notional : bv[64], max_net_exposure : bv[64]) :=
+  ((long_notional >= short_notional) && ((long_notional - short_notional) <= max_net_exposure)) ||
+  ((short_notional > long_notional) && ((short_notional - long_notional) <= max_net_exposure)).
+
+gross_exposure_ok(long_notional : bv[64], short_notional : bv[64], max_gross_exposure : bv[64]) :=
+  (max_gross_exposure >= long_notional) &&
+  ((max_gross_exposure - long_notional) >= short_notional).
+
+exposure_safe(long_notional : bv[64], short_notional : bv[64], max_net_exposure : bv[64], max_gross_exposure : bv[64]) :=
+  net_exposure_ok(long_notional, short_notional, max_net_exposure) &&
+  gross_exposure_ok(long_notional, short_notional, max_gross_exposure).
+
+proof_gated_exposure_safe(long_notional : bv[64], short_notional : bv[64], max_net_exposure : bv[64], max_gross_exposure : bv[64], proof_ok : sbf, binding_ok : sbf) :=
+  exposure_safe(long_notional, short_notional, max_net_exposure, max_gross_exposure) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> net_exposure_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64])) &&
+  (o2[t]:sbf = 1:sbf <-> gross_exposure_ok(i1[t]:bv[64], i2[t]:bv[64], i4[t]:bv[64])) &&
+  (o3[t]:sbf = 1:sbf <-> exposure_safe(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64])) &&
+  (o4[t]:sbf = 1:sbf <-> proof_gated_exposure_safe(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:sbf, i6[t]:sbf)).

@@ -1,0 +1,36 @@
+# LP Mint Min-Of-Floors Guard v1 (proof-gated) - Deterministic Add Liquidity Math (DEX)
+#
+# Purpose: a Tau-executable gate compatible with host-side verified computation.
+# - Tau enforces basic structural constraints.
+# - Host/verifier supplies `proof_ok` and `binding_ok` (fail-closed flags) for the
+#   heavy arithmetic:
+#     lp_minted = min(floor(amount0 * lp_supply / reserve0), floor(amount1 * lp_supply / reserve1))
+#
+# Rationale:
+# - In this Tau build, bitvector multiplication/division chains are too slow/flaky
+#   for CI budgets. We keep the on-chain spec simple and rely on proof-carrying
+#   verification (Lean/SMT/ESSO) off-Tau.
+#
+# Stream mapping:
+# i1 = amount0 (bv[32])
+# i2 = amount1 (bv[32])
+# i3 = reserve0 (bv[32])
+# i4 = reserve1 (bv[32])
+# i5 = lp_supply (bv[32])
+# i6 = lp_minted (bv[32])          # externally computed
+# i7 = proof_ok (sbf)
+# i8 = binding_ok (sbf)
+# o1 = lp_mint_min_of_floors_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <->
+  ((i7[t]:sbf = 1:sbf) &&
+   (i8[t]:sbf = 1:sbf) &&
+   (i1[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i2[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i3[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i4[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i5[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i6[t]:bv[32] > { #x00000000 }:bv[32]))).
+

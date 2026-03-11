@@ -26,6 +26,13 @@ import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
 import Proofs.ZenoDEXRounding
 import Proofs.BatchApproximation
+import Proofs.ExactOutAdaptiveGate
+import Proofs.MobiusCPMMRoutingBounds
+import Proofs.PiecewiseEnvelopeNoOverdelivery
+import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
+import Proofs.PiecewiseEnvelopeParametric
+import Proofs.FeeCeilDecomposition
+import Proofs.BonusBetBudgetSafety
 
 /-!
 Proofs library root.

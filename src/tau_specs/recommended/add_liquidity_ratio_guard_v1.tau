@@ -1,0 +1,43 @@
+# Add Liquidity Ratio Guard v1 (proof-gated) - Optimal Liquidity Used/Refunds (DEX)
+#
+# Purpose: a Tau-executable guard compatible with host-side verified computation.
+# - Tau enforces basic structural constraints (used/refund arithmetic).
+# - Host/verifier supplies `proof_ok` + `binding_ok` (fail-closed flags) that the used/refund
+#   values satisfy the ratio-preserving `optimal_liquidity` algorithm (lp_math_v7 semantics).
+#
+# NOTE: In this Tau build, the full optimal_liquidity arithmetic (mul/div + branch logic) is
+# too slow to validate directly in Tau. Treat `proof_ok` as a proof-carrying flag produced by:
+# - ESSO-verified kernel, Lean proof, or
+# - bounded brute-force oracle + regression suite (and then hardened).
+#
+# Stream mapping:
+# i1 = reserve0 (bv[32])
+# i2 = reserve1 (bv[32])
+# i3 = amount0_desired (bv[32])
+# i4 = amount1_desired (bv[32])
+# i5 = amount0_used (bv[32])       # claimed
+# i6 = amount1_used (bv[32])       # claimed
+# i7 = amount0_refund (bv[32])     # claimed
+# i8 = amount1_refund (bv[32])     # claimed
+# i9 = proof_ok (sbf)
+# i10 = binding_ok (sbf)
+# o1 = optimal_liquidity_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <->
+  ((i9[t]:sbf = 1:sbf) &&
+   (i10[t]:sbf = 1:sbf) &&
+   (i3[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i4[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i5[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i6[t]:bv[32] > { #x00000000 }:bv[32]) &&
+   (i5[t]:bv[32] <= i3[t]:bv[32]) &&
+   (i6[t]:bv[32] <= i4[t]:bv[32]) &&
+   (i7[t]:bv[32] = i3[t]:bv[32] - i5[t]:bv[32]) &&
+   (i8[t]:bv[32] = i4[t]:bv[32] - i6[t]:bv[32]) &&
+   (!((i1[t]:bv[32] = { #x00000000 }:bv[32]) || (i2[t]:bv[32] = { #x00000000 }:bv[32])) ||
+     ((i5[t]:bv[32] = i3[t]:bv[32]) &&
+      (i6[t]:bv[32] = i4[t]:bv[32]) &&
+      (i7[t]:bv[32] = { #x00000000 }:bv[32]) &&
+      (i8[t]:bv[32] = { #x00000000 }:bv[32]))))).

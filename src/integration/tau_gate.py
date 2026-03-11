@@ -17,20 +17,44 @@ from dataclasses import dataclass, replace
 from typing import Dict, List, Optional, Tuple
 
 from ..core.liquidity import create_pool
+from ..core.settlement import Fill, FillAction, Settlement
 from ..state.intents import Intent, IntentKind
 from ..state.pools import PoolState
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
+    SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
+    SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE,
+    SWAP_BV32_SAFE_RANGE_GUARD_V1,
+    SWAP_EXACT_IN_PROOF_GATE_V1,
     SWAP_EXACT_IN_V1,
     SWAP_EXACT_OUT_V1,
+    SWAP_EXACT_OUT_PROOF_GATE_V1,
     SWAP_EXACT_IN_V4,
     SWAP_EXACT_OUT_V4,
     TauSpecRef,
+    build_settlement_price_rails_aligned_v1_step,
+    build_settlement_v5_aligned_compact_bundle_step,
+    build_swap_bv32_safe_range_guard_v1_step,
+    build_swap_exact_in_proof_gate_v1_step,
     build_swap_exact_in_v1_step,
     build_swap_exact_out_v1_step,
+    build_swap_exact_out_proof_gate_v1_step,
     build_swap_exact_in_v4_step,
     build_swap_exact_out_v4_step,
 )
+
+
+@dataclass(frozen=True)
+class TauSettlementModuleFlags:
+    cpmm_ok: int = 1
+    balance_ok: int = 1
+    token_ok: int = 1
+    buyback_floor_ok: int = 1
+    buyback_floor_fixedpoint_ok: int = 1
+    rebate_ok: int = 1
+    lock_weight_ok: int = 1
+    proof_ok: int = 1
+    binding_ok: int = 1
 
 
 @dataclass(frozen=True)
@@ -46,6 +70,10 @@ class TauGateConfig:
     timeout_s: float = 2.0
     tau_bin: Optional[str] = None
     allow_path_lookup: bool = False
+    swap_profile: str = "legacy_auto"
+    settlement_profile: str = "off"
+    settlement_price_history: Optional[Tuple[int, int, int]] = None
+    settlement_module_flags: Optional[TauSettlementModuleFlags] = None
 
 
 def _require_gate_ok(
@@ -64,25 +92,62 @@ def _require_gate_ok(
     return True, None
 
 
+def _require_single_gate_ok(
+    outputs_by_step: Dict[int, Dict[str, int]],
+    *,
+    spec_ref: TauSpecRef,
+    label: str,
+) -> Tuple[bool, Optional[str]]:
+    out = outputs_by_step.get(0, {})
+    value = out.get(spec_ref.gate_output)
+    if value is None:
+        return False, f"Tau missing {spec_ref.gate_output} for {label}"
+    if int(value) != 1:
+        return False, f"Tau gate failed ({spec_ref.gate_output}=0) for {label}"
+    return True, None
+
+
+def _intent_id_to_u64(intent_id: str) -> int:
+    if not isinstance(intent_id, str) or not intent_id.startswith("0x") or len(intent_id) <= 2:
+        raise ValueError(f"invalid intent_id for Tau witness: {intent_id!r}")
+    return int(intent_id, 16) & 0xFFFFFFFFFFFFFFFF
+
+
 def validate_settlement_swaps(
     *,
     intents: List[Intent],
-    settlement_fills: List,  # Fill objects (typed in src/core/settlement.py)
+    settlement: Settlement,
     pre_pools: Dict[str, PoolState],
     config: TauGateConfig = TauGateConfig(),
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate swap fills in a settlement using Tau specs (fail-closed).
 
-    Currently gates swap intent transitions via:
-    - preferred: `swap_exact_in_v4.tau` / `swap_exact_out_v4.tau` (includes sound k-guard under safe-range)
-    - fallback: `swap_exact_in_v1.tau` / `swap_exact_out_v1.tau` (structural only)
+    Profiles:
+    - `legacy_auto`:
+      preferred `swap_exact_in_v4.tau` / `swap_exact_out_v4.tau` under safe-range,
+      fallback to `swap_exact_in_v1.tau` / `swap_exact_out_v1.tau`
+    - `proof_gate_range_guard`:
+      use the smaller proof-gated swap specs plus the explicit
+      `swap_bv32_safe_range_guard_v1.tau` supplemental guard
+
+    Settlement profiles:
+    - `off`: no settlement-level Tau gate
+    - `aligned_price_rails_v1`: run the aligned canonical-order + price-history rail
+    - `aligned_compact_bundle_v5`: run the aligned compact bundle and require
+      explicit module flags in `config.settlement_module_flags`
     """
     if not config.enabled:
         return True, None
 
     try:
+        if config.swap_profile not in ("legacy_auto", "proof_gate_range_guard"):
+            return False, f"Unsupported Tau swap_profile: {config.swap_profile}"
+        if config.settlement_profile not in ("off", "aligned_price_rails_v1", "aligned_compact_bundle_v5"):
+            return False, f"Unsupported Tau settlement_profile: {config.settlement_profile}"
+
         intents_by_id = {i.intent_id: i for i in intents}
+        fill_by_id: Dict[str, Fill] = {f.intent_id: f for f in settlement.fills}
 
         pools_mut: Dict[str, PoolState] = {}
 
@@ -127,18 +192,16 @@ def validate_settlement_swaps(
             seg.intent_ids.append(intent_id)
 
         seen_filled_intent_ids: set[str] = set()
-        # Canonical fill iteration order: use the settlement fill list order.
+        # Canonical iteration order: use settlement.included_intents order (the semantic execution order).
         #
-        # This must match the settlement maker's execution order; otherwise a sequential
-        # gate can validate a different reserve path than the one assumed by the fills.
-        for fill in settlement_fills:
+        # NOTE: We only validate swap transitions, but we must still apply reserve-affecting
+        # non-swap fills (add/remove liquidity, create pool) to keep the reserve path correct
+        # for later swaps in the same pool.
+        for intent_id, action in settlement.included_intents:
             # Only validate filled intents; rejects are fine.
-            if getattr(fill, "action", None) is None or getattr(fill.action, "value", "") != "FILL":
+            if action != FillAction.FILL:
                 continue
 
-            intent_id = getattr(fill, "intent_id", None)
-            if not isinstance(intent_id, str) or not intent_id:
-                return False, "Invalid fill: missing intent_id"
             if intent_id in seen_filled_intent_ids:
                 return False, f"Duplicate filled intent_id in settlement: {intent_id}"
             seen_filled_intent_ids.add(intent_id)
@@ -146,6 +209,10 @@ def validate_settlement_swaps(
             intent = intents_by_id.get(intent_id)
             if intent is None:
                 return False, f"Unknown intent_id in fill list: {intent_id}"
+
+            fill = fill_by_id.get(intent_id)
+            if fill is None or fill.action != FillAction.FILL:
+                return False, f"Missing fill for filled intent_id: {intent_id}"
 
             if intent.kind == IntentKind.CREATE_POOL:
                 # Reconstruct pool state deterministically.
@@ -171,10 +238,6 @@ def validate_settlement_swaps(
                 pools_mut[pool_id] = pool_state
                 continue
 
-            # For now, if enabled, fail-closed on non-swap intents that might mutate pool reserves.
-            if intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
-                return False, f"Tau gate does not support intent kind {intent.kind} (intent {intent.intent_id})"
-
             pool_id = intent.get_field("pool_id")
             if not isinstance(pool_id, str) or not pool_id:
                 return False, f"Missing pool_id for intent {intent.intent_id}"
@@ -182,12 +245,43 @@ def validate_settlement_swaps(
             if pool is None:
                 return False, f"Pool not found for intent {intent.intent_id}: {pool_id}"
 
+            if intent.kind == IntentKind.ADD_LIQUIDITY:
+                amount0_used = getattr(fill, "amount0_used", None)
+                amount1_used = getattr(fill, "amount1_used", None)
+                if not isinstance(amount0_used, int) or isinstance(amount0_used, bool) or amount0_used <= 0:
+                    return False, f"Invalid amount0_used for intent {intent.intent_id}: {amount0_used!r}"
+                if not isinstance(amount1_used, int) or isinstance(amount1_used, bool) or amount1_used <= 0:
+                    return False, f"Invalid amount1_used for intent {intent.intent_id}: {amount1_used!r}"
+                pool.reserve0 = int(pool.reserve0) + int(amount0_used)
+                pool.reserve1 = int(pool.reserve1) + int(amount1_used)
+                pools_mut[pool_id] = pool
+                continue
+
+            if intent.kind == IntentKind.REMOVE_LIQUIDITY:
+                amount0_out = getattr(fill, "amount0_out", None)
+                amount1_out = getattr(fill, "amount1_out", None)
+                if not isinstance(amount0_out, int) or isinstance(amount0_out, bool) or amount0_out <= 0:
+                    return False, f"Invalid amount0_out for intent {intent.intent_id}: {amount0_out!r}"
+                if not isinstance(amount1_out, int) or isinstance(amount1_out, bool) or amount1_out <= 0:
+                    return False, f"Invalid amount1_out for intent {intent.intent_id}: {amount1_out!r}"
+                pool.reserve0 = int(pool.reserve0) - int(amount0_out)
+                pool.reserve1 = int(pool.reserve1) - int(amount1_out)
+                pools_mut[pool_id] = pool
+                continue
+
+            if intent.kind not in (IntentKind.SWAP_EXACT_IN, IntentKind.SWAP_EXACT_OUT):
+                return False, f"Tau gate does not support intent kind {intent.kind} (intent {intent.intent_id})"
+
             asset_in = intent.get_field("asset_in")
             asset_out = intent.get_field("asset_out")
             if asset_in not in (pool.asset0, pool.asset1) or asset_out not in (pool.asset0, pool.asset1):
                 return False, f"Swap assets not in pool for intent {intent.intent_id}"
             if asset_in == asset_out:
                 return False, f"Swap asset_in == asset_out for intent {intent.intent_id}"
+
+            if getattr(fill, "reason", None) == "COW_NETTED":
+                # Netting does not touch pool reserves; do not run swap specs.
+                continue
 
             amount_in = getattr(fill, "amount_in_filled", None)
             amount_out = getattr(fill, "amount_out_filled", None)
@@ -211,16 +305,11 @@ def validate_settlement_swaps(
                 new_reserve_in = reserve_in + amount_in
                 new_reserve_out = reserve_out - amount_out
 
-                # v4 is sound but intentionally bounded (safe-range guard <= 0xFFFF).
-                use_v4 = all(
-                    isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 0xFFFF
-                    for v in (reserve_in, reserve_out, amount_in, min_amount_out, amount_out, new_reserve_in, new_reserve_out)
-                )
-                _append_swap_segment(
-                    pool_id=pool_id,
-                    spec_ref=SWAP_EXACT_IN_V4 if use_v4 else SWAP_EXACT_IN_V1,
-                    step=(
-                        build_swap_exact_in_v4_step(
+                if config.swap_profile == "proof_gate_range_guard":
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_IN_PROOF_GATE_V1,
+                        step=build_swap_exact_in_proof_gate_v1_step(
                             reserve_in=reserve_in,
                             reserve_out=reserve_out,
                             amount_in=amount_in,
@@ -229,21 +318,56 @@ def validate_settlement_swaps(
                             amount_out=amount_out,
                             new_reserve_in=new_reserve_in,
                             new_reserve_out=new_reserve_out,
-                        )
-                        if use_v4
-                        else build_swap_exact_in_v1_step(
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_BV32_SAFE_RANGE_GUARD_V1,
+                        step=build_swap_bv32_safe_range_guard_v1_step(
                             reserve_in=reserve_in,
                             reserve_out=reserve_out,
-                            amount_in=amount_in,
-                            fee_bps=pool.fee_bps,
-                            min_amount_out=min_amount_out,
-                            amount_out=amount_out,
+                            delta_primary=amount_in,
+                            delta_secondary=amount_out,
                             new_reserve_in=new_reserve_in,
                             new_reserve_out=new_reserve_out,
-                        )
-                    ),
-                    intent_id=intent.intent_id,
-                )
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                else:
+                    # v4 is sound but intentionally bounded (safe-range guard <= 0xFFFF).
+                    use_v4 = all(
+                        isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 0xFFFF
+                        for v in (reserve_in, reserve_out, amount_in, min_amount_out, amount_out, new_reserve_in, new_reserve_out)
+                    )
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_IN_V4 if use_v4 else SWAP_EXACT_IN_V1,
+                        step=(
+                            build_swap_exact_in_v4_step(
+                                reserve_in=reserve_in,
+                                reserve_out=reserve_out,
+                                amount_in=amount_in,
+                                fee_bps=pool.fee_bps,
+                                min_amount_out=min_amount_out,
+                                amount_out=amount_out,
+                                new_reserve_in=new_reserve_in,
+                                new_reserve_out=new_reserve_out,
+                            )
+                            if use_v4
+                            else build_swap_exact_in_v1_step(
+                                reserve_in=reserve_in,
+                                reserve_out=reserve_out,
+                                amount_in=amount_in,
+                                fee_bps=pool.fee_bps,
+                                min_amount_out=min_amount_out,
+                                amount_out=amount_out,
+                                new_reserve_in=new_reserve_in,
+                                new_reserve_out=new_reserve_out,
+                            )
+                        ),
+                        intent_id=intent.intent_id,
+                    )
             else:
                 max_amount_in = intent.get_field("max_amount_in", 0)
                 if not isinstance(max_amount_in, int) or isinstance(max_amount_in, bool) or max_amount_in < 0:
@@ -251,15 +375,11 @@ def validate_settlement_swaps(
                 new_reserve_in = reserve_in + amount_in
                 new_reserve_out = reserve_out - amount_out
 
-                use_v4 = all(
-                    isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 0xFFFF
-                    for v in (reserve_in, reserve_out, amount_out, max_amount_in, amount_in, new_reserve_in, new_reserve_out)
-                )
-                _append_swap_segment(
-                    pool_id=pool_id,
-                    spec_ref=SWAP_EXACT_OUT_V4 if use_v4 else SWAP_EXACT_OUT_V1,
-                    step=(
-                        build_swap_exact_out_v4_step(
+                if config.swap_profile == "proof_gate_range_guard":
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_OUT_PROOF_GATE_V1,
+                        step=build_swap_exact_out_proof_gate_v1_step(
                             reserve_in=reserve_in,
                             reserve_out=reserve_out,
                             amount_out=amount_out,
@@ -268,21 +388,55 @@ def validate_settlement_swaps(
                             amount_in=amount_in,
                             new_reserve_in=new_reserve_in,
                             new_reserve_out=new_reserve_out,
-                        )
-                        if use_v4
-                        else build_swap_exact_out_v1_step(
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_BV32_SAFE_RANGE_GUARD_V1,
+                        step=build_swap_bv32_safe_range_guard_v1_step(
                             reserve_in=reserve_in,
                             reserve_out=reserve_out,
-                            amount_out=amount_out,
-                            fee_bps=pool.fee_bps,
-                            max_amount_in=max_amount_in,
-                            amount_in=amount_in,
+                            delta_primary=amount_out,
+                            delta_secondary=amount_in,
                             new_reserve_in=new_reserve_in,
                             new_reserve_out=new_reserve_out,
-                        )
-                    ),
-                    intent_id=intent.intent_id,
-                )
+                        ),
+                        intent_id=intent.intent_id,
+                    )
+                else:
+                    use_v4 = all(
+                        isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 0xFFFF
+                        for v in (reserve_in, reserve_out, amount_out, max_amount_in, amount_in, new_reserve_in, new_reserve_out)
+                    )
+                    _append_swap_segment(
+                        pool_id=pool_id,
+                        spec_ref=SWAP_EXACT_OUT_V4 if use_v4 else SWAP_EXACT_OUT_V1,
+                        step=(
+                            build_swap_exact_out_v4_step(
+                                reserve_in=reserve_in,
+                                reserve_out=reserve_out,
+                                amount_out=amount_out,
+                                fee_bps=pool.fee_bps,
+                                max_amount_in=max_amount_in,
+                                amount_in=amount_in,
+                                new_reserve_in=new_reserve_in,
+                                new_reserve_out=new_reserve_out,
+                            )
+                            if use_v4
+                            else build_swap_exact_out_v1_step(
+                                reserve_in=reserve_in,
+                                reserve_out=reserve_out,
+                                amount_out=amount_out,
+                                fee_bps=pool.fee_bps,
+                                max_amount_in=max_amount_in,
+                                amount_in=amount_in,
+                                new_reserve_in=new_reserve_in,
+                                new_reserve_out=new_reserve_out,
+                            )
+                        ),
+                        intent_id=intent.intent_id,
+                    )
 
             # Apply to pool snapshot for subsequent steps.
             if asset_in == pool.asset0:
@@ -293,8 +447,58 @@ def validate_settlement_swaps(
                 pool.reserve0 = pool.reserve0 - amount_out
             pools_mut[pool_id] = pool
 
-        # No swap steps => pass (do not require tau binary).
-        if not segments_in_order:
+        settlement_gate: Optional[Tuple[TauSpecRef, Dict[str, int], str]] = None
+        if config.settlement_profile != "off":
+            if config.settlement_price_history is None:
+                return False, f"Tau settlement_profile={config.settlement_profile} requires settlement_price_history=(price_pp, price_prev, price_curr)"
+            included_intent_ids = [intent_id for intent_id, _action in settlement.included_intents]
+            if len(included_intent_ids) != 4:
+                return False, f"Tau settlement_profile={config.settlement_profile} requires exactly 4 included intents, got {len(included_intent_ids)}"
+            a, b, c, d = (_intent_id_to_u64(intent_id) for intent_id in included_intent_ids)
+            price_pp, price_prev, price_curr = config.settlement_price_history
+            if config.settlement_profile == "aligned_price_rails_v1":
+                settlement_gate = (
+                    SETTLEMENT_PRICE_RAILS_ALIGNED_V1,
+                    build_settlement_price_rails_aligned_v1_step(
+                        a=a,
+                        b=b,
+                        c=c,
+                        d=d,
+                        price_pp=price_pp,
+                        price_prev=price_prev,
+                        price_curr=price_curr,
+                    ),
+                    "settlement",
+                )
+            else:
+                flags = config.settlement_module_flags
+                if flags is None:
+                    return False, "Tau settlement_profile=aligned_compact_bundle_v5 requires settlement_module_flags"
+                settlement_gate = (
+                    SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE,
+                    build_settlement_v5_aligned_compact_bundle_step(
+                        a=a,
+                        b=b,
+                        c=c,
+                        d=d,
+                        price_pp=price_pp,
+                        price_prev=price_prev,
+                        price_curr=price_curr,
+                        cpmm_ok=flags.cpmm_ok,
+                        balance_ok=flags.balance_ok,
+                        token_ok=flags.token_ok,
+                        buyback_floor_ok=flags.buyback_floor_ok,
+                        buyback_floor_fixedpoint_ok=flags.buyback_floor_fixedpoint_ok,
+                        rebate_ok=flags.rebate_ok,
+                        lock_weight_ok=flags.lock_weight_ok,
+                        proof_ok=flags.proof_ok,
+                        binding_ok=flags.binding_ok,
+                    ),
+                    "settlement",
+                )
+
+        # No Tau work => pass (do not require tau binary).
+        if not segments_in_order and settlement_gate is None:
             return True, None
 
         if config.tau_bin:
@@ -320,6 +524,18 @@ def validate_settlement_swaps(
                 timeout_s=config.timeout_s,
             )
             ok, err = _require_gate_ok(outputs, gate_output=seg.spec_ref.gate_output, intent_ids=seg.intent_ids)
+            if not ok:
+                return False, err
+
+        if settlement_gate is not None:
+            spec_ref, step, label = settlement_gate
+            outputs = run_tau_spec_steps(
+                tau_bin=tau_bin,
+                spec_path=spec_ref.path,
+                steps=[step],
+                timeout_s=config.timeout_s,
+            )
+            ok, err = _require_single_gate_ok(outputs, spec_ref=spec_ref, label=label)
             if not ok:
                 return False, err
 

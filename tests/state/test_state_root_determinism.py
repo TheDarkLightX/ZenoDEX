@@ -161,3 +161,86 @@ def test_state_root_rejects_fee_bps_above_10000() -> None:
     pool.fee_bps = 10_001
     with pytest.raises(ValueError):
         compute_state_root(balances=BalanceTable(), pools={pool_id: pool}, lp_balances=LPTable())
+
+
+def test_state_root_rejects_wrong_input_table_types() -> None:
+    with pytest.raises(TypeError, match="balances must be a BalanceTable"):
+        compute_state_root(balances={}, pools={}, lp_balances=LPTable())  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="lp_balances must be an LPTable"):
+        compute_state_root(balances=BalanceTable(), pools={}, lp_balances={})  # type: ignore[arg-type]
+
+
+def test_state_root_rejects_invalid_balance_and_lp_amounts() -> None:
+    pk = "0x" + "11" * 48
+    asset = "0x" + "01" * 32
+    pool_id = "0x" + "aa" * 32
+
+    balances = BalanceTable()
+    balances._balances[(pk, asset)] = True  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="invalid balance amount"):
+        compute_state_root(balances=balances, pools={}, lp_balances=LPTable())
+
+    lp = LPTable()
+    lp._balances[(pk, pool_id)] = True  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="invalid LP amount"):
+        compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
+
+
+def test_state_root_rejects_duplicate_decoded_lp_keys() -> None:
+    pk_lower = "0x" + "aa" * 48
+    pk_upper = "0x" + "AA" * 48
+    pool_id = "0x" + "11" * 32
+
+    lp = LPTable()
+    lp.set(pk_lower, pool_id, 1)
+    lp.set(pk_upper, pool_id, 2)
+
+    with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, pool_id\\)"):
+        compute_state_root(balances=BalanceTable(), pools={}, lp_balances=lp)
+
+
+def test_state_root_rejects_pool_id_mismatch_unknown_status_and_invalid_scalars() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+
+    mismatch = type(pool)(
+        pool_id="0x" + "ff" * 32,
+        asset0=pool.asset0,
+        asset1=pool.asset1,
+        reserve0=pool.reserve0,
+        reserve1=pool.reserve1,
+        fee_bps=pool.fee_bps,
+        lp_supply=pool.lp_supply,
+        status=pool.status,
+        created_at=pool.created_at,
+    )
+    with pytest.raises(ValueError, match="pool_id mismatch"):
+        compute_state_root(balances=BalanceTable(), pools={pool_id: mismatch}, lp_balances=LPTable())
+
+    pool.status = object()  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="unknown pool status"):
+        compute_state_root(balances=BalanceTable(), pools={pool_id: pool}, lp_balances=LPTable())
+
+    _pool_id2, bad_pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+    )
+    bad_pool.reserve0 = True  # type: ignore[assignment]
+    with pytest.raises(ValueError, match="invalid pool reserve0"):
+        compute_state_root(balances=BalanceTable(), pools={_pool_id2: bad_pool}, lp_balances=LPTable())

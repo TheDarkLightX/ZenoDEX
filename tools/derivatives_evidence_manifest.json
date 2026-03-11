@@ -1,0 +1,152 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the derivatives evidence lane. Update only alongside a successful run of tools/run_derivatives_evidence.sh and tools/check_derivatives_evidence_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/funding_rate_market_v1.yaml",
+      "sha256": "8e2869a4cd6e81b60479d02a3dad48a26d3be0adcf4dc9dc7c2737dae09f0065"
+    },
+    {
+      "path": "src/kernels/dex/funding_rate_market_v1_1.yaml",
+      "sha256": "ce9d2bd4776629b1efdf64fdf14f4dceff3c96fe0bba39a5047fcda4939e05a1"
+    },
+    {
+      "path": "src/kernels/dex/il_futures_market_v1.yaml",
+      "sha256": "6db5fbd8d1c7a830f8ecf3cb5705c092238c8af407ffacdebe0e285644baf1b8"
+    },
+    {
+      "path": "src/kernels/dex/curve_selection_market_v1.yaml",
+      "sha256": "25d7a5804719bd028c2d317b4b72b51c3a375f349bc76a26deec23a4d29364f9"
+    },
+    {
+      "path": "src/kernels/dex/volatility_tier_controller_v1.yaml",
+      "sha256": "3ccde42e046bb61b7a4aa238d21eb05c540209a006b54584cc8b4085e27661ed"
+    },
+    {
+      "path": "tests/core/test_derivatives_generated_refs.py",
+      "sha256": "643da67a7d8709f597469f47ecccb36575a5dafc1869353ffde1947c79c83ad5"
+    },
+    {
+      "path": "tests/core/test_funding_rate_market.py",
+      "sha256": "41fe0c8dc61476a3ef1988ca9556edc24cbb9ecb7f69b28d339421ca4322fb75"
+    },
+    {
+      "path": "tests/core/test_funding_rate_market_ref_parity.py",
+      "sha256": "f020d40b76846e22f4e95623489c86cdabb843aa1fa9498c6bc4c23e72df803f"
+    },
+    {
+      "path": "tests/core/test_il_futures.py",
+      "sha256": "fd7b6bd909eb16729e892d12602b500802a4097ba9bb6bd14100a232ef7d8316"
+    },
+    {
+      "path": "tests/core/test_curve_selection.py",
+      "sha256": "85290c2495e8f84d31209b8e73e16b04c47a90367a21e10c28f9abf729013022"
+    },
+    {
+      "path": "tests/core/test_volatility_tier.py",
+      "sha256": "f29a38f2c8028678849a37882cdcc4f6f076739d74f89fd59248c41d79aecae0"
+    },
+    {
+      "path": "tests/core/test_volatility_tier_ref_parity.py",
+      "sha256": "4487294056cb30b4c2e6d6bcde472ebcb1ddb74ef91de655b04013b2da5418d8"
+    }
+  ],
+  "verify_multi": [
+    {
+      "report_path": "internal/esso_verify/derivatives/funding_rate_market_v1/verification_report.json",
+      "model_id": "funding_rate_market_v1",
+      "ir_hash": "480d2b1ac1b090c9",
+      "solvers": [
+        "z3",
+        "cvc5"
+      ],
+      "solver_timeout_ms": 60000,
+      "passed_queries": 6,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/derivatives/funding_rate_market_v1_1/verification_report.json",
+      "model_id": "funding_rate_market_v1_1",
+      "ir_hash": "1d5fea50d2007ecd",
+      "solvers": [
+        "z3"
+      ],
+      "solver_timeout_ms": 60000,
+      "passed_queries": 6,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/derivatives/il_futures_market_v1/verification_report.json",
+      "model_id": "il_futures_market_v1",
+      "ir_hash": "b2cf19b7e72a7392",
+      "solvers": [
+        "z3",
+        "cvc5"
+      ],
+      "solver_timeout_ms": 60000,
+      "passed_queries": 8,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/derivatives/curve_selection_market_v1/verification_report.json",
+      "model_id": "curve_selection_market_v1",
+      "ir_hash": "be93044dc15dfdaf",
+      "solvers": [
+        "z3",
+        "cvc5"
+      ],
+      "solver_timeout_ms": 60000,
+      "passed_queries": 6,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/derivatives/volatility_tier_controller_v1/verification_report.json",
+      "model_id": "volatility_tier_controller_v1",
+      "ir_hash": "9aced0cf59c6c991",
+      "solvers": [
+        "z3",
+        "cvc5"
+      ],
+      "solver_timeout_ms": 60000,
+      "passed_queries": 3,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    }
+  ]
+}

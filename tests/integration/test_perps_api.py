@@ -9,6 +9,8 @@ import json
 
 import pytest
 
+import src.integration.perps_api as perps_api
+from src.core.domain_limits import PERP_PARAM_AMOUNT_MAX, PERP_POSITION_MAX
 from src.integration.perps_api import handle_perps_request, reset_demo_state
 
 
@@ -27,6 +29,10 @@ def _reset_state():
 def _post(path: str, body: dict) -> tuple[int, dict]:
     raw = json.dumps(body).encode("utf-8")
     return handle_perps_request("POST", path, raw)
+
+
+class _FakeMarket:
+    kind = "odd_kind"
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +151,16 @@ class TestGetPositions:
         assert status == 400
         assert body["ok"] is False
         assert body["error"] == "invalid_pubkey"
+
+    def test_positions_include_existing_account_state(self):
+        _post("/api/perps/collateral", {
+            "marketId": "BTC-USD", "pubkey": "alice", "action": "deposit", "amount": 1234,
+        })
+
+        status, body = handle_perps_request("GET", "/api/perps/positions/alice", None)
+
+        assert status == 200
+        assert body["positions"]["BTC-USD"]["collateralQuote"] == 1234
 
 
 # ---------------------------------------------------------------------------
@@ -426,6 +442,316 @@ class TestRouting:
         assert status == 500
         assert body["ok"] is False
         assert body["error"] == "internal_error"
+
+
+class TestDirectPerpsApiHelpers:
+    def test_history_with_entry_trims_to_max_history(self):
+        history = [{"i": i} for i in range(perps_api._MAX_HISTORY)]
+
+        new_history = perps_api._history_with_entry(
+            history,
+            "BTC-USD",
+            "alice",
+            "deposit",
+            {"amount": 1},
+        )
+
+        assert len(new_history) == perps_api._MAX_HISTORY
+        assert new_history[0]["i"] == 1
+        assert new_history[-1]["action"] == "deposit"
+
+    def test_epoch_phase_to_str_and_canonical_helpers(self):
+        hex_pubkey = "0x" + ("AB" * 48)
+
+        assert perps_api._epoch_phase_to_str(perps_api.EpochPhase.OPEN) == "Open"
+        assert perps_api._epoch_phase_to_str("PricePublished") == "PricePublished"
+        assert perps_api._epoch_phase_to_str(2) == "Settled"
+        assert perps_api._canonical_pubkey(hex_pubkey) == ("ab" * 48)
+        assert perps_api._canonical_pubkey("Alice") == "alice"
+        assert perps_api._canonical_market_id("BTC-USD") == "BTC-USD"
+
+        with pytest.raises(ValueError):
+            perps_api._epoch_phase_to_str(True)
+        with pytest.raises(ValueError):
+            perps_api._epoch_phase_to_str(9)
+        with pytest.raises(ValueError):
+            perps_api._canonical_pubkey("")
+        with pytest.raises(ValueError):
+            perps_api._canonical_market_id("bad id")
+
+    def test_market_summary_parse_json_and_kernel_state_helper_branches(self):
+        clearinghouse = object.__new__(perps_api.PerpClearinghouse2pMarketState)
+        object.__setattr__(clearinghouse, "kind", "clearinghouse_2p_v1")
+        object.__setattr__(
+            clearinghouse,
+            "state",
+            {"index_price_e8": 123, "now_epoch": 7, "breaker_active": True},
+        )
+
+        summary = perps_api._market_summary("CH-USD", clearinghouse)
+        assert summary["kind"] == "clearinghouse_2p_v1"
+        assert summary["indexPriceE8"] == 123
+
+        fallback = perps_api._market_summary("ODD", _FakeMarket())
+        assert fallback == {"id": "ODD", "kind": "odd_kind"}
+
+        parsed, err = perps_api._parse_json_body(b"[]")
+        assert parsed is None
+        assert err == "expected_object"
+
+        parsed, err = perps_api._parse_json_body(b"x" * (perps_api.MAX_POST_BODY + 1))
+        assert parsed is None
+        assert err == "body_too_large"
+
+        class _KernelStateWithoutPhase:
+            def kernel_state_for_account(self, account):
+                return {"position_base": account.position_base}
+
+        kernel_state = perps_api._kernel_state_for_account(
+            _KernelStateWithoutPhase(),
+            perps_api._default_account(),
+        )
+        assert kernel_state.epoch_phase == perps_api.EpochPhase.OPEN
+
+    def test_get_oracle_sync_snapshot_fail_closed_and_success(self):
+        assert perps_api.get_oracle_sync_snapshot("") is None
+        assert perps_api.get_oracle_sync_snapshot("DOGE-USD") is None
+
+        perps_api._demo_perps.markets["ODD"] = _FakeMarket()
+        assert perps_api.get_oracle_sync_snapshot("ODD") is None
+
+        btc = perps_api._demo_perps.markets["BTC-USD"]
+        assert perps_api.get_oracle_sync_snapshot("BTC-USD") is not None
+
+        btc.global_state["oracle_seen"] = False
+        assert perps_api.get_oracle_sync_snapshot("BTC-USD") is None
+
+        btc.global_state["oracle_seen"] = True
+        btc.global_state["index_price_e8"] = 0
+        assert perps_api.get_oracle_sync_snapshot("BTC-USD") is None
+
+
+class TestDirectPerpsApiHandlers:
+    def test_get_market_position_positions_and_history_direct_paths(self):
+        perps = perps_api._make_demo_perps()
+        perps.markets["ODD"] = _FakeMarket()
+
+        status, body = perps_api._handle_get_market(perps, "bad id")
+        assert status == 404
+        assert body["error"] == "market_not_found"
+
+        status, body = perps_api._handle_get_market(perps, "ODD")
+        assert status == 200
+        assert body["market"]["kind"] == "odd_kind"
+
+        status, body = perps_api._handle_get_position(perps, "BTC-USD", "bad key")
+        assert status == 400
+        assert body["error"] == "invalid_pubkey"
+
+        status, body = perps_api._handle_get_position(perps, "bad id", "alice")
+        assert status == 404
+        assert body["error"] == "market_not_found"
+
+        status, body = perps_api._handle_get_position(perps, "ODD", "alice")
+        assert status == 400
+        assert body["error"] == "unsupported_market_kind"
+
+        status, body = perps_api._handle_get_positions(perps, "alice")
+        assert status == 200
+        assert "ODD" not in body["positions"]
+
+        status, body = perps_api._handle_history([], "bad key")
+        assert status == 400
+        assert body["error"] == "invalid_pubkey"
+
+    def test_handle_collateral_direct_validation_and_capacity_paths(self):
+        perps = perps_api._make_demo_perps()
+        history: list[dict] = []
+
+        _, _, response = perps_api._handle_collateral(perps, history, {
+            "marketId": "BTC-USD",
+            "action": "deposit",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "missing_pubkey"})
+
+        _, _, response = perps_api._handle_collateral(perps, history, {
+            "marketId": "bad id",
+            "pubkey": "alice",
+            "action": "deposit",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_marketId"})
+
+        _, _, response = perps_api._handle_collateral(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "alice",
+            "action": "deposit",
+            "amount": True,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_amount"})
+
+        _, _, response = perps_api._handle_collateral(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "alice",
+            "action": "deposit",
+            "amount": int(PERP_PARAM_AMOUNT_MAX) + 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_amount"})
+
+        _, _, response = perps_api._handle_collateral(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "bad key",
+            "action": "deposit",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_pubkey"})
+
+        perps.markets["ODD"] = _FakeMarket()
+        _, _, response = perps_api._handle_collateral(perps, history, {
+            "marketId": "ODD",
+            "pubkey": "alice",
+            "action": "deposit",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "unsupported_market_kind"})
+
+        full_market = perps.markets["BTC-USD"]
+        full_market.accounts.clear()
+        full_market.accounts.update(
+            {f"user{i}": perps_api._default_account() for i in range(perps_api.MAX_DEMO_ACCOUNTS_PER_MARKET)}
+        )
+        _, _, response = perps_api._handle_collateral(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "newbie",
+            "action": "deposit",
+            "amount": 1,
+        })
+        assert response == (429, {"ok": False, "error": "too_many_accounts"})
+
+    def test_handle_set_position_and_insurance_direct_validation_paths(self):
+        perps = perps_api._make_demo_perps()
+        history: list[dict] = []
+
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "pubkey": "alice",
+            "newPositionBase": 1,
+        })
+        assert response == (400, {"ok": False, "error": "missing_marketId"})
+
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "marketId": "bad id",
+            "pubkey": "alice",
+            "newPositionBase": 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_marketId"})
+
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "bad key",
+            "newPositionBase": 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_pubkey"})
+
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "alice",
+            "newPositionBase": True,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_newPositionBase"})
+
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "alice",
+            "newPositionBase": int(PERP_POSITION_MAX) + 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_newPositionBase"})
+
+        perps.markets["BTC-USD"].global_state["max_position_abs"] = 10
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "alice",
+            "newPositionBase": 11,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_newPositionBase"})
+
+        perps.markets["ODD"] = _FakeMarket()
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "marketId": "ODD",
+            "pubkey": "alice",
+            "newPositionBase": 1,
+        })
+        assert response == (400, {"ok": False, "error": "unsupported_market_kind"})
+
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "marketId": "DOGE-USD",
+            "pubkey": "alice",
+            "newPositionBase": 1,
+        })
+        assert response == (404, {"ok": False, "error": "market_not_found"})
+
+        full_market = perps.markets["ETH-USD"]
+        full_market.accounts.clear()
+        full_market.accounts.update(
+            {f"user{i}": perps_api._default_account() for i in range(perps_api.MAX_DEMO_ACCOUNTS_PER_MARKET)}
+        )
+        _, _, response = perps_api._handle_set_position(perps, history, {
+            "marketId": "ETH-USD",
+            "pubkey": "newbie",
+            "newPositionBase": 0,
+        })
+        assert response == (429, {"ok": False, "error": "too_many_accounts"})
+
+        _, _, response = perps_api._handle_insurance(perps, history, {
+            "pubkey": "alice",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "missing_marketId"})
+
+        _, _, response = perps_api._handle_insurance(perps, history, {
+            "marketId": "bad id",
+            "pubkey": "alice",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_marketId"})
+
+        _, _, response = perps_api._handle_insurance(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "bad key",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_pubkey"})
+
+        _, _, response = perps_api._handle_insurance(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "alice",
+            "amount": int(PERP_PARAM_AMOUNT_MAX) + 1,
+        })
+        assert response == (400, {"ok": False, "error": "invalid_amount"})
+
+        _, _, response = perps_api._handle_insurance(perps, history, {
+            "marketId": "ODD",
+            "pubkey": "alice",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "unsupported_market_kind"})
+
+    def test_handle_insurance_reports_guard_rejection(self, monkeypatch):
+        perps = perps_api._make_demo_perps()
+        history: list[dict] = []
+
+        class _Rejected:
+            accepted = False
+            rejection = "guard"
+
+        monkeypatch.setattr(perps_api, "step", lambda *_args, **_kwargs: _Rejected())
+
+        _, _, response = perps_api._handle_insurance(perps, history, {
+            "marketId": "BTC-USD",
+            "pubkey": "alice",
+            "amount": 1,
+        })
+        assert response == (400, {"ok": False, "error": "guard_rejected", "detail": "guard"})
 
 
 # ---------------------------------------------------------------------------

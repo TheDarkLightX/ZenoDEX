@@ -20,7 +20,7 @@
 # i2 = winner_index (bv[32])
 # i3 = cand_key (bv[64])
 # i4 = cand_index (bv[32])
-# i5 = binding_ok (sbf)
+# i5 = binding_ok (sbf)           # host asserts key binding/scoring correctness
 # o1 = argmax_cert_ok
 
 set charvar off
@@ -28,3 +28,4 @@ set charvar off
 ge_pair(wk : bv[64], wi : bv[32], ck : bv[64], ci : bv[32]) := (wk > ck) || ((wk = ck) && (wi <= ci)).
 
 always (o1[t]:sbf = 1:sbf <-> ((i5[t]:sbf = 1:sbf) && ge_pair(i1[t]:bv[64], i2[t]:bv[32], i3[t]:bv[64], i4[t]:bv[32]))).
+

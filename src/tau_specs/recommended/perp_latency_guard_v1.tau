@@ -1,0 +1,48 @@
+# Perp Latency Guard v1
+#
+# PURPOSE:
+# Bound sequencer/oracle latency and their skew before accepting sensitive
+# operations.
+#
+# i1 = sequencer_latency_ms (bv[32])
+# i2 = oracle_latency_ms (bv[32])
+# i3 = max_sequencer_latency_ms (bv[32])
+# i4 = max_oracle_latency_ms (bv[32])
+# i5 = max_latency_skew_ms (bv[32])
+# i6 = proof_ok (sbf)
+# i7 = binding_ok (sbf)
+#
+# o1 = sequencer_latency_ok
+# o2 = oracle_latency_ok
+# o3 = latency_skew_ok
+# o4 = latency_safe
+# o5 = proof_gated_latency_safe
+
+set charvar off
+
+sequencer_latency_ok(sequencer_latency_ms : bv[32], max_sequencer_latency_ms : bv[32]) :=
+  sequencer_latency_ms <= max_sequencer_latency_ms.
+
+oracle_latency_ok(oracle_latency_ms : bv[32], max_oracle_latency_ms : bv[32]) :=
+  oracle_latency_ms <= max_oracle_latency_ms.
+
+latency_skew_ok(sequencer_latency_ms : bv[32], oracle_latency_ms : bv[32], max_latency_skew_ms : bv[32]) :=
+  ((sequencer_latency_ms >= oracle_latency_ms) && ((sequencer_latency_ms - oracle_latency_ms) <= max_latency_skew_ms)) ||
+  ((oracle_latency_ms > sequencer_latency_ms) && ((oracle_latency_ms - sequencer_latency_ms) <= max_latency_skew_ms)).
+
+latency_safe(sequencer_latency_ms : bv[32], oracle_latency_ms : bv[32], max_sequencer_latency_ms : bv[32], max_oracle_latency_ms : bv[32], max_latency_skew_ms : bv[32]) :=
+  sequencer_latency_ok(sequencer_latency_ms, max_sequencer_latency_ms) &&
+  oracle_latency_ok(oracle_latency_ms, max_oracle_latency_ms) &&
+  latency_skew_ok(sequencer_latency_ms, oracle_latency_ms, max_latency_skew_ms).
+
+proof_gated_latency_safe(sequencer_latency_ms : bv[32], oracle_latency_ms : bv[32], max_sequencer_latency_ms : bv[32], max_oracle_latency_ms : bv[32], max_latency_skew_ms : bv[32], proof_ok : sbf, binding_ok : sbf) :=
+  latency_safe(sequencer_latency_ms, oracle_latency_ms, max_sequencer_latency_ms, max_oracle_latency_ms, max_latency_skew_ms) &&
+  (proof_ok = 1:sbf) &&
+  (binding_ok = 1:sbf).
+
+always
+  (o1[t]:sbf = 1:sbf <-> sequencer_latency_ok(i1[t]:bv[32], i3[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> oracle_latency_ok(i2[t]:bv[32], i4[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> latency_skew_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> latency_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  (o5[t]:sbf = 1:sbf <-> proof_gated_latency_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32], i6[t]:sbf, i7[t]:sbf)).

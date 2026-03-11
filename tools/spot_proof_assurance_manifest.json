@@ -1,0 +1,163 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the spot proof lane. Update only alongside a successful run of tools/run_spot_proof_assurance_gate.sh and tools/check_spot_proof_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "lean-mathlib/Proofs/ZenoDEXNonces.lean",
+      "sha256": "f3aa1fe5d92d1bc0bd362b2ac74a3122c8970ca55504df7578047d0b92993483"
+    },
+    {
+      "path": "lean-mathlib/Proofs/FeeCeilDecomposition.lean",
+      "sha256": "2617fbd534824cc8bb510315de6fdadc27e1a16d797014c50d5fcf2433262f06"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CpmmSwapV8ExactOutMinimality.lean",
+      "sha256": "d1e5a9a5f9d849f9573702718fc3e2dd9bb4d1583615307fe045af193b254b2f"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CPMMSettlement.lean",
+      "sha256": "f4dad66dc80c195b2853073f8935f70d67ca7b7703a37f68a2c13186bf7fbc49"
+    },
+    {
+      "path": "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+      "sha256": "c9dee8240ae79f0286d0f3f75fee1f7b488a6f7a4dcf6da667deb3e064f5b19e"
+    },
+    {
+      "path": "lean-mathlib/Proofs/CPMMInvariants.lean",
+      "sha256": "bfde93ef753e66726f66baf25d74a4a31e4e57c03c9e11db04cfb1ba19cffa88"
+    },
+    {
+      "path": "lean-mathlib/Proofs/SettlementAlgebra.lean",
+      "sha256": "994e2ce3096917dcc9dbabd89a06691f97965a10d0ce6e2f907dd89ba5793ea8"
+    },
+    {
+      "path": "src/kernels/dex/settlement_swap_apply_witness_v1.yaml",
+      "sha256": "4641b77b8a5374aecc0ae28d3c08eb5427d7c04320f85dc675237b547819e2cd"
+    },
+    {
+      "path": "src/kernels/dex/settlement_swap_exact_out_apply_witness_v1.yaml",
+      "sha256": "ba70dead95466fb659114bcac48aecea0773d84ddaeeaa5e43c9bb01484ba5ed"
+    },
+    {
+      "path": "src/kernels/python/settlement_swap_apply_witness_v1_native_adapter.py",
+      "sha256": "300cf9628ba8a3cc0b90dd4b14e5dc8556c37c5bcc6ac0ab9e94cee4b4667f05"
+    },
+    {
+      "path": "src/kernels/python/settlement_swap_exact_out_apply_witness_v1_native_adapter.py",
+      "sha256": "ec991d316d2ad6cad453406702794d76a5b9588715c828b0280504db256cc627"
+    }
+  ],
+  "verify_multi": [
+    {
+      "report_path": "internal/esso_verify/settlement_swap_apply_witness_v1/verification_report.json",
+      "model_id": "settlement_swap_apply_witness_v1",
+      "ir_hash": "88422cf011d1e69f",
+      "scope_kind": "inductive",
+      "k": 1,
+      "solver_timeout_ms": 60000,
+      "passed_queries": 2,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_swap_exact_out_apply_witness_v1/verification_report.json",
+      "model_id": "settlement_swap_exact_out_apply_witness_v1",
+      "ir_hash": "096d1cf6d275410f",
+      "scope_kind": "inductive",
+      "k": 1,
+      "solver_timeout_ms": 60000,
+      "passed_queries": 2,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    }
+  ],
+  "shell_lint": [
+    {
+      "report_path": "internal/esso_verify/settlement_swap_apply_witness_v1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.settlement_swap_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:88422cf011d1e69fab4767dce0d18cfa2799439fe1d8ee428619903ef736194a",
+      "actions": [
+        "swap_exact_in_apply"
+      ],
+      "effects": [
+        "amount_out",
+        "fee_paid",
+        "k_after",
+        "k_before",
+        "net_in",
+        "slippage_ok",
+        "witness_ok"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_swap_exact_out_apply_witness_v1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.settlement_swap_exact_out_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:096d1cf6d275410f3548e3dee6056ab6dce392a0ce0e532409689b0dd0b4900e",
+      "actions": [
+        "swap_exact_out_apply"
+      ],
+      "effects": [
+        "amount_in",
+        "amount_out",
+        "amount_out_quote",
+        "fee_paid",
+        "gap_bps",
+        "k_after",
+        "k_before",
+        "net_in_actual",
+        "overdelivery_gap",
+        "slippage_ok",
+        "witness_ok"
+      ]
+    }
+  ],
+  "verify_shell": [
+    {
+      "report_path": "internal/esso_verify/settlement_swap_apply_witness_v1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/settlement_swap_apply_witness_v1.yaml",
+      "adapter_spec": "src.kernels.python.settlement_swap_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:88422cf011d1e69fab4767dce0d18cfa2799439fe1d8ee428619903ef736194a",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:2c6b6659ff48ad5664eab073ccbe4f422a5a407ebf195e9a24fc7c134cd26fb1"
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_swap_exact_out_apply_witness_v1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/settlement_swap_exact_out_apply_witness_v1.yaml",
+      "adapter_spec": "src.kernels.python.settlement_swap_exact_out_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:096d1cf6d275410f3548e3dee6056ab6dce392a0ce0e532409689b0dd0b4900e",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:d8a199a346d289df6f1039ec2e546d8911b54951961569e7d1d07e09e84c863c"
+    }
+  ],
+  "adapter_regression_tests": [
+    "tests/kernels/test_settlement_witness_native_adapter_edges.py",
+    "tests/kernels/test_settlement_swap_apply_witness_v1_ml_bva_cases.py",
+    "tests/kernels/test_settlement_swap_exact_out_apply_witness_v1_ml_bva_cases.py"
+  ]
+}

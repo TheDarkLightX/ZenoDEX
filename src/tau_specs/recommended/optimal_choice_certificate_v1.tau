@@ -1,0 +1,51 @@
+# Optimal Choice Certificate v1 - Canonical Argmin Proof (DEX)
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS:
+#   - (winner_key, winner_index) is the minimum among candidate pairs under
+#     lexicographic order on (key, index)
+#   - tie-break: winner_index is the *smallest* index attaining the minimum key
+#
+# PURPOSE: Verify (in Tau) a bounded certificate that a host-computed choice is
+# canonical under a total order key. This is intended for deterministic agents:
+# - route selection (among a small candidate set)
+# - batch ordering (among a small set)
+# - parameter choice / discrete optimizers
+#
+# This spec checks two things:
+# 1) Binding: winner_key matches the candidate key at winner_index.
+# 2) Minimality: (winner_key, winner_index) <= (cand_i_key, i) for i in {0,1,2,3}.
+#
+# Stream mapping:
+# i1 = winner_index (bv[32])     # must be 0..3
+# i2 = winner_key (bv[64])
+# i3 = cand0_key (bv[64])
+# i4 = cand1_key (bv[64])
+# i5 = cand2_key (bv[64])
+# i6 = cand3_key (bv[64])
+# i7 = binding_ok (sbf)         # host asserts external scoring/context correctness
+# o1 = cert_ok
+#
+# NOTE: Keep definitions on a single line. The local Tau REPL harness inlines
+# helper definitions by pattern matching single-line `name(..) := <expr>.`.
+
+set charvar off
+
+idx0() := { #x00000000 }:bv[32].
+idx1() := { #x00000001 }:bv[32].
+idx2() := { #x00000002 }:bv[32].
+idx3() := { #x00000003 }:bv[32].
+
+le_pair(wk : bv[64], wi : bv[32], ck : bv[64], ci : bv[32]) := (wk < ck) || ((wk = ck) && (wi <= ci)).
+
+idx_range_ok(wi : bv[32]) := (wi = idx0()) || (wi = idx1()) || (wi = idx2()) || (wi = idx3()).
+
+binding_key_ok(wi : bv[32], wk : bv[64], c0 : bv[64], c1 : bv[64], c2 : bv[64], c3 : bv[64]) := ((wi = idx0()) -> (wk = c0)) && ((wi = idx1()) -> (wk = c1)) && ((wi = idx2()) -> (wk = c2)) && ((wi = idx3()) -> (wk = c3)).
+
+minimal_ok(wi : bv[32], wk : bv[64], c0 : bv[64], c1 : bv[64], c2 : bv[64], c3 : bv[64]) := le_pair(wk, wi, c0, idx0()) && le_pair(wk, wi, c1, idx1()) && le_pair(wk, wi, c2, idx2()) && le_pair(wk, wi, c3, idx3()).
+
+cert_ok(wi : bv[32], wk : bv[64], c0 : bv[64], c1 : bv[64], c2 : bv[64], c3 : bv[64]) := idx_range_ok(wi) && binding_key_ok(wi, wk, c0, c1, c2, c3) && minimal_ok(wi, wk, c0, c1, c2, c3).
+
+always (o1[t]:sbf = 1:sbf <-> ((i7[t]:sbf = 1:sbf) && cert_ok(i1[t]:bv[32], i2[t]:bv[64], i3[t]:bv[64], i4[t]:bv[64], i5[t]:bv[64], i6[t]:bv[64]))).
+

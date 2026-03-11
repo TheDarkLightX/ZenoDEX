@@ -1,0 +1,37 @@
+# Swap Fee Total Ceil v1 - Deterministic Fee Rounding (DEX)
+#
+# MUTABILITY: IMMUTABLE
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS: fee_total matches ceil(gross_in * fee_bps / 10_000) (no-wrap)
+#
+# PURPOSE: Validate externally computed swap fee_total under the protocol's
+# deterministic rounding rule (ceil). This is consensus-critical for swap math.
+#
+# Safe math:
+# - Tau bitvectors are modular; we restrict gross_in to a range where:
+#     gross_in * 10_000 + 9_999 does not overflow bv[64]
+#   (fee_bps <= 10_000 by construction).
+#
+# Stream mapping:
+# i1 = gross_in (bv[64])
+# i2 = fee_bps (bv[64])        # 0..10_000
+# i3 = fee_total (bv[64])      # claimed fee
+# o1 = fee_total_ok
+#
+# @rule o1: fee_total*10_000 in [gross_in*fee_bps, gross_in*fee_bps + 9_999] with safe bounds.
+
+set charvar off
+
+# floor((2^64-1 - 9_999) / 10_000)
+max_safe_64() := { #x00068DB8BAC710CA }:bv[64].
+
+rate_ok(rate : bv[64]) := rate <= { #x0000000000002710 }:bv[64].
+safe_ok(gross : bv[64]) := gross <= max_safe_64().
+
+fee_bounds_ok(gross : bv[64], rate : bv[64], fee : bv[64]) := (fee * { #x0000000000002710 }:bv[64] >= (gross * rate)) && (fee * { #x0000000000002710 }:bv[64] <= (gross * rate) + { #x000000000000270F }:bv[64]).
+
+# NOTE: We must also bound `fee` so `fee*10_000` cannot wrap modulo 2^64 and
+# spuriously satisfy the inequalities (Tau bitvectors are modular).
+fee_total_ok(gross : bv[64], rate : bv[64], fee : bv[64]) := rate_ok(rate) && safe_ok(gross) && safe_ok(fee) && fee_bounds_ok(gross, rate, fee).
+
+always (o1[t]:sbf = 1:sbf <-> fee_total_ok(i1[t]:bv[64], i2[t]:bv[64], i3[t]:bv[64])).

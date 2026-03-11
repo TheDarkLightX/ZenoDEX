@@ -2,13 +2,16 @@
 
 from src.core.perp_v2.math import (
     PRICE_SCALE,
+    _is_partial_fraction_sufficient,
     abs_val,
+    compute_partial_close_fraction,
     funding_payment,
     funding_same_sign,
     init_margin_req,
     is_liquidatable,
     is_oracle_fresh,
     is_settle_oracle_usable,
+    liquidation_price_e8,
     liq_penalty,
     liq_penalty_capped,
     maint_margin_req,
@@ -18,6 +21,8 @@ from src.core.perp_v2.math import (
     pnl_magnitude,
     pnl_quote,
     pnl_same_sign,
+    partial_liq_penalty,
+    remaining_position_signed,
     settle_price,
 )
 
@@ -236,6 +241,47 @@ class TestLiqPenaltyCapped:
     def test_not_capped(self):
         capped = liq_penalty_capped(1000, 100_000, 100_000_000, 50, 100)
         assert capped == 500  # collateral = 1000 > raw penalty = 500
+
+
+class TestPartialLiquidationHelpers:
+    def test_remaining_position_signed_keeps_position_for_nonpositive_fraction(self):
+        assert remaining_position_signed(123, 0) == 123
+        assert remaining_position_signed(-123, -1) == -123
+
+    def test_partial_liq_penalty_zero_when_fraction_closes_nothing(self):
+        assert partial_liq_penalty(1, 1, 100_000_000, 500, 0) == 0
+
+    def test_full_close_fraction_is_always_sufficient(self):
+        assert _is_partial_fraction_sufficient(
+            100,
+            5,
+            10_000,
+            100_000_000,
+            500,
+            100,
+            50,
+            0,
+        ) is True
+
+    def test_compute_partial_close_fraction_returns_zero_for_flat_position(self):
+        assert compute_partial_close_fraction(0, 100, 100_000_000, 500, 100, 50, 0) == 0
+
+    def test_compute_partial_close_fraction_returns_zero_when_not_liquidatable(self):
+        assert compute_partial_close_fraction(100, 100, 100_000_000, 500, 100, 50, 0) == 0
+
+
+class TestLiquidationPriceEstimate:
+    def test_flat_position_has_no_liquidation_price(self):
+        assert liquidation_price_e8(0, 100, 100_000_000, 500, 100) is None
+
+    def test_zero_effective_maintenance_has_no_estimate(self):
+        assert liquidation_price_e8(100, 100, 100_000_000, 0, 0) is None
+
+    def test_nonpositive_result_has_no_estimate(self):
+        assert liquidation_price_e8(100, 0, 100_000_000, 500, 100) is None
+
+    def test_positive_liquidation_price_estimate(self):
+        assert liquidation_price_e8(100, 60, 100_000_000, 500, 100) == 1_000_000_000
 
 
 class TestIsLiquidatable:
