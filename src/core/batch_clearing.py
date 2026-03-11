@@ -30,25 +30,26 @@ Algorithm Design:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import itertools
-from typing import Any, List, Dict, Tuple, Optional
 from collections import defaultdict
+from dataclasses import dataclass, replace
+from typing import Any, Dict, List, Optional, Tuple
 
+from ..state.balances import Amount, AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
-from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
-from ..state.balances import BalanceTable, PubKey, AssetId, Amount
 from ..state.lp import LPTable
+from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .cpmm import MIN_LP_LOCK, compute_fee_total
-from .liquidity import create_pool, add_liquidity, remove_liquidity
+from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
+from .liquidity import add_liquidity, create_pool, remove_liquidity
 from .settlement import (
-    Settlement,
+    BalanceDelta,
     Fill,
     FillAction,
-    BalanceDelta,
-    ReserveDelta,
     LPDelta,
+    ReserveDelta,
+    Settlement,
 )
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
@@ -253,6 +254,39 @@ def _copy_lp_table(lp_balances: LPTable) -> LPTable:
     return copied
 
 
+def _parse_create_pool_event_payload(
+    event: dict[str, Any],
+) -> tuple[str, str, str, int, str, str, PoolStatus, int]:
+    pool_id = event.get("pool_id")
+    asset0 = event.get("asset0")
+    asset1 = event.get("asset1")
+    fee_bps = event.get("fee_bps")
+    curve_tag = event.get("curve_tag", CURVE_TAG_CPMM)
+    curve_params = event.get("curve_params", "")
+    status_str = event.get("status", PoolStatus.ACTIVE.value)
+    created_at = event.get("created_at", 0)
+
+    if not isinstance(pool_id, str) or not pool_id:
+        raise ValueError("Invalid CREATE_POOL event: missing pool_id")
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        raise ValueError(f"Invalid CREATE_POOL assets for pool: {pool_id}")
+    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
+        raise ValueError(f"Invalid CREATE_POOL fee_bps for pool: {pool_id}")
+    if not isinstance(curve_tag, str) or not curve_tag:
+        raise ValueError(f"Invalid CREATE_POOL curve_tag for pool: {pool_id}")
+    if not isinstance(curve_params, str):
+        raise ValueError(f"Invalid CREATE_POOL curve_params for pool: {pool_id}")
+    if not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0:
+        raise ValueError(f"Invalid CREATE_POOL created_at for pool: {pool_id}")
+
+    try:
+        status = PoolStatus(str(status_str))
+    except ValueError as exc:
+        raise ValueError(f"Invalid CREATE_POOL status for pool: {pool_id}") from exc
+
+    return pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at
+
+
 def _aggregate_balance_deltas_chunked(
     deltas: List[BalanceDelta], *, chunk_size: int
 ) -> List[BalanceDelta]:
@@ -354,6 +388,42 @@ def _try_create_pool(
             "missing params",
         )
 
+    if not isinstance(asset0, str) or not isinstance(asset1, str):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "asset ids must be strings",
+        )
+    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "fee_bps out of domain",
+        )
+    if not is_strict_int(amount0) or not (1 <= amount0 <= DEX_LP_AMOUNT_MAX):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "amount0 out of domain",
+        )
+    if not is_strict_int(amount1) or not (1 <= amount1 <= DEX_LP_AMOUNT_MAX):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "amount1 out of domain",
+        )
+    if created_at is not None and (not is_strict_int(created_at) or created_at < 0):
+        return (
+            Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
+            None,
+            None,
+            "created_at out of domain",
+        )
+
     if balances.get(sender, asset0) < amount0 or balances.get(sender, asset1) < amount1:
         return (
             Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INSUFFICIENT_BALANCE"),
@@ -361,6 +431,8 @@ def _try_create_pool(
             None,
             "insufficient balance",
         )
+
+    created_at_value = 0 if created_at is None else created_at
 
     try:
         pool_id, pool_state, lp_minted = create_pool(
@@ -370,7 +442,7 @@ def _try_create_pool(
             amount1=amount1,
             fee_bps=fee_bps,
             creator_pubkey=sender,
-            created_at=created_at,
+            created_at=created_at_value,
             curve_tag=curve_tag,
             curve_params=curve_params,
         )
@@ -1260,7 +1332,6 @@ def _process_liquidity_intent(
 ) -> Fill:
     """Process a single liquidity intent against the provided pool snapshot."""
     sender = intent.sender_pubkey
-    is_int = lambda x: isinstance(x, int) and not isinstance(x, bool)
 
     try:
         if intent.kind == IntentKind.ADD_LIQUIDITY:
@@ -1271,13 +1342,13 @@ def _process_liquidity_intent(
 
             if any(v is None for v in (amount0_desired, amount1_desired)):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="MISSING_PARAMS")
-            if not (is_int(amount0_desired) and amount0_desired > 0):
+            if not (is_strict_int(amount0_desired) and amount0_desired > 0):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
-            if not (is_int(amount1_desired) and amount1_desired > 0):
+            if not (is_strict_int(amount1_desired) and amount1_desired > 0):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
-            if not (is_int(amount0_min) and amount0_min >= 0):
+            if not (is_strict_int(amount0_min) and amount0_min >= 0):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
-            if not (is_int(amount1_min) and amount1_min >= 0):
+            if not (is_strict_int(amount1_min) and amount1_min >= 0):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
 
             amount0_used, amount1_used, lp_minted = add_liquidity(
@@ -1309,11 +1380,11 @@ def _process_liquidity_intent(
 
             if lp_amount is None:
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="MISSING_PARAMS")
-            if not (is_int(lp_amount) and lp_amount > 0):
+            if not (is_strict_int(lp_amount) and lp_amount > 0):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
-            if not (is_int(amount0_min) and amount0_min >= 0):
+            if not (is_strict_int(amount0_min) and amount0_min >= 0):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
-            if not (is_int(amount1_min) and amount1_min >= 0):
+            if not (is_strict_int(amount1_min) and amount1_min >= 0):
                 return Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS")
 
             if lp_balances.get(sender, pool_state.pool_id) < lp_amount:
@@ -1376,35 +1447,16 @@ def validate_settlement(
         for event in settlement.events:
             if event.get("type") != "CREATE_POOL":
                 continue
-            pool_id = event.get("pool_id")
-            asset0 = event.get("asset0")
-            asset1 = event.get("asset1")
-            fee_bps = event.get("fee_bps")
-            curve_tag = event.get("curve_tag", CURVE_TAG_CPMM)
-            curve_params = event.get("curve_params", "")
-            status_str = event.get("status", PoolStatus.ACTIVE.value)
-            created_at = event.get("created_at", 0)
-
-            if not isinstance(pool_id, str) or not pool_id:
-                return False, "Invalid CREATE_POOL event: missing pool_id"
+            try:
+                pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at = (
+                    _parse_create_pool_event_payload(event)
+                )
+            except ValueError as exc:
+                return False, str(exc)
             if pool_id in pre_pools:
                 return False, f"CREATE_POOL conflicts with existing pool: {pool_id}"
             if pool_id in created_pools:
                 return False, f"Duplicate CREATE_POOL event for pool: {pool_id}"
-            if not isinstance(asset0, str) or not isinstance(asset1, str):
-                return False, f"Invalid CREATE_POOL event assets for pool: {pool_id}"
-            if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-                return False, f"Invalid CREATE_POOL fee_bps for pool: {pool_id}"
-            if not isinstance(curve_tag, str) or not curve_tag:
-                return False, f"Invalid CREATE_POOL curve_tag for pool: {pool_id}"
-            if not isinstance(curve_params, str):
-                return False, f"Invalid CREATE_POOL curve_params for pool: {pool_id}"
-            if not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0:
-                return False, f"Invalid CREATE_POOL created_at for pool: {pool_id}"
-            try:
-                status = PoolStatus(status_str)
-            except ValueError:
-                return False, f"Invalid CREATE_POOL status for pool: {pool_id}"
             try:
                 created_pools[pool_id] = PoolState(
                     pool_id=pool_id,
@@ -1427,8 +1479,8 @@ def validate_settlement(
 
     # Aggregate balance deltas per (pubkey, asset) and check non-negativity.
     balance_net: Dict[Tuple[PubKey, AssetId], Amount] = defaultdict(int)
-    for d in settlement.balance_deltas:
-        balance_net[(d.pubkey, d.asset)] += d.net_delta()
+    for balance_delta in settlement.balance_deltas:
+        balance_net[(balance_delta.pubkey, balance_delta.asset)] += balance_delta.net_delta()
     for (pubkey, asset), net in balance_net.items():
         current = pre_balances.get(pubkey, asset)
         if current + net < 0:
@@ -1436,8 +1488,8 @@ def validate_settlement(
 
     # Aggregate reserve deltas per (pool_id, asset) and check non-negativity.
     reserve_net: Dict[Tuple[str, AssetId], Amount] = defaultdict(int)
-    for d in settlement.reserve_deltas:
-        reserve_net[(d.pool_id, d.asset)] += d.net_delta()
+    for reserve_delta in settlement.reserve_deltas:
+        reserve_net[(reserve_delta.pool_id, reserve_delta.asset)] += reserve_delta.net_delta()
     for (pool_id, asset), net in reserve_net.items():
         if pool_id not in pools_view:
             return False, f"Pool not found: {pool_id}"
@@ -1451,8 +1503,8 @@ def validate_settlement(
 
     # Aggregate LP deltas per (pubkey, pool_id) and check non-negativity.
     lp_net: Dict[Tuple[PubKey, str], Amount] = defaultdict(int)
-    for d in settlement.lp_deltas:
-        lp_net[(d.pubkey, d.pool_id)] += d.net_delta()
+    for lp_delta in settlement.lp_deltas:
+        lp_net[(lp_delta.pubkey, lp_delta.pool_id)] += lp_delta.net_delta()
     for (pubkey, pool_id), net in lp_net.items():
         current = lp_view.get(pubkey, pool_id)
         if current + net < 0:
@@ -1460,18 +1512,18 @@ def validate_settlement(
 
     # Asset conservation (per asset): Σ_account_deltas + Σ_pool_deltas = 0.
     asset_net: Dict[AssetId, Amount] = defaultdict(int)
-    for d in settlement.balance_deltas:
-        asset_net[d.asset] += d.net_delta()
-    for d in settlement.reserve_deltas:
-        asset_net[d.asset] += d.net_delta()
+    for balance_delta in settlement.balance_deltas:
+        asset_net[balance_delta.asset] += balance_delta.net_delta()
+    for reserve_delta in settlement.reserve_deltas:
+        asset_net[reserve_delta.asset] += reserve_delta.net_delta()
     for asset, net in asset_net.items():
         if net != 0:
             return False, f"Asset conservation violation: {asset}, net_delta = {net}"
 
     # LP supply must remain non-negative; for created pools, supply must be established via lp_deltas.
     supply_net: Dict[str, Amount] = defaultdict(int)
-    for d in settlement.lp_deltas:
-        supply_net[d.pool_id] += d.net_delta()
+    for lp_delta in settlement.lp_deltas:
+        supply_net[lp_delta.pool_id] += lp_delta.net_delta()
     for pool_id, net in supply_net.items():
         if pool_id not in pools_view:
             return False, f"LP delta references unknown pool: {pool_id}"
@@ -1506,33 +1558,11 @@ def apply_settlement(
         for event in settlement.events:
             if event.get("type") != "CREATE_POOL":
                 continue
-            pool_id = event.get("pool_id")
-            asset0 = event.get("asset0")
-            asset1 = event.get("asset1")
-            fee_bps = event.get("fee_bps")
-            curve_tag = event.get("curve_tag", CURVE_TAG_CPMM)
-            curve_params = event.get("curve_params", "")
-            status_str = event.get("status", PoolStatus.ACTIVE.value)
-            created_at = event.get("created_at", 0)
-
-            if not isinstance(pool_id, str) or not pool_id:
-                raise ValueError("Invalid CREATE_POOL event: missing pool_id")
+            pool_id, asset0, asset1, fee_bps, curve_tag, curve_params, status, created_at = (
+                _parse_create_pool_event_payload(event)
+            )
             if pool_id in pools:
                 raise ValueError(f"Pool already exists: {pool_id}")
-            if not isinstance(asset0, str) or not isinstance(asset1, str):
-                raise ValueError(f"Invalid CREATE_POOL assets for pool: {pool_id}")
-            if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
-                raise ValueError(f"Invalid CREATE_POOL fee_bps for pool: {pool_id}")
-            if not isinstance(curve_tag, str) or not curve_tag:
-                raise ValueError(f"Invalid CREATE_POOL curve_tag for pool: {pool_id}")
-            if not isinstance(curve_params, str):
-                raise ValueError(f"Invalid CREATE_POOL curve_params for pool: {pool_id}")
-            if not isinstance(created_at, int) or isinstance(created_at, bool) or created_at < 0:
-                raise ValueError(f"Invalid CREATE_POOL created_at for pool: {pool_id}")
-            try:
-                status = PoolStatus(status_str)
-            except ValueError as exc:
-                raise ValueError(f"Invalid CREATE_POOL status for pool: {pool_id}") from exc
 
             pools[pool_id] = PoolState(
                 pool_id=pool_id,
@@ -1550,8 +1580,8 @@ def apply_settlement(
 
     # Apply balance deltas (order-independent): net per (pubkey, asset).
     balance_net: Dict[Tuple[PubKey, AssetId], Amount] = defaultdict(int)
-    for d in settlement.balance_deltas:
-        balance_net[(d.pubkey, d.asset)] += d.net_delta()
+    for balance_delta in settlement.balance_deltas:
+        balance_net[(balance_delta.pubkey, balance_delta.asset)] += balance_delta.net_delta()
     for (pubkey, asset), net in sorted(balance_net.items(), key=lambda t: (t[0][0], t[0][1])):
         if net > 0:
             balances.add(pubkey, asset, net)
@@ -1560,8 +1590,8 @@ def apply_settlement(
 
     # Apply reserve deltas (order-independent): net per (pool_id, asset).
     reserve_net: Dict[Tuple[str, AssetId], Amount] = defaultdict(int)
-    for d in settlement.reserve_deltas:
-        reserve_net[(d.pool_id, d.asset)] += d.net_delta()
+    for reserve_delta in settlement.reserve_deltas:
+        reserve_net[(reserve_delta.pool_id, reserve_delta.asset)] += reserve_delta.net_delta()
     for (pool_id, asset), net in sorted(reserve_net.items(), key=lambda t: (t[0][0], t[0][1])):
         if pool_id not in pools:
             raise ValueError(f"Pool not found: {pool_id}")
@@ -1580,9 +1610,9 @@ def apply_settlement(
     # Apply LP deltas (order-independent): net per pool for supply, per (pubkey, pool_id) for balances.
     supply_net: Dict[str, Amount] = defaultdict(int)
     lp_net: Dict[Tuple[PubKey, str], Amount] = defaultdict(int)
-    for d in settlement.lp_deltas:
-        supply_net[d.pool_id] += d.net_delta()
-        lp_net[(d.pubkey, d.pool_id)] += d.net_delta()
+    for lp_delta in settlement.lp_deltas:
+        supply_net[lp_delta.pool_id] += lp_delta.net_delta()
+        lp_net[(lp_delta.pubkey, lp_delta.pool_id)] += lp_delta.net_delta()
 
     for pool_id, net in sorted(supply_net.items(), key=lambda t: t[0]):
         if pool_id not in pools:
