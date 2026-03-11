@@ -46,6 +46,9 @@ bash "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh"
 echo "== release: acceptance fuzz gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_fuzz_gate.sh"
 
+echo "== release: snapshot recovery gate =="
+bash "$ROOT_DIR/tools/run_snapshot_recovery_gate.sh"
+
 echo "== release: tau syntax =="
 bash "$ROOT_DIR/tests/tau/test_specs_syntax.sh"
 
