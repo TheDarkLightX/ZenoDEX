@@ -4,10 +4,25 @@ from __future__ import annotations
 
 import pytest
 
-from src.state.nonces import NonceTable
-
+from src.state.intents import Intent, IntentKind
+from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 
 PK_48B = "0x" + "11" * 48
+
+
+def _intent(*, sender: str = PK_48B, nonce: int | None) -> Intent:
+    fields = {"pool_id": "0x" + "aa" * 32, "asset_in": "0x" + "01" * 32, "asset_out": "0x" + "02" * 32, "amount_in": 1, "min_amount_out": 0}
+    if nonce is not None:
+        fields["nonce"] = nonce
+    return Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "33" * 32,
+        sender_pubkey=sender,
+        deadline=1,
+        fields=fields,
+    )
 
 
 class TestNonceTableBVA:
@@ -64,3 +79,24 @@ class TestNonceTableBVA:
             with pytest.raises((TypeError, ValueError)):
                 t.set_last(pubkey, 1)
 
+
+def test_validate_and_apply_nonce_batch_rejects_mixed_nonce_presence_when_backward_compat_mode() -> None:
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[_intent(nonce=1), _intent(sender="0x" + "22" * 48, nonce=None)],
+        require_all_nonces=False,
+    )
+    assert ok is False
+    assert err == "nonce presence must be consistent across batch"
+    assert updated is None
+
+
+def test_validate_and_apply_nonce_batch_accepts_nonce_free_batch_in_backward_compat_mode() -> None:
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[_intent(nonce=None)],
+        require_all_nonces=False,
+    )
+    assert ok is True
+    assert err is None
+    assert updated is not None

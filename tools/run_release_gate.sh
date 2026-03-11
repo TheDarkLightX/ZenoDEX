@@ -40,6 +40,9 @@ require_module "pip_audit" "pip-audit"
 echo "== release: critical quality gate =="
 bash "$ROOT_DIR/tools/run_critical_quality_gate.sh"
 
+echo "== release: acceptance mutation gate =="
+bash "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh"
+
 echo "== release: tau syntax =="
 bash "$ROOT_DIR/tests/tau/test_specs_syntax.sh"
 
