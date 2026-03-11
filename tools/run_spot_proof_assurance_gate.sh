@@ -237,4 +237,7 @@ echo "== spot-proof: adapter regression net =="
   tests/kernels/test_settlement_swap_apply_witness_v1_ml_bva_cases.py \
   tests/kernels/test_settlement_swap_exact_out_apply_witness_v1_ml_bva_cases.py
 
+echo "== spot-proof: manifest check =="
+"$PY" "$ROOT_DIR/tools/check_spot_proof_assurance_manifest.py"
+
 echo "ok"
