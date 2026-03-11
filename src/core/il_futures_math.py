@@ -50,8 +50,6 @@ def compute_il_bps(
     p_num = reserve_x_after * reserve_y_before
     p_den = reserve_x_before * reserve_y_after
     denom = p_num + p_den
-    if p_den == 0 or denom == 0:
-        return 0
 
     # value_ratio_bps := floor(2*sqrt(p_num*p_den)/(p_num+p_den) * 10000)
     sqrt_term = isqrt(p_num * p_den)

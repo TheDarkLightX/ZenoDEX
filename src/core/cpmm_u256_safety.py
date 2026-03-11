@@ -122,9 +122,6 @@ def analyze_cpmm_exact_in_u256_overflows(
     )
 
     fee_total = fee_total_ceil_decomposed(int(amount_in), int(fee_bps))
-    # Under u256 inputs, fee_total <= amount_in.
-    if fee_total > amount_in:
-        fee_total = int(amount_in)
     net_in = int(amount_in) - int(fee_total)
 
     denom_add_overflow = will_add_overflow(U256_BITS, int(reserve_in), int(net_in))
