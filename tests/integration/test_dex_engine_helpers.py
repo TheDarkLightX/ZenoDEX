@@ -1,0 +1,314 @@
+# [TESTER] v1
+
+from __future__ import annotations
+
+from typing import Any, Mapping, Optional
+
+import pytest
+
+from src.core.settlement import Settlement
+from src.integration.dex_engine import (
+    DexEngineConfig,
+    _build_signing_payloads,
+    _clean_error,
+    _format_error_details,
+    _hex_to_bytes_allow_0x,
+    _pubkey_bytes48_or_none,
+    _quote_receipt_error,
+    _sanitize_intents_after_quote_receipt_validation,
+    _validate_external_tool_policy,
+    _validate_intent_preconditions,
+    _validate_raw_intent_ops,
+    _validate_raw_settlement_op,
+    _verify_all_intent_signatures,
+    _verify_proof_if_present,
+)
+from src.integration.operations import SettlementEnvelope, SignedIntentEnvelope
+from src.integration.proof_verifier import MisconfiguredProofVerifier, ProofVerifier
+from src.state.intents import Intent, IntentKind
+
+
+def _iid(n: int) -> str:
+    return "0x" + f"{n:064x}"
+
+
+def _swap_intent(*, sender: str = "0x" + "11" * 48, intent_id: str | None = None, fields: Optional[dict[str, Any]] = None) -> Intent:
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    return Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=intent_id or _iid(1),
+        sender_pubkey=sender,
+        deadline=100,
+        fields={
+            "pool_id": "0x" + "aa" * 32,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 10,
+            "min_amount_out": 1,
+            **(fields or {}),
+        },
+    )
+
+
+def _empty_settlement_env(*, proof: Optional[dict[str, Any]]) -> SettlementEnvelope:
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+    )
+    return SettlementEnvelope(settlement=settlement, proof=proof)
+
+
+class _DummyVerifier(ProofVerifier):
+    def __init__(self, result: tuple[bool, Optional[str]]) -> None:
+        self.result = result
+        self.seen_payload: Optional[Mapping[str, Any]] = None
+
+    def verify(self, payload: Mapping[str, Any]) -> tuple[bool, Optional[str]]:
+        self.seen_payload = payload
+        return self.result
+
+
+def test_error_helpers_compact_context() -> None:
+    assert _format_error_details(a=1, b=None, c="x") == "a=1, c='x'"
+    assert _quote_receipt_error("bad receipt") == "bad receipt"
+    assert _quote_receipt_error("bad receipt", intent_id="0x1") == "bad receipt: intent_id='0x1'"
+    assert _clean_error("  bad \n   input\tvalue  ") == "bad input value"
+
+
+def test_hex_and_pubkey_helpers_fail_closed() -> None:
+    assert _hex_to_bytes_allow_0x("0x12ab", name="x") == bytes.fromhex("12ab")
+    with pytest.raises(ValueError, match="must have an even number of hex chars"):
+        _hex_to_bytes_allow_0x("0x123", name="x")
+    with pytest.raises(ValueError, match="must be valid hex"):
+        _hex_to_bytes_allow_0x("0xzz", name="x")
+    with pytest.raises(ValueError, match="expected_nbytes must be a positive int"):
+        _hex_to_bytes_allow_0x("0x12", name="x", expected_nbytes=0)
+    assert _pubkey_bytes48_or_none("0x" + "11" * 48, name="pk") is not None
+    assert _pubkey_bytes48_or_none("not-hex", name="pk") is None
+    assert _pubkey_bytes48_or_none(None, name="pk") is None
+
+
+def test_validate_external_tool_policy_covers_consensus_and_disable_paths() -> None:
+    assert (
+        _validate_external_tool_policy(
+            DexEngineConfig(consensus_mode=True, proof_config=DexEngineConfig().proof_config.__class__(enabled=True))
+        )
+        == "external tools not permitted in consensus_mode"
+    )
+    assert (
+        _validate_external_tool_policy(
+            DexEngineConfig(consensus_mode=False, allow_external_tools=False, proof_config=DexEngineConfig().proof_config.__class__(enabled=True))
+        )
+        == "external tools disabled (set DexEngineConfig.allow_external_tools=True)"
+    )
+    assert _validate_external_tool_policy(DexEngineConfig()) is None
+
+
+def test_validate_raw_operation_guards_fail_early() -> None:
+    config = DexEngineConfig(max_settlement_op_bytes=32, max_settlement_fills=1, max_intents=1, max_intent_entry_bytes=32, max_total_intent_entry_bytes=32)
+    assert _validate_raw_settlement_op(config, ["bad"]) == "operations['3'] must be an object"
+    assert _validate_raw_settlement_op(config, {"fills": [{}, {}]}) == "too many settlement fills: 2 > 1"
+    assert _validate_raw_intent_ops(config, [{}, {}]) == "too many intents: 2 > 1"
+    assert _validate_raw_intent_ops(config, [{"x": "A" * 100}]) == "intent operation too large: index 0"
+    assert _validate_raw_intent_ops(config, "not-a-list") is None
+
+
+def test_validate_intent_preconditions_rejects_missing_or_expired_batches() -> None:
+    intent = _swap_intent(intent_id=_iid(7))
+    assert _validate_intent_preconditions(intents=[], settlement=_empty_settlement_env(proof=None).settlement, block_timestamp=0) == "settlement provided without intents"
+    assert _validate_intent_preconditions(intents=[intent], settlement=None, block_timestamp=101) == f"Intent expired: {intent.intent_id}"
+    assert _validate_intent_preconditions(intents=[intent], settlement=None, block_timestamp=100) is None
+
+
+def test_sanitize_intents_after_quote_receipt_validation_strips_transport_fields() -> None:
+    intent = _swap_intent(
+        fields={
+            "quote_receipt_hash": "0x" + "ab" * 32,
+            "quote_receipt_leg_index": 0,
+            "quote_pool_fingerprint": "fingerprint",
+        }
+    )
+    sanitized = _sanitize_intents_after_quote_receipt_validation([intent])[0]
+    assert sanitized.get_field("quote_receipt_hash") is None
+    assert sanitized.get_field("quote_receipt_leg_index") is None
+    assert sanitized.get_field("quote_pool_fingerprint") == "fingerprint"
+
+
+def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> None:
+    intent = _swap_intent()
+    env = SignedIntentEnvelope(intent=intent, signature=None, quote_receipt=None)
+    signing_dicts, payloads = _build_signing_payloads([env], max_intent_bytes=4096, max_total_intent_bytes=4096)
+    assert len(signing_dicts) == len(payloads) == 1
+
+    bad_fields_intent = _swap_intent(intent_id=_iid(2))
+    bad_fields_intent.fields = 7  # type: ignore[assignment]
+    with pytest.raises(TypeError, match="intent.fields must be a dict"):
+        _build_signing_payloads([SignedIntentEnvelope(intent=bad_fields_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
+
+    too_large = _swap_intent(intent_id=_iid(3), fields={"blob": "A" * 5000})
+    with pytest.raises(ValueError, match=f"intent signing payload too large: {too_large.intent_id}"):
+        _build_signing_payloads([SignedIntentEnvelope(intent=too_large)], max_intent_bytes=256, max_total_intent_bytes=256)
+
+
+def test_verify_all_intent_signatures_covers_unsigned_policy_paths() -> None:
+    sender = "0x" + "11" * 48
+    other = "0x" + "22" * 48
+    intent = _swap_intent(sender=sender)
+    env = SignedIntentEnvelope(intent=intent, signature=None)
+    payload = [b"{}"]
+
+    ok, err = _verify_all_intent_signatures(
+        [env],
+        require=False,
+        tx_sender_pubkey=sender,
+        allow_tx_sender_bypass=False,
+        signing_payloads=payload,
+        chain_id="tau-net-alpha",
+    )
+    assert (ok, err) == (False, "unsigned intents disabled (tx sender binding required)")
+
+    ok, err = _verify_all_intent_signatures(
+        [env],
+        require=False,
+        tx_sender_pubkey="bad-pubkey",
+        allow_tx_sender_bypass=True,
+        signing_payloads=payload,
+        chain_id="tau-net-alpha",
+    )
+    assert (ok, err) == (False, "tx_sender_pubkey must be a 48-byte hex pubkey for unsigned intents")
+
+    ok, err = _verify_all_intent_signatures(
+        [env],
+        require=False,
+        tx_sender_pubkey=other,
+        allow_tx_sender_bypass=True,
+        signing_payloads=payload,
+        chain_id="tau-net-alpha",
+    )
+    assert (ok, err) == (False, f"intent sender mismatch: {intent.intent_id}")
+
+    ok, err = _verify_all_intent_signatures(
+        [env],
+        require=True,
+        tx_sender_pubkey=sender,
+        allow_tx_sender_bypass=True,
+        signing_payloads=payload,
+        chain_id="tau-net-alpha",
+    )
+    assert (ok, err) == (True, None)
+
+
+def test_verify_proof_if_present_covers_missing_mismatch_and_reject_paths() -> None:
+    verifier = _DummyVerifier((True, None))
+
+    assert _verify_proof_if_present(
+        verifier,
+        intents=[],
+        settlement_env=None,
+        require_proof=False,
+        verifier_enforcing=False,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=1024,
+    ) == (True, None)
+
+    assert _verify_proof_if_present(
+        verifier,
+        intents=[SignedIntentEnvelope(intent=_swap_intent())],
+        settlement_env=None,
+        require_proof=True,
+        verifier_enforcing=False,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=1024,
+    ) == (False, "missing required proof")
+
+    bad_type_env = _empty_settlement_env(proof="bad")  # type: ignore[arg-type]
+    assert _verify_proof_if_present(
+        verifier,
+        intents=[],
+        settlement_env=bad_type_env,
+        require_proof=False,
+        verifier_enforcing=True,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=1024,
+    ) == (False, "proof must be an object")
+
+    misconfigured = MisconfiguredProofVerifier("bad verifier")
+    assert _verify_proof_if_present(
+        misconfigured,
+        intents=[],
+        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}),
+        require_proof=False,
+        verifier_enforcing=True,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=1024,
+    ) == (False, "bad verifier")
+
+    assert _verify_proof_if_present(
+        verifier,
+        intents=[SignedIntentEnvelope(intent=_swap_intent())],
+        settlement_env=_empty_settlement_env(proof={"x": 1}),
+        require_proof=True,
+        verifier_enforcing=False,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=1024,
+    ) == (False, "proof required but verification disabled")
+
+    assert _verify_proof_if_present(
+        verifier,
+        intents=[],
+        settlement_env=_empty_settlement_env(proof={"batch_commitment": "0x2"}),
+        require_proof=False,
+        verifier_enforcing=True,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=1024,
+    ) == (False, "proof missing pre_state_commitment")
+
+    assert _verify_proof_if_present(
+        verifier,
+        intents=[],
+        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x9"}),
+        require_proof=False,
+        verifier_enforcing=True,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=1024,
+    ) == (False, "proof batch_commitment mismatch")
+
+    rejecting = _DummyVerifier((False, "bad proof"))
+    assert _verify_proof_if_present(
+        rejecting,
+        intents=[],
+        settlement_env=_empty_settlement_env(proof={"pre_state_commitment": "0x1", "batch_commitment": "0x2"}),
+        require_proof=False,
+        verifier_enforcing=True,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=1024,
+    ) == (False, "proof rejected: bad proof")
+
+    too_large_payload = {"pre_state_commitment": "0x1", "batch_commitment": "0x2", "blob": "A" * 5000}
+    assert _verify_proof_if_present(
+        verifier,
+        intents=[],
+        settlement_env=_empty_settlement_env(proof=too_large_payload),
+        require_proof=False,
+        verifier_enforcing=True,
+        pre_state_commitment="0x1",
+        batch_commitment="0x2",
+        max_verifier_payload_bytes=64,
+    ) == (False, "proof payload too large")

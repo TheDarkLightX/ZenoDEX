@@ -74,6 +74,7 @@ COVERAGE_TARGETS=(
 
 echo "== critical: ruff =="
 "$PY" -m ruff check \
+  tools/check_acceptance_tcb_coverage.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
   src/core/liquidity.py \
@@ -96,15 +97,22 @@ echo "== critical: ruff =="
   tests/core/test_quote_receipts.py \
   tests/core/test_perp_v2/test_submodules.py \
   tests/core/test_settlement_strong_validator.py \
+  tests/core/test_intent_normal_form.py \
+  tests/core/test_support_root.py \
   tests/core/test_volatility_tier.py \
   tests/core/test_volatility_tier_ref_parity.py \
   tests/core/test_dex_step_candidate_settlement.py \
+  tests/integration/test_dex_engine_helpers.py \
+  tests/integration/test_proof_verifier_unit.py \
   tests/integration/test_tau_gate_boundary.py \
   tests/integration/test_validation_uses_strong_settlement_gate.py \
   tests/state/test_intents.py
 
 echo "== critical: mypy =="
 "$PY" -m mypy
+
+echo "== critical: acceptance TCB gate =="
+bash "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh"
 
 echo "== critical: pytest + coverage =="
 "$PY" -m pytest -q \
