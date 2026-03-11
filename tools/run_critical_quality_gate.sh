@@ -130,6 +130,7 @@ bash -n \
   "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh" \
   "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh" \
   "$ROOT_DIR/tools/run_acceptance_tcb_fuzz_gate.sh" \
+  "$ROOT_DIR/tools/run_spot_proof_assurance_gate.sh" \
   "$ROOT_DIR/tools/run_snapshot_recovery_gate.sh" \
   "$ROOT_DIR/tools/run_critical_quality_gate.sh" \
   "$ROOT_DIR/tools/run_release_gate.sh"
