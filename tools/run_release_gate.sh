@@ -56,6 +56,7 @@ echo "== release: tau traces =="
 "$PY" -m pytest -q "$ROOT_DIR/tests/tau/test_spec_registry_traces.py"
 
 run_if_present "perps evidence" "$ROOT_DIR/tools/run_perps_evidence.sh"
+run_if_present "spot proof assurance" "$ROOT_DIR/tools/run_spot_proof_assurance_gate.sh"
 run_if_present "derivatives evidence" "$ROOT_DIR/tools/run_derivatives_evidence.sh"
 
 echo "== release: coverage map refresh =="
