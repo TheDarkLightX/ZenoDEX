@@ -23,6 +23,12 @@ from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 from ..state.pools import PoolState
 
 
+def _require_receipt_int(value: Any) -> int | None:
+    if not isinstance(value, int) or isinstance(value, bool):
+        return None
+    return int(value)
+
+
 def pool_state_fingerprint(pool: PoolState) -> str:
     """
     Deterministic pool fingerprint for receipts.
@@ -229,9 +235,9 @@ def verify_route_quote_receipt(
         if not isinstance(hops, list) or not hops:
             return False, "bad_hops"
 
-        leg_in = int(leg.get("amount_in", 0))
-        leg_out = int(leg.get("amount_out", 0))
-        if leg_in <= 0 or leg_out <= 0:
+        leg_in = _require_receipt_int(leg.get("amount_in"))
+        leg_out = _require_receipt_int(leg.get("amount_out"))
+        if leg_in is None or leg_out is None or leg_in <= 0 or leg_out <= 0:
             return False, "bad_leg_amounts"
 
         prev_out: int | None = None
@@ -259,9 +265,9 @@ def verify_route_quote_receipt(
                 if asset_in != prev_asset_out:
                     return False, "hop_asset_chain_mismatch"
 
-            amt_in = int(hop.get("amount_in", 0))
-            amt_out = int(hop.get("amount_out", 0))
-            if amt_in <= 0 or amt_out <= 0:
+            amt_in = _require_receipt_int(hop.get("amount_in"))
+            amt_out = _require_receipt_int(hop.get("amount_out"))
+            if amt_in is None or amt_out is None or amt_in <= 0 or amt_out <= 0:
                 return False, "bad_hop_amounts"
 
             if prev_out is not None and amt_in != prev_out:
@@ -272,27 +278,33 @@ def verify_route_quote_receipt(
                 kind=kind,
                 asset_in=asset_in,
                 asset_out=asset_out,
-                amount_in=int(amt_in),
-                amount_out=int(amt_out),
+                amount_in=amt_in,
+                amount_out=amt_out,
             )
             if not ok or next_pool is None:
                 return False, err
             working_pools[pid] = next_pool
 
-            prev_out = int(amt_out)
+            prev_out = amt_out
             prev_asset_out = str(asset_out)
 
         if prev_asset_out != body_asset_out:
             return False, "leg_asset_out_mismatch"
-        if int(hops[0].get("amount_in", 0)) != int(leg_in):
+        first_hop_amount_in = _require_receipt_int(hops[0].get("amount_in"))
+        last_hop_amount_out = _require_receipt_int(hops[-1].get("amount_out"))
+        if first_hop_amount_in is None or first_hop_amount_in != leg_in:
             return False, "leg_amount_in_mismatch"
-        if int(hops[-1].get("amount_out", 0)) != int(leg_out):
+        if last_hop_amount_out is None or last_hop_amount_out != leg_out:
             return False, "leg_amount_out_mismatch"
 
-        total_in += int(leg_in)
-        total_out += int(leg_out)
+        total_in += leg_in
+        total_out += leg_out
 
-    if total_in != int(body.get("amount_in", 0)) or total_out != int(body.get("amount_out", 0)):
+    body_amount_in = _require_receipt_int(body.get("amount_in"))
+    body_amount_out = _require_receipt_int(body.get("amount_out"))
+    if body_amount_in is None or body_amount_out is None:
+        return False, "bad_body_amounts"
+    if total_in != body_amount_in or total_out != body_amount_out:
         return False, "totals_mismatch"
 
     return True, "ok"

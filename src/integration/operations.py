@@ -276,10 +276,8 @@ def _unpack_signed_intent_entry(entry: Any) -> tuple[Dict[str, Any], Optional[st
     if signature is None:
         signature = signature_in_dict
 
-    if signature is not None and not isinstance(signature, str):
-        raise ValueError("signature must be a string")
-    if isinstance(signature, str) and len(signature) > 4096:
-        raise ValueError("signature too large")
+    if signature is not None:
+        signature = _require_str(signature, name="signature", non_empty=True, max_len=4096)
 
     if quote_receipt is not None and quote_receipt_in_dict is not None:
         raise ValueError("quote_receipt provided twice (envelope + field)")
