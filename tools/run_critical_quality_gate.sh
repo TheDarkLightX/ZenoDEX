@@ -114,6 +114,7 @@ echo "== critical: ruff =="
   tests/integration/test_proof_verifier_fuzz.py \
   tests/integration/test_proof_verifier_unit.py \
   tests/integration/test_replay_protection.py \
+  tests/integration/test_tau_testnet_dex_plugin_recovery.py \
   tests/integration/test_tau_gate_boundary.py \
   tests/integration/test_validation_uses_strong_settlement_gate.py \
   tests/state/test_balances.py \
@@ -127,6 +128,7 @@ bash -n \
   "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh" \
   "$ROOT_DIR/tools/run_acceptance_tcb_mutation_gate.sh" \
   "$ROOT_DIR/tools/run_acceptance_tcb_fuzz_gate.sh" \
+  "$ROOT_DIR/tools/run_snapshot_recovery_gate.sh" \
   "$ROOT_DIR/tools/run_critical_quality_gate.sh" \
   "$ROOT_DIR/tools/run_release_gate.sh"
 
@@ -137,10 +139,16 @@ echo "== critical: acceptance TCB gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh"
 
 echo "== critical: pytest + coverage =="
-"$PY" -m pytest -q \
-  "${COVERAGE_TARGETS[@]}" \
-  --cov-branch \
-  --cov-report=term-missing:skip-covered \
+PYTEST_COVERAGE_CMD=(
+  "$PY"
+  -m
+  pytest
+  -q
+  "${COVERAGE_TARGETS[@]}"
+  --cov-branch
+  --cov-report=term-missing:skip-covered
   "${CRITICAL_TESTS[@]}"
+)
+"${PYTEST_COVERAGE_CMD[@]}"
 
 echo "ok"
