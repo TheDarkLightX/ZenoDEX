@@ -75,3 +75,21 @@ def test_mobius_eval_floor_int_rejects_non_int() -> None:
     with pytest.raises(TypeError):
         m.eval_floor_int(1.5)  # type: ignore[arg-type]
 
+
+def test_mobius_eval_rejects_zero_denominator() -> None:
+    m = Mobius(a=1, b=0, c=0, d=0)
+    with pytest.raises(ZeroDivisionError, match="Mobius denominator is zero"):
+        m.eval_fraction(Fraction(3, 1))
+    with pytest.raises(ZeroDivisionError, match="Mobius denominator is zero"):
+        m.eval_floor_int(3)
+
+
+def test_cpmm_pool_mobius_and_two_hop_reject_non_int_and_non_positive_inputs() -> None:
+    with pytest.raises(TypeError, match="reserve_in must be an int"):
+        cpmm_pool_mobius(reserve_in=1.5, reserve_out=10)  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="dx must be an int"):
+        cpmm_two_hop_collapsed_floor_fee0(x1=1, y1=1, x2=1, y2=1, dx=1.5)  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="x1,y1,x2,y2,dx must be positive"):
+        cpmm_two_hop_collapsed_floor_fee0(x1=1, y1=1, x2=1, y2=1, dx=0)
