@@ -150,7 +150,12 @@ class SubprocessProofVerifier(ProofVerifier):
         except Exception as exc:
             return False, f"proof verifier error: {exc}"
 
-        assert proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
+        if proc.stdin is None or proc.stdout is None or proc.stderr is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            return False, "proof verifier misconfigured (subprocess pipes unavailable)"
         try:
             for stream in (proc.stdin, proc.stdout, proc.stderr):
                 try:

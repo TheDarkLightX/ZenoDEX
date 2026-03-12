@@ -84,7 +84,12 @@ def _run_subprocess_with_output_caps(
         bufsize=0,
     )
 
-    assert proc.stdin is not None and proc.stdout is not None and proc.stderr is not None
+    if proc.stdin is None or proc.stdout is None or proc.stderr is None:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        raise RuntimeError("tau subprocess misconfigured: stdin/stdout/stderr pipes unavailable")
     stdout_buf = bytearray()
     stderr_buf = bytearray()
 
@@ -1100,6 +1105,7 @@ def run_tau_spec_steps_spec_mode(
     timeout_s: float = 2.0,
     severity: str = "error",
     experimental: bool = False,
+    retry_on_timeout: bool = True,
 ) -> Dict[int, Dict[str, int]]:
     """
     Run a Tau spec by invoking Tau in "spec mode" (`tau <file> -x`) and parse stdout.
@@ -1116,6 +1122,7 @@ def run_tau_spec_steps_spec_mode(
         timeout_s=timeout_s,
         severity=severity,
         experimental=experimental,
+        retry_on_timeout=retry_on_timeout,
     )
     return outputs
 
@@ -1128,6 +1135,7 @@ def run_tau_spec_steps_spec_mode_with_trace(
     timeout_s: float = 2.0,
     severity: str = "error",
     experimental: bool = False,
+    retry_on_timeout: bool = True,
 ) -> Tuple[Dict[int, Dict[str, int]], str, str, str, str]:
     """
     Spec-mode runner with trace capture.
@@ -1223,7 +1231,7 @@ def run_tau_spec_steps_spec_mode_with_trace(
         # outputs observed", not process exit status. If the first run times out before
         # producing a full trace, retry once with a higher budget.
         attempt_timeouts = [float(timeout_s)]
-        if attempt_timeouts[0] < 25.0:
+        if retry_on_timeout and attempt_timeouts[0] < 25.0:
             attempt_timeouts.append(25.0)
 
         last_rc = -1
