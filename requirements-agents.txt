@@ -1,0 +1,6 @@
+# Optional agent/orchestration dependencies.
+# Keep these out of the production image unless the operator explicitly needs them.
+
+openai>=1.40.0
+openai-agents>=0.1.0
+python-dotenv>=1.0.0

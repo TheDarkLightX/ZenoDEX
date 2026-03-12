@@ -201,6 +201,26 @@ def test_subprocess_verifier_rejects_spawn_error(monkeypatch: pytest.MonkeyPatch
     assert err == "proof verifier error: spawn failed"
 
 
+def test_subprocess_verifier_rejects_missing_subprocess_pipes(monkeypatch: pytest.MonkeyPatch) -> None:
+    verifier = SubprocessProofVerifier(
+        cmd=[sys.executable, "-c", "print('{\"ok\": true}')"],
+        timeout_s=1.0,
+        max_bytes=1024,
+        max_stdout_bytes=256,
+        max_stderr_bytes=256,
+    )
+
+    proc = _FakeProc()
+    proc.stdin = None
+    monkeypatch.setattr(proof_verifier, "canonical_json_bytes", lambda payload: b"{}")
+    monkeypatch.setattr(proof_verifier, "bounded_json_utf8_size", lambda payload, max_bytes: 2)
+    monkeypatch.setattr(proof_verifier.subprocess, "Popen", lambda *args, **kwargs: proc)
+
+    ok, err = verifier.verify({"ok": True})
+    assert ok is False
+    assert err == "proof verifier misconfigured (subprocess pipes unavailable)"
+
+
 def test_subprocess_verifier_rejects_non_blocking_pipe_requirement(monkeypatch: pytest.MonkeyPatch) -> None:
     verifier = SubprocessProofVerifier(
         cmd=[sys.executable, "-c", "import sys; sys.stdin.buffer.read(); print('{\"ok\": true}')"],
@@ -434,6 +454,10 @@ def test_subprocess_verifier_rejects_stdin_write_error_variants(monkeypatch: pyt
     _patch_fake_process(monkeypatch, generic_error, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
     assert verifier.verify({"ok": True}) == (False, "proof verifier stdin error")
 
+    invalid_write = _FakeProc(stdin=_FakeStream("stdin", writes=["bad-result"]))
+    _patch_fake_process(monkeypatch, invalid_write, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"})])
+    assert verifier.verify({"ok": True}) == (False, "proof verifier stdin invalid write result")
+
 
 def test_subprocess_verifier_rejects_stdin_close_and_read_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     proof_bytes = b'{"ok":true}'
@@ -470,6 +494,14 @@ def test_subprocess_verifier_rejects_stdin_close_and_read_errors(monkeypatch: py
     )
     _patch_fake_process(monkeypatch, read_error, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"}), ({"stdout"}, set())])
     assert verifier.verify({"ok": True}) == (False, "proof verifier stdout/stderr read error")
+
+    invalid_chunk = _FakeProc(
+        stdin=_FakeStream("stdin", writes=[len(proof_bytes)]),
+        stdout=_FakeStream("stdout", reads=[object()]),
+        stderr=_FakeStream("stderr"),
+    )
+    _patch_fake_process(monkeypatch, invalid_chunk, proof_bytes=proof_bytes, schedule=[(set(), {"stdin"}), ({"stdout"}, set())])
+    assert verifier.verify({"ok": True}) == (False, "proof verifier returned invalid stream chunk")
 
 
 def test_subprocess_verifier_covers_stderr_eof_path(monkeypatch: pytest.MonkeyPatch) -> None:

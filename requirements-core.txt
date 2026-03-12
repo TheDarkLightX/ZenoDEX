@@ -1,0 +1,13 @@
+# Minimal runtime dependencies for the production integration layer.
+
+# Cryptographic operations (intent/tx signing and verification)
+py-ecc>=6.1.0  # BLS12-381 signatures (same as tau-testnet)
+
+# Type hints used by runtime modules
+typing-extensions>=4.8.0
+
+# Canonical JSON encoding for hashing/signing
+canonicaljson>=1.6.0
+
+# Runtime model/config loading
+pyyaml>=6.0

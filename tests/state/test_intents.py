@@ -58,7 +58,7 @@ def test_intent_rejects_invalid_module(module: str) -> None:
         )
 
 
-@pytest.mark.parametrize("intent_id", ["", "abcd", "0x1234"])
+@pytest.mark.parametrize("intent_id", ["", "abcd", "0x1234", "0x" + "zz" * 32])
 def test_intent_rejects_invalid_intent_id(intent_id: str) -> None:
     with pytest.raises(ValueError, match="Invalid intent_id format:"):
         Intent(
