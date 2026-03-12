@@ -244,17 +244,18 @@ claims:
       files:
         - src/kernels/dex/funding_rate_market_v1.yaml
 
-  - id: smt:funding_rate_market_v1_1:inductive_z3
+  - id: smt:funding_rate_settlement_witness_v1_1:inductive_z3_cvc5
     status: supported
     layer: spec
     statement: >
-      The funding-rate market kernel (v1.1) is inductive (k=1) under a fail-closed SMT verification model (Z3).
+      The funding-rate v1.1 settlement witness kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
+      under a fail-closed, multi-solver SMT verification model.
     evidence:
       kind: smt
       check:
         - cmd: bash tools/run_derivatives_evidence.sh
       files:
-        - src/kernels/dex/funding_rate_market_v1_1.yaml
+        - src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml
 
   - id: py:funding_rate_market_v1_1:parity_with_generated_ref
     status: supported
