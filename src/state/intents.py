@@ -7,9 +7,10 @@ that are collected and settled in batches.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from .balances import PubKey
+from .canonical import canonical_hex_fixed_allow_0x
 
 
 class IntentKind(Enum):
@@ -51,9 +52,11 @@ class Intent:
         """Validate intent structure."""
         if self.module != "TauSwap":
             raise ValueError(f"Invalid module: {self.module}")
-        
-        if not self.intent_id.startswith("0x") or len(self.intent_id) != 66:
-            raise ValueError(f"Invalid intent_id format: {self.intent_id}")
+
+        try:
+            self.intent_id = canonical_hex_fixed_allow_0x(self.intent_id, nbytes=32, name="intent_id")
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid intent_id format: {self.intent_id}") from exc
         
         if self.fields is None:
             self.fields = {}

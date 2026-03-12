@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from ..core.batch_clearing import apply_settlement_pure, compute_settlement
 from ..core.dex import DexConfig, DexState
+from ..core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from ..core.fees import split_fee_with_dust_carry
 from ..core.intent_normal_form import IntentNormalFormError, require_normal_form
 from ..core.quote_receipts import verify_route_quote_receipt
@@ -238,25 +239,7 @@ def _pubkey_bytes48_or_none(value: Optional[str], *, name: str) -> Optional[byte
 
 
 def _intent_signing_dict(intent: Intent) -> Dict[str, Any]:
-    fields = intent.fields or {}
-    if not isinstance(fields, dict):
-        raise TypeError("intent.fields must be a dict")
-    # Defend against accidental mutation/aliasing: signing must be computed over a
-    # stable snapshot of the intent fields.
-    fields = dict(fields)
-
-    d: Dict[str, Any] = {
-        "module": intent.module,
-        "version": intent.version,
-        "kind": intent.kind.value,
-        "intent_id": intent.intent_id,
-        "sender_pubkey": intent.sender_pubkey,
-        "deadline": intent.deadline,
-        "fields": fields,
-    }
-    if intent.salt is not None:
-        d["salt"] = intent.salt
-    return d
+    return build_dex_intent_signing_dict_v1(intent)
 
 
 def _settlement_commitment_dict(settlement: Settlement) -> Dict[str, Any]:
@@ -309,7 +292,8 @@ def _verify_intent_signature_bytes(
 ) -> Tuple[bool, Optional[str]]:
     if not _BLS_AVAILABLE:
         return False, "py_ecc (BLS) not available"
-    assert G2Basic is not None
+    if G2Basic is None:
+        return False, "py_ecc.bls.G2Basic unavailable"
     try:
         pubkey_bytes = _hex_to_bytes_allow_0x(sender_pubkey_hex, name="sender_pubkey", expected_nbytes=48)
         sig_bytes = _hex_to_bytes_allow_0x(signature_hex, name="signature", expected_nbytes=96)
@@ -723,6 +707,8 @@ def _validate_quote_receipt_witnesses(
             return f"invalid quote receipt legs: {envs[0].intent.intent_id}"
 
         observed_leg_indices: List[int] = []
+        seen_leg_indices: set[int] = set()
+        duplicate_leg_indices: set[int] = set()
         for env in envs:
             leg_index = env.intent.get_field("quote_receipt_leg_index")
             if not isinstance(leg_index, int) or isinstance(leg_index, bool) or leg_index < 0:
@@ -731,20 +717,18 @@ def _validate_quote_receipt_witnesses(
                     **_quote_receipt_intent_context(env.intent),
                     guidance="direct quote-bound intents must bind exactly one receipt leg",
                 )
-            observed_leg_indices.append(int(leg_index))
+            normalized_leg_index = int(leg_index)
+            observed_leg_indices.append(normalized_leg_index)
+            if normalized_leg_index in seen_leg_indices:
+                duplicate_leg_indices.add(normalized_leg_index)
+            else:
+                seen_leg_indices.add(normalized_leg_index)
 
-        duplicate_leg_indices = sorted(
-            {
-                leg_index
-                for leg_index in observed_leg_indices
-                if observed_leg_indices.count(leg_index) > 1
-            }
-        )
         if duplicate_leg_indices:
             return _quote_receipt_error(
                 "duplicate quote receipt leg binding",
                 quote_hash=quote_hash,
-                duplicate_leg_indices=duplicate_leg_indices,
+                duplicate_leg_indices=sorted(duplicate_leg_indices),
                 intent_ids=[env.intent.intent_id for env in envs],
             )
 
