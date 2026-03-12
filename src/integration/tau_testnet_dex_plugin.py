@@ -24,6 +24,7 @@ from dataclasses import replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from ..core.dex import DexState
+from ..core.perp_tau_ingress_stream import evaluate_perp_tau_ingress_stream
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.balances import BalanceTable, NATIVE_ASSET
 from ..state.lp import LPTable
@@ -261,7 +262,8 @@ def _apply_faucet(
         parsed, err = _parse_faucet_mint_entry(entry, index=i)
         if err is not None:
             return False, state, err
-        assert parsed is not None  # internal: err would be set
+        if parsed is None:
+            return False, state, f"internal faucet parse error at index {i}"
         pk, asset, amount = parsed
 
         current = balances_copy.get(pk, asset)
@@ -554,18 +556,20 @@ def _select_dex_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
 
 def _select_perp_ops(operations: Mapping[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
-    if _PERP_OPS_KEY in operations:
+    legacy_candidate = operations.get(_LEGACY_PERP_OPS_KEY)
+    selection = evaluate_perp_tau_ingress_stream(
+        upstream_stream_present=_PERP_OPS_KEY in operations,
+        legacy_stream_present=_LEGACY_PERP_OPS_KEY in operations,
+        legacy_dex_stream_present=_LEGACY_DEX_INTENTS_KEY in operations,
+        legacy_candidate_dex_like=_looks_like_dex_intents(legacy_candidate),
+        legacy_candidate_perp_like=_looks_like_perp_ops(legacy_candidate),
+    )
+    if selection.upstream_stream_selected:
         out[_LEGACY_PERP_OPS_KEY] = operations.get(_PERP_OPS_KEY)
         return out
-
-    if (
-        _LEGACY_PERP_OPS_KEY in operations
-        and _LEGACY_DEX_INTENTS_KEY not in operations
-        and not _looks_like_dex_intents(operations.get(_LEGACY_PERP_OPS_KEY))
-        and _looks_like_perp_ops(operations.get(_LEGACY_PERP_OPS_KEY))
-    ):
+    if selection.legacy_fallback_used:
         # Legacy fallback for direct plugin tests/tooling that still use stream "5" for perps.
-        out[_LEGACY_PERP_OPS_KEY] = operations.get(_LEGACY_PERP_OPS_KEY)
+        out[_LEGACY_PERP_OPS_KEY] = legacy_candidate
     return out
 
 

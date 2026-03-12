@@ -1,21 +1,20 @@
-"""
-Intent creation and signing for autonomous agents.
-"""
+"""Intent creation and signing for autonomous agents."""
 
 import hashlib
 import json
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
-from ..state.intents import Intent, IntentKind, SignedIntent
-from ..state.balances import AssetId, Amount, PubKey
 from ..core.quote_receipts import pool_state_fingerprint
+from ..integration.tau_net_client import sign_dex_intent_for_engine
+from ..state.balances import Amount, AssetId, PubKey
+from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
+from ..state.intents import Intent, IntentKind, SignedIntent
 
 # For BLS12-381 signing (same as tau-testnet)
 try:
-    from py_ecc import bls12_381 as bls
+    from py_ecc.bls import G2Basic
 except ImportError:
-    # Fallback for development (signatures won't be valid)
-    bls = None
+    G2Basic = None
 
 
 def _guardrail_severity(action: str) -> int:
@@ -52,8 +51,8 @@ def _preflight_swap_pokayoke_exact_in_cpmm(
     max_attacker_amount_in: int = 2000,
 ) -> Any:
     # Import lazily to keep agent surfaces lightweight.
-    from src.core.slippage_advisor import slippage_advice_exact_in_cpmm
     from src.core.pokayoke_swap_guardrails import SwapGuardrailContext, decide_swap_guardrails
+    from src.core.slippage_advisor import slippage_advice_exact_in_cpmm
 
     curve = str(getattr(pool, "curve_tag", "")).strip().upper()
     if curve != "CPMM":
@@ -248,7 +247,7 @@ def create_swap_intent_from_quote_receipt(
     # Import lazily to avoid coupling agent code to routing modules unless used.
     from src.core.quote_receipts import verify_route_quote_receipt
 
-    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)  # type: ignore[arg-type]
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)
     if not ok:
         raise ValueError(f"invalid_quote_receipt:{err}")
 
@@ -412,7 +411,7 @@ def create_swap_intents_from_quote_receipt(
 
     from src.core.quote_receipts import verify_route_quote_receipt
 
-    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)  # type: ignore[arg-type]
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools_by_id)
     if not ok:
         raise ValueError(f"invalid_quote_receipt:{err}")
 
@@ -600,7 +599,7 @@ def _generate_intent_id(
     """
     Generate deterministic intent ID.
     
-    Formula: H(sender || deadline || kind || canonical_json(fields) || salt)
+    Formula: H(sender || deadline || kind || canonical_json_bytes(fields) || salt)
     
     Args:
         sender: Sender public key
@@ -612,15 +611,16 @@ def _generate_intent_id(
     Returns:
         32-byte hex string (0x...)
     """
-    # Canonical JSON encoding (sorted keys, no whitespace)
-    canonical_json = json.dumps(fields, sort_keys=True, separators=(',', ':'))
-    
+    # Reuse the shared canonical encoder so every hash/signature input follows
+    # the same scalar-value and float-rejection rules.
+    canonical_json = canonical_json_bytes(fields)
+
     # Hash components
     data = (
         sender.encode('utf-8')
         + str(deadline).encode('utf-8')
         + kind.encode('utf-8')
-        + canonical_json.encode('utf-8')
+        + canonical_json
     )
     
     if salt:
@@ -630,13 +630,53 @@ def _generate_intent_id(
     return "0x" + intent_id_hash
 
 
-def sign_intent(intent: Intent, private_key: bytes) -> SignedIntent:
+def _intent_signing_dict(intent: Intent) -> dict[str, Any]:
+    fields = intent.fields or {}
+    if not isinstance(fields, dict):
+        raise TypeError("intent.fields must be a dict")
+    out: dict[str, Any] = {
+        "module": intent.module,
+        "version": intent.version,
+        "kind": intent.kind.value,
+        "intent_id": intent.intent_id,
+        "sender_pubkey": intent.sender_pubkey,
+        "deadline": int(intent.deadline),
+        "fields": dict(fields),
+    }
+    if intent.salt is not None:
+        out["salt"] = intent.salt
+    return out
+
+
+def _intent_transport_dict(intent: Intent) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "module": intent.module,
+        "version": intent.version,
+        "kind": intent.kind.value,
+        "intent_id": intent.intent_id,
+        "sender_pubkey": intent.sender_pubkey,
+        "deadline": int(intent.deadline),
+    }
+    if intent.salt is not None:
+        out["salt"] = intent.salt
+    if intent.fields:
+        out.update(dict(intent.fields))
+    return out
+
+
+def sign_intent(
+    intent: Intent,
+    private_key: str | int | bytes | bytearray,
+    *,
+    chain_id: str = "tau-net-alpha",
+) -> SignedIntent:
     """
     Sign an intent with BLS12-381 signature.
     
     Args:
         intent: Intent to sign
-        private_key: BLS12-381 private key (bytes)
+        private_key: BLS12-381 private key
+        chain_id: Domain separator chain id used by the engine verifier
         
     Returns:
         SignedIntent object
@@ -644,20 +684,16 @@ def sign_intent(intent: Intent, private_key: bytes) -> SignedIntent:
     Raises:
         ImportError: If py_ecc is not available
     """
-    if bls is None:
+    if G2Basic is None:
         raise ImportError(
             "py_ecc not available. Install with: pip install py-ecc"
         )
-    
-    # Create canonical message for signing
-    message = _create_canonical_message(intent)
-    
-    # Sign with BLS12-381
-    # Note: This is a simplified version; full implementation would
-    # use proper BLS12-381 signing as per tau-testnet
-    signature_bytes = bls.sign(message, private_key)
-    signature = "0x" + signature_bytes.hex()
-    
+
+    signature = sign_dex_intent_for_engine(
+        _intent_transport_dict(intent),
+        privkey=private_key,
+        chain_id=chain_id,
+    )
     return SignedIntent(intent=intent, signature=signature)
 
 
@@ -673,29 +709,14 @@ def _create_canonical_message(intent: Intent) -> bytes:
     Returns:
         Canonical message bytes
     """
-    # Create canonical JSON representation
-    intent_dict = {
-        "module": intent.module,
-        "version": intent.version,
-        "kind": intent.kind.value,
-        "intent_id": intent.intent_id,
-        "sender_pubkey": intent.sender_pubkey,
-        "deadline": intent.deadline,
-    }
-    
-    if intent.salt:
-        intent_dict["salt"] = intent.salt
-    
-    if intent.fields:
-        intent_dict.update(intent.fields)
-    
-    # Canonical JSON (sorted keys, no whitespace)
-    canonical_json = json.dumps(intent_dict, sort_keys=True, separators=(',', ':'))
-    
-    return canonical_json.encode('utf-8')
+    return canonical_json_bytes(_intent_signing_dict(intent))
 
 
-def verify_intent_signature(signed_intent: SignedIntent) -> bool:
+def verify_intent_signature(
+    signed_intent: SignedIntent,
+    *,
+    chain_id: str = "tau-net-alpha",
+) -> bool:
     """
     Verify intent signature.
     
@@ -708,20 +729,27 @@ def verify_intent_signature(signed_intent: SignedIntent) -> bool:
     Raises:
         ImportError: If py_ecc is not available
     """
-    if bls is None:
+    if G2Basic is None:
         raise ImportError(
             "py_ecc not available. Install with: pip install py-ecc"
         )
-    
-    # Create canonical message
-    message = _create_canonical_message(signed_intent.intent)
-    
-    # Verify signature
-    # Note: This is a simplified version; full implementation would
-    # use proper BLS12-381 verification as per tau-testnet
+
     try:
-        pubkey_bytes = bytes.fromhex(signed_intent.intent.sender_pubkey[2:])
-        signature_bytes = bytes.fromhex(signed_intent.signature[2:])
-        return bls.verify(message, signature_bytes, pubkey_bytes)
+        sender_pubkey = canonical_hex_fixed_allow_0x(
+            signed_intent.intent.sender_pubkey,
+            nbytes=48,
+            name="sender_pubkey",
+        )
+        signature = canonical_hex_fixed_allow_0x(
+            signed_intent.signature,
+            nbytes=96,
+            name="signature",
+        )
+        signing_payload = _create_canonical_message(signed_intent.intent)
+        msg = domain_sep_bytes(f"dex_intent_sig:{chain_id}", version=1) + signing_payload
+        msg_hash = hashlib.sha256(msg).digest()
+        pubkey_bytes = bytes.fromhex(sender_pubkey[2:])
+        signature_bytes = bytes.fromhex(signature[2:])
+        return bool(G2Basic.Verify(pubkey_bytes, msg_hash, signature_bytes))
     except Exception:
         return False

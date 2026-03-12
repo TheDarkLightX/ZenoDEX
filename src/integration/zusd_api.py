@@ -13,10 +13,11 @@ import json
 import os
 import threading
 import time
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple, cast
 
 from ..core.zusd import (
     ZUSDCommand,
+    ZUSDCommandTag,
     ZUSDMultiCommand,
     ZUSDMultiState,
     ZUSDState,
@@ -24,7 +25,6 @@ from ..core.zusd import (
     init_state,
 )
 from .zusd_tau_gate import ZUSDTauGateConfig, step_multi_with_tau, step_with_tau
-
 
 MAX_POST_BODY: int = 65_536
 
@@ -36,6 +36,22 @@ _MAX_HISTORY: int = 200
 
 ResponseT = Tuple[int, Dict[str, Any]]
 PostStateResultT = Tuple[ZUSDState, ZUSDMultiState, List[Dict[str, Any]], ResponseT]
+_VALID_ZUSD_TAGS: frozenset[str] = frozenset(
+    {
+        "advance_epoch",
+        "bootstrap_oracle",
+        "oracle_report",
+        "oracle_commit",
+        "deposit_collateral",
+        "withdraw_collateral",
+        "mint_zusd",
+        "repay_zusd",
+        "deposit_sp",
+        "withdraw_sp",
+        "redeem_zusd",
+        "liquidate",
+    }
+)
 
 
 def _bool_env(name: str, *, default: bool) -> bool:
@@ -85,7 +101,7 @@ def _tau_gate_config_from_env() -> ZUSDTauGateConfig:
         enabled=_bool_env("ZUSD_TAU_GATE_ENABLED", default=True),
         timeout_s=_float_env("ZUSD_TAU_GATE_TIMEOUT_S", 5.0, lo=0.1, hi=120.0),
         tau_bin=(os.environ.get("ZUSD_TAU_BIN", "").strip() or None),
-        allow_path_lookup=_bool_env("ZUSD_TAU_ALLOW_PATH_LOOKUP", default=True),
+        allow_path_lookup=_bool_env("ZUSD_TAU_ALLOW_PATH_LOOKUP", default=False),
     )
 
 
@@ -222,6 +238,8 @@ def _cmd_from_body(body: Dict[str, Any]) -> Tuple[Optional[str], Optional[Dict[s
     args = body.get("args", {})
     if not isinstance(tag, str) or not tag:
         return None, None, "missing_tag"
+    if tag not in _VALID_ZUSD_TAGS:
+        return None, None, "unknown_tag"
     if not isinstance(args, dict):
         return None, None, "invalid_args"
     return tag, args, None
@@ -263,12 +281,14 @@ def _handle_post(
     parsed, err = _parse_json_body(body)
     if err is not None:
         return single, multi, history, (400, {"ok": False, "error": err})
-    assert parsed is not None
+    if parsed is None:
+        return single, multi, history, (400, {"ok": False, "error": "bad_json"})
 
     tag, args, cmd_err = _cmd_from_body(parsed)
     if cmd_err is not None:
         return single, multi, history, (400, {"ok": False, "error": cmd_err})
-    assert tag is not None and args is not None
+    if tag is None or args is None:
+        return single, multi, history, (400, {"ok": False, "error": "invalid_command"})
 
     tau_cfg = _tau_gate_config_from_env()
 
@@ -294,7 +314,7 @@ def _handle_post(
                     },
                 )
 
-        cmd = ZUSDCommand(tag=tag, args=args)
+        cmd = ZUSDCommand(tag=cast(ZUSDCommandTag, tag), args=args)
         result = step_with_tau(single, cmd, config=tau_cfg)
         new_history = _history_with_entry(history, mode="single", tag=tag, args=args, ok=result.ok, error=result.error)
         if not result.ok or result.state is None:
@@ -341,7 +361,7 @@ def _handle_post(
                 },
             )
 
-    cmd_multi = ZUSDMultiCommand(tag=tag, args=args)
+    cmd_multi = ZUSDMultiCommand(tag=cast(ZUSDCommandTag, tag), args=args)
     result_multi = step_multi_with_tau(multi, cmd_multi, config=tau_cfg)
     new_history = _history_with_entry(
         history,
