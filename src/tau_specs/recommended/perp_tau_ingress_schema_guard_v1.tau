@@ -1,0 +1,51 @@
+# Perp Tau Ingress Schema Guard v1 - Host-Projected Envelope Contract
+#
+# MUTABILITY: IMMUTABLE (policy relation)
+# UPDATABLE_PARAMS: none
+# IMMUTABLE_INVARIANTS:
+# - Exactly one supported signed/oracle clearinghouse auth mode must be selected.
+# - Signed mode requires the signed auth-field bundle.
+# - Oracle mode requires the oracle auth-field bundle.
+# - Module/version/market-id/unknown-field and host-projection flags must all pass.
+#
+# PURPOSE:
+# Encode the outer Tau ingress schema contract for relayable clearinghouse perps
+# actions before the Python shell reaches signature verification and
+# state-transition code.
+#
+# IMPORTANT:
+# The host computes structural facts and action decoding. Tau only combines the
+# resulting sbf flags fail-closed. This keeps the policy cheap enough for the
+# current Tau runtime.
+#
+# Stream mapping:
+# i1  = module_ok (sbf)
+# i2  = market_id_ok (sbf)
+# i3  = version_ok (sbf)
+# i4  = unknown_fields_ok (sbf)
+# i5  = action_known (sbf)
+# i6  = action_one_hot (sbf)
+# i7  = signed_action_selected (sbf)
+# i8  = oracle_action_selected (sbf)
+# i9  = signed_auth_fields_ok (sbf)
+# i10 = oracle_auth_fields_ok (sbf)
+# i11 = host_projection_ok (sbf)
+#
+# o1 = action_selection_ok
+# o2 = auth_bundle_ok
+# o3 = ingress_preconditions_ok
+# o4 = ingress_schema_ok
+
+set charvar off
+
+action_selection_ok(action_known : sbf, action_one_hot : sbf) := (action_known = 1:sbf) && (action_one_hot = 1:sbf).
+
+auth_mode_selected_ok(signed_selected : sbf, oracle_selected : sbf) := ((signed_selected = 1:sbf) && (oracle_selected = 0:sbf)) || ((signed_selected = 0:sbf) && (oracle_selected = 1:sbf)).
+
+auth_bundle_ok(signed_selected : sbf, oracle_selected : sbf, signed_auth_ok : sbf, oracle_auth_ok : sbf) := (((signed_selected = 1:sbf) && (oracle_selected = 0:sbf)) && (signed_auth_ok = 1:sbf)) || (((signed_selected = 0:sbf) && (oracle_selected = 1:sbf)) && (oracle_auth_ok = 1:sbf)).
+
+ingress_preconditions_ok(module_ok : sbf, market_id_ok : sbf, version_ok : sbf, unknown_fields_ok : sbf, host_projection_ok : sbf) := (module_ok = 1:sbf) && (market_id_ok = 1:sbf) && (version_ok = 1:sbf) && (unknown_fields_ok = 1:sbf) && (host_projection_ok = 1:sbf).
+
+ingress_schema_ok(module_ok : sbf, market_id_ok : sbf, version_ok : sbf, unknown_fields_ok : sbf, action_known : sbf, action_one_hot : sbf, signed_selected : sbf, oracle_selected : sbf, signed_auth_ok : sbf, oracle_auth_ok : sbf, host_projection_ok : sbf) := action_selection_ok(action_known, action_one_hot) && auth_mode_selected_ok(signed_selected, oracle_selected) && auth_bundle_ok(signed_selected, oracle_selected, signed_auth_ok, oracle_auth_ok) && ingress_preconditions_ok(module_ok, market_id_ok, version_ok, unknown_fields_ok, host_projection_ok).
+
+always (o1[t]:sbf = 1:sbf <-> action_selection_ok(i5[t]:sbf, i6[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> auth_bundle_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> ingress_preconditions_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i11[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> ingress_schema_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)).

@@ -1,7 +1,6 @@
 """Intent creation and signing for autonomous agents."""
 
 import hashlib
-import json
 from typing import Any, Dict, Optional
 
 from ..core.quote_receipts import pool_state_fingerprint

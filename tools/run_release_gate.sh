@@ -64,6 +64,15 @@ bash "$ROOT_DIR/tests/tau/test_specs_syntax.sh"
 echo "== release: tau traces =="
 "$PY" -m pytest -q "$ROOT_DIR/tests/tau/test_spec_registry_traces.py"
 
+echo "== release: tau spec assurance =="
+"$PY" -m pytest -q "$ROOT_DIR/tests/tau/test_tau_spec_assurance.py"
+
+echo "== release: tla/tlc shadow models =="
+"$PY" "$ROOT_DIR/tools/run_tla_models.py"
+
+echo "== release: tau shadow assurance =="
+"$PY" "$ROOT_DIR/tools/check_tau_shadow_assurance.py"
+
 run_if_present "perps evidence" "$ROOT_DIR/tools/run_perps_evidence.sh"
 run_if_present "spot proof assurance" "$ROOT_DIR/tools/run_spot_proof_assurance_gate.sh"
 run_if_present "spot evidence" "$ROOT_DIR/tools/run_spot_evidence.sh"

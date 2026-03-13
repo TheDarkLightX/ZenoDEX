@@ -89,6 +89,36 @@ The current per-spec semantic-understanding status map is:
 
 - [`formal/tau/semantic_understanding_status.json`](semantic_understanding_status.json)
 
+The current top-level safety-property matrix and semantic-delta queue are:
+
+- [`formal/tau/dex_safety_property_matrix.json`](dex_safety_property_matrix.json)
+- [`formal/tau/semantic_delta_review_queue.json`](semantic_delta_review_queue.json)
+
+The current release-facing matrix is intentionally finer-grained than the
+original control set: broad rows such as replay, auth, oracle freshness, and
+settlement accounting are split into smaller subproperties so semantic drift can
+be reviewed at the level of a specific rule rather than a whole subsystem.
+
+The fail-closed checker for those artifacts is:
+
+```bash
+python3 tools/check_tau_shadow_assurance.py
+```
+
+The bounded TLA/TLC execution lane for the shadow models is:
+
+```bash
+python3 tools/run_tla_models.py
+```
+
+The matrix supports two scaffold styles:
+
+- `shadow_model` for independent TLA shadow semantics on release-blocking Tau guards,
+- `assurance_refs` for bounded formal bundles, differential tests, and evidence runners
+  that already exist elsewhere in the repo.
+
+Unreviewed semantic deltas on release-blocking properties are treated as release blockers.
+
 The design document is:
 
 - [`docs/TAU_FORMAL_ASSURANCE_PLAN.md`](../../docs/TAU_FORMAL_ASSURANCE_PLAN.md)

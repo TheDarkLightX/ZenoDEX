@@ -1,5 +1,5 @@
 ---- MODULE PerpEpochScheduler ----
-EXTENDS Naturals, FiniteSets
+EXTENDS Integers, FiniteSets
 
 (*
 Perp epoch scheduler (liveness-first) — abstract model.
@@ -19,10 +19,9 @@ If you want a more concrete model later, refine this by adding:
 - oracle staleness + bounded-move clamp/breaker triggers.
 *)
 
-CONSTANTS
-  ACCOUNTS,     \* finite set of trader accounts
-  POS_SET,      \* finite set of allowed positions (ints)
-  EPOCH_MAX     \* small bound for TLC exploration
+ACCOUNTS == {0, 1}   \* finite set of trader accounts
+POS_SET == {-2, -1, 0, 1, 2}
+EPOCH_MAX == 3
 
 VARIABLES
   nowEpoch,
@@ -102,5 +101,7 @@ EventuallySettles ==
 Fair ==
   WF_<<nowEpoch, clearingSeen, breakerActive, pos>>(SettleEpoch)
 
-==== 
+FairImpliesEventuallySettles ==
+  Fair => EventuallySettles
 
+==== 

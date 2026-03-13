@@ -11,7 +11,11 @@ import pytest
 import src.integration.zusd_tau_gate as zusd_tau_gate
 from src.core.zusd import E8
 from src.integration import perps_api as perps_demo_api
-from src.integration.zusd_api import _tau_gate_config_from_env, handle_zusd_request, reset_demo_state
+from src.integration.zusd_api import (
+    _tau_gate_config_from_env,
+    handle_zusd_request,
+    reset_demo_state,
+)
 
 
 @pytest.fixture(autouse=True)

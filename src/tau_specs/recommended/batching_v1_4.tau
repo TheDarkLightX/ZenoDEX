@@ -21,6 +21,8 @@
 # i8 = executed_id_3
 # o1 = batch_order_valid
 
+set charvar off
+
 all_distinct_4(a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (a != b) && (a != c) && (a != d) && (b != c) && (b != d) && (c != d).
 
 is_member_4(x : bv[64], a : bv[64], b : bv[64], c : bv[64], d : bv[64]) := (x = a) || (x = b) || (x = c) || (x = d).
