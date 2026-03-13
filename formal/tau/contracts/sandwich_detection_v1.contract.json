@@ -1,0 +1,171 @@
+{
+  "schema": "zenodex/tau/spec-contract/v1",
+  "spec_id": "sandwich_detection_v1",
+  "spec_path": "src/tau_specs/recommended/sandwich_detection_v1.tau",
+  "kind": "combinational_guard",
+  "contract_status": "active",
+  "proof_scope": "bounded_assurance_domain",
+  "human_summary": "Current v1 bounded price-impact guard around a target trade, with standalone guarded front and back impact outputs.",
+  "assumptions": [
+    "The current v1 public contract is magnitude-based and does not by itself encode directional sandwich intent.",
+    "All price inputs are bv32 values and params_ok includes positivity, max_bps <= 10000, and the documented safe-range bound.",
+    "Standalone outputs o2 and o3 are required to be gated by params_ok in the public contract."
+  ],
+  "input_domain": {
+    "streams": [
+      {
+        "name": "i1",
+        "type": "bv32",
+        "role": "price_before_front",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i2",
+        "type": "bv32",
+        "role": "price_after_front",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i3",
+        "type": "bv32",
+        "role": "price_after_target",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i4",
+        "type": "bv32",
+        "role": "price_after_back",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      },
+      {
+        "name": "i5",
+        "type": "bv32",
+        "role": "max_price_impact_bps",
+        "bounds": {
+          "min": 0,
+          "max": 4294967295
+        }
+      }
+    ],
+    "domain_model": "total_bitvector_product",
+    "intended_preconditions": [
+      "o2 and o3 are standalone guarded outputs and must not report success when params_ok is false."
+    ],
+    "analysis_partitions": [
+      {
+        "id": "params_fail",
+        "formula": "!(i1 > 0 && i2 > 0 && i3 > 0 && i4 > 0 && i5 <= 10000 && i1 <= 429496 && i2 <= 429496 && i3 <= 429496 && i4 <= 429496)",
+        "intent": "Parameter gate blocks every stronger output."
+      },
+      {
+        "id": "front_only_fail",
+        "formula": "params_ok && !front_impact_ok && back_impact_ok",
+        "intent": "Front-run impact rejects while back-run impact passes."
+      },
+      {
+        "id": "back_only_fail",
+        "formula": "params_ok && front_impact_ok && !back_impact_ok",
+        "intent": "Back-run impact rejects while front-run impact passes."
+      }
+    ]
+  },
+  "outputs": [
+    {
+      "name": "o1",
+      "type": "sbf",
+      "meaning": "params_ok",
+      "contract_formula": "o1 = 1 iff prices are positive, max_bps <= 10000, and all four prices lie within the documented safe multiplication range",
+      "contract_expr": "1 if (i1 > 0 and i2 > 0 and i3 > 0 and i4 > 0 and i5 <= 10000 and i1 <= 429496 and i2 <= 429496 and i3 <= 429496 and i4 <= 429496) else 0"
+    },
+    {
+      "name": "o2",
+      "type": "sbf",
+      "meaning": "front_impact_ok_guarded",
+      "contract_formula": "o2 = 1 iff params_ok holds and the absolute front-run price move is within max_price_impact_bps",
+      "contract_expr": "1 if ((i1 > 0 and i2 > 0 and i3 > 0 and i4 > 0 and i5 <= 10000 and i1 <= 429496 and i2 <= 429496 and i3 <= 429496 and i4 <= 429496) and (((i2 >= i1) and (((i2 - i1) * 10000) <= (i1 * i5))) or ((i2 < i1) and (((i1 - i2) * 10000) <= (i1 * i5))))) else 0"
+    },
+    {
+      "name": "o3",
+      "type": "sbf",
+      "meaning": "back_impact_ok_guarded",
+      "contract_formula": "o3 = 1 iff params_ok holds and the absolute back-run price move is within max_price_impact_bps",
+      "contract_expr": "1 if ((i1 > 0 and i2 > 0 and i3 > 0 and i4 > 0 and i5 <= 10000 and i1 <= 429496 and i2 <= 429496 and i3 <= 429496 and i4 <= 429496) and (((i4 >= i3) and (((i4 - i3) * 10000) <= (i3 * i5))) or ((i4 < i3) and (((i3 - i4) * 10000) <= (i3 * i5))))) else 0"
+    },
+    {
+      "name": "o4",
+      "type": "sbf",
+      "meaning": "sandwich_safe_v1",
+      "contract_formula": "o4 = 1 iff o1, o2, and o3 all hold under the current magnitude-based v1 contract",
+      "contract_expr": "1 if ((i1 > 0 and i2 > 0 and i3 > 0 and i4 > 0 and i5 <= 10000 and i1 <= 429496 and i2 <= 429496 and i3 <= 429496 and i4 <= 429496) and (((i2 >= i1) and (((i2 - i1) * 10000) <= (i1 * i5))) or ((i2 < i1) and (((i1 - i2) * 10000) <= (i1 * i5)))) and (((i4 >= i3) and (((i4 - i3) * 10000) <= (i3 * i5))) or ((i4 < i3) and (((i3 - i4) * 10000) <= (i3 * i5))))) else 0"
+    }
+  ],
+  "behavior_partition": {
+    "partition_basis": "output_vector",
+    "coverage_goal": "promotion_gate",
+    "reachable_vectors_must_be_witnessed": true,
+    "unreachable_vectors_must_be_proved": true
+  },
+  "theorems": [
+    {
+      "id": "o2_o3_guarded_exact",
+      "kind": "exactness",
+      "statement": "For all inputs, o2 and o3 are exactly the guarded front/back impact predicates and never claim success when params_ok is false.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "o4_exact",
+      "kind": "exactness",
+      "statement": "For all inputs, o4 is exactly the current v1 aggregate magnitude-based impact guard.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact",
+        "tau_differential_exec"
+      ]
+    },
+    {
+      "id": "atlas_disjoint",
+      "kind": "partition_disjointness",
+      "statement": "Distinct sandwich_detection_v1 output-vector regions are pairwise disjoint over the explicit input domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "atlas_exhaustive",
+      "kind": "partition_exhaustiveness",
+      "statement": "The sandwich_detection_v1 behavior atlas covers the explicit input domain.",
+      "preferred_mechanization": [
+        "smt_bitvector_exact"
+      ]
+    },
+    {
+      "id": "tau_interpreter_equiv",
+      "kind": "interpreter_equivalence",
+      "statement": "The contract semantics and the Tau binary agree on the bounded assurance domain for sandwich_detection_v1.",
+      "preferred_mechanization": [
+        "tau_differential_exec"
+      ]
+    }
+  ],
+  "evidence_links": [
+    {
+      "kind": "bounded_assurance",
+      "path": "tests/tau/spec_assurance_registry.json",
+      "note": "The assurance registry already checks guarded standalone outputs and aggregate implications for sandwich_detection_v1."
+    }
+  ]
+}

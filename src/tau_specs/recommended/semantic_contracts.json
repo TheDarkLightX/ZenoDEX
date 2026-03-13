@@ -1,0 +1,349 @@
+{
+  "schema": "zenodex/tau-semantic-contracts/v1",
+  "specs": [
+    {
+      "contract_id": "perp_tau_ingress_schema_guard_v1",
+      "spec_path": "src/tau_specs/recommended/perp_tau_ingress_schema_guard_v1.tau",
+      "run_mode": "repl",
+      "style": "host_projected_boolean_gate",
+      "summary": "Outer Tau ingress schema contract for relayable clearinghouse perps actions.",
+      "control_inputs": [
+        {"slot": "i1", "name": "module_ok", "meaning": "host projected module name matches the expected perps module"},
+        {"slot": "i2", "name": "market_id_ok", "meaning": "host projected market identifier is valid"},
+        {"slot": "i3", "name": "version_ok", "meaning": "host projected version is valid"},
+        {"slot": "i4", "name": "unknown_fields_ok", "meaning": "host projection removed or rejected unknown fields"},
+        {"slot": "i5", "name": "action_known", "meaning": "host decoded a supported action kind"},
+        {"slot": "i6", "name": "action_one_hot", "meaning": "exactly one supported action mode is selected"},
+        {"slot": "i7", "name": "signed_action_selected", "meaning": "signed action mode is selected"},
+        {"slot": "i8", "name": "oracle_action_selected", "meaning": "oracle action mode is selected"},
+        {"slot": "i9", "name": "signed_auth_fields_ok", "meaning": "signed mode auth bundle is present and structurally valid"},
+        {"slot": "i10", "name": "oracle_auth_fields_ok", "meaning": "oracle mode auth bundle is present and structurally valid"},
+        {"slot": "i11", "name": "host_projection_ok", "meaning": "host-side projection and envelope decoding succeeded"}
+      ],
+      "data_inputs": [],
+      "outputs": [
+        {"slot": "o1", "name": "action_selection_ok", "meaning": "action is known and action-mode selection is well-formed"},
+        {"slot": "o2", "name": "auth_bundle_ok", "meaning": "the selected auth mode has the required auth-field bundle"},
+        {"slot": "o3", "name": "ingress_preconditions_ok", "meaning": "module, market, version, unknown-field, and host-projection checks all passed"},
+        {"slot": "o4", "name": "ingress_schema_ok", "meaning": "the full outer ingress schema contract is satisfied"}
+      ],
+      "assumptions": [
+        "The host computes structural facts and action decoding before Tau evaluation.",
+        "Tau combines the host-projected booleans fail-closed and does not parse the full action payload itself."
+      ],
+      "non_goals": [
+        "Signature verification.",
+        "Clearinghouse state-transition semantics."
+      ],
+      "guarantees": [
+        {
+          "id": "G_accept_valid_signed_and_oracle_modes",
+          "description": "The guard accepts exactly one supported auth mode when the corresponding auth bundle and preconditions all pass.",
+          "cases": [
+            {
+              "id": "valid_signed_action_accepts",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 0, "i9": 1, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            },
+            {
+              "id": "valid_oracle_action_accepts",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 0, "i8": 1, "i9": 0, "i10": 1, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            }
+          ]
+        }
+      ],
+      "forbidden_behaviors": [
+        {
+          "id": "F_missing_auth_bundle_rejected",
+          "description": "The guard rejects when the selected mode lacks its required auth bundle.",
+          "cases": [
+            {
+              "id": "signed_mode_missing_signed_auth_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 0, "i9": 0, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 0, "o3": 1, "o4": 0}
+              ]
+            },
+            {
+              "id": "oracle_mode_missing_oracle_auth_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 0, "i8": 1, "i9": 0, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 0, "o3": 1, "o4": 0}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F_bad_selection_or_projection_rejected",
+          "description": "The guard rejects malformed action selection and failed host projection.",
+          "cases": [
+            {
+              "id": "non_one_hot_selection_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 0, "i7": 1, "i8": 0, "i9": 1, "i10": 0, "i11": 1}
+              ],
+              "expected": [
+                {"o1": 0, "o2": 1, "o3": 1, "o4": 0}
+              ]
+            },
+            {
+              "id": "failed_host_projection_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 0, "i9": 1, "i10": 0, "i11": 0}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "contract_id": "zusd_oracle_commit_guard_v2",
+      "spec_path": "src/tau_specs/recommended/zusd_oracle_commit_guard_v2.tau",
+      "run_mode": "repl",
+      "style": "host_projected_boolean_gate",
+      "summary": "Boolean Tau gate for the zUSD oracle commit boundary after host projection of environment and policy checks.",
+      "control_inputs": [
+        {"slot": "i1", "name": "oracle_seen", "meaning": "an oracle input has been observed"},
+        {"slot": "i2", "name": "pending_le_active", "meaning": "pending oracle price is less than or equal to active price"},
+        {"slot": "i3", "name": "fresh_ok", "meaning": "oracle freshness window is satisfied"},
+        {"slot": "i4", "name": "auth_ok", "meaning": "oracle commit authorization passed"},
+        {"slot": "i5", "name": "mcr_ok_at_pending", "meaning": "the projected MCR-at-pending check passed"}
+      ],
+      "data_inputs": [],
+      "outputs": [
+        {"slot": "o1", "name": "env_ok", "meaning": "oracle seen, pending<=active, and freshness all hold"},
+        {"slot": "o2", "name": "policy_ok", "meaning": "auth and MCR-at-pending policy checks hold"},
+        {"slot": "o3", "name": "policy_ok_shadow", "meaning": "legacy compatibility output mirroring policy_ok"},
+        {"slot": "o4", "name": "oracle_commit_allowed", "meaning": "the full oracle commit guard allows the commit"}
+      ],
+      "assumptions": [
+        "The host computes freshness, pending<=active, and MCR-at-pending booleans before Tau evaluation.",
+        "Tau only combines the projected control flags fail-closed."
+      ],
+      "non_goals": [
+        "Vault-level arithmetic.",
+        "Oracle report parsing."
+      ],
+      "guarantees": [
+        {
+          "id": "G_commit_allowed_when_env_and_policy_hold",
+          "description": "The guard allows commit only when both environment and policy checks hold.",
+          "cases": [
+            {
+              "id": "all_flags_true_accepts",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            }
+          ]
+        }
+      ],
+      "forbidden_behaviors": [
+        {
+          "id": "F_env_fail_rejects",
+          "description": "The guard rejects when projected environment checks fail.",
+          "cases": [
+            {
+              "id": "pending_gt_active_rejects",
+              "steps": [
+                {"i1": 1, "i2": 0, "i3": 1, "i4": 1, "i5": 1}
+              ],
+              "expected": [
+                {"o1": 0, "o2": 1, "o3": 1, "o4": 0}
+              ]
+            }
+          ]
+        },
+        {
+          "id": "F_policy_fail_rejects",
+          "description": "The guard rejects when projected policy checks fail.",
+          "cases": [
+            {
+              "id": "mcr_fail_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 0}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 0, "o3": 0, "o4": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "contract_id": "autotrader_tx_envelope_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_tx_envelope_guard_v1.tau",
+      "run_mode": "repl",
+      "style": "host_projected_boolean_gate",
+      "summary": "Final Tau transaction-envelope guard for the live autotrader submit path.",
+      "control_inputs": [
+        {"slot": "i1", "name": "tx_requested", "meaning": "live submit path is requesting a Tau transaction"},
+        {"slot": "i2", "name": "sequence_present", "meaning": "sequence argument is present"},
+        {"slot": "i3", "name": "expiration_present", "meaning": "expiration argument is present"},
+        {"slot": "i4", "name": "sequence_valid", "meaning": "sequence argument passed host validation"},
+        {"slot": "i5", "name": "expiration_valid", "meaning": "expiration argument passed host validation"},
+        {"slot": "i6", "name": "fee_limit_valid", "meaning": "fee limit passed host validation"},
+        {"slot": "i7", "name": "intent_stream_present", "meaning": "required intent stream is present"},
+        {"slot": "i8", "name": "settlement_stream_absent", "meaning": "forbidden settlement stream is absent"},
+        {"slot": "i9", "name": "extra_custom_streams_absent", "meaning": "no extra custom streams survived projection"}
+      ],
+      "data_inputs": [],
+      "outputs": [
+        {"slot": "o1", "name": "tx_args_paired_ok", "meaning": "requested tx has paired sequence and expiration arguments"},
+        {"slot": "o2", "name": "tx_bounds_ok", "meaning": "requested tx passed bounds validation"},
+        {"slot": "o3", "name": "tx_stream_scope_ok", "meaning": "requested tx has the correct stream scope"},
+        {"slot": "o4", "name": "tx_envelope_ok", "meaning": "the transaction envelope is admissible"}
+      ],
+      "assumptions": [
+        "The host computes sequence, expiration, and fee validation booleans before Tau evaluation.",
+        "Tau only checks the final envelope contract over host-projected booleans."
+      ],
+      "non_goals": [
+        "Signature verification.",
+        "Execution-side settlement semantics."
+      ],
+      "guarantees": [
+        {
+          "id": "G_idle_and_valid_requested_tx_are_allowed",
+          "description": "The guard allows idle traces and requested txs with a complete valid envelope.",
+          "cases": [
+            {
+              "id": "idle_trace_allowed",
+              "steps": [
+                {"i1": 0, "i2": 0, "i3": 0, "i4": 0, "i5": 0, "i6": 0, "i7": 0, "i8": 0, "i9": 0}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            },
+            {
+              "id": "valid_requested_tx_allowed",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            }
+          ]
+        }
+      ],
+      "forbidden_behaviors": [
+        {
+          "id": "F_invalid_requested_tx_rejected",
+          "description": "The guard rejects requested txs with missing bounds or wrong stream scope.",
+          "cases": [
+            {
+              "id": "missing_expiration_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 0, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 1}
+              ],
+              "expected": [
+                {"o1": 0, "o2": 1, "o3": 1, "o4": 0}
+              ]
+            },
+            {
+              "id": "bad_stream_scope_rejects",
+              "steps": [
+                {"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 0, "i9": 1}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "contract_id": "autotrader_nonce_guard_v1",
+      "spec_path": "src/tau_specs/recommended/autotrader_nonce_guard_v1.tau",
+      "run_mode": "spec",
+      "style": "native_tau_guard",
+      "summary": "Strict sequential nonce guard for live autotrader intents.",
+      "control_inputs": [],
+      "data_inputs": [
+        {"slot": "i1", "name": "intent_nonce", "meaning": "nonce attached to the current intent"},
+        {"slot": "i2", "name": "last_used_nonce", "meaning": "most recent nonce already consumed"},
+        {"slot": "i3", "name": "expected_nonce", "meaning": "expected next sequential nonce"}
+      ],
+      "outputs": [
+        {"slot": "o1", "name": "params_ok", "meaning": "expected nonce equals last_used_nonce + 1"},
+        {"slot": "o2", "name": "nonce_fresh", "meaning": "intent nonce is strictly greater than last used nonce"},
+        {"slot": "o3", "name": "nonce_sequential", "meaning": "intent nonce equals expected nonce"},
+        {"slot": "o4", "name": "nonce_guard_ok", "meaning": "the full sequential nonce guard passes"}
+      ],
+      "assumptions": [
+        "The live submit path uses strict sequential nonces rather than sparse nonces.",
+        "Arithmetic stays inside Tau for this compact nonce relation."
+      ],
+      "non_goals": [
+        "Signature verification.",
+        "Multi-session capability semantics."
+      ],
+      "guarantees": [
+        {
+          "id": "G_accept_exact_next_nonce",
+          "description": "The guard accepts the exact next sequential nonce.",
+          "cases": [
+            {
+              "id": "next_nonce_accepts",
+              "steps": [
+                {"i1": 9, "i2": 8, "i3": 9}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+              ]
+            }
+          ]
+        }
+      ],
+      "forbidden_behaviors": [
+        {
+          "id": "F_nonsequential_or_mismatched_nonce_rejected",
+          "description": "The guard rejects nonsequential or mismatched nonce progress.",
+          "cases": [
+            {
+              "id": "future_gap_rejects",
+              "steps": [
+                {"i1": 11, "i2": 8, "i3": 9}
+              ],
+              "expected": [
+                {"o1": 1, "o2": 1, "o3": 0, "o4": 0}
+              ]
+            },
+            {
+              "id": "bad_expected_nonce_rejects",
+              "steps": [
+                {"i1": 9, "i2": 8, "i3": 10}
+              ],
+              "expected": [
+                {"o1": 0, "o2": 1, "o3": 0, "o4": 0}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
