@@ -1,0 +1,231 @@
+{
+  "specs": [
+    {
+      "id": "oracle_freshness_v1",
+      "path": "src/tau_specs/recommended/oracle_freshness_v1.tau",
+      "backend": "mirror_combinational",
+      "mode": "repl",
+      "timeout_s": 30,
+      "batch_size": 1,
+      "max_cases": 128,
+      "enumeration": {
+        "i1": [0, 1, 2],
+        "i2": [0, 1, 2],
+        "i3": [0, 1, 4294967295]
+      },
+      "oracle_outputs": {
+        "o1": "1 if (i3 > 0 and i2 >= i1) else 0",
+        "o2": "1 if i2 >= i1 else 0",
+        "o3": "1 if (i3 > 0 and i2 >= i1 and (i2 - i1) <= i3) else 0",
+        "o4": "1 if (i3 > 0 and i2 >= i1 and (i2 - i1) <= i3) else 0"
+      },
+      "properties": [
+        {
+          "id": "aggregate_implies_parts",
+          "expr": "(o4 == 0) or (o1 == 1 and o2 == 1 and o3 == 1)",
+          "expect": "holds"
+        },
+        {
+          "id": "freshness_suboutput_guarded",
+          "expr": "(o3 == 0) or (o1 == 1 and o2 == 1)",
+          "expect": "holds",
+          "description": "Freshness sub-output must not claim success when params/order fail."
+        }
+      ]
+    },
+    {
+      "id": "oracle_freshness_v2",
+      "path": "src/tau_specs/recommended/oracle_freshness_v2.tau",
+      "backend": "mirror_combinational",
+      "mode": "repl",
+      "timeout_s": 30,
+      "batch_size": 1,
+      "max_cases": 512,
+      "enumeration": {
+        "i1": [0, 1, 2],
+        "i2": [0, 1, 2],
+        "i3": [0, 1, 4294967295],
+        "i4": [0, 1, 2],
+        "i5": [0, 1, 2]
+      },
+      "oracle_outputs": {
+        "o1": "1 if (i3 > 0 and i4 > 0 and i2 >= i1) else 0",
+        "o2": "1 if (i3 > 0 and i4 > 0 and i2 >= i1 and (i2 - i1) <= i3) else 0",
+        "o3": "1 if (i1 > i5 and (i1 - i5) <= i4) else 0",
+        "o4": "1 if (i3 > 0 and i4 > 0 and i2 >= i1 and (i2 - i1) <= i3 and i1 > i5 and (i1 - i5) <= i4) else 0"
+      },
+      "properties": [
+        {
+          "id": "aggregate_implies_parts",
+          "expr": "(o4 == 0) or (o1 == 1 and o2 == 1 and o3 == 1)",
+          "expect": "holds"
+        },
+        {
+          "id": "freshness_suboutput_guarded",
+          "expr": "(o2 == 0) or (o1 == 1)",
+          "expect": "holds",
+          "description": "Freshness sub-output must not claim success when params/order fail."
+        }
+      ]
+    },
+    {
+      "id": "rate_limiter_v1",
+      "path": "src/tau_specs/recommended/rate_limiter_v1.tau",
+      "backend": "mirror_combinational",
+      "mode": "repl",
+      "timeout_s": 20,
+      "batch_size": 16,
+      "max_cases": 128,
+      "enumeration": {
+        "i1": [0, 1, 2, 4294967295],
+        "i2": [0, 1, 2],
+        "i3": [0, 1]
+      },
+      "oracle_outputs": {
+        "o1": "1 if i2 > 0 else 0",
+        "o2": "1 if i1 <= i2 else 0",
+        "o3": "1 if i3 == 1 else 0",
+        "o4": "1 if (i2 > 0 and ((i1 <= i2) or (i3 == 1))) else 0"
+      },
+      "properties": [
+        {
+          "id": "aggregate_implies_limit_ok",
+          "expr": "(o4 == 0) or (o1 == 1)",
+          "expect": "holds"
+        },
+        {
+          "id": "window_reset_bypasses_count",
+          "expr": "(o4 == 0) or (o3 == 0) or (o2 == 1)",
+          "expect": "counterexample",
+          "description": "Demonstrates the current v1 reset semantics rather than a parser/runtime bug."
+        }
+      ]
+    },
+    {
+      "id": "nonce_replay_guard_v1",
+      "path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau",
+      "backend": "mirror_combinational",
+      "mode": "repl",
+      "timeout_s": 20,
+      "batch_size": 16,
+      "max_cases": 256,
+      "enumeration": {
+        "i1": [0, 1, 2, 4294967295],
+        "i2": [0, 1, 2, 4294967295],
+        "i3": [0, 1, 2, 4294967295]
+      },
+      "oracle_outputs": {
+        "o1": "1 if i3 == ((i2 + 1) & 0xFFFFFFFF) else 0",
+        "o2": "1 if i1 > i2 else 0",
+        "o3": "1 if i1 == i3 else 0",
+        "o4": "1 if (i3 == ((i2 + 1) & 0xFFFFFFFF) and i1 > i2 and i1 == i3) else 0"
+      },
+      "properties": [
+        {
+          "id": "aggregate_implies_parts",
+          "expr": "(o4 == 0) or (o1 == 1 and o2 == 1 and o3 == 1)",
+          "expect": "holds"
+        },
+        {
+          "id": "o3_implies_o2_claim",
+          "expr": "(o3 == 0) or (o2 == 1)",
+          "expect": "counterexample",
+          "description": "Disproves the claim that sequentiality alone implies freshness."
+        }
+      ]
+    },
+    {
+      "id": "sandwich_detection_v1",
+      "path": "src/tau_specs/recommended/sandwich_detection_v1.tau",
+      "backend": "mirror_combinational",
+      "mode": "repl",
+      "timeout_s": 30,
+      "batch_size": 16,
+      "max_cases": 512,
+      "enumeration": {
+        "i1": [0, 1, 2],
+        "i2": [0, 1, 2],
+        "i3": [0, 1, 2],
+        "i4": [0, 1, 2],
+        "i5": [0, 1, 10000]
+      },
+      "oracle_outputs": {
+        "o1": "1 if (i1 > 0 and i2 > 0 and i3 > 0 and i4 > 0 and i5 <= 10000 and i1 <= 429496 and i2 <= 429496 and i3 <= 429496 and i4 <= 429496) else 0",
+        "o2": "1 if ((i1 > 0 and i2 > 0 and i3 > 0 and i4 > 0 and i5 <= 10000 and i1 <= 429496 and i2 <= 429496 and i3 <= 429496 and i4 <= 429496) and (((i2 >= i1) and (((i2 - i1) * 10000) <= (i1 * i5))) or ((i2 < i1) and (((i1 - i2) * 10000) <= (i1 * i5))))) else 0",
+        "o3": "1 if ((i1 > 0 and i2 > 0 and i3 > 0 and i4 > 0 and i5 <= 10000 and i1 <= 429496 and i2 <= 429496 and i3 <= 429496 and i4 <= 429496) and (((i4 >= i3) and (((i4 - i3) * 10000) <= (i3 * i5))) or ((i4 < i3) and (((i3 - i4) * 10000) <= (i3 * i5))))) else 0",
+        "o4": "1 if ((i1 > 0 and i2 > 0 and i3 > 0 and i4 > 0 and i5 <= 10000 and i1 <= 429496 and i2 <= 429496 and i3 <= 429496 and i4 <= 429496) and (((i2 >= i1) and (((i2 - i1) * 10000) <= (i1 * i5))) or ((i2 < i1) and (((i1 - i2) * 10000) <= (i1 * i5)))) and (((i4 >= i3) and (((i4 - i3) * 10000) <= (i3 * i5))) or ((i4 < i3) and (((i3 - i4) * 10000) <= (i3 * i5))))) else 0"
+      },
+      "properties": [
+        {
+          "id": "aggregate_implies_parts",
+          "expr": "(o4 == 0) or (o1 == 1 and o2 == 1 and o3 == 1)",
+          "expect": "holds"
+        },
+        {
+          "id": "front_suboutput_guarded",
+          "expr": "(o2 == 0) or (o1 == 1)",
+          "expect": "holds"
+        },
+        {
+          "id": "back_suboutput_guarded",
+          "expr": "(o3 == 0) or (o1 == 1)",
+          "expect": "holds"
+        }
+      ]
+    },
+    {
+      "id": "batching_v1_4_hygiene",
+      "path": "src/tau_specs/recommended/batching_v1_4.tau",
+      "backend": "mirror_combinational",
+      "mode": "repl",
+      "timeout_s": 10,
+      "batch_size": 4,
+      "max_cases": 1,
+      "enumeration": {
+        "i1": [1],
+        "i2": [2],
+        "i3": [3],
+        "i4": [4],
+        "i5": [1],
+        "i6": [2],
+        "i7": [3],
+        "i8": [4]
+      },
+      "oracle_outputs": {
+        "o1": "1"
+      },
+      "static_properties": [
+        {
+          "id": "charvar_off_present",
+          "expr": "\"set charvar off\" in spec_text",
+          "expect": "holds"
+        }
+      ]
+    },
+    {
+      "id": "batch_canonical_v1_4_hygiene",
+      "path": "src/tau_specs/recommended/batch_canonical_v1_4.tau",
+      "backend": "mirror_combinational",
+      "mode": "repl",
+      "timeout_s": 10,
+      "batch_size": 4,
+      "max_cases": 1,
+      "enumeration": {
+        "i1": [1],
+        "i2": [2],
+        "i3": [3],
+        "i4": [4]
+      },
+      "oracle_outputs": {
+        "o1": "1"
+      },
+      "static_properties": [
+        {
+          "id": "charvar_off_present",
+          "expr": "\"set charvar off\" in spec_text",
+          "expect": "holds"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,287 @@
+{
+  "schema": "zenodex/tau/behavior-atlas/v1",
+  "spec_id": "nonce_replay_guard_v1",
+  "spec_path": "src/tau_specs/recommended/nonce_replay_guard_v1.tau",
+  "contract_ref": "formal/tau/contracts/nonce_replay_guard_v1.contract.json",
+  "atlas_status": "active",
+  "proof_scope": "bounded_assurance_domain",
+  "domain_hash": "a859e1a2e9cf0c2bc5af0ec766d99fc946fb4ea8407b39162566eb18de32b9bc",
+  "output_order": [
+    "o1",
+    "o2",
+    "o3",
+    "o4"
+  ],
+  "regions": [
+    {
+      "region_id": "0000",
+      "output_vector": {
+        "o1": 0,
+        "o2": 0,
+        "o3": 0,
+        "o4": 0
+      },
+      "reachability_status": "reachable",
+      "region_formula": "o1=0 && o2=0 && o3=0 && o4=0",
+      "proof_refs": [
+        "bounded_enumeration:case_2"
+      ],
+      "witness_inputs": {
+        "i1": 0,
+        "i2": 0,
+        "i3": 2
+      }
+    },
+    {
+      "region_id": "0001",
+      "output_vector": {
+        "o1": 0,
+        "o2": 0,
+        "o3": 0,
+        "o4": 1
+      },
+      "reachability_status": "unreachable",
+      "region_formula": "o1=0 && o2=0 && o3=0 && o4=1",
+      "proof_refs": [
+        "bounded_enumeration:no_case_in_explicit_domain"
+      ]
+    },
+    {
+      "region_id": "0010",
+      "output_vector": {
+        "o1": 0,
+        "o2": 0,
+        "o3": 1,
+        "o4": 0
+      },
+      "reachability_status": "reachable",
+      "region_formula": "o1=0 && o2=0 && o3=1 && o4=0",
+      "proof_refs": [
+        "bounded_enumeration:case_0"
+      ],
+      "witness_inputs": {
+        "i1": 0,
+        "i2": 0,
+        "i3": 0
+      }
+    },
+    {
+      "region_id": "0011",
+      "output_vector": {
+        "o1": 0,
+        "o2": 0,
+        "o3": 1,
+        "o4": 1
+      },
+      "reachability_status": "unreachable",
+      "region_formula": "o1=0 && o2=0 && o3=1 && o4=1",
+      "proof_refs": [
+        "bounded_enumeration:no_case_in_explicit_domain"
+      ]
+    },
+    {
+      "region_id": "0100",
+      "output_vector": {
+        "o1": 0,
+        "o2": 1,
+        "o3": 0,
+        "o4": 0
+      },
+      "reachability_status": "reachable",
+      "region_formula": "o1=0 && o2=1 && o3=0 && o4=0",
+      "proof_refs": [
+        "bounded_enumeration:case_16"
+      ],
+      "witness_inputs": {
+        "i1": 1,
+        "i2": 0,
+        "i3": 0
+      }
+    },
+    {
+      "region_id": "0101",
+      "output_vector": {
+        "o1": 0,
+        "o2": 1,
+        "o3": 0,
+        "o4": 1
+      },
+      "reachability_status": "unreachable",
+      "region_formula": "o1=0 && o2=1 && o3=0 && o4=1",
+      "proof_refs": [
+        "bounded_enumeration:no_case_in_explicit_domain"
+      ]
+    },
+    {
+      "region_id": "0110",
+      "output_vector": {
+        "o1": 0,
+        "o2": 1,
+        "o3": 1,
+        "o4": 0
+      },
+      "reachability_status": "reachable",
+      "region_formula": "o1=0 && o2=1 && o3=1 && o4=0",
+      "proof_refs": [
+        "bounded_enumeration:case_34"
+      ],
+      "witness_inputs": {
+        "i1": 2,
+        "i2": 0,
+        "i3": 2
+      }
+    },
+    {
+      "region_id": "0111",
+      "output_vector": {
+        "o1": 0,
+        "o2": 1,
+        "o3": 1,
+        "o4": 1
+      },
+      "reachability_status": "unreachable",
+      "region_formula": "o1=0 && o2=1 && o3=1 && o4=1",
+      "proof_refs": [
+        "bounded_enumeration:no_case_in_explicit_domain"
+      ]
+    },
+    {
+      "region_id": "1000",
+      "output_vector": {
+        "o1": 1,
+        "o2": 0,
+        "o3": 0,
+        "o4": 0
+      },
+      "reachability_status": "reachable",
+      "region_formula": "o1=1 && o2=0 && o3=0 && o4=0",
+      "proof_refs": [
+        "bounded_enumeration:case_1"
+      ],
+      "witness_inputs": {
+        "i1": 0,
+        "i2": 0,
+        "i3": 1
+      }
+    },
+    {
+      "region_id": "1001",
+      "output_vector": {
+        "o1": 1,
+        "o2": 0,
+        "o3": 0,
+        "o4": 1
+      },
+      "reachability_status": "unreachable",
+      "region_formula": "o1=1 && o2=0 && o3=0 && o4=1",
+      "proof_refs": [
+        "bounded_enumeration:no_case_in_explicit_domain"
+      ]
+    },
+    {
+      "region_id": "1010",
+      "output_vector": {
+        "o1": 1,
+        "o2": 0,
+        "o3": 1,
+        "o4": 0
+      },
+      "reachability_status": "reachable",
+      "region_formula": "o1=1 && o2=0 && o3=1 && o4=0",
+      "proof_refs": [
+        "bounded_enumeration:case_12"
+      ],
+      "witness_inputs": {
+        "i1": 0,
+        "i2": 4294967295,
+        "i3": 0
+      }
+    },
+    {
+      "region_id": "1011",
+      "output_vector": {
+        "o1": 1,
+        "o2": 0,
+        "o3": 1,
+        "o4": 1
+      },
+      "reachability_status": "unreachable",
+      "region_formula": "o1=1 && o2=0 && o3=1 && o4=1",
+      "proof_refs": [
+        "bounded_enumeration:no_case_in_explicit_domain"
+      ]
+    },
+    {
+      "region_id": "1100",
+      "output_vector": {
+        "o1": 1,
+        "o2": 1,
+        "o3": 0,
+        "o4": 0
+      },
+      "reachability_status": "reachable",
+      "region_formula": "o1=1 && o2=1 && o3=0 && o4=0",
+      "proof_refs": [
+        "bounded_enumeration:case_33"
+      ],
+      "witness_inputs": {
+        "i1": 2,
+        "i2": 0,
+        "i3": 1
+      }
+    },
+    {
+      "region_id": "1101",
+      "output_vector": {
+        "o1": 1,
+        "o2": 1,
+        "o3": 0,
+        "o4": 1
+      },
+      "reachability_status": "unreachable",
+      "region_formula": "o1=1 && o2=1 && o3=0 && o4=1",
+      "proof_refs": [
+        "bounded_enumeration:no_case_in_explicit_domain"
+      ]
+    },
+    {
+      "region_id": "1110",
+      "output_vector": {
+        "o1": 1,
+        "o2": 1,
+        "o3": 1,
+        "o4": 0
+      },
+      "reachability_status": "unreachable",
+      "region_formula": "o1=1 && o2=1 && o3=1 && o4=0",
+      "proof_refs": [
+        "bounded_enumeration:no_case_in_explicit_domain"
+      ]
+    },
+    {
+      "region_id": "1111",
+      "output_vector": {
+        "o1": 1,
+        "o2": 1,
+        "o3": 1,
+        "o4": 1
+      },
+      "reachability_status": "reachable",
+      "region_formula": "o1=1 && o2=1 && o3=1 && o4=1",
+      "proof_refs": [
+        "bounded_enumeration:case_17"
+      ],
+      "witness_inputs": {
+        "i1": 1,
+        "i2": 0,
+        "i3": 1
+      }
+    }
+  ],
+  "partition_checks": {
+    "disjointness": "proved",
+    "exhaustiveness": "proved",
+    "tau_differential": "proved",
+    "interpreter_equivalence": "proved"
+  }
+}

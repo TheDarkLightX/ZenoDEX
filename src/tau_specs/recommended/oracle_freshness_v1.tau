@@ -49,6 +49,6 @@ always
   # @section: Timestamp order check
   (o2[t]:sbf = 1:sbf <-> timestamp_order_ok(i1[t]:bv[32], i2[t]:bv[32])) &&
   # @section: Freshness check
-  (o3[t]:sbf = 1:sbf <-> freshness_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> (params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]) && freshness_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32]))) &&
   # @section: Aggregated oracle freshness validity
   (o4[t]:sbf = 1:sbf <-> oracle_fresh_valid(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32])).
