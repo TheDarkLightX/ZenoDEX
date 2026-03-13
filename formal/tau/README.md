@@ -27,6 +27,12 @@ The executable bounded seed-artifact gate is:
 python3 tools/check_tau_formal_seed_artifacts.py --use-discovered-tau
 ```
 
+The generalized formal-contract gate for active/promoted artifacts is:
+
+```bash
+python3 tools/check_tau_formal_contract_artifacts.py --use-discovered-tau
+```
+
 The bounded behavior-atlas generator is:
 
 ```bash
@@ -67,6 +73,12 @@ To build the repo-wide semantic-understanding status map:
 
 ```bash
 python3 tools/build_tau_semantic_understanding_status.py
+```
+
+To scaffold draft contracts/atlases from the semantic-view surface:
+
+```bash
+python3 tools/scaffold_tau_contract_drafts.py
 ```
 
 The current high-confidence semantic findings subset is:
