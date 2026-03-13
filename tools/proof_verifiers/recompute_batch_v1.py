@@ -166,7 +166,12 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
 
     # Validate pre-state commitment matches.
     try:
-        computed_pre = compute_state_root(balances=state.balances, pools=state.pools, lp_balances=state.lp_balances)
+        computed_pre = compute_state_root(
+            balances=state.balances,
+            pools=state.pools,
+            lp_balances=state.lp_balances,
+            nonces=state.nonces,
+        )
     except Exception as exc:
         return False, f"failed to compute state_root: {exc}"
     if computed_pre != pre_state_commitment:
