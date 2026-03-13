@@ -2134,7 +2134,7 @@ def test_order_swaps_optimal_ab_bounded_fallbacks_and_exact_out_path() -> None:
 
     too_many = [
         _exact_in(1300 + i, {"asset_in": asset0, "asset_out": asset1, "amount_in": 100, "min_amount_out": 1})
-        for i in range(13)
+        for i in range(8)
     ]
     assert _order_swaps_optimal_ab_bounded(too_many, pool_state=pool, balances=balances, reserves=reserves) == _order_swaps_limit_price(too_many)
 

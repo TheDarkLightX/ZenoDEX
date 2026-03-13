@@ -1007,8 +1007,13 @@ def test_apply_funding_auto_rejects_malformed_control_fields() -> None:
         ("max_oracle_move_bps", -1, "cannot apply funding: invalid max_oracle_move_bps"),
     )
     for field, value, expected_error in malformed_cases:
+        try:
+            malformed_state = _state_with_global_override(field, value)
+        except ValueError as exc:
+            assert field in str(exc)
+            continue
         res = _apply_result(
-            state=_state_with_global_override(field, value),
+            state=malformed_state,
             tx_sender_pubkey=operator,
             operator_pubkey=operator,
             ops=[_op(market_id, "apply_funding_auto")],

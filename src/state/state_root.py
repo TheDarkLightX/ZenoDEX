@@ -1,5 +1,5 @@
 """
-Deterministic state root hashing (v1).
+Deterministic state root hashing (v2).
 
 This is intended for:
 - debugging / audit (stable hashes for the same logical state),
@@ -14,10 +14,11 @@ from typing import Mapping
 from .balances import BalanceTable
 from .canonical import domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex
 from .lp import LPTable
+from .nonces import NonceTable
 from .pools import PoolState, PoolStatus
 
 
-STATE_ROOT_VERSION = 1
+STATE_ROOT_VERSION = 2
 
 _POOL_STATUS_CODE: dict[PoolStatus, int] = {
     PoolStatus.ACTIVE: 1,
@@ -117,6 +118,8 @@ def _encode_pools_section(pools: Mapping[str, PoolState]) -> bytes:
         out += encode_uvarint(pool.lp_supply)
         out += encode_uvarint(status_code)
         out += encode_uvarint(pool.created_at)
+        out += encode_bytes(pool.curve_tag.encode("utf-8"))
+        out += encode_bytes(pool.curve_params.encode("utf-8"))
 
     return bytes(out)
 
@@ -132,11 +135,32 @@ def _encode_lp_section(lp_balances: LPTable) -> bytes:
     return bytes(out)
 
 
+def _encode_nonce_section(nonces: NonceTable) -> bytes:
+    out = bytearray()
+    entries: list[tuple[bytes, int]] = []
+    seen: set[bytes] = set()
+    for pubkey, last_nonce in nonces.get_all().items():
+        pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
+        if pk_b in seen:
+            raise ValueError("duplicate decoded pubkey in nonces")
+        seen.add(pk_b)
+        if not isinstance(last_nonce, int) or isinstance(last_nonce, bool) or last_nonce < 0:
+            raise ValueError(f"invalid nonce amount: {last_nonce!r}")
+        entries.append((pk_b, last_nonce))
+    entries.sort(key=lambda t: t[0])
+    out += encode_uvarint(len(entries))
+    for pk_b, last_nonce in entries:
+        out += pk_b
+        out += encode_uvarint(last_nonce)
+    return bytes(out)
+
+
 def compute_state_root(
     *,
     balances: BalanceTable,
     pools: Mapping[str, PoolState],
     lp_balances: LPTable,
+    nonces: NonceTable | None = None,
 ) -> str:
     """
     Compute a deterministic state root hash for the DEX state.
@@ -147,10 +171,14 @@ def compute_state_root(
         raise TypeError("balances must be a BalanceTable")
     if not isinstance(lp_balances, LPTable):
         raise TypeError("lp_balances must be an LPTable")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
 
     balances_section = _encode_balances_section(balances)
     pools_section = _encode_pools_section(pools)
     lp_section = _encode_lp_section(lp_balances)
+    nonce_section = _encode_nonce_section(nonce_table)
 
     payload = (
         domain_sep_bytes("state_root", version=STATE_ROOT_VERSION)
@@ -160,5 +188,7 @@ def compute_state_root(
         + encode_bytes(pools_section)
         + b"LPB"
         + encode_bytes(lp_section)
+        + b"NNC"
+        + encode_bytes(nonce_section)
     )
     return sha256_hex(payload)

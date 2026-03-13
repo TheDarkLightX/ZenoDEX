@@ -966,12 +966,14 @@ def apply_ops(
                         balances=state.balances,
                         pools=state.pools,
                         lp_balances=state.lp_balances,
+                        nonces=state.nonces,
                     )
                 else:
                     pre_state_commitment = compute_state_root(
                         balances=state.balances,
                         pools=state.pools,
                         lp_balances=state.lp_balances,
+                        nonces=state.nonces,
                     )
             except Exception as exc:
                 return DexTxResult(ok=False, error=f"invalid state for commitment: {exc}")
