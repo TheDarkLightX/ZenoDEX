@@ -100,3 +100,41 @@ def test_azure_hostdata_measurement_rejects_debuggable_claim() -> None:
                 "x-ms-sevsnpvm-hostdata": "abcd",
             }
         )
+
+
+def test_confidential_attestation_helpers_fail_closed_on_bad_shapes() -> None:
+    from src.integration import confidential_attestation as mod
+
+    with pytest.raises(ValueError, match="summary must be a mapping"):
+        mod._require_mapping([], name="summary")
+
+    with pytest.raises(ValueError, match="provider_id must be a non-empty string"):
+        mod._require_nonempty_str("", name="provider_id")
+
+    with pytest.raises(ValueError, match="measurement must be hex"):
+        mod._normalize_hex("0xZZ", name="measurement")
+
+
+def test_azure_hostdata_measurement_rejects_wrong_attestation_type() -> None:
+    with pytest.raises(ValueError, match="x-ms-attestation-type must be sevsnpvm"):
+        azure_hostdata_measurement_from_claims(
+            {
+                "x-ms-attestation-type": "sgx",
+                "x-ms-sevsnpvm-is-debuggable": False,
+                "x-ms-sevsnpvm-hostdata": "abcd",
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("issued_at_s", "epoch_length_s", "message"),
+    [
+        (-1, 60, "issued_at_s must be a non-negative int"),
+        (10, 0, "epoch_length_s must be a positive int"),
+    ],
+)
+def test_attestation_epoch_from_unix_time_rejects_invalid_bounds(
+    issued_at_s: int, epoch_length_s: int, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        attestation_epoch_from_unix_time(issued_at_s=issued_at_s, epoch_length_s=epoch_length_s)

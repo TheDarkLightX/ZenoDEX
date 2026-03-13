@@ -331,6 +331,18 @@ git clone https://github.com/IDNI/tau-lang.git
 git clone https://github.com/IDNI/tau-testnet.git
 ```
 
+## UI (Local)
+```bash
+# 1) Start the stdlib demo/dev API (perps + zUSD).
+# DEMO_API_TOKEN is optional on loopback (`API_HOST=127.0.0.1`), and required on non-loopback binds.
+PERPS_API_ENABLED=true ZUSD_API_ENABLED=true DEMO_API_TOKEN=sekret python3 -m src.integration.api_server
+
+# 2) Start the UI (Vite dev server). Recommended: use the proxy (no CORS needed).
+cd tools/dex-ui
+npm install
+VITE_DEMO_MODE=false API_PROXY_TARGET=http://127.0.0.1:8000 VITE_API_TOKEN=sekret npm run dev -- --host 127.0.0.1 --port 5173
+```
+
 ## Build Tau (example)
 ```bash
 cmake -S external/tau-lang -B external/tau-lang/build-Release -DCMAKE_BUILD_TYPE=Release

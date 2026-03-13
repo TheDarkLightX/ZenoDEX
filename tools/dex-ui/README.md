@@ -1,13 +1,13 @@
 # ZenoDEX UI (React + Vite)
 
-Frontend for ZenoDEX. This merge branch keeps the current public Swap / Pools / ZDEX Stats surfaces and adds a Confidential tab for the TEE and sealed-bid beta surface.
+Frontend for ZenoDEX: Swap, Pools, Perpetuals, and a Confidential tab for the TEE / sealed-bid feature surface.
 
-The Confidential tab is informational and status-oriented:
-- who the feature is for
-- when confidential execution helps
-- when the normal public path is better
-- which formal checks back the current beta posture
-- the live beta posture from `/api/confidential/status` when served with the API
+The Confidential tab is not just a status page. It explains:
+- who the feature is for,
+- why a user would choose it,
+- when the normal public path is better,
+- which formal checks back the current experiment.
+- and, in live mode, the current beta posture from `GET /api/confidential/status`.
 
 ## Dev Server
 
@@ -16,14 +16,14 @@ npm install
 npm run dev
 ```
 
-To bind the UI to the local API server:
+To bind the UI to the local stdlib API server:
 
 ```bash
 # In repo root (starts the minimal REST API on 127.0.0.1:8000 by default)
 PERPS_API_ENABLED=true ZUSD_API_ENABLED=true DEMO_API_TOKEN=sekret python3 -m src.integration.api_server
 ```
 
-Then run the UI with the Vite proxy so the browser stays same-origin:
+Then run the UI (recommended: use the Vite dev-server proxy so you do not need CORS):
 
 ```bash
 # IMPORTANT: keep the port value on the same line as --port (no newline).
@@ -38,8 +38,8 @@ Open `http://127.0.0.1:5173`.
 
 - `VITE_DEMO_MODE=true|false`: demo mode uses mock data and does not call the API.
 - `VITE_BASE_PATH=/`: optional Vite base path. Use `./` for IPFS / subpath-hosted static builds.
-- `API_PROXY_TARGET=http://127.0.0.1:8000`: Vite dev-server proxy target for `/api/*` requests.
-- `VITE_API_BASE=http://127.0.0.1:8000`: optional base URL for API requests for non-proxied setups.
+- `API_PROXY_TARGET=http://127.0.0.1:8000`: Vite dev-server proxy target for `/api/*` requests (keeps requests same-origin in the browser).
+- `VITE_API_BASE=http://127.0.0.1:8000`: optional base URL for API requests (use for non-proxied setups / production; empty = same-origin).
 - `VITE_API_TOKEN=<token>`: optional bearer token. If `DEMO_API_TOKEN` is set on the API server, set `VITE_API_TOKEN` to the same value.
 
 ## Runtime Config
@@ -53,7 +53,8 @@ Supported runtime keys:
 - `apiBase`
 - `demoMode`
 
-This is useful for IPFS/static hosting where one bundle may be reused against different operator APIs.
+This is useful for IPFS/static hosting where one bundle may be reused against
+different operator APIs.
 
 ## IPFS / Static Hosting
 
@@ -79,4 +80,4 @@ so operators can mirror or audit the exact static artifact they are serving.
 
 `/api/perps/*` and `/api/zusd/*` are demo/development routes. They operate on in-memory state and are not the production transaction path.
 
-The API server refuses to start demo routes on non-loopback binds (for example `API_HOST=0.0.0.0`) unless `DEMO_API_TOKEN` is set.
+The API server refuses to start demo routes on non-loopback binds (e.g. `API_HOST=0.0.0.0`) unless `DEMO_API_TOKEN` is set.
