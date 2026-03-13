@@ -33,7 +33,7 @@ def _load_json(path: Path) -> Any:
 
 
 def _timings_from_report(report: Dict[str, Any]) -> Tuple[Dict[str, SpecTiming], Dict[Path, SpecTiming]]:
-    results = list(report.get("results") or [])
+    results = list(report.get("results") or report.get("atomic_results") or [])
     by_spec_id: Dict[str, List[Dict[str, Any]]] = {}
     for r in results:
         spec_id = str(r.get("spec_id") or "")
@@ -85,7 +85,7 @@ def _resolve_repo_path(p: str) -> Path:
     return (REPO_ROOT / path).resolve()
 
 
-def _iter_profile_variants(profiles: Dict[str, Any]) -> Iterable[Tuple[str, str, str, str]]:
+def _iter_profile_variants(profiles: Dict[str, Any]) -> Iterable[Tuple[str, str, str, str, List[str]]]:
     components = dict(profiles.get("components") or {})
     for component_id, component in components.items():
         for variant in list(component.get("variants") or []):
@@ -94,7 +94,8 @@ def _iter_profile_variants(profiles: Dict[str, Any]) -> Iterable[Tuple[str, str,
             spec_path = str(variant.get("spec_path") or "")
             if not (variant_id and profile and spec_path):
                 continue
-            yield component_id, variant_id, profile, spec_path
+            supplemental_paths = [str(p) for p in list(variant.get("supplemental_spec_paths") or []) if str(p)]
+            yield component_id, variant_id, profile, spec_path, supplemental_paths
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -142,12 +143,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         md.append("This table joins spec profiles with observed trace timings when available.\n")
 
         prof_defs: Dict[str, Any] = dict(profiles.get("profiles") or {})
-        rows2 = [["component", "variant", "profile", "budget_s", "max_elapsed_s", "spec_path"]]
-        for component_id, variant_id, profile, spec_path in _iter_profile_variants(profiles):
+        rows2 = [["component", "variant", "profile", "budget_s", "max_elapsed_s", "supplemental_max_s", "spec_path", "supplemental_spec_paths"]]
+        for component_id, variant_id, profile, spec_path, supplemental_paths in _iter_profile_variants(profiles):
             budget = prof_defs.get(profile, {}).get("timeout_budget_s_on_dev_machine")
             resolved = _resolve_repo_path(spec_path)
-            timing = spec_path_to_timing.get(resolved)
+            timing = spec_path_to_timing.get(resolved) or spec_id_to_timing.get(Path(spec_path).stem)
             rel = spec_path
+            supplemental_timings = [
+                spec_path_to_timing.get(_resolve_repo_path(path)) or spec_id_to_timing.get(Path(path).stem)
+                for path in supplemental_paths
+            ]
+            supplemental_max = max(
+                (timing.max_elapsed_s for timing in supplemental_timings if timing is not None),
+                default=None,
+            )
             rows2.append(
                 [
                     component_id,
@@ -155,7 +164,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                     profile,
                     str(budget) if budget is not None else "",
                     _format_s(timing.max_elapsed_s) if timing else "",
+                    _format_s(supplemental_max),
                     rel,
+                    ", ".join(supplemental_paths),
                 ]
             )
         md.append(_markdown_table(rows2))
@@ -171,4 +182,3 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
