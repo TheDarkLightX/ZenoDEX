@@ -208,9 +208,111 @@ SWAP_EXACT_OUT_PROOF_GATE_V1 = TauSpecRef(
     gate_output="o1",
 )
 
-SWAP_BV32_SAFE_RANGE_GUARD_V1 = TauSpecRef(
-    spec_id="swap_bv32_safe_range_guard_v1",
-    path=RECOMMENDED_SPECS_DIR / "swap_bv32_safe_range_guard_v1.tau",
+SWAP_EXACT_IN_FEE_PROOF_GATE_V1 = TauSpecRef(
+    spec_id="swap_exact_in_fee_proof_gate_v1",
+    path=RECOMMENDED_SPECS_DIR / "swap_exact_in_fee_proof_gate_v1.tau",
+    gate_output="o1",
+)
+
+SWAP_EXACT_OUT_FEE_PROOF_GATE_V1 = TauSpecRef(
+    spec_id="swap_exact_out_fee_proof_gate_v1",
+    path=RECOMMENDED_SPECS_DIR / "swap_exact_out_fee_proof_gate_v1.tau",
+    gate_output="o1",
+)
+
+SWAP_FEE_TOTAL_CEIL_V1 = TauSpecRef(
+    spec_id="swap_fee_total_ceil_v1",
+    path=RECOMMENDED_SPECS_DIR / "swap_fee_total_ceil_v1.tau",
+    gate_output="o1",
+)
+
+PROTOCOL_FEE_FLOOR_V1 = TauSpecRef(
+    spec_id="protocol_fee_floor_v1",
+    path=RECOMMENDED_SPECS_DIR / "protocol_fee_floor_v1.tau",
+    gate_output="o1",
+)
+
+SWAP_EXACT_IN_PROTOCOL_FEE_APPLY_V1 = TauSpecRef(
+    spec_id="swap_exact_in_protocol_fee_apply_v1",
+    path=RECOMMENDED_SPECS_DIR / "swap_exact_in_protocol_fee_apply_v1.tau",
+    gate_output="o1",
+)
+
+SWAP_EXACT_OUT_PROTOCOL_FEE_APPLY_V1 = TauSpecRef(
+    spec_id="swap_exact_out_protocol_fee_apply_v1",
+    path=RECOMMENDED_SPECS_DIR / "swap_exact_out_protocol_fee_apply_v1.tau",
+    gate_output="o1",
+)
+
+LP_BURN_FLOOR_MATH_GUARD_V1 = TauSpecRef(
+    spec_id="lp_burn_floor_math_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "lp_burn_floor_math_guard_v1.tau",
+    gate_output="o1",
+)
+
+LP_MINT_MIN_OF_FLOORS_GUARD_V1 = TauSpecRef(
+    spec_id="lp_mint_min_of_floors_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "lp_mint_min_of_floors_guard_v1.tau",
+    gate_output="o1",
+)
+
+CREATE_POOL_INITIAL_SQRT_GUARD_V1 = TauSpecRef(
+    spec_id="create_pool_initial_sqrt_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "create_pool_initial_sqrt_guard_v1.tau",
+    gate_output="o1",
+)
+
+PRICE_IMPACT_GUARD_V1 = TauSpecRef(
+    spec_id="price_impact_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "price_impact_guard_v1.tau",
+    gate_output="o1",
+)
+
+OPTIMAL_CHOICE_CERTIFICATE_V1 = TauSpecRef(
+    spec_id="optimal_choice_certificate_v1",
+    path=RECOMMENDED_SPECS_DIR / "optimal_choice_certificate_v1.tau",
+    gate_output="o1",
+)
+
+ARGMIN_STREAM_CERTIFICATE_V1 = TauSpecRef(
+    spec_id="argmin_stream_certificate_v1",
+    path=RECOMMENDED_SPECS_DIR / "argmin_stream_certificate_v1.tau",
+    gate_output="o1",
+)
+
+ARGMAX_STREAM_CERTIFICATE_V1 = TauSpecRef(
+    spec_id="argmax_stream_certificate_v1",
+    path=RECOMMENDED_SPECS_DIR / "argmax_stream_certificate_v1.tau",
+    gate_output="o1",
+)
+
+POOL_PARAMS_BINDING_GUARD_V1 = TauSpecRef(
+    spec_id="pool_params_binding_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "pool_params_binding_guard_v1.tau",
+    gate_output="o1",
+)
+
+ADD_LIQUIDITY_RATIO_GUARD_V1 = TauSpecRef(
+    spec_id="add_liquidity_ratio_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "add_liquidity_ratio_guard_v1.tau",
+    gate_output="o1",
+)
+
+ADD_LIQUIDITY_APPLY_V1 = TauSpecRef(
+    spec_id="add_liquidity_apply_v1",
+    path=RECOMMENDED_SPECS_DIR / "add_liquidity_apply_v1.tau",
+    gate_output="o1",
+)
+
+REMOVE_LIQUIDITY_APPLY_V1 = TauSpecRef(
+    spec_id="remove_liquidity_apply_v1",
+    path=RECOMMENDED_SPECS_DIR / "remove_liquidity_apply_v1.tau",
+    gate_output="o1",
+)
+
+CREATE_POOL_APPLY_PROOF_GATE_V1 = TauSpecRef(
+    spec_id="create_pool_apply_proof_gate_v1",
+    path=RECOMMENDED_SPECS_DIR / "create_pool_apply_proof_gate_v1.tau",
     gate_output="o1",
 )
 
@@ -262,6 +364,30 @@ BATCHING_V1_4 = TauSpecRef(
     gate_output="o1",
 )
 
+BATCHING_V1_5_COMPACT_SINGLE_GATE = TauSpecRef(
+    spec_id="batching_v1_5_compact_single_gate",
+    path=RECOMMENDED_SPECS_DIR / "batching_v1_5_compact_single_gate.tau",
+    gate_output="o1",
+)
+
+BATCHING_ALL_DISTINCT_4_V1 = TauSpecRef(
+    spec_id="batching_all_distinct_4_v1",
+    path=RECOMMENDED_SPECS_DIR / "batching_all_distinct_4_v1.tau",
+    gate_output="o1",
+)
+
+BATCHING_LEFT_IN_RIGHT_4_V1 = TauSpecRef(
+    spec_id="batching_left_in_right_4_v1",
+    path=RECOMMENDED_SPECS_DIR / "batching_left_in_right_4_v1.tau",
+    gate_output="o1",
+)
+
+BATCHING_EXECUTED_SORTED_4_V1 = TauSpecRef(
+    spec_id="batching_executed_sorted_4_v1",
+    path=RECOMMENDED_SPECS_DIR / "batching_executed_sorted_4_v1.tau",
+    gate_output="o1",
+)
+
 BATCH_CANONICAL_V1_4 = TauSpecRef(
     spec_id="batch_canonical_v1_4",
     path=TAU_SPECS_DIR / "batch_canonical_v1_4.tau",
@@ -277,6 +403,30 @@ TOKENOMICS_BUYBACK_BURN_V1 = TauSpecRef(
 TOKENOMICS_BUYBACK_BURN_V2 = TauSpecRef(
     spec_id="tokenomics_buyback_burn_v2",
     path=RECOMMENDED_SPECS_DIR / "tokenomics_buyback_burn_v2.tau",
+    gate_output="o1",
+)
+
+BURN_RECEIPT_REPLAY_GUARD_V1 = TauSpecRef(
+    spec_id="burn_receipt_replay_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "burn_receipt_replay_guard_v1.tau",
+    gate_output="o1",
+)
+
+BURN_RECEIPT_AMOUNT_GUARD_V1 = TauSpecRef(
+    spec_id="burn_receipt_amount_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "burn_receipt_amount_guard_v1.tau",
+    gate_output="o1",
+)
+
+BURN_RECEIPT_SUPPLY_GUARD_V1 = TauSpecRef(
+    spec_id="burn_receipt_supply_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "burn_receipt_supply_guard_v1.tau",
+    gate_output="o1",
+)
+
+BURN_RECEIPT_BATCH_SUM_GUARD_V1 = TauSpecRef(
+    spec_id="burn_receipt_batch_sum_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "burn_receipt_batch_sum_guard_v1.tau",
     gate_output="o1",
 )
 
@@ -406,9 +556,39 @@ SETTLEMENT_V4_BUYBACK_FLOOR_REBATE_LOCK_PROOF_GATE = TauSpecRef(
     gate_output="o11",
 )
 
+SWAP_BV32_SAFE_RANGE_GUARD_V1 = TauSpecRef(
+    spec_id="swap_bv32_safe_range_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "swap_bv32_safe_range_guard_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_CANONICAL_ORDER_V1 = TauSpecRef(
+    spec_id="settlement_canonical_order_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_canonical_order_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_NO_SANDWICH_ALIGNED_V1 = TauSpecRef(
+    spec_id="settlement_no_sandwich_aligned_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_no_sandwich_aligned_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_PRICE_STABILITY_V1 = TauSpecRef(
+    spec_id="settlement_price_stability_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_price_stability_v1.tau",
+    gate_output="o1",
+)
+
 SETTLEMENT_PRICE_RAILS_ALIGNED_V1 = TauSpecRef(
     spec_id="settlement_price_rails_aligned_v1",
     path=RECOMMENDED_SPECS_DIR / "settlement_price_rails_aligned_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_MODULE_FLAG_BUNDLE_V1 = TauSpecRef(
+    spec_id="settlement_module_flag_bundle_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_module_flag_bundle_v1.tau",
     gate_output="o1",
 )
 
@@ -746,23 +926,28 @@ def build_settlement_v4_buyback_floor_rebate_lock_proof_gate_step(
     }
 
 
-def build_nonce_replay_guard_v1_step(
-    *,
-    intent_nonce: int,
-    last_used_nonce: int,
-    expected_nonce: int,
-) -> Dict[str, int]:
-    """
-    Build inputs for `src/tau_specs/recommended/nonce_replay_guard_v1.tau`.
-    """
-    for name, v in (
-        ("intent_nonce", intent_nonce),
-        ("last_used_nonce", last_used_nonce),
-        ("expected_nonce", expected_nonce),
-    ):
-        if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0xFFFFFFFF:
-            raise ValueError(f"{name} out of u32 range: {v!r}")
-    return {"i1": int(intent_nonce), "i2": int(last_used_nonce), "i3": int(expected_nonce)}
+def build_settlement_canonical_order_v1_step(*, a: int, b: int, c: int, d: int) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
+    }
+
+
+def build_settlement_no_sandwich_aligned_v1_step(*, price_pp: int, price_prev: int, price_curr: int) -> Dict[str, int]:
+    return {
+        "i1": _u16("price_pp", price_pp),
+        "i2": _u16("price_prev", price_prev),
+        "i3": _u16("price_curr", price_curr),
+    }
+
+
+def build_settlement_price_stability_v1_step(*, price_prev: int, price_curr: int) -> Dict[str, int]:
+    return {
+        "i1": _u16("price_prev", price_prev),
+        "i2": _u16("price_curr", price_curr),
+    }
 
 
 def build_settlement_price_rails_aligned_v1_step(
@@ -783,6 +968,31 @@ def build_settlement_price_rails_aligned_v1_step(
         "i5": _u16("price_pp", price_pp),
         "i6": _u16("price_prev", price_prev),
         "i7": _u16("price_curr", price_curr),
+    }
+
+
+def build_settlement_module_flag_bundle_v1_step(
+    *,
+    cpmm_ok: int = 1,
+    balance_ok: int = 1,
+    token_ok: int = 1,
+    buyback_floor_ok: int = 1,
+    buyback_floor_fixedpoint_ok: int = 1,
+    rebate_ok: int = 1,
+    lock_weight_ok: int = 1,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("cpmm_ok", cpmm_ok),
+        "i2": _sbf("balance_ok", balance_ok),
+        "i3": _sbf("token_ok", token_ok),
+        "i4": _sbf("buyback_floor_ok", buyback_floor_ok),
+        "i5": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
+        "i6": _sbf("rebate_ok", rebate_ok),
+        "i7": _sbf("lock_weight_ok", lock_weight_ok),
+        "i8": _sbf("proof_ok", proof_ok),
+        "i9": _sbf("binding_ok", binding_ok),
     }
 
 
@@ -823,6 +1033,25 @@ def build_settlement_v5_aligned_compact_bundle_step(
         "i15": _sbf("proof_ok", proof_ok),
         "i16": _sbf("binding_ok", binding_ok),
     }
+
+
+def build_nonce_replay_guard_v1_step(
+    *,
+    intent_nonce: int,
+    last_used_nonce: int,
+    expected_nonce: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/nonce_replay_guard_v1.tau`.
+    """
+    for name, v in (
+        ("intent_nonce", intent_nonce),
+        ("last_used_nonce", last_used_nonce),
+        ("expected_nonce", expected_nonce),
+    ):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0xFFFFFFFF:
+            raise ValueError(f"{name} out of u32 range: {v!r}")
+    return {"i1": int(intent_nonce), "i2": int(last_used_nonce), "i3": int(expected_nonce)}
 
 
 def build_intent_expiry_guard_v1_step(
@@ -1322,6 +1551,70 @@ def build_batching_v1_4_step(
     }
 
 
+def build_batching_v1_5_compact_single_gate_step(
+    *,
+    intent_id_0: int,
+    intent_id_1: int,
+    intent_id_2: int,
+    intent_id_3: int,
+    executed_id_0: int,
+    executed_id_1: int,
+    executed_id_2: int,
+    executed_id_3: int,
+) -> Dict[str, int]:
+    return build_batching_v1_4_step(
+        intent_id_0=intent_id_0,
+        intent_id_1=intent_id_1,
+        intent_id_2=intent_id_2,
+        intent_id_3=intent_id_3,
+        executed_id_0=executed_id_0,
+        executed_id_1=executed_id_1,
+        executed_id_2=executed_id_2,
+        executed_id_3=executed_id_3,
+    )
+
+
+def build_batching_all_distinct_4_v1_step(*, a: int, b: int, c: int, d: int) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
+    }
+
+
+def build_batching_left_in_right_4_v1_step(
+    *,
+    left_0: int,
+    left_1: int,
+    left_2: int,
+    left_3: int,
+    right_0: int,
+    right_1: int,
+    right_2: int,
+    right_3: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _u64("left_0", left_0),
+        "i2": _u64("left_1", left_1),
+        "i3": _u64("left_2", left_2),
+        "i4": _u64("left_3", left_3),
+        "i5": _u64("right_0", right_0),
+        "i6": _u64("right_1", right_1),
+        "i7": _u64("right_2", right_2),
+        "i8": _u64("right_3", right_3),
+    }
+
+
+def build_batching_executed_sorted_4_v1_step(*, a: int, b: int, c: int, d: int) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
+    }
+
+
 def build_batch_canonical_v1_4_step(
     *,
     intent_id_0: int,
@@ -1539,6 +1832,79 @@ def build_tokenomics_buyback_burn_v2_step(
         "i5": _sbf("buyback_triggered", buyback_triggered),
         "i6": int(burn_amount),
         "i7": int(burn_limit),
+    }
+def build_burn_receipt_replay_guard_v1_step(
+    *,
+    do_burn: int,
+    receipt_bound: int,
+    nullifier_unused: int,
+    policy_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("do_burn", do_burn),
+        "i2": _sbf("receipt_bound", receipt_bound),
+        "i3": _sbf("nullifier_unused", nullifier_unused),
+        "i4": _sbf("policy_ok", policy_ok),
+    }
+
+
+def build_burn_receipt_amount_guard_v1_step(
+    *,
+    do_burn: int,
+    burn_amount: int,
+    receipt_amount: int,
+    burn_budget: int,
+) -> Dict[str, int]:
+    for name, v in (("burn_amount", burn_amount), ("receipt_amount", receipt_amount), ("burn_budget", burn_budget)):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0x7FFF:
+            raise ValueError(f"{name} out of amount-guard safe-range (0..32767): {v!r}")
+    return {
+        "i1": _sbf("do_burn", do_burn),
+        "i2": int(burn_amount),
+        "i3": int(receipt_amount),
+        "i4": int(burn_budget),
+    }
+
+
+def build_burn_receipt_supply_guard_v1_step(
+    *,
+    do_burn: int,
+    burn_amount: int,
+    supply_before: int,
+    supply_after: int,
+) -> Dict[str, int]:
+    if not isinstance(burn_amount, int) or isinstance(burn_amount, bool) or burn_amount < 0 or burn_amount > 0x7FFF:
+        raise ValueError(f"burn_amount out of supply-guard safe-range (0..32767): {burn_amount!r}")
+    for name, v in (("supply_before", supply_before), ("supply_after", supply_after)):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0xFFFF:
+            raise ValueError(f"{name} out of supply-guard safe-range (0..65535): {v!r}")
+    return {
+        "i1": _sbf("do_burn", do_burn),
+        "i2": int(burn_amount),
+        "i3": int(supply_before),
+        "i4": int(supply_after),
+    }
+
+
+def build_burn_receipt_batch_sum_guard_v1_step(
+    *,
+    do_burn: int,
+    burn_amount: int,
+    batch_burn_sum_before: int,
+    batch_burn_sum_after: int,
+) -> Dict[str, int]:
+    for name, v in (("burn_amount", burn_amount), ("batch_burn_sum_before", batch_burn_sum_before)):
+        if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0x7FFF:
+            raise ValueError(f"{name} out of batch-sum safe-range (0..32767): {v!r}")
+    if not isinstance(batch_burn_sum_after, int) or isinstance(batch_burn_sum_after, bool) or batch_burn_sum_after < 0 or batch_burn_sum_after > 0xFFFF:
+        raise ValueError(
+            f"batch_burn_sum_after out of batch-sum safe-range (0..65535): {batch_burn_sum_after!r}"
+        )
+    return {
+        "i1": _sbf("do_burn", do_burn),
+        "i2": int(burn_amount),
+        "i3": int(batch_burn_sum_before),
+        "i4": int(batch_burn_sum_after),
     }
 
 
@@ -2140,23 +2506,78 @@ def build_swap_exact_in_proof_gate_v1_step(
     return step
 
 
-def build_swap_bv32_safe_range_guard_v1_step(
+def build_swap_exact_in_fee_proof_gate_v1_step(
     *,
     reserve_in: int,
     reserve_out: int,
-    delta_primary: int,
-    delta_secondary: int,
+    amount_in: int,
+    fee_bps: int,
+    min_amount_out: int,
+    amount_out: int,
     new_reserve_in: int,
     new_reserve_out: int,
+    fee_total: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+    fee_ok: int = 1,
 ) -> Dict[str, int]:
-    return {
-        "i1": _bv32("reserve_in", reserve_in),
-        "i2": _bv32("reserve_out", reserve_out),
-        "i3": _bv32("delta_primary", delta_primary),
-        "i4": _bv32("delta_secondary", delta_secondary),
-        "i5": _bv32("new_reserve_in", new_reserve_in),
-        "i6": _bv32("new_reserve_out", new_reserve_out),
-    }
+    """
+    Build inputs for `src/tau_specs/recommended/swap_exact_in_fee_proof_gate_v1.tau`.
+    """
+    step = build_swap_exact_in_v4_step(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=amount_in,
+        fee_bps=fee_bps,
+        min_amount_out=min_amount_out,
+        amount_out=amount_out,
+        new_reserve_in=new_reserve_in,
+        new_reserve_out=new_reserve_out,
+    )
+    step["i9"] = _bv32("fee_total", fee_total)
+    step["i10"] = _sbf("proof_ok", proof_ok)
+    step["i11"] = _sbf("binding_ok", binding_ok)
+    step["i12"] = _sbf("fee_ok", fee_ok)
+    return step
+
+
+def build_swap_exact_in_protocol_fee_apply_v1_step(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_in: int,
+    fee_bps: int,
+    min_amount_out: int,
+    amount_out: int,
+    new_reserve_in: int,
+    new_reserve_out: int,
+    fee_total: int,
+    protocol_fee: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+    fee_ok: int = 1,
+    protocol_fee_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/swap_exact_in_protocol_fee_apply_v1.tau`.
+    """
+    step = build_swap_exact_in_v4_step(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=amount_in,
+        fee_bps=fee_bps,
+        min_amount_out=min_amount_out,
+        amount_out=amount_out,
+        new_reserve_in=new_reserve_in,
+        new_reserve_out=new_reserve_out,
+    )
+    step["i9"] = _bv32("fee_total", fee_total)
+    step["i10"] = _bv32("protocol_fee", protocol_fee)
+    step["i11"] = _sbf("proof_ok", proof_ok)
+    step["i12"] = _sbf("binding_ok", binding_ok)
+    step["i13"] = _sbf("fee_ok", fee_ok)
+    step["i14"] = _sbf("protocol_fee_ok", protocol_fee_ok)
+    return step
 
 
 def build_swap_exact_in_v3_step(
@@ -2290,6 +2711,100 @@ def build_swap_exact_out_proof_gate_v1_step(
     return step
 
 
+def build_swap_bv32_safe_range_guard_v1_step(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    delta_primary: int,
+    delta_secondary: int,
+    new_reserve_in: int,
+    new_reserve_out: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("reserve_in", reserve_in),
+        "i2": _bv32("reserve_out", reserve_out),
+        "i3": _bv32("delta_primary", delta_primary),
+        "i4": _bv32("delta_secondary", delta_secondary),
+        "i5": _bv32("new_reserve_in", new_reserve_in),
+        "i6": _bv32("new_reserve_out", new_reserve_out),
+    }
+
+
+def build_swap_exact_out_fee_proof_gate_v1_step(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    fee_bps: int,
+    max_amount_in: int,
+    amount_in: int,
+    new_reserve_in: int,
+    new_reserve_out: int,
+    fee_total: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+    fee_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/swap_exact_out_fee_proof_gate_v1.tau`.
+
+    """
+    step = build_swap_exact_out_v4_step(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+        fee_bps=fee_bps,
+        max_amount_in=max_amount_in,
+        amount_in=amount_in,
+        new_reserve_in=new_reserve_in,
+        new_reserve_out=new_reserve_out,
+    )
+    step["i9"] = _bv32("fee_total", fee_total)
+    step["i10"] = _sbf("proof_ok", proof_ok)
+    step["i11"] = _sbf("binding_ok", binding_ok)
+    step["i12"] = _sbf("fee_ok", fee_ok)
+    return step
+
+
+def build_swap_exact_out_protocol_fee_apply_v1_step(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+    fee_bps: int,
+    max_amount_in: int,
+    amount_in: int,
+    new_reserve_in: int,
+    new_reserve_out: int,
+    fee_total: int,
+    protocol_fee: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+    fee_ok: int = 1,
+    protocol_fee_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/swap_exact_out_protocol_fee_apply_v1.tau`.
+    """
+    step = build_swap_exact_out_v4_step(
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+        fee_bps=fee_bps,
+        max_amount_in=max_amount_in,
+        amount_in=amount_in,
+        new_reserve_in=new_reserve_in,
+        new_reserve_out=new_reserve_out,
+    )
+    step["i9"] = _bv32("fee_total", fee_total)
+    step["i10"] = _bv32("protocol_fee", protocol_fee)
+    step["i11"] = _sbf("proof_ok", proof_ok)
+    step["i12"] = _sbf("binding_ok", binding_ok)
+    step["i13"] = _sbf("fee_ok", fee_ok)
+    step["i14"] = _sbf("protocol_fee_ok", protocol_fee_ok)
+    return step
+
+
 def build_swap_exact_out_v3_step(
     *,
     reserve_in: int,
@@ -2320,4 +2835,337 @@ def build_swap_exact_out_v3_step(
         "i8": int(new_reserve_out),
         "i9": int(k_old),
         "i10": int(k_new),
+    }
+
+
+def build_swap_fee_total_ceil_v1_step(*, gross_in: int, fee_bps: int, fee_total: int) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/swap_fee_total_ceil_v1.tau`.
+    """
+    return {
+        "i1": _u64("gross_in", gross_in),
+        "i2": _u64("fee_bps", fee_bps),
+        "i3": _u64("fee_total", fee_total),
+    }
+
+
+def build_protocol_fee_floor_v1_step(
+    *, fee_total: int, protocol_fee_share_bps: int, protocol_fee: int
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/protocol_fee_floor_v1.tau`.
+    """
+    return {
+        "i1": _u64("fee_total", fee_total),
+        "i2": _u64("protocol_fee_share_bps", protocol_fee_share_bps),
+        "i3": _u64("protocol_fee", protocol_fee),
+    }
+
+
+def build_add_liquidity_ratio_guard_v1_step(
+    *,
+    reserve0: int,
+    reserve1: int,
+    amount0_desired: int,
+    amount1_desired: int,
+    amount0_used: int,
+    amount1_used: int,
+    amount0_refund: int,
+    amount1_refund: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/add_liquidity_ratio_guard_v1.tau`.
+
+    """
+    return {
+        "i1": _bv32("reserve0", reserve0),
+        "i2": _bv32("reserve1", reserve1),
+        "i3": _bv32("amount0_desired", amount0_desired),
+        "i4": _bv32("amount1_desired", amount1_desired),
+        "i5": _bv32("amount0_used", amount0_used),
+        "i6": _bv32("amount1_used", amount1_used),
+        "i7": _bv32("amount0_refund", amount0_refund),
+        "i8": _bv32("amount1_refund", amount1_refund),
+        "i9": _sbf("proof_ok", proof_ok),
+        "i10": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_add_liquidity_apply_v1_step(
+    *,
+    reserve0_before: int,
+    reserve1_before: int,
+    lp_supply_before: int,
+    amount0_used: int,
+    amount1_used: int,
+    lp_minted: int,
+    reserve0_after: int,
+    reserve1_after: int,
+    lp_supply_after: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/add_liquidity_apply_v1.tau`.
+    """
+    return {
+        "i1": _bv32("reserve0_before", reserve0_before),
+        "i2": _bv32("reserve1_before", reserve1_before),
+        "i3": _bv32("lp_supply_before", lp_supply_before),
+        "i4": _bv32("amount0_used", amount0_used),
+        "i5": _bv32("amount1_used", amount1_used),
+        "i6": _bv32("lp_minted", lp_minted),
+        "i7": _bv32("reserve0_after", reserve0_after),
+        "i8": _bv32("reserve1_after", reserve1_after),
+        "i9": _bv32("lp_supply_after", lp_supply_after),
+        "i10": _sbf("proof_ok", proof_ok),
+        "i11": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_lp_mint_min_of_floors_guard_v1_step(
+    *,
+    amount0: int,
+    amount1: int,
+    reserve0: int,
+    reserve1: int,
+    lp_supply: int,
+    lp_minted: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/lp_mint_min_of_floors_guard_v1.tau`.
+    """
+    return {
+        "i1": _bv32("amount0", amount0),
+        "i2": _bv32("amount1", amount1),
+        "i3": _bv32("reserve0", reserve0),
+        "i4": _bv32("reserve1", reserve1),
+        "i5": _bv32("lp_supply", lp_supply),
+        "i6": _bv32("lp_minted", lp_minted),
+        "i7": _sbf("proof_ok", proof_ok),
+        "i8": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_remove_liquidity_apply_v1_step(
+    *,
+    reserve0_before: int,
+    reserve1_before: int,
+    lp_supply_before: int,
+    lp_burned: int,
+    amount0_out: int,
+    amount1_out: int,
+    reserve0_after: int,
+    reserve1_after: int,
+    lp_supply_after: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/remove_liquidity_apply_v1.tau`.
+    """
+    return {
+        "i1": _bv32("reserve0_before", reserve0_before),
+        "i2": _bv32("reserve1_before", reserve1_before),
+        "i3": _bv32("lp_supply_before", lp_supply_before),
+        "i4": _bv32("lp_burned", lp_burned),
+        "i5": _bv32("amount0_out", amount0_out),
+        "i6": _bv32("amount1_out", amount1_out),
+        "i7": _bv32("reserve0_after", reserve0_after),
+        "i8": _bv32("reserve1_after", reserve1_after),
+        "i9": _bv32("lp_supply_after", lp_supply_after),
+        "i10": _sbf("proof_ok", proof_ok),
+        "i11": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_lp_burn_floor_math_guard_v1_step(
+    *,
+    lp_amount: int,
+    reserve0: int,
+    reserve1: int,
+    lp_supply: int,
+    amount0_out: int,
+    amount1_out: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/lp_burn_floor_math_guard_v1.tau`.
+    """
+    return {
+        "i1": _bv32("lp_amount", lp_amount),
+        "i2": _bv32("reserve0", reserve0),
+        "i3": _bv32("reserve1", reserve1),
+        "i4": _bv32("lp_supply", lp_supply),
+        "i5": _bv32("amount0_out", amount0_out),
+        "i6": _bv32("amount1_out", amount1_out),
+        "i7": _sbf("proof_ok", proof_ok),
+        "i8": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_create_pool_apply_proof_gate_v1_step(
+    *,
+    reserve0_before: int,
+    reserve1_before: int,
+    lp_supply_before: int,
+    amount0_in: int,
+    amount1_in: int,
+    fee_bps: int,
+    lp_minted: int,
+    reserve0_after: int,
+    reserve1_after: int,
+    lp_supply_after: int,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/create_pool_apply_proof_gate_v1.tau`.
+
+    Note: this spec expects bv[64] streams but constrains values to u32 range.
+    """
+    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool) or not (0 <= fee_bps <= 10_000):
+        raise ValueError(f"fee_bps out of range: {fee_bps}")
+    return {
+        "i1": _bv32("reserve0_before", reserve0_before),
+        "i2": _bv32("reserve1_before", reserve1_before),
+        "i3": _bv32("lp_supply_before", lp_supply_before),
+        "i4": _bv32("amount0_in", amount0_in),
+        "i5": _bv32("amount1_in", amount1_in),
+        "i6": _bv32("fee_bps", fee_bps),
+        "i7": _bv32("lp_minted", lp_minted),
+        "i8": _bv32("reserve0_after", reserve0_after),
+        "i9": _bv32("reserve1_after", reserve1_after),
+        "i10": _bv32("lp_supply_after", lp_supply_after),
+        "i11": _sbf("proof_ok", proof_ok),
+        "i12": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_create_pool_initial_sqrt_guard_v1_step(
+    *,
+    amount0: int,
+    amount1: int,
+    sqrt_floor: int,
+    lp_minted: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/create_pool_initial_sqrt_guard_v1.tau`.
+    """
+    return {
+        "i1": _u64("amount0", amount0),
+        "i2": _u64("amount1", amount1),
+        "i3": _u64("sqrt_floor", sqrt_floor),
+        "i4": _u64("lp_minted", lp_minted),
+    }
+
+
+def build_price_impact_guard_v1_step(
+    *,
+    ref_out: int,
+    actual_out: int,
+    max_impact_bps: int,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/price_impact_guard_v1.tau`.
+    """
+    return {
+        "i1": _bv32("ref_out", ref_out),
+        "i2": _bv32("actual_out", actual_out),
+        "i3": _bv32("max_impact_bps", max_impact_bps),
+        "i4": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_optimal_choice_certificate_v1_step(
+    *,
+    winner_index: int,
+    winner_key: int,
+    cand0_key: int,
+    cand1_key: int,
+    cand2_key: int,
+    cand3_key: int,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/optimal_choice_certificate_v1.tau`.
+    """
+    return {
+        "i1": _bv32("winner_index", winner_index),
+        "i2": _u64("winner_key", winner_key),
+        "i3": _u64("cand0_key", cand0_key),
+        "i4": _u64("cand1_key", cand1_key),
+        "i5": _u64("cand2_key", cand2_key),
+        "i6": _u64("cand3_key", cand3_key),
+        "i7": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_argmin_stream_certificate_v1_step(
+    *,
+    winner_key: int,
+    winner_index: int,
+    cand_key: int,
+    cand_index: int,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/argmin_stream_certificate_v1.tau`.
+    """
+    return {
+        "i1": _u64("winner_key", winner_key),
+        "i2": _bv32("winner_index", winner_index),
+        "i3": _u64("cand_key", cand_key),
+        "i4": _bv32("cand_index", cand_index),
+        "i5": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_argmax_stream_certificate_v1_step(
+    *,
+    winner_key: int,
+    winner_index: int,
+    cand_key: int,
+    cand_index: int,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/argmax_stream_certificate_v1.tau`.
+    """
+    return {
+        "i1": _u64("winner_key", winner_key),
+        "i2": _bv32("winner_index", winner_index),
+        "i3": _u64("cand_key", cand_key),
+        "i4": _bv32("cand_index", cand_index),
+        "i5": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_pool_params_binding_guard_v1_step(
+    *,
+    fee_bps: int,
+    curve_code: int,
+    canonical_order_ok: int = 1,
+    curve_tag_ok: int = 1,
+    curve_params_ok: int = 1,
+    pool_id_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/pool_params_binding_guard_v1.tau`.
+    """
+    return {
+        "i1": _bv32("fee_bps", fee_bps),
+        "i2": _bv32("curve_code", curve_code),
+        "i3": _sbf("canonical_order_ok", canonical_order_ok),
+        "i4": _sbf("curve_tag_ok", curve_tag_ok),
+        "i5": _sbf("curve_params_ok", curve_params_ok),
+        "i6": _sbf("pool_id_ok", pool_id_ok),
+        "i7": _sbf("binding_ok", binding_ok),
     }
