@@ -3,19 +3,11 @@ import sys
 
 
 def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
+    from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
     from src.integration.operations import parse_intents
 
     intent = parse_intents({"2": [intent_dict]})[0]
-    return {
-        "module": intent.module,
-        "version": intent.version,
-        "kind": intent.kind.value,
-        "intent_id": intent.intent_id,
-        "sender_pubkey": intent.sender_pubkey,
-        "deadline": intent.deadline,
-        "fields": intent.fields or {},
-        **({"salt": intent.salt} if intent.salt is not None else {}),
-    }
+    return build_dex_intent_signing_dict_v1(intent)
 
 
 def _parse_single_intent(intent_dict: dict):
