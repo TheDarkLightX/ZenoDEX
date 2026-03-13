@@ -20,6 +20,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum, unique
 
+from src.kernels.python.funding_rate_settlement_runtime_v1_1 import (
+    compute_funding_rate_settlement,
+)
 
 BPS_DENOM = 10_000
 MAX_AMOUNT = 1_000_000_000_000
@@ -258,6 +261,8 @@ def _guard_open_short(state: FRMState, params: FRMActionParams) -> bool:
 
 
 def _guard_settle(state: FRMState, params: FRMActionParams) -> bool:
+    if not params.auth_ok:
+        return False
     if state.frozen:
         return False
     if state.settled_this_epoch:
@@ -315,48 +320,27 @@ def _update_open_short(state: FRMState, params: FRMActionParams) -> FRMState:
 
 
 def _update_settle(state: FRMState, params: FRMActionParams) -> FRMState:
-    # Compute realized basis
-    realized_bps = compute_basis_bps(params.mark_price_e8, params.index_price_e8)
-    clamped_realized = max(
-        -state.funding_cap_bps, min(state.funding_cap_bps, realized_bps)
+    settlement = compute_funding_rate_settlement(
+        rate_long_exposure=state.rate_long_exposure,
+        rate_short_exposure=state.rate_short_exposure,
+        premium_pool=state.premium_pool,
+        implied_rate_bps=state.implied_rate_bps,
+        funding_cap_bps=state.funding_cap_bps,
+        protocol_fee_bps=state.protocol_fee_bps,
+        mark_price_e8=params.mark_price_e8,
+        index_price_e8=params.index_price_e8,
     )
-
-    # Settlement: compare implied vs realized
-    # If implied > realized: shorts win (longs overpaid)
-    # If implied < realized: longs win (shorts underpaid)
-    implied = state.implied_rate_bps
-
-    total_pool = state.premium_pool
-    protocol_fee = (total_pool * state.protocol_fee_bps) // BPS_DENOM
-    distributable = total_pool - protocol_fee
-
-    # Payoff: proportional to how close each side was to correct
-    # Simplified: if realized ≥ implied, longs get more; else shorts get more
-    total_exposure = state.rate_long_exposure + state.rate_short_exposure
-    if total_exposure > 0:
-        if clamped_realized >= implied:
-            # Longs were correct (rate was indeed high)
-            long_share = state.rate_long_exposure
-        else:
-            # Shorts were correct (rate was low)
-            long_share = state.rate_short_exposure
-
-        payout_long = (distributable * long_share) // total_exposure
-        payout_short = distributable - payout_long
-    else:
-        payout_long = 0
-        payout_short = 0
 
     # Conservation: premium_pool = protocol_fee + payout_long + payout_short
     return replace(
         state,
-        realized_rate_bps=clamped_realized,
+        realized_rate_bps=settlement.realized_rate_bps,
         settled_this_epoch=True,
         settlement_epoch=state.settlement_epoch + 1,
-        long_payout=payout_long,
-        short_payout=payout_short,
+        long_payout=settlement.long_payout,
+        short_payout=settlement.short_payout,
         premium_pool=0,
-        protocol_fee_pool=state.protocol_fee_pool + protocol_fee,
+        protocol_fee_pool=state.protocol_fee_pool + settlement.protocol_fee,
         mark_price_e8=params.mark_price_e8,
         index_price_e8=params.index_price_e8,
     )

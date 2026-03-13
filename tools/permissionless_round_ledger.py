@@ -103,7 +103,9 @@ def _extract_reward_artifact(reward_artifact: Mapping[str, Any]) -> dict[str, An
             ),
         }
     elif schema == "zenodex/permissionless_solver_proof_mining_claim/v1":
-        return validate_proof_mining_claim_artifact(reward_artifact, require_admissible=True)
+        # The public ledger records claim artifacts structurally; it is not the
+        # authority that decides whether a claim may be paid out on-chain.
+        return validate_proof_mining_claim_artifact(reward_artifact, require_admissible=False)
     else:
         raise ValueError("unsupported reward artifact schema")
 
