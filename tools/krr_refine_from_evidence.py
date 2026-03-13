@@ -558,13 +558,13 @@ def main() -> int:
     ap.add_argument(
         "--summary-glob",
         action="append",
-        default=["runs/manual_morph_supervised/*zag_bridge*eval*/summary.json"],
+        default=["runs/krr_evidence/*/summary.json"],
         help="Summary JSON glob(s) with rows containing hypothesis_id/check/final_status.",
     )
     ap.add_argument(
         "--bridge-glob",
         action="append",
-        default=["runs/manual_morph_supervised/**/zag_bridge_hypotheses*.json"],
+        default=["runs/krr_evidence/**/*hypotheses*.json"],
         help="Bridge hypothesis pack glob(s).",
     )
     ap.add_argument("--min-count", type=int, default=4, help="Minimum support for learning any prior.")
