@@ -2,6 +2,45 @@
 
 ZenoDex is a decentralized exchange (DEX) and token-economics stack for Tau Network. It uses a **hybrid model**: Python computes operational state, while **Tau Language specs validate invariants** and settlement rules.
 
+## Public Assurance Snapshot
+This repo now ships a public, replayable assurance surface for the consensus-critical functional core. The goal is not to claim "perfect software". The goal is to make the strongest claims we can defend with published artifacts, reproducible gates, and fail-closed checks.
+
+Current public snapshot on `main`:
+- `release` replay is green on the published tree.
+- `6/6` public assurance lanes are ready in `tools/permissionless_assurance.py`.
+- `10/10` required exported kernel refs are tracked in the repo.
+- Acceptance TCB gate: `336` tests, `100%` branch coverage.
+- Critical quality gate: `737` tests, `99%` overall branch-enabled coverage.
+- Critical-path mutation gate: `7/7` mutants killed, mutation score `1.0`.
+- Acceptance fuzz gate: `11` structure-aware fuzz tests passed.
+- Snapshot recovery gate: `16` tests passed.
+- Tau syntax gate: `58/58` specs passed.
+- Tau trace registry gate: `1/1` passed.
+- Perps evidence lane: `330` tests passed, plus cross-solver ESSO verification and Lean proof builds.
+- Spot evidence lane: `225` tests passed, plus cross-solver ESSO verification for spot kernels.
+
+Current coverage highlights:
+- Acceptance TCB overall: `100%` branch coverage.
+- Critical functional-core slice overall: `99%` branch-enabled coverage.
+- `src/core/batch_clearing.py`: `99%`
+- `src/core/settlement_strong_validator.py`: `100%` in the acceptance TCB slice and very high in the critical slice
+- `src/core/quote_receipts.py`: `100%` in the acceptance TCB slice
+
+Public replay commands:
+```bash
+python3 tools/permissionless_assurance.py status
+python3 tools/permissionless_assurance.py replay public
+python3 tools/permissionless_assurance.py replay critical
+python3 tools/permissionless_assurance.py replay release
+```
+
+What these numbers mean:
+- We use multiple independent evidence layers: direct tests, property tests, fuzzing, mutation testing, Tau validation, ESSO cross-solver verification, Lean proofs, and differential tests against exported kernel refs.
+- We treat coverage as necessary but not sufficient. High branch coverage is used to measure test reach, not to replace proofs, parity, or fail-closed design.
+- We only publish an assurance claim when the required replay files are tracked in the repo and the gate scripts fail closed if they are missing.
+
+For the public replay workflow and the exact assurance lanes, see [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md). For a fuller breakdown of what is and is not at the published bar, see [docs/ASSURANCE.md](docs/ASSURANCE.md).
+
 ## Why this repo exists
 - **Formal correctness** for DEX settlement and tokenomics
 - **Composable spec modules** (lego blocks) with explicit invariants

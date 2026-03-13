@@ -1,11 +1,8 @@
-"""Tests for src/core/perp_v2/engine.py — dispatch table + step function.
-
-Tests cover known action sequences end-to-end through the engine.
-"""
-
-import pytest
 from dataclasses import replace
 
+import pytest
+
+import src.core.perp_v2.engine as engine
 from src.core.perp_v2 import (
     Action,
     ActionParams,
@@ -66,6 +63,33 @@ class TestAdvanceEpoch:
         r = step(s, ActionParams(action=Action.ADVANCE_EPOCH, delta=10000))
         assert not r.accepted
         assert r.rejection == "guard"
+
+    def test_unknown_action_is_rejected(self):
+        r = step(initial_state(), ActionParams(action="bogus"))  # type: ignore[arg-type]
+        assert not r.accepted
+        assert r.rejection == "unknown_action:bogus"
+
+    def test_validate_params_returns_none_for_unknown_action_without_bounds(self):
+        assert (
+            engine._validate_params(ActionParams(action="bogus"))  # type: ignore[arg-type]
+            is None
+        )
+
+    def test_step_rejects_when_post_state_violates_invariants(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(engine, "check_all", lambda _state: ["broken_invariant"])
+
+        r = step(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
+
+        assert not r.accepted
+        assert r.rejection == "invariant:broken_invariant"
+
+    def test_step_or_raise_raises_invariant_error(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(engine, "check_all", lambda _state: ["inv_a", "inv_b"])
+
+        with pytest.raises(PerpInvariantError) as excinfo:
+            step_or_raise(initial_state(), ActionParams(action=Action.ADVANCE_EPOCH, delta=1))
+
+        assert excinfo.value.violations == ["inv_a", "inv_b"]
 
 
 # ---------------------------------------------------------------------------

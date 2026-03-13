@@ -54,7 +54,6 @@ function App() {
         <WalletConnect wallet={wallet} onConnect={setWallet} />
       </header>
 
-      {/* Main Content */}
       <main className="main">
         {activeTab === 'swap' && (
           <div className="swap-container animate-fade-in">
@@ -89,14 +88,13 @@ function App() {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="footer">
-	        <p>
-	          ZenoDEX: Formally Verified Decentralized Exchange
-	          <span className="footer-sep">•</span>
-	          Powered by <a href="https://tau.net" target="_blank" rel="noopener noreferrer">Tau Network</a>
-	          <span className="footer-sep">•</span>
-	          <span className="footer-agrs">AGRS</span> Native Token
+        <p>
+          ZenoDEX: Formally Verified Decentralized Exchange
+          <span className="footer-sep">•</span>
+          Powered by <a href="https://tau.net" target="_blank" rel="noopener noreferrer">Tau Network</a>
+          <span className="footer-sep">•</span>
+          <span className="footer-agrs">AGRS</span> Native Token
         </p>
       </footer>
 

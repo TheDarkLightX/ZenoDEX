@@ -5,8 +5,11 @@ from __future__ import annotations
 import pytest
 
 from src.core.volatility_tier import (
+    _DISPATCH,
     TierAction,
     TierActionParams,
+    _check_invariants,
+    _validate_params,
     effective_fee_bps,
     max_trade_amount,
     step,
@@ -414,3 +417,88 @@ def test_max_trade_negative_reserve_safe() -> None:
     s = TierState()
     assert max_trade_amount(-1000, s) == 0
     assert max_trade_amount(0, s) == 0
+
+
+def test_configure_invalid_new_t2_and_new_t3_rejected_fail_closed() -> None:
+    s = TierState()
+
+    r_bad_t2 = step(  # type: ignore[arg-type]
+        s,
+        TierActionParams(
+            action=TierAction.CONFIGURE,
+            caller_is_admin=True,
+            new_t1_bps=1000,
+            new_t2_bps="2000",
+            new_t3_bps=3000,
+        ),
+    )
+    assert not r_bad_t2.accepted
+    assert r_bad_t2.rejection == "invalid_param:new_t2_bps"
+
+    r_bad_t3 = step(
+        s,
+        TierActionParams(
+            action=TierAction.CONFIGURE,
+            caller_is_admin=True,
+            new_t1_bps=1000,
+            new_t2_bps=2000,
+            new_t3_bps=10_001,
+        ),
+    )
+    assert not r_bad_t3.accepted
+    assert r_bad_t3.rejection == "invalid_param:new_t3_bps"
+
+
+def test_validate_params_unknown_action_returns_none_for_dispatch_layer() -> None:
+    params = TierActionParams(action="mystery")  # type: ignore[arg-type]
+    assert _validate_params(params) is None
+
+
+def test_step_rejects_unknown_action() -> None:
+    result = step(TierState(), TierActionParams(action="mystery"))  # type: ignore[arg-type]
+    assert not result.accepted
+    assert result.rejection == "unknown_action:mystery"
+
+
+def test_check_invariants_reports_broken_state_fields() -> None:
+    broken = object.__new__(TierState)
+    object.__setattr__(broken, "tier", 4)
+    object.__setattr__(broken, "last_epoch", 0)
+    object.__setattr__(broken, "t1_bps", 7000)
+    object.__setattr__(broken, "t2_bps", 6000)
+    object.__setattr__(broken, "t3_bps", 5000)
+
+    assert _check_invariants(broken) == ["tier_bounded", "thresholds_ordered"]
+
+
+def test_step_rejects_post_update_invariant_violation(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = dict(_DISPATCH)
+
+    broken = object.__new__(TierState)
+    object.__setattr__(broken, "tier", 4)
+    object.__setattr__(broken, "last_epoch", 1)
+    object.__setattr__(broken, "t1_bps", 7000)
+    object.__setattr__(broken, "t2_bps", 6000)
+    object.__setattr__(broken, "t3_bps", 5000)
+
+    monkeypatch.setattr(
+        "src.core.volatility_tier._DISPATCH",
+        {
+            **original,
+            TierAction.CONFIGURE: (lambda state, params: True, lambda state, params: broken),
+        },
+    )
+
+    result = step(
+        TierState(),
+        TierActionParams(
+            action=TierAction.CONFIGURE,
+            caller_is_admin=True,
+            new_t1_bps=1000,
+            new_t2_bps=2000,
+            new_t3_bps=3000,
+        ),
+    )
+
+    assert not result.accepted
+    assert result.rejection == "invariant:tier_bounded,thresholds_ordered"

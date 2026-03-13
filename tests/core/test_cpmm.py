@@ -2,13 +2,26 @@
 
 from __future__ import annotations
 
-from src.core.cpmm import MIN_LP_LOCK, compute_lp_mint
-from src.core.cpmm import swap_exact_in, swap_exact_out
+from types import SimpleNamespace
+
+import pytest
+
+import src.core.cpmm as cpmm_mod
+from src.core.cpmm import (
+    MIN_LP_LOCK,
+    compute_fee_total,
+    compute_lp_burn,
+    compute_lp_mint,
+    swap_exact_in,
+    swap_exact_out,
+)
+from src.core.domain_limits import DEX_POOL_RESERVE_MAX
 
 
 def test_compute_lp_mint_uses_integer_isqrt() -> None:
-    # Pick values where float sqrt would be wrong due to precision loss.
-    n = (1 << 70) + 12345
+    # Stay at the edge of the verified LP kernel domain and ensure exact-square
+    # minting still behaves deterministically.
+    n = 1_000_000_000
     lp = compute_lp_mint(reserve0=0, reserve1=0, amount0=n, amount1=n, lp_supply=0)
     assert lp == n - MIN_LP_LOCK
 

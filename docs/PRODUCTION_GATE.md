@@ -1,3 +1,9 @@
+---
+title: PRODUCTION_GATE
+type: note
+permalink: autonomous-tau-dex-review/docs/production-gate
+---
+
 ## Production readiness gate (local)
 
 This repo includes a single “production gate” script that runs the same checks we treat as launch-blocking:
