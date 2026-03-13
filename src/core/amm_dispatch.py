@@ -9,24 +9,23 @@ from __future__ import annotations
 
 from typing import Tuple
 
+from ..kernels.python.settlement_swap_runtime_v1 import (
+    CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+)
 from ..state.balances import Amount
 from ..state.pools import (
     CURVE_TAG_CPMM,
     CURVE_TAG_CUBIC_SUM_V1,
-    CURVE_TAG_SUM_BOOST_V1,
     CURVE_TAG_QUARTIC_BLEND_V1,
     CURVE_TAG_QUINTIC_BLEND_V1,
+    CURVE_TAG_SUM_BOOST_V1,
     PoolState,
     parse_cubic_sum_params,
-    parse_sum_boost_params,
     parse_quartic_blend_params,
     parse_quintic_blend_params,
+    parse_sum_boost_params,
 )
-from . import cpmm
-from . import cubic_sum_amm
-from . import quartic_blend_amm
-from . import quintic_blend_amm
-from . import sum_boost_amm
+from . import cpmm, cubic_sum_amm, quartic_blend_amm, quintic_blend_amm, sum_boost_amm
 
 
 def swap_exact_in_for_pool(
@@ -61,7 +60,13 @@ def swap_exact_out_for_pool(
     pool: PoolState, *, reserve_in: Amount, reserve_out: Amount, amount_out: Amount
 ) -> Tuple[Amount, Tuple[Amount, Amount]]:
     if pool.curve_tag == CURVE_TAG_CPMM:
-        return cpmm.swap_exact_out(reserve_in, reserve_out, amount_out, pool.fee_bps)
+        return cpmm.swap_exact_out(
+            reserve_in,
+            reserve_out,
+            amount_out,
+            pool.fee_bps,
+            max_overdelivery_gap_bps=CPMM_EXACT_OUT_MAX_OVERDELIVERY_GAP_BPS_DEFAULT,
+        )
     if pool.curve_tag == CURVE_TAG_CUBIC_SUM_V1:
         p, q = parse_cubic_sum_params(pool.curve_params)
         return cubic_sum_amm.swap_exact_out_cubic_sum(

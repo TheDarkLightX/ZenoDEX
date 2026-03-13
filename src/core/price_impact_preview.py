@@ -1,11 +1,18 @@
-"""Deterministic price-impact preview utilities."""
+"""Deterministic price-impact preview utilities.
+
+This module provides pure integer math helpers for pre-trade UX:
+- isolated output quote and fee
+- spot/effective price impact
+- best/worst execution bounds given pending same-direction volume
+- conservative `min_out` recommendation
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 
-PRICE_SCALE: int = 100_000_000
+PRICE_SCALE: int = 100_000_000  # e8 fixed-point
 BPS_SCALE: int = 10_000
 
 
@@ -28,7 +35,7 @@ class PriceImpactPreview:
 
 
 def compute_spot_price_e8(reserve_in: int, reserve_out: int) -> int:
-    """Compute spot price as reserve_out / reserve_in in e8 fixed-point."""
+    """Compute spot price as `reserve_out / reserve_in` in e8 fixed-point."""
     if reserve_in <= 0 or reserve_out <= 0:
         raise ValueError(f"Reserves must be positive: ({reserve_in}, {reserve_out})")
     return reserve_out * PRICE_SCALE // reserve_in
@@ -40,7 +47,12 @@ def compute_isolated_output(
     amount_in: int,
     fee_bps: int,
 ) -> tuple[int, int]:
-    """Compute isolated exact-in output and fee."""
+    """Compute isolated exact-in output and fee.
+
+    Rounding:
+    - fee = ceil(amount_in * fee_bps / 10_000)
+    - amount_out = floor(reserve_out * net_in / (reserve_in + net_in))
+    """
     if reserve_in <= 0 or reserve_out <= 0:
         raise ValueError(f"Reserves must be positive: ({reserve_in}, {reserve_out})")
     if amount_in <= 0:
@@ -62,7 +74,16 @@ def compute_price_impact_bps(
     amount_in: int,
     fee_bps: int,
 ) -> int:
-    """Compute price impact in bps relative to spot, excluding fee."""
+    """Compute price impact in bps relative to spot (excluding fee).
+
+    We separate fee from impact:
+    - `compute_isolated_output` returns (amount_out, fee_amount).
+    - Here we measure *slippage* by comparing the net-execution price to spot:
+        impact = 1 - (amount_out / net_in) / (reserve_out / reserve_in)
+
+    This matches the Lean/ESSO definition used by UX proofs:
+      i(a) = α*a / (x + α*a) where α = (BPS - fee) / BPS.
+    """
     amount_out, fee_amount = compute_isolated_output(reserve_in, reserve_out, amount_in, fee_bps)
     net_in = int(amount_in) - int(fee_amount)
     if amount_out <= 0 or net_in <= 0:
@@ -81,7 +102,18 @@ def price_impact_preview(
     pending_volume_same_direction: int = 0,
     confidence_bps: int = 9500,
 ) -> PriceImpactPreview:
-    """Build a conservative full preview for UI and wallet checks."""
+    """Build full preview for UI/wallet checks.
+
+    `confidence_bps` controls how conservative the `recommended_min_out` is:
+    - 10_000 => treat *all* pending volume as executing first (worst-case)
+    - 0 => treat *no* pending volume as executing first (best-case)
+
+    Important:
+    - A prior linear interpolation between best/worst is too optimistic under
+      CPMM integer semantics (the output-vs-pending-volume curve is often
+      bowed below the chord). We therefore evaluate directly at the
+      confidence-adjusted pending volume.
+    """
     if pending_volume_same_direction < 0:
         raise ValueError(
             "pending_volume_same_direction must be non-negative: "
@@ -90,16 +122,16 @@ def price_impact_preview(
     if not (0 <= confidence_bps <= BPS_SCALE):
         raise ValueError(f"confidence_bps must be in [0, {BPS_SCALE}]: {confidence_bps}")
 
-    def _after_pending(*, pending_volume: int) -> tuple[int, int]:
-        if pending_volume <= 0:
+    def _after_pending(*, pv: int) -> tuple[int, int]:
+        if pv <= 0:
             return int(reserve_in), int(reserve_out)
         pending_out, _ = compute_isolated_output(
             reserve_in=reserve_in,
             reserve_out=reserve_out,
-            amount_in=int(pending_volume),
+            amount_in=int(pv),
             fee_bps=fee_bps,
         )
-        return int(reserve_in) + int(pending_volume), int(reserve_out) - int(pending_out)
+        return int(reserve_in) + int(pv), int(reserve_out) - int(pending_out)
 
     amount_out_isolated, fee_amount = compute_isolated_output(
         reserve_in=reserve_in,
@@ -108,7 +140,9 @@ def price_impact_preview(
         fee_bps=fee_bps,
     )
     spot_price_e8 = compute_spot_price_e8(reserve_in, reserve_out)
-    effective_price_e8 = amount_out_isolated * PRICE_SCALE // amount_in if amount_in > 0 else 0
+    effective_price_e8 = (
+        amount_out_isolated * PRICE_SCALE // amount_in if amount_in > 0 else 0
+    )
     impact_bps = compute_price_impact_bps(
         reserve_in=reserve_in,
         reserve_out=reserve_out,
@@ -117,7 +151,7 @@ def price_impact_preview(
     )
 
     amount_out_best_case = amount_out_isolated
-    reserve_in_after, reserve_out_after = _after_pending(pending_volume=int(pending_volume_same_direction))
+    reserve_in_after, reserve_out_after = _after_pending(pv=int(pending_volume_same_direction))
     if pending_volume_same_direction == 0:
         amount_out_worst_case = amount_out_best_case
     else:
@@ -129,7 +163,7 @@ def price_impact_preview(
         )
 
     pending_volume_at_confidence = int(pending_volume_same_direction) * int(confidence_bps) // BPS_SCALE
-    reserve_in_conf, reserve_out_conf = _after_pending(pending_volume=int(pending_volume_at_confidence))
+    reserve_in_conf, reserve_out_conf = _after_pending(pv=int(pending_volume_at_confidence))
     if pending_volume_at_confidence == 0:
         amount_out_at_confidence = amount_out_best_case
     else:
@@ -143,6 +177,7 @@ def price_impact_preview(
         int(amount_out_worst_case),
         min(int(amount_out_best_case), int(amount_out_at_confidence)),
     )
+    recommended_min_out = int(amount_out_at_confidence)
 
     return PriceImpactPreview(
         amount_out_isolated=amount_out_isolated,
@@ -152,8 +187,8 @@ def price_impact_preview(
         spot_price_e8=spot_price_e8,
         amount_out_best_case=amount_out_best_case,
         amount_out_worst_case=amount_out_worst_case,
-        recommended_min_out=int(amount_out_at_confidence),
-        pending_volume_same_direction=int(pending_volume_same_direction),
+        recommended_min_out=recommended_min_out,
+        pending_volume_same_direction=pending_volume_same_direction,
         confidence_bps=int(confidence_bps),
         pending_volume_at_confidence=int(pending_volume_at_confidence),
         amount_out_at_confidence=int(amount_out_at_confidence),
