@@ -8,10 +8,14 @@ import types
 
 import pytest
 
-from src.integration import perps_api as perps_demo_api
 import src.integration.zusd_tau_gate as zusd_tau_gate
 from src.core.zusd import E8
-from src.integration.zusd_api import handle_zusd_request, reset_demo_state
+from src.integration import perps_api as perps_demo_api
+from src.integration.zusd_api import (
+    _tau_gate_config_from_env,
+    handle_zusd_request,
+    reset_demo_state,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -135,6 +139,11 @@ class TestPerpOracleSyncGate:
 
 
 class TestTauGateWiring:
+    def test_tau_gate_defaults_to_absolute_path_resolution(self, monkeypatch):
+        monkeypatch.delenv("ZUSD_TAU_ALLOW_PATH_LOOKUP", raising=False)
+        cfg = _tau_gate_config_from_env()
+        assert cfg.allow_path_lookup is False
+
     def test_tau_gate_enabled_and_passing(self, monkeypatch):
         monkeypatch.setenv("ZUSD_TAU_GATE_ENABLED", "1")
         monkeypatch.setenv("ZUSD_TAU_BIN", sys.executable)
