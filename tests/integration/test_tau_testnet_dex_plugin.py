@@ -519,6 +519,66 @@ def test_apply_app_tx_token_mint_and_burn(monkeypatch):
     assert balances.get((user, token)) == 450
 
 
+def test_select_perp_ops_prefers_upstream_stream_8() -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    upstream_ops = [{"module": "TauPerp", "action": "advance_epoch"}]
+    legacy_ops = [{"module": "TauPerp", "action": "set_position"}]
+
+    selected = plugin._select_perp_ops(  # type: ignore[attr-defined]
+        {
+            "8": upstream_ops,
+            "5": legacy_ops,
+            "2": [{"kind": "swap"}],
+        }
+    )
+
+    assert selected == {"5": upstream_ops}
+
+
+def test_select_perp_ops_accepts_legacy_fallback_only_for_perp_like_payload() -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    legacy_ops = [{"module": "TauPerp", "action": "advance_epoch"}]
+
+    selected = plugin._select_perp_ops({"5": legacy_ops})  # type: ignore[attr-defined]
+
+    assert selected == {"5": legacy_ops}
+
+
+def test_select_perp_ops_rejects_legacy_fallback_when_legacy_dex_stream_present() -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    legacy_ops = [{"module": "TauPerp", "action": "advance_epoch"}]
+
+    selected = plugin._select_perp_ops(  # type: ignore[attr-defined]
+        {
+            "5": legacy_ops,
+            "2": [{"kind": "swap"}],
+        }
+    )
+
+    assert selected == {}
+
+
+def test_select_perp_ops_rejects_legacy_candidate_that_looks_like_dex_intents() -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    dex_like_payload = [{"kind": "swap", "sender_pubkey": "aa" * 48}]
+
+    selected = plugin._select_perp_ops({"5": dex_like_payload})  # type: ignore[attr-defined]
+
+    assert selected == {}
+
+
+def test_select_perp_ops_rejects_legacy_candidate_that_is_not_perp_like() -> None:
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    selected = plugin._select_perp_ops({"5": [{"module": "TauToken"}]})  # type: ignore[attr-defined]
+
+    assert selected == {}
+
+
 def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
     from src.state.balances import NATIVE_ASSET
@@ -636,6 +696,7 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
         balances=state0.balances,
         pools=state0.pools,
         lp_balances=state0.lp_balances or LPTable(),
+        nonces=state0.nonces,
     )
     batch_commitment = _batch_commitment(
         signing_dicts=[_intent_signing_dict_from_tx_intent(intent)],
@@ -800,6 +861,7 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
             balances=state0.balances,
             pools=state0.pools,
             lp_balances=state0.lp_balances,
+            nonces=state0.nonces,
         ),
         "batch_commitment": _batch_commitment(
             signing_dicts=[_intent_signing_dict_from_tx_intent(intent)],

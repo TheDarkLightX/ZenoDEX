@@ -101,6 +101,8 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
                 "lp_supply": int(pool.lp_supply),
                 "status": pool.status.value,
                 "created_at": int(pool.created_at),
+                "curve_tag": pool.curve_tag,
+                "curve_params": pool.curve_params,
             }
         )
     pools_entries.sort(key=lambda e: e["pool_id"])
@@ -112,6 +114,14 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
             continue
         lp_entries.append({"pubkey": pubkey, "pool_id": pool_id, "amount": int(amount)})
     lp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+
+    nonce_entries = []
+    for pubkey in support.nonce_keys:
+        last_nonce = state.nonces.get_last(pubkey)
+        if last_nonce == 0:
+            continue
+        nonce_entries.append({"pubkey": pubkey, "last_nonce": int(last_nonce)})
+    nonce_entries.sort(key=lambda e: e["pubkey"])
 
     fee_acc = state.fee_accumulator
     fee_acc_obj: Dict[str, Any] = {"dust": int(getattr(fee_acc, "dust", 0))}
@@ -137,6 +147,7 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
         "balances": balances_entries,
         "pools": pools_entries,
         "lp_balances": lp_entries,
+        "nonces": nonce_entries,
         "fee_accumulator": fee_acc_obj,
         "vault": vault_obj,
         "oracle": oracle_obj,
@@ -170,6 +181,7 @@ def main(argv: Sequence[str]) -> None:
             pools=state.pools,
             lp_balances=state.lp_balances,
             support=support,
+            nonces=state.nonces,
         )
 
         projected_snapshot = _project_snapshot(state, support)
@@ -197,4 +209,3 @@ def main(argv: Sequence[str]) -> None:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-

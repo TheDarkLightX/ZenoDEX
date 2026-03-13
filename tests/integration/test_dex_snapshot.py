@@ -370,3 +370,34 @@ def test_state_from_snapshot_rejects_fee_bps_above_10000() -> None:
     }
     with pytest.raises(ValueError):
         state_from_snapshot(snap)
+
+
+def test_snapshot_roundtrip_preserves_curve_configuration() -> None:
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+    pool_id = "0x" + "aa" * 32
+    state = DexState(
+        balances=BalanceTable(),
+        pools={
+            pool_id: PoolState(
+                pool_id=pool_id,
+                asset0=asset0,
+                asset1=asset1,
+                reserve0=1_000,
+                reserve1=2_000,
+                fee_bps=30,
+                lp_supply=10,
+                status=PoolStatus.ACTIVE,
+                created_at=1,
+                curve_tag="SUM_BOOST_V1",
+                curve_params='{"mu_num":1,"mu_den":2}',
+            )
+        },
+        lp_balances=LPTable(),
+    )
+
+    snap = snapshot_from_state(state)
+    restored = state_from_snapshot(snap.data)
+    restored_pool = restored.pools[pool_id]
+    assert restored_pool.curve_tag == "SUM_BOOST_V1"
+    assert restored_pool.curve_params == '{"mu_den":2,"mu_num":1}'
