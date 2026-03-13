@@ -25,7 +25,7 @@ def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
     return {
         "module": intent.module,
         "version": intent.version,
-        "kind": intent.kind.value,
+        "kind": intent.kind.value.lower(),
         "intent_id": intent.intent_id,
         "sender_pubkey": intent.sender_pubkey,
         "deadline": intent.deadline,
@@ -267,7 +267,12 @@ def test_engine_proof_binding_is_fail_closed_on_batch_commitment_mismatch() -> N
 
     settlement_obj_with_proof = dict(settlement_obj)
     settlement_obj_with_proof["proof"] = {
-        "pre_state_commitment": compute_state_root(balances=state.balances, pools=state.pools, lp_balances=state.lp_balances),
+        "pre_state_commitment": compute_state_root(
+            balances=state.balances,
+            pools=state.pools,
+            lp_balances=state.lp_balances,
+            nonces=state.nonces,
+        ),
         "batch_commitment": "0x" + "00" * 32,
     }
 
@@ -334,7 +339,12 @@ def test_engine_accepts_proof_when_commitments_match_and_verifier_ok() -> None:
     settlement = compute_settlement(intents=[intent], pools={}, balances=balances, lp_balances=state.lp_balances)
     settlement_obj = create_settlement_operation(settlement)["3"]
 
-    pre_state_commitment = compute_state_root(balances=state.balances, pools=state.pools, lp_balances=state.lp_balances)
+    pre_state_commitment = compute_state_root(
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        nonces=state.nonces,
+    )
     batch_commitment = _batch_commitment(
         signing_dicts=[_intent_signing_dict_from_tx_intent(intent_dict)],
         settlement_obj=settlement_obj,
@@ -445,7 +455,12 @@ def test_engine_proof_commitment_ignores_optional_nulls_and_reject_reasons() -> 
         compact_fills.append(compact)
     settlement_obj_min["fills"] = compact_fills
 
-    pre_state_commitment = compute_state_root(balances=state.balances, pools=state.pools, lp_balances=state.lp_balances)
+    pre_state_commitment = compute_state_root(
+        balances=state.balances,
+        pools=state.pools,
+        lp_balances=state.lp_balances,
+        nonces=state.nonces,
+    )
     batch_commitment = _batch_commitment(
         signing_dicts=[
             _intent_signing_dict_from_tx_intent(intent_dict_create),
@@ -537,6 +552,7 @@ def test_engine_proof_requires_submission_order_for_liquidity_intents() -> None:
         balances=state.balances,
         pools=state.pools,
         lp_balances=state.lp_balances,
+        nonces=state.nonces,
     )
     batch_commitment = _batch_commitment(
         signing_dicts=[_intent_signing_dict_from_tx_intent(intent_dict)],

@@ -8,6 +8,7 @@ import threading
 from http.client import HTTPConnection
 from pathlib import Path
 
+from src.integration.proof_mining_context import ProofMiningContext, proof_mining_context_to_obj
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -34,6 +35,25 @@ def _claim(*, miner_id: str, reward_pool_before: int) -> dict:
         epoch=1,
         proposal_slot=0,
         prover_id=1,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+    )
+
+
+def _context_from_claim(claim: dict) -> dict:
+    binding = claim["body"]["proposal_binding"]
+    return proof_mining_context_to_obj(
+        ProofMiningContext(
+            chain_id=str(binding["chain_id"]),
+            prev_state_hash=str(binding["prev_state_hash"]),
+            batch_hash=str(binding["batch_hash"]),
+            witness_hash=str(binding["witness_hash"]),
+            dex_hash_after=str(binding["dex_hash_after"]),
+            proposal_hash=str(claim["body"]["proposal_hash"]),
+            proof_scheme="dummy",
+        )
     )
 
 
@@ -70,9 +90,11 @@ def test_permissionless_proof_mining_status_cli_local_success(tmp_path: Path) ->
     claim = _claim(miner_id=sender, reward_pool_before=20)
     claim_path = tmp_path / "claim.json"
     balances_path = tmp_path / "balances.json"
+    context_path = tmp_path / "context.json"
     output_path = tmp_path / "status.json"
     _write_json(claim_path, claim)
     _write_json(balances_path, {reward_pool: 20, sender: 0})
+    _write_json(context_path, _context_from_claim(claim))
 
     env = dict(os.environ)
     env["TAU_DEX_PROOF_MINING_POOL_PUBKEY"] = reward_pool
@@ -88,6 +110,8 @@ def test_permissionless_proof_mining_status_cli_local_success(tmp_path: Path) ->
             sender,
             "--expected-proposal-hash",
             str(claim["body"]["proposal_hash"]),
+            "--proof-mining-context",
+            str(context_path),
             "--output",
             str(output_path),
         ],
@@ -110,8 +134,10 @@ def test_permissionless_proof_mining_status_cli_local_rejected_claim_returns_non
     claim = _claim(miner_id=sender, reward_pool_before=20)
     claim_path = tmp_path / "claim.json"
     balances_path = tmp_path / "balances.json"
+    context_path = tmp_path / "context.json"
     _write_json(claim_path, claim)
     _write_json(balances_path, {reward_pool: 20, sender: 0})
+    _write_json(context_path, _context_from_claim(claim))
 
     env = dict(os.environ)
     env["TAU_DEX_PROOF_MINING_POOL_PUBKEY"] = reward_pool
@@ -127,6 +153,8 @@ def test_permissionless_proof_mining_status_cli_local_rejected_claim_returns_non
             sender,
             "--expected-proposal-hash",
             "sha256:wrong",
+            "--proof-mining-context",
+            str(context_path),
         ],
         cwd=REPO,
         env=env,
@@ -147,8 +175,10 @@ def test_permissionless_proof_mining_status_cli_api_mode(tmp_path: Path, monkeyp
     claim = _claim(miner_id=sender, reward_pool_before=20)
     claim_path = tmp_path / "claim.json"
     balances_path = tmp_path / "balances.json"
+    context_path = tmp_path / "context.json"
     _write_json(claim_path, claim)
     _write_json(balances_path, {reward_pool: 20, sender: 0})
+    _write_json(context_path, _context_from_claim(claim))
 
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
     httpd, thread, host, port = _start_test_server()
@@ -167,6 +197,8 @@ def test_permissionless_proof_mining_status_cli_api_mode(tmp_path: Path, monkeyp
                 sender,
                 "--expected-proposal-hash",
                 str(claim["body"]["proposal_hash"]),
+                "--proof-mining-context",
+                str(context_path),
             ],
             cwd=REPO,
             env=dict(os.environ),

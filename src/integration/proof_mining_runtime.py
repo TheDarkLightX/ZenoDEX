@@ -10,6 +10,10 @@ from ..core.proof_mining_manager import (
     build_submit_proof_packet,
 )
 from ..core.proof_mining_claims import validate_proof_mining_claim_artifact
+from .proof_mining_context import (
+    ProofMiningContext,
+    derive_proof_mining_verification_flags,
+)
 
 
 @dataclass(frozen=True)
@@ -91,7 +95,7 @@ def initialize_proof_mining_runtime_state(
     reward_pool_balance: int,
     claim_artifact: Mapping[str, Any],
 ) -> ProofMiningRuntimeState:
-    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
+    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=False)
     balance = _require_int(reward_pool_balance, name="reward_pool_balance")
     if balance < 0:
         raise ValueError("reward_pool_balance must be non-negative")
@@ -113,12 +117,25 @@ def apply_proof_mining_claim(
     runtime_state: ProofMiningRuntimeState,
     claim_artifact: Mapping[str, Any],
     actual_reward_pool_balance: int,
+    proof_mining_context: ProofMiningContext,
 ) -> tuple[ProofMiningRuntimeState, ProofMiningManagerApplyResult]:
     balance = _require_int(actual_reward_pool_balance, name="actual_reward_pool_balance")
     if balance != int(runtime_state.snapshot.reward_pool_balance):
         raise ValueError("reward pool balance does not match runtime snapshot")
-    packet = build_submit_proof_packet(claim_artifact=claim_artifact, snapshot=runtime_state.snapshot)
-    result = apply_submit_proof_packet(packet=packet, snapshot=runtime_state.snapshot)
+    verification_flags = derive_proof_mining_verification_flags(
+        claim_artifact=claim_artifact,
+        context=proof_mining_context,
+    )
+    packet = build_submit_proof_packet(
+        claim_artifact=claim_artifact,
+        snapshot=runtime_state.snapshot,
+        verification_flags=verification_flags,
+    )
+    result = apply_submit_proof_packet(
+        packet=packet,
+        snapshot=runtime_state.snapshot,
+        verification_flags=verification_flags,
+    )
     if not result.ok or result.state_after is None:
         return runtime_state, result
     next_state = ProofMiningRuntimeState(

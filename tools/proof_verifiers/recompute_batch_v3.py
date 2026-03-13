@@ -118,7 +118,7 @@ def _intent_signing_dict(intent: Any) -> Dict[str, Any]:
     d: Dict[str, Any] = {
         "module": intent.module,
         "version": intent.version,
-        "kind": intent.kind.value,
+        "kind": intent.kind.value.lower(),
         "intent_id": intent.intent_id,
         "sender_pubkey": intent.sender_pubkey,
         "deadline": intent.deadline,
@@ -225,6 +225,7 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
             balances=state.balances,
             pools=state.pools,
             lp_balances=state.lp_balances,
+            nonces=state.nonces,
         )
     except Exception as exc:
         return False, f"failed to compute support root: {exc}"
@@ -286,4 +287,3 @@ def main(argv: Sequence[str]) -> None:
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-

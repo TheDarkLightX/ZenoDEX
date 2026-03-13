@@ -6,6 +6,7 @@ import pytest
 
 from src.core.liquidity import create_pool
 from src.state import BalanceTable, LPTable
+from src.state.nonces import NonceTable
 from src.state.state_root import compute_state_root
 
 
@@ -83,6 +84,37 @@ def test_state_root_changes_on_state_change() -> None:
     balances.set(pk, asset0, 11)
     root_2 = compute_state_root(balances=balances, pools=pools, lp_balances=lp)
     assert root_1 != root_2
+
+
+def test_state_root_changes_on_nonce_change() -> None:
+    pk = "0x" + "11" * 48
+
+    nonces = NonceTable()
+    root_1 = compute_state_root(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        nonces=nonces,
+    )
+
+    nonces.set_last(pk, 1)
+    root_2 = compute_state_root(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        nonces=nonces,
+    )
+    assert root_1 != root_2
+
+
+def test_state_root_rejects_invalid_nonce_table_type() -> None:
+    with pytest.raises(TypeError, match="nonces must be a NonceTable"):
+        compute_state_root(
+            balances=BalanceTable(),
+            pools={},
+            lp_balances=LPTable(),
+            nonces={},  # type: ignore[arg-type]
+        )
 
 
 def test_state_root_rejects_invalid_hex_lengths() -> None:
@@ -244,3 +276,39 @@ def test_state_root_rejects_pool_id_mismatch_unknown_status_and_invalid_scalars(
     bad_pool.reserve0 = True  # type: ignore[assignment]
     with pytest.raises(ValueError, match="invalid pool reserve0"):
         compute_state_root(balances=BalanceTable(), pools={_pool_id2: bad_pool}, lp_balances=LPTable())
+
+
+def test_state_root_changes_when_curve_configuration_changes() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id, pool_a, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+        created_at=0,
+        curve_tag="SUM_BOOST_V1",
+        curve_params={"mu_num": 1, "mu_den": 2},
+    )
+
+    pool_b = type(pool_a)(
+        pool_id=pool_a.pool_id,
+        asset0=pool_a.asset0,
+        asset1=pool_a.asset1,
+        reserve0=pool_a.reserve0,
+        reserve1=pool_a.reserve1,
+        fee_bps=pool_a.fee_bps,
+        lp_supply=pool_a.lp_supply,
+        status=pool_a.status,
+        created_at=pool_a.created_at,
+        curve_tag="SUM_BOOST_V1",
+        curve_params='{"mu_num":2,"mu_den":3}',
+    )
+
+    root_a = compute_state_root(balances=BalanceTable(), pools={pool_id: pool_a}, lp_balances=LPTable())
+    root_b = compute_state_root(balances=BalanceTable(), pools={pool_id: pool_b}, lp_balances=LPTable())
+    assert root_a != root_b

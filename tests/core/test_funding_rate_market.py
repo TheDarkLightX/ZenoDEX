@@ -213,6 +213,7 @@ def test_settle_rate_epoch() -> None:
     )
     r = step(s, FRMActionParams(
         action=FRMAction.SETTLE_RATE_EPOCH,
+        auth_ok=True,
         mark_price_e8=10100000000,  # 101
         index_price_e8=10000000000, # 100
     ))
@@ -235,6 +236,22 @@ def test_settle_no_exposure_rejected() -> None:
     s = FRMState()
     r = step(s, FRMActionParams(
         action=FRMAction.SETTLE_RATE_EPOCH,
+        auth_ok=True,
+        mark_price_e8=100,
+        index_price_e8=100,
+    ))
+    assert not r.accepted
+
+
+def test_settle_no_auth_rejected() -> None:
+    s = FRMState(
+        rate_long_exposure=1000,
+        rate_short_exposure=1000,
+        premium_pool=2000,
+    )
+    r = step(s, FRMActionParams(
+        action=FRMAction.SETTLE_RATE_EPOCH,
+        auth_ok=False,
         mark_price_e8=100,
         index_price_e8=100,
     ))
@@ -250,6 +267,7 @@ def test_settle_already_settled_rejected() -> None:
     )
     r = step(s, FRMActionParams(
         action=FRMAction.SETTLE_RATE_EPOCH,
+        auth_ok=True,
         mark_price_e8=100,
         index_price_e8=100,
     ))
@@ -265,6 +283,7 @@ def test_settle_frozen_rejected() -> None:
     )
     r = step(s, FRMActionParams(
         action=FRMAction.SETTLE_RATE_EPOCH,
+        auth_ok=True,
         mark_price_e8=100,
         index_price_e8=100,
     ))
@@ -289,6 +308,7 @@ def test_conservation_settle() -> None:
 
     r = step(s, FRMActionParams(
         action=FRMAction.SETTLE_RATE_EPOCH,
+        auth_ok=True,
         mark_price_e8=10050000000,
         index_price_e8=10000000000,
     ))
@@ -392,6 +412,7 @@ def test_full_lifecycle() -> None:
     # Settle with mark > index (longs were correct)
     r = step(s, FRMActionParams(
         action=FRMAction.SETTLE_RATE_EPOCH,
+        auth_ok=True,
         mark_price_e8=10200000000,  # 102
         index_price_e8=10000000000, # 100
     ))
@@ -419,6 +440,7 @@ def test_rate_symmetric_by_construction() -> None:
     )
     r = step(s, FRMActionParams(
         action=FRMAction.SETTLE_RATE_EPOCH,
+        auth_ok=True,
         mark_price_e8=10100000000,
         index_price_e8=10000000000,
     ))
