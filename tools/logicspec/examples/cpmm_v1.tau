@@ -1,0 +1,32 @@
+# CPMMSwapValidity (generated from LogicSpec)
+# CPMM Swap Validity Specification
+# Validates swap parameters for constant-product market maker
+# Logic: □ (SWAP_VALID ↔ positive(r_in) ∧ positive(r_out) ∧ positive(amt_in)
+# ∧ fee_valid(fee) ∧ positive(amt_out) ∧ amt_out ≤ r_out)
+# Fee must be between 0 and 10000 basis points (0% to 100%)
+# A 32-bit value (hi, lo) is positive if hi > 0, or hi = 0 and lo > 0
+# Compare two 32-bit values: (hi1, lo1) ≥ (hi2, lo2)
+# Main swap constraints
+
+# Stream mapping:
+# i1 = reserve_in_hi
+# i2 = reserve_in_lo
+# i3 = reserve_out_hi
+# i4 = reserve_out_lo
+# i5 = amount_in_hi
+# i6 = amount_in_lo
+# i7 = fee_bps
+# i8 = amount_out_hi
+# i9 = amount_out_lo
+# o1 = swap_valid
+
+set charvar off
+
+fee_bps_valid(fee : bv[16]) := ((fee >= { #x00000000 }:bv[32]) && (fee <= { #x00002710 }:bv[32])).
+is_positive(hi : bv[16], lo : bv[16]) := ((hi > { #x00000000 }:bv[32]) || (((hi = { #x00000000 }:bv[32]) && (lo > { #x00000000 }:bv[32])))).
+value_gte(hi1 : bv[16], lo1 : bv[16], hi2 : bv[16], lo2 : bv[16]) := ((hi1 > hi2) || (((hi1 = hi2) && (lo1 >= lo2)))).
+swap_constraints(r_in_hi : bv[16], r_in_lo : bv[16], r_out_hi : bv[16], r_out_lo : bv[16], amt_in_hi : bv[16], amt_in_lo : bv[16], fee : bv[16], amt_out_hi : bv[16], amt_out_lo : bv[16]) := (((((is_positive(r_in_hi, r_in_lo) && is_positive(r_out_hi, r_out_lo)) && is_positive(amt_in_hi, amt_in_lo)) && fee_bps_valid(fee)) && is_positive(amt_out_hi, amt_out_lo)) && value_gte(r_out_hi, r_out_lo, amt_out_hi, amt_out_lo)).
+
+# @section: main
+  always
+  ((o1[t]:sbf <-> swap_constraints(i1[t]:bv[16], i2[t]:bv[16], i3[t]:bv[16], i4[t]:bv[16], i5[t]:bv[16], i6[t]:bv[16], i7[t]:bv[16], i8[t]:bv[16], i9[t]:bv[16])))

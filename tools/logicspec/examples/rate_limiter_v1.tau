@@ -1,0 +1,40 @@
+# RateLimiter (generated from LogicSpec)
+# Rate Limiter Specification
+# Limits transaction frequency to prevent spam and DoS attacks
+# Logic: □ (RATE_OK ↔ (limit > 0) ∧ (count ≤ limit ∨ window_reset))
+# transactions in current window
+# max transactions per window
+# 1 if window has reset
+# Limit must be positive
+# Count within limit
+# Window has reset
+# Rate limit satisfied: either within limit or window reset
+
+# Stream mapping:
+# i1 = tx_count
+# i2 = tx_limit
+# i3 = window_elapsed
+# o1 = limit_ok
+# o2 = count_within_limit
+# o3 = window_ok
+# o4 = rate_limit_ok
+
+set charvar off
+
+limit_positive(limit : bv[32]) := (limit > { #x00000000 }:bv[32]).
+count_ok(count : bv[32], limit : bv[32]) := (count <= limit).
+window_reset(elapsed : sbf) := elapsed.
+rate_satisfied(count : bv[32], limit : bv[32], window : sbf) := (limit_positive(limit) && ((count_ok(count, limit) || window_reset(window)))).
+
+# @section: limit_validation
+  always
+  ((o1[t]:sbf <-> limit_positive(i2[t]:bv[32])))
+# @section: count_check
+  always
+  ((o2[t]:sbf <-> count_ok(i1[t]:bv[32], i2[t]:bv[32])))
+# @section: window_status
+  always
+  ((o3[t]:sbf <-> window_reset(i3[t]:sbf)))
+# @section: main
+  always
+  ((o4[t]:sbf <-> rate_satisfied(i1[t]:bv[32], i2[t]:bv[32], i3[t]:sbf)))
