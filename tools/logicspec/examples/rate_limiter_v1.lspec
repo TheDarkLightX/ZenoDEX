@@ -1,0 +1,49 @@
+# Rate Limiter Specification
+# Limits transaction frequency to prevent spam and DoS attacks
+#
+# Logic: □ (RATE_OK ↔ (limit > 0) ∧ (count ≤ limit ∨ window_reset))
+
+spec RateLimiter {
+
+  inputs {
+    tx_count: u32        # transactions in current window
+    tx_limit: u32        # max transactions per window
+    window_elapsed: bool # 1 if window has reset
+  }
+
+  outputs {
+    limit_ok: bool
+    count_within_limit: bool
+    window_ok: bool
+    rate_limit_ok: bool
+  }
+
+  # Limit must be positive
+  define limit_positive(limit: u32) := limit > 0
+
+  # Count within limit
+  define count_ok(count: u32, limit: u32) := count ≤ limit
+
+  # Window has reset
+  define window_reset(elapsed: bool) := elapsed
+
+  # Rate limit satisfied: either within limit or window reset
+  define rate_satisfied(count: u32, limit: u32, window: bool) :=
+    limit_positive(limit) ∧ (count_ok(count, limit) ∨ window_reset(window))
+
+  invariant limit_validation {
+    □ (limit_ok ↔ limit_positive(tx_limit))
+  }
+
+  invariant count_check {
+    □ (count_within_limit ↔ count_ok(tx_count, tx_limit))
+  }
+
+  invariant window_status {
+    □ (window_ok ↔ window_reset(window_elapsed))
+  }
+
+  invariant main {
+    □ (rate_limit_ok ↔ rate_satisfied(tx_count, tx_limit, window_elapsed))
+  }
+}
