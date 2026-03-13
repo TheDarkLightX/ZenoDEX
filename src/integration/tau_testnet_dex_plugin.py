@@ -57,6 +57,8 @@ _LEGACY_PERP_OPS_KEY = "5"
 _APP_STATE_SCHEMA = "zenodex/tau_app_state/v1"
 _APP_STATE_VERSION = 1
 _MAX_APP_STATE_JSON_BYTES = 6_000_000
+
+
 def _canonical_state_and_hash(
     state: DexState,
     *,
@@ -659,7 +661,6 @@ def _apply_proof_mining_op(
             runtime_state=runtime_state,
             claim_artifact=claim_artifact,
             actual_reward_pool_balance=actual_pool_balance,
-            proof_mining_context=proof_mining_context,
         )
     except Exception as exc:
         return False, state, proof_mining_state, str(exc)
