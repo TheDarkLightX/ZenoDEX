@@ -595,7 +595,8 @@ def _handle_collateral(
     if not result.accepted:
         return perps, history, (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection})
 
-    assert result.state is not None
+    if result.state is None:
+        return perps, history, (500, {"ok": False, "error": "internal_error"})
     new_account = _account_from_step_result(account, result.state)
     new_market = _update_market_account(market, pubkey, new_account)
 
@@ -669,7 +670,8 @@ def _handle_set_position(
     if not result.accepted:
         return perps, history, (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection})
 
-    assert result.state is not None
+    if result.state is None:
+        return perps, history, (500, {"ok": False, "error": "internal_error"})
     new_account = _account_from_step_result(account, result.state)
     new_market = _update_market_account(market, pubkey, new_account)
 
@@ -730,7 +732,8 @@ def _handle_insurance(
     if not result.accepted:
         return perps, history, (400, {"ok": False, "error": "guard_rejected", "detail": result.rejection})
 
-    assert result.state is not None
+    if result.state is None:
+        return perps, history, (500, {"ok": False, "error": "internal_error"})
     # Update global-level insurance fields in the market.
     new_gs = dict(market.global_state)
     new_gs["insurance_balance"] = result.state.insurance_balance
@@ -825,7 +828,8 @@ def _dispatch_post(
     parsed, err = _parse_json_body(body)
     if err is not None:
         return perps, history, (400, {"ok": False, "error": err})
-    assert parsed is not None
+    if parsed is None:
+        return perps, history, (400, {"ok": False, "error": "bad_json"})
 
     # POST /api/perps/collateral
     if rest == ["collateral"]:

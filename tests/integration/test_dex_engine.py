@@ -499,6 +499,231 @@ def test_engine_rejects_duplicate_split_quote_receipt_leg_binding() -> None:
     assert "duplicate_leg_indices=[0]" in res.error
 
 
+def test_engine_rejects_bool_quote_receipt_leg_index() -> None:
+    sender = "0x" + "ad" * 48
+    pools = {
+        "p_ab": PoolState(
+            pool_id="p_ab",
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=2_000,
+            fee_bps=10,
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        )
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=123)
+    assert q is not None
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    intent = create_swap_intent_from_quote_receipt(
+        receipt=receipt,
+        pools_by_id=pools,
+        sender_pubkey=sender,
+        deadline=9999999999,
+        slippage_bps=0,
+    )
+    intent.set_field("nonce", 1)
+    ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
+    ops["2"][0]["quote_receipt_leg_index"] = True
+
+    balances = BalanceTable()
+    balances.set(sender, "A", 10_000)
+    balances.set(sender, "B", 0)
+    state = DexState(balances=balances, pools=pools, lp_balances=LPTable())
+
+    res = apply_ops(
+        config=DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert not res.ok
+    assert res.error is not None
+    assert "missing quote_receipt_leg_index" in res.error
+
+
+def test_engine_rejects_incomplete_split_quote_receipt_leg_coverage() -> None:
+    sender = "0x" + "ae" * 48
+    pools = {
+        "p1": PoolState(
+            pool_id="p1",
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=1_000,
+            fee_bps=0,
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        ),
+        "p2": PoolState(
+            pool_id="p2",
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=1_000,
+            fee_bps=0,
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        ),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=600)
+    assert q is not None
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    intents = create_swap_intents_from_quote_receipt(
+        receipt=receipt,
+        pools_by_id=pools,
+        sender_pubkey=sender,
+        deadline=9999999999,
+        slippage_bps=0,
+        nonce_start=1,
+    )
+    ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intents[0], quote_receipt=receipt)])
+
+    balances = BalanceTable()
+    balances.set(sender, "A", 10_000)
+    balances.set(sender, "B", 0)
+    state = DexState(balances=balances, pools=pools, lp_balances=LPTable())
+
+    res = apply_ops(
+        config=DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert not res.ok
+    assert res.error is not None
+    assert "incomplete quote receipt leg coverage" in res.error
+    assert "expected_leg_indices=[0, 1]" in res.error
+    assert "observed_leg_indices=[0]" in res.error
+
+
+def test_engine_prefers_duplicate_quote_receipt_error_before_incomplete_coverage() -> None:
+    sender = "0x" + "af" * 48
+    pools = {
+        "p1": PoolState(
+            pool_id="p1",
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=1_000,
+            fee_bps=0,
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        ),
+        "p2": PoolState(
+            pool_id="p2",
+            asset0="A",
+            asset1="B",
+            reserve0=1_000,
+            reserve1=1_000,
+            fee_bps=0,
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        ),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=600)
+    assert q is not None
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools)
+    intents = create_swap_intents_from_quote_receipt(
+        receipt=receipt,
+        pools_by_id=pools,
+        sender_pubkey=sender,
+        deadline=9999999999,
+        slippage_bps=0,
+        nonce_start=1,
+    )
+    duplicate = SignedIntentEnvelope(intent=intents[0], quote_receipt=receipt)
+    ops = create_signed_intent_operation(
+        [SignedIntentEnvelope(intent=intents[0], quote_receipt=receipt), duplicate]
+    )
+    ops["2"][1]["intent_id"] = "0x" + "ef" * 32
+    ops["2"][1]["nonce"] = 99
+
+    balances = BalanceTable()
+    balances.set(sender, "A", 10_000)
+    balances.set(sender, "B", 0)
+    state = DexState(balances=balances, pools=pools, lp_balances=LPTable())
+
+    res = apply_ops(
+        config=DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert not res.ok
+    assert res.error is not None
+    assert "duplicate quote receipt leg binding" in res.error
+    assert "incomplete quote receipt leg coverage" not in res.error
+
+
+def test_engine_scopes_quote_receipt_leg_indices_per_receipt_hash() -> None:
+    sender = "0x" + "b0" * 48
+    pools = {
+        "p_ab": PoolState(
+            pool_id="p_ab",
+            asset0="A",
+            asset1="B",
+            reserve0=5_000,
+            reserve1=5_000,
+            fee_bps=10,
+            lp_supply=1,
+            status=PoolStatus.ACTIVE,
+            created_at=0,
+        )
+    }
+    quote_a = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=123)
+    quote_b = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=124)
+    assert quote_a is not None
+    assert quote_b is not None
+    receipt_a = make_route_quote_receipt(kind="exact_in", quote=quote_a, pools_by_id=pools)
+    receipt_b = make_route_quote_receipt(kind="exact_in", quote=quote_b, pools_by_id=pools)
+    intent_a = create_swap_intent_from_quote_receipt(
+        receipt=receipt_a,
+        pools_by_id=pools,
+        sender_pubkey=sender,
+        deadline=9999999999,
+        slippage_bps=0,
+    )
+    intent_b = create_swap_intent_from_quote_receipt(
+        receipt=receipt_b,
+        pools_by_id=pools,
+        sender_pubkey=sender,
+        deadline=9999999999,
+        slippage_bps=0,
+    )
+    intent_a.set_field("nonce", 1)
+    intent_b.set_field("nonce", 2)
+    ops = create_signed_intent_operation(
+        [
+            SignedIntentEnvelope(intent=intent_a, quote_receipt=receipt_a),
+            SignedIntentEnvelope(intent=intent_b, quote_receipt=receipt_b),
+        ]
+    )
+
+    balances = BalanceTable()
+    balances.set(sender, "A", 10_000)
+    balances.set(sender, "B", 0)
+    state = DexState(balances=balances, pools=pools, lp_balances=LPTable())
+
+    res = apply_ops(
+        config=DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+    assert res.ok, res.error
+
+
 def test_engine_rejects_large_raw_intent_before_parsing() -> None:
     sender = "0x" + "aa" * 48
     asset0 = "0x" + "11" * 32

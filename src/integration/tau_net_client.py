@@ -16,14 +16,15 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional
 
-from ..state.canonical import canonical_json_bytes, domain_sep_bytes
+from ..core.dex_intent_auth_message import hash_dex_intent_auth_message_v1
+from ..core.perp_submission_auth_message import hash_perp_op_auth_message_v1
 
 try:
     from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
 except Exception:  # pragma: no cover - optional dependency
-    G2Basic = None  # type: ignore[assignment]
+    G2Basic = None
     _BLS_AVAILABLE = False
 
 try:
@@ -45,9 +46,26 @@ class TauNetTcpConfig:
     recv_max_bytes: int = 1_048_576
 
 
+_DEFAULT_TAU_NET_TCP_CONFIG = TauNetTcpConfig()
+
+
 def _require_bls() -> None:
     if not _BLS_AVAILABLE:
         raise TauNetRpcError("py_ecc.bls is required for Tau tx signing (install py-ecc)")
+
+
+def _coerce_nonnegative_int(value: object, *, label: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{label} must be a non-negative integer")
+    try:
+        parsed = int(value)
+    except Exception as exc:
+        raise ValueError(f"{label} must be a non-negative integer") from exc
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError(f"{label} must be a non-negative integer")
+    if parsed < 0:
+        raise ValueError(f"{label} must be a non-negative integer")
+    return parsed
 
 
 def _parse_privkey_int(privkey: int) -> int:
@@ -108,7 +126,7 @@ def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:
 def bls_pubkey_hex_from_privkey(privkey: str | int | bytes | bytearray) -> str:
     _require_bls()
     sk_int = _parse_privkey_to_int(privkey)
-    return G2Basic.SkToPk(sk_int).hex()  # type: ignore[union-attr]
+    return G2Basic.SkToPk(sk_int).hex()
 
 
 def _tx_signing_message_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -127,8 +145,51 @@ def sign_tau_transaction_payload(payload_wo_sig: Dict[str, Any], *, privkey: str
     sk_int = _parse_privkey_to_int(privkey)
     msg_bytes = _tx_signing_message_bytes(payload_wo_sig)
     msg_hash = hashlib.sha256(msg_bytes).digest()
-    sig_bytes = G2Basic.Sign(sk_int, msg_hash)  # type: ignore[union-attr]
+    sig_bytes = G2Basic.Sign(sk_int, msg_hash)
     return sig_bytes.hex()
+
+
+def encode_tau_operations_for_wire(operations: Mapping[str, Any]) -> Dict[str, Any]:
+    """
+    Encode Tau operation streams into the exact wire format expected by tau-testnet.
+
+    Custom streams must be `str|int` (or lists thereof) at the transport boundary,
+    so structured JSON payloads are canonicalized into strings.
+    """
+    encoded_ops: Dict[str, Any] = {}
+    for k, v in dict(operations).items():
+        if k in ("0", "1"):
+            encoded_ops[k] = v
+            continue
+        if isinstance(v, bool):
+            raise ValueError(f"operation stream {k!r}: bool values are not allowed")
+        if isinstance(v, (str, int)):
+            encoded_ops[k] = v
+            continue
+        encoded_ops[k] = json.dumps(v, sort_keys=True, separators=(",", ":"))
+    return encoded_ops
+
+
+def verify_tau_transaction_payload_signature(payload: Mapping[str, Any]) -> bool:
+    """
+    Verify a signed Tau transaction payload.
+
+    Returns False on malformed payloads or invalid signatures.
+    """
+    if not _BLS_AVAILABLE:
+        return False
+    try:
+        sender_pubkey = payload["sender_pubkey"]
+        signature = payload["signature"]
+        if not isinstance(sender_pubkey, str) or not isinstance(signature, str):
+            return False
+        msg_bytes = _tx_signing_message_bytes(payload)
+        msg_hash = hashlib.sha256(msg_bytes).digest()
+        pubkey_bytes = bytes.fromhex(sender_pubkey)
+        sig_bytes = bytes.fromhex(signature)
+        return bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
+    except Exception:
+        return False
 
 
 def build_signed_tau_transaction(
@@ -141,11 +202,13 @@ def build_signed_tau_transaction(
 ) -> Dict[str, Any]:
     _require_bls()
     sender_pubkey = bls_pubkey_hex_from_privkey(privkey)
+    encoded_ops = encode_tau_operations_for_wire(operations)
+
     payload: Dict[str, Any] = {
         "sender_pubkey": sender_pubkey,
-        "sequence_number": int(sequence_number),
-        "expiration_time": int(expiration_time),
-        "operations": dict(operations),
+        "sequence_number": _coerce_nonnegative_int(sequence_number, label="sequence_number"),
+        "expiration_time": _coerce_nonnegative_int(expiration_time, label="expiration_time"),
+        "operations": encoded_ops,
         "fee_limit": str(fee_limit),
     }
     payload["signature"] = sign_tau_transaction_payload(payload, privkey=privkey)
@@ -165,30 +228,8 @@ def sign_dex_intent_for_engine(
     """
     _require_bls()
     sk_int = _parse_privkey_to_int(privkey)
-    if not isinstance(chain_id, str) or not chain_id:
-        raise ValueError("chain_id must be a non-empty string")
-
-    common = {"module", "version", "kind", "intent_id", "sender_pubkey", "deadline", "salt"}
-    fields: Dict[str, Any] = {
-        k: v for k, v in dict(intent_dict).items() if k not in common and k != "signature"
-    }
-    signing_dict: Dict[str, Any] = {
-        "module": intent_dict.get("module"),
-        "version": intent_dict.get("version"),
-        "kind": intent_dict.get("kind"),
-        "intent_id": intent_dict.get("intent_id"),
-        "sender_pubkey": intent_dict.get("sender_pubkey"),
-        "deadline": intent_dict.get("deadline"),
-        "fields": fields,
-    }
-    salt = intent_dict.get("salt")
-    if salt is not None:
-        signing_dict["salt"] = salt
-
-    signing_payload = canonical_json_bytes(signing_dict)
-    msg = domain_sep_bytes(f"dex_intent_sig:{chain_id}", version=1) + signing_payload
-    msg_hash = hashlib.sha256(msg).digest()
-    sig_bytes = G2Basic.Sign(sk_int, msg_hash)  # type: ignore[union-attr]
+    msg_hash = hash_dex_intent_auth_message_v1(intent_dict, chain_id=chain_id)
+    sig_bytes = G2Basic.Sign(sk_int, msg_hash)
     return "0x" + sig_bytes.hex()
 
 
@@ -212,32 +253,30 @@ def sign_perp_op_for_engine(
     - bound to `signer_pubkey` and a monotone `nonce` (replay protection).
 
     The exact fields included in the signed payload depend on `op_dict["action"]`
-    and are defined by the engine's signing policy. This helper delegates to
-    `src.integration.perp_engine._perp_op_signing_dict` to ensure both sides stay in sync.
+    and are defined by the shared perps auth-message contract. This helper uses
+    the same pure builder as the engine so the signed preimage stays in sync.
 
     Returns a hex signature string with a `0x` prefix.
     """
     _require_bls()
     sk_int = _parse_privkey_to_int(privkey)
-    if not isinstance(chain_id, str) or not chain_id:
-        raise ValueError("chain_id must be a non-empty string")
     if not isinstance(signer_pubkey, str) or not signer_pubkey:
         raise ValueError("signer_pubkey must be a non-empty string")
     if not isinstance(nonce, int) or isinstance(nonce, bool) or nonce <= 0:
         raise ValueError("nonce must be a positive int")
 
-    from .perp_engine import _perp_op_signing_dict
-
-    signing_dict = _perp_op_signing_dict(dict(op_dict), signer_pubkey=signer_pubkey, nonce=int(nonce))
-    signing_payload = canonical_json_bytes(signing_dict)
-    msg = domain_sep_bytes(f"perp_op_sig:{chain_id}", version=1) + signing_payload
-    msg_hash = hashlib.sha256(msg).digest()
-    sig_bytes = G2Basic.Sign(sk_int, msg_hash)  # type: ignore[union-attr]
+    msg_hash = hash_perp_op_auth_message_v1(
+        op_dict,
+        chain_id=chain_id,
+        signer_pubkey=signer_pubkey,
+        nonce=int(nonce),
+    )
+    sig_bytes = G2Basic.Sign(sk_int, msg_hash)
     return "0x" + sig_bytes.hex()
 
 
 class TauNetTcpClient:
-    def __init__(self, config: TauNetTcpConfig = TauNetTcpConfig()) -> None:
+    def __init__(self, config: TauNetTcpConfig = _DEFAULT_TAU_NET_TCP_CONFIG) -> None:
         if not isinstance(config.port, int) or not (0 <= config.port <= 65535):
             raise ValueError("invalid port")
         if not isinstance(config.timeout_s, (int, float)) or config.timeout_s <= 0:
@@ -249,9 +288,7 @@ class TauNetTcpClient:
     def rpc(self, cmd: str) -> str:
         if not isinstance(cmd, str) or not cmd.strip():
             raise ValueError("cmd must be a non-empty string")
-        wire = cmd.strip()
-        if not wire.endswith("\r\n"):
-            wire += "\r\n"
+        wire = cmd.strip().removesuffix("\r\n") + "\r\n"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(self._cfg.timeout_s)
             sock.connect((self._cfg.host, self._cfg.port))
@@ -298,7 +335,8 @@ class TauNetTcpClient:
 
     def sendtx(self, payload: Mapping[str, Any]) -> str:
         blob = json.dumps(dict(payload), separators=(",", ":"), sort_keys=True)
-        return self.rpc(f"sendtx '{blob}'").strip()
+        # Upstream tau-testnet expects `sendtx <json_payload>` with no shell quoting.
+        return self.rpc(f"sendtx {blob}").strip()
 
     def createblock(self) -> str:
         return self.rpc("createblock").strip()
