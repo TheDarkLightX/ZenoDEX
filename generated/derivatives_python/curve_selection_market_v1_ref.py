@@ -334,6 +334,8 @@ def step(s: State, cmd: Command) -> StepResult:
             return StepResult(ok=False, error=f"post-invariant violated: {failed}")
         return StepResult(ok=True, state=new_state, effects=effects)
     elif cmd.tag == "settle_prediction":
+        if "auth_ok" not in cmd.args or not (isinstance(cmd.args["auth_ok"], bool)):
+            return StepResult(ok=False, error="invalid param auth_ok")
         if "winning_curve_id" not in cmd.args or not (
             isinstance(cmd.args["winning_curve_id"], int)
             and not isinstance(cmd.args["winning_curve_id"], bool)
@@ -347,7 +349,8 @@ def step(s: State, cmd: Command) -> StepResult:
         ):
             return StepResult(ok=False, error="invalid param protocol_fee")
         if not (
-            (s.prediction_epoch < 1000000000)
+            cmd.args["auth_ok"]
+            and (s.prediction_epoch < 1000000000)
             and ((cmd.args["protocol_fee"] + s.protocol_fee_pool) <= 1000000000000)
             and (
                 cmd.args["protocol_fee"]
