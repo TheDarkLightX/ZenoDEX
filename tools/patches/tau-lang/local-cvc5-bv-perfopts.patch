@@ -1,0 +1,134 @@
+diff --git a/src/boolean_algebras/bv_ba.h b/src/boolean_algebras/bv_ba.h
+index 57c83be9..80b559f7 100644
+--- a/src/boolean_algebras/bv_ba.h
++++ b/src/boolean_algebras/bv_ba.h
+@@ -37,6 +37,9 @@
+ #define __IDNI__TAU__CVC5_H__
+ 
+ #include <cvc5/cvc5.h>
++#include <cstdlib>
++#include <string>
++#include <string_view>
+ 
+ #include "boolean_algebras/cvc5/cvc5.h"
+ #include "tau_tree.h"
+@@ -78,7 +81,67 @@ inline void config_cvc5_solver(cvc5::Solver& solver) {
+ 	// configure the solver
+ 	solver.setOption("produce-models", "true");
+ 	//solver.setOption("incremental", "true");
+-	solver.setLogic("BV");
++	// Allow overriding the logic for BV experiments (e.g. QF_BV for eager bitblasting).
++	if (const char* logic = std::getenv("TAU_CVC5_BV_LOGIC"); logic && *logic) {
++		try {
++			solver.setLogic(std::string(logic));
++		} catch (const cvc5::CVC5ApiException&) {
++			solver.setLogic("BV");
++		}
++	} else {
++		solver.setLogic("BV");
++	}
++	// Determinism hygiene: pin cvc5 RNG seeds unless overridden by env opts.
++	// (Some BV pipelines can otherwise exhibit large runtime variance.)
++	try {
++		solver.setOption("random-seed", "0");
++		solver.setOption("sat-random-seed", "0");
++		// Performance posture: enable bit-vector propagation in the bit-blaster.
++		// Empirically improves our Tau DEX guard workload.
++		solver.setOption("bv-propagate", "true");
++	} catch (const cvc5::CVC5ApiException&) {
++		// Best-effort: older/newer cvc5 versions may rename options.
++	}
++
++	// Experiment hook: allow tuning cvc5's BV pipeline without recompiling.
++	//
++	// Example:
++	//   TAU_CVC5_BV_OPTS='bitblast=eager,bv-solver=bitblast-internal'
++	//
++	// IMPORTANT:
++	// - Invalid options are ignored (fail-open) to keep Tau usable across cvc5 versions.
++	// - Intended for local benchmarking/experimentation only.
++	if (const char* raw = std::getenv("TAU_CVC5_BV_OPTS"); raw && *raw) {
++		std::string s(raw);
++		size_t i = 0;
++		auto trim = [](std::string_view v) -> std::string_view {
++			while (!v.empty() && (v.front() == ' ' || v.front() == '\t' || v.front() == '\n')) v.remove_prefix(1);
++			while (!v.empty() && (v.back() == ' ' || v.back() == '\t' || v.back() == '\n')) v.remove_suffix(1);
++			return v;
++		};
++
++		while (i < s.size()) {
++			// Split on ',' or ';'
++			size_t j = i;
++			while (j < s.size() && s[j] != ',' && s[j] != ';') j++;
++			std::string_view token(s.data() + i, j - i);
++			token = trim(token);
++			i = (j < s.size()) ? (j + 1) : j;
++			if (token.empty()) continue;
++
++			size_t eq = token.find('=');
++			if (eq == std::string_view::npos) continue;
++			std::string_view key = trim(token.substr(0, eq));
++			std::string_view val = trim(token.substr(eq + 1));
++			if (key.empty() || val.empty()) continue;
++
++			try {
++				solver.setOption(std::string(key), std::string(val));
++			} catch (const cvc5::CVC5ApiException&) {
++				// Ignore unknown/invalid options for portability.
++			}
++		}
++	}
+ }
+ 
+ /**
+diff --git a/src/boolean_algebras/bv_ba_solver.tmpl.h b/src/boolean_algebras/bv_ba_solver.tmpl.h
+index edd5c977..b209592c 100644
+--- a/src/boolean_algebras/bv_ba_solver.tmpl.h
++++ b/src/boolean_algebras/bv_ba_solver.tmpl.h
+@@ -253,6 +253,18 @@ bool is_bv_formula_sat(tref form) {
+ 		return false;
+ 	}
+ 	DBG( LOG_TRACE << "CVC5 translated formula: " << expr.value(); )
++
++	// Fast-path: if the formula is ground (no free vars), prefer simplification/evaluation
++	// over full SAT solving. This is a big win for guard-style specs where all BV inputs
++	// are concrete for the current step.
++	if (free_vars.empty()) {
++		try {
++			auto simp = solver.simplify(expr.value());
++			if (simp.isBooleanValue()) return simp.getBooleanValue();
++		} catch (const cvc5::CVC5ApiException&) {
++			// Fall back to checkSat below.
++		}
++	}
+ 	solver.assertFormula(expr.value());
+ 	return solver.checkSat().isSat();
+ }
+@@ -285,6 +297,20 @@ std::optional<solution<node>> solve_bv(const tref form) {
+ 	}
+ 	DBG( LOG_TRACE << "CVC5 translated formula: " << expr.value(); )
+ 
++	// Fast-path: if the BV system is ground (no free vars), try simplification/evaluation
++	// before invoking the SAT backend.
++	if (free_vars.empty()) {
++		try {
++			auto simp = solver.simplify(expr.value());
++			if (simp.isBooleanValue()) {
++				if (simp.getBooleanValue()) return solution<node>{};
++				return std::nullopt;
++			}
++		} catch (const cvc5::CVC5ApiException&) {
++			// Fall back to checkSat below.
++		}
++	}
++
+ 	// solve the equations
+ 	solver.assertFormula(expr.value());
+ 	LOG_DEBUG << "Solving bitvector formula: " << expr.value();
+@@ -312,4 +338,4 @@ std::optional<solution<node>> solve_bv(const trefs& lits) {
+ 	return solve_bv<node>(tau::build_wff_and(lits));
+ }
+ 
+-} // namespace idni::tau_lang
+\ No newline at end of file
++} // namespace idni::tau_lang
