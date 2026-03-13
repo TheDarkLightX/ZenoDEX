@@ -27,6 +27,12 @@ require_module "pytest" "pytest"
 
 if [[ -d "$ROOT_DIR/external/ESSO" ]]; then
   export PYTHONPATH="$ROOT_DIR/external/ESSO${PYTHONPATH:+:$PYTHONPATH}"
+else
+  if ! "$PY" -c "import importlib.util as u; raise SystemExit(0 if u.find_spec('ESSO') else 1)"; then
+    echo "error: missing ESSO toolchain (expected either $ROOT_DIR/external/ESSO or an importable ESSO module)" >&2
+    echo "hint: external/ is git-ignored by design; clone ESSO into external/ or install it into your python env" >&2
+    exit 2
+  fi
 fi
 
 echo "== recovery: snapshot + restart =="
