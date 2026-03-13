@@ -334,6 +334,8 @@ def step(s: State, cmd: Command) -> StepResult:
             return StepResult(ok=False, error=f"post-invariant violated: {failed}")
         return StepResult(ok=True, state=new_state, effects=effects)
     elif cmd.tag == "settle_prediction":
+        if "auth_ok" not in cmd.args or not (isinstance(cmd.args["auth_ok"], bool)):
+            return StepResult(ok=False, error="invalid param auth_ok")
         if "winning_curve_id" not in cmd.args or not (
             isinstance(cmd.args["winning_curve_id"], int)
             and not isinstance(cmd.args["winning_curve_id"], bool)
@@ -373,6 +375,7 @@ def step(s: State, cmd: Command) -> StepResult:
                 )
             )
             and (s.epochs_since_start >= s.settlement_epoch_interval)
+            and (cmd.args["auth_ok"])
         ):
             return StepResult(ok=False, error="guard failed for settle_prediction")
         # Compute updates (simultaneous)

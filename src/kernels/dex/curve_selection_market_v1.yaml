@@ -379,6 +379,8 @@ actions:
   # -----------------------------------------------------------------------
   - id: "settle_prediction"
     params:
+      - id: "auth_ok"
+        type: { kind: "bool" }
       - id: "winning_curve_id"
         type: { kind: "int", min: 0, max: 4 }
       - id: "protocol_fee"
@@ -386,6 +388,7 @@ actions:
     guard:
       op: "and"
       args:
+        - { param: "auth_ok" }
         # Must have waited long enough
         - { op: ">=", args: [{ var: "epochs_since_start" }, { var: "settlement_epoch_interval" }] }
         # Prevent epoch counter overflow

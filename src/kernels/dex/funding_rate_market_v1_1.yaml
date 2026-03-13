@@ -348,6 +348,8 @@ actions:
   # -----------------------------------------------------------------------
   - id: "settle_rate_epoch"
     params:
+      - id: "auth_ok"
+        type: { kind: "bool" }
       - id: "mark_price_e8"
         type: { kind: "int", min: 1, max: 1000000000000 }
       - id: "index_price_e8"
@@ -355,6 +357,7 @@ actions:
     guard:
       op: "and"
       args:
+        - { param: "auth_ok" }
         - op: "="
           args: [{ var: "frozen" }, { bool: false }]
         - op: "="

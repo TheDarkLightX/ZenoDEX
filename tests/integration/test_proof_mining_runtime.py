@@ -10,6 +10,7 @@ from src.integration.proof_mining_runtime import (
     proof_mining_runtime_state_from_obj,
     proof_mining_runtime_state_to_obj,
 )
+from src.integration.proof_mining_context import ProofMiningContext
 from src.core.proof_mining_manager import ProofMiningManagerSnapshot
 
 
@@ -33,6 +34,23 @@ def _claim(*, miner_id: str, reward_pool_before: int, base_reward: int = 8, epoc
         epoch=epoch,
         proposal_slot=slot,
         prover_id=2,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash=f"sha256:prev-{slot}",
+        batch_hash=f"sha256:batch-{slot}",
+        dex_hash_after=f"sha256:after-{slot}",
+    )
+
+
+def _context_from_claim(claim: dict) -> ProofMiningContext:
+    binding = claim["body"]["proposal_binding"]
+    return ProofMiningContext(
+        chain_id=str(binding["chain_id"]),
+        prev_state_hash=str(binding["prev_state_hash"]),
+        batch_hash=str(binding["batch_hash"]),
+        witness_hash=str(binding["witness_hash"]),
+        dex_hash_after=str(binding["dex_hash_after"]),
+        proposal_hash=str(claim["body"]["proposal_hash"]),
+        proof_scheme="dummy",
     )
 
 
@@ -91,6 +109,7 @@ def test_initialize_proof_mining_runtime_state_binds_claim_parameters_and_pool()
 
 def test_apply_proof_mining_claim_updates_snapshot_and_fails_closed_on_stale_claim_or_drift():
     claim = _claim(miner_id="0x" + "22" * 48, reward_pool_before=20)
+    context = _context_from_claim(claim)
     state = initialize_proof_mining_runtime_state(
         reward_pool_pubkey="0x" + "88" * 48,
         reward_pool_balance=20,
@@ -101,6 +120,7 @@ def test_apply_proof_mining_claim_updates_snapshot_and_fails_closed_on_stale_cla
         runtime_state=state,
         claim_artifact=claim,
         actual_reward_pool_balance=20,
+        proof_mining_context=context,
     )
 
     assert result.ok is True
@@ -115,6 +135,7 @@ def test_apply_proof_mining_claim_updates_snapshot_and_fails_closed_on_stale_cla
             runtime_state=next_state,
             claim_artifact=claim,
             actual_reward_pool_balance=16,
+            proof_mining_context=context,
         )
 
     with pytest.raises(ValueError, match="reward pool balance does not match runtime snapshot"):
@@ -122,4 +143,5 @@ def test_apply_proof_mining_claim_updates_snapshot_and_fails_closed_on_stale_cla
             runtime_state=next_state,
             claim_artifact=claim,
             actual_reward_pool_balance=15,
+            proof_mining_context=context,
         )
