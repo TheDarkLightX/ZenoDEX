@@ -20,10 +20,11 @@ from .balances import AssetId, BalanceTable, PubKey
 from .canonical import domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex
 from .intents import Intent, IntentKind
 from .lp import LPTable
+from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
 
 
-SUPPORT_ROOT_VERSION = 1
+SUPPORT_ROOT_VERSION = 2
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -46,6 +47,7 @@ class BatchStateSupport:
     balance_keys: Tuple[Tuple[PubKey, AssetId], ...]
     pool_ids: Tuple[str, ...]
     lp_keys: Tuple[Tuple[PubKey, str], ...]
+    nonce_keys: Tuple[PubKey, ...]
 
 
 def derive_batch_state_support(
@@ -61,6 +63,7 @@ def derive_batch_state_support(
     balance_keys: set[tuple[str, str]] = set()
     pool_ids: set[str] = set()
     lp_keys: set[tuple[str, str]] = set()
+    nonce_keys: set[str] = set()
 
     created_pool_assets: dict[str, tuple[str, str]] = {}
     for intent in intents:
@@ -83,6 +86,7 @@ def derive_batch_state_support(
 
     for intent in intents:
         sender = intent.sender_pubkey
+        nonce_keys.add(sender)
 
         if intent.kind == IntentKind.CREATE_POOL:
             asset0 = intent.get_field("asset0")
@@ -131,6 +135,7 @@ def derive_batch_state_support(
         balance_keys=tuple(sorted(balance_keys, key=lambda t: (t[0], t[1]))),
         pool_ids=tuple(sorted(pool_ids)),
         lp_keys=tuple(sorted(lp_keys, key=lambda t: (t[0], t[1]))),
+        nonce_keys=tuple(sorted(nonce_keys)),
     )
 
 
@@ -140,6 +145,7 @@ def compute_support_state_root(
     pools: Mapping[str, PoolState],
     lp_balances: LPTable,
     support: BatchStateSupport,
+    nonces: NonceTable | None = None,
 ) -> str:
     """
     Compute a deterministic commitment over the batch's support.
@@ -153,6 +159,9 @@ def compute_support_state_root(
         raise TypeError("lp_balances must be an LPTable")
     if not isinstance(support, BatchStateSupport):
         raise TypeError("support must be a BatchStateSupport")
+    nonce_table = NonceTable() if nonces is None else nonces
+    if not isinstance(nonce_table, NonceTable):
+        raise TypeError("nonces must be a NonceTable")
 
     bal_out = bytearray()
     bal_entries: list[tuple[bytes, bytes, int]] = []
@@ -220,6 +229,8 @@ def compute_support_state_root(
         pool_out += encode_uvarint(pool.lp_supply)
         pool_out += encode_uvarint(status_code)
         pool_out += encode_uvarint(pool.created_at)
+        pool_out += encode_bytes(pool.curve_tag.encode("utf-8"))
+        pool_out += encode_bytes(pool.curve_params.encode("utf-8"))
     pools_section = bytes(pool_out)
 
     lp_out = bytearray()
@@ -246,6 +257,25 @@ def compute_support_state_root(
         lp_out += encode_uvarint(amount)
     lp_section = bytes(lp_out)
 
+    nonce_out = bytearray()
+    nonce_entries: list[tuple[bytes, int]] = []
+    nonce_seen: set[bytes] = set()
+    for pubkey in support.nonce_keys:
+        last_nonce = nonce_table.get_last(pubkey)
+        if last_nonce == 0:
+            continue
+        pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
+        if pk_b in nonce_seen:
+            raise ValueError("duplicate decoded pubkey in support nonces")
+        nonce_seen.add(pk_b)
+        nonce_entries.append((pk_b, int(last_nonce)))
+    nonce_entries.sort(key=lambda t: t[0])
+    nonce_out += encode_uvarint(len(nonce_entries))
+    for pk_b, last_nonce in nonce_entries:
+        nonce_out += pk_b
+        nonce_out += encode_uvarint(last_nonce)
+    nonce_section = bytes(nonce_out)
+
     payload = (
         domain_sep_bytes("state_support_root", version=SUPPORT_ROOT_VERSION)
         + b"BAL"
@@ -254,6 +284,8 @@ def compute_support_state_root(
         + encode_bytes(pools_section)
         + b"LPB"
         + encode_bytes(lp_section)
+        + b"NNC"
+        + encode_bytes(nonce_section)
     )
     return sha256_hex(payload)
 
@@ -264,6 +296,13 @@ def compute_support_state_root_for_batch(
     balances: BalanceTable,
     pools: Mapping[str, PoolState],
     lp_balances: LPTable,
+    nonces: NonceTable | None = None,
 ) -> str:
     support = derive_batch_state_support(intents, pools=pools)
-    return compute_support_state_root(balances=balances, pools=pools, lp_balances=lp_balances, support=support)
+    return compute_support_state_root(
+        balances=balances,
+        pools=pools,
+        lp_balances=lp_balances,
+        support=support,
+        nonces=nonces,
+    )

@@ -110,6 +110,8 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                 "lp_supply": int(pool.lp_supply),
                 "status": pool.status.value,
                 "created_at": int(pool.created_at),
+                "curve_tag": pool.curve_tag,
+                "curve_params": pool.curve_params,
             }
         )
     pools_entries.sort(key=lambda e: e["pool_id"])
@@ -319,6 +321,8 @@ def state_from_snapshot(
             lp_supply=_require_int(entry.get("lp_supply", 0), name="lp_supply"),
             status=status,
             created_at=_require_int(entry.get("created_at", 0), name="created_at"),
+            curve_tag=_require_str(entry.get("curve_tag", "CPMM"), name="pool.curve_tag", non_empty=True, max_len=min(256, max_str_len)),
+            curve_params=_require_str(entry.get("curve_params", ""), name="pool.curve_params", non_empty=False, max_len=min(max_snapshot_bytes, max_str_len)),
         )
 
     lp_balances = LPTable()

@@ -7,6 +7,7 @@ import pytest
 from src.state.balances import BalanceTable
 from src.state.intents import Intent, IntentKind
 from src.state.lp import LPTable
+from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.support_root import (
     BatchStateSupport,
@@ -83,6 +84,43 @@ def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> N
     assert r1 != r2
 
 
+def test_support_root_changes_on_tracked_nonce_change() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+
+    swap = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(99),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={"pool_id": pool_id, "asset_in": asset0, "asset_out": asset1, "amount_in": 5, "min_amount_out": 1},
+    )
+
+    nonces_1 = NonceTable()
+    nonces_2 = NonceTable()
+    nonces_2.set_last(pk, 1)
+
+    root_1 = compute_support_state_root_for_batch(
+        intents=[swap],
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        nonces=nonces_1,
+    )
+    root_2 = compute_support_state_root_for_batch(
+        intents=[swap],
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        nonces=nonces_2,
+    )
+    assert root_1 != root_2
+
+
 def _pool(pool_id: str, asset0: str, asset1: str) -> PoolState:
     return PoolState(
         pool_id=pool_id,
@@ -132,6 +170,7 @@ def test_derive_batch_state_support_tracks_swap_and_remove_liquidity_reads() -> 
     assert support.balance_keys == ((pk, asset0),)
     assert support.pool_ids == (pool_id,)
     assert support.lp_keys == ((pk, pool_id),)
+    assert support.nonce_keys == (pk,)
 
 
 def test_derive_batch_state_support_ignores_invalid_create_pool_fields_fail_closed() -> None:
@@ -147,7 +186,7 @@ def test_derive_batch_state_support_ignores_invalid_create_pool_fields_fail_clos
     )
 
     support = derive_batch_state_support([invalid_create], pools={})
-    assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=())
+    assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))
 
 
 def test_compute_support_state_root_rejects_wrong_table_types() -> None:
@@ -156,14 +195,14 @@ def test_compute_support_state_root_rejects_wrong_table_types() -> None:
             balances={},
             pools={},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
     with pytest.raises(TypeError, match="lp_balances must be an LPTable"):
         compute_support_state_root(  # type: ignore[arg-type]
             balances=BalanceTable(),
             pools={},
             lp_balances={},
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
     with pytest.raises(TypeError, match="support must be a BatchStateSupport"):
         compute_support_state_root(  # type: ignore[arg-type]
@@ -172,13 +211,21 @@ def test_compute_support_state_root_rejects_wrong_table_types() -> None:
             lp_balances=LPTable(),
             support={},
         )
+    with pytest.raises(TypeError, match="nonces must be a NonceTable"):
+        compute_support_state_root(
+            balances=BalanceTable(),
+            pools={},
+            lp_balances=LPTable(),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=()),
+            nonces={},  # type: ignore[arg-type]
+        )
 
 
 def test_compute_support_state_root_omits_missing_pools_and_zero_entries() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     pool_id = "0x" + "aa" * 32
-    support = BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(pool_id,), lp_keys=((pk, pool_id),))
+    support = BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(pool_id,), lp_keys=((pk, pool_id),), nonce_keys=(pk,))
 
     root_empty = compute_support_state_root(
         balances=BalanceTable(),
@@ -190,7 +237,7 @@ def test_compute_support_state_root_omits_missing_pools_and_zero_entries() -> No
         balances=BalanceTable(),
         pools={pool_id: _pool(pool_id, asset0, "0x" + "02" * 32)},
         lp_balances=LPTable(),
-        support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=()),
+        support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=()),
     )
     assert isinstance(root_empty, str) and root_empty.startswith("0x")
     assert root_empty == root_zero
@@ -271,6 +318,7 @@ def test_derive_batch_state_support_covers_invalid_create_pool_and_missing_pool_
     }
     assert support.pool_ids == (pool_id,)
     assert support.lp_keys == ()
+    assert support.nonce_keys == (pk,)
 
 
 def test_derive_batch_state_support_reads_add_liquidity_from_existing_pool_and_created_pool() -> None:
@@ -316,6 +364,7 @@ def test_derive_batch_state_support_reads_add_liquidity_from_existing_pool_and_c
     )
     assert set(support.balance_keys) == {(pk, asset0), (pk, asset1), (pk, asset2), (pk, asset3)}
     assert set(support.pool_ids) == {existing_pool_id, created_pool_id}
+    assert support.nonce_keys == (pk,)
 
 
 def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknown_kind() -> None:
@@ -342,7 +391,7 @@ def test_derive_batch_state_support_covers_missing_add_liquidity_pool_and_unknow
     unknown.kind = "UNKNOWN_KIND"  # type: ignore[assignment]
 
     support = derive_batch_state_support([missing_pool_add, unknown], pools={})
-    assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=())
+    assert support == BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=(), nonce_keys=(pk,))
 
 
 def test_compute_support_state_root_covers_positive_lp_section_unknown_status_and_invalid_pool_scalars() -> None:
@@ -355,7 +404,7 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
     balances.set(pk, asset0, 7)
     lp = LPTable()
     lp.set(pk, pool_id, 9)
-    support = BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(pool_id,), lp_keys=((pk, pool_id),))
+    support = BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(pool_id,), lp_keys=((pk, pool_id),), nonce_keys=(pk,))
     root = compute_support_state_root(
         balances=balances,
         pools={pool_id: _pool(pool_id, asset0, asset1)},
@@ -371,7 +420,7 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
             balances=BalanceTable(),
             pools={pool_id: bad_status},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()),
         )
 
     bad_reserve = _pool(pool_id, asset0, asset1)
@@ -381,7 +430,7 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
             balances=BalanceTable(),
             pools={pool_id: bad_reserve},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()),
         )
 
 
@@ -399,7 +448,7 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=balances,
             pools={},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=((pk, asset), (pk.upper().replace("0X", "0x"), asset)), pool_ids=(), lp_keys=()),
+            support=BatchStateSupport(balance_keys=((pk, asset), (pk.upper().replace("0X", "0x"), asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
 
     with pytest.raises(ValueError, match="duplicate decoded pool_id"):
@@ -407,7 +456,7 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=BalanceTable(),
             pools={pool_id: _pool(pool_id, asset, "0x" + "02" * 32), pool_id.upper().replace("0X", "0x"): _pool(pool_id.upper().replace("0X", "0x"), asset, "0x" + "02" * 32)},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id, pool_id.upper().replace("0X", "0x")), lp_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id, pool_id.upper().replace("0X", "0x")), lp_keys=(), nonce_keys=()),
         )
 
     with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, pool_id\\)"):
@@ -415,7 +464,7 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=BalanceTable(),
             pools={},
             lp_balances=lp,
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk.upper().replace("0X", "0x"), pool_id))),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk.upper().replace("0X", "0x"), pool_id)), nonce_keys=()),
         )
 
 
@@ -432,7 +481,7 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
             balances=balances,
             pools={},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(), lp_keys=()),
+            support=BatchStateSupport(balance_keys=((pk, asset0),), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
 
     good_balances = BalanceTable()
@@ -444,7 +493,7 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
             balances=good_balances,
             pools={},
             lp_balances=lp,
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id),)),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id),), nonce_keys=()),
         )
 
     bad_pool = _pool(pool_id, asset0, asset1)
@@ -454,7 +503,7 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
             balances=BalanceTable(),
             pools={pool_id: bad_pool},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()),
         )
 
     bad_fee_pool = _pool(pool_id, asset0, asset1)
@@ -464,5 +513,53 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
             balances=BalanceTable(),
             pools={pool_id: bad_fee_pool},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=()),
         )
+
+
+def test_support_root_changes_when_curve_configuration_changes() -> None:
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="SUM_BOOST_V1", curve_params='{"mu_num":1,"mu_den":2}')
+
+    pool_a = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=2_000,
+        fee_bps=30,
+        lp_supply=3_000,
+        status=PoolStatus.ACTIVE,
+        created_at=1,
+        curve_tag="SUM_BOOST_V1",
+        curve_params='{"mu_num":1,"mu_den":2}',
+    )
+    pool_b = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=2_000,
+        fee_bps=30,
+        lp_supply=3_000,
+        status=PoolStatus.ACTIVE,
+        created_at=1,
+        curve_tag="SUM_BOOST_V1",
+        curve_params='{"mu_num":2,"mu_den":3}',
+    )
+
+    support = BatchStateSupport(balance_keys=(), pool_ids=(pool_id,), lp_keys=(), nonce_keys=())
+    root_a = compute_support_state_root(
+        balances=BalanceTable(),
+        pools={pool_id: pool_a},
+        lp_balances=LPTable(),
+        support=support,
+    )
+    root_b = compute_support_state_root(
+        balances=BalanceTable(),
+        pools={pool_id: pool_b},
+        lp_balances=LPTable(),
+        support=support,
+    )
+    assert root_a != root_b
