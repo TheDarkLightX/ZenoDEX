@@ -57,6 +57,8 @@ def _require_bls() -> None:
 def _coerce_nonnegative_int(value: object, *, label: str) -> int:
     if isinstance(value, bool):
         raise ValueError(f"{label} must be a non-negative integer")
+    if not isinstance(value, (int, float, str, bytes, bytearray)):
+        raise ValueError(f"{label} must be a non-negative integer")
     try:
         parsed = int(value)
     except Exception as exc:

@@ -63,8 +63,8 @@ always
   # @section: Parameter validation
   (o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
   # @section: Front-run impact check
-  (o2[t]:sbf = 1:sbf <-> front_impact_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32])) &&
+  (o2[t]:sbf = 1:sbf <-> (params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32]) && front_impact_ok(i1[t]:bv[32], i2[t]:bv[32], i5[t]:bv[32]))) &&
   # @section: Back-run impact check
-  (o3[t]:sbf = 1:sbf <-> back_impact_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> (params_ok(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32]) && back_impact_ok(i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32]))) &&
   # @section: Aggregated sandwich safety
   (o4[t]:sbf = 1:sbf <-> sandwich_safe(i1[t]:bv[32], i2[t]:bv[32], i3[t]:bv[32], i4[t]:bv[32], i5[t]:bv[32])).

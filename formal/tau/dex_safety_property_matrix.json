@@ -1,0 +1,709 @@
+{
+  "schema": "zenodex/tau/safety-property-matrix/v1",
+  "properties": [
+    {
+      "property_id": "autotrader_nonce_strict_sequentiality",
+      "release_blocking": true,
+      "status": "shadow_scaffolded",
+      "intent": "Only the exact next sequential autotrader nonce may be accepted, and rejected nonce attempts must not advance state.",
+      "tau_contract_id": "autotrader_nonce_guard_v1",
+      "tau_spec_path": "src/tau_specs/recommended/autotrader_nonce_guard_v1.tau",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/AutoTraderNonceGuardShadow.tla",
+        "config_path": "formal/tla/AutoTraderNonceGuardShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "AcceptedOnlySequential",
+          "RejectedDoesNotAdvance",
+          "NonceNeverDecreases"
+        ]
+      },
+      "allowed_examples": [
+        "next_nonce_accepts"
+      ],
+      "forbidden_examples": [
+        "future_gap_rejects",
+        "bad_expected_nonce_rejects"
+      ]
+    },
+    {
+      "property_id": "autotrader_tx_envelope_scope_and_bounds",
+      "release_blocking": true,
+      "status": "shadow_scaffolded",
+      "intent": "A requested autotrader Tau transaction must carry paired arguments, validated bounds, and the exact permitted stream scope; idle traces remain admissible.",
+      "tau_contract_id": "autotrader_tx_envelope_guard_v1",
+      "tau_spec_path": "src/tau_specs/recommended/autotrader_tx_envelope_guard_v1.tau",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/AutoTraderTxEnvelopeShadow.tla",
+        "config_path": "formal/tla/AutoTraderTxEnvelopeShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "IdleAlwaysAccepted",
+          "AcceptedOnlyWhenRequestedEnvelopeValid",
+          "RejectedRequestedTxHasSpecificReason"
+        ]
+      },
+      "allowed_examples": [
+        "idle_trace_allowed",
+        "valid_requested_tx_allowed"
+      ],
+      "forbidden_examples": [
+        "missing_expiration_rejects",
+        "bad_stream_scope_rejects"
+      ]
+    },
+    {
+      "property_id": "perp_ingress_schema_single_mode_auth",
+      "release_blocking": true,
+      "status": "shadow_scaffolded",
+      "intent": "Perps ingress accepts only one supported auth mode, requires the corresponding auth bundle, and requires all outer preconditions to hold.",
+      "tau_contract_id": "perp_tau_ingress_schema_guard_v1",
+      "tau_spec_path": "src/tau_specs/recommended/perp_tau_ingress_schema_guard_v1.tau",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/PerpIngressSchemaShadow.tla",
+        "config_path": "formal/tla/PerpIngressSchemaShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "ActionSelectionMatchesDerived",
+          "AuthBundleMatchesDerived",
+          "IngressPreconditionsMatchDerived",
+          "AcceptedRequiresSingleModeAndPreconditions"
+        ]
+      },
+      "allowed_examples": [
+        "valid_signed_action_accepts",
+        "valid_oracle_action_accepts"
+      ],
+      "forbidden_examples": [
+        "signed_mode_missing_signed_auth_rejects",
+        "failed_host_projection_rejects"
+      ]
+    },
+    {
+      "property_id": "asset_conservation_across_settlement",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "Settlement must conserve user, pool, and fee balances modulo explicitly modeled fees and burns.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_runtime_shell_assurance_gate.sh"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_spot_evidence.sh"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_batch_clearing_properties.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_settlement_strong_validator.py"
+        }
+      ]
+    },
+    {
+      "property_id": "no_negative_balances_after_transition",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "No accepted DEX transition may leave any tracked balance negative.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_runtime_shell_assurance_gate.sh"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_batch_clearing_properties.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_settlement_strong_validator.py"
+        }
+      ]
+    },
+    {
+      "property_id": "authorization_and_signature_scope",
+      "release_blocking": false,
+      "status": "shadow_scaffolded",
+      "intent": "Current scaffold covers the modeled signed and sender-bound submission auth lanes: accepted submissions require exactly one auth mode and the corresponding checks, and nonce consumption is only allowed for accepted signed-mode submissions.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/PerpSubmissionAuthScopeShadow.tla",
+        "config_path": "formal/tla/PerpSubmissionAuthScopeShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "AcceptedRequiresExactlyOneMode",
+          "AcceptedSignedModeRequiresAllSignedChecks",
+          "SenderBoundModeNeverConsumesNonce",
+          "NonceConsumedOnlyForAcceptedSignedMode"
+        ]
+      },
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_authorization_semantic_lane.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_perps_evidence.sh"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/kernels/test_perp_submission_auth_gate_v1_native_adapter.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/integration/test_intent_signatures.py"
+        }
+      ]
+    },
+    {
+      "property_id": "signed_submission_deadline_enforced",
+      "release_blocking": false,
+      "status": "shadow_scaffolded",
+      "intent": "On the modeled signed submission lane, an expired deadline must reject admission and must not consume a nonce.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/PerpSubmissionAuthScopeShadow.tla",
+        "config_path": "formal/tla/PerpSubmissionAuthScopeShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "AcceptedSignedModeRequiresAllSignedChecks"
+        ]
+      },
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_authorization_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/kernels/test_perp_submission_auth_gate_v1_native_adapter.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_perps_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "sender_bound_submission_requires_sender_binding",
+      "release_blocking": false,
+      "status": "shadow_scaffolded",
+      "intent": "On the modeled sender-bound submission lane, admission requires tx-sender binding and must not consume a nonce.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/PerpSubmissionAuthScopeShadow.tla",
+        "config_path": "formal/tla/PerpSubmissionAuthScopeShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "SenderBoundModeNeverConsumesNonce",
+          "SenderBoundAdmissionRequiresBinding"
+        ]
+      },
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_authorization_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/kernels/test_perp_submission_auth_gate_v1_native_adapter.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_perps_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "deterministic_event_replay",
+      "release_blocking": false,
+      "status": "differential_scaffolded",
+      "intent": "Current bounded replay scaffolds cover anti-replay guards and replay/differential parity on modeled lanes; the full DEX-wide event-log replay theorem is still larger than this scaffold.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_replay_semantic_lane.py"
+        },
+        {
+          "kind": "tau_formal_contract",
+          "path": "formal/tau/contracts/nonce_replay_guard_v1.contract.json",
+          "expected_spec_id": "nonce_replay_guard_v1"
+        },
+        {
+          "kind": "tau_behavior_atlas",
+          "path": "formal/tau/atlases/nonce_replay_guard_v1.atlas.json",
+          "expected_spec_id": "nonce_replay_guard_v1"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/integration/test_replay_protection.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_perp_v2/test_parity_with_generated_ref.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_perp_v2/test_oracle_equiv.py"
+        }
+      ]
+    },
+    {
+      "property_id": "replay_duplicate_nonce_rejected",
+      "release_blocking": false,
+      "status": "differential_scaffolded",
+      "intent": "Duplicate nonces in a single sender batch must reject deterministically.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_replay_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/integration/test_replay_protection.py"
+        },
+        {
+          "kind": "tau_formal_contract",
+          "path": "formal/tau/contracts/nonce_replay_guard_v1.contract.json",
+          "expected_spec_id": "nonce_replay_guard_v1"
+        },
+        {
+          "kind": "tau_behavior_atlas",
+          "path": "formal/tau/atlases/nonce_replay_guard_v1.atlas.json",
+          "expected_spec_id": "nonce_replay_guard_v1"
+        }
+      ]
+    },
+    {
+      "property_id": "replay_gap_nonce_rejected",
+      "release_blocking": false,
+      "status": "differential_scaffolded",
+      "intent": "Nonce gaps in a batch must reject deterministically rather than partially advancing replay state.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_replay_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/integration/test_replay_protection.py"
+        },
+        {
+          "kind": "tau_formal_contract",
+          "path": "formal/tau/contracts/nonce_replay_guard_v1.contract.json",
+          "expected_spec_id": "nonce_replay_guard_v1"
+        },
+        {
+          "kind": "tau_behavior_atlas",
+          "path": "formal/tau/atlases/nonce_replay_guard_v1.atlas.json",
+          "expected_spec_id": "nonce_replay_guard_v1"
+        }
+      ]
+    },
+    {
+      "property_id": "replay_mixed_nonce_presence_rejected",
+      "release_blocking": false,
+      "status": "differential_scaffolded",
+      "intent": "Batches with mixed nonce presence must reject rather than infer replay semantics from partial metadata.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_replay_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/integration/test_replay_protection.py"
+        }
+      ]
+    },
+    {
+      "property_id": "replay_sender_pubkey_canonicalization",
+      "release_blocking": false,
+      "status": "differential_scaffolded",
+      "intent": "Replay accounting must canonicalize sender pubkeys so case or prefix variants land on the same nonce stream.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_replay_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/integration/test_replay_protection.py"
+        }
+      ]
+    },
+    {
+      "property_id": "fee_conservation_and_boundedness",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "Fee paths must conserve units and stay within the configured bounds for each mechanism.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_spot_evidence.sh"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_batch_clearing_properties.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_cpmm_u256_safety.py"
+        }
+      ]
+    },
+    {
+      "property_id": "settlement_balance_delta_replay_exactness",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "Accepted settlement balance deltas must match replay exactly on the modeled settlement lane.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_settlement_strong_validator.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_spot_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "settlement_reserve_delta_replay_exactness",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "Accepted settlement reserve deltas must match replay exactly on the modeled settlement lane.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_settlement_strong_validator.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_spot_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "settlement_lp_delta_replay_exactness",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "Accepted settlement LP deltas must match replay exactly on the modeled settlement lane.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_settlement_strong_validator.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_spot_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "settlement_event_replay_exactness",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "Accepted settlement event payloads must match replay exactly on the modeled settlement lane.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_settlement_strong_validator.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_spot_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "swap_fee_paid_replay_exactness",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "Modeled swap fills must preserve exact replay agreement for fee_paid.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_settlement_strong_validator.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_spot_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "create_pool_fee_bps_bounded",
+      "release_blocking": false,
+      "status": "evidence_scaffolded",
+      "intent": "Modeled create-pool intents must reject fee_bps outside the configured bound.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_settlement_accounting_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_settlement_strong_validator.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_spot_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "cancel_or_expiry_do_not_emit_executable_intents",
+      "release_blocking": false,
+      "status": "shadow_scaffolded",
+      "intent": "Cancel and expiry are admission and lifecycle controls: cancelling a live order or attempting to execute an expired order must not emit an executable intent, and intent emission is only allowed from executing a live order inside its validity window.",
+      "tau_contract_id": "",
+      "tau_spec_path": "src/tau_specs/recommended/intent_expiry_guard_v1.tau",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/OrderIntentCancelExpiryShadow.tla",
+        "config_path": "formal/tla/OrderIntentCancelExpiryShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "CancelledNeverEmitsIntent",
+          "CancelledExecutionRejectedWithoutIntent",
+          "ExpiredExecutionRejectedWithoutIntent",
+          "EmittedIntentRequiresLiveOrderWithinWindow"
+        ]
+      },
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_cancel_expiry_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/integration/test_validation_uses_strong_settlement_gate.py"
+        }
+      ],
+      "allowed_examples": [
+        "cancel_live_order_no_intent",
+        "execute_live_order_within_window_emits_intent"
+      ],
+      "forbidden_examples": [
+        "cancelled_order_emits_intent",
+        "expired_order_executes"
+      ]
+    },
+    {
+      "property_id": "expired_order_execution_rejected_without_intent",
+      "release_blocking": false,
+      "status": "shadow_scaffolded",
+      "intent": "The modeled order lane must reject expired execution attempts without emitting an executable intent.",
+      "tau_contract_id": "",
+      "tau_spec_path": "src/tau_specs/recommended/intent_expiry_guard_v1.tau",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/OrderIntentCancelExpiryShadow.tla",
+        "config_path": "formal/tla/OrderIntentCancelExpiryShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "ExpiredExecutionRejectedWithoutIntent",
+          "EmittedIntentRequiresLiveOrderWithinWindow"
+        ]
+      },
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_cancel_expiry_semantic_lane.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/integration/test_validation_uses_strong_settlement_gate.py"
+        }
+      ]
+    },
+    {
+      "property_id": "oracle_freshness_and_bounded_staleness",
+      "release_blocking": false,
+      "status": "shadow_scaffolded",
+      "intent": "Current scaffold covers bounded oracle freshness on modeled guard lanes: a quote timestamp cannot be in the future and accepted freshness requires age within the configured bound.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/OracleFreshnessBoundedShadow.tla",
+        "config_path": "formal/tla/OracleFreshnessBoundedShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "AcceptedRequiresQuoteNotFuture",
+          "AcceptedRequiresBoundedAge",
+          "FutureQuoteRejected",
+          "StaleQuoteRejected"
+        ]
+      },
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_oracle_freshness_semantic_lane.py"
+        },
+        {
+          "kind": "tau_formal_contract",
+          "path": "formal/tau/contracts/oracle_freshness_v2.contract.json",
+          "expected_spec_id": "oracle_freshness_v2"
+        },
+        {
+          "kind": "tau_behavior_atlas",
+          "path": "formal/tau/atlases/oracle_freshness_v2.atlas.json",
+          "expected_spec_id": "oracle_freshness_v2"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_zusd_tau_specs.py"
+        },
+        {
+          "kind": "pytest_target",
+          "path": "tests/core/test_perp_v2/test_oracle_equiv.py"
+        },
+        {
+          "kind": "script_gate",
+          "path": "tools/run_zusd_evidence.sh"
+        }
+      ]
+    },
+    {
+      "property_id": "oracle_future_quote_rejected",
+      "release_blocking": false,
+      "status": "shadow_scaffolded",
+      "intent": "Modeled oracle freshness lanes must reject quotes whose timestamp is in the future.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/OracleFreshnessBoundedShadow.tla",
+        "config_path": "formal/tla/OracleFreshnessBoundedShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "FutureQuoteRejected"
+        ]
+      },
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_oracle_freshness_semantic_lane.py"
+        },
+        {
+          "kind": "tau_formal_contract",
+          "path": "formal/tau/contracts/oracle_freshness_v2.contract.json",
+          "expected_spec_id": "oracle_freshness_v2"
+        },
+        {
+          "kind": "tau_behavior_atlas",
+          "path": "formal/tau/atlases/oracle_freshness_v2.atlas.json",
+          "expected_spec_id": "oracle_freshness_v2"
+        }
+      ]
+    },
+    {
+      "property_id": "oracle_stale_quote_rejected",
+      "release_blocking": false,
+      "status": "shadow_scaffolded",
+      "intent": "Modeled oracle freshness lanes must reject quotes older than the configured staleness bound.",
+      "tau_contract_id": "",
+      "tau_spec_path": "",
+      "shadow_model": {
+        "formalism": "tla",
+        "module_path": "formal/tla/OracleFreshnessBoundedShadow.tla",
+        "config_path": "formal/tla/OracleFreshnessBoundedShadow.cfg",
+        "invariants": [
+          "TypeOK",
+          "StaleQuoteRejected"
+        ]
+      },
+      "assurance_refs": [
+        {
+          "kind": "pytest_target",
+          "path": "tests/tau/test_oracle_freshness_semantic_lane.py"
+        },
+        {
+          "kind": "tau_formal_contract",
+          "path": "formal/tau/contracts/oracle_freshness_v2.contract.json",
+          "expected_spec_id": "oracle_freshness_v2"
+        },
+        {
+          "kind": "tau_behavior_atlas",
+          "path": "formal/tau/atlases/oracle_freshness_v2.atlas.json",
+          "expected_spec_id": "oracle_freshness_v2"
+        }
+      ]
+    }
+  ]
+}
