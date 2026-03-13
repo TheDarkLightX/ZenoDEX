@@ -21,6 +21,21 @@ E8 = 100_000_000
 BPS_SCALE = 10_000
 MAX_AMOUNT_E8 = 10**30
 
+ZUSDCommandTag = Literal[
+    "advance_epoch",
+    "bootstrap_oracle",
+    "oracle_report",
+    "oracle_commit",
+    "deposit_collateral",
+    "withdraw_collateral",
+    "mint_zusd",
+    "repay_zusd",
+    "deposit_sp",
+    "withdraw_sp",
+    "redeem_zusd",
+    "liquidate",
+]
+
 
 def _require_pos_int(v: Any, *, name: str) -> int:
     if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
@@ -200,20 +215,7 @@ class ZUSDState:
 
 @dataclass(frozen=True)
 class ZUSDCommand:
-    tag: Literal[
-        "advance_epoch",
-        "bootstrap_oracle",
-        "oracle_report",
-        "oracle_commit",
-        "deposit_collateral",
-        "withdraw_collateral",
-        "mint_zusd",
-        "repay_zusd",
-        "deposit_sp",
-        "withdraw_sp",
-        "redeem_zusd",
-        "liquidate",
-    ]
+    tag: ZUSDCommandTag
     args: Mapping[str, Any]
 
 
@@ -698,20 +700,7 @@ class ZUSDMultiState:
 
 @dataclass(frozen=True)
 class ZUSDMultiCommand:
-    tag: Literal[
-        "advance_epoch",
-        "bootstrap_oracle",
-        "oracle_report",
-        "oracle_commit",
-        "deposit_collateral",
-        "withdraw_collateral",
-        "mint_zusd",
-        "repay_zusd",
-        "deposit_sp",
-        "withdraw_sp",
-        "redeem_zusd",
-        "liquidate",
-    ]
+    tag: ZUSDCommandTag
     args: Mapping[str, Any]
 
 

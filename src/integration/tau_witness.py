@@ -208,6 +208,12 @@ SWAP_EXACT_OUT_PROOF_GATE_V1 = TauSpecRef(
     gate_output="o1",
 )
 
+SWAP_BV32_SAFE_RANGE_GUARD_V1 = TauSpecRef(
+    spec_id="swap_bv32_safe_range_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "swap_bv32_safe_range_guard_v1.tau",
+    gate_output="o1",
+)
+
 SETTLEMENT_V1 = TauSpecRef(
     spec_id="settlement_v1",
     path=TAU_SPECS_DIR / "settlement_v1.tau",
@@ -398,6 +404,18 @@ SETTLEMENT_V4_BUYBACK_FLOOR_REBATE_LOCK_PROOF_GATE = TauSpecRef(
     spec_id="settlement_v4_buyback_floor_rebate_lock_proof_gate",
     path=RECOMMENDED_SPECS_DIR / "settlement_v4_buyback_floor_rebate_lock_proof_gate.tau",
     gate_output="o11",
+)
+
+SETTLEMENT_PRICE_RAILS_ALIGNED_V1 = TauSpecRef(
+    spec_id="settlement_price_rails_aligned_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_price_rails_aligned_v1.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE = TauSpecRef(
+    spec_id="settlement_v5_aligned_compact_bundle",
+    path=RECOMMENDED_SPECS_DIR / "settlement_v5_aligned_compact_bundle.tau",
+    gate_output="o1",
 )
 
 
@@ -745,6 +763,66 @@ def build_nonce_replay_guard_v1_step(
         if not isinstance(v, int) or isinstance(v, bool) or v < 0 or v > 0xFFFFFFFF:
             raise ValueError(f"{name} out of u32 range: {v!r}")
     return {"i1": int(intent_nonce), "i2": int(last_used_nonce), "i3": int(expected_nonce)}
+
+
+def build_settlement_price_rails_aligned_v1_step(
+    *,
+    a: int,
+    b: int,
+    c: int,
+    d: int,
+    price_pp: int,
+    price_prev: int,
+    price_curr: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
+        "i5": _u16("price_pp", price_pp),
+        "i6": _u16("price_prev", price_prev),
+        "i7": _u16("price_curr", price_curr),
+    }
+
+
+def build_settlement_v5_aligned_compact_bundle_step(
+    *,
+    a: int,
+    b: int,
+    c: int,
+    d: int,
+    price_pp: int,
+    price_prev: int,
+    price_curr: int,
+    cpmm_ok: int = 1,
+    balance_ok: int = 1,
+    token_ok: int = 1,
+    buyback_floor_ok: int = 1,
+    buyback_floor_fixedpoint_ok: int = 1,
+    rebate_ok: int = 1,
+    lock_weight_ok: int = 1,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _u64("a", a),
+        "i2": _u64("b", b),
+        "i3": _u64("c", c),
+        "i4": _u64("d", d),
+        "i5": _u16("price_pp", price_pp),
+        "i6": _u16("price_prev", price_prev),
+        "i7": _u16("price_curr", price_curr),
+        "i8": _sbf("cpmm_ok", cpmm_ok),
+        "i9": _sbf("balance_ok", balance_ok),
+        "i10": _sbf("token_ok", token_ok),
+        "i11": _sbf("buyback_floor_ok", buyback_floor_ok),
+        "i12": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
+        "i13": _sbf("rebate_ok", rebate_ok),
+        "i14": _sbf("lock_weight_ok", lock_weight_ok),
+        "i15": _sbf("proof_ok", proof_ok),
+        "i16": _sbf("binding_ok", binding_ok),
+    }
 
 
 def build_intent_expiry_guard_v1_step(
@@ -2060,6 +2138,25 @@ def build_swap_exact_in_proof_gate_v1_step(
     step["i9"] = _sbf("proof_ok", proof_ok)
     step["i10"] = _sbf("binding_ok", binding_ok)
     return step
+
+
+def build_swap_bv32_safe_range_guard_v1_step(
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    delta_primary: int,
+    delta_secondary: int,
+    new_reserve_in: int,
+    new_reserve_out: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("reserve_in", reserve_in),
+        "i2": _bv32("reserve_out", reserve_out),
+        "i3": _bv32("delta_primary", delta_primary),
+        "i4": _bv32("delta_secondary", delta_secondary),
+        "i5": _bv32("new_reserve_in", new_reserve_in),
+        "i6": _bv32("new_reserve_out", new_reserve_out),
+    }
 
 
 def build_swap_exact_in_v3_step(
