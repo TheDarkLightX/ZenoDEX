@@ -109,6 +109,7 @@ def test_claimability_rejects_reward_pool_balance_drift_with_runtime_state() -> 
         runtime_state=runtime_state,
         claim_artifact=claim,
         actual_reward_pool_balance=20,
+        verified_flags=claim["body"]["verification_flags"],
     )
     assert result.ok is True
 

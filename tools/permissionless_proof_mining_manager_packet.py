@@ -84,7 +84,11 @@ def main(argv: list[str] | None = None) -> int:
     claim = _load_json(Path(args.claim))
     snapshot_obj = _load_json(Path(args.snapshot))
     snapshot = _snapshot_from_obj(snapshot_obj)
-    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot)
+    verified_flags = _require_mapping(
+        _require_mapping(claim.get("body"), name="claim.body").get("verification_flags"),
+        name="claim.body.verification_flags",
+    )
+    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verified_flags=verified_flags)
 
     if not bool(args.apply):
         out = {

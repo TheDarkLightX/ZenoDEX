@@ -65,6 +65,13 @@ def _require_str(value: Any, *, name: str) -> str:
     return str(value)
 
 
+def _require_bool_flag(value: Any, *, name: str) -> bool:
+    flag = _require_int(value, name=name)
+    if flag not in (0, 1):
+        raise ValueError(f"{name} must be 0 or 1")
+    return bool(flag)
+
+
 def _deep_freeze_jsonish(value: Any) -> Any:
     if isinstance(value, Mapping):
         frozen = {str(key): _deep_freeze_jsonish(inner) for key, inner in value.items()}
@@ -156,8 +163,29 @@ def build_submit_proof_packet(
     *,
     claim_artifact: Mapping[str, Any],
     snapshot: ProofMiningManagerSnapshot,
+    verified_flags: Mapping[str, Any],
 ) -> ProofMiningManagerPacket:
     claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
+    claim_body = claim_artifact.get("body")
+    if not isinstance(claim_body, Mapping):
+        raise TypeError("claim.body must be an object")
+    claim_flags = claim_body.get("verification_flags")
+    if not isinstance(claim_flags, Mapping):
+        raise TypeError("claim.body.verification_flags must be an object")
+    if not isinstance(verified_flags, Mapping):
+        raise TypeError("verified_flags must be an object")
+    proof_ok = _require_bool_flag(verified_flags.get("proof_ok"), name="verified_flags.proof_ok")
+    binding_ok = _require_bool_flag(verified_flags.get("binding_ok"), name="verified_flags.binding_ok")
+    policy_ok = _require_bool_flag(verified_flags.get("policy_ok"), name="verified_flags.policy_ok")
+    nonce_ok = _require_bool_flag(verified_flags.get("nonce_ok"), name="verified_flags.nonce_ok")
+    if int(proof_ok) != _require_int(claim_flags.get("proof_ok"), name="claim.body.verification_flags.proof_ok"):
+        raise ValueError("claim proof_ok does not match verified proof_ok")
+    if int(binding_ok) != _require_int(claim_flags.get("binding_ok"), name="claim.body.verification_flags.binding_ok"):
+        raise ValueError("claim binding_ok does not match verified binding_ok")
+    if int(policy_ok) != _require_int(claim_flags.get("policy_ok"), name="claim.body.verification_flags.policy_ok"):
+        raise ValueError("claim policy_ok does not match verified policy_ok")
+    if int(nonce_ok) != _require_int(claim_flags.get("nonce_ok"), name="claim.body.verification_flags.nonce_ok"):
+        raise ValueError("claim nonce_ok does not match verified nonce_ok")
     if _require_int(claim.get("epoch"), name="claim.epoch") != _require_int(snapshot.epoch, name="snapshot.epoch"):
         raise ValueError("claim epoch does not match snapshot")
     if _require_int(claim.get("base_reward"), name="claim.base_reward") != _require_int(snapshot.base_reward, name="snapshot.base_reward"):
@@ -173,10 +201,10 @@ def build_submit_proof_packet(
     command_args = {
         "proposal_slot": int(assigned_slot),
         "prover_id": _require_int(claim.get("prover_id"), name="claim.prover_id"),
-        "proof_ok": True,
-        "binding_ok": True,
-        "policy_ok": True,
-        "nonce_ok": True,
+        "proof_ok": bool(proof_ok),
+        "binding_ok": bool(binding_ok),
+        "policy_ok": bool(policy_ok),
+        "nonce_ok": bool(nonce_ok),
     }
     return ProofMiningManagerPacket(
         claim=_deep_thaw_jsonish(claim_artifact),
@@ -195,7 +223,16 @@ def apply_submit_proof_packet(
     ir: CandidateIR | None = None,
 ) -> ProofMiningManagerApplyResult:
     try:
-        trusted_packet = build_submit_proof_packet(claim_artifact=_deep_thaw_jsonish(packet.claim), snapshot=snapshot)
+        trusted_packet = build_submit_proof_packet(
+            claim_artifact=_deep_thaw_jsonish(packet.claim),
+            snapshot=snapshot,
+            verified_flags={
+                "proof_ok": _deep_thaw_jsonish(packet.command_args).get("proof_ok"),
+                "binding_ok": _deep_thaw_jsonish(packet.command_args).get("binding_ok"),
+                "policy_ok": _deep_thaw_jsonish(packet.command_args).get("policy_ok"),
+                "nonce_ok": _deep_thaw_jsonish(packet.command_args).get("nonce_ok"),
+            },
+        )
     except (TypeError, ValueError) as exc:
         return ProofMiningManagerApplyResult(
             ok=False,

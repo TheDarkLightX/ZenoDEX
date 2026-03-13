@@ -113,11 +113,16 @@ def apply_proof_mining_claim(
     runtime_state: ProofMiningRuntimeState,
     claim_artifact: Mapping[str, Any],
     actual_reward_pool_balance: int,
+    verified_flags: Mapping[str, Any],
 ) -> tuple[ProofMiningRuntimeState, ProofMiningManagerApplyResult]:
     balance = _require_int(actual_reward_pool_balance, name="actual_reward_pool_balance")
     if balance != int(runtime_state.snapshot.reward_pool_balance):
         raise ValueError("reward pool balance does not match runtime snapshot")
-    packet = build_submit_proof_packet(claim_artifact=claim_artifact, snapshot=runtime_state.snapshot)
+    packet = build_submit_proof_packet(
+        claim_artifact=claim_artifact,
+        snapshot=runtime_state.snapshot,
+        verified_flags=verified_flags,
+    )
     result = apply_submit_proof_packet(packet=packet, snapshot=runtime_state.snapshot)
     if not result.ok or result.state_after is None:
         return runtime_state, result

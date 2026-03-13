@@ -101,6 +101,7 @@ def test_apply_proof_mining_claim_updates_snapshot_and_fails_closed_on_stale_cla
         runtime_state=state,
         claim_artifact=claim,
         actual_reward_pool_balance=20,
+        verified_flags=claim["body"]["verification_flags"],
     )
 
     assert result.ok is True
@@ -115,6 +116,7 @@ def test_apply_proof_mining_claim_updates_snapshot_and_fails_closed_on_stale_cla
             runtime_state=next_state,
             claim_artifact=claim,
             actual_reward_pool_balance=16,
+            verified_flags=claim["body"]["verification_flags"],
         )
 
     with pytest.raises(ValueError, match="reward pool balance does not match runtime snapshot"):
@@ -122,4 +124,5 @@ def test_apply_proof_mining_claim_updates_snapshot_and_fails_closed_on_stale_cla
             runtime_state=next_state,
             claim_artifact=claim,
             actual_reward_pool_balance=15,
+            verified_flags=claim["body"]["verification_flags"],
         )

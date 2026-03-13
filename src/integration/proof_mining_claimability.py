@@ -199,6 +199,7 @@ def evaluate_proof_mining_claimability(
         runtime_state=runtime_state,
         claim_artifact=claim_artifact,
         actual_reward_pool_balance=actual_pool_balance,
+        verified_flags=claim_artifact["body"]["verification_flags"],
     )
     if result.ok and result.effects is not None:
         checks["runtime_apply_ok"] = True

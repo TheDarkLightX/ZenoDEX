@@ -58,7 +58,7 @@ def _snapshot(*, reward_pool_balance: int = 20, total_paid: int = 0, claimed_slo
 def test_apply_submit_proof_packet_updates_state_and_claim_registry() -> None:
     claim = _claim()
     snapshot = _snapshot()
-    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot)
+    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verified_flags=claim["body"]["verification_flags"])
     result = apply_submit_proof_packet(packet=packet, snapshot=snapshot)
     assert result.ok is True
     assert result.effects is not None
@@ -75,15 +75,31 @@ def test_build_submit_proof_packet_rejects_duplicate_proposal_hash() -> None:
     proposal_hash = claim["body"]["proposal_hash"]
     snapshot = _snapshot(claimed_slots={3: proposal_hash})
     with pytest.raises(ValueError, match="already claimed"):
-        build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot)
+        build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verified_flags=claim["body"]["verification_flags"])
 
 
 def test_build_submit_proof_packet_rejects_stale_snapshot_budget() -> None:
     claim = _claim()
     snapshot = _snapshot(reward_pool_balance=19, total_paid=1)
     with pytest.raises(ValueError, match="reward_pool_before does not match snapshot"):
-        build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot)
+        build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verified_flags=claim["body"]["verification_flags"])
 
+
+
+def test_build_submit_proof_packet_rejects_unverified_flags_mismatch() -> None:
+    claim = _claim()
+    snapshot = _snapshot()
+    with pytest.raises(ValueError, match="does not match verified"):
+        build_submit_proof_packet(
+            claim_artifact=claim,
+            snapshot=snapshot,
+            verified_flags={
+                "proof_ok": 0,
+                "binding_ok": 1,
+                "policy_ok": 1,
+                "nonce_ok": 1,
+            },
+        )
 
 def test_assign_proposal_slot_linear_probe() -> None:
     claim = _claim()
@@ -105,7 +121,7 @@ def test_assign_proposal_slot_rejects_full_registry() -> None:
 def test_apply_submit_proof_packet_rejects_tampered_packet_fields() -> None:
     claim = _claim()
     snapshot = _snapshot()
-    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot)
+    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verified_flags=claim["body"]["verification_flags"])
     tampered_packet = ProofMiningManagerPacket(
         claim=packet.claim,
         state_before=packet.state_before,

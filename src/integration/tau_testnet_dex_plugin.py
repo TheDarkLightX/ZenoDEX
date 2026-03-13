@@ -659,6 +659,7 @@ def _apply_proof_mining_op(
             runtime_state=runtime_state,
             claim_artifact=claim_artifact,
             actual_reward_pool_balance=actual_pool_balance,
+            verified_flags=claim_artifact["body"]["verification_flags"],
         )
     except Exception as exc:
         return False, state, proof_mining_state, str(exc)
