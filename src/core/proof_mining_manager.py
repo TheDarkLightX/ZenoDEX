@@ -65,6 +65,12 @@ def _require_str(value: Any, *, name: str) -> str:
     return str(value)
 
 
+def _require_bool(value: Any, *, name: str) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
+
+
 def _deep_freeze_jsonish(value: Any) -> Any:
     if isinstance(value, Mapping):
         frozen = {str(key): _deep_freeze_jsonish(inner) for key, inner in value.items()}
@@ -156,8 +162,9 @@ def build_submit_proof_packet(
     *,
     claim_artifact: Mapping[str, Any],
     snapshot: ProofMiningManagerSnapshot,
+    verification_flags: Mapping[str, Any],
 ) -> ProofMiningManagerPacket:
-    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
+    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=False)
     if _require_int(claim.get("epoch"), name="claim.epoch") != _require_int(snapshot.epoch, name="snapshot.epoch"):
         raise ValueError("claim epoch does not match snapshot")
     if _require_int(claim.get("base_reward"), name="claim.base_reward") != _require_int(snapshot.base_reward, name="snapshot.base_reward"):
@@ -173,10 +180,10 @@ def build_submit_proof_packet(
     command_args = {
         "proposal_slot": int(assigned_slot),
         "prover_id": _require_int(claim.get("prover_id"), name="claim.prover_id"),
-        "proof_ok": True,
-        "binding_ok": True,
-        "policy_ok": True,
-        "nonce_ok": True,
+        "proof_ok": _require_bool(verification_flags.get("proof_ok"), name="verification_flags.proof_ok"),
+        "binding_ok": _require_bool(verification_flags.get("binding_ok"), name="verification_flags.binding_ok"),
+        "policy_ok": _require_bool(verification_flags.get("policy_ok"), name="verification_flags.policy_ok"),
+        "nonce_ok": _require_bool(verification_flags.get("nonce_ok"), name="verification_flags.nonce_ok"),
     }
     return ProofMiningManagerPacket(
         claim=_deep_thaw_jsonish(claim_artifact),
@@ -192,10 +199,15 @@ def apply_submit_proof_packet(
     *,
     packet: ProofMiningManagerPacket,
     snapshot: ProofMiningManagerSnapshot,
+    verification_flags: Mapping[str, Any],
     ir: CandidateIR | None = None,
 ) -> ProofMiningManagerApplyResult:
     try:
-        trusted_packet = build_submit_proof_packet(claim_artifact=_deep_thaw_jsonish(packet.claim), snapshot=snapshot)
+        trusted_packet = build_submit_proof_packet(
+            claim_artifact=_deep_thaw_jsonish(packet.claim),
+            snapshot=snapshot,
+            verification_flags=verification_flags,
+        )
     except (TypeError, ValueError) as exc:
         return ProofMiningManagerApplyResult(
             ok=False,

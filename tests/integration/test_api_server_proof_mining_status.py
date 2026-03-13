@@ -4,6 +4,8 @@ import json
 import threading
 from http.client import HTTPConnection
 
+from src.integration.proof_mining_context import ProofMiningContext, proof_mining_context_to_obj
+
 
 def _start_test_server():
     from src.integration import api_server
@@ -50,6 +52,25 @@ def _claim(*, miner_id: str, reward_pool_before: int) -> dict:
         epoch=1,
         proposal_slot=0,
         prover_id=1,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+    )
+
+
+def _context_from_claim(claim: dict) -> dict:
+    binding = claim["body"]["proposal_binding"]
+    return proof_mining_context_to_obj(
+        ProofMiningContext(
+            chain_id=str(binding["chain_id"]),
+            prev_state_hash=str(binding["prev_state_hash"]),
+            batch_hash=str(binding["batch_hash"]),
+            witness_hash=str(binding["witness_hash"]),
+            dex_hash_after=str(binding["dex_hash_after"]),
+            proposal_hash=str(claim["body"]["proposal_hash"]),
+            proof_scheme="dummy",
+        )
     )
 
 
@@ -58,12 +79,14 @@ def test_api_server_proof_mining_status_claimable(monkeypatch) -> None:
     reward_pool = "0x" + "99" * 48
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
     claim = _claim(miner_id=sender, reward_pool_before=20)
+    context = _context_from_claim(claim)
     httpd, thread, host, port = _start_test_server()
     try:
         req = {
             "app_state_json": "",
             "chain_balances": {reward_pool: 20, sender: 0},
             "claim": claim,
+            "proof_mining_context": context,
             "tx_sender_pubkey": sender,
             "expected_proposal_hash": claim["body"]["proposal_hash"],
         }
@@ -91,12 +114,14 @@ def test_api_server_proof_mining_status_requires_expected_hash(monkeypatch) -> N
     reward_pool = "0x" + "88" * 48
     monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
     claim = _claim(miner_id=sender, reward_pool_before=20)
+    context = _context_from_claim(claim)
     httpd, thread, host, port = _start_test_server()
     try:
         req = {
             "app_state_json": "",
             "chain_balances": {reward_pool: 20, sender: 0},
             "claim": claim,
+            "proof_mining_context": context,
             "tx_sender_pubkey": sender,
         }
         conn = HTTPConnection(host, port, timeout=2.0)

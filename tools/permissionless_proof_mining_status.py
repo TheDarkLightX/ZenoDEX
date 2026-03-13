@@ -73,6 +73,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tx-sender-pubkey", required=True)
     parser.add_argument("--expected-proposal-hash", required=True)
     parser.add_argument("--app-state", help="Optional app-state JSON file path")
+    parser.add_argument("--proof-mining-context", help="Optional verified proof-mining context JSON file path")
     parser.add_argument("--reward-pool-pubkey", default="", help="Local mode override for reward pool pubkey")
     parser.add_argument("--api-url", default="", help="If set, call the API instead of local evaluation")
     parser.add_argument("--timeout-s", type=float, default=5.0)
@@ -82,12 +83,14 @@ def main(argv: list[str] | None = None) -> int:
     claim = _load_json(Path(args.claim))
     chain_balances = _load_json(Path(args.chain_balances))
     app_state_json = _load_text(Path(args.app_state) if args.app_state else None)
+    proof_mining_context = _load_json(Path(args.proof_mining_context)) if args.proof_mining_context else None
     output_path = Path(args.output) if args.output else None
 
     payload = {
         "app_state_json": app_state_json,
         "chain_balances": dict(chain_balances),
         "claim": dict(claim),
+        **({"proof_mining_context": dict(proof_mining_context)} if proof_mining_context is not None else {}),
         "tx_sender_pubkey": str(args.tx_sender_pubkey),
         "expected_proposal_hash": str(args.expected_proposal_hash),
     }
@@ -105,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         claim_artifact=claim,
         tx_sender_pubkey=str(args.tx_sender_pubkey),
         expected_proposal_hash=str(args.expected_proposal_hash),
+        proof_mining_context_obj=proof_mining_context,
     )
     result = {"ok": True, "status": status.to_public_dict()}
     _emit(output_path, result)
