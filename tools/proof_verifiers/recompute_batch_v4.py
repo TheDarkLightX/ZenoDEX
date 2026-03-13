@@ -212,6 +212,7 @@ def _verify(payload: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
             balances=state.balances,
             pools=state.pools,
             lp_balances=state.lp_balances,
+            nonces=state.nonces,
         )
     except Exception as exc:
         return False, f"failed to compute support root: {exc}"
