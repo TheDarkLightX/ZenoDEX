@@ -212,7 +212,7 @@ class SubprocessProofVerifier(ProofVerifier):
 
                 for stream in ready_w:
                     try:
-                        n = stream.write(stdin_view[stdin_off : stdin_off + 4096])
+                        n_written: object = stream.write(stdin_view[stdin_off : stdin_off + 4096])
                     except BrokenPipeError:
                         _kill_proc_group()
                         _wait_after_kill()
@@ -224,8 +224,14 @@ class SubprocessProofVerifier(ProofVerifier):
                         _wait_after_kill()
                         return False, "proof verifier stdin error"
 
-                    if n is None:
+                    if n_written is None:
                         n = 0
+                    elif isinstance(n_written, int) and not isinstance(n_written, bool):
+                        n = n_written
+                    else:
+                        _kill_proc_group()
+                        _wait_after_kill()
+                        return False, "proof verifier stdin invalid write result"
                     stdin_off += int(n)
                     if stdin_off >= len(stdin_view):
                         stdin_open = False
@@ -238,24 +244,28 @@ class SubprocessProofVerifier(ProofVerifier):
 
                 for stream in ready_r:
                     try:
-                        chunk = stream.read(4096)
+                        chunk_obj: object = stream.read(4096)
                     except BlockingIOError:
                         continue
                     except Exception:
                         _kill_proc_group()
                         _wait_after_kill()
                         return False, "proof verifier stdout/stderr read error"
-                    if not chunk:
+                    if not chunk_obj:
                         if stream is proc.stdout:
                             stdout_open = False
                         else:
                             stderr_open = False
                         continue
 
-                    if isinstance(chunk, str):
-                        chunk_b = chunk.encode("utf-8", errors="replace")
+                    if isinstance(chunk_obj, str):
+                        chunk_b = chunk_obj.encode("utf-8", errors="replace")
+                    elif isinstance(chunk_obj, (bytes, bytearray, memoryview)):
+                        chunk_b = bytes(chunk_obj)
                     else:
-                        chunk_b = bytes(chunk)
+                        _kill_proc_group()
+                        _wait_after_kill()
+                        return False, "proof verifier returned invalid stream chunk"
 
                     if stream is proc.stdout:
                         stdout_buf += chunk_b
