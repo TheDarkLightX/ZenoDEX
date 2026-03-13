@@ -3,22 +3,31 @@ import './index.css';
 import SwapInterface from './components/SwapInterface';
 import PoolDashboard from './components/PoolDashboard';
 import TokenStats from './components/TokenStats';
-import WalletConnect from './components/WalletConnect';
+import PerpTradingView from './components/perps/PerpTradingView';
 import ConfidentialWorkbench from './components/ConfidentialWorkbench.jsx';
+import { PerpProvider } from './lib/PerpProvider.jsx';
+import { DemoModeProvider } from './lib/DemoModeProvider.jsx';
+import WalletConnect from './components/WalletConnect';
+import TransactionDrawer from './components/TransactionDrawer.jsx';
+import { useTransactionCenter } from './lib/TransactionCenterContext.jsx';
 
 const APP_TABS = [
   { id: 'swap', label: 'Swap' },
   { id: 'pools', label: 'Pools' },
   { id: 'stats', label: 'ZDEX Stats' },
+  { id: 'perps', label: 'Perpetuals' },
   { id: 'confidential', label: 'Confidential' },
 ];
 
 function App() {
   const [activeTab, setActiveTab] = useState('swap');
   const [wallet, setWallet] = useState(null);
+  const { upsertTransaction } = useTransactionCenter();
 
   return (
-    <div className="app-container">
+    <DemoModeProvider>
+      <div className="app-container">
+      {/* Header */}
       <header className="header">
         <div className="logo">
           <div className="logo-icon">
@@ -64,6 +73,14 @@ function App() {
           </div>
         )}
 
+        {activeTab === 'perps' && (
+          <div className="animate-fade-in">
+            <PerpProvider wallet={wallet} onTransaction={upsertTransaction}>
+              <PerpTradingView wallet={wallet} />
+            </PerpProvider>
+          </div>
+        )}
+
         {activeTab === 'confidential' && (
           <div className="animate-fade-in">
             <ConfidentialWorkbench />
@@ -80,7 +97,10 @@ function App() {
           <span className="footer-agrs">AGRS</span> Native Token
         </p>
       </footer>
-    </div>
+
+      <TransactionDrawer />
+      </div>
+    </DemoModeProvider>
   );
 }
 
