@@ -188,7 +188,7 @@ def _guard_advance(state: CSState, params: CSActionParams) -> bool:
 
 
 def _guard_settle(state: CSState, params: CSActionParams) -> bool:
-    return state.epochs_since_start >= state.settlement_epoch_interval
+    return params.auth_ok and state.epochs_since_start >= state.settlement_epoch_interval
 
 
 def _guard_admin_set(state: CSState, params: CSActionParams) -> bool:

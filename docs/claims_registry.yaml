@@ -232,11 +232,12 @@ claims:
         - generated/derivatives_python/curve_selection_market_v1_ref.py
 
   - id: smt:funding_rate_market_v1:inductive_z3_cvc5
-    status: supported
+    status: disputed
     layer: spec
     statement: >
-      The funding-rate market kernel (v1) is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under a fail-closed, multi-solver SMT verification model.
+      The funding-rate market kernel (v1) is inductive (k=1) under SMT, but its settlement action still relies on
+      environment-supplied realized-rate and payout values and should not be treated as an authorization-complete
+      public settlement guarantee.
     evidence:
       kind: smt
       check:
@@ -287,11 +288,12 @@ claims:
         - src/kernels/dex/il_futures_market_v1.yaml
 
   - id: smt:curve_selection_market_v1:inductive_z3_cvc5
-    status: supported
+    status: disputed
     layer: spec
     statement: >
-      The curve-selection market kernel (v1) is inductive (k=1) and cross-verified by both Z3 and CVC5
-      under a fail-closed, multi-solver SMT verification model.
+      The curve-selection market kernel (v1) is inductive (k=1) under SMT, but its settlement action still accepts
+      environment-supplied winner and fee values and should not be treated as an authorization-complete public
+      settlement guarantee.
     evidence:
       kind: smt
       check:

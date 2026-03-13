@@ -1,3 +1,9 @@
+---
+title: PROOF_MINING_OPERATOR_API
+type: note
+permalink: autonomous-tau-dex-review/docs/proof-mining-operator-api
+---
+
 # Proof Mining Operator API
 
 This API is for operators who already have a verified DEX proof context and want to know whether a proof-mining claim is currently submit-ready.
@@ -15,6 +21,7 @@ Use the shell wrapper if you want the same check without hand-crafting HTTP requ
 ```bash
 python3 tools/permissionless_proof_mining_status.py \
   --claim ./proof_claim.json \
+  --proof-mining-context ./proof_context.json \
   --chain-balances ./chain_balances.json \
   --tx-sender-pubkey 0x<sender-pubkey> \
   --expected-proposal-hash sha256:<proposal_hash>
@@ -26,6 +33,7 @@ To call a running API server instead of evaluating locally:
 python3 tools/permissionless_proof_mining_status.py \
   --api-url http://127.0.0.1:8080 \
   --claim ./proof_claim.json \
+  --proof-mining-context ./proof_context.json \
   --chain-balances ./chain_balances.json \
   --tx-sender-pubkey 0x<sender-pubkey> \
   --expected-proposal-hash sha256:<proposal_hash>
@@ -45,6 +53,9 @@ The command exits `0` when the claim is submit-ready and nonzero when the claim 
   "claim": {
     "body": { "...": "proof mining claim artifact" },
     "claim_hash": "sha256:..."
+  },
+  "proof_mining_context": {
+    "...": "verified DEX proof context"
   },
   "tx_sender_pubkey": "0x<48-byte-pubkey>",
   "expected_proposal_hash": "sha256:..."
@@ -77,6 +88,7 @@ Without that env var, the endpoint returns `enabled=false` and `claimable=false`
       "claim_valid": true,
       "winner_matches_sender": true,
       "proposal_hash_matches_context": true,
+      "verified_context_present": true,
       "reward_pool_balance_non_negative": true,
       "runtime_state_present": false,
       "reward_pool_pubkey_matches_state": false,
@@ -100,6 +112,7 @@ The endpoint mirrors the runtime path in `src/integration/tau_testnet_dex_plugin
 - claim artifact passes validation
 - `winner.miner_id` matches `tx_sender_pubkey`
 - `claim.proposal_hash` matches `expected_proposal_hash`
+- a verified DEX proof context is present and matches the claim binding
 - reward-pool chain balance is non-negative
 - wrapped proof-mining runtime state, if present, matches the configured reward pool
 - wrapped proof-mining runtime state, if present, matches the live reward-pool balance
@@ -110,8 +123,9 @@ The endpoint mirrors the runtime path in `src/integration/tau_testnet_dex_plugin
 Use this before building the final operation bundle:
 
 1. run the DEX proof-verification path off-chain and get `proposal_hash`
-2. build the proof-mining claim artifact
-3. call `/api/dex/proof_mining_status`
-4. only submit `ZenoProofMining.submit_proof` if `claimable=true`
+2. persist the verified proof context emitted by that DEX execution path
+3. build the proof-mining claim artifact
+4. call `/api/dex/proof_mining_status`
+5. only submit `ZenoProofMining.submit_proof` if `claimable=true`
 
 This is not a replacement for the on-chain/plugin checks. It is a preflight surface so operators can fail early and avoid sending obviously bad claims.

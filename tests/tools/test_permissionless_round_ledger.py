@@ -142,7 +142,7 @@ def test_round_ledger_accepts_proof_mining_claim_artifact(tmp_path: Path) -> Non
     assert rows[0]["body"]["reward_artifact_schema"] == "zenodex/permissionless_solver_proof_mining_claim/v1"
 
 
-def test_round_ledger_rejects_inadmissible_proof_mining_claim() -> None:
+def test_round_ledger_accepts_structurally_valid_rejected_proof_mining_claim() -> None:
     claim = build_proof_mining_claim(
         round_obj=_round_obj(round_id="r-bad", miner_id="alice", witness_sha256="sha:a", improvement_u64=11, job_digest="job-bad"),
         round_id="r-bad",
@@ -153,12 +153,12 @@ def test_round_ledger_rejects_inadmissible_proof_mining_claim() -> None:
         prover_id=0,
         allow_rejected=True,
     )
-    with pytest.raises(ValueError, match="inadmissible"):
-        build_round_ledger_record(
-            round_obj=_round_obj(round_id="r-bad", miner_id="alice", witness_sha256="sha:a", improvement_u64=11, job_digest="job-bad"),
-            reward_artifact=claim,
-            prev_record_hash="",
-        )
+    record = build_round_ledger_record(
+        round_obj=_round_obj(round_id="r-bad", miner_id="alice", witness_sha256="sha:a", improvement_u64=11, job_digest="job-bad"),
+        reward_artifact=claim,
+        prev_record_hash="",
+    )
+    assert record["body"]["reward_artifact_schema"] == "zenodex/permissionless_solver_proof_mining_claim/v1"
 
 
 def test_round_ledger_rejects_forged_claim_hash() -> None:

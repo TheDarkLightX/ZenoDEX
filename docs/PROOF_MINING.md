@@ -1,3 +1,9 @@
+---
+title: PROOF_MINING
+type: note
+permalink: autonomous-tau-dex-review/docs/proof-mining
+---
+
 # Proof Mining (Verified Computation Rewards)
 
 This document defines **proof mining** for ZenoDex: a mechanism to (1) bootstrap token distribution and (2) harden
@@ -192,5 +198,8 @@ Purpose: verify cryptographic receipts/proofs and bind them to the proposal hash
 This is intentionally host-side (not Tau):
 - verify Risc0 receipt / image id allowlist
 - verify bundle binds to `proposal_hash`
-- output boolean flags consumed by the rules (`proof_ok`, `binding_ok`, `policy_ok`, `nonce_ok`, plus `unique_ok` if the
-  claimed-set check is implemented host-side)
+- derive the trusted boolean flags consumed by the rules (`proof_ok`, `binding_ok`, `policy_ok`, `nonce_ok`, plus
+  `unique_ok` if the claimed-set check is implemented host-side)
+
+These flags must never be trusted when they are merely echoed inside a claim artifact. The live payout path must derive
+them from a verifier-produced DEX proof context and fail closed if that verified context is missing.
