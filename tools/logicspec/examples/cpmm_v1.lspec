@@ -1,0 +1,61 @@
+# CPMM Swap Validity Specification
+# Validates swap parameters for constant-product market maker
+#
+# Logic: □ (SWAP_VALID ↔ positive(r_in) ∧ positive(r_out) ∧ positive(amt_in)
+#            ∧ fee_valid(fee) ∧ positive(amt_out) ∧ amt_out ≤ r_out)
+
+spec CPMMSwapValidity {
+
+  inputs {
+    reserve_in_hi: u16
+    reserve_in_lo: u16
+    reserve_out_hi: u16
+    reserve_out_lo: u16
+    amount_in_hi: u16
+    amount_in_lo: u16
+    fee_bps: u16
+    amount_out_hi: u16
+    amount_out_lo: u16
+  }
+
+  outputs {
+    swap_valid: bool
+  }
+
+  # Fee must be between 0 and 10000 basis points (0% to 100%)
+  define fee_bps_valid(fee: u16) :=
+    fee ≥ 0 ∧ fee ≤ 10000
+
+  # A 32-bit value (hi, lo) is positive if hi > 0, or hi = 0 and lo > 0
+  define is_positive(hi: u16, lo: u16) :=
+    hi > 0 ∨ (hi = 0 ∧ lo > 0)
+
+  # Compare two 32-bit values: (hi1, lo1) ≥ (hi2, lo2)
+  define value_gte(hi1: u16, lo1: u16, hi2: u16, lo2: u16) :=
+    hi1 > hi2 ∨ (hi1 = hi2 ∧ lo1 ≥ lo2)
+
+  # Main swap constraints
+  define swap_constraints(
+    r_in_hi: u16, r_in_lo: u16,
+    r_out_hi: u16, r_out_lo: u16,
+    amt_in_hi: u16, amt_in_lo: u16,
+    fee: u16,
+    amt_out_hi: u16, amt_out_lo: u16
+  ) :=
+    is_positive(r_in_hi, r_in_lo) ∧
+    is_positive(r_out_hi, r_out_lo) ∧
+    is_positive(amt_in_hi, amt_in_lo) ∧
+    fee_bps_valid(fee) ∧
+    is_positive(amt_out_hi, amt_out_lo) ∧
+    value_gte(r_out_hi, r_out_lo, amt_out_hi, amt_out_lo)
+
+  invariant main {
+    □ (swap_valid ↔ swap_constraints(
+      reserve_in_hi, reserve_in_lo,
+      reserve_out_hi, reserve_out_lo,
+      amount_in_hi, amount_in_lo,
+      fee_bps,
+      amount_out_hi, amount_out_lo
+    ))
+  }
+}

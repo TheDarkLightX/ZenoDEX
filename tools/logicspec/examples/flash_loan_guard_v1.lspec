@@ -1,0 +1,59 @@
+# Flash Loan Guard Specification
+# Prevents flash loan attack patterns
+#
+# Logic: □ (SAFE ↔ ¬(borrow ∧ trade ∧ repay ∧ same_context))
+#
+# A flash loan attack requires:
+# 1. Borrow funds
+# 2. Execute price-impacting trade
+# 3. Repay loan
+# All in the same atomic context
+
+spec FlashLoanGuard {
+
+  inputs {
+    has_borrow: bool       # 1 if borrow occurred
+    has_trade: bool        # 1 if price-impacting trade occurred
+    has_repay: bool        # 1 if repay occurred
+    is_same_context: bool  # 1 if all in same atomic context
+  }
+
+  outputs {
+    borrow_repay_same: bool
+    trade_with_borrow: bool
+    flash_pattern_detected: bool
+    flash_loan_safe: bool
+  }
+
+  # Detects if borrow and repay happened in same context
+  define borrow_repay_same_ctx(borrow: bool, repay: bool, same_ctx: bool) :=
+    borrow ∧ repay ∧ same_ctx
+
+  # Detects if trade happened with a borrow
+  define trade_with_borrow_ctx(borrow: bool, trade: bool, same_ctx: bool) :=
+    borrow ∧ trade ∧ same_ctx
+
+  # Full flash loan attack pattern: borrow + trade + repay in same context
+  define flash_pattern(borrow: bool, trade: bool, repay: bool, same_ctx: bool) :=
+    borrow ∧ trade ∧ repay ∧ same_ctx
+
+  # Safe = pattern NOT detected
+  define flash_safe(borrow: bool, trade: bool, repay: bool, same_ctx: bool) :=
+    ¬flash_pattern(borrow, trade, repay, same_ctx)
+
+  invariant borrow_repay {
+    □ (borrow_repay_same ↔ borrow_repay_same_ctx(has_borrow, has_repay, is_same_context))
+  }
+
+  invariant trade_borrow {
+    □ (trade_with_borrow ↔ trade_with_borrow_ctx(has_borrow, has_trade, is_same_context))
+  }
+
+  invariant pattern_detection {
+    □ (flash_pattern_detected ↔ flash_pattern(has_borrow, has_trade, has_repay, is_same_context))
+  }
+
+  invariant safety {
+    □ (flash_loan_safe ↔ flash_safe(has_borrow, has_trade, has_repay, is_same_context))
+  }
+}
