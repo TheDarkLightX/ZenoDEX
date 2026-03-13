@@ -1,0 +1,35 @@
+# Experimental swap exact-in v5, traceable proof bundle
+#
+# Purpose:
+# - keep the proof-gated swap structure small enough for Tau traces;
+# - expose diagnostic outputs without composing outputs into outputs;
+# - pair with `swap_bv32_safe_range_guard_v1.tau` externally for more complete checking.
+#
+# Inputs:
+# i1 = reserve_in
+# i2 = reserve_out
+# i3 = amount_in
+# i4 = fee_bps
+# i5 = min_amount_out
+# i6 = amount_out
+# i7 = new_reserve_in
+# i8 = new_reserve_out
+# i9 = proof_ok
+# i10 = binding_ok
+#
+# Outputs:
+# o1 = proof_flags_ok
+# o2 = positive_inputs_ok
+# o3 = fee_and_slippage_ok
+# o4 = reserve_transition_ok
+# o5 = swap_exact_in_valid
+
+set charvar off
+
+always (
+  (o1[t]:sbf = 1:sbf <-> ((i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf))) &&
+  (o2[t]:sbf = 1:sbf <-> ((i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32]) && (i6[t]:bv[32] > { #x00000000 }:bv[32]))) &&
+  (o3[t]:sbf = 1:sbf <-> ((i4[t]:bv[32] <= { #x00002710 }:bv[32]) && (i6[t]:bv[32] < i2[t]:bv[32]) && (i6[t]:bv[32] >= i5[t]:bv[32]))) &&
+  (o4[t]:sbf = 1:sbf <-> ((i7[t]:bv[32] = i1[t]:bv[32] + i3[t]:bv[32]) && (i7[t]:bv[32] >= i1[t]:bv[32]) && (i8[t]:bv[32] = i2[t]:bv[32] - i6[t]:bv[32]))) &&
+  (o5[t]:sbf = 1:sbf <-> ((i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i1[t]:bv[32] > { #x00000000 }:bv[32]) && (i2[t]:bv[32] > { #x00000000 }:bv[32]) && (i3[t]:bv[32] > { #x00000000 }:bv[32]) && (i6[t]:bv[32] > { #x00000000 }:bv[32]) && (i4[t]:bv[32] <= { #x00002710 }:bv[32]) && (i6[t]:bv[32] < i2[t]:bv[32]) && (i6[t]:bv[32] >= i5[t]:bv[32]) && (i7[t]:bv[32] = i1[t]:bv[32] + i3[t]:bv[32]) && (i7[t]:bv[32] >= i1[t]:bv[32]) && (i8[t]:bv[32] = i2[t]:bv[32] - i6[t]:bv[32])))
+).

@@ -1,0 +1,11 @@
+# Experimental settlement no-sandwich rail, aligned-input form
+#
+# Inputs:
+# i1 = price_prevprev
+# i2 = price_prev
+# i3 = price_curr
+# o1 = no_sandwich_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> (((i1[t]:bv[16] <= i2[t]:bv[16]) && (i2[t]:bv[16] <= i3[t]:bv[16])) || ((i1[t]:bv[16] >= i2[t]:bv[16]) && (i2[t]:bv[16] >= i3[t]:bv[16])))).

@@ -1,0 +1,27 @@
+# Experimental settlement v5, aligned compact proof bundle
+#
+# Purpose:
+# - keep settlement in one compact Tau gate that matches the aligned
+#   `prevprev/prev/curr` input contract;
+# - stay close to the proven production proof-gate posture;
+# - avoid diagnostic fan-out when the goal is a single production decision.
+#
+# Inputs:
+# i1..i4 = order ids
+# i5 = price_prevprev
+# i6 = price_prev
+# i7 = price_curr
+# i8 = cpmm_ok
+# i9 = balance_ok
+# i10 = token_ok
+# i11 = buyback_floor_ok
+# i12 = buyback_floor_fixedpoint_ok
+# i13 = rebate_ok
+# i14 = lock_weight_ok
+# i15 = proof_ok
+# i16 = binding_ok
+# o1 = settlement_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> (((i1[t]:bv[16] < i2[t]:bv[16]) && (i2[t]:bv[16] < i3[t]:bv[16]) && (i3[t]:bv[16] < i4[t]:bv[16])) && ((((i5[t]:bv[16] <= i6[t]:bv[16]) && (i6[t]:bv[16] <= i7[t]:bv[16])) || ((i5[t]:bv[16] >= i6[t]:bv[16]) && (i6[t]:bv[16] >= i7[t]:bv[16])))) && ((((i7[t]:bv[16] >= i6[t]:bv[16]) && (i7[t]:bv[16] - i6[t]:bv[16] < { #x0032 }:bv[16])) || ((i7[t]:bv[16] < i6[t]:bv[16]) && (i6[t]:bv[16] - i7[t]:bv[16] < { #x0032 }:bv[16])))) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf) && (i15[t]:sbf = 1:sbf) && (i16[t]:sbf = 1:sbf))).
