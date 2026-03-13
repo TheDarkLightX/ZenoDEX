@@ -1,0 +1,19 @@
+# AutoTrader Nonce Guard v1
+#
+# PURPOSE: Prevent replay of live auto-trader intents via strict sequential nonces.
+#
+# i1 = intent_nonce (bv[32])
+# i2 = last_used_nonce (bv[32])
+# i3 = expected_nonce (bv[32])
+# o1 = params_ok
+# o2 = nonce_fresh
+# o3 = nonce_sequential
+# o4 = nonce_guard_ok
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (i3[t]:bv[32] = (i2[t]:bv[32] + { #x00000001 }:bv[32]))) &&
+  (o2[t]:sbf = 1:sbf <-> (i1[t]:bv[32] > i2[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> (i1[t]:bv[32] = i3[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> ((i3[t]:bv[32] = (i2[t]:bv[32] + { #x00000001 }:bv[32])) && (i1[t]:bv[32] > i2[t]:bv[32]) && (i1[t]:bv[32] = i3[t]:bv[32]))).

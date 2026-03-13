@@ -1,0 +1,59 @@
+# AutoTrader Tx Envelope Guard v1
+#
+# PURPOSE: Validate the final Tau transaction envelope used by the live
+# auto-trader submit path.
+#
+# i1 = tx_requested
+# i2 = sequence_present
+# i3 = expiration_present
+# i4 = sequence_valid
+# i5 = expiration_valid
+# i6 = fee_limit_valid
+# i7 = intent_stream_present
+# i8 = settlement_stream_absent
+# i9 = extra_custom_streams_absent
+# o1 = tx_args_paired_ok
+# o2 = tx_bounds_ok
+# o3 = tx_stream_scope_ok
+# o4 = tx_envelope_ok
+
+set charvar off
+
+always
+  (
+    o1[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 0:sbf) ||
+      ((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))
+    )
+  ) &&
+  (
+    o2[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 0:sbf) ||
+      ((i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 1:sbf))
+    )
+  ) &&
+  (
+    o3[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 0:sbf) ||
+      ((i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf))
+    )
+  ) &&
+  (
+    o4[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 0:sbf) ||
+      (
+        (i2[t]:sbf = 1:sbf) &&
+        (i3[t]:sbf = 1:sbf) &&
+        (i4[t]:sbf = 1:sbf) &&
+        (i5[t]:sbf = 1:sbf) &&
+        (i6[t]:sbf = 1:sbf) &&
+        (i7[t]:sbf = 1:sbf) &&
+        (i8[t]:sbf = 1:sbf) &&
+        (i9[t]:sbf = 1:sbf)
+      )
+    )
+  ).
