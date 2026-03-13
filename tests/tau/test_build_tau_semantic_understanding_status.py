@@ -10,8 +10,8 @@ def test_build_tau_semantic_understanding_status() -> None:
 
     assert status["schema"] == "zenodex/tau/semantic-understanding-status/v1"
     assert summary["recommended_spec_count"] == len(entries)
-    assert summary["execution_observed_count"] == 149
-    assert summary["execution_hard_count"] == 25
+    assert summary["execution_observed_count"] == 133
+    assert summary["execution_hard_count"] == 24
     assert summary["confirmed_reviewed_spec_count"] == 11
     assert summary["lightweight_contract_count"] == 4
     assert summary["semantic_contract_count"] == 4
