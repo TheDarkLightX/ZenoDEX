@@ -1,0 +1,33 @@
+set charvar off
+
+always
+  (
+    o1[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 1:sbf) &&
+      (i2[t]:sbf = 1:sbf) &&
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf) &&
+      (i5[t]:sbf = 1:sbf) &&
+      (i6[t]:sbf = 1:sbf) &&
+      (i7[t]:sbf = 0:sbf)
+    )
+  ) &&
+  (o2[t]:sbf = 1:sbf <-> (i8[t]:bv[32] >= i11[t]:bv[32])) &&
+  (o3[t]:sbf = 1:sbf <-> (i9[t]:bv[32] >= i12[t]:bv[32])) &&
+  (o4[t]:sbf = 1:sbf <-> (i10[t]:bv[32] >= i13[t]:bv[32])) &&
+  (
+    o5[t]:sbf = 1:sbf <->
+    (
+      (i1[t]:sbf = 1:sbf) &&
+      (i2[t]:sbf = 1:sbf) &&
+      (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 1:sbf) &&
+      (i5[t]:sbf = 1:sbf) &&
+      (i6[t]:sbf = 1:sbf) &&
+      (i7[t]:sbf = 0:sbf) &&
+      (i8[t]:bv[32] < i11[t]:bv[32]) &&
+      (i9[t]:bv[32] < i12[t]:bv[32]) &&
+      (i10[t]:bv[32] < i13[t]:bv[32])
+    )
+  ).
