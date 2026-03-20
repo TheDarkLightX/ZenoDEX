@@ -34,6 +34,8 @@ import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
 import Proofs.PiecewiseEnvelopeParametric
 import Proofs.FeeCeilDecomposition
 import Proofs.BonusBetBudgetSafety
+import Proofs.ConstDenominatorSurrogateBounds
+import Proofs.UXAlgorithms
 import Proofs.DeterministicAgentTieBreak
 import Proofs.DeterministicEpochWindow
 import Proofs.AllocationTotality
