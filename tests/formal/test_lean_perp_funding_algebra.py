@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 
-TARGET = "Proofs/PerpFundingAlgebra.lean"
+TARGET = "Proofs.PerpFundingAlgebra"
 
 
 def test_lean_perp_funding_algebra_typechecks() -> None:
@@ -22,7 +22,7 @@ def test_lean_perp_funding_algebra_typechecks() -> None:
 
     try:
         proc = subprocess.run(
-            [lake, "env", "lean", TARGET],
+            [lake, "build", TARGET],
             cwd=lean_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -30,6 +30,6 @@ def test_lean_perp_funding_algebra_typechecks() -> None:
             timeout=180,
         )
     except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake env lean timed out after {exc.timeout}s for {TARGET}")
+        pytest.skip(f"lake build timed out after {exc.timeout}s for {TARGET}")
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
