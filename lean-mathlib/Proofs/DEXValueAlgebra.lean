@@ -2,6 +2,7 @@ import Mathlib.Data.Int.Basic
 import Mathlib.Algebra.Group.Defs
 import Mathlib.Algebra.Group.Hom.Defs
 import Mathlib.Tactic
+import Proofs.SettlementAlgebra
 
 /-!
 # DEX Value Algebra: Price-Parameterized Functionals
@@ -35,49 +36,18 @@ namespace Proofs
 
 namespace DEXValueAlgebra
 
-/-! ## Part 1: Settlement Type -/
+/-! ## Part 1: Settlement Type
 
-structure Settl where
-  dx : ℤ
-  dy : ℤ
-  deriving Repr, DecidableEq
+This file reuses the canonical settlement object from `SettlementAlgebra`
+so its valuation lemmas compose with the rest of the proof surface.
+-/
 
-@[ext] theorem Settl.ext {s₁ s₂ : Settl}
-    (hx : s₁.dx = s₂.dx) (hy : s₁.dy = s₂.dy) : s₁ = s₂ := by
-  cases s₁; cases s₂; simp_all
-
-instance : Zero Settl := ⟨⟨0, 0⟩⟩
-instance : Add Settl := ⟨fun s₁ s₂ => ⟨s₁.dx + s₂.dx, s₁.dy + s₂.dy⟩⟩
-instance : Neg Settl := ⟨fun s => ⟨-s.dx, -s.dy⟩⟩
-instance : Sub Settl := ⟨fun s₁ s₂ => s₁ + (-s₂)⟩
-
-@[simp] theorem Settl.zero_dx : (0 : Settl).dx = 0 := rfl
-@[simp] theorem Settl.zero_dy : (0 : Settl).dy = 0 := rfl
-@[simp] theorem Settl.add_dx (s₁ s₂ : Settl) :
-    (s₁ + s₂).dx = s₁.dx + s₂.dx := rfl
-@[simp] theorem Settl.add_dy (s₁ s₂ : Settl) :
-    (s₁ + s₂).dy = s₁.dy + s₂.dy := rfl
-@[simp] theorem Settl.neg_dx (s : Settl) : (-s).dx = -s.dx := rfl
-@[simp] theorem Settl.neg_dy (s : Settl) : (-s).dy = -s.dy := rfl
-
-instance : AddCommGroup Settl where
-  add_assoc := fun a b c => by ext <;> simp <;> ring
-  zero_add := fun a => by ext <;> simp
-  add_zero := fun a => by ext <;> simp
-  add_comm := fun a b => by ext <;> simp <;> ring
-  neg_add_cancel := fun a => by ext <;> simp
-  sub_eq_add_neg := fun _ _ => rfl
-  nsmul := nsmulRec
-  zsmul := zsmulRec
+abbrev Settl := SettlementAlgebra.Settlement
 
 /-! ## Part 2: Conservation Homomorphism -/
 
 /-- Δ(s) = dx + dy. Zero iff the settlement is balanced (no net token creation). -/
-def Δ : Settl →+ ℤ where
-  toFun := fun s => s.dx + s.dy
-  map_zero' := by rfl
-  map_add' := fun a b => by
-    show (a.dx + b.dx) + (a.dy + b.dy) = (a.dx + a.dy) + (b.dx + b.dy); ring
+abbrev Δ : Settl →+ ℤ := SettlementAlgebra.Δ
 
 /-! ## Part 3: The Price-Parameterized Value Functional -/
 
@@ -85,7 +55,9 @@ def Δ : Settl →+ ℤ where
     This is an AddMonoidHom for each fixed price p. -/
 def V (p : ℤ) : Settl →+ ℤ where
   toFun := fun s => p * s.dx + s.dy
-  map_zero' := by simp
+  map_zero' := by
+    change p * (0 : ℤ) + (0 : ℤ) = 0
+    ring
   map_add' := fun a b => by
     show p * (a.dx + b.dx) + (a.dy + b.dy) = (p * a.dx + a.dy) + (p * b.dx + b.dy)
     ring
@@ -106,10 +78,13 @@ theorem value_decomposition (p : ℤ) (s : Settl) :
     V_p(s) = dx·(p-1). -/
 theorem balanced_value (p : ℤ) (s : Settl) (h : Δ s = 0) :
     V p s = s.dx * (p - 1) := by
-  have hd := value_decomposition p s
-  simp only [Δ, AddMonoidHom.coe_mk, ZeroHom.coe_mk] at h
+  have hsum : s.dx + s.dy = 0 := by
+    simpa [SettlementAlgebra.Δ, SettlementAlgebra.netFlow] using h
+  have hdy : s.dy = -s.dx := by
+    linarith
   show p * s.dx + s.dy = s.dx * (p - 1)
-  linarith
+  rw [hdy]
+  ring
 
 /-- Price sensitivity: changing price by δ changes value by δ·dx.
     This is the "delta" exposure of the settlement. -/
@@ -141,9 +116,12 @@ theorem V_separates_points (s : Settl) (h : ∀ p : ℤ, V p s = 0) :
 theorem ker_Δ_inter_ker_V_trivial (p : ℤ) (hp : p ≠ 1)
     (s : Settl) (hbal : Δ s = 0) (hval : V p s = 0) :
     s = 0 := by
-  simp only [Δ, V, AddMonoidHom.coe_mk, ZeroHom.coe_mk] at hbal hval
-  have hdy : s.dy = -s.dx := by linarith
-  have hmul : s.dx * (p - 1) = 0 := by linarith
+  have hsum : s.dx + s.dy = 0 := by
+    simpa [SettlementAlgebra.Δ, SettlementAlgebra.netFlow] using hbal
+  have hdy : s.dy = -s.dx := by
+    linarith
+  have hmul : s.dx * (p - 1) = 0 := by
+    rw [← balanced_value p s hbal, hval]
   have hne : p - 1 ≠ 0 := by omega
   have hdx : s.dx = 0 := by
     rcases mul_eq_zero.mp hmul with h | h
@@ -192,8 +170,11 @@ theorem two_prices_determine (p₁ p₂ : ℤ) (hp : p₁ ≠ p₂)
 theorem balanced_positive_value (s : Settl) (p : ℤ)
     (hbal : Δ s = 0) (hdx : 0 < s.dx) :
     0 < V p s ↔ 1 < p := by
-  simp only [V, Δ, AddMonoidHom.coe_mk, ZeroHom.coe_mk] at hbal ⊢
-  have hdy : s.dy = -s.dx := by linarith
+  simp only [V, AddMonoidHom.coe_mk, ZeroHom.coe_mk] at ⊢
+  have hsum : s.dx + s.dy = 0 := by
+    simpa [SettlementAlgebra.Δ, SettlementAlgebra.netFlow] using hbal
+  have hdy : s.dy = -s.dx := by
+    linarith
   rw [hdy]
   constructor
   · intro h
@@ -212,8 +193,8 @@ theorem balanced_positive_value (s : Settl) (p : ℤ)
 
 /-- Conservation = unit value: V_1(⟨100,-70⟩) = 30 = Δ(⟨100,-70⟩). -/
 theorem witness_V_at_unit :
-    V 1 (Settl.mk 100 (-70)) = 30 ∧
-    Δ (Settl.mk 100 (-70)) = 30 := by native_decide
+    V 1 ({ dx := 100, dy := -70 } : Settl) = 30 ∧
+    Δ ({ dx := 100, dy := -70 } : Settl) = 30 := by native_decide
 
 /-- Balanced settlement value at price 3:
     s = ⟨50,-50⟩ (balanced). V_3(s) = 3·50-50 = 100 = dx·(p-1) = 50·2. -/
@@ -228,8 +209,8 @@ theorem witness_nontrivial_kernel :
 
 /-- Two prices determine: V_0 and V_1 at ⟨100,-70⟩ give -70 and 30. -/
 theorem witness_two_prices :
-    V 0 (Settl.mk 100 (-70)) = -70 ∧
-    V 1 (Settl.mk 100 (-70)) = 30 := by native_decide
+    V 0 ({ dx := 100, dy := -70 } : Settl) = -70 ∧
+    V 1 ({ dx := 100, dy := -70 } : Settl) = 30 := by native_decide
 
 /-- Arbitrage: s=⟨100,-100⟩ balanced, p=2>1, V_2(s)=100>0. Profitable. -/
 theorem witness_arbitrage :
