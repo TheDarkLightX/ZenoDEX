@@ -22,6 +22,7 @@ import Proofs.FundingRateMarketSafety
 import Proofs.ILFuturesSafety
 import Proofs.VolatilityTierSafety
 import Proofs.CurveSelectionSafety
+import Proofs.PerpFundingAlgebra
 import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
 import Proofs.ZenoDEXRounding
