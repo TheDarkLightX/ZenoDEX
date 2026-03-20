@@ -27,7 +27,7 @@ def test_lean_routing_foundation_proof_file_typechecks(target: str) -> None:
 
     try:
         proc = subprocess.run(
-            [lake, "env", "lean", "-E", "warning", target],
+            [lake, "env", "lean", "-DwarningAsError=true", target],
             cwd=lean_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -35,7 +35,7 @@ def test_lean_routing_foundation_proof_file_typechecks(target: str) -> None:
             timeout=180,
         )
     except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake env lean -E warning timed out after {exc.timeout}s for {target}")
+        pytest.skip(f"lake env lean -DwarningAsError=true timed out after {exc.timeout}s for {target}")
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
