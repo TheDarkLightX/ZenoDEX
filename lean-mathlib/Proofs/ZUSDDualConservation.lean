@@ -12,10 +12,11 @@ zUSD maintains TWO independent conservation laws simultaneously:
 1. **Debt conservation**: `free_debt + sp_debt = total_debt`
 2. **Collateral conservation**: `Δvault + Δsp + Δprotocol + Δexternal = 0`
 
-A valid protocol action must satisfy BOTH. This file formalizes
+A valid runtime protocol action must satisfy BOTH. This file formalizes
 two independent AddMonoidHoms and proves:
 - Both are genuinely independent (neither implies the other)
-- Every protocol action is in both kernels simultaneously
+- Several concrete protocol actions are in both kernels simultaneously
+- Additional abstract balance templates are in both kernels as algebraic objects
 - Joint conservation composes and inverts
 
 ## What This File Proves (11 substantive theorems)
@@ -30,10 +31,10 @@ two independent AddMonoidHoms and proves:
 5. **joint_conservation_compositional**: composition preserves joint conservation
 6. **joint_conservation_inverse**: inverse preserves joint conservation
 
-### Protocol Actions in Joint Kernel
+### Concrete protocol actions and abstract templates
 7. **mint_joint_conserves**: mint satisfies both laws
-8. **liquidate_joint_conserves**: liquidation satisfies both laws
-9. **redeem_joint_conserves**: redemption satisfies both laws
+8. **abstract_liquidation_template_conserves**: a liquidation-shaped transfer preserves both laws algebraically
+9. **abstract_redemption_template_conserves**: a redemption-shaped fee split preserves both laws algebraically
 
 ### Independence (the deep result)
 10. **debt_without_coll**: exists action satisfying debt but not coll
@@ -187,16 +188,21 @@ theorem joint_conservation_inverse {a : FullAction}
   · rw [show debtMeasure (-a) = -(debtMeasure a) from debtHom.map_neg a, hd, neg_zero]
   · rw [show collMeasure (-a) = -(collMeasure a) from collHom.map_neg a, hc, neg_zero]
 
-/-! ## Part 5: Protocol Actions in Joint Kernel -/
+/-! ## Part 5: Concrete protocol actions and abstract balance templates -/
 
 def fullMint (amount : ℤ) : FullAction := ⟨amount, 0, amount, 0, 0, 0, 0⟩
 def fullRepay (amount : ℤ) : FullAction := ⟨-amount, 0, -amount, 0, 0, 0, 0⟩
 def fullDeposit (amount : ℤ) : FullAction := ⟨0, 0, 0, amount, 0, 0, -amount⟩
 def fullWithdraw (amount : ℤ) : FullAction := ⟨0, 0, 0, -amount, 0, 0, amount⟩
 def fullDepositSP (amount : ℤ) : FullAction := ⟨-amount, amount, 0, 0, 0, 0, 0⟩
-def fullLiquidate (debt_amt coll_amt : ℤ) : FullAction :=
+/-- An abstract whole-vault liquidation-shaped transfer.
+    This is an algebraic conservation template, not a claim about the
+    exact runtime liquidation command surface. -/
+def liquidationTemplate (debt_amt coll_amt : ℤ) : FullAction :=
   ⟨0, -debt_amt, -debt_amt, -coll_amt, coll_amt, 0, 0⟩
-def fullRedeem (debt_amt gross_coll fee_coll : ℤ) : FullAction :=
+/-- An abstract redemption-shaped fee split.
+    This is an algebraic conservation template, not a runtime pricing theorem. -/
+def redemptionTemplate (debt_amt gross_coll fee_coll : ℤ) : FullAction :=
   ⟨-debt_amt, 0, -debt_amt, -gross_coll, 0, fee_coll, gross_coll - fee_coll⟩
 
 theorem mint_joint_conserves (amt : ℤ) : (fullMint amt).conserves := by
@@ -214,11 +220,15 @@ theorem withdraw_joint_conserves (amt : ℤ) : (fullWithdraw amt).conserves := b
 theorem deposit_sp_joint_conserves (amt : ℤ) : (fullDepositSP amt).conserves := by
   rw [joint_conserves_iff]; constructor <;> (simp [debtMeasure, collMeasure, fullDepositSP])
 
-theorem liquidate_joint_conserves (d c : ℤ) : (fullLiquidate d c).conserves := by
-  rw [joint_conserves_iff]; constructor <;> (simp [debtMeasure, collMeasure, fullLiquidate])
+theorem abstract_liquidation_template_conserves (d c : ℤ) :
+    (liquidationTemplate d c).conserves := by
+  rw [joint_conserves_iff]
+  constructor <;> (simp [debtMeasure, collMeasure, liquidationTemplate])
 
-theorem redeem_joint_conserves (d g f : ℤ) : (fullRedeem d g f).conserves := by
-  rw [joint_conserves_iff]; constructor <;> (simp [debtMeasure, collMeasure, fullRedeem])
+theorem abstract_redemption_template_conserves (d g f : ℤ) :
+    (redemptionTemplate d g f).conserves := by
+  rw [joint_conserves_iff]
+  constructor <;> (simp [debtMeasure, collMeasure, redemptionTemplate])
 
 /-! ## Part 6: Independence of the Two Conservation Laws
 
@@ -291,14 +301,14 @@ theorem witness_mint :
 /-- Witness: complex transaction satisfies both laws. -/
 theorem witness_complex :
     let tx := fullDeposit 1000 + fullMint 500 + fullDepositSP 200 +
-              fullLiquidate 200 800
+              liquidationTemplate 200 800
     tx.conserves :=
   joint_conservation_compositional
     (joint_conservation_compositional
       (joint_conservation_compositional
         (deposit_joint_conserves 1000) (mint_joint_conserves 500))
       (deposit_sp_joint_conserves 200))
-    (liquidate_joint_conserves 200 800)
+    (abstract_liquidation_template_conserves 200 800)
 
 /-- Witness: independence is real — same action gives different measures.
     a = ⟨1,-1,0,1,0,0,0⟩: debt_measure = 0, coll_measure = 1. -/
