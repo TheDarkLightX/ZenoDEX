@@ -29,7 +29,9 @@ batch sizes `n > 0`:
 Key properties:
 1. reduction is monotonically increasing in n
 2. reduction(1) = 0 (no protection for single intent)
-3. reduction(n) < 1 for all finite n (never fully eliminated)
+3. the rational-style reduction fraction `(n - 1) / n` is always strictly below 1
+   at the numerator/denominator level; this does not prevent floor-rounded
+   modeled profit from reaching 0 on small `base_profit`
 4. For n₁ ≤ n₂: reduction(n₁) ≤ reduction(n₂)
 -/
 
@@ -171,6 +173,13 @@ theorem witness_reduction_identity :
   intro n hn
   simp [reductionNum]
   omega
+
+/-- Floor division can eliminate the modeled profit completely on low-profit batches.
+    This is why this file only packages the arithmetic toy family and does not claim
+    a protocol-level "never fully eliminated" result. -/
+theorem witness_modeled_profit_can_floor_to_zero :
+    1 / 2 = 0 := by
+  native_decide
 
 end MEVResistanceBound
 end Proofs

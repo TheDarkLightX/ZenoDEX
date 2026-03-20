@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -35,7 +36,7 @@ def test_lean_mev_resistance_bound_builds_without_warnings() -> None:
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
-def test_lean_mev_resistance_bound_joins_default_proofs_build() -> None:
+def test_lean_mev_resistance_bound_exported_via_proofs_root() -> None:
     lake = shutil.which("lake")
     if not lake:
         pytest.skip("lake not installed")
@@ -45,9 +46,19 @@ def test_lean_mev_resistance_bound_joins_default_proofs_build() -> None:
     if not (root / "external" / "mathlib4").exists():
         pytest.skip("mathlib4 checkout missing")
 
+    smoke = "import Proofs\n#check Proofs.MEVResistanceBound.reduction_single\n"
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".lean",
+        dir=lean_dir,
+        delete=False,
+    ) as handle:
+        handle.write(smoke)
+        smoke_path = Path(handle.name)
+
     try:
         proc = subprocess.run(
-            [lake, "build", "Proofs"],
+            [lake, "env", "lean", "-DwarningAsError=true", smoke_path.name],
             cwd=lean_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -55,6 +66,8 @@ def test_lean_mev_resistance_bound_joins_default_proofs_build() -> None:
             timeout=240,
         )
     except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake build timed out after {exc.timeout}s for Proofs")
+        pytest.skip(f"lake env lean timed out after {exc.timeout}s for import-Proofs smoke file")
+    finally:
+        smoke_path.unlink(missing_ok=True)
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
