@@ -22,7 +22,7 @@ def test_lean_cpmm_swap_v8_exact_in_admissibility_typechecks() -> None:
 
     try:
         proc = subprocess.run(
-            [lake, "env", "lean", "-E", "warning", TARGET],
+            [lake, "env", "lean", "-DwarningAsError=true", TARGET],
             cwd=lean_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -30,6 +30,6 @@ def test_lean_cpmm_swap_v8_exact_in_admissibility_typechecks() -> None:
             timeout=180,
         )
     except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake env lean -E warning timed out after {exc.timeout}s for {TARGET}")
+        pytest.skip(f"lake env lean -DwarningAsError=true timed out after {exc.timeout}s for {TARGET}")
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
