@@ -43,7 +43,8 @@ structure Inputs where
 deriving DecidableEq, Repr
 
 def releaseEligible (inputs : Inputs) : Bool :=
-  inputs.tauPolicyBundleHash.isSome &&
+  inputs.blocker.isNone &&
+    inputs.tauPolicyBundleHash.isSome &&
     inputs.policyArtifactHash.isSome &&
     inputs.observationHash.isSome &&
     inputs.candidateSetHash.isSome &&
@@ -112,6 +113,16 @@ theorem highestStage_signer_of_no_hashes
     (hDecision : inputs.decisionHash = none) :
     highestStage inputs = Stage.signer := by
   simp [highestStage, releaseEligible, hBundle, hArtifact, hObservation, hCandidate, hDecision]
+
+theorem releaseEligible_false_of_blocker
+    (inputs : Inputs)
+    (hBlocker : inputs.blocker.isSome = true) :
+    releaseEligible inputs = false := by
+  cases hBlk : inputs.blocker with
+  | none =>
+      simp [hBlk] at hBlocker
+  | some blocker =>
+      simp [releaseEligible, hBlk]
 
 theorem verifyCertificate_iff
     (inputs : Inputs)
