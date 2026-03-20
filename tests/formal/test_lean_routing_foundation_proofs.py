@@ -8,14 +8,14 @@ import pytest
 
 
 TARGETS = [
-    "Proofs/AllocationTotality.lean",
-    "Proofs/BatchGreedyOptimality.lean",
-    "Proofs/IteratedSwapDecreasing.lean",
+    "Proofs.AllocationTotality",
+    "Proofs.BatchGreedyOptimality",
+    "Proofs.IteratedSwapDecreasing",
 ]
 
 
 @pytest.mark.parametrize("target", TARGETS)
-def test_lean_routing_foundation_proof_file_typechecks(target: str) -> None:
+def test_lean_routing_foundation_module_builds_without_warnings(target: str) -> None:
     lake = shutil.which("lake")
     if not lake:
         pytest.skip("lake not installed")
@@ -27,7 +27,7 @@ def test_lean_routing_foundation_proof_file_typechecks(target: str) -> None:
 
     try:
         proc = subprocess.run(
-            [lake, "env", "lean", "-DwarningAsError=true", target],
+            [lake, "--wfail", "build", target],
             cwd=lean_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -35,7 +35,7 @@ def test_lean_routing_foundation_proof_file_typechecks(target: str) -> None:
             timeout=180,
         )
     except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake env lean -DwarningAsError=true timed out after {exc.timeout}s for {target}")
+        pytest.skip(f"lake --wfail build timed out after {exc.timeout}s for {target}")
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
