@@ -3,6 +3,7 @@ import Mathlib.Algebra.Group.Defs
 import Mathlib.Algebra.Group.Subgroup.Basic
 import Mathlib.Algebra.Group.Hom.Defs
 import Mathlib.Tactic
+import Proofs.SettlementAlgebra
 
 /-!
 # Conservation Exact Sequence: The Splitting Theorem for DeFi
@@ -196,57 +197,27 @@ theorem kerProject_annihilates_section (C : ConservationSystem G) (n : ℤ) :
 
 /-! ## Part 8: Settlement Instantiation -/
 
-structure Settl where
-  dx : ℤ
-  dy : ℤ
-  deriving Repr, DecidableEq
+abbrev Settl := SettlementAlgebra.Settlement
 
-@[ext] theorem Settl.ext {s₁ s₂ : Settl}
-    (hx : s₁.dx = s₂.dx) (hy : s₁.dy = s₂.dy) : s₁ = s₂ := by
-  cases s₁; cases s₂; simp_all
-
-instance : Zero Settl := ⟨⟨0, 0⟩⟩
-instance : Add Settl :=
-  ⟨fun s₁ s₂ => ⟨s₁.dx + s₂.dx, s₁.dy + s₂.dy⟩⟩
-instance : Neg Settl := ⟨fun s => ⟨-s.dx, -s.dy⟩⟩
-instance : Sub Settl := ⟨fun s₁ s₂ => s₁ + (-s₂)⟩
-
-@[simp] theorem Settl.zero_dx : (0 : Settl).dx = 0 := rfl
-@[simp] theorem Settl.zero_dy : (0 : Settl).dy = 0 := rfl
-@[simp] theorem Settl.add_dx (s₁ s₂ : Settl) :
-    (s₁ + s₂).dx = s₁.dx + s₂.dx := rfl
-@[simp] theorem Settl.add_dy (s₁ s₂ : Settl) :
-    (s₁ + s₂).dy = s₁.dy + s₂.dy := rfl
-@[simp] theorem Settl.neg_dx (s : Settl) : (-s).dx = -s.dx := rfl
-@[simp] theorem Settl.neg_dy (s : Settl) : (-s).dy = -s.dy := rfl
-
-instance : AddCommGroup Settl where
-  add_assoc := fun a b c => by ext <;> simp <;> ring
-  zero_add := fun a => by ext <;> simp
-  add_zero := fun a => by ext <;> simp
-  add_comm := fun a b => by ext <;> simp <;> ring
-  neg_add_cancel := fun a => by ext <;> simp
-  sub_eq_add_neg := fun _ _ => rfl
-  nsmul := nsmulRec
-  zsmul := zsmulRec
-
-def settlΔ : Settl →+ ℤ where
-  toFun := fun s => s.dx + s.dy
-  map_zero' := by rfl
-  map_add' := fun a b => by
-    show (a.dx + b.dx) + (a.dy + b.dy) = (a.dx + a.dy) + (b.dx + b.dy); ring
+abbrev settlΔ : Settl →+ ℤ := SettlementAlgebra.Δ
 
 def settlσ : ℤ →+ Settl where
   toFun := fun n => ⟨n, 0⟩
-  map_zero' := by ext <;> simp
-  map_add' := fun a b => by ext <;> simp
+  map_zero' := by
+    apply SettlementAlgebra.Settlement.ext <;> rfl
+  map_add' := fun a b => by
+    apply SettlementAlgebra.Settlement.ext
+    · rfl
+    · change 0 = (0 : ℤ) + 0
+      simp
 
 /-- The settlement conservation system: φ(s)=dx+dy, σ(n)=⟨n,0⟩. -/
 def settlCS : ConservationSystem Settl where
   φ := settlΔ
   σ := settlσ
   right_inv := fun n => by
-    simp only [settlΔ, settlσ, AddMonoidHom.coe_mk, ZeroHom.coe_mk]
+    simp only [settlΔ, SettlementAlgebra.Δ, SettlementAlgebra.netFlow, settlσ,
+      AddMonoidHom.coe_mk, ZeroHom.coe_mk]
     ring
 
 /-! ## Part 9: zUSD Debt Instantiation -/
@@ -321,8 +292,8 @@ def debtCS : ConservationSystem DebtAction where
 theorem witness_settl_decomposition :
     let s : Settl := ⟨100, -90⟩
     settlΔ s = 10 ∧
-    kerProject settlCS s = Settl.mk 90 (-90) ∧
-    settlσ 10 = Settl.mk 10 0 ∧
+    kerProject settlCS s = ({ dx := 90, dy := -90 } : Settl) ∧
+    settlσ 10 = ({ dx := 10, dy := 0 } : Settl) ∧
     s = kerProject settlCS s + settlσ (settlΔ s) := by native_decide
 
 /-- Debt decomposition: ⟨500,200,600⟩ = ⟨400,200,600⟩ + ⟨100,0,0⟩.
@@ -337,7 +308,7 @@ theorem witness_debt_decomposition :
 /-- Trivial intersection: σ(5) has Δ=5≠0, so it's NOT in the kernel. -/
 theorem witness_trivial_intersection :
     let g : Settl := settlσ 5
-    settlΔ g = 5 ∧ g = Settl.mk 5 0 ∧
+    settlΔ g = 5 ∧ g = ({ dx := 5, dy := 0 } : Settl) ∧
     ¬(settlΔ g = 0 ∧ g ≠ 0) := by native_decide
 
 /-- Uniqueness: the decomposition is determined by the element. -/

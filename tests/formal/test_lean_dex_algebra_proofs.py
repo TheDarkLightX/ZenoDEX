@@ -8,15 +8,15 @@ import pytest
 
 
 TARGETS = [
-    "Proofs/DEXCanonicalSelection.lean",
-    "Proofs/DEXExactSequence.lean",
-    "Proofs/DEXValueAlgebra.lean",
-    "Proofs/LPValueAlgebra.lean",
+    ("Proofs/DEXCanonicalSelection.lean", "Proofs.DEXCanonicalSelection"),
+    ("Proofs/DEXExactSequence.lean", "Proofs.DEXExactSequence"),
+    ("Proofs/DEXValueAlgebra.lean", "Proofs.DEXValueAlgebra"),
+    ("Proofs/LPValueAlgebra.lean", "Proofs.LPValueAlgebra"),
 ]
 
 
-@pytest.mark.parametrize("target", TARGETS)
-def test_lean_dex_algebra_proof_file_typechecks(target: str) -> None:
+@pytest.mark.parametrize(("target", "module"), TARGETS)
+def test_lean_dex_algebra_proof_file_typechecks(target: str, module: str) -> None:
     lake = shutil.which("lake")
     if not lake:
         pytest.skip("lake not installed")
@@ -28,7 +28,7 @@ def test_lean_dex_algebra_proof_file_typechecks(target: str) -> None:
 
     try:
         proc = subprocess.run(
-            [lake, "env", "lean", target],
+            [lake, "build", module],
             cwd=lean_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -36,6 +36,6 @@ def test_lean_dex_algebra_proof_file_typechecks(target: str) -> None:
             timeout=180,
         )
     except subprocess.TimeoutExpired as exc:
-        pytest.skip(f"lake env lean timed out after {exc.timeout}s for {target}")
+        pytest.skip(f"lake build timed out after {exc.timeout}s for {target}")
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
