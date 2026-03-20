@@ -1,0 +1,17 @@
+# Settlement feature-extension checklist
+#
+# Purpose:
+# - isolate optional aligned-settlement feature checks;
+# - keep buyback, rebate, and lock-weight semantics grouped without mixing them
+#   into the core accounting shell.
+#
+# Inputs:
+# i1 = buyback_floor_ok
+# i2 = buyback_floor_fixedpoint_ok
+# i3 = rebate_ok
+# i4 = lock_weight_ok
+# o1 = feature_extension_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf))).

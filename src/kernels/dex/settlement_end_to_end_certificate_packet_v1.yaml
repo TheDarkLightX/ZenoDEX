@@ -1,0 +1,138 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_end_to_end_certificate_packet_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the replayable settlement end-to-end
+    certificate packet.
+
+    Purpose:
+    - mechanically check the boolean acceptance relation around the unified
+      settlement packet
+    - keep the boundary explicit: packet_ok holds exactly when the replay-bound
+      strong certificate is valid, the module bundle is green, full price rails
+      are green, and the selected nested value lane is green
+
+    Scope boundary:
+    - does not model settlement arithmetic, pricing, or LP semantics
+    - treats the nested strong-certificate and value-lane booleans as external
+      primitives
+    - only checks the deterministic packet shell over bounded booleans
+
+observables:
+  state_vars:
+    [
+      "strong_certificate_ok",
+      "feature_extension_packet_ok",
+      "module_bundle_ok",
+      "full_price_rails_ok",
+      "value_packet_ok",
+      "packet_ok"
+    ]
+  effects: ["packet_ok"]
+
+types: []
+
+state_vars:
+  - id: "strong_certificate_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "module_bundle_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "feature_extension_packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "full_price_rails_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "value_packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "strong_certificate_ok"
+    expr: { bool: false }
+  - var: "module_bundle_ok"
+    expr: { bool: false }
+  - var: "feature_extension_packet_ok"
+    expr: { bool: false }
+  - var: "full_price_rails_ok"
+    expr: { bool: false }
+  - var: "value_packet_ok"
+    expr: { bool: false }
+  - var: "packet_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_packet_ok_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "packet_ok" }
+        - op: "and"
+          args:
+            - { var: "strong_certificate_ok" }
+            - op: "and"
+              args:
+                - { var: "feature_extension_packet_ok" }
+                - op: "and"
+                  args:
+                    - { var: "module_bundle_ok" }
+                    - op: "and"
+                      args:
+                        - { var: "full_price_rails_ok" }
+                        - { var: "value_packet_ok" }
+
+actions:
+  - id: "rebuild_end_to_end_packet"
+    params:
+      - id: "strong_certificate_ok_in"
+        type: { kind: "bool" }
+      - id: "module_bundle_ok_in"
+        type: { kind: "bool" }
+      - id: "feature_extension_packet_ok_in"
+        type: { kind: "bool" }
+      - id: "full_price_rails_ok_in"
+        type: { kind: "bool" }
+      - id: "value_packet_ok_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "strong_certificate_ok"
+        expr: { param: "strong_certificate_ok_in" }
+      - var: "module_bundle_ok"
+        expr: { param: "module_bundle_ok_in" }
+      - var: "feature_extension_packet_ok"
+        expr: { param: "feature_extension_packet_ok_in" }
+      - var: "full_price_rails_ok"
+        expr: { param: "full_price_rails_ok_in" }
+      - var: "value_packet_ok"
+        expr: { param: "value_packet_ok_in" }
+      - var: "packet_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "strong_certificate_ok_in" }
+            - op: "and"
+              args:
+                - { param: "feature_extension_packet_ok_in" }
+                - op: "and"
+                  args:
+                    - { param: "module_bundle_ok_in" }
+                    - op: "and"
+                      args:
+                        - { param: "full_price_rails_ok_in" }
+                        - { param: "value_packet_ok_in" }
+    effects:
+      packet_ok: { var: "packet_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_end_to_end_packet"
+    kind: "inductive"

@@ -1,0 +1,82 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "exact_out_many_pool_certified_winner_packet_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the unified many-pool exact-out certified
+    winner packet.
+
+    Purpose:
+    - mechanically check that the unified packet gate is exactly the
+      conjunction of the bounded candidate-domain contract and guarded winner
+      packet success booleans
+
+    Scope boundary:
+    - does not model routing arithmetic or global optimality
+    - treats domain_contract_ok and guard_ok as externally supplied primitives
+    - only checks the deterministic packet shell over bounded booleans
+
+observables:
+  state_vars: ["domain_contract_ok", "guard_ok", "packet_ok"]
+  effects: ["packet_ok"]
+
+types: []
+
+state_vars:
+  - id: "domain_contract_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "guard_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "domain_contract_ok"
+    expr: { bool: false }
+  - var: "guard_ok"
+    expr: { bool: false }
+  - var: "packet_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_packet_ok_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "packet_ok" }
+        - op: "and"
+          args:
+            - { var: "domain_contract_ok" }
+            - { var: "guard_ok" }
+
+actions:
+  - id: "rebuild_certified_winner_packet"
+    params:
+      - id: "domain_contract_ok_in"
+        type: { kind: "bool" }
+      - id: "guard_ok_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "domain_contract_ok"
+        expr: { param: "domain_contract_ok_in" }
+      - var: "guard_ok"
+        expr: { param: "guard_ok_in" }
+      - var: "packet_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "domain_contract_ok_in" }
+            - { param: "guard_ok_in" }
+    effects:
+      packet_ok: { var: "packet_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_certified_winner_packet"
+    kind: "inductive"
