@@ -37,7 +37,9 @@ def releaseError
     (emitRequested liveAdmissionOk systemComposeOk submitBundleOk emitFinalizeOk : Bool)
     (liveAdmissionError systemComposeError submitBundleError emitFinalizeError : Option Nat) :
     Option Nat :=
-  if !liveAdmissionOk then
+  if !emitRequested then
+    some 5
+  else if !liveAdmissionOk then
     match liveAdmissionError with
     | some err => some err
     | none => some 1
@@ -191,6 +193,15 @@ theorem buildCertificate_releaseError_emitNotRequested
       inputs
       false true true true true
       none none none none).releaseError = some 5 := by
+  simp [buildCertificate, releaseError]
+
+theorem buildCertificate_releaseError_emitNotRequested_overrides_downstream
+    (inputs : Inputs)
+    (liveAdmissionError systemComposeError submitBundleError emitFinalizeError : Option Nat) :
+    (buildCertificate
+      inputs
+      false false false false false
+      liveAdmissionError systemComposeError submitBundleError emitFinalizeError).releaseError = some 5 := by
   simp [buildCertificate, releaseError]
 
 end LiveReleaseCertificate
