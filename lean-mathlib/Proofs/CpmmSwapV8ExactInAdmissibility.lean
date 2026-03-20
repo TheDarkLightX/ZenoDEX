@@ -25,7 +25,7 @@ def exactInOutput (rin rout gross fee_bps : Nat) : Nat :=
 def exactInOutputFloor (rin rout gross fee_bps : Nat) : Nat :=
   swapOutput rin rout (exactInNetFloor gross fee_bps)
 
-lemma exactInNet_eq_floor (gross fee_bps : Nat) :
+lemma exactInNet_eq_floor (gross fee_bps : Nat) (_hfee : fee_bps ≤ BPS) :
     exactInNet gross fee_bps = exactInNetFloor gross fee_bps := by
   simpa [BPS, exactInNet, exactInNetFloor] using
     (net_actual_eq_floor_mul gross fee_bps BPS (by decide))
@@ -35,16 +35,17 @@ lemma exactInNetFloor_mono {fee_bps a b : Nat} (hab : a ≤ b) :
   unfold exactInNetFloor BPS
   exact Nat.div_le_div_right (Nat.mul_le_mul_right (10000 - fee_bps) hab)
 
-lemma exactInNet_mono {fee_bps a b : Nat} (hab : a ≤ b) :
+lemma exactInNet_mono {fee_bps a b : Nat} (hfee : fee_bps ≤ BPS) (hab : a ≤ b) :
     exactInNet a fee_bps ≤ exactInNet b fee_bps := by
-  rw [exactInNet_eq_floor, exactInNet_eq_floor]
+  rw [exactInNet_eq_floor _ _ hfee, exactInNet_eq_floor _ _ hfee]
   exact exactInNetFloor_mono hab
 
 lemma exactInNet_positive_suffix {fee_bps a b : Nat}
+    (hfee : fee_bps ≤ BPS)
     (hab : a ≤ b)
     (hpos : 0 < exactInNet a fee_bps) :
     0 < exactInNet b fee_bps := by
-  have hmono : exactInNet a fee_bps ≤ exactInNet b fee_bps := exactInNet_mono hab
+  have hmono : exactInNet a fee_bps ≤ exactInNet b fee_bps := exactInNet_mono hfee hab
   exact lt_of_lt_of_le hpos hmono
 
 lemma swapOutput_mono_in_net {rin rout netSmall netLarge : Nat}
@@ -80,24 +81,26 @@ lemma swapOutput_mono_in_net {rin rout netSmall netLarge : Nat}
       _ ≤ rout * netSmall + rout * (netLarge - netSmall) := add_le_add hdiv hgap
       _ = rout * netLarge := hsplit_right.symm
 
-lemma exactInOutput_eq_floor (rin rout gross fee_bps : Nat) :
+lemma exactInOutput_eq_floor (rin rout gross fee_bps : Nat) (hfee : fee_bps ≤ BPS) :
     exactInOutput rin rout gross fee_bps = exactInOutputFloor rin rout gross fee_bps := by
-  simp [exactInOutput, exactInOutputFloor, exactInNet_eq_floor]
+  simp [exactInOutput, exactInOutputFloor, exactInNet_eq_floor _ _ hfee]
 
 lemma exactInOutput_mono {rin rout fee_bps a b : Nat}
+    (hfee : fee_bps ≤ BPS)
     (hrin : 0 < rin)
     (hab : a ≤ b) :
     exactInOutput rin rout a fee_bps ≤ exactInOutput rin rout b fee_bps := by
-  rw [exactInOutput_eq_floor, exactInOutput_eq_floor]
+  rw [exactInOutput_eq_floor _ _ _ _ hfee, exactInOutput_eq_floor _ _ _ _ hfee]
   exact swapOutput_mono_in_net hrin (exactInNetFloor_mono hab)
 
 theorem exactInPositiveOutput_suffix {rin rout fee_bps a b : Nat}
+    (hfee : fee_bps ≤ BPS)
     (hrin : 0 < rin)
     (hab : a ≤ b)
     (hpos : 0 < exactInOutput rin rout a fee_bps) :
     0 < exactInOutput rin rout b fee_bps := by
   have hmono : exactInOutput rin rout a fee_bps ≤ exactInOutput rin rout b fee_bps :=
-    exactInOutput_mono hrin hab
+    exactInOutput_mono hfee hrin hab
   exact lt_of_lt_of_le hpos hmono
 
 end V8
