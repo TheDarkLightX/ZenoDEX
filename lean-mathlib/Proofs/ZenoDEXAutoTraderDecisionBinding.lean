@@ -8,7 +8,9 @@ It proves the following, under the same binary frontier used by the shipped
 integration code:
 
 - the derived `binding_ok` predicate holds for the canonical rebuilt
-  certificate when the candidate set is well-formed,
+  certificate when the candidate set is well-formed and the HASHED emit
+  candidate key already matches the effective key under the chosen
+  kill-switch posture,
 - verifier success with an explicit kill-switch posture is equivalent to exact
   equality with the canonical rebuilt certificate,
 - for a fixed candidate set and kill-switch posture, the verifying certificate
@@ -150,7 +152,7 @@ def decisionBindingOk
     (killSwitchActive : Bool) : Prop :=
   candidateSetOk candidateSet ∧
     candidateSet.noopCandidate.candidateKey = 0 ∧
-    candidateSet.emitCandidate.candidateKey = rawEmitKey candidateSet ∧
+    candidateSet.emitCandidate.candidateKey = effectiveEmitKey candidateSet killSwitchActive ∧
     winnerIndex = DecisionBinding.winnerIndex candidateSet killSwitchActive ∧
     winnerKey = DecisionBinding.winnerKey candidateSet killSwitchActive ∧
     candidateSetHash candidateSet = canonicalCandidateSetHash candidateSet
@@ -205,7 +207,7 @@ def buildDecisionCertificate
         buildArgmaxStep
           (winnerKey candidateSet killSwitchActive)
           (winnerIndex candidateSet killSwitchActive)
-          (effectiveEmitKey candidateSet killSwitchActive)
+          candidateSet.emitCandidate.candidateKey
           candidateSet.emitCandidate.candidateIndex
           bindingOk ]
     killSwitchActive := killSwitchActive
@@ -226,22 +228,22 @@ theorem bindingOk_of_wellFormed
     {candidateSet : StrategyCandidateSet}
     (hSet : candidateSetOk candidateSet)
     (hNoopKey : candidateSet.noopCandidate.candidateKey = 0)
-    (hEmitKey : candidateSet.emitCandidate.candidateKey = rawEmitKey candidateSet)
-    (killSwitchActive : Bool) :
+    (killSwitchActive : Bool)
+    (hEmitKey : candidateSet.emitCandidate.candidateKey = effectiveEmitKey candidateSet killSwitchActive) :
     decisionBindingOk
       candidateSet
       (winnerIndex candidateSet killSwitchActive)
       (winnerKey candidateSet killSwitchActive)
       killSwitchActive := by
-  refine ⟨hSet, hNoopKey, hEmitKey, rfl, rfl, ?_⟩
-  exact candidateSetHash_eq_canonicalCandidateSetHash candidateSet
+  exact ⟨hSet, hNoopKey, hEmitKey, rfl, rfl,
+    candidateSetHash_eq_canonicalCandidateSetHash candidateSet⟩
 
 theorem buildDecisionCertificate_bindingBit_true
     {candidateSet : StrategyCandidateSet}
     (hSet : candidateSetOk candidateSet)
     (hNoopKey : candidateSet.noopCandidate.candidateKey = 0)
-    (hEmitKey : candidateSet.emitCandidate.candidateKey = rawEmitKey candidateSet)
-    (killSwitchActive : Bool) :
+    (killSwitchActive : Bool)
+    (hEmitKey : candidateSet.emitCandidate.candidateKey = effectiveEmitKey candidateSet killSwitchActive) :
     (buildDecisionCertificate candidateSet killSwitchActive).argmaxSteps.all ArgmaxStep.i5 = true := by
   have hProof :
       decisionBindingOk
@@ -249,7 +251,7 @@ theorem buildDecisionCertificate_bindingBit_true
         (winnerIndex candidateSet killSwitchActive)
         (winnerKey candidateSet killSwitchActive)
         killSwitchActive :=
-    bindingOk_of_wellFormed hSet hNoopKey hEmitKey killSwitchActive
+    bindingOk_of_wellFormed hSet hNoopKey killSwitchActive hEmitKey
   have hBinding :
       decide
         (decisionBindingOk
@@ -303,7 +305,7 @@ theorem buildDecisionCertificate_argmaxShape
         buildArgmaxStep
           (winnerKey candidateSet killSwitchActive)
           (winnerIndex candidateSet killSwitchActive)
-          (effectiveEmitKey candidateSet killSwitchActive)
+          candidateSet.emitCandidate.candidateKey
           candidateSet.emitCandidate.candidateIndex
           (decide
             (decisionBindingOk
@@ -312,6 +314,46 @@ theorem buildDecisionCertificate_argmaxShape
               (winnerKey candidateSet killSwitchActive)
               killSwitchActive)) ] := by
   rfl
+
+def killSwitchMismatchCandidateSet : StrategyCandidateSet :=
+  {
+    policyArtifactHash := 11
+    tauPolicyBundleHash := 13
+    observationHash := 17
+    decisionModelVersion := 19
+    noopCandidate :=
+      {
+        candidateIndex := 0
+        kind := CandidateKind.noOp
+        requested := false
+        admissible := true
+        candidateKey := 0
+      }
+    emitCandidate :=
+      {
+        candidateIndex := 1
+        kind := CandidateKind.emitCompiledIntent
+        requested := true
+        admissible := true
+        candidateKey := 1
+      }
+  }
+
+theorem killSwitchMismatchCandidateSet_ok :
+    candidateSetOk killSwitchMismatchCandidateSet := by
+  decide
+
+theorem decisionBindingOk_false_on_killSwitch_hash_mismatch :
+    ¬ decisionBindingOk
+      killSwitchMismatchCandidateSet
+      (winnerIndex killSwitchMismatchCandidateSet true)
+      (winnerKey killSwitchMismatchCandidateSet true)
+      true := by
+  decide
+
+theorem buildDecisionCertificate_bindingBit_false_on_killSwitch_hash_mismatch :
+    (buildDecisionCertificate killSwitchMismatchCandidateSet true).argmaxSteps.all ArgmaxStep.i5 = false := by
+  native_decide
 
 end DecisionBinding
 end AutoTrader
