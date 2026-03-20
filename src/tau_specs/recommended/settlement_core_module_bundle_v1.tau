@@ -1,0 +1,15 @@
+# Settlement core module checklist
+#
+# Purpose:
+# - isolate the always-required non-price settlement core checks;
+# - keep the review and proof surface small for the core accounting shell.
+#
+# Inputs:
+# i1 = cpmm_ok
+# i2 = balance_ok
+# i3 = token_ok
+# o1 = core_module_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))).

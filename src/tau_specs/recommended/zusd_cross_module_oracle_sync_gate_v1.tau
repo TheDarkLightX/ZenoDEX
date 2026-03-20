@@ -1,0 +1,5 @@
+# zUSD Cross-Module Oracle Sync Gate v1
+set charvar off
+env_ok(sync_snapshot_available : sbf) := (sync_snapshot_available = 1:sbf).
+sync_gate_ok(sync_snapshot_available : sbf, divergence_bounded : sbf, epoch_lag_bounded : sbf) := env_ok(sync_snapshot_available) && (divergence_bounded = 1:sbf) && (epoch_lag_bounded = 1:sbf).
+always (o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> sync_gate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)).

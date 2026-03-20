@@ -82,6 +82,12 @@ ZUSD_ORACLE_COMMIT_GUARD_V2 = TauSpecRef(
     gate_output="o4",
 )
 
+ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1 = TauSpecRef(
+    spec_id="zusd_cross_module_oracle_sync_gate_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_cross_module_oracle_sync_gate_v1.tau",
+    gate_output="o2",
+)
+
 ZUSD_LIQUIDATION_GUARD_V2 = TauSpecRef(
     spec_id="zusd_liquidation_guard_v2",
     path=RECOMMENDED_SPECS_DIR / "zusd_liquidation_guard_v2.tau",
@@ -996,6 +1002,45 @@ def build_settlement_module_flag_bundle_v1_step(
     }
 
 
+def build_settlement_core_module_bundle_v1_step(
+    *,
+    cpmm_ok: int = 1,
+    balance_ok: int = 1,
+    token_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("cpmm_ok", cpmm_ok),
+        "i2": _sbf("balance_ok", balance_ok),
+        "i3": _sbf("token_ok", token_ok),
+    }
+
+
+def build_settlement_feature_extension_bundle_v1_step(
+    *,
+    buyback_floor_ok: int = 1,
+    buyback_floor_fixedpoint_ok: int = 1,
+    rebate_ok: int = 1,
+    lock_weight_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("buyback_floor_ok", buyback_floor_ok),
+        "i2": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
+        "i3": _sbf("rebate_ok", rebate_ok),
+        "i4": _sbf("lock_weight_ok", lock_weight_ok),
+    }
+
+
+def build_settlement_proof_binding_bundle_v1_step(
+    *,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("proof_ok", proof_ok),
+        "i2": _sbf("binding_ok", binding_ok),
+    }
+
+
 def build_settlement_v5_aligned_compact_bundle_step(
     *,
     a: int,
@@ -1100,6 +1145,22 @@ def build_zusd_oracle_commit_guard_v2_step(
         "i3": _sbf("fresh_ok", fresh_ok),
         "i4": _sbf("auth_ok", auth_ok),
         "i5": _sbf("mcr_ok_at_pending", mcr_ok_at_pending),
+    }
+
+
+def build_zusd_cross_module_oracle_sync_gate_v1_step(
+    *,
+    sync_snapshot_available: int,
+    divergence_bounded: int,
+    epoch_lag_bounded: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_cross_module_oracle_sync_gate_v1.tau`.
+    """
+    return {
+        "i1": _sbf("sync_snapshot_available", sync_snapshot_available),
+        "i2": _sbf("divergence_bounded", divergence_bounded),
+        "i3": _sbf("epoch_lag_bounded", epoch_lag_bounded),
     }
 
 
