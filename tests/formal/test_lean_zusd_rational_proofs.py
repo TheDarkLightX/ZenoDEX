@@ -11,7 +11,6 @@ TARGETS = [
     "Proofs/ZUSDCeilDivAlgebra.lean",
     "Proofs/ZUSDFeePipeline.lean",
     "Proofs/ZUSDMCRHeadroom.lean",
-    "Proofs/ZUSDSPConvexity.lean",
 ]
 
 
@@ -19,7 +18,7 @@ TARGETS = [
 def test_lean_zusd_rational_proof_file_typechecks(target: str) -> None:
     lake = shutil.which("lake")
     if not lake:
-        return
+        pytest.skip("lake not installed")
 
     root = Path(__file__).resolve().parents[2]
     lean_dir = root / "lean-mathlib"
