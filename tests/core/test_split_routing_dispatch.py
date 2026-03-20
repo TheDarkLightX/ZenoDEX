@@ -14,8 +14,14 @@ import pytest
 
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.split_routing_dispatch import (
+    SplitLegExactOutQuote,
+    SplitManyPoolsExactOutQuote,
+    best_split_many_pools_exact_out_for_pools,
     best_split_two_pools_exact_in_for_pools,
     best_split_two_pools_exact_out_for_pools,
+    exact_out_capacity_guard_for_pools,
+    exact_out_route_canonical_key,
+    exact_out_route_canonical_key_for_legs,
 )
 from src.state.pools import (
     CURVE_TAG_CPMM,
@@ -105,6 +111,7 @@ def _brute_force_best_split_exact_out(
     hi = min(Q, max(0, int(rout0) - 1))
 
     best_in: int | None = None
+    best_key = None
     best_q0 = int(lo)
     for q0 in range(int(lo), int(hi) + 1):
         q1 = int(Q) - int(q0)
@@ -114,8 +121,13 @@ def _brute_force_best_split_exact_out(
         except Exception:
             continue
         tot = int(in0 + in1)
-        if best_in is None or tot < best_in or (tot == best_in and q0 < best_q0):
+        cand_key = exact_out_route_canonical_key_for_legs(
+            amount_in_total=int(tot),
+            legs=tuple((pid, amt) for pid, amt in ((p0.pool_id, int(q0)), (p1.pool_id, int(q1))) if amt > 0),
+        )
+        if best_in is None or best_key is None or tot < best_in or (tot == best_in and cand_key < best_key):
             best_in = tot
+            best_key = cand_key
             best_q0 = int(q0)
     if best_in is None:
         raise ValueError("no feasible split")
@@ -223,3 +235,216 @@ class TestSplitRoutingDispatch:
         assert q.amount_out_0 == best_q0_bf
         assert q.amount_out_0 + q.amount_out_1 == Q
 
+    def test_exact_out_tie_break_uses_full_canonical_key_on_symmetric_plateau(self) -> None:
+        pool_a = _mk_pool(
+            pool_id="pool_a",
+            curve_tag=CURVE_TAG_CPMM,
+            reserve0=40,
+            reserve1=15,
+            fee_bps=0,
+        )
+        pool_b = _mk_pool(
+            pool_id="pool_b",
+            curve_tag=CURVE_TAG_CPMM,
+            reserve0=40,
+            reserve1=15,
+            fee_bps=0,
+        )
+
+        q = best_split_two_pools_exact_out_for_pools(
+            pool_b,
+            pool_a,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_out_total=1,
+            brute_force_max=1,
+        )
+
+        assert q.pool0_id == "pool_a"
+        assert q.pool1_id == "pool_b"
+        assert q.amount_in_total == 3
+        assert q.amount_out_0 == 1
+        assert q.amount_out_1 == 0
+
+    def test_exact_out_capacity_guard_reports_canonical_top_caps(self) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=5, fee_bps=0),
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=5, fee_bps=0),
+            _mk_pool(pool_id="pool_c", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=5, fee_bps=0),
+        )
+
+        guard = exact_out_capacity_guard_for_pools(
+            pools,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_out_total=9,
+            max_legs=2,
+        )
+
+        assert not guard.feasible
+        assert guard.capacity_upper_bound == 8
+        assert guard.top_caps == (("pool_a", 4), ("pool_b", 4))
+
+    def test_exact_out_many_pool_rejects_infeasible_max_legs_request(self) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=5, fee_bps=0),
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=5, fee_bps=0),
+            _mk_pool(pool_id="pool_c", curve_tag=CURVE_TAG_CPMM, reserve0=1_000, reserve1=5, fee_bps=0),
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"no feasible split under max_legs constraint: requested=9 capacity_upper_bound=8 max_legs=2",
+        ):
+            best_split_many_pools_exact_out_for_pools(
+                pools,
+                asset_in=ASSET0,
+                asset_out=ASSET1,
+                amount_out_total=9,
+                max_legs=2,
+            )
+
+    def test_exact_out_many_pool_quote_satisfies_allocation_contract(self) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_c", curve_tag=CURVE_TAG_CPMM, reserve0=12_000, reserve1=900, fee_bps=5),
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=10_000, reserve1=800, fee_bps=0),
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=11_000, reserve1=850, fee_bps=3),
+        )
+
+        quote = best_split_many_pools_exact_out_for_pools(
+            pools,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_out_total=150,
+            max_legs=2,
+            brute_force_max=256,
+        )
+
+        assert len(quote.legs) <= 2
+        assert sum(int(leg.amount_out) for leg in quote.legs) == 150
+        assert sum(int(leg.amount_in) for leg in quote.legs) == int(quote.amount_in_total)
+        assert all(int(leg.amount_out) > 0 for leg in quote.legs)
+        assert all(int(leg.amount_in) > 0 for leg in quote.legs)
+        assert len({leg.pool_id for leg in quote.legs}) == len(quote.legs)
+
+    def test_exact_out_many_pool_uses_canonical_winner_over_selected_domain(self) -> None:
+        pools = (
+            _mk_pool(pool_id="pool_a", curve_tag=CURVE_TAG_CPMM, reserve0=40, reserve1=20, fee_bps=0),
+            _mk_pool(pool_id="pool_b", curve_tag=CURVE_TAG_CPMM, reserve0=40, reserve1=63, fee_bps=0),
+            _mk_pool(pool_id="pool_c", curve_tag=CURVE_TAG_CPMM, reserve0=40, reserve1=20, fee_bps=0),
+        )
+
+        quote = best_split_many_pools_exact_out_for_pools(
+            pools,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_out_total=3,
+            max_legs=3,
+            max_candidates=3,
+            max_iters=512,
+            window=8,
+            brute_force_max=16,
+        )
+
+        assert quote.amount_in_total == 2
+        assert quote.legs == (
+            SplitLegExactOutQuote(pool_id="pool_b", amount_out=3, amount_in=2),
+        )
+
+    def test_exact_out_many_pool_uses_repaired_prefilter_within_audited_bound(self) -> None:
+        pools = (
+            _mk_pool(pool_id="p0", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+            _mk_pool(pool_id="p1", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+            _mk_pool(pool_id="p2", curve_tag=CURVE_TAG_CPMM, reserve0=30, reserve1=15, fee_bps=0),
+            _mk_pool(pool_id="p3", curve_tag=CURVE_TAG_CPMM, reserve0=30, reserve1=15, fee_bps=0),
+        )
+
+        quote = best_split_many_pools_exact_out_for_pools(
+            pools,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_out_total=4,
+            max_legs=3,
+            max_candidates=3,
+            max_iters=512,
+            window=8,
+            brute_force_max=16,
+            max_full_domain_pools=6,
+        )
+
+        assert quote.amount_in_total == 10
+        assert quote.legs == (
+            SplitLegExactOutQuote(pool_id="p0", amount_out=2, amount_in=5),
+            SplitLegExactOutQuote(pool_id="p1", amount_out=2, amount_in=5),
+        )
+
+    def test_exact_out_many_pool_falls_back_outside_audited_bound(self) -> None:
+        pools = (
+            _mk_pool(pool_id="p0", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+            _mk_pool(pool_id="p1", curve_tag=CURVE_TAG_CPMM, reserve0=20, reserve1=10, fee_bps=0),
+            _mk_pool(pool_id="p2", curve_tag=CURVE_TAG_CPMM, reserve0=30, reserve1=15, fee_bps=0),
+            _mk_pool(pool_id="p3", curve_tag=CURVE_TAG_CPMM, reserve0=30, reserve1=15, fee_bps=0),
+        )
+
+        quote = best_split_many_pools_exact_out_for_pools(
+            pools,
+            asset_in=ASSET0,
+            asset_out=ASSET1,
+            amount_out_total=4,
+            max_legs=3,
+            max_candidates=3,
+            max_iters=512,
+            window=8,
+            brute_force_max=16,
+            max_full_domain_pools=3,
+        )
+
+        assert quote.amount_in_total == 10
+        assert quote.legs == (
+            SplitLegExactOutQuote(pool_id="p0", amount_out=2, amount_in=5),
+            SplitLegExactOutQuote(pool_id="p2", amount_out=2, amount_in=5),
+        )
+
+    def test_exact_out_quote_rejects_partial_allocation_state(self) -> None:
+        with pytest.raises(ValueError, match="amount_out_total must equal sum of leg outputs"):
+            SplitManyPoolsExactOutQuote(
+                amount_out_total=10,
+                amount_in_total=11,
+                legs=(SplitLegExactOutQuote(pool_id="pool_a", amount_out=9, amount_in=11),),
+            )
+
+    def test_exact_out_canonical_key_prefers_fewer_legs_then_lex(self) -> None:
+        one_leg = SplitManyPoolsExactOutQuote(
+            amount_out_total=10,
+            amount_in_total=11,
+            legs=(SplitLegExactOutQuote(pool_id="pool_b", amount_out=10, amount_in=11),),
+        )
+        two_legs_lex_low = SplitManyPoolsExactOutQuote(
+            amount_out_total=10,
+            amount_in_total=11,
+            legs=(
+                SplitLegExactOutQuote(pool_id="pool_a", amount_out=4, amount_in=4),
+                SplitLegExactOutQuote(pool_id="pool_c", amount_out=6, amount_in=7),
+            ),
+        )
+        two_legs_lex_high = SplitManyPoolsExactOutQuote(
+            amount_out_total=10,
+            amount_in_total=11,
+            legs=(
+                SplitLegExactOutQuote(pool_id="pool_b", amount_out=4, amount_in=4),
+                SplitLegExactOutQuote(pool_id="pool_c", amount_out=6, amount_in=7),
+            ),
+        )
+
+        assert exact_out_route_canonical_key(one_leg) < exact_out_route_canonical_key(two_legs_lex_low)
+        assert exact_out_route_canonical_key(two_legs_lex_low) < exact_out_route_canonical_key(two_legs_lex_high)
+
+    def test_exact_out_canonical_key_helper_sorts_legs_by_pool_id(self) -> None:
+        key = exact_out_route_canonical_key_for_legs(
+            amount_in_total=11,
+            legs=(("pool_c", 6), ("pool_a", 4)),
+        )
+
+        assert key.amount_in_total == 11
+        assert key.leg_count == 2
+        assert key.legs_lex == (("pool_a", 4), ("pool_c", 6))

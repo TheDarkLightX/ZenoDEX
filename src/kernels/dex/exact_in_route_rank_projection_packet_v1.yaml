@@ -1,0 +1,98 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "exact_in_route_rank_projection_packet_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the explicit exact-in route rank-projection
+    packet.
+
+    Scope boundary:
+    - does not model exact-in routing arithmetic
+    - does not model the true tuple route-key semantics directly
+    - only checks the deterministic packet shell over the declared boolean facts
+
+observables:
+  state_vars:
+    [
+      "ordered_unique_keys_sorted_unique",
+      "candidate_ranks_match_projection",
+      "rank_order_preserves_true_key_order",
+      "packet_ok",
+    ]
+  effects: ["packet_ok"]
+
+types: []
+
+state_vars:
+  - id: "ordered_unique_keys_sorted_unique"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "candidate_ranks_match_projection"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "rank_order_preserves_true_key_order"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "ordered_unique_keys_sorted_unique"
+    expr: { bool: false }
+  - var: "candidate_ranks_match_projection"
+    expr: { bool: false }
+  - var: "rank_order_preserves_true_key_order"
+    expr: { bool: false }
+  - var: "packet_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_packet_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "packet_ok" }
+        - op: "and"
+          args:
+            - { var: "ordered_unique_keys_sorted_unique" }
+            - op: "and"
+              args:
+                - { var: "candidate_ranks_match_projection" }
+                - { var: "rank_order_preserves_true_key_order" }
+
+actions:
+  - id: "rebuild_rank_projection_packet"
+    params:
+      - id: "ordered_unique_keys_sorted_unique_in"
+        type: { kind: "bool" }
+      - id: "candidate_ranks_match_projection_in"
+        type: { kind: "bool" }
+      - id: "rank_order_preserves_true_key_order_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "ordered_unique_keys_sorted_unique"
+        expr: { param: "ordered_unique_keys_sorted_unique_in" }
+      - var: "candidate_ranks_match_projection"
+        expr: { param: "candidate_ranks_match_projection_in" }
+      - var: "rank_order_preserves_true_key_order"
+        expr: { param: "rank_order_preserves_true_key_order_in" }
+      - var: "packet_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "ordered_unique_keys_sorted_unique_in" }
+            - op: "and"
+              args:
+                - { param: "candidate_ranks_match_projection_in" }
+                - { param: "rank_order_preserves_true_key_order_in" }
+    effects:
+      packet_ok: { var: "packet_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_rank_projection_packet"
+    kind: "inductive"

@@ -1,0 +1,216 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_spot_price_packet_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded two-asset abstraction of the settlement spot-price provenance packet.
+
+    Purpose:
+    - mechanically check the packet gate for positive prices, freshness, asset uniqueness,
+      and the optional cross-module sync requirement
+    - keep price-source admissibility explicit before the settlement spot-value contract consumes it
+
+    Scope boundary:
+    - two assets only
+    - deterministic packet rebuild only
+    - no cryptographic signature or certificate-path verification
+
+observables:
+  state_vars:
+    [
+      "price_a",
+      "price_b",
+      "age_a",
+      "age_b",
+      "max_staleness_epochs",
+      "assets_distinct",
+      "cross_module_sync_required",
+      "cross_module_sync_ok",
+      "all_positive",
+      "all_fresh",
+      "provenance_ok",
+    ]
+  effects: ["all_positive", "all_fresh", "provenance_ok"]
+
+types: []
+
+state_vars:
+  - id: "price_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1024 }
+  - id: "price_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1024 }
+  - id: "age_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "age_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "max_staleness_epochs"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "assets_distinct"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "cross_module_sync_required"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "cross_module_sync_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "all_positive"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "all_fresh"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "provenance_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "price_a"
+    expr: { const: 0 }
+  - var: "price_b"
+    expr: { const: 0 }
+  - var: "age_a"
+    expr: { const: 0 }
+  - var: "age_b"
+    expr: { const: 0 }
+  - var: "max_staleness_epochs"
+    expr: { const: 0 }
+  - var: "assets_distinct"
+    expr: { bool: true }
+  - var: "cross_module_sync_required"
+    expr: { bool: false }
+  - var: "cross_module_sync_ok"
+    expr: { bool: false }
+  - var: "all_positive"
+    expr: { bool: false }
+  - var: "all_fresh"
+    expr: { bool: true }
+  - var: "provenance_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_all_positive_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "all_positive" }
+        - op: "and"
+          args:
+            - op: ">"
+              args: [{ var: "price_a" }, { const: 0 }]
+            - op: ">"
+              args: [{ var: "price_b" }, { const: 0 }]
+  - id: "inv_all_fresh_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "all_fresh" }
+        - op: "and"
+          args:
+            - op: "<="
+              args: [{ var: "age_a" }, { var: "max_staleness_epochs" }]
+            - op: "<="
+              args: [{ var: "age_b" }, { var: "max_staleness_epochs" }]
+  - id: "inv_provenance_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "provenance_ok" }
+        - op: "and"
+          args:
+            - { var: "assets_distinct" }
+            - { var: "all_positive" }
+            - { var: "all_fresh" }
+            - op: "or"
+              args:
+                - op: "not"
+                  args: [{ var: "cross_module_sync_required" }]
+                - { var: "cross_module_sync_ok" }
+
+actions:
+  - id: "rebuild_packet"
+    params:
+      - id: "price_a_in"
+        type: { kind: "int", min: 0, max: 1024 }
+      - id: "price_b_in"
+        type: { kind: "int", min: 0, max: 1024 }
+      - id: "age_a_in"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "age_b_in"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "max_staleness_epochs_in"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "assets_distinct_in"
+        type: { kind: "bool" }
+      - id: "cross_module_sync_required_in"
+        type: { kind: "bool" }
+      - id: "cross_module_sync_ok_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "price_a"
+        expr: { param: "price_a_in" }
+      - var: "price_b"
+        expr: { param: "price_b_in" }
+      - var: "age_a"
+        expr: { param: "age_a_in" }
+      - var: "age_b"
+        expr: { param: "age_b_in" }
+      - var: "max_staleness_epochs"
+        expr: { param: "max_staleness_epochs_in" }
+      - var: "assets_distinct"
+        expr: { param: "assets_distinct_in" }
+      - var: "cross_module_sync_required"
+        expr: { param: "cross_module_sync_required_in" }
+      - var: "cross_module_sync_ok"
+        expr: { param: "cross_module_sync_ok_in" }
+      - var: "all_positive"
+        expr:
+          op: "and"
+          args:
+            - op: ">"
+              args: [{ param: "price_a_in" }, { const: 0 }]
+            - op: ">"
+              args: [{ param: "price_b_in" }, { const: 0 }]
+      - var: "all_fresh"
+        expr:
+          op: "and"
+          args:
+            - op: "<="
+              args: [{ param: "age_a_in" }, { param: "max_staleness_epochs_in" }]
+            - op: "<="
+              args: [{ param: "age_b_in" }, { param: "max_staleness_epochs_in" }]
+      - var: "provenance_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "assets_distinct_in" }
+            - op: "and"
+              args:
+                - op: ">"
+                  args: [{ param: "price_a_in" }, { const: 0 }]
+                - op: ">"
+                  args: [{ param: "price_b_in" }, { const: 0 }]
+            - op: "and"
+              args:
+                - op: "<="
+                  args: [{ param: "age_a_in" }, { param: "max_staleness_epochs_in" }]
+                - op: "<="
+                  args: [{ param: "age_b_in" }, { param: "max_staleness_epochs_in" }]
+            - op: "or"
+              args:
+                - op: "not"
+                  args: [{ param: "cross_module_sync_required_in" }]
+                - { param: "cross_module_sync_ok_in" }
+    effects:
+      all_positive: { var: "all_positive" }
+      all_fresh: { var: "all_fresh" }
+      provenance_ok: { var: "provenance_ok" }

@@ -16,6 +16,14 @@ from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
 from ..state.pools import PoolState
+from .settlement_strong_certificate import (
+    SettlementProofFlags,
+    enforce_replay_bound_settlement_certificate,
+)
+from .settlement_end_to_end_certificate_packet import (
+    SettlementEndToEndCertificateInputs,
+    enforce_settlement_end_to_end_certificate,
+)
 
 if TYPE_CHECKING:
     from .tau_gate import TauGateConfig
@@ -33,6 +41,11 @@ def validate_operations(
     settlement_validation: str = "strong_proof_carrying",
     swap_ordering: str = "greedy_ab_refined",
     quote_bindings_validated: bool = False,
+    require_settlement_certificate: bool = False,
+    settlement_proof_flags: Optional[SettlementProofFlags] = None,
+    settlement_price_history: Optional[Tuple[int, int, int]] = None,
+    require_settlement_end_to_end_certificate: bool = False,
+    settlement_end_to_end_certificate_inputs: Optional[SettlementEndToEndCertificateInputs] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate TauSwap operations using Tau Language validation.
@@ -64,17 +77,38 @@ def validate_operations(
     # Check that settlement covers all intents
     if settlement:
         allow_cow_netting = str(swap_ordering) == "cow_pair_netting_v1"
-        # Validate settlement (fail-closed): bind deltas to intents + kernel-backed swap math.
-        is_valid, error = validate_settlement_strong(
-            settlement=settlement,
-            intents=intents,
-            pre_balances=balances,
-            pre_pools=pools,
-            pre_lp_balances=lp_balances,
-            mode=str(settlement_validation),
-            allow_cow_netting=bool(allow_cow_netting),
-            allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
+        use_end_to_end_certificate = bool(
+            require_settlement_end_to_end_certificate or require_settlement_certificate
         )
+        if use_end_to_end_certificate:
+            if settlement_end_to_end_certificate_inputs is None:
+                return False, "settlement certificate required but settlement_end_to_end_certificate_inputs missing"
+            try:
+                is_valid, error, _packet = enforce_settlement_end_to_end_certificate(
+                    settlement=settlement,
+                    certificate_inputs=settlement_end_to_end_certificate_inputs,
+                    intents=intents,
+                    pre_balances=balances,
+                    pre_pools=pools,
+                    pre_lp_balances=lp_balances,
+                    mode=str(settlement_validation),
+                    allow_cow_netting=bool(allow_cow_netting),
+                    allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
+                )
+            except Exception as exc:
+                return False, f"invalid settlement end-to-end certificate inputs: {exc}"
+        else:
+            # Validate settlement (fail-closed): bind deltas to intents + kernel-backed swap math.
+            is_valid, error = validate_settlement_strong(
+                settlement=settlement,
+                intents=intents,
+                pre_balances=balances,
+                pre_pools=pools,
+                pre_lp_balances=lp_balances,
+                mode=str(settlement_validation),
+                allow_cow_netting=bool(allow_cow_netting),
+                allow_snapshot_bound_quote_bindings=bool(quote_bindings_validated),
+            )
         if not is_valid:
             return False, error
 

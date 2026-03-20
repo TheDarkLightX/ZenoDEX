@@ -1,0 +1,120 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_feature_extension_packet_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the replayable settlement feature-extension
+    packet.
+
+    Purpose:
+    - mechanically check the boolean acceptance relation around the derived
+      buyback-floor, fixedpoint, rebate, and lock-weight lanes
+    - keep the boundary explicit: packet_ok holds exactly when all four
+      feature-extension checks are green
+
+    Scope boundary:
+    - does not model buyback, rebate, or lock-weight arithmetic
+    - treats the four feature booleans as external primitives
+    - only checks the deterministic packet shell over bounded booleans
+
+observables:
+  state_vars:
+    [
+      "buyback_floor_ok",
+      "buyback_floor_fixedpoint_ok",
+      "rebate_ok",
+      "lock_weight_ok",
+      "packet_ok"
+    ]
+  effects: ["packet_ok"]
+
+types: []
+
+state_vars:
+  - id: "buyback_floor_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "buyback_floor_fixedpoint_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "rebate_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "lock_weight_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "buyback_floor_ok"
+    expr: { bool: false }
+  - var: "buyback_floor_fixedpoint_ok"
+    expr: { bool: false }
+  - var: "rebate_ok"
+    expr: { bool: false }
+  - var: "lock_weight_ok"
+    expr: { bool: false }
+  - var: "packet_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_packet_ok_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "packet_ok" }
+        - op: "and"
+          args:
+            - { var: "buyback_floor_ok" }
+            - op: "and"
+              args:
+                - { var: "buyback_floor_fixedpoint_ok" }
+                - op: "and"
+                  args:
+                    - { var: "rebate_ok" }
+                    - { var: "lock_weight_ok" }
+
+actions:
+  - id: "rebuild_feature_extension_packet"
+    params:
+      - id: "buyback_floor_ok_in"
+        type: { kind: "bool" }
+      - id: "buyback_floor_fixedpoint_ok_in"
+        type: { kind: "bool" }
+      - id: "rebate_ok_in"
+        type: { kind: "bool" }
+      - id: "lock_weight_ok_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "buyback_floor_ok"
+        expr: { param: "buyback_floor_ok_in" }
+      - var: "buyback_floor_fixedpoint_ok"
+        expr: { param: "buyback_floor_fixedpoint_ok_in" }
+      - var: "rebate_ok"
+        expr: { param: "rebate_ok_in" }
+      - var: "lock_weight_ok"
+        expr: { param: "lock_weight_ok_in" }
+      - var: "packet_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "buyback_floor_ok_in" }
+            - op: "and"
+              args:
+                - { param: "buyback_floor_fixedpoint_ok_in" }
+                - op: "and"
+                  args:
+                    - { param: "rebate_ok_in" }
+                    - { param: "lock_weight_ok_in" }
+    effects:
+      packet_ok: { var: "packet_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_feature_extension_packet"
+    kind: "inductive"
