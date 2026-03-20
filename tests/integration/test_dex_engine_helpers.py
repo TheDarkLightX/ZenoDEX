@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any, Mapping, Optional
 
 import pytest
@@ -39,12 +40,41 @@ from src.integration.proof_verifier import (
     ProofVerifier,
     ProofVerifierConfig,
 )
+from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
+from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
+from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
+from src.integration.settlement_strong_certificate import SettlementProofFlags
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
 
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+def _feature_extension_inputs() -> SettlementFeatureExtensionInputs:
+    return SettlementFeatureExtensionInputs(
+        trade_amount=100,
+        fee_charged=1,
+        buyback_amount=1,
+        burned_amount=1,
+        supply_before=1_000,
+        supply_after=999,
+        supply_floor=500,
+        unit_scale=1,
+        rebate_rate_bps=500,
+        rebate_amount=1,
+        rebate_cap=1,
+        lock_days=60,
+        stake_amount=50,
+        tier1_days=30,
+        tier2_days=90,
+        weight_t1=1,
+        weight_t2=2,
+        weight_t3=3,
+        weight_claimed=2,
+        weighted_stake=100,
+    )
 
 
 def _swap_intent(*, sender: str = "0x" + "11" * 48, intent_id: str | None = None, fields: Optional[dict[str, Any]] = None) -> Intent:
@@ -243,6 +273,68 @@ def test_fault_injection_config_rejects_unknown_stage() -> None:
 
 def test_fault_injection_config_accepts_none_stage() -> None:
     assert DexFaultInjectionConfig().fail_at_stage is None
+
+
+def test_dex_engine_config_rejects_certificate_mode_without_proof_flags() -> None:
+    with pytest.raises(
+        ValueError,
+        match="require_settlement_certificate=True requires settlement_end_to_end_certificate_inputs",
+    ):
+        DexEngineConfig(
+            require_settlement_certificate=True,
+            settlement_certificate_price_history=(100, 110, 120),
+        )
+
+
+def test_dex_engine_config_rejects_certificate_mode_without_price_history() -> None:
+    with pytest.raises(
+        ValueError,
+        match="require_settlement_certificate=True requires settlement_end_to_end_certificate_inputs",
+    ):
+        DexEngineConfig(
+            require_settlement_certificate=True,
+            settlement_certificate_proof_flags=SettlementProofFlags.all_true(),
+        )
+
+
+def test_dex_engine_config_rejects_malformed_certificate_price_history() -> None:
+    with pytest.raises(
+        ValueError,
+        match="settlement_certificate_price_history must be a 3-tuple",
+    ):
+        DexEngineConfig(
+            settlement_certificate_price_history=(100, 110),  # type: ignore[arg-type]
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="settlement_certificate_price_history\\[1\\] must be an int",
+    ):
+        DexEngineConfig(
+            settlement_certificate_price_history=(100, "110", 120),  # type: ignore[arg-type]
+        )
+
+
+def test_dex_engine_config_allows_unified_inputs_under_existing_certificate_flag() -> None:
+    packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset="0x" + "01" * 32, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset="0x" + "02" * 32, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    cfg = DexEngineConfig(
+        require_settlement_certificate=True,
+        settlement_end_to_end_certificate_inputs=SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_packet=packet,
+        ),
+    )
+    assert cfg.require_settlement_certificate is True
+    assert cfg.settlement_end_to_end_certificate_inputs is not None
 
 
 def test_validate_external_tool_policy_covers_consensus_and_disable_paths() -> None:
@@ -1217,3 +1309,29 @@ def test_apply_ops_covers_commitment_error_paths(
         block_timestamp=0,
     )
     assert res.error == expected_error
+
+
+def test_apply_ops_rejects_proof_without_settlement(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = _empty_state()
+    proof = {"scheme": "dummy", "pre_state_commitment": "0x1", "batch_commitment": "0x2"}
+    monkeypatch.setattr(dex_engine, "parse_signed_intents", lambda operations: [])
+    monkeypatch.setattr(dex_engine, "parse_settlement_envelope", lambda operations: SimpleNamespace(settlement=None, proof=proof))
+    monkeypatch.setattr(dex_engine, "_build_signing_payloads", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(dex_engine, "_verify_all_intent_signatures", lambda *args, **kwargs: (True, None))
+    monkeypatch.setattr(dex_engine, "_validate_quote_receipt_witnesses", lambda **kwargs: None)
+    monkeypatch.setattr(dex_engine, "validate_operations", lambda **kwargs: (True, None))
+    monkeypatch.setattr(dex_engine, "make_proof_verifier", lambda config: _DummyVerifier((True, None)))
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            consensus_mode=False,
+            allow_external_tools=True,
+            require_settlement_match=False,
+            proof_config=ProofVerifierConfig(enabled=True, verifier_cmd=["/bin/true"]),
+        ),
+        state=state,
+        operations={"2": "ignored"},
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error == "proof requires settlement"

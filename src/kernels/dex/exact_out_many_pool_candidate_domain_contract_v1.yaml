@@ -1,0 +1,213 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "exact_out_many_pool_candidate_domain_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the many-pool exact-out candidate-domain
+    contract.
+
+    Purpose:
+    - mechanically check the deterministic boolean relation around the emitted
+      bounded candidate domain
+    - keep the boundary explicit: contract_ok means the emitted domain is
+      non-empty, complete, leg-bounded, sorted/unique, within the selected
+      audit pool set, and within the explicit enumeration budget
+
+    Scope boundary:
+    - does not model exact-out routing arithmetic or generator completeness
+    - treats the domain facts as externally supplied bounded booleans
+    - only checks the deterministic packet shell over those booleans
+
+observables:
+  state_vars:
+    [
+      "audit_pool_ids_sorted_unique",
+      "audit_pool_ids_within_budget",
+      "candidate_domain_nonempty",
+      "all_candidates_complete",
+      "all_candidates_leg_bounded",
+      "all_candidates_leg_pool_ids_sorted_unique",
+      "all_candidates_within_audit_pool_ids",
+      "candidate_count_within_budget",
+      "contract_ok",
+    ]
+  effects:
+    [
+      "audit_pool_ids_sorted_unique",
+      "audit_pool_ids_within_budget",
+      "candidate_domain_nonempty",
+      "all_candidates_complete",
+      "all_candidates_leg_bounded",
+      "all_candidates_leg_pool_ids_sorted_unique",
+      "all_candidates_within_audit_pool_ids",
+      "candidate_count_within_budget",
+      "contract_ok",
+    ]
+
+types: []
+
+state_vars:
+  - id: "audit_pool_ids_sorted_unique"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "audit_pool_ids_within_budget"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "candidate_domain_nonempty"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "all_candidates_complete"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "all_candidates_leg_bounded"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "all_candidates_leg_pool_ids_sorted_unique"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "all_candidates_within_audit_pool_ids"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "candidate_count_within_budget"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "contract_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "audit_pool_ids_sorted_unique"
+    expr: { bool: true }
+  - var: "audit_pool_ids_within_budget"
+    expr: { bool: true }
+  - var: "candidate_domain_nonempty"
+    expr: { bool: true }
+  - var: "all_candidates_complete"
+    expr: { bool: true }
+  - var: "all_candidates_leg_bounded"
+    expr: { bool: true }
+  - var: "all_candidates_leg_pool_ids_sorted_unique"
+    expr: { bool: true }
+  - var: "all_candidates_within_audit_pool_ids"
+    expr: { bool: true }
+  - var: "candidate_count_within_budget"
+    expr: { bool: true }
+  - var: "contract_ok"
+    expr: { bool: true }
+
+invariants:
+  - id: "inv_contract_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "contract_ok" }
+        - op: "and"
+          args:
+            - { var: "audit_pool_ids_sorted_unique" }
+            - op: "and"
+              args:
+                - { var: "audit_pool_ids_within_budget" }
+                - op: "and"
+                  args:
+                    - { var: "candidate_domain_nonempty" }
+                    - op: "and"
+                      args:
+                        - { var: "all_candidates_complete" }
+                        - op: "and"
+                          args:
+                            - { var: "all_candidates_leg_bounded" }
+                            - op: "and"
+                              args:
+                                - { var: "all_candidates_leg_pool_ids_sorted_unique" }
+                                - op: "and"
+                                  args:
+                                    - { var: "all_candidates_within_audit_pool_ids" }
+                                    - { var: "candidate_count_within_budget" }
+  - id: "inv_contract_ok_implies_nonempty"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - { var: "contract_ok" }
+        - { var: "candidate_domain_nonempty" }
+
+actions:
+  - id: "rebuild_candidate_domain_contract"
+    params:
+      - id: "audit_pool_ids_sorted_unique_in"
+        type: { kind: "bool" }
+      - id: "audit_pool_ids_within_budget_in"
+        type: { kind: "bool" }
+      - id: "candidate_domain_nonempty_in"
+        type: { kind: "bool" }
+      - id: "all_candidates_complete_in"
+        type: { kind: "bool" }
+      - id: "all_candidates_leg_bounded_in"
+        type: { kind: "bool" }
+      - id: "all_candidates_leg_pool_ids_sorted_unique_in"
+        type: { kind: "bool" }
+      - id: "all_candidates_within_audit_pool_ids_in"
+        type: { kind: "bool" }
+      - id: "candidate_count_within_budget_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "audit_pool_ids_sorted_unique"
+        expr: { param: "audit_pool_ids_sorted_unique_in" }
+      - var: "audit_pool_ids_within_budget"
+        expr: { param: "audit_pool_ids_within_budget_in" }
+      - var: "candidate_domain_nonempty"
+        expr: { param: "candidate_domain_nonempty_in" }
+      - var: "all_candidates_complete"
+        expr: { param: "all_candidates_complete_in" }
+      - var: "all_candidates_leg_bounded"
+        expr: { param: "all_candidates_leg_bounded_in" }
+      - var: "all_candidates_leg_pool_ids_sorted_unique"
+        expr: { param: "all_candidates_leg_pool_ids_sorted_unique_in" }
+      - var: "all_candidates_within_audit_pool_ids"
+        expr: { param: "all_candidates_within_audit_pool_ids_in" }
+      - var: "candidate_count_within_budget"
+        expr: { param: "candidate_count_within_budget_in" }
+      - var: "contract_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "audit_pool_ids_sorted_unique_in" }
+            - op: "and"
+              args:
+                - { param: "audit_pool_ids_within_budget_in" }
+                - op: "and"
+                  args:
+                    - { param: "candidate_domain_nonempty_in" }
+                    - op: "and"
+                      args:
+                        - { param: "all_candidates_complete_in" }
+                        - op: "and"
+                          args:
+                            - { param: "all_candidates_leg_bounded_in" }
+                            - op: "and"
+                              args:
+                                - { param: "all_candidates_leg_pool_ids_sorted_unique_in" }
+                                - op: "and"
+                                  args:
+                                    - { param: "all_candidates_within_audit_pool_ids_in" }
+                                    - { param: "candidate_count_within_budget_in" }
+    effects:
+      audit_pool_ids_sorted_unique: { var: "audit_pool_ids_sorted_unique" }
+      audit_pool_ids_within_budget: { var: "audit_pool_ids_within_budget" }
+      candidate_domain_nonempty: { var: "candidate_domain_nonempty" }
+      all_candidates_complete: { var: "all_candidates_complete" }
+      all_candidates_leg_bounded: { var: "all_candidates_leg_bounded" }
+      all_candidates_leg_pool_ids_sorted_unique: { var: "all_candidates_leg_pool_ids_sorted_unique" }
+      all_candidates_within_audit_pool_ids: { var: "all_candidates_within_audit_pool_ids" }
+      candidate_count_within_budget: { var: "candidate_count_within_budget" }
+      contract_ok: { var: "contract_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_candidate_domain_contract"
+    kind: "inductive"

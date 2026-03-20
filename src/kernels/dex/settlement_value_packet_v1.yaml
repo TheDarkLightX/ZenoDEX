@@ -1,0 +1,176 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_value_packet_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the replayable settlement value packet.
+
+    Purpose:
+    - mechanically check the boolean acceptance relation around the unified
+      settlement value packet
+    - keep the boundary explicit: packet_ok holds exactly when provenance,
+      attestation, asset conservation, LP-liability balance (if LP-aware), and
+      value conservation all hold
+
+    Scope boundary:
+    - does not model settlement arithmetic or pricing
+    - treats the contract booleans as externally supplied primitives
+    - only checks the deterministic packet shell over bounded booleans
+
+observables:
+  state_vars:
+    [
+      "lp_mode",
+      "attestation_mode",
+      "price_provenance_ok",
+      "attestation_ok",
+      "asset_conservation_ok",
+      "lp_liability_balanced_ok",
+      "value_conservation_ok",
+      "packet_ok"
+    ]
+  effects: ["packet_ok"]
+
+types: []
+
+state_vars:
+  - id: "lp_mode"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "attestation_mode"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "price_provenance_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "attestation_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "asset_conservation_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "lp_liability_balanced_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "value_conservation_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "packet_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "lp_mode"
+    expr: { bool: false }
+  - var: "attestation_mode"
+    expr: { bool: false }
+  - var: "price_provenance_ok"
+    expr: { bool: false }
+  - var: "attestation_ok"
+    expr: { bool: true }
+  - var: "asset_conservation_ok"
+    expr: { bool: false }
+  - var: "lp_liability_balanced_ok"
+    expr: { bool: true }
+  - var: "value_conservation_ok"
+    expr: { bool: false }
+  - var: "packet_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_packet_ok_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "packet_ok" }
+        - op: "and"
+          args:
+            - { var: "price_provenance_ok" }
+            - op: "and"
+              args:
+                - { var: "asset_conservation_ok" }
+                - op: "and"
+                  args:
+                    - { var: "value_conservation_ok" }
+                    - op: "and"
+                      args:
+                        - op: "or"
+                          args:
+                            - op: "not"
+                              args:
+                                - { var: "lp_mode" }
+                            - { var: "lp_liability_balanced_ok" }
+                        - op: "or"
+                          args:
+                            - op: "not"
+                              args:
+                                - { var: "attestation_mode" }
+                            - { var: "attestation_ok" }
+
+actions:
+  - id: "rebuild_value_packet"
+    params:
+      - id: "lp_mode_in"
+        type: { kind: "bool" }
+      - id: "attestation_mode_in"
+        type: { kind: "bool" }
+      - id: "price_provenance_ok_in"
+        type: { kind: "bool" }
+      - id: "attestation_ok_in"
+        type: { kind: "bool" }
+      - id: "asset_conservation_ok_in"
+        type: { kind: "bool" }
+      - id: "lp_liability_balanced_ok_in"
+        type: { kind: "bool" }
+      - id: "value_conservation_ok_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "lp_mode"
+        expr: { param: "lp_mode_in" }
+      - var: "attestation_mode"
+        expr: { param: "attestation_mode_in" }
+      - var: "price_provenance_ok"
+        expr: { param: "price_provenance_ok_in" }
+      - var: "attestation_ok"
+        expr: { param: "attestation_ok_in" }
+      - var: "asset_conservation_ok"
+        expr: { param: "asset_conservation_ok_in" }
+      - var: "lp_liability_balanced_ok"
+        expr: { param: "lp_liability_balanced_ok_in" }
+      - var: "value_conservation_ok"
+        expr: { param: "value_conservation_ok_in" }
+      - var: "packet_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "price_provenance_ok_in" }
+            - op: "and"
+              args:
+                - { param: "asset_conservation_ok_in" }
+                - op: "and"
+                  args:
+                    - { param: "value_conservation_ok_in" }
+                    - op: "and"
+                      args:
+                        - op: "or"
+                          args:
+                            - op: "not"
+                              args:
+                                - { param: "lp_mode_in" }
+                            - { param: "lp_liability_balanced_ok_in" }
+                        - op: "or"
+                          args:
+                            - op: "not"
+                              args:
+                                - { param: "attestation_mode_in" }
+                            - { param: "attestation_ok_in" }
+    effects:
+      packet_ok: { var: "packet_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_value_packet"
+    kind: "inductive"

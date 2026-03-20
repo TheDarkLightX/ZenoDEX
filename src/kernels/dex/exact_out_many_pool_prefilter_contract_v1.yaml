@@ -1,0 +1,196 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "exact_out_many_pool_prefilter_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the many-pool exact-out prefilter contract.
+
+    Purpose:
+    - mechanically check the deterministic boolean relation around the replayable
+      prefilter boundary
+    - keep the boundary explicit: contract_ok means the ranked feasible rows are
+      sorted/unique, the selected pool ids are sorted/unique, within budget,
+      subset/prefix aligned with the ranking, and both full/selected capacity
+      guards are feasible
+
+    Scope boundary:
+    - does not model exact-out routing arithmetic or prove candidate-pool
+      prefilter completeness
+    - treats the prefilter facts as externally supplied bounded booleans
+    - only checks the deterministic packet shell over those booleans
+
+observables:
+  state_vars:
+    [
+      "feasible_rows_sorted_unique",
+      "selected_pool_ids_sorted_unique",
+      "selected_pool_ids_within_budget",
+      "selected_pool_ids_subset_of_feasible",
+      "selected_is_prefix_of_feasible_ranking",
+      "full_capacity_guard_feasible",
+      "selected_capacity_guard_feasible",
+      "contract_ok",
+    ]
+  effects:
+    [
+      "feasible_rows_sorted_unique",
+      "selected_pool_ids_sorted_unique",
+      "selected_pool_ids_within_budget",
+      "selected_pool_ids_subset_of_feasible",
+      "selected_is_prefix_of_feasible_ranking",
+      "full_capacity_guard_feasible",
+      "selected_capacity_guard_feasible",
+      "contract_ok",
+    ]
+
+types: []
+
+state_vars:
+  - id: "feasible_rows_sorted_unique"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "selected_pool_ids_sorted_unique"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "selected_pool_ids_within_budget"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "selected_pool_ids_subset_of_feasible"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "selected_is_prefix_of_feasible_ranking"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "full_capacity_guard_feasible"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "selected_capacity_guard_feasible"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "contract_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "feasible_rows_sorted_unique"
+    expr: { bool: true }
+  - var: "selected_pool_ids_sorted_unique"
+    expr: { bool: true }
+  - var: "selected_pool_ids_within_budget"
+    expr: { bool: true }
+  - var: "selected_pool_ids_subset_of_feasible"
+    expr: { bool: true }
+  - var: "selected_is_prefix_of_feasible_ranking"
+    expr: { bool: true }
+  - var: "full_capacity_guard_feasible"
+    expr: { bool: true }
+  - var: "selected_capacity_guard_feasible"
+    expr: { bool: true }
+  - var: "contract_ok"
+    expr: { bool: true }
+
+invariants:
+  - id: "inv_contract_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "contract_ok" }
+        - op: "and"
+          args:
+            - { var: "feasible_rows_sorted_unique" }
+            - op: "and"
+              args:
+                - { var: "selected_pool_ids_sorted_unique" }
+                - op: "and"
+                  args:
+                    - { var: "selected_pool_ids_within_budget" }
+                    - op: "and"
+                      args:
+                        - { var: "selected_pool_ids_subset_of_feasible" }
+                        - op: "and"
+                          args:
+                            - { var: "selected_is_prefix_of_feasible_ranking" }
+                            - op: "and"
+                              args:
+                                - { var: "full_capacity_guard_feasible" }
+                                - { var: "selected_capacity_guard_feasible" }
+  - id: "inv_contract_ok_implies_selected_capacity"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - { var: "contract_ok" }
+        - { var: "selected_capacity_guard_feasible" }
+
+actions:
+  - id: "rebuild_prefilter_contract"
+    params:
+      - id: "feasible_rows_sorted_unique_in"
+        type: { kind: "bool" }
+      - id: "selected_pool_ids_sorted_unique_in"
+        type: { kind: "bool" }
+      - id: "selected_pool_ids_within_budget_in"
+        type: { kind: "bool" }
+      - id: "selected_pool_ids_subset_of_feasible_in"
+        type: { kind: "bool" }
+      - id: "selected_is_prefix_of_feasible_ranking_in"
+        type: { kind: "bool" }
+      - id: "full_capacity_guard_feasible_in"
+        type: { kind: "bool" }
+      - id: "selected_capacity_guard_feasible_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "feasible_rows_sorted_unique"
+        expr: { param: "feasible_rows_sorted_unique_in" }
+      - var: "selected_pool_ids_sorted_unique"
+        expr: { param: "selected_pool_ids_sorted_unique_in" }
+      - var: "selected_pool_ids_within_budget"
+        expr: { param: "selected_pool_ids_within_budget_in" }
+      - var: "selected_pool_ids_subset_of_feasible"
+        expr: { param: "selected_pool_ids_subset_of_feasible_in" }
+      - var: "selected_is_prefix_of_feasible_ranking"
+        expr: { param: "selected_is_prefix_of_feasible_ranking_in" }
+      - var: "full_capacity_guard_feasible"
+        expr: { param: "full_capacity_guard_feasible_in" }
+      - var: "selected_capacity_guard_feasible"
+        expr: { param: "selected_capacity_guard_feasible_in" }
+      - var: "contract_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "feasible_rows_sorted_unique_in" }
+            - op: "and"
+              args:
+                - { param: "selected_pool_ids_sorted_unique_in" }
+                - op: "and"
+                  args:
+                    - { param: "selected_pool_ids_within_budget_in" }
+                    - op: "and"
+                      args:
+                        - { param: "selected_pool_ids_subset_of_feasible_in" }
+                        - op: "and"
+                          args:
+                            - { param: "selected_is_prefix_of_feasible_ranking_in" }
+                            - op: "and"
+                              args:
+                                - { param: "full_capacity_guard_feasible_in" }
+                                - { param: "selected_capacity_guard_feasible_in" }
+    effects:
+      feasible_rows_sorted_unique: { var: "feasible_rows_sorted_unique" }
+      selected_pool_ids_sorted_unique: { var: "selected_pool_ids_sorted_unique" }
+      selected_pool_ids_within_budget: { var: "selected_pool_ids_within_budget" }
+      selected_pool_ids_subset_of_feasible: { var: "selected_pool_ids_subset_of_feasible" }
+      selected_is_prefix_of_feasible_ranking: { var: "selected_is_prefix_of_feasible_ranking" }
+      full_capacity_guard_feasible: { var: "full_capacity_guard_feasible" }
+      selected_capacity_guard_feasible: { var: "selected_capacity_guard_feasible" }
+      contract_ok: { var: "contract_ok" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_prefilter_contract"
+    kind: "inductive"
