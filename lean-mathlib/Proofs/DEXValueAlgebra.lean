@@ -18,9 +18,9 @@ depends on the market price of token X (measured in units of token Y).
 ## What This File Proves
 
 ### Structure
-1. **V_at_unit_price**: V(1) = Δ (conservation = value at unit exchange rate)
+1. **V_at_unit_price**: V(1) = Δ (unit-price value slice)
 2. **value_decomposition**: V_p(s) = (p-1)·dx + Δ(s)
-3. **balanced_value**: Δ(s)=0 ⟹ V_p(s) = dx·(p-1)
+3. **raw_balanced_value**: Δ(s)=0 ⟹ V_p(s) = dx·(p-1)
 4. **price_sensitivity**: V_{p+δ}(s) - V_p(s) = δ·dx
 
 ### Separation & Determination
@@ -28,8 +28,11 @@ depends on the market price of token X (measured in units of token Y).
 6. **ker_Δ_inter_ker_V_trivial**: ker(Δ) ∩ ker(V_p) = {0} when p≠1 [NoZeroDivisors ℤ]
 7. **two_prices_determine**: V at two distinct prices determines settlement uniquely
 
-### Financial Interpretation
-8. **balanced_positive_value**: balanced + dx>0 ⟹ (V_p>0 ↔ p>1) [arbitrage detection]
+### Raw-Flow Slice Interpretation
+8. **raw_balanced_positive_value**: Δ(s)=0 + dx>0 ⟹ (V_p>0 ↔ p>1)
+
+The `Δ=0` slice is a raw token-unit constraint, not economic value balance.
+For example, `⟨1,-2⟩` has zero value at price `p=2` but does not satisfy `Δ=0`.
 -/
 
 namespace Proofs
@@ -46,7 +49,8 @@ abbrev Settl := SettlementAlgebra.Settlement
 
 /-! ## Part 2: Conservation Homomorphism -/
 
-/-- Δ(s) = dx + dy. Zero iff the settlement is balanced (no net token creation). -/
+/-- Δ(s) = dx + dy. Zero iff the settlement is raw-flow balanced in token units.
+    This is not economic value balance unless the market price is 1:1. -/
 abbrev Δ : Settl →+ ℤ := SettlementAlgebra.Δ
 
 /-! ## Part 3: The Price-Parameterized Value Functional -/
@@ -74,9 +78,9 @@ theorem value_decomposition (p : ℤ) (s : Settl) :
     V p s = (p - 1) * s.dx + Δ s := by
   show p * s.dx + s.dy = (p - 1) * s.dx + (s.dx + s.dy); ring
 
-/-- For balanced settlements (Δ=0), value is purely price deviation:
+/-- On the raw-flow-balanced slice (Δ=0), value is purely price deviation:
     V_p(s) = dx·(p-1). -/
-theorem balanced_value (p : ℤ) (s : Settl) (h : Δ s = 0) :
+theorem raw_balanced_value (p : ℤ) (s : Settl) (h : Δ s = 0) :
     V p s = s.dx * (p - 1) := by
   have hsum : s.dx + s.dy = 0 := by
     simpa [SettlementAlgebra.Δ, SettlementAlgebra.netFlow] using h
@@ -110,7 +114,7 @@ theorem V_separates_points (s : Settl) (h : ∀ p : ℤ, V p s = 0) :
 
 /-- ker(Δ) ∩ ker(V_p) = {0} when p ≠ 1.
     Uses the INTEGRAL DOMAIN property of ℤ (no zero divisors):
-    balanced ∧ zero-value ⟹ dx·(p-1)=0 ⟹ dx=0 (since p≠1) ⟹ s=0.
+    raw-flow-balanced ∧ zero-value ⟹ dx·(p-1)=0 ⟹ dx=0 (since p≠1) ⟹ s=0.
 
     This is the deepest theorem in the file — it requires NoZeroDivisors ℤ. -/
 theorem ker_Δ_inter_ker_V_trivial (p : ℤ) (hp : p ≠ 1)
@@ -121,7 +125,7 @@ theorem ker_Δ_inter_ker_V_trivial (p : ℤ) (hp : p ≠ 1)
   have hdy : s.dy = -s.dx := by
     linarith
   have hmul : s.dx * (p - 1) = 0 := by
-    rw [← balanced_value p s hbal, hval]
+    rw [← raw_balanced_value p s hbal, hval]
   have hne : p - 1 ≠ 0 := by omega
   have hdx : s.dx = 0 := by
     rcases mul_eq_zero.mp hmul with h | h
@@ -158,16 +162,14 @@ theorem two_prices_determine (p₁ p₂ : ℤ) (hp : p₁ ≠ p₂)
   · exact hdx
   · exact hdy
 
-/-! ## Part 6: Arbitrage Characterization -/
+/-! ## Part 6: Raw-Flow Slice Sign Characterization -/
 
-/-- ARBITRAGE THEOREM: For a balanced settlement with positive dx (buying X),
-    the settlement has positive value precisely when market price > 1.
+/-- On the raw-flow-balanced slice with positive dx, the sign of `V p s`
+    matches the sign of `p - 1`.
 
-    Financially: buying X at the DEX rate (where dx+dy=0, implicit price 1)
-    is profitable iff the external market values X above 1.
-
-    Proof uses: V_p(s) = dx·(p-1), then dx>0 makes sign match (p-1). -/
-theorem balanced_positive_value (s : Settl) (p : ℤ)
+    This is a statement about the `Δ=0` unit-sum slice, not a general
+    arbitrage theorem for economically fair swaps at arbitrary prices. -/
+theorem raw_balanced_positive_value (s : Settl) (p : ℤ)
     (hbal : Δ s = 0) (hdx : 0 < s.dx) :
     0 < V p s ↔ 1 < p := by
   simp only [V, AddMonoidHom.coe_mk, ZeroHom.coe_mk] at ⊢
@@ -196,24 +198,30 @@ theorem witness_V_at_unit :
     V 1 ({ dx := 100, dy := -70 } : Settl) = 30 ∧
     Δ ({ dx := 100, dy := -70 } : Settl) = 30 := by native_decide
 
-/-- Balanced settlement value at price 3:
-    s = ⟨50,-50⟩ (balanced). V_3(s) = 3·50-50 = 100 = dx·(p-1) = 50·2. -/
-theorem witness_balanced_value :
+/-- Raw-flow-balanced settlement value at price 3:
+    s = ⟨50,-50⟩ satisfies Δ=0, so V_3(s) = 3·50-50 = 100 = dx·(p-1). -/
+theorem witness_raw_balanced_value :
     let s : Settl := ⟨50, -50⟩
     Δ s = 0 ∧ V 3 s = 100 ∧ s.dx * (3 - 1) = 100 := by native_decide
 
-/-- Nontrivial kernel intersection: s=⟨50,-50⟩ balanced, V_2(s)=50≠0. -/
+/-- Nontrivial raw-flow kernel slice: s=⟨50,-50⟩ has Δ=0 but V_2(s)=50≠0. -/
 theorem witness_nontrivial_kernel :
     let s : Settl := ⟨50, -50⟩
     Δ s = 0 ∧ V 2 s = 50 ∧ V 2 s ≠ 0 := by native_decide
+
+/-- Economically fair at price 2 does not imply raw-flow balance.
+    The settlement ⟨1,-2⟩ has zero value at p=2 but Δ=-1. -/
+theorem witness_value_fair_at_price_two_but_not_raw_balanced :
+    let s : Settl := ⟨1, -2⟩
+    Δ s = -1 ∧ V 2 s = 0 := by native_decide
 
 /-- Two prices determine: V_0 and V_1 at ⟨100,-70⟩ give -70 and 30. -/
 theorem witness_two_prices :
     V 0 ({ dx := 100, dy := -70 } : Settl) = -70 ∧
     V 1 ({ dx := 100, dy := -70 } : Settl) = 30 := by native_decide
 
-/-- Arbitrage: s=⟨100,-100⟩ balanced, p=2>1, V_2(s)=100>0. Profitable. -/
-theorem witness_arbitrage :
+/-- On the Δ=0 slice, positive dx and p=2 give positive value. -/
+theorem witness_raw_balanced_positive_value :
     let s : Settl := ⟨100, -100⟩
     Δ s = 0 ∧ 0 < V 2 s ∧ V 2 s = 100 := by native_decide
 
