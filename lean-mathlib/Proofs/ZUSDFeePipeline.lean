@@ -164,16 +164,21 @@ theorem post_mint_base_rate_eq_uncapped
   unfold post_mint_base_rate
   exact min_eq_right hcap
 
-/-- With a positive bump and room below the cap, the post-mint base rate is
-    strictly larger than the decayed pre-mint rate. -/
+/-- With a positive bump and the decayed pre-mint rate still below the cap,
+    the post-mint base rate is strictly larger than the decayed pre-mint rate.
+    This covers both the uncapped branch and the near-cap saturating branch
+    of the runtime `min(BPS_SCALE, decayed + bump)` update. -/
 theorem post_mint_base_rate_strict_increase_of_room
     (base_rate decay_per_epoch elapsed bump bps_scale : ℤ)
     (hbump : 0 < bump)
-    (hcap : decayed_rate base_rate decay_per_epoch elapsed + bump ≤ bps_scale) :
+    (hroom : decayed_rate base_rate decay_per_epoch elapsed < bps_scale) :
     post_mint_base_rate base_rate decay_per_epoch elapsed bump bps_scale >
       decayed_rate base_rate decay_per_epoch elapsed := by
-  rw [post_mint_base_rate_eq_uncapped _ _ _ _ _ hcap]
-  linarith
+  unfold post_mint_base_rate
+  have hsum : decayed_rate base_rate decay_per_epoch elapsed <
+      decayed_rate base_rate decay_per_epoch elapsed + bump := by
+    linarith
+  exact lt_min hroom hsum
 
 /-- Higher base rate leads to higher redemption fee.
     Combined with `post_mint_base_rate_strict_increase_of_room`, this proves
@@ -248,6 +253,13 @@ theorem witness_effective_fee_capped :
     the runtime post-mint base rate moves from 0 to 10. -/
 theorem witness_post_mint_base_rate :
     post_mint_base_rate 0 0 0 10 10000 = 10 := by
+  unfold post_mint_base_rate decayed_rate
+  omega
+
+/-- Witness: near-cap post-mint update. Even when `decayed + bump` exceeds the cap,
+    the runtime still strictly increases the base rate up to the cap. -/
+theorem witness_post_mint_base_rate_near_cap :
+    post_mint_base_rate 9999 0 0 10 10000 = 10000 := by
   unfold post_mint_base_rate decayed_rate
   omega
 
