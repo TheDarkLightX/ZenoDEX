@@ -24,7 +24,8 @@ clearing price reflects all n intents simultaneously.
 
 ## Mathematical Model
 
-We work with integer fractions to avoid rationals:
+We work with integer fractions to avoid rationals, always on positive
+batch sizes `n > 0`:
 - `profit(1)` = the single-intent MEV (denominator: 1)
 - `profit(n)` = profit(1) / n (attacker's advantage diluted)
 - `reduction(n) = (n - 1) / n` (fraction of MEV eliminated)
@@ -71,10 +72,10 @@ theorem reduction_mono (n₁ n₂ : ℕ) (h : n₁ ≤ n₂) (hn₁ : 0 < n₁) 
 
 /-! ## Sandwich profit bound -/
 
-/-- Attacker profit is diluted by batch size: profit(n) = base_profit / n.
-    We model this as: n * profit_n ≤ base_profit.
+/-- Attacker profit is diluted by any positive batch size: profit(n) = base_profit / n.
+    We model this as: n * profit_n ≤ base_profit for `n > 0`.
     (Using ≤ because floor division rounds down.) -/
-theorem profit_dilution (base_profit n : ℕ) :
+theorem profit_dilution (base_profit n : ℕ) (_hn : 0 < n) :
     (base_profit / n) * n ≤ base_profit :=
   Nat.div_mul_le_self base_profit n
 
@@ -98,14 +99,14 @@ theorem eliminated_mev_cross (base_profit n : ℕ) (hn : 0 < n) :
 
 /-! ## Composition: batch size determines protection level -/
 
-/-- Doubling the batch size more than halves the remaining MEV.
-    Specifically: profit(2n) ≤ profit(n) for all n ≥ 1.
-    (More intents → less attacker profit.) -/
-theorem double_batch_halves_mev (base_profit n : ℕ) (_hn : 0 < n) :
-    base_profit / (2 * n) ≤ base_profit / n := by
-  apply Nat.div_le_div_left
-  · omega
-  · omega
+/-- Doubling the batch size halves the remaining MEV up to floor rounding.
+    Specifically, `2 * profit(2n) ≤ profit(n)` for all `n > 0`. -/
+theorem double_batch_halves_mev (base_profit n : ℕ) (hn : 0 < n) :
+    2 * (base_profit / (2 * n)) ≤ base_profit / n := by
+  rw [Nat.le_div_iff_mul_le hn]
+  have hmul : (base_profit / (2 * n)) * (2 * n) ≤ base_profit :=
+    Nat.div_mul_le_self base_profit (2 * n)
+  simpa [Nat.mul_assoc, Nat.mul_left_comm, Nat.mul_comm] using hmul
 
 /-- The reduction fraction (n-1)/n is always ≤ 1. -/
 theorem reduction_bounded (n : ℕ) (_hn : 0 < n) :
@@ -158,6 +159,12 @@ theorem witness_single_no_protection :
 theorem witness_mono_5_10 :
     reductionNum 5 * 10 ≤ reductionNum 10 * 5 := by
   simp [reductionNum]
+
+/-- Concrete halving witness: doubling batch size from 5 to 10
+    cuts the integer remaining-MEV bound by at least half. -/
+theorem witness_double_batch_halves :
+    2 * (1000 / (2 * 5)) ≤ 1000 / 5 := by
+  native_decide
 
 /-- Counterexample to any necessity reading of `target_batch_size_sufficient`:
     target 1/3 is already met by batch size 2 since 1/2 ≥ 1/3. -/
