@@ -37,8 +37,6 @@ def test_lean_rounding_composition_modules_build_without_warnings() -> None:
     if not (root / "external" / "mathlib4").exists():
         pytest.skip("mathlib4 checkout missing")
 
-    _ensure_proofs_root_built(lake, lean_dir)
-
     try:
         proc = subprocess.run(
             [lake, "--wfail", "build", *TARGETS],
