@@ -34,6 +34,7 @@ import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
 import Proofs.PiecewiseEnvelopeParametric
 import Proofs.FeeCeilDecomposition
 import Proofs.BonusBetBudgetSafety
+import Proofs.MEVResistanceBound
 
 /-!
 Proofs library root.
