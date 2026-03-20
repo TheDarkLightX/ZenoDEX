@@ -1,0 +1,15 @@
+# Settlement proof/binding checklist
+#
+# Purpose:
+# - isolate proof-carrying or witness-binding requirements from the rest of the
+#   settlement bundle;
+# - make proof-mode semantics explicit instead of folding them into a larger AND.
+#
+# Inputs:
+# i1 = proof_ok
+# i2 = binding_ok
+# o1 = proof_binding_ok
+
+set charvar off
+
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf))).

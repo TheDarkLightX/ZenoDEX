@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from ..core.batch_clearing import apply_settlement_pure, compute_settlement
@@ -43,6 +43,11 @@ from .operations import (
 )
 from .proof_mining_context import ProofMiningContext, build_proof_mining_context
 from .proof_verifier import MisconfiguredProofVerifier, ProofVerifier, ProofVerifierConfig, make_proof_verifier
+from .settlement_strong_certificate import (
+    SettlementProofFlags,
+    derive_verified_replay_bound_certificate_flags,
+)
+from .settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
 from .tau_gate import TauGateConfig
 from .validation import validate_operations
 
@@ -178,6 +183,15 @@ class DexEngineConfig:
 
     # Optional Tau gate (swap transition checks against Tau specs).
     tau_gate_config: Optional[TauGateConfig] = None
+    # Optional replay-bound settlement certificate gate. When enabled, the
+    # engine derives the compact settlement summary from the computed settlement
+    # order plus supplied price history and fails closed if the certificate
+    # bundle does not pass.
+    require_settlement_certificate: bool = False
+    settlement_certificate_proof_flags: Optional[SettlementProofFlags] = None
+    settlement_certificate_price_history: Optional[Tuple[int, int, int]] = None
+    require_settlement_end_to_end_certificate: bool = False
+    settlement_end_to_end_certificate_inputs: Optional[SettlementEndToEndCertificateInputs] = None
 
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
@@ -185,6 +199,37 @@ class DexEngineConfig:
     # Test-only anomaly hook. Must not be enabled in production/testnet configs.
     enable_test_fault_injection: bool = False
     fault_injection: Optional[DexFaultInjectionConfig] = None
+
+    def __post_init__(self) -> None:
+        if self.require_settlement_certificate and self.settlement_end_to_end_certificate_inputs is None:
+            raise ValueError(
+                "require_settlement_certificate=True requires settlement_end_to_end_certificate_inputs"
+            )
+        if self.require_settlement_end_to_end_certificate and self.settlement_end_to_end_certificate_inputs is None:
+            raise ValueError(
+                "require_settlement_end_to_end_certificate=True requires settlement_end_to_end_certificate_inputs"
+            )
+
+        if self.settlement_certificate_proof_flags is not None and not isinstance(
+            self.settlement_certificate_proof_flags, SettlementProofFlags
+        ):
+            raise TypeError("settlement_certificate_proof_flags must be a SettlementProofFlags instance")
+        if self.settlement_end_to_end_certificate_inputs is not None and not isinstance(
+            self.settlement_end_to_end_certificate_inputs, SettlementEndToEndCertificateInputs
+        ):
+            raise TypeError(
+                "settlement_end_to_end_certificate_inputs must be a SettlementEndToEndCertificateInputs instance"
+            )
+
+        if self.settlement_certificate_price_history is not None:
+            price_history = self.settlement_certificate_price_history
+            if not isinstance(price_history, tuple) or len(price_history) != 3:
+                raise ValueError(
+                    "settlement_certificate_price_history must be a 3-tuple: (price_pp, price_prev, price_curr)"
+                )
+            for idx, value in enumerate(price_history):
+                if not isinstance(value, int) or isinstance(value, bool):
+                    raise ValueError(f"settlement_certificate_price_history[{idx}] must be an int")
 
 
 @dataclass(frozen=True)
@@ -931,25 +976,14 @@ def apply_ops(
 
         verifier = make_proof_verifier(config.proof_config)
         verifier_enforcing = bool(config.proof_config.enabled)
-
-        ok, err = validate_operations(
-            intents=validation_intents,
-            settlement=settlement,
-            balances=state.balances,
-            pools=state.pools,
-            lp_balances=state.lp_balances,
-            block_timestamp=block_timestamp,
-            tau_gate_config=config.tau_gate_config,
-            settlement_validation=config.dex_config.settlement_validation,
-            swap_ordering=str(config.swap_ordering),
-            quote_bindings_validated=True,
-        )
-        if not ok:
-            return DexTxResult(ok=False, error=err or "operations invalid")
-        _fault_stage(config, "after_settlement_validation")
-
         pre_state_commitment = "0x0"
         batch_commitment = "0x0"
+        proof_preverified = False
+        effective_settlement_end_to_end_inputs = config.settlement_end_to_end_certificate_inputs
+        using_end_to_end_certificate = bool(
+            config.require_settlement_end_to_end_certificate or config.require_settlement_certificate
+        )
+
         if proof is not None and verifier_enforcing:
             if settlement is None:
                 return DexTxResult(ok=False, error="proof requires settlement")
@@ -959,8 +993,7 @@ def apply_ops(
                 return DexTxResult(ok=False, error=f"intents not in normal form: {_clean_error(exc)}")
 
             try:
-                scheme = proof.get("scheme") if isinstance(proof, Mapping) else None
-                if scheme in ("recompute_batch_v3", "recompute_batch_v4"):
+                if proof_scheme in ("recompute_batch_v3", "recompute_batch_v4"):
                     pre_state_commitment = compute_support_state_root_for_batch(
                         intents=intents,
                         balances=state.balances,
@@ -979,7 +1012,7 @@ def apply_ops(
                 return DexTxResult(ok=False, error=f"invalid state for commitment: {exc}")
 
             try:
-                if scheme == "recompute_batch_v4":
+                if proof_scheme == "recompute_batch_v4":
                     op3 = create_settlement_operation(settlement).get("3")
                     if not isinstance(op3, dict):
                         raise TypeError("settlement operation must be an object")
@@ -1015,18 +1048,72 @@ def apply_ops(
             except Exception as exc:
                 return DexTxResult(ok=False, error=f"invalid batch payload: {exc}")
 
-        ok, err = _verify_proof_if_present(
-            verifier,
-            intents=signed_intents,
-            settlement_env=settlement_env,
-            require_proof=config.require_proof_when_present,
-            verifier_enforcing=verifier_enforcing,
-            pre_state_commitment=pre_state_commitment,
-            batch_commitment=batch_commitment,
-            max_verifier_payload_bytes=config.proof_config.max_proof_bytes,
+        if (
+            settlement is not None
+            and using_end_to_end_certificate
+            and effective_settlement_end_to_end_inputs is not None
+            and verifier_enforcing
+        ):
+            if proof is None:
+                return DexTxResult(
+                    ok=False,
+                    error="settlement certificate requires proof when proof verification is enabled",
+                )
+            ok, err = _verify_proof_if_present(
+                verifier,
+                intents=signed_intents,
+                settlement_env=settlement_env,
+                require_proof=True,
+                verifier_enforcing=verifier_enforcing,
+                pre_state_commitment=pre_state_commitment,
+                batch_commitment=batch_commitment,
+                max_verifier_payload_bytes=config.proof_config.max_proof_bytes,
+            )
+            if not ok:
+                return DexTxResult(ok=False, error=err)
+            proof_preverified = True
+            effective_settlement_end_to_end_inputs = replace(
+                effective_settlement_end_to_end_inputs,
+                proof_flags=derive_verified_replay_bound_certificate_flags(
+                    effective_settlement_end_to_end_inputs.proof_flags,
+                    proof_ok=True,
+                    binding_ok=True,
+                ),
+            )
+        ok, err = validate_operations(
+            intents=validation_intents,
+            settlement=settlement,
+            balances=state.balances,
+            pools=state.pools,
+            lp_balances=state.lp_balances,
+            block_timestamp=block_timestamp,
+            tau_gate_config=config.tau_gate_config,
+            settlement_validation=config.dex_config.settlement_validation,
+            swap_ordering=str(config.swap_ordering),
+            quote_bindings_validated=True,
+            require_settlement_certificate=bool(config.require_settlement_certificate),
+            settlement_proof_flags=config.settlement_certificate_proof_flags,
+            settlement_price_history=config.settlement_certificate_price_history,
+            require_settlement_end_to_end_certificate=bool(config.require_settlement_end_to_end_certificate),
+            settlement_end_to_end_certificate_inputs=effective_settlement_end_to_end_inputs,
         )
         if not ok:
-            return DexTxResult(ok=False, error=err)
+            return DexTxResult(ok=False, error=err or "operations invalid")
+        _fault_stage(config, "after_settlement_validation")
+
+        if not proof_preverified:
+            ok, err = _verify_proof_if_present(
+                verifier,
+                intents=signed_intents,
+                settlement_env=settlement_env,
+                require_proof=config.require_proof_when_present,
+                verifier_enforcing=verifier_enforcing,
+                pre_state_commitment=pre_state_commitment,
+                batch_commitment=batch_commitment,
+                max_verifier_payload_bytes=config.proof_config.max_proof_bytes,
+            )
+            if not ok:
+                return DexTxResult(ok=False, error=err)
         _fault_stage(config, "after_proof_verification")
         if settlement is None:
             # No DEX ops; state unchanged.
