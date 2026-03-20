@@ -6,14 +6,15 @@ import Proofs.AntiFragmentation
 /-!
 # Routing Allocation Totality (ShapeForge: split_routing_allocation_contract)
 
-For an exact-in split-route with demand D, the router must produce an allocation
-(a list of per-leg input amounts) satisfying two properties simultaneously:
+For an exact-in split-route with demand D, the production solver searches over
+split vectors that may include zero-sized endpoint legs, e.g. `[D, 0]` or `[0, D]`.
+This file therefore separates two layers:
 
-  1. **Full input consumption**: the leg amounts sum to D.
-  2. **Non-degenerate legs**: every leg carries strictly positive input.
+  1. `EndpointAllocation D legs`: runtime-faithful split vectors whose legs sum to `D`
+  2. `ValidAllocation D legs`: normalized active-leg allocations where every leg is positive
 
-We model a valid allocation as `ValidAllocation D legs` where `legs : List Nat`
-has every element positive and `legs.sum = D`.
+The bridge is `normalizeAllocation`, which removes zero-sized endpoint legs while
+preserving the total sum.
 
 ## Substantive Theorems
 
@@ -32,27 +33,40 @@ has every element positive and `legs.sum = D`.
 | 11 | `validAllocation_cons_iff` | Iff characterization: cons ↔ positive head ∧ head ≤ D ∧ valid tail |
 | 12 | `allocation_rec` | Structural induction principle for valid allocations |
 | 13 | `validAllocation_singleton_iff` | Iff characterization: [a] valid for D ↔ a = D ∧ 0 < D |
-| 14 | `single_leg_maximizes_output` | Cross-file bridge: multi-leg output ≤ single swap |
-| 15 | `allocation_output_le_reserve` | Output bounded by reserve regardless of allocation |
+| 14 | `normalize_endpoint_valid` | Runtime endpoint splits normalize to positive-leg allocations |
+| 15 | `single_pool_single_leg_maximizes_output` | Single-pool anti-fragmentation bridge only |
+| 16 | `single_pool_allocation_output_le_reserve` | Single-pool output bounded by reserve |
 
 ## Non-vacuity witnesses (native_decide)
 
 | # | Name | Scenario |
 |---|------|----------|
 | W1 | `witness_validity` | Valid allocations accepted; sum mismatches and zero legs rejected |
-| W2 | `witness_operations` | Splitting preserves validity; split loses CPMM output |
+| W2 | `witness_endpoint_normalization` | Runtime endpoint splits normalize to active-leg allocations |
+| W3 | `witness_operations` | Splitting preserves validity; split loses single-pool CPMM output |
 
 ## Evidence chain
 
-- Python: `src/core/split_routing.py` enforces `sum(amounts) == total_in` and all amounts > 0
+- Python: `src/core/split_routing.py` brute-force search includes endpoint splits with zero legs
 - ESSO: `src/kernels/dex/split_router_ternary_v1.yaml` verifies bounded allocation invariants
-- This file: Lean proof (formal, no placeholders)
+- This file: Lean proof of endpoint-allocation normalization and positive-leg properties
 -/
 
 namespace Proofs
 namespace AllocationTotality
 
-/-! ## Core definition -/
+/-! ## Core definitions -/
+
+/-- Runtime-faithful split vectors.  Legs are naturals, so non-negativity is implicit.
+    Zero-sized endpoint legs are allowed as part of the solver search space. -/
+structure EndpointAllocation (D : ℕ) (legs : List ℕ) : Prop where
+  sum_eq : legs.sum = D
+
+/-- Remove zero-sized endpoint legs from a runtime split vector. -/
+def normalizeAllocation : List ℕ → List ℕ
+  | [] => []
+  | 0 :: rest => normalizeAllocation rest
+  | (Nat.succ n) :: rest => Nat.succ n :: normalizeAllocation rest
 
 /-- A valid allocation of demand `D` across routing legs.
     Every leg carries strictly positive input and the legs sum exactly to `D`. -/
@@ -62,6 +76,11 @@ structure ValidAllocation (D : ℕ) (legs : List ℕ) : Prop where
 
 /-! ## Decidability (needed for native_decide witnesses) -/
 
+instance instDecidableEndpointAllocation (D : ℕ) (legs : List ℕ) :
+    Decidable (EndpointAllocation D legs) :=
+  if hs : legs.sum = D then isTrue ⟨hs⟩
+  else isFalse (fun h => hs h.sum_eq)
+
 instance instDecidableValidAllocation (D : ℕ) (legs : List ℕ) :
     Decidable (ValidAllocation D legs) :=
   have : Decidable (∀ l ∈ legs, 0 < l) := List.decidableBAll (fun l => 0 < l) legs
@@ -70,6 +89,43 @@ instance instDecidableValidAllocation (D : ℕ) (legs : List ℕ) :
     if hs : legs.sum = D then isTrue ⟨hp, hs⟩
     else isFalse (fun h => hs h.sum_eq)
   else isFalse (fun h => hp h.all_pos)
+
+@[simp] theorem normalizeAllocation_sum (legs : List ℕ) :
+    (normalizeAllocation legs).sum = legs.sum := by
+  induction legs with
+  | nil => simp [normalizeAllocation]
+  | cons h t ih =>
+    cases h with
+    | zero =>
+        simpa [normalizeAllocation] using ih
+    | succ n =>
+        simp [normalizeAllocation, ih]
+
+theorem normalizeAllocation_all_pos (legs : List ℕ) :
+    ∀ l ∈ normalizeAllocation legs, 0 < l := by
+  induction legs with
+  | nil =>
+      intro l hl
+      simp [normalizeAllocation] at hl
+  | cons h t ih =>
+      cases h with
+      | zero =>
+          simpa [normalizeAllocation] using ih
+      | succ n =>
+          intro l hl
+          simp [normalizeAllocation] at hl
+          rcases hl with rfl | hmem
+          · exact Nat.succ_pos _
+          · exact ih l hmem
+
+/-- Normalizing a runtime endpoint allocation yields a positive-leg allocation
+    of the same total demand. -/
+theorem normalize_endpoint_valid (D : ℕ) (legs : List ℕ)
+    (hv : EndpointAllocation D legs) :
+    ValidAllocation D (normalizeAllocation legs) := by
+  constructor
+  · exact normalizeAllocation_all_pos legs
+  · rw [normalizeAllocation_sum, hv.sum_eq]
 
 /-! ## Helper lemma: positive legs imply length bounded by sum -/
 
@@ -404,45 +460,46 @@ theorem validAllocation_singleton_iff (D a : ℕ) :
   · rintro ⟨rfl, hD⟩
     exact ⟨fun l hl => by simp at hl; subst hl; exact hD, by simp⟩
 
-/-! ## Cross-file bridge: Allocation × Anti-Fragmentation
+/-! ## Single-pool anti-fragmentation bridge
 
-This section connects the routing model (ValidAllocation) to the CPMM output
-model (AntiFragmentation). The key insight: splitting demand across multiple
-legs can only decrease total output. Therefore the single-leg allocation
-(no splitting) is output-optimal.
+This section is intentionally narrower than the production split router.
+It connects normalized positive-leg allocations to the single-pool, zero-fee
+CPMM model from `AntiFragmentation`. It does **not** certify the multi-pool,
+fee-aware optimizer in `src/core/split_routing.py`.
 
-**Model scope**: Zero-fee integer CPMM on a single pool. Multi-pool routing
-with heterogeneous rates is a separate (harder) problem. -/
+The only claim here is: on one fixed pool, repeatedly fragmenting the same
+input cannot beat the single unsplit swap. -/
 
-/-- Any valid multi-leg allocation produces at most the single-swap output.
-    This bridges AllocationTotality to AntiFragmentation: splitting input
-    across multiple legs never improves total CPMM output on a single pool.
+/-- Any valid multi-leg allocation produces at most the single-swap output
+    on one fixed zero-fee CPMM pool.
 
-    Proof: substitutes `legs.sum = D` into `batchOutput_le_single_swap`. -/
-theorem single_leg_maximizes_output (D x y : ℕ) (legs : List ℕ)
+    This is a single-pool anti-fragmentation lemma, not a theorem about the
+    production two-pool or multi-pool split router. Proof: substitute
+    `legs.sum = D` into `batchOutput_le_single_swap`. -/
+theorem single_pool_single_leg_maximizes_output (D x y : ℕ) (legs : List ℕ)
     (hv : ValidAllocation D legs) :
     AntiFragmentation.batchOutput x y legs ≤ AntiFragmentation.swapOut x y D := by
   rw [← hv.sum_eq]
   exact AntiFragmentation.batchOutput_le_single_swap x y legs
 
-/-- Output is bounded by the reserve regardless of allocation.
-    Composition of `single_leg_maximizes_output` and `swapOut_le_reserve`. -/
-theorem allocation_output_le_reserve (D x y : ℕ) (legs : List ℕ)
+/-- On one fixed zero-fee CPMM pool, fragmented output is bounded by the reserve.
+    Composition of `single_pool_single_leg_maximizes_output` and `swapOut_le_reserve`. -/
+theorem single_pool_allocation_output_le_reserve (D x y : ℕ) (legs : List ℕ)
     (hv : ValidAllocation D legs) :
     AntiFragmentation.batchOutput x y legs ≤ y :=
-  le_trans (single_leg_maximizes_output D x y legs hv)
+  le_trans (single_pool_single_leg_maximizes_output D x y legs hv)
     (AntiFragmentation.swapOut_le_reserve x y D)
 
-/-- PAIRWISE ALLOCATION GAP: any two valid allocations of the same demand D
+/-- PAIRWISE SINGLE-POOL GAP: any two valid allocations of the same demand D
     produce batch outputs that differ by at most (k-1) where k is the
     number of legs. Both allocations are within k-1 of the shared optimal
     (single swap), so they're within k-1 of each other.
 
-    This is the "stability" result: no matter how you split the demand,
-    outputs are close. Proof routes through the common single-swap optimal
+    This is a single-pool stability result only. Proof routes through the
+    common single-swap optimal
     via batchOutput_le_single_swap (legs₁ ≤ optimal) and
     batchGap_bound (optimal ≤ legs₂ + rounding). -/
-theorem allocation_pair_output_gap (D x y : ℕ) (legs₁ legs₂ : List ℕ)
+theorem single_pool_allocation_pair_output_gap (D x y : ℕ) (legs₁ legs₂ : List ℕ)
     (hv₁ : ValidAllocation D legs₁) (hv₂ : ValidAllocation D legs₂) :
     AntiFragmentation.batchOutput x y legs₁ ≤
       AntiFragmentation.batchOutput x y legs₂ + legs₂.length.pred := by
@@ -465,7 +522,16 @@ theorem witness_validity :
     -- Zero leg: [100,0] rejected for D=100 (non-degenerate violation)
     ¬ ValidAllocation 100 [100, 0] := by native_decide
 
-/-- Operation witnesses: splitting preserves validity but loses CPMM output. -/
+/-- Runtime-faithful endpoint splits normalize into the positive-leg model. -/
+theorem witness_endpoint_normalization :
+    EndpointAllocation 100 [100, 0] ∧
+    EndpointAllocation 100 [0, 100] ∧
+    normalizeAllocation [100, 0] = [100] ∧
+    normalizeAllocation [0, 100] = [100] ∧
+    ValidAllocation 100 (normalizeAllocation [100, 0]) := by
+  native_decide
+
+/-- Single-pool witness: splitting preserves validity but loses CPMM output. -/
 theorem witness_operations :
     -- Splitting [100] into [60,40] preserves validity
     ValidAllocation 100 ([] ++ [60, 40] ++ []) ∧
