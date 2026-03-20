@@ -1,0 +1,180 @@
+# [FORGE] Settlement Add-Liquidity Ratio Witness v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_add_liquidity_ratio_witness_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: verify the claimed ratio-preserving used/refund amounts for a
+    single ADD_LIQUIDITY fill against a live pool.
+
+    Purpose:
+      - Provide a small, verifiable "certificate-checking" primitive for settlement.
+      - If the pool pre-state witness matches a live pool and the claimed used/refund
+        values match the `optimal_liquidity` branch logic, this kernel accepts and
+        emits a binding certificate.
+
+    Assume/guarantee split:
+      - Assumes a separate shell/validator already tied desired amounts to the user's
+        authenticated intent and checked min-amount constraints.
+      - Guarantees only that the claimed amount0_used / amount1_used / refunds are
+        the correct ratio-preserving selection for the observed pool reserves.
+
+    Non-goals:
+      - sender balance checks
+      - LP mint binding
+      - reserve or LP post-state updates
+
+    Those remain outside this micro-kernel and should be checked by composition with
+    the add-liquidity apply witness and shell-level deterministic guards.
+
+observables:
+  state_vars: ["pool_active", "reserve0", "reserve1"]
+  effects:
+    [
+      "amount0_used",
+      "amount1_used",
+      "amount0_refund",
+      "amount1_refund",
+      "binding_ok",
+      "left_branch",
+    ]
+
+types: []
+
+state_vars:
+  - id: "pool_active"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+  - id: "reserve0"
+    role: "data"
+    type: { kind: "int", min: 1, max: 3000 }
+
+  - id: "reserve1"
+    role: "data"
+    type: { kind: "int", min: 1, max: 3000 }
+
+init:
+  - var: "pool_active"
+    expr: { const: 1 }
+  - var: "reserve0"
+    expr: { const: 1000 }
+  - var: "reserve1"
+    expr: { const: 2000 }
+
+invariants:
+  - id: "inv_live_pool_positive"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "pool_active" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: ">", args: [{ var: "reserve0" }, { const: 0 }] }
+            - { op: ">", args: [{ var: "reserve1" }, { const: 0 }] }
+
+actions:
+  - id: "bind_add_liquidity_ratio"
+    params:
+      - id: "amount0_desired"
+        type: { kind: "int", min: 1, max: 1000 }
+      - id: "amount1_desired"
+        type: { kind: "int", min: 1, max: 1000 }
+      - id: "amount0_used"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "amount1_used"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "amount0_refund"
+        type: { kind: "int", min: 0, max: 1000 }
+      - id: "amount1_refund"
+        type: { kind: "int", min: 0, max: 1000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "pool_active" }, { const: 1 }] }
+        - { op: "<=", args: [{ param: "amount0_used" }, { param: "amount0_desired" }] }
+        - { op: "<=", args: [{ param: "amount1_used" }, { param: "amount1_desired" }] }
+        - {
+            op: "=",
+            args: [
+              { param: "amount0_refund" },
+              { op: "-", args: [{ param: "amount0_desired" }, { param: "amount0_used" }] }
+            ]
+          }
+        - {
+            op: "=",
+            args: [
+              { param: "amount1_refund" },
+              { op: "-", args: [{ param: "amount1_desired" }, { param: "amount1_used" }] }
+            ]
+          }
+        - {
+            op: "or",
+            args: [
+              {
+                op: "and",
+                args: [
+                  {
+                    op: "<=",
+                    args: [
+                      { op: "*", args: [{ param: "amount0_desired" }, { var: "reserve1" }] },
+                      { op: "*", args: [{ param: "amount1_desired" }, { var: "reserve0" }] }
+                    ]
+                  },
+                  { op: "=", args: [{ param: "amount0_used" }, { param: "amount0_desired" }] },
+                  {
+                    op: "=",
+                    args: [
+                      { param: "amount1_used" },
+                      {
+                        op: "div",
+                        args: [
+                          { op: "*", args: [{ param: "amount0_desired" }, { var: "reserve1" }] },
+                          { var: "reserve0" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                op: "and",
+                args: [
+                  {
+                    op: ">",
+                    args: [
+                      { op: "*", args: [{ param: "amount0_desired" }, { var: "reserve1" }] },
+                      { op: "*", args: [{ param: "amount1_desired" }, { var: "reserve0" }] }
+                    ]
+                  },
+                  { op: "=", args: [{ param: "amount1_used" }, { param: "amount1_desired" }] },
+                  {
+                    op: "=",
+                    args: [
+                      { param: "amount0_used" },
+                      {
+                        op: "div",
+                        args: [
+                          { op: "*", args: [{ param: "amount1_desired" }, { var: "reserve0" }] },
+                          { var: "reserve1" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+    updates: []
+    effects:
+      amount0_used: { param: "amount0_used" }
+      amount1_used: { param: "amount1_used" }
+      amount0_refund: { param: "amount0_refund" }
+      amount1_refund: { param: "amount1_refund" }
+      binding_ok: { const: 1 }
+      left_branch:
+        op: "<="
+        args:
+          - { op: "*", args: [{ param: "amount0_desired" }, { var: "reserve1" }] }
+          - { op: "*", args: [{ param: "amount1_desired" }, { var: "reserve0" }] }

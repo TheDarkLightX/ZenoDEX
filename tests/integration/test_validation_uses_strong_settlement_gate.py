@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sys
+from types import ModuleType
+
 import pytest
 
 from src.agents.intent_signer import create_swap_intent_from_quote_receipt
@@ -489,6 +492,246 @@ def test_validate_operations_sanitizes_tau_gate_rejection(monkeypatch: pytest.Mo
     assert err.startswith("Tau gate rejected settlement: ")
     assert "\n" not in err
     assert len(err) <= len("Tau gate rejected settlement: ") + 200
+
+
+def test_validate_operations_accepts_tau_gate_enabled_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(53),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={
+            "pool_id": "0x" + "22" * 32,
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.REJECT)],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    monkeypatch.setattr("src.integration.validation.validate_settlement_strong", lambda *args, **kwargs: (True, None))
+    monkeypatch.setattr(
+        "src.integration.tau_gate.validate_settlement_swaps",
+        lambda *args, **kwargs: (True, None),
+    )
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+        tau_gate_config=TauGateConfig(enabled=True),
+    )
+
+    assert ok is True
+    assert err is None
+
+
+def test_validate_operations_reports_tau_gate_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(54),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={
+            "pool_id": "0x" + "22" * 32,
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.REJECT)],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    monkeypatch.setattr("src.integration.validation.validate_settlement_strong", lambda *args, **kwargs: (True, None))
+    dummy_tau_gate = ModuleType("src.integration.tau_gate")
+    monkeypatch.setitem(sys.modules, "src.integration.tau_gate", dummy_tau_gate)
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+        tau_gate_config=TauGateConfig(enabled=True),
+    )
+
+    assert ok is False
+    assert err == "Tau gate unavailable: ImportError"
+
+
+def test_validate_operations_reports_tau_gate_crash_without_detail(monkeypatch: pytest.MonkeyPatch) -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(55),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={
+            "pool_id": "0x" + "22" * 32,
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.REJECT)],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    monkeypatch.setattr("src.integration.validation.validate_settlement_strong", lambda *args, **kwargs: (True, None))
+
+    def crash(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("")
+
+    monkeypatch.setattr("src.integration.tau_gate.validate_settlement_swaps", crash)
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+        tau_gate_config=TauGateConfig(enabled=True),
+    )
+
+    assert ok is False
+    assert err == "Tau gate crashed: RuntimeError"
+
+
+def test_validate_operations_reports_tau_gate_crash_with_detail(monkeypatch: pytest.MonkeyPatch) -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(57),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={
+            "pool_id": "0x" + "22" * 32,
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.REJECT)],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    monkeypatch.setattr("src.integration.validation.validate_settlement_strong", lambda *args, **kwargs: (True, None))
+
+    def crash(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("detail message")
+
+    monkeypatch.setattr("src.integration.tau_gate.validate_settlement_swaps", crash)
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+        tau_gate_config=TauGateConfig(enabled=True),
+    )
+
+    assert ok is False
+    assert err == "Tau gate crashed: RuntimeError: detail message"
+
+
+def test_validate_operations_preserves_short_tau_gate_rejection(monkeypatch: pytest.MonkeyPatch) -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(56),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={
+            "pool_id": "0x" + "22" * 32,
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 100,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent.intent_id, FillAction.REJECT)],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    monkeypatch.setattr("src.integration.validation.validate_settlement_strong", lambda *args, **kwargs: (True, None))
+    monkeypatch.setattr(
+        "src.integration.tau_gate.validate_settlement_swaps",
+        lambda *args, **kwargs: (False, "short detail"),
+    )
+
+    ok, err = validate_operations(
+        intents=[intent],
+        settlement=settlement,
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=None,
+        block_timestamp=0,
+        tau_gate_config=TauGateConfig(enabled=True),
+    )
+
+    assert ok is False
+    assert err == "Tau gate rejected settlement: short detail"
 
 
 def test_apply_operations_applies_valid_swap_settlement() -> None:

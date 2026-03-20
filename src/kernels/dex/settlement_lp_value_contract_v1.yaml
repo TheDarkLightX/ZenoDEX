@@ -1,0 +1,420 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_lp_value_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded LP-aware settlement value contract.
+
+    Purpose:
+    - make LP rows explicit in the settlement value surface
+    - mechanically check that explicit user LP value plus explicit protocol LP
+      liability cancels exactly under the same declared LP unit value
+    - preserve the existing spot asset-value algebra while widening scope to
+      settlements that carry lp_deltas
+
+    Scope boundary:
+    - one LP pool only
+    - explicit external LP unit value
+    - does not prove endogenous LP pricing
+
+observables:
+  state_vars:
+    [
+      "balance_net_a",
+      "balance_net_b",
+      "reserve_net_a",
+      "reserve_net_b",
+      "lp_net",
+      "price_a",
+      "price_b",
+      "lp_unit_value",
+      "asset_net_value_sum",
+      "lp_user_value_sum",
+      "lp_protocol_liability_value_sum",
+      "net_value_sum",
+      "asset_conservation_ok",
+      "lp_liability_balanced_ok",
+      "value_conservation_ok",
+    ]
+  effects:
+    [
+      "asset_net_value_sum",
+      "lp_user_value_sum",
+      "lp_protocol_liability_value_sum",
+      "net_value_sum",
+      "asset_conservation_ok",
+      "lp_liability_balanced_ok",
+      "value_conservation_ok",
+    ]
+
+types: []
+
+state_vars:
+  - id: "balance_net_a"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "balance_net_b"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "reserve_net_a"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "reserve_net_b"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "lp_net"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "price_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1024 }
+  - id: "price_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1024 }
+  - id: "lp_unit_value"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1024 }
+  - id: "asset_net_value_sum"
+    role: "data"
+    type: { kind: "int", min: -8388608, max: 8388608 }
+  - id: "lp_user_value_sum"
+    role: "data"
+    type: { kind: "int", min: -8388608, max: 8388608 }
+  - id: "lp_protocol_liability_value_sum"
+    role: "data"
+    type: { kind: "int", min: -8388608, max: 8388608 }
+  - id: "net_value_sum"
+    role: "data"
+    type: { kind: "int", min: -16777216, max: 16777216 }
+  - id: "asset_conservation_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "lp_liability_balanced_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "value_conservation_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "balance_net_a"
+    expr: { const: 0 }
+  - var: "balance_net_b"
+    expr: { const: 0 }
+  - var: "reserve_net_a"
+    expr: { const: 0 }
+  - var: "reserve_net_b"
+    expr: { const: 0 }
+  - var: "lp_net"
+    expr: { const: 0 }
+  - var: "price_a"
+    expr: { const: 0 }
+  - var: "price_b"
+    expr: { const: 0 }
+  - var: "lp_unit_value"
+    expr: { const: 0 }
+  - var: "asset_net_value_sum"
+    expr: { const: 0 }
+  - var: "lp_user_value_sum"
+    expr: { const: 0 }
+  - var: "lp_protocol_liability_value_sum"
+    expr: { const: 0 }
+  - var: "net_value_sum"
+    expr: { const: 0 }
+  - var: "asset_conservation_ok"
+    expr: { bool: true }
+  - var: "lp_liability_balanced_ok"
+    expr: { bool: true }
+  - var: "value_conservation_ok"
+    expr: { bool: true }
+
+invariants:
+  - id: "inv_asset_net_value_matches_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "asset_net_value_sum" }
+        - op: "+"
+          args:
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "balance_net_a" }
+                    - { var: "reserve_net_a" }
+                - { var: "price_a" }
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "balance_net_b" }
+                    - { var: "reserve_net_b" }
+                - { var: "price_b" }
+  - id: "inv_lp_user_value_matches_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "lp_user_value_sum" }
+        - op: "*"
+          args:
+            - { var: "lp_net" }
+            - { var: "lp_unit_value" }
+  - id: "inv_lp_protocol_liability_matches_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "lp_protocol_liability_value_sum" }
+        - op: "*"
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { var: "lp_net" }]
+            - { var: "lp_unit_value" }
+  - id: "inv_lp_liability_balanced_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "lp_liability_balanced_ok" }
+        - op: "="
+          args:
+            - op: "+"
+              args:
+                - { var: "lp_user_value_sum" }
+                - { var: "lp_protocol_liability_value_sum" }
+            - { const: 0 }
+  - id: "inv_net_value_matches_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "net_value_sum" }
+        - op: "+"
+          args:
+            - { var: "asset_net_value_sum" }
+            - op: "+"
+              args:
+                - { var: "lp_user_value_sum" }
+                - { var: "lp_protocol_liability_value_sum" }
+  - id: "inv_asset_conservation_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "asset_conservation_ok" }
+        - op: "and"
+          args:
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - { var: "balance_net_a" }
+                    - { var: "reserve_net_a" }
+                - { const: 0 }
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - { var: "balance_net_b" }
+                    - { var: "reserve_net_b" }
+                - { const: 0 }
+  - id: "inv_value_conservation_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "value_conservation_ok" }
+        - op: "="
+          args:
+            - { var: "net_value_sum" }
+            - { const: 0 }
+  - id: "inv_asset_and_lp_balance_imply_value_conservation"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - op: "and"
+              args:
+                - { var: "asset_conservation_ok" }
+                - { var: "lp_liability_balanced_ok" }
+        - { var: "value_conservation_ok" }
+
+actions:
+  - id: "rebuild_contract"
+    params:
+      - id: "balance_net_a_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "balance_net_b_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "reserve_net_a_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "reserve_net_b_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "lp_net_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "price_a_in"
+        type: { kind: "int", min: 0, max: 1024 }
+      - id: "price_b_in"
+        type: { kind: "int", min: 0, max: 1024 }
+      - id: "lp_unit_value_in"
+        type: { kind: "int", min: 0, max: 1024 }
+    guard: { bool: true }
+    updates:
+      - var: "balance_net_a"
+        expr: { param: "balance_net_a_in" }
+      - var: "balance_net_b"
+        expr: { param: "balance_net_b_in" }
+      - var: "reserve_net_a"
+        expr: { param: "reserve_net_a_in" }
+      - var: "reserve_net_b"
+        expr: { param: "reserve_net_b_in" }
+      - var: "lp_net"
+        expr: { param: "lp_net_in" }
+      - var: "price_a"
+        expr: { param: "price_a_in" }
+      - var: "price_b"
+        expr: { param: "price_b_in" }
+      - var: "lp_unit_value"
+        expr: { param: "lp_unit_value_in" }
+      - var: "asset_net_value_sum"
+        expr:
+          op: "+"
+          args:
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { param: "balance_net_a_in" }
+                    - { param: "reserve_net_a_in" }
+                - { param: "price_a_in" }
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { param: "balance_net_b_in" }
+                    - { param: "reserve_net_b_in" }
+                - { param: "price_b_in" }
+      - var: "lp_user_value_sum"
+        expr:
+          op: "*"
+          args:
+            - { param: "lp_net_in" }
+            - { param: "lp_unit_value_in" }
+      - var: "lp_protocol_liability_value_sum"
+        expr:
+          op: "*"
+          args:
+            - op: "-"
+              args: [{ const: 0 }, { param: "lp_net_in" }]
+            - { param: "lp_unit_value_in" }
+      - var: "net_value_sum"
+        expr:
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - op: "+"
+                      args:
+                        - { param: "balance_net_a_in" }
+                        - { param: "reserve_net_a_in" }
+                    - { param: "price_a_in" }
+                - op: "*"
+                  args:
+                    - op: "+"
+                      args:
+                        - { param: "balance_net_b_in" }
+                        - { param: "reserve_net_b_in" }
+                    - { param: "price_b_in" }
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: "lp_net_in" }
+                    - { param: "lp_unit_value_in" }
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args: [{ const: 0 }, { param: "lp_net_in" }]
+                    - { param: "lp_unit_value_in" }
+      - var: "asset_conservation_ok"
+        expr:
+          op: "and"
+          args:
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - { param: "balance_net_a_in" }
+                    - { param: "reserve_net_a_in" }
+                - { const: 0 }
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - { param: "balance_net_b_in" }
+                    - { param: "reserve_net_b_in" }
+                - { const: 0 }
+      - var: "lp_liability_balanced_ok"
+        expr:
+          op: "="
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - { param: "lp_net_in" }
+                    - { param: "lp_unit_value_in" }
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args: [{ const: 0 }, { param: "lp_net_in" }]
+                    - { param: "lp_unit_value_in" }
+            - { const: 0 }
+      - var: "value_conservation_ok"
+        expr:
+          op: "="
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "+"
+                          args:
+                            - { param: "balance_net_a_in" }
+                            - { param: "reserve_net_a_in" }
+                        - { param: "price_a_in" }
+                    - op: "*"
+                      args:
+                        - op: "+"
+                          args:
+                            - { param: "balance_net_b_in" }
+                            - { param: "reserve_net_b_in" }
+                        - { param: "price_b_in" }
+                - op: "+"
+                  args:
+                    - op: "*"
+                      args:
+                        - { param: "lp_net_in" }
+                        - { param: "lp_unit_value_in" }
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args: [{ const: 0 }, { param: "lp_net_in" }]
+                        - { param: "lp_unit_value_in" }
+            - { const: 0 }
+    effects:
+      asset_net_value_sum: { var: "asset_net_value_sum" }
+      lp_user_value_sum: { var: "lp_user_value_sum" }
+      lp_protocol_liability_value_sum: { var: "lp_protocol_liability_value_sum" }
+      net_value_sum: { var: "net_value_sum" }
+      asset_conservation_ok: { var: "asset_conservation_ok" }
+      lp_liability_balanced_ok: { var: "lp_liability_balanced_ok" }
+      value_conservation_ok: { var: "value_conservation_ok" }

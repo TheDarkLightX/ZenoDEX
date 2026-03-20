@@ -1,0 +1,238 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_spot_value_contract_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded two-asset abstraction of the settlement spot-value contract.
+
+    Purpose:
+    - mechanically check the contract law for LP-free spot settlements under an
+      explicit two-asset price vector
+    - prove that if the combined balance/reserve net per asset is zero, then
+      the weighted net value is also zero
+
+    Scope boundary:
+    - two assets only
+    - no LP valuation
+    - explicit bounded integer prices
+
+observables:
+  state_vars:
+    [
+      "balance_net_a",
+      "balance_net_b",
+      "reserve_net_a",
+      "reserve_net_b",
+      "price_a",
+      "price_b",
+      "net_value_sum",
+      "asset_conservation_ok",
+      "value_conservation_ok",
+    ]
+  effects: ["net_value_sum", "asset_conservation_ok", "value_conservation_ok"]
+
+types: []
+
+state_vars:
+  - id: "balance_net_a"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "balance_net_b"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "reserve_net_a"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "reserve_net_b"
+    role: "data"
+    type: { kind: "int", min: -2048, max: 2048 }
+  - id: "price_a"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1024 }
+  - id: "price_b"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1024 }
+  - id: "net_value_sum"
+    role: "data"
+    type: { kind: "int", min: -8388608, max: 8388608 }
+  - id: "asset_conservation_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "value_conservation_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "balance_net_a"
+    expr: { const: 0 }
+  - var: "balance_net_b"
+    expr: { const: 0 }
+  - var: "reserve_net_a"
+    expr: { const: 0 }
+  - var: "reserve_net_b"
+    expr: { const: 0 }
+  - var: "price_a"
+    expr: { const: 0 }
+  - var: "price_b"
+    expr: { const: 0 }
+  - var: "net_value_sum"
+    expr: { const: 0 }
+  - var: "asset_conservation_ok"
+    expr: { bool: true }
+  - var: "value_conservation_ok"
+    expr: { bool: true }
+
+invariants:
+  - id: "inv_net_value_matches_formula"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "net_value_sum" }
+        - op: "+"
+          args:
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "balance_net_a" }
+                    - { var: "reserve_net_a" }
+                - { var: "price_a" }
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "balance_net_b" }
+                    - { var: "reserve_net_b" }
+                - { var: "price_b" }
+  - id: "inv_asset_conservation_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "asset_conservation_ok" }
+        - op: "and"
+          args:
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - { var: "balance_net_a" }
+                    - { var: "reserve_net_a" }
+                - { const: 0 }
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - { var: "balance_net_b" }
+                    - { var: "reserve_net_b" }
+                - { const: 0 }
+  - id: "inv_value_conservation_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "value_conservation_ok" }
+        - op: "="
+          args:
+            - { var: "net_value_sum" }
+            - { const: 0 }
+  - id: "inv_asset_conservation_implies_value_conservation"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args: [{ var: "asset_conservation_ok" }]
+        - { var: "value_conservation_ok" }
+
+actions:
+  - id: "rebuild_contract"
+    params:
+      - id: "balance_net_a_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "balance_net_b_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "reserve_net_a_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "reserve_net_b_in"
+        type: { kind: "int", min: -2048, max: 2048 }
+      - id: "price_a_in"
+        type: { kind: "int", min: 0, max: 1024 }
+      - id: "price_b_in"
+        type: { kind: "int", min: 0, max: 1024 }
+    guard: { bool: true }
+    updates:
+      - var: "balance_net_a"
+        expr: { param: "balance_net_a_in" }
+      - var: "balance_net_b"
+        expr: { param: "balance_net_b_in" }
+      - var: "reserve_net_a"
+        expr: { param: "reserve_net_a_in" }
+      - var: "reserve_net_b"
+        expr: { param: "reserve_net_b_in" }
+      - var: "price_a"
+        expr: { param: "price_a_in" }
+      - var: "price_b"
+        expr: { param: "price_b_in" }
+      - var: "net_value_sum"
+        expr:
+          op: "+"
+          args:
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { param: "balance_net_a_in" }
+                    - { param: "reserve_net_a_in" }
+                - { param: "price_a_in" }
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { param: "balance_net_b_in" }
+                    - { param: "reserve_net_b_in" }
+                - { param: "price_b_in" }
+      - var: "asset_conservation_ok"
+        expr:
+          op: "and"
+          args:
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - { param: "balance_net_a_in" }
+                    - { param: "reserve_net_a_in" }
+                - { const: 0 }
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - { param: "balance_net_b_in" }
+                    - { param: "reserve_net_b_in" }
+                - { const: 0 }
+      - var: "value_conservation_ok"
+        expr:
+          op: "="
+          args:
+            - op: "+"
+              args:
+                - op: "*"
+                  args:
+                    - op: "+"
+                      args:
+                        - { param: "balance_net_a_in" }
+                        - { param: "reserve_net_a_in" }
+                    - { param: "price_a_in" }
+                - op: "*"
+                  args:
+                    - op: "+"
+                      args:
+                        - { param: "balance_net_b_in" }
+                        - { param: "reserve_net_b_in" }
+                    - { param: "price_b_in" }
+            - { const: 0 }
+    effects:
+      net_value_sum: { var: "net_value_sum" }
+      asset_conservation_ok: { var: "asset_conservation_ok" }
+      value_conservation_ok: { var: "value_conservation_ok" }

@@ -110,6 +110,99 @@ def _setup_create_pool_context() -> tuple[str, str, str, BalanceTable, Intent, S
     return pk, asset0, asset1, balances, intent, settlement
 
 
+def _setup_swap_exact_out_context(
+    *, reverse: bool = False
+) -> tuple[str, str, str, str, PoolState, BalanceTable, Intent, Settlement]:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk, asset0, 10_000_000)
+    balances.set(pk, asset1, 10_000_000)
+
+    if reverse:
+        swap_asset_in = asset1
+        swap_asset_out = asset0
+    else:
+        swap_asset_in = asset0
+        swap_asset_out = asset1
+
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_iid(904 if not reverse else 905),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": swap_asset_in,
+            "asset_out": swap_asset_out,
+            "amount_out": 1_000,
+            "max_amount_in": 10_000,
+        },
+    )
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+    return pk, asset0, asset1, pool_id, pool, balances, intent, settlement
+
+
+def _setup_add_liquidity_context() -> tuple[str, str, str, str, PoolState, BalanceTable, LPTable, Intent, Settlement]:
+    pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(906),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "amount0_desired": 100_000,
+            "amount1_desired": 100_000,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+    settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    return pk, asset0, asset1, pool_id, pool, balances, lp_balances, intent, settlement
+
+
+def _setup_remove_liquidity_context() -> tuple[str, str, str, str, PoolState, BalanceTable, LPTable, Intent, Settlement]:
+    pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(907),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "lp_amount": 1_000,
+            "amount0_min": 0,
+            "amount1_min": 0,
+        },
+    )
+    settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    return pk, asset0, asset1, pool_id, pool, balances, lp_balances, intent, settlement
+
+
 def test_quote_binding_error_without_context_returns_reason() -> None:
     assert strong_validator._quote_binding_error("plain reason") == "plain reason"
 
@@ -164,6 +257,34 @@ def test_validate_settlement_strong_fail_closed_on_internal_crash_without_detail
     )
     assert ok is False
     assert err == "strong validator crashed: RuntimeError"
+
+
+def test_validate_settlement_strong_truncates_long_internal_crash_detail(monkeypatch) -> None:
+    def _boom(**_kwargs: object) -> tuple[bool, str | None]:
+        raise RuntimeError("x" * 400)
+
+    monkeypatch.setattr(strong_validator, "_validate_settlement_strong_impl", _boom)
+    ok, err = strong_validator.validate_settlement_strong(
+        settlement=Settlement(
+            module="TauSwap",
+            version="0.1",
+            batch_ref="",
+            included_intents=[],
+            fills=[],
+            balance_deltas=[],
+            reserve_deltas=[],
+            lp_deltas=[],
+            events=None,
+        ),
+        intents=[],
+        pre_balances=BalanceTable(),
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith("strong validator crashed: RuntimeError: ")
+    assert len(err) == len("strong validator crashed: RuntimeError: ") + 200
 
 
 def test_aggregate_helpers_drop_zero_entries() -> None:
@@ -1758,3 +1879,1119 @@ def test_strong_validator_rejects_duplicate_lp_delta_keys() -> None:
     )
     assert ok is False
     assert err == "lp_deltas contains duplicate keys"
+
+
+def test_strong_validator_accepts_reverse_direction_swap_exact_in() -> None:
+    pk, asset0, asset1, pool_id, pool, balances, _intent, _settlement = _setup_swap_context()
+    reverse_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(908),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset1,
+            "asset_out": asset0,
+            "amount_in": 1_000,
+            "min_amount_out": 1,
+        },
+    )
+    settlement = compute_settlement([reverse_intent], {pool_id: pool}, balances, LPTable())
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[reverse_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True, err
+
+
+def test_strong_validator_accepts_reverse_direction_swap_exact_out() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context(reverse=True)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is True, err
+
+
+def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monkeypatch) -> None:
+    _pk, asset0, asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+
+    invalid_amount_intent = replace(intent, fields={**intent.fields, "amount_in": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount_in for intent_id={intent.intent_id}"
+
+    invalid_min_out_intent = replace(intent, fields={**intent.fields, "min_amount_out": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_min_out_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid min_amount_out for intent_id={intent.intent_id}"
+
+    amount_in_mismatch = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
+    amount_in_mismatch.fills[0].amount_in_filled += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount_in_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap amount_in_filled mismatch for intent_id={intent.intent_id}"
+
+    def _boom_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(strong_validator, "swap_exact_in_for_pool", _boom_exact_in)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"swap_exact_in kernel error for intent_id={intent.intent_id}:")
+    monkeypatch.undo()
+
+    amount_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
+    amount_out_mismatch.fills[0].amount_out_filled += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount_out_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap amount_out_filled mismatch for intent_id={intent.intent_id}"
+
+    slippage_intent = replace(
+        intent,
+        fields={**intent.fields, "min_amount_out": int(settlement.fills[0].amount_out_filled or 0) + 1},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[slippage_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap slippage for intent_id={intent.intent_id}"
+
+    fee_mismatch = compute_settlement([intent], {pool_id: pool}, balances, LPTable())
+    fee_mismatch.fills[0].fee_paid += 1
+    ok, err = validate_settlement_strong(
+        settlement=fee_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap fee_paid mismatch for intent_id={intent.intent_id}"
+
+    low_balances = BalanceTable()
+    low_balances.set(intent.sender_pubkey, asset0, 1)
+    low_balances.set(intent.sender_pubkey, asset1, 0)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"swap apply error for intent_id={intent.intent_id}:")
+
+
+def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monkeypatch) -> None:
+    _pk, asset0, asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
+
+    invalid_amount_out_intent = replace(intent, fields={**intent.fields, "amount_out": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount_out_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount_out for intent_id={intent.intent_id}"
+
+    invalid_max_in_intent = replace(intent, fields={**intent.fields, "max_amount_in": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_max_in_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid max_amount_in for intent_id={intent.intent_id}"
+
+    amount_out_mismatch = compute_settlement(
+        [intent], {pool_id: pool}, balances, LPTable(), swap_ordering="greedy_ab_refined"
+    )
+    amount_out_mismatch.fills[0].amount_out_filled += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount_out_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap amount_out_filled mismatch for intent_id={intent.intent_id}"
+
+    def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(strong_validator, "swap_exact_out_for_pool", _boom_exact_out)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"swap_exact_out kernel error for intent_id={intent.intent_id}:")
+    monkeypatch.undo()
+
+    amount_in_mismatch = compute_settlement(
+        [intent], {pool_id: pool}, balances, LPTable(), swap_ordering="greedy_ab_refined"
+    )
+    amount_in_mismatch.fills[0].amount_in_filled += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount_in_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap amount_in_filled mismatch for intent_id={intent.intent_id}"
+
+    slippage_intent = replace(intent, fields={**intent.fields, "max_amount_in": 1})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[slippage_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap slippage for intent_id={intent.intent_id}"
+
+    fee_mismatch = compute_settlement(
+        [intent], {pool_id: pool}, balances, LPTable(), swap_ordering="greedy_ab_refined"
+    )
+    fee_mismatch.fills[0].fee_paid += 1
+    ok, err = validate_settlement_strong(
+        settlement=fee_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"swap fee_paid mismatch for intent_id={intent.intent_id}"
+
+    low_balances = BalanceTable()
+    low_balances.set(intent.sender_pubkey, asset0, 1)
+    low_balances.set(intent.sender_pubkey, asset1, 0)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"swap apply error for intent_id={intent.intent_id}:")
+
+
+def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
+    _pk, asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
+
+    missing_field_intent = replace(intent, fields={k: v for k, v in intent.fields.items() if k != "amount1"})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[missing_field_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"missing CREATE_POOL fields for intent_id={intent.intent_id}"
+
+    invalid_asset_intent = replace(intent, fields={**intent.fields, "asset1": 7})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_asset_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid CREATE_POOL asset ids for intent_id={intent.intent_id}"
+
+    invalid_fee_intent = replace(intent, fields={**intent.fields, "fee_bps": 10_001})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_fee_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid CREATE_POOL fee_bps for intent_id={intent.intent_id}"
+
+    invalid_amount1_intent = replace(intent, fields={**intent.fields, "amount1": 0})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount1_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid CREATE_POOL amount1 for intent_id={intent.intent_id}"
+
+    invalid_created_at_intent = replace(intent, fields={**intent.fields, "created_at": -1})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_created_at_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid CREATE_POOL created_at for intent_id={intent.intent_id}"
+
+    computation_error_intent = replace(intent, fields={**intent.fields, "asset1": asset0})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[computation_error_intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"CREATE_POOL computation error for intent_id={intent.intent_id}:")
+
+    amount1_mismatch = compute_settlement([intent], {}, balances, LPTable())
+    amount1_mismatch.fills[0].amount1_used += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount1_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL fill.amount1_used mismatch for intent_id={intent.intent_id}"
+
+    lp_minted_mismatch = compute_settlement([intent], {}, balances, LPTable())
+    lp_minted_mismatch.fills[0].lp_minted += 1
+    ok, err = validate_settlement_strong(
+        settlement=lp_minted_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"CREATE_POOL fill.lp_minted mismatch for intent_id={intent.intent_id}"
+
+
+def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() -> None:
+    pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+
+    missing_field_intent = replace(intent, fields={k: v for k, v in intent.fields.items() if k != "amount1_desired"})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[missing_field_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"missing ADD_LIQUIDITY fields for intent_id={intent.intent_id}"
+
+    invalid_amount1_intent = replace(intent, fields={**intent.fields, "amount1_desired": 0})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount1_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount1_desired for intent_id={intent.intent_id}"
+
+    invalid_amount0_min_intent = replace(intent, fields={**intent.fields, "amount0_min": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount0_min_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount0_min for intent_id={intent.intent_id}"
+
+    invalid_amount1_min_intent = replace(intent, fields={**intent.fields, "amount1_min": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount1_min_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount1_min for intent_id={intent.intent_id}"
+
+    computation_error_intent = replace(intent, fields={**intent.fields, "amount0_min": intent.get_field("amount0_desired") + 1})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[computation_error_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"ADD_LIQUIDITY computation error for intent_id={intent.intent_id}:")
+
+    amount0_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    amount0_mismatch.fills[0].amount0_used += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount0_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"ADD_LIQUIDITY fill.amount0_used mismatch for intent_id={intent.intent_id}"
+
+    amount1_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    amount1_mismatch.fills[0].amount1_used += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount1_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"ADD_LIQUIDITY fill.amount1_used mismatch for intent_id={intent.intent_id}"
+
+    lp_minted_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    lp_minted_mismatch.fills[0].lp_minted += 1
+    ok, err = validate_settlement_strong(
+        settlement=lp_minted_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"ADD_LIQUIDITY fill.lp_minted mismatch for intent_id={intent.intent_id}"
+
+    low_balances = BalanceTable()
+    low_balances.set(pk, pool.asset0, 1)
+    low_balances.set(pk, pool.asset1, 1)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=low_balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"ADD_LIQUIDITY apply error for intent_id={intent.intent_id}:")
+
+
+def test_strong_validator_rejects_remove_liquidity_field_fill_and_apply_failures() -> None:
+    pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_remove_liquidity_context()
+
+    missing_lp_amount_intent = replace(intent, fields={k: v for k, v in intent.fields.items() if k != "lp_amount"})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[missing_lp_amount_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"missing REMOVE_LIQUIDITY lp_amount for intent_id={intent.intent_id}"
+
+    invalid_amount0_min_intent = replace(intent, fields={**intent.fields, "amount0_min": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount0_min_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount0_min for intent_id={intent.intent_id}"
+
+    invalid_amount1_min_intent = replace(intent, fields={**intent.fields, "amount1_min": False})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_amount1_min_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"invalid amount1_min for intent_id={intent.intent_id}"
+
+    computation_error_intent = replace(intent, fields={**intent.fields, "amount0_min": pool.reserve0})
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[computation_error_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"REMOVE_LIQUIDITY computation error for intent_id={intent.intent_id}:")
+
+    lp_burned_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    lp_burned_mismatch.fills[0].lp_burned += 1
+    ok, err = validate_settlement_strong(
+        settlement=lp_burned_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"REMOVE_LIQUIDITY fill.lp_burned mismatch for intent_id={intent.intent_id}"
+
+    amount0_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    amount0_out_mismatch.fills[0].amount0_out += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount0_out_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"REMOVE_LIQUIDITY fill.amount0_out mismatch for intent_id={intent.intent_id}"
+
+    amount1_out_mismatch = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
+    amount1_out_mismatch.fills[0].amount1_out += 1
+    ok, err = validate_settlement_strong(
+        settlement=amount1_out_mismatch,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == f"REMOVE_LIQUIDITY fill.amount1_out mismatch for intent_id={intent.intent_id}"
+
+    low_lp_balances = LPTable()
+    low_lp_balances.set(pk, pool_id, 1)
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=low_lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"REMOVE_LIQUIDITY apply error for intent_id={intent.intent_id}:")
+
+
+def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_context()
+    settlement.balance_deltas[0].delta_sub += 1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "balance_deltas mismatch vs replay"
+
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    settlement.reserve_deltas[0].delta_add += 1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "reserve_deltas mismatch vs replay"
+
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    settlement.lp_deltas[0].delta_add += 1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "lp_deltas mismatch vs replay"
+
+    _pk, _asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
+    settlement.events[0]["fee_bps"] += 1
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "events mismatch vs replay"
+
+
+def test_check_canonical_deltas_rejects_unsorted_and_zero_reserve_lp_entries() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    settlement.reserve_deltas = list(reversed(settlement.reserve_deltas))
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "reserve_deltas not sorted canonically"
+
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    settlement.reserve_deltas.append(
+        ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=0, delta_sub=0)
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "reserve_deltas contains a zero entry"
+
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    settlement.lp_deltas.append(
+        LPDelta(pubkey=intent.sender_pubkey, pool_id=pool_id, delta_add=0, delta_sub=0)
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=lp_balances,
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "lp_deltas contains a zero entry"
+
+
+def test_strong_validator_rejects_cow_netted_variants_and_legacy_failure() -> None:
+    pk0 = "0x" + "11" * 48
+    pk1 = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+    balances = BalanceTable()
+    balances.set(pk0, asset0, 10_000)
+    balances.set(pk0, asset1, 10_000)
+    balances.set(pk1, asset0, 0)
+    balances.set(pk1, asset1, 0)
+
+    exact_out_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_OUT,
+        intent_id=_iid(909),
+        sender_pubkey=pk0,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_out": 100,
+            "max_amount_in": 1_000,
+            "recipient": pk1,
+        },
+    )
+    exact_out_settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(exact_out_intent.intent_id, FillAction.FILL)],
+        fills=[
+            Fill(
+                intent_id=exact_out_intent.intent_id,
+                action=FillAction.FILL,
+                reason="COW_NETTED",
+                amount_in_filled=100,
+                amount_out_filled=100,
+                fee_paid=0,
+            )
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+    ok, err = validate_settlement_strong(
+        settlement=exact_out_settlement,
+        intents=[exact_out_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={exact_out_intent.intent_id}"
+
+    exact_in_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(910),
+        sender_pubkey=pk0,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100,
+            "min_amount_out": 1,
+            "recipient": pk1,
+        },
+    )
+    cow_settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(exact_in_intent.intent_id, FillAction.FILL)],
+        fills=[
+            Fill(
+                intent_id=exact_in_intent.intent_id,
+                action=FillAction.FILL,
+                reason="COW_NETTED",
+                amount_in_filled=100,
+                amount_out_filled=50,
+                fee_paid=0,
+            )
+        ],
+        balance_deltas=[
+            BalanceDelta(pubkey=pk0, asset=asset0, delta_add=0, delta_sub=100),
+            BalanceDelta(pubkey=pk1, asset=asset1, delta_add=50, delta_sub=0),
+        ],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+    ok, err = validate_settlement_strong(
+        settlement=cow_settlement,
+        intents=[exact_in_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith("legacy validation failed:")
+
+
+def test_strong_validator_rejects_quote_hash_and_snapshot_binding_without_engine_witness() -> None:
+    pk, asset0, asset1, pool_id, pool, balances, _intent, _settlement = _setup_swap_context()
+
+    invalid_hash_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(911),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 1_000,
+            "min_amount_out": 1,
+            "quote_receipt_hash": "",
+        },
+    )
+    settlement = compute_settlement([invalid_hash_intent], {pool_id: pool}, balances, LPTable())
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[invalid_hash_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert "invalid quote_receipt_hash" in err
+
+    unsanitized_hash_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(917),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 1_000,
+            "min_amount_out": 1,
+            "quote_receipt_hash": "0xdeadbeef",
+        },
+    )
+    settlement = compute_settlement([unsanitized_hash_intent], {pool_id: pool}, balances, LPTable())
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[unsanitized_hash_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert "quote receipt transport metadata requires validated engine witness" in err
+
+    snapshot_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(912),
+        sender_pubkey=pk,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 1_000,
+            "min_amount_out": 1,
+            "quote_pool_fingerprint": pool_state_fingerprint(pool),
+        },
+    )
+    settlement = compute_settlement([snapshot_intent], {pool_id: pool}, balances, LPTable())
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[snapshot_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err is not None
+    assert "quote receipt snapshot binding requires validated engine witness" in err
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[snapshot_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_snapshot_bound_quote_bindings=True,
+    )
+    assert ok is True, err
+
+
+def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
+    pk0 = "0x" + "11" * 48
+    pk1 = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    balances.set(pk0, asset0, 10_000)
+    balances.set(pk0, asset1, 0)
+    balances.set(pk1, asset0, 0)
+    balances.set(pk1, asset1, 0)
+
+    def _settlement_for(intent_id: str, *, amount_in_filled: int = 100, amount_out_filled: int = 50, fee_paid: int = 0) -> Settlement:
+        return Settlement(
+            module="TauSwap",
+            version="0.1",
+            batch_ref="",
+            included_intents=[(intent_id, FillAction.FILL)],
+            fills=[
+                Fill(
+                    intent_id=intent_id,
+                    action=FillAction.FILL,
+                    reason="COW_NETTED",
+                    amount_in_filled=amount_in_filled,
+                    amount_out_filled=amount_out_filled,
+                    fee_paid=fee_paid,
+                )
+            ],
+            balance_deltas=[
+                BalanceDelta(pubkey=pk0, asset=asset0, delta_add=0, delta_sub=100),
+                BalanceDelta(pubkey=pk1, asset=asset1, delta_add=amount_out_filled, delta_sub=0),
+            ],
+            reserve_deltas=[],
+            lp_deltas=[],
+            events=None,
+        )
+
+    invalid_amount_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(913),
+        sender_pubkey=pk0,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": False,
+            "min_amount_out": 1,
+            "recipient": pk1,
+        },
+    )
+    ok, err = validate_settlement_strong(
+        settlement=_settlement_for(invalid_amount_intent.intent_id),
+        intents=[invalid_amount_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"invalid amount_in for intent_id={invalid_amount_intent.intent_id}"
+
+    invalid_min_out_intent = replace(
+        invalid_amount_intent,
+        intent_id=_iid(914),
+        fields={**invalid_amount_intent.fields, "amount_in": 100, "min_amount_out": False},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=_settlement_for(invalid_min_out_intent.intent_id),
+        intents=[invalid_min_out_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"invalid min_amount_out for intent_id={invalid_min_out_intent.intent_id}"
+
+    base_intent = replace(
+        invalid_amount_intent,
+        intent_id=_iid(915),
+        fields={**invalid_amount_intent.fields, "amount_in": 100, "min_amount_out": 10},
+    )
+    ok, err = validate_settlement_strong(
+        settlement=_settlement_for(base_intent.intent_id, fee_paid=1),
+        intents=[base_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED fee_paid must be 0: intent_id={base_intent.intent_id}"
+
+    ok, err = validate_settlement_strong(
+        settlement=_settlement_for(base_intent.intent_id, amount_in_filled=99),
+        intents=[base_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED amount_in_filled mismatch: intent_id={base_intent.intent_id}"
+
+    ok, err = validate_settlement_strong(
+        settlement=_settlement_for(base_intent.intent_id, amount_out_filled=9),
+        intents=[base_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err == f"COW_NETTED slippage: intent_id={base_intent.intent_id}"
+
+    low_balances = BalanceTable()
+    low_balances.set(pk0, asset0, 1)
+    low_balances.set(pk1, asset1, 0)
+    ok, err = validate_settlement_strong(
+        settlement=_settlement_for(base_intent.intent_id),
+        intents=[base_intent],
+        pre_balances=low_balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"COW_NETTED apply error for intent_id={base_intent.intent_id}:")
+
+
+def test_strong_validator_rejects_unsupported_intent_kind() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, _intent, _settlement = _setup_swap_context()
+    weird_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind="MYSTERY_KIND",
+        intent_id=_iid(916),
+        sender_pubkey="0x" + "11" * 48,
+        deadline=9999999999,
+        fields={"pool_id": pool_id},
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(weird_intent.intent_id, FillAction.FILL)],
+        fills=[Fill(intent_id=weird_intent.intent_id, action=FillAction.FILL)],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[weird_intent],
+        pre_balances=balances,
+        pre_pools={pool_id: pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+    assert ok is False
+    assert err == "unsupported intent kind for strong validation: MYSTERY_KIND"

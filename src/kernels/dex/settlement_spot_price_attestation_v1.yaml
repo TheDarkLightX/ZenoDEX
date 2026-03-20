@@ -1,0 +1,210 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_spot_price_attestation_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance gate for a signed settlement spot-price attestation.
+
+    Purpose:
+    - mechanically check the fail-closed acceptance rule around the authenticated
+      spot-price packet envelope
+    - keep the boolean policy explicit: verified packet provenance, hash binding,
+      signer/source policy, and consumer-time freshness must all hold
+
+    Scope boundary:
+    - does not model BLS cryptography internally
+    - treats signature_valid as an externally supplied primitive boolean
+    - only checks the deterministic acceptance relation over bounded epochs
+
+observables:
+  state_vars:
+    [
+      "packet_now_epoch",
+      "signed_at_epoch",
+      "consumer_now_epoch",
+      "max_attestation_age_epochs",
+      "provenance_ok",
+      "packet_hash_matches",
+      "signature_valid",
+      "signer_allowlisted",
+      "source_policy_ok",
+      "signed_at_matches_packet_now",
+      "attestation_ok",
+    ]
+  effects: ["signed_at_matches_packet_now", "attestation_ok"]
+
+types: []
+
+state_vars:
+  - id: "packet_now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "signed_at_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "consumer_now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "max_attestation_age_epochs"
+    role: "data"
+    type: { kind: "int", min: 0, max: 255 }
+  - id: "provenance_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "packet_hash_matches"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "signature_valid"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "signer_allowlisted"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "source_policy_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "signed_at_matches_packet_now"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "attestation_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "packet_now_epoch"
+    expr: { const: 0 }
+  - var: "signed_at_epoch"
+    expr: { const: 0 }
+  - var: "consumer_now_epoch"
+    expr: { const: 0 }
+  - var: "max_attestation_age_epochs"
+    expr: { const: 0 }
+  - var: "provenance_ok"
+    expr: { bool: false }
+  - var: "packet_hash_matches"
+    expr: { bool: false }
+  - var: "signature_valid"
+    expr: { bool: false }
+  - var: "signer_allowlisted"
+    expr: { bool: false }
+  - var: "source_policy_ok"
+    expr: { bool: false }
+  - var: "signed_at_matches_packet_now"
+    expr: { bool: true }
+  - var: "attestation_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_signed_at_matches_packet_now_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "signed_at_matches_packet_now" }
+        - op: "="
+          args:
+            - { var: "packet_now_epoch" }
+            - { var: "signed_at_epoch" }
+  - id: "inv_attestation_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "attestation_ok" }
+        - op: "and"
+          args:
+            - { var: "provenance_ok" }
+            - { var: "packet_hash_matches" }
+            - { var: "signature_valid" }
+            - { var: "signer_allowlisted" }
+            - { var: "source_policy_ok" }
+            - op: "="
+              args:
+                - { var: "packet_now_epoch" }
+                - { var: "signed_at_epoch" }
+            - op: "<="
+              args:
+                - { var: "signed_at_epoch" }
+                - { var: "consumer_now_epoch" }
+            - op: "<="
+              args:
+                - op: "-"
+                  args:
+                    - { var: "consumer_now_epoch" }
+                    - { var: "signed_at_epoch" }
+                - { var: "max_attestation_age_epochs" }
+
+actions:
+  - id: "rebuild_attestation"
+    params:
+      - id: "packet_now_epoch_in"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "signed_at_epoch_in"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "consumer_now_epoch_in"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "max_attestation_age_epochs_in"
+        type: { kind: "int", min: 0, max: 255 }
+      - id: "provenance_ok_in"
+        type: { kind: "bool" }
+      - id: "packet_hash_matches_in"
+        type: { kind: "bool" }
+      - id: "signature_valid_in"
+        type: { kind: "bool" }
+      - id: "signer_allowlisted_in"
+        type: { kind: "bool" }
+      - id: "source_policy_ok_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "packet_now_epoch"
+        expr: { param: "packet_now_epoch_in" }
+      - var: "signed_at_epoch"
+        expr: { param: "signed_at_epoch_in" }
+      - var: "consumer_now_epoch"
+        expr: { param: "consumer_now_epoch_in" }
+      - var: "max_attestation_age_epochs"
+        expr: { param: "max_attestation_age_epochs_in" }
+      - var: "provenance_ok"
+        expr: { param: "provenance_ok_in" }
+      - var: "packet_hash_matches"
+        expr: { param: "packet_hash_matches_in" }
+      - var: "signature_valid"
+        expr: { param: "signature_valid_in" }
+      - var: "signer_allowlisted"
+        expr: { param: "signer_allowlisted_in" }
+      - var: "source_policy_ok"
+        expr: { param: "source_policy_ok_in" }
+      - var: "signed_at_matches_packet_now"
+        expr:
+          op: "="
+          args:
+            - { param: "packet_now_epoch_in" }
+            - { param: "signed_at_epoch_in" }
+      - var: "attestation_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "provenance_ok_in" }
+            - { param: "packet_hash_matches_in" }
+            - { param: "signature_valid_in" }
+            - { param: "signer_allowlisted_in" }
+            - { param: "source_policy_ok_in" }
+            - op: "="
+              args:
+                - { param: "packet_now_epoch_in" }
+                - { param: "signed_at_epoch_in" }
+            - op: "<="
+              args:
+                - { param: "signed_at_epoch_in" }
+                - { param: "consumer_now_epoch_in" }
+            - op: "<="
+              args:
+                - op: "-"
+                  args:
+                    - { param: "consumer_now_epoch_in" }
+                    - { param: "signed_at_epoch_in" }
+                - { param: "max_attestation_age_epochs_in" }
+    effects:
+      signed_at_matches_packet_now: { var: "signed_at_matches_packet_now" }
+      attestation_ok: { var: "attestation_ok" }
