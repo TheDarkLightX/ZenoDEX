@@ -41,6 +41,62 @@ What these numbers mean:
 
 For the public replay workflow and the exact assurance lanes, see [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md). For a fuller breakdown of what is and is not at the published bar, see [docs/ASSURANCE.md](docs/ASSURANCE.md).
 
+## Current Assurance Shape
+The public assurance case in this repo is organized as a shape, not as a single monolithic proof.
+
+The review path is:
+
+1. **Functional core**: the consensus-critical execution path stays small and deterministic.
+   - examples: `src/core/split_routing_dispatch.py`, `src/core/batch_clearing.py`
+2. **Verified kernel layer**: bounded arithmetic and contract surfaces are expressed as ESSO kernels.
+   - examples: `src/kernels/dex/exact_*`, `src/kernels/dex/settlement_*`
+3. **Replayable certificate layer**: Python build/verify packets bind runtime outputs to canonical witnesses.
+   - examples:
+     - `src/integration/exact_in_route_certificate.py`
+     - `src/integration/exact_out_route_certificate.py`
+     - `src/integration/settlement_end_to_end_certificate_packet.py`
+4. **Machine-checked proof layer**: Lean proofs justify the canonical winner and settlement packet shells.
+   - examples:
+     - `lean-mathlib/Proofs/ZenoDEXExact*.lean`
+     - `lean-mathlib/Proofs/ZenoDEXSettlement*.lean`
+     - `lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean`
+5. **Public regression layer**: focused core, integration, and formal tests keep the shipped surfaces replayable.
+
+At the promoted bounded runtime scope shipped here, the current assurance shape supports these top-level claims:
+
+- batch-clearing validity
+- unique canonical winner for the shipped exact-in / exact-out routing lanes
+- exact fee-aware accounting
+- value-aware settlement safety
+- proof-carrying optimizer certificates
+- anti-fragmentation by theorem
+- non-commutativity quarantine
+- oracle divergence safety
+- liquidation spiral containment
+- cross-layer replay parity
+
+This is the sense in which the repo argues for a **correct-by-construction** posture:
+
+- objective and tie-break relations are explicit
+- winner selection is reduced to replayable canonical witnesses
+- settlement acceptance is bound to replayable end-to-end certificates
+- functional-core edits are backed by kernels, proofs, or bounded trusted-model checks before adoption
+
+Scope limit:
+
+- this is a claim about the shipped, bounded, replayable surfaces in this tree
+- it is not a claim that every future heuristic or every unbounded search family is already universally proved
+
+If you want to review that claim directly, start with:
+
+- `src/core/split_routing_dispatch.py`
+- `src/integration/exact_in_route_certificate.py`
+- `src/integration/exact_out_route_certificate.py`
+- `src/integration/settlement_end_to_end_certificate_packet.py`
+- `tests/core/test_split_routing_dispatch.py`
+- `tests/integration/test_api_server_dex_api.py`
+- `lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean`
+
 ## Why this repo exists
 - **Formal correctness** for DEX settlement and tokenomics
 - **Composable spec modules** (lego blocks) with explicit invariants

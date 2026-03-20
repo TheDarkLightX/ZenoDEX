@@ -150,7 +150,9 @@ def test_verify_settlement_strong_certificate_rejects_tampered_settlement() -> N
 def test_verify_settlement_strong_certificate_rejects_tampered_bundle_step() -> None:
     _intent, settlement, _balances, _pools = _swap_context()
     cert = build_settlement_strong_certificate(settlement=settlement, proof_flags=SettlementProofFlags.all_true())
-    bad = replace(cert, module_bundle_step={"i1": 1, "i2": 1, "i3": 0})
+    bad_step = dict(cert.module_bundle_step)
+    bad_step["i9"] = 0
+    bad = replace(cert, module_bundle_step=bad_step)
 
     ok, err = verify_settlement_strong_certificate(settlement=settlement, certificate=bad)
     assert ok is False
