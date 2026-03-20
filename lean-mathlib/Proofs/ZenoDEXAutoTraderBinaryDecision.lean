@@ -113,9 +113,9 @@ theorem canonicalWinner_unique
 theorem exists_unique_canonicalWinner (emitRequested emitAdmissible : Bool) :
     ∃ k, CanonicalWinner emitRequested emitAdmissible k ∧
       ∀ y, CanonicalWinner emitRequested emitAdmissible y → y = k := by
-  refine ⟨winnerPair emitRequested emitAdmissible, winnerPair_is_canonical emitRequested emitAdmissible, ?_⟩
-  intro y hy
-  exact canonicalWinner_unique emitRequested emitAdmissible hy
+  refine ⟨winnerPair emitRequested emitAdmissible, winnerPair_is_canonical emitRequested emitAdmissible, by
+    intro y hy
+    exact canonicalWinner_unique emitRequested emitAdmissible hy⟩
 
 end BinaryDecision
 end AutoTrader
