@@ -6,11 +6,11 @@ import Mathlib.Tactic
 import Proofs.SettlementAlgebra
 
 /-!
-# Conservation Exact Sequence: The Splitting Theorem for DeFi
+# Additive Exact Sequence: Splitting Integer-Valued Measures for DeFi
 
 ## The Central Algebraic Object
 
-For ANY conservation homomorphism φ : G →+ ℤ on an abelian group G,
+For ANY additive measure φ : G →+ ℤ on an abelian group G,
 if a right-inverse section σ : ℤ →+ G exists (φ ∘ σ = id), then:
 
 ```
@@ -35,16 +35,16 @@ if a right-inverse section σ : ℤ →+ G exists (φ ∘ σ = id), then:
 10. **decomposition_injective**: Same (π,φ) ⟹ same element
 
 #### Instantiations
-11. **settlCS**: Settlement φ(s)=dx+dy, σ(n)=⟨n,0⟩
+11. **settlRawFlowCS**: Settlement raw-flow map φ(s)=dx+dy, σ(n)=⟨n,0⟩
 12. **debtCS**: zUSD debt φ(a)=Δfree+Δsp-Δtotal, σ(n)=⟨n,0,0⟩
 
 ### Mathematical Significance
 
 The splitting says every DeFi action UNIQUELY decomposes into:
-- A **conserving part** (in ker(φ)) — preserves the invariant
-- A **violation part** (in im(σ)) — measured by a single integer
+- A **kernel part** (in ker(φ)) — invisible to the chosen additive measure
+- A **measured part** (in im(σ)) — recorded by a single integer
 
-The violation number φ(g) is the unique obstruction to conservation.
+The number φ(g) is the unique obstruction to lying in the kernel of the measure.
 The decomposition is FUNCTORIAL: π is an AddMonoidHom.
 -/
 
@@ -52,9 +52,9 @@ namespace Proofs
 
 namespace DEXExactSequence
 
-/-! ## Part 1: The Conservation System -/
+/-! ## Part 1: The Measured System -/
 
-/-- A conservation system on an abelian group G:
+/-- An integer-valued measured system on an abelian group G:
     φ : G →+ ℤ (measure), σ : ℤ →+ G (section), with φ ∘ σ = id. -/
 structure ConservationSystem (G : Type*) [AddCommGroup G] where
   φ : G →+ ℤ
@@ -195,11 +195,13 @@ theorem kerProject_annihilates_section (C : ConservationSystem G) (n : ℤ) :
     kerProject C (C.σ n) = 0 := by
   unfold kerProject; rw [C.right_inv, sub_self]
 
-/-! ## Part 8: Settlement Instantiation -/
+/-! ## Part 8: Settlement Raw-Flow Instantiation -/
 
 abbrev Settl := SettlementAlgebra.Settlement
 
-abbrev settlΔ : Settl →+ ℤ := SettlementAlgebra.Δ
+/-- The raw token-unit flow map inherited from `SettlementAlgebra`.
+    This is not economic value conservation. -/
+abbrev settlRawFlow : Settl →+ ℤ := SettlementAlgebra.Δ
 
 def settlσ : ℤ →+ Settl where
   toFun := fun n => ⟨n, 0⟩
@@ -211,12 +213,14 @@ def settlσ : ℤ →+ Settl where
     · change 0 = (0 : ℤ) + 0
       simp
 
-/-- The settlement conservation system: φ(s)=dx+dy, σ(n)=⟨n,0⟩. -/
-def settlCS : ConservationSystem Settl where
-  φ := settlΔ
+/-- The settlement raw-flow system: φ(s)=dx+dy, σ(n)=⟨n,0⟩.
+    This splits the raw token-unit flow map only; economically fair swaps
+    can still have nonzero φ when prices are not 1:1. -/
+def settlRawFlowCS : ConservationSystem Settl where
+  φ := settlRawFlow
   σ := settlσ
   right_inv := fun n => by
-    simp only [settlΔ, SettlementAlgebra.Δ, SettlementAlgebra.netFlow, settlσ,
+    simp only [settlRawFlow, SettlementAlgebra.Δ, SettlementAlgebra.netFlow, settlσ,
       AddMonoidHom.coe_mk, ZeroHom.coe_mk]
     ring
 
@@ -287,17 +291,17 @@ def debtCS : ConservationSystem DebtAction where
 
 /-! ## Part 10: Non-Vacuity Witnesses -/
 
-/-- Settlement decomposition: ⟨100,-90⟩ = ⟨90,-90⟩ + ⟨10,0⟩.
-    Balanced part ⟨90,-90⟩ (Δ=0) plus violation ⟨10,0⟩ (Δ=10). -/
+/-- Settlement raw-flow decomposition: ⟨100,-90⟩ = ⟨90,-90⟩ + ⟨10,0⟩.
+    Kernel part ⟨90,-90⟩ has raw-flow 0, and the section image carries raw-flow 10. -/
 theorem witness_settl_decomposition :
     let s : Settl := ⟨100, -90⟩
-    settlΔ s = 10 ∧
-    kerProject settlCS s = ({ dx := 90, dy := -90 } : Settl) ∧
+    settlRawFlow s = 10 ∧
+    kerProject settlRawFlowCS s = ({ dx := 90, dy := -90 } : Settl) ∧
     settlσ 10 = ({ dx := 10, dy := 0 } : Settl) ∧
-    s = kerProject settlCS s + settlσ (settlΔ s) := by native_decide
+    s = kerProject settlRawFlowCS s + settlσ (settlRawFlow s) := by native_decide
 
 /-- Debt decomposition: ⟨500,200,600⟩ = ⟨400,200,600⟩ + ⟨100,0,0⟩.
-    Conserving part (Δ=400+200-600=0) plus violation (Δ=100). -/
+    Kernel part (Δ=400+200-600=0) plus measured part (Δ=100). -/
 theorem witness_debt_decomposition :
     let a : DebtAction := ⟨500, 200, 600⟩
     debtΔ a = 100 ∧
@@ -308,26 +312,32 @@ theorem witness_debt_decomposition :
 /-- Trivial intersection: σ(5) has Δ=5≠0, so it's NOT in the kernel. -/
 theorem witness_trivial_intersection :
     let g : Settl := settlσ 5
-    settlΔ g = 5 ∧ g = ({ dx := 5, dy := 0 } : Settl) ∧
-    ¬(settlΔ g = 0 ∧ g ≠ 0) := by native_decide
+    settlRawFlow g = 5 ∧ g = ({ dx := 5, dy := 0 } : Settl) ∧
+    ¬(settlRawFlow g = 0 ∧ g ≠ 0) := by native_decide
+
+/-- Economically fair at price 2 does not imply zero raw flow.
+    The instantiation here intentionally records raw token-unit imbalance, not value. -/
+theorem witness_value_fair_but_raw_flow_nonzero :
+    let s : Settl := ⟨1, -2⟩
+    settlRawFlow s = -1 := by native_decide
 
 /-- Uniqueness: the decomposition is determined by the element. -/
 theorem witness_uniqueness :
     let s : Settl := ⟨100, -90⟩
-    settlΔ (kerProject settlCS s) = 0 ∧
-    settlΔ s = 10 ∧
-    kerProject settlCS s + settlσ (settlΔ s) = s := by native_decide
+    settlRawFlow (kerProject settlRawFlowCS s) = 0 ∧
+    settlRawFlow s = 10 ∧
+    kerProject settlRawFlowCS s + settlσ (settlRawFlow s) = s := by native_decide
 
 /-- Section annihilation: π(σ(n)) = 0 for concrete n. -/
 theorem witness_annihilation :
-    kerProject settlCS (settlσ 42) = (0 : Settl) ∧
+    kerProject settlRawFlowCS (settlσ 42) = (0 : Settl) ∧
     kerProject debtCS (debtσ (-7)) = (0 : DebtAction) := by native_decide
 
 /-- Idempotent projection: π(π(s)) = π(s) for concrete s. -/
 theorem witness_idempotent :
     let s : Settl := ⟨100, -90⟩
-    let πs := kerProject settlCS s
-    kerProject settlCS πs = πs := by native_decide
+    let πs := kerProject settlRawFlowCS s
+    kerProject settlRawFlowCS πs = πs := by native_decide
 
 end DEXExactSequence
 
