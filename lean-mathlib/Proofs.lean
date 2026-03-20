@@ -38,6 +38,7 @@ import Proofs.AllocationTotality
 import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
 import Proofs.MEVResistanceBound
+import Proofs.ZUSDSPWholeVaultLiquidation
 
 /-!
 Proofs library root.
