@@ -38,6 +38,8 @@ import Proofs.AllocationTotality
 import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
 import Proofs.MEVResistanceBound
+import Proofs.CrossSliceComposition
+import Proofs.CPMMEdgeRounding
 
 /-!
 Proofs library root.
