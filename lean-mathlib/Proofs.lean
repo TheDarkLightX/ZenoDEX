@@ -37,6 +37,7 @@ import Proofs.BonusBetBudgetSafety
 import Proofs.AllocationTotality
 import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
+import Proofs.MEVResistanceBound
 
 /-!
 Proofs library root.
