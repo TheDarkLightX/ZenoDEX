@@ -44,6 +44,7 @@ import Proofs.IteratedSwapDecreasing
 import Proofs.MEVResistanceBound
 import Proofs.CrossSliceComposition
 import Proofs.CPMMEdgeRounding
+import Proofs.CPMMConcavity
 import Proofs.ZUSDSPWholeVaultLiquidation
 import Proofs.GaloisSplitCertificate
 import Proofs.ArbitrageCertificate
