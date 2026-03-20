@@ -33,6 +33,9 @@ import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
 import Proofs.PiecewiseEnvelopeParametric
 import Proofs.FeeCeilDecomposition
 import Proofs.BonusBetBudgetSafety
+import Proofs.AllocationTotality
+import Proofs.BatchGreedyOptimality
+import Proofs.IteratedSwapDecreasing
 
 /-!
 Proofs library root.
