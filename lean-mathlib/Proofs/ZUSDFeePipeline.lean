@@ -14,8 +14,9 @@ for all users.
 This file formalizes:
 - The decay function: `max(0, base_rate - decay_per_epoch * elapsed)`
 - The effective fee: `min(min(floor + base_rate, max_bps), BPS_SCALE)`
-- The cross-fee coupling: mint_bump → higher redemption fee (H-RG-004)
-- Cost lower bounds for maintaining elevated fees
+- The runtime mint update: decay first, then bump, then cap at `BPS_SCALE`
+- The cross-fee coupling: higher post-mint base rate → higher redemption fee (H-RG-004)
+- Cost bookkeeping identities for sustained fee elevation attempts
 
 ## What This File Proves (8 substantive theorems)
 
@@ -29,10 +30,9 @@ This file formalizes:
 5. **effective_fee_mono_base**: Higher base rate → higher effective fee (up to cap)
 
 ### Cross-fee coupling — H-RG-004 (THE VULNERABILITY PROOF)
-6. **mint_bumps_base_rate**: Minting increases base_rate by bump amount
-7. **higher_base_means_higher_redeem_fee**: Higher base_rate → higher redemption fee
-8. **cross_fee_attack_cost_bound**: Maintaining elevated fees costs cumulative
-   borrow fees proportional to bump × epochs
+6. **post_mint_base_rate_eq_uncapped**: when not capped, mint updates to `decayed_rate + bump`
+7. **post_mint_base_rate_strict_increase_of_room**: with positive bump and cap room, mint strictly raises the decayed base rate
+8. **cross_fee_attack_total_cost_identity**: attack spend is linear in mint count
 
 ## Pattern
 All arithmetic over ℤ (matching Python integer semantics).
@@ -146,20 +146,38 @@ The attack:
 4. All redeemers pay inflated fees
 
 This section formalizes that the attack WORKS (base rate increase
-propagates to redemption fees) and bounds the COST (attacker must
-pay cumulative borrow fees).
+propagates to redemption fees) and isolates the bookkeeping identities
+needed for a later cost lower-bound argument.
 -/
 
-/-- Minting increases the base rate by the bump amount.
-    This is the source of the cross-fee coupling. -/
-theorem mint_bumps_base_rate (base_rate bump : ℤ)
-    (hbump : 0 < bump) :
-    base_rate + bump > base_rate := by
+/-- Runtime post-mint base rate: decay first, then add the borrow bump, then cap. -/
+def post_mint_base_rate (base_rate decay_per_epoch elapsed bump bps_scale : ℤ) : ℤ :=
+  min bps_scale (decayed_rate base_rate decay_per_epoch elapsed + bump)
+
+/-- When the post-mint rate is below the cap, the runtime update is exactly
+    `decayed_rate + bump`. This matches `mint_zusd` in `zusd.py`. -/
+theorem post_mint_base_rate_eq_uncapped
+    (base_rate decay_per_epoch elapsed bump bps_scale : ℤ)
+    (hcap : decayed_rate base_rate decay_per_epoch elapsed + bump ≤ bps_scale) :
+    post_mint_base_rate base_rate decay_per_epoch elapsed bump bps_scale =
+      decayed_rate base_rate decay_per_epoch elapsed + bump := by
+  unfold post_mint_base_rate
+  exact min_eq_right hcap
+
+/-- With a positive bump and room below the cap, the post-mint base rate is
+    strictly larger than the decayed pre-mint rate. -/
+theorem post_mint_base_rate_strict_increase_of_room
+    (base_rate decay_per_epoch elapsed bump bps_scale : ℤ)
+    (hbump : 0 < bump)
+    (hcap : decayed_rate base_rate decay_per_epoch elapsed + bump ≤ bps_scale) :
+    post_mint_base_rate base_rate decay_per_epoch elapsed bump bps_scale >
+      decayed_rate base_rate decay_per_epoch elapsed := by
+  rw [post_mint_base_rate_eq_uncapped _ _ _ _ _ hcap]
   linarith
 
 /-- Higher base rate leads to higher redemption fee.
-    Combined with mint_bumps_base_rate, this proves that minting
-    increases redemption fees — the H-RG-004 cross-fee vulnerability.
+    Combined with `post_mint_base_rate_strict_increase_of_room`, this proves
+    that minting can increase redemption fees — the H-RG-004 cross-fee vulnerability.
 
     This is a direct corollary of effective_fee_mono_base,
     but stated explicitly for the attack surface analysis. -/
@@ -171,18 +189,10 @@ theorem higher_base_means_higher_redeem_fee
   effective_fee_mono_base redeem_floor base₁ base₂ max_bps bps_scale
     (le_of_lt h_bump)
 
-/-- Cost bound for sustained fee elevation attack.
-    To maintain base_rate elevated by `bump` bps for N epochs against
-    decay of `decay_per_epoch`, the attacker must mint at least
-    ceil(N * decay_per_epoch / bump) times. Each mint costs at least
-    `min_borrow_fee` in borrow fees.
-
-    This theorem proves: if the attacker mints K times (each adding bump),
-    but decay removes decay_per_epoch per epoch over N epochs, then the
-    net elevation is at most K * bump - decay_per_epoch * N.
-
-    The attacker's cost is K × per_mint_cost. -/
-theorem cross_fee_attack_cost_bound
+/-- Bookkeeping identity for attack spend.
+    This does not prove the lower bound for sustained fee elevation.
+    It only records that total spend is non-negative and linear in the mint count. -/
+theorem cross_fee_attack_total_cost_identity
     (K bump decay_per_epoch N per_mint_cost : ℤ)
     (hK : 0 ≤ K) (_hbump : 0 < bump) (_hdecay : 0 ≤ decay_per_epoch)
     (_hN : 0 ≤ N) (hcost : 0 < per_mint_cost) :
@@ -197,14 +207,11 @@ theorem cross_fee_attack_cost_bound
   simp only
   exact ⟨by nlinarith, trivial⟩
 
-/-- The critical cross-fee inequality: maintaining a target elevation
-    requires total cost proportional to epochs × decay × per_mint_cost / bump.
+/-- The critical cross-fee inequality: if the bump-side numerator beats the
+    decay-side numerator, multiplying by a positive per-mint cost preserves
+    that strict inequality.
 
-    Specifically: if K * bump > decay * N (net positive elevation),
-    then K > decay * N / bump, so K * cost > (decay * N / bump) * cost.
-
-    Over ℤ: K * bump * per_mint_cost > decay * N * per_mint_cost
-    when K * bump > decay * N and per_mint_cost > 0. -/
+    This is still weaker than a full lower bound over mint counts. -/
 theorem sustained_elevation_cost (K bump decay_per_epoch N per_mint_cost : ℤ)
     (hcost : 0 < per_mint_cost)
     (h_elevated : K * bump > decay_per_epoch * N) :
@@ -237,9 +244,15 @@ theorem witness_effective_fee_capped :
     effective_fee 50 600 500 10000 = 500 := by
   unfold effective_fee; omega
 
-/-- Witness: cross-fee attack. mint with bump=10 increases base from 0 to 10.
-    Redemption floor=50: effective fee goes from min(50,500,10000)=50
-    to min(60,500,10000)=60. 10 bps increase for redeemers. -/
+/-- Witness: uncapped post-mint update. With zero elapsed decay and bump=10,
+    the runtime post-mint base rate moves from 0 to 10. -/
+theorem witness_post_mint_base_rate :
+    post_mint_base_rate 0 0 0 10 10000 = 10 := by
+  unfold post_mint_base_rate decayed_rate
+  omega
+
+/-- Witness: cross-fee attack on the uncapped branch. The higher post-mint
+    base rate lifts the redemption fee from 50 to 60. -/
 theorem witness_cross_fee_attack :
     effective_fee 50 0 500 10000 = 50 ∧
     effective_fee 50 10 500 10000 = 60 ∧
