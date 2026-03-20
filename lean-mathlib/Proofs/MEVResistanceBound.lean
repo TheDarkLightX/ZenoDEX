@@ -129,9 +129,10 @@ theorem threshold_90pct : reductionNum 10 = 9 := by
 theorem threshold_99pct : reductionNum 100 = 99 := by
   simp [reductionNum]
 
-/-- For any target reduction t/d (where t < d), we need batch size ≥ d.
-    Because reductionNum(d) = d - 1 ≥ t when d - 1 ≥ t, i.e., d ≥ t + 1. -/
-theorem target_batch_size (t d : ℕ) (ht : t < d) :
+/-- For any target reduction t/d (where t < d), batch size d is sufficient.
+    This is only a sufficiency statement; smaller batch sizes may also work.
+    Because reductionNum(d) = d - 1 ≥ t when d - 1 ≥ t, i.e., d > t. -/
+theorem target_batch_size_sufficient (t d : ℕ) (ht : t < d) :
     reductionNum d * d ≥ t * d := by
   simp [reductionNum]
   -- (d - 1) * d ≥ t * d ← d - 1 ≥ t ← d > t ✓
@@ -156,6 +157,12 @@ theorem witness_single_no_protection :
     Cross-multiply: 4 * 10 = 40 ≤ 9 * 5 = 45. -/
 theorem witness_mono_5_10 :
     reductionNum 5 * 10 ≤ reductionNum 10 * 5 := by
+  simp [reductionNum]
+
+/-- Counterexample to any necessity reading of `target_batch_size_sufficient`:
+    target 1/3 is already met by batch size 2 since 1/2 ≥ 1/3. -/
+theorem witness_target_size_not_necessary :
+    reductionNum 2 * 3 ≥ 1 * 2 := by
   simp [reductionNum]
 
 /-- The reduction formula matches the information-theoretic bound:
