@@ -2,25 +2,21 @@ import Mathlib.Data.Int.Basic
 import Mathlib.Tactic
 
 /-!
-# MEV Resistance Bound for Batch Clearing
+# Batch-Size Dilution Arithmetic Envelope
 
-Quantifies the MEV resistance of sealed-bid batch auctions.
+This file packages arithmetic facts about the toy dilution family
 
-For a batch of n sealed intents, the maximum extractable value (MEV)
-from sandwich attacks is bounded by 1/n of the single-intent MEV:
+  profit(n) = base_profit / n
+  reduction(n) = 1 - 1/n
 
-  mev_reduction(n) = 1 - 1/n
+It does **not** derive this family from the DEX batch-clearing semantics,
+intent structure, or clearing-price proofs. It is an arithmetic sidecar only.
 
-This means:
+Within that toy model:
 - n=1: 0% reduction (single intent, fully sandwichable)
 - n=2: 50% reduction
 - n=10: 90% reduction
 - n=100: 99% reduction
-
-The proof models MEV as the information advantage of seeing intent
-details before execution. In a sealed batch of n intents, the attacker
-can only extract profit proportional to 1/n because the batch
-clearing price reflects all n intents simultaneously.
 
 ## Mathematical Model
 
@@ -34,7 +30,7 @@ Key properties:
 1. reduction is monotonically increasing in n
 2. reduction(1) = 0 (no protection for single intent)
 3. reduction(n) < 1 for all finite n (never fully eliminated)
-4. For n₁ ≤ n₂: reduction(n₁) ≤ reduction(n₂) (more intents → more protection)
+4. For n₁ ≤ n₂: reduction(n₁) ≤ reduction(n₂)
 -/
 
 namespace Proofs
@@ -70,19 +66,17 @@ theorem reduction_mono (n₁ n₂ : ℕ) (h : n₁ ≤ n₂) (hn₁ : 0 < n₁) 
       simp only [Nat.succ_sub_one]
       nlinarith
 
-/-! ## Sandwich profit bound -/
+/-! ## Toy profit bound -/
 
-/-- Attacker profit is diluted by any positive batch size: profit(n) = base_profit / n.
-    We model this as: n * profit_n ≤ base_profit for `n > 0`.
-    (Using ≤ because floor division rounds down.) -/
-theorem profit_dilution (base_profit n : ℕ) (_hn : 0 < n) :
+/-- In the toy dilution family `profit(n) = base_profit / n`,
+    floor division implies `n * profit(n) ≤ base_profit` for `n > 0`. -/
+theorem modeled_profit_dilution (base_profit n : ℕ) (_hn : 0 < n) :
     (base_profit / n) * n ≤ base_profit :=
   Nat.div_mul_le_self base_profit n
 
-/-- Cross-multiplied MEV elimination bound:
-    (base_profit - attacker_profit) × n ≥ base_profit × (n - 1).
-    This is the integer-safe form of "elimination rate ≥ (n-1)/n". -/
-theorem eliminated_mev_cross (base_profit n : ℕ) (hn : 0 < n) :
+/-- Cross-multiplied elimination bound inside the same toy family:
+    `(base_profit - profit(n)) * n ≥ base_profit * (n - 1)`. -/
+theorem modeled_eliminated_profit_cross (base_profit n : ℕ) (hn : 0 < n) :
     (base_profit - base_profit / n) * n ≥ base_profit * (n - 1) := by
   cases n with
   | zero => omega
@@ -97,11 +91,11 @@ theorem eliminated_mev_cross (base_profit n : ℕ) (hn : 0 < n) :
     rw [h4] at h3
     omega
 
-/-! ## Composition: batch size determines protection level -/
+/-! ## Composition inside the toy family -/
 
-/-- Doubling the batch size halves the remaining MEV up to floor rounding.
+/-- Doubling the batch size halves the remaining modeled profit up to floor rounding.
     Specifically, `2 * profit(2n) ≤ profit(n)` for all `n > 0`. -/
-theorem double_batch_halves_mev (base_profit n : ℕ) (hn : 0 < n) :
+theorem double_batch_halves_modeled_profit (base_profit n : ℕ) (hn : 0 < n) :
     2 * (base_profit / (2 * n)) ≤ base_profit / n := by
   rw [Nat.le_div_iff_mul_le hn]
   have hmul : (base_profit / (2 * n)) * (2 * n) ≤ base_profit :=
@@ -120,14 +114,12 @@ theorem reduction_positive (n : ℕ) (hn : 2 ≤ n) :
 
 /-! ## Threshold theorems -/
 
-/-- 90% MEV reduction requires batch size ≥ 10.
-    reduction(10) = 9/10 ≥ 9/10. -/
-theorem threshold_90pct : reductionNum 10 = 9 := by
+/-- Witness: the reduction numerator at batch size 10 is 9, i.e. reduction(10) = 9/10. -/
+theorem witness_reductionNum_10_eq_9 : reductionNum 10 = 9 := by
   simp [reductionNum]
 
-/-- 99% MEV reduction requires batch size ≥ 100.
-    reduction(100) = 99/100 ≥ 99/100. -/
-theorem threshold_99pct : reductionNum 100 = 99 := by
+/-- Witness: the reduction numerator at batch size 100 is 99, i.e. reduction(100) = 99/100. -/
+theorem witness_reductionNum_100_eq_99 : reductionNum 100 = 99 := by
   simp [reductionNum]
 
 /-- For any target reduction t/d (where t < d), batch size d is sufficient.
@@ -160,8 +152,8 @@ theorem witness_mono_5_10 :
     reductionNum 5 * 10 ≤ reductionNum 10 * 5 := by
   simp [reductionNum]
 
-/-- Concrete halving witness: doubling batch size from 5 to 10
-    cuts the integer remaining-MEV bound by at least half. -/
+/-- Concrete halving witness inside the toy family: doubling batch size from 5 to 10
+    cuts the integer remaining-profit bound by at least half. -/
 theorem witness_double_batch_halves :
     2 * (1000 / (2 * 5)) ≤ 1000 / 5 := by
   native_decide
@@ -172,10 +164,9 @@ theorem witness_target_size_not_necessary :
     reductionNum 2 * 3 ≥ 1 * 2 := by
   simp [reductionNum]
 
-/-- The reduction formula matches the information-theoretic bound:
-    in a batch of n sealed intents, each intent contributes 1/n
-    of the price discovery, so the attacker's advantage is 1/n. -/
-theorem witness_info_theoretic :
+/-- Arithmetic identity for the reduction numerator: `reductionNum n + 1 = n`
+    on positive batch sizes. -/
+theorem witness_reduction_identity :
     ∀ n : ℕ, 1 ≤ n → reductionNum n + 1 = n := by
   intro n hn
   simp [reductionNum]
