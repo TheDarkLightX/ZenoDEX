@@ -79,6 +79,11 @@ if [[ ! -d "$ROOT_DIR/lean-mathlib" ]]; then
 fi
 
 echo "== perps: Lean proofs =="
-(cd "$ROOT_DIR/lean-mathlib" && lake build Proofs.PerpEpochSafety Proofs.PerpFundingRateSafety Proofs.PerpInsuranceSafety Proofs.PerpGameTheory)
+(cd "$ROOT_DIR/lean-mathlib" && lake build \
+  Proofs.PerpEpochSafety \
+  Proofs.PerpFundingRateSafety \
+  Proofs.PerpInsuranceSafety \
+  Proofs.PerpGameTheory \
+  Proofs.PerpFundingAlgebra)
 
 echo "ok"
