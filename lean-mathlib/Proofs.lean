@@ -46,6 +46,7 @@ import Proofs.ZUSDSPWholeVaultLiquidation
 import Proofs.GaloisSplitCertificate
 import Proofs.ArbitrageCertificate
 import Proofs.RoundingErrorBound
+import Proofs.SettlementNetting
 
 /-!
 Proofs library root.
