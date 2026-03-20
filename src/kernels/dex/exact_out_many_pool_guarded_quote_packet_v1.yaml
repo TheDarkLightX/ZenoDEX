@@ -1,0 +1,125 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "exact_out_many_pool_guarded_quote_packet_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded acceptance shell for the many-pool exact-out guarded-quote packet.
+
+    Purpose:
+    - mechanically check the fail-closed boolean relation around the public
+      guarded-quote packet
+    - keep the boundary explicit: a quote is present iff the bounded oracle says
+      the runtime winner matches the canonical winner
+
+    Scope boundary:
+    - does not model exact-out routing arithmetic or candidate enumeration
+    - treats runtime_matches_canonical as an externally supplied primitive
+    - only checks the deterministic packet shell over bounded booleans
+
+observables:
+  state_vars:
+    [
+      "runtime_matches_canonical",
+      "guard_ok",
+      "quote_present",
+      "mismatch_error_present",
+    ]
+  effects: ["guard_ok", "quote_present", "mismatch_error_present"]
+
+types: []
+
+state_vars:
+  - id: "runtime_matches_canonical"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "guard_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "quote_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "mismatch_error_present"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "runtime_matches_canonical"
+    expr: { bool: false }
+  - var: "guard_ok"
+    expr: { bool: false }
+  - var: "quote_present"
+    expr: { bool: false }
+  - var: "mismatch_error_present"
+    expr: { bool: true }
+
+invariants:
+  - id: "inv_guard_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "guard_ok" }
+        - { var: "runtime_matches_canonical" }
+  - id: "inv_quote_present_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "quote_present" }
+        - { var: "runtime_matches_canonical" }
+  - id: "inv_mismatch_error_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "mismatch_error_present" }
+        - op: "not"
+          args:
+            - { var: "runtime_matches_canonical" }
+  - id: "inv_guard_implies_quote_present"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - { var: "guard_ok" }
+        - { var: "quote_present" }
+  - id: "inv_mismatch_error_exclusive"
+    kind: "safety"
+    expr:
+      op: "not"
+      args:
+        - op: "and"
+          args:
+            - { var: "quote_present" }
+            - { var: "mismatch_error_present" }
+
+actions:
+  - id: "rebuild_guarded_quote_packet"
+    params:
+      - id: "runtime_matches_canonical_in"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates:
+      - var: "runtime_matches_canonical"
+        expr: { param: "runtime_matches_canonical_in" }
+      - var: "guard_ok"
+        expr: { param: "runtime_matches_canonical_in" }
+      - var: "quote_present"
+        expr: { param: "runtime_matches_canonical_in" }
+      - var: "mismatch_error_present"
+        expr:
+          op: "not"
+          args:
+            - { param: "runtime_matches_canonical_in" }
+    effects:
+      guard_ok: { var: "guard_ok" }
+      quote_present: { var: "quote_present" }
+      mismatch_error_present: { var: "mismatch_error_present" }
+
+checks:
+  - id: "init_implies_inv"
+    kind: "invariant"
+  - id: "inductive_rebuild_packet"
+    kind: "inductive"
