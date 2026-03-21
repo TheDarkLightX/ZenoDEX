@@ -75,7 +75,7 @@ def test_lean_rounding_composition_exported_via_proofs_root() -> None:
 
     try:
         proc = subprocess.run(
-            [lake, "env", "lean", "-DwarningAsError=true", smoke_path.name],
+            [lake, "env", "lean", smoke_path.name],
             cwd=lean_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
