@@ -81,6 +81,9 @@ import Proofs.SettlementNetting
 import Proofs.ZUSDCeilDivAlgebra
 import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
+import Proofs.ZUSDCollateralFlowAlgebra
+import Proofs.ZUSDDebtHomomorphism
+import Proofs.ZUSDDualConservation
 
 /-!
 Proofs library root.
