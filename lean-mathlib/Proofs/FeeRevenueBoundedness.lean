@@ -30,7 +30,8 @@ theorem fee_component_le_amount {amount feeBps : Nat}
   calc
     (amount * feeBps) / 10000 ≤ (amount * 10000) / 10000 := hDiv
     _ = amount := by
-      simpa [Nat.mul_comm] using (Nat.mul_div_right amount 10000)
+      rw [Nat.mul_comm amount 10000]
+      exact Nat.mul_div_right amount (by decide)
 
 theorem fee_component_le_1m {amount feeBps : Nat}
     (hAmount : amount ≤ 1000000)
