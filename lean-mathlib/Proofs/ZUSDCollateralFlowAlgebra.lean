@@ -231,7 +231,9 @@ theorem deposit_then_liquidate (amount : ℤ) :
     redemption as (vault→external for net) + (vault→protocol for fee). -/
 theorem redeem_decomposition (gross fee : ℤ) :
     redeem_coll gross fee = withdraw_coll (gross - fee) + fee_to_protocol fee := by
-  ext <;> simp [redeem_coll, withdraw_coll, fee_to_protocol] <;> ring
+  ext <;> simp [redeem_coll, withdraw_coll, fee_to_protocol]
+  case hv =>
+    ring
 
 /-! ## Part 6: Redemption Accounting Identity
 
