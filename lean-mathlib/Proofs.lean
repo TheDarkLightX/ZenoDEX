@@ -41,6 +41,9 @@ import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
 import Proofs.MEVResistanceBound
 import Proofs.ZUSDSPWholeVaultLiquidation
+import Proofs.GaloisSplitCertificate
+import Proofs.ArbitrageCertificate
+import Proofs.RoundingErrorBound
 
 /-!
 Proofs library root.
