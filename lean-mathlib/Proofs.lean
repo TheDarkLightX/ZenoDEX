@@ -76,6 +76,7 @@ import Proofs.SplitRoutingArgmaxPlateau
 import Proofs.MSTCertificateBasics
 import Proofs.MSTCertificateSoundness
 import Proofs.MSTCertificateExchangeStep
+import Proofs.MSTCertificateNoImprovingExchange
 import Proofs.AllocationTotality
 import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
