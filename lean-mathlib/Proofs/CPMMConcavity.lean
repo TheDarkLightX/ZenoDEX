@@ -3,9 +3,9 @@ import Proofs.CPMMOutputMonotonicity
 import Mathlib.Tactic
 
 /-!
-# CPMM Output Discrete Concavity and Split Routing Certificate
+# CPMM Output Discrete Concavity and Zero-Fee Split Routing Certificate
 
-Connects the abstract `GaloisSplitCertificate` to the actual CPMM DEX formula.
+Connects the abstract `GaloisSplitCertificate` to a zero-fee CPMM split objective.
 
 The CPMM output function `cpmmOut(x, y, a) = y * a / (x + a)` (floor division)
 has **nearly discretely concave** first differences in the trade amount `a`:
@@ -27,10 +27,11 @@ by-reserve property when x > 0.
 
 ## Split routing connection
 
-For specific pool configurations where the split objective IS discretely concave
-(verified computationally for each instance), the `GaloisSplitCertificate` gives
-O(1) optimality verification. The `cpmm_split_certificate_sound` theorem bridges
-the abstract certificate to the concrete CPMM split routing problem.
+For specific pool configurations where the zero-fee split objective IS
+discretely concave (verified computationally for each instance), the
+`GaloisSplitCertificate` gives O(1) optimality verification. The
+`cpmm_zero_fee_split_certificate_sound` theorem bridges the abstract
+certificate to the concrete zero-fee split-routing problem.
 
 ## Part I: CPMM Concavity Analysis
 
@@ -43,8 +44,8 @@ the abstract certificate to the concrete CPMM split routing problem.
 | 5 | `split_concave_of_concave` | Core | Sum of DiscreteConcave functions is DiscreteConcave |
 | 5'| `discrete_concave_reverse` | Core | Reversal a ↦ f(D-a) preserves discrete concavity |
 | 5"| `split_objective_concave` | Bridge | f(a)+g(D-a) concave when both f,g concave |
-| 5‴| `cpmm_split_second_diff_le_two` | Main | CPMM split obj Δ² ≤ 2 (from per-pool Δ² ≤ 1) |
-| 6 | `cpmm_split_certificate_sound` | Bridge | GaloisSplitCertificate for cpmmSplitObj |
+| 5‴| `cpmm_zero_fee_split_second_diff_le_two` | Main | Zero-fee CPMM split obj Δ² ≤ 2 |
+| 6 | `cpmm_zero_fee_split_certificate_sound` | Bridge | GaloisSplitCertificate for zero-fee split obj |
 | 7 | `witness_full_chain` | Witness | End-to-end: concavity + certificate + global optimality |
 
 ## Part II: NearlyDiscreteConcave — Graded Concavity Defect
@@ -57,7 +58,7 @@ New algebraic structure capturing the concavity defect as a graded invariant:
 | 9 | `nearly_sum` | Algebraic | Grade is additive under function sum |
 | 10| `nearly_reverse` | Algebraic | Grade is invariant under index reversal |
 | 11| `cpmmOut_nearly_concave` | Instantiation | CPMM output is grade 1 |
-| 12| `cpmm_split_nearly_concave` | Derived | Split obj grade 2 (compositional proof) |
+| 12| `cpmm_zero_fee_split_nearly_concave` | Derived | Zero-fee split obj grade 2 |
 | 13| `nearly_right_delta_drift` | Novel | First-difference drift ≤ n*k per step |
 | 14| `nearly_right_quadratic_bound` | Novel | Cumulative drift ≤ n*(n-1)*k/2 |
 | 15| `cpmmOut_defect_tight` | Tightness | Grade 1 is tight (grade 0 fails) |
@@ -66,12 +67,16 @@ New algebraic structure capturing the concavity defect as a graded invariant:
 ## Scope limitation
 
 The per-pool integer concavity bound (Theorem 4) does NOT directly imply
-that `cpmmSplitObj` is `DiscreteConcave`, because the split objective sums
-two nearly-concave functions going in opposite directions. Concavity of the
-split objective is verified computationally per-instance (bounded D) rather
-than proved in general. The `NearlyDiscreteConcave` structure (Part II)
-formalizes this gap: the split objective has grade 2, meaning it deviates
-from exact concavity by at most 2 per second-difference step.
+that the zero-fee split objective is `DiscreteConcave`, because the split
+objective sums two nearly-concave functions going in opposite directions.
+Concavity of the split objective is verified computationally per-instance
+(bounded D) rather than proved in general. The `NearlyDiscreteConcave`
+structure (Part II) formalizes this gap: the zero-fee split objective has
+grade 2, meaning it deviates from exact concavity by at most 2 per
+second-difference step.
+
+This file does not model fee-adjusted runtime routing semantics. Any
+fee-aware split-routing correctness claim needs a separate theorem surface.
 -/
 
 namespace Proofs
@@ -317,14 +322,15 @@ theorem witness_split_objective_concave :
     obj 3 ≥ obj 0 ∧ obj 3 ≥ obj 6 := by
   native_decide
 
-/-! ## CPMM Split Objective
+/-! ## Zero-Fee CPMM Split Objective
 
 The concrete function that the GaloisSplitCertificate is instantiated for:
-total output from splitting D tokens across two CPMM pools. -/
+total output from splitting `D` tokens across two CPMM pools in the zero-fee
+algebraic model. -/
 
-/-- The CPMM split objective: total output from splitting D tokens across two pools,
-    routing `a` to pool 0 and `D - a` to pool 1. -/
-def cpmmSplitObj (x₀ y₀ x₁ y₁ D : ℕ) (a : ℕ) : ℤ :=
+/-- The zero-fee CPMM split objective: total output from splitting `D` tokens
+    across two pools, routing `a` to pool 0 and `D - a` to pool 1. -/
+def cpmmZeroFeeSplitObj (x₀ y₀ x₁ y₁ D : ℕ) (a : ℕ) : ℤ :=
   (cpmmOut x₀ y₀ a : ℤ) + (cpmmOut x₁ y₁ (D - a) : ℤ)
 
 /-! ## Theorem 5": CPMM split objective second-difference bound
@@ -340,11 +346,11 @@ scope limitation: the split objective is "nearly concave" with bounded error. -/
     Each pool contributes at most +1 to the second difference
     (by `cpmmOut_second_diff_le_one`), giving +2 total.
     When both pools are large, the bound is typically 0 (exact concavity). -/
-theorem cpmm_split_second_diff_le_two (x₀ y₀ x₁ y₁ D : ℕ)
+theorem cpmm_zero_fee_split_second_diff_le_two (x₀ y₀ x₁ y₁ D : ℕ)
     (hx₀ : 0 < x₀) (hx₁ : 0 < x₁) (i : ℕ) (hi : i + 2 ≤ D) :
-    cpmmSplitObj x₀ y₀ x₁ y₁ D (i + 2) + cpmmSplitObj x₀ y₀ x₁ y₁ D i ≤
-      2 * cpmmSplitObj x₀ y₀ x₁ y₁ D (i + 1) + 2 := by
-  simp only [cpmmSplitObj]
+    cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (i + 2) + cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D i ≤
+      2 * cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (i + 1) + 2 := by
+  simp only [cpmmZeroFeeSplitObj]
   have h0 := cpmmOut_second_diff_le_one x₀ y₀ i hx₀
   have hb : D - (i + 2) + 2 = D - i := by omega
   have hb1 : D - (i + 2) + 1 = D - (i + 1) := by omega
@@ -356,50 +362,50 @@ theorem cpmm_split_second_diff_le_two (x₀ y₀ x₁ y₁ D : ℕ)
     for symmetric pools (1,100), well below the +2 bound. Shows the bound
     is conservative in practice. -/
 theorem witness_split_second_diff :
-    cpmmSplitObj 1 100 1 100 4 2 + cpmmSplitObj 1 100 1 100 4 0 ≤
-      2 * cpmmSplitObj 1 100 1 100 4 1 + 2 := by
+    cpmmZeroFeeSplitObj 1 100 1 100 4 2 + cpmmZeroFeeSplitObj 1 100 1 100 4 0 ≤
+      2 * cpmmZeroFeeSplitObj 1 100 1 100 4 1 + 2 := by
   native_decide
 
 /-! ## Theorem 6: GaloisSplitCertificate for CPMM split routing
 
-Connects `certificate_implies_global_max` to the concrete CPMM split objective
-`cpmmSplitObj`. When discrete concavity holds for a specific pool configuration
+Connects `certificate_implies_global_max` to the concrete zero-fee CPMM split
+objective `cpmmZeroFeeSplitObj`. When discrete concavity holds for a specific pool configuration
 (verified per-instance), the 2-comparison certificate gives O(1) global optimality.
 Boundary comparisons are unnecessary — they follow from concavity + neighbor checks. -/
 
-/-- **CPMM SPLIT ROUTING CERTIFICATE SOUNDNESS**: when the CPMM split objective
-    `cpmmSplitObj` is discretely concave and the 2 neighbor comparisons pass
-    at `a_star`, then `a_star` is a global maximum over {0,...,D}.
+/-- **ZERO-FEE CPMM SPLIT ROUTING CERTIFICATE SOUNDNESS**: when the zero-fee
+    split objective `cpmmZeroFeeSplitObj` is discretely concave and the
+    2 neighbor comparisons pass at `a_star`, then `a_star` is a global
+    maximum over `{0, ..., D}`.
 
-    The discrete concavity hypothesis is discharged computationally for each
-    specific pool configuration (bounded D). -/
-theorem cpmm_split_certificate_sound
+    This theorem is for the zero-fee algebraic model only. It is not a
+    fee-aware runtime-routing correctness theorem. -/
+theorem cpmm_zero_fee_split_certificate_sound
     (x₀ y₀ x₁ y₁ D a_star : ℕ)
     (ha : a_star ≤ D)
-    (hconc : GaloisSplitCertificate.DiscreteConcave (cpmmSplitObj x₀ y₀ x₁ y₁ D) D)
-    (h_prev : 0 < a_star → cpmmSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmSplitObj x₀ y₀ x₁ y₁ D (a_star - 1))
-    (h_next : a_star < D → cpmmSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmSplitObj x₀ y₀ x₁ y₁ D (a_star + 1)) :
-    ∀ j : ℕ, j ≤ D → cpmmSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmSplitObj x₀ y₀ x₁ y₁ D j :=
+    (hconc : GaloisSplitCertificate.DiscreteConcave (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D)
+    (h_prev : 0 < a_star → cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star - 1))
+    (h_next : a_star < D → cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D (a_star + 1)) :
+    ∀ j : ℕ, j ≤ D → cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D a_star ≥ cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D j :=
   GaloisSplitCertificate.certificate_implies_global_max
-    (cpmmSplitObj x₀ y₀ x₁ y₁ D) D a_star ha hconc h_prev h_next
+    (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D a_star ha hconc h_prev h_next
 
 /-! ## Theorem 7: End-to-end witness
 
 Complete proof chain: two identical pools (1, 10000), D = 6.
 1. Verify discrete concavity by `interval_cases` + `native_decide`
 2. Certificate passes at a* = 3 (symmetric pools → split evenly)
-3. Global optimality follows from `cpmm_split_certificate_sound` -/
+3. Global optimality follows from `cpmm_zero_fee_split_certificate_sound` -/
 
-/-- Split objective for the witness pools (1, 10000) with D=6,
-    defined as a concrete instantiation of `cpmmSplitObj`. -/
-private def f_witness : ℕ → ℤ := cpmmSplitObj 1 10000 1 10000 6
+/-- Zero-fee split objective for the witness pools `(1, 10000)` with `D = 6`. -/
+private def f_witness : ℕ → ℤ := cpmmZeroFeeSplitObj 1 10000 1 10000 6
 
 /-- The split objective is discretely concave for pools (1,10000), D=6. -/
 theorem witness_split_concavity :
     GaloisSplitCertificate.DiscreteConcave f_witness 6 := by
   intro i hi
   have hi' : i ≤ 4 := by omega
-  simp only [f_witness, cpmmSplitObj, cpmmOut]
+  simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]
   interval_cases i <;> native_decide
 
 /-- Certificate values at the optimal split a*=3. -/
@@ -413,11 +419,12 @@ theorem witness_certificate_values :
     f_witness 3 ≥ f_witness 4 ∧
     f_witness 3 ≥ f_witness 0 ∧
     f_witness 3 ≥ f_witness 6 := by
-  simp only [f_witness, cpmmSplitObj, cpmmOut]
+  simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]
   native_decide
 
-/-- **FULL CHAIN WITNESS**: `cpmm_split_certificate_sound` applied to concrete pools.
-    Two identical pools (1, 10000), D = 6. Composes through theorem 6:
+/-- **FULL CHAIN WITNESS**: `cpmm_zero_fee_split_certificate_sound` applied to
+    concrete zero-fee pools. Two identical pools `(1, 10000)`, `D = 6`.
+    Composes through theorem 6:
     1. Verify discrete concavity (witness_split_concavity)
     2. 2 neighbor checks at a* = 3 pass (native_decide)
     3. Global optimality follows — boundary checks f(0), f(6) are derived, not assumed -/
@@ -426,17 +433,17 @@ theorem witness_full_chain :
     GaloisSplitCertificate.DiscreteConcave f_witness 6 ∧
     -- Certificate at a* = 3 (only 2 neighbor checks needed)
     f_witness 3 ≥ f_witness 2 ∧ f_witness 3 ≥ f_witness 4 ∧
-    -- Global optimality (via cpmm_split_certificate_sound)
+    -- Global optimality (via cpmm_zero_fee_split_certificate_sound)
     (∀ j, j ≤ 6 → f_witness 3 ≥ f_witness j) := by
   refine ⟨witness_split_concavity, ?_, ?_, ?_⟩
-  · simp only [f_witness, cpmmSplitObj, cpmmOut]; native_decide
-  · simp only [f_witness, cpmmSplitObj, cpmmOut]; native_decide
+  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; native_decide
+  · simp only [f_witness, cpmmZeroFeeSplitObj, cpmmOut]; native_decide
   · -- Compose through theorem 6: only concavity + 2 neighbor checks
-    exact cpmm_split_certificate_sound 1 10000 1 10000 6 3
+    exact cpmm_zero_fee_split_certificate_sound 1 10000 1 10000 6 3
       (by omega)
       witness_split_concavity
-      (by simp only [cpmmSplitObj, cpmmOut]; intro; native_decide)
-      (by simp only [cpmmSplitObj, cpmmOut]; intro; native_decide)
+      (by simp only [cpmmZeroFeeSplitObj, cpmmOut]; intro; native_decide)
+      (by simp only [cpmmZeroFeeSplitObj, cpmmOut]; intro; native_decide)
 
 /-! ## Non-vacuity witnesses -/
 
@@ -548,14 +555,14 @@ theorem cpmmOut_nearly_concave (x y D : ℕ) (hx : 0 < x) :
     4. Sum is grade 1+1 = 2 (`nearly_sum`)
 
     This compositional proof replaces the direct calculation in
-    `cpmm_split_second_diff_le_two` with an algebraic derivation,
+    `cpmm_zero_fee_split_second_diff_le_two` with an algebraic derivation,
     showing the split bound of 2 is structurally inevitable (one
     defect unit per pool). -/
-theorem cpmm_split_nearly_concave (x₀ y₀ x₁ y₁ D : ℕ)
+theorem cpmm_zero_fee_split_nearly_concave (x₀ y₀ x₁ y₁ D : ℕ)
     (hx₀ : 0 < x₀) (hx₁ : 0 < x₁) :
-    NearlyDiscreteConcave 2 (cpmmSplitObj x₀ y₀ x₁ y₁ D) D := by
+    NearlyDiscreteConcave 2 (cpmmZeroFeeSplitObj x₀ y₀ x₁ y₁ D) D := by
   intro i hi
-  simp only [cpmmSplitObj]
+  simp only [cpmmZeroFeeSplitObj]
   -- Pool 0 contributes defect 1
   have h0 := (cpmmOut_nearly_concave x₀ y₀ D hx₀) i hi
   -- Pool 1 (reversed) contributes defect 1
