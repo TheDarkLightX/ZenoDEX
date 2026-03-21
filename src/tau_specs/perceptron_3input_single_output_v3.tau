@@ -8,7 +8,7 @@
 #   class = step(activation >= threshold)
 #
 # Domain restriction:
-# - x1,x2,x3,w1,w2,w3,bias,threshold are bounded to 0..63
+# - x1,x2,x3,w1,w2,w3,bias,threshold are bounded to 0..127
 # - activation stays within bv[16] without wraparound
 #
 # Inputs:
@@ -27,4 +27,4 @@
 
 set charvar off
 
-always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[16] <= { #x003F }:bv[16]) && (i2[t]:bv[16] <= { #x003F }:bv[16]) && (i3[t]:bv[16] <= { #x003F }:bv[16]) && (i4[t]:bv[16] <= { #x003F }:bv[16]) && (i5[t]:bv[16] <= { #x003F }:bv[16]) && (i6[t]:bv[16] <= { #x003F }:bv[16]) && (i7[t]:bv[16] <= { #x003F }:bv[16]) && (i8[t]:bv[16] <= { #x003F }:bv[16]) && ((((i1[t]:bv[16] * i4[t]:bv[16]) + (i2[t]:bv[16] * i5[t]:bv[16]) + (i3[t]:bv[16] * i6[t]:bv[16]) + i7[t]:bv[16]) >= i8[t]:bv[16] && i9[t]:sbf = 1:sbf) || (((i1[t]:bv[16] * i4[t]:bv[16]) + (i2[t]:bv[16] * i5[t]:bv[16]) + (i3[t]:bv[16] * i6[t]:bv[16]) + i7[t]:bv[16]) < i8[t]:bv[16] && i9[t]:sbf = 0:sbf)))).
+always (o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[16] <= { #x007F }:bv[16]) && (i2[t]:bv[16] <= { #x007F }:bv[16]) && (i3[t]:bv[16] <= { #x007F }:bv[16]) && (i4[t]:bv[16] <= { #x007F }:bv[16]) && (i5[t]:bv[16] <= { #x007F }:bv[16]) && (i6[t]:bv[16] <= { #x007F }:bv[16]) && (i7[t]:bv[16] <= { #x007F }:bv[16]) && (i8[t]:bv[16] <= { #x007F }:bv[16]) && ((((i1[t]:bv[16] * i4[t]:bv[16]) + (i2[t]:bv[16] * i5[t]:bv[16]) + (i3[t]:bv[16] * i6[t]:bv[16]) + i7[t]:bv[16]) >= i8[t]:bv[16] && i9[t]:sbf = 1:sbf) || (((i1[t]:bv[16] * i4[t]:bv[16]) + (i2[t]:bv[16] * i5[t]:bv[16]) + (i3[t]:bv[16] * i6[t]:bv[16]) + i7[t]:bv[16]) < i8[t]:bv[16] && i9[t]:sbf = 0:sbf)))).
