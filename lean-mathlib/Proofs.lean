@@ -49,6 +49,10 @@ import Proofs.CPMMConcavity
 import Proofs.ZUSDSPWholeVaultLiquidation
 import Proofs.GaloisSplitCertificate
 import Proofs.ArbitrageCertificate
+import Proofs.ZenoDEXAutoTraderBinaryDecision
+import Proofs.ZenoDEXAutoTraderDecisionBinding
+import Proofs.ZenoDEXAutoTraderLiveReleaseCertificate
+import Proofs.ZenoDEXAutoTraderStageCertificate
 import Proofs.AntiFragmentation
 import Proofs.FeeAwareAntiFragmentation
 import Proofs.OppositeDirectionNoncommutativity
