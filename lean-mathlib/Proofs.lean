@@ -51,6 +51,11 @@ import Proofs.ConstDenominatorSurrogateBounds
 import Proofs.UXAlgorithms
 import Proofs.DeterministicAgentTieBreak
 import Proofs.DeterministicEpochWindow
+import Proofs.FeeDustCarryConservation
+import Proofs.FeeRevenueBoundedness
+import Proofs.FeeSplitRoundingGap
+import Proofs.ProtocolFeeShareThreshold
+import Proofs.NoRisklessYieldLaw
 import Proofs.AllocationTotality
 import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
@@ -89,6 +94,11 @@ import Proofs.PerpFundingAlgebra
 import Proofs.ConstDenominatorSurrogateBounds
 import Proofs.UXAlgorithms
 import Proofs.DeterministicEpochWindow
+import Proofs.FeeDustCarryConservation
+import Proofs.FeeRevenueBoundedness
+import Proofs.FeeSplitRoundingGap
+import Proofs.ProtocolFeeShareThreshold
+import Proofs.NoRisklessYieldLaw
 
 /-!
 Proofs library root.
