@@ -49,6 +49,11 @@ import Proofs.CPMMConcavity
 import Proofs.ZUSDSPWholeVaultLiquidation
 import Proofs.GaloisSplitCertificate
 import Proofs.ArbitrageCertificate
+import Proofs.AntiFragmentation
+import Proofs.FeeAwareAntiFragmentation
+import Proofs.OppositeDirectionNoncommutativity
+import Proofs.FeeAwareBatchKGap
+import Proofs.CPMMOutputMonotonicity
 import Proofs.RoundingErrorBound
 import Proofs.SettlementNetting
 
