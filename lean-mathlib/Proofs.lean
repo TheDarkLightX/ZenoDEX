@@ -73,6 +73,7 @@ import Proofs.LPValueAlgebra
 import Proofs.DeterministicAgentTieBreakSort
 import Proofs.ImpossibilityTheoremV2
 import Proofs.SplitRoutingArgmaxPlateau
+import Proofs.MSTCertificateBasics
 import Proofs.AllocationTotality
 import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
@@ -133,6 +134,7 @@ import Proofs.LPValueAlgebra
 import Proofs.DeterministicAgentTieBreakSort
 import Proofs.ImpossibilityTheoremV2
 import Proofs.SplitRoutingArgmaxPlateau
+import Proofs.MSTCertificateBasics
 
 /-!
 Proofs library root.
