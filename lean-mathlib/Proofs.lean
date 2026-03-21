@@ -66,6 +66,10 @@ import Proofs.PerpFundingSymmetry
 import Proofs.PerpLiquidationInsuranceBound
 import Proofs.SwapRouterBounds
 import Proofs.VolatilityTrackerArithmetic
+import Proofs.DEXCanonicalSelection
+import Proofs.DEXExactSequence
+import Proofs.DEXValueAlgebra
+import Proofs.LPValueAlgebra
 import Proofs.AllocationTotality
 import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
@@ -119,6 +123,10 @@ import Proofs.PerpFundingSymmetry
 import Proofs.PerpLiquidationInsuranceBound
 import Proofs.SwapRouterBounds
 import Proofs.VolatilityTrackerArithmetic
+import Proofs.DEXCanonicalSelection
+import Proofs.DEXExactSequence
+import Proofs.DEXValueAlgebra
+import Proofs.LPValueAlgebra
 
 /-!
 Proofs library root.
