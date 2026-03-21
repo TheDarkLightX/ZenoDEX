@@ -27,6 +27,13 @@ import Proofs.PerpFundingAlgebra
 import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
 import Proofs.ZenoDEXRounding
+import Proofs.ZenoDEXExactInRouteCertificate
+import Proofs.ZenoDEXExactInRouteGuardedQuotePacket
+import Proofs.ZenoDEXExactInRouteOracleContract
+import Proofs.ZenoDEXExactInRouteRankProjection
+import Proofs.ZenoDEXExactInRouteRankProjectionPacket
+import Proofs.ZenoDEXExactInRouteTrueKeyInterpretationPacket
+import Proofs.ZenoDEXExactInTrueKeyWinner
 import Proofs.BatchApproximation
 import Proofs.ExactOutAdaptiveGate
 import Proofs.MobiusCPMMRoutingBounds
