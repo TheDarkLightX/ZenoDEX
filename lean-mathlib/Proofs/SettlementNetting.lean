@@ -3,6 +3,7 @@ import Mathlib.Algebra.Group.Defs
 import Mathlib.Algebra.Group.Hom.Defs
 import Mathlib.Tactic
 import Proofs.DEXExactSequence
+import Proofs.SettlementAlgebra
 
 /-!
 # Settlement Netting Algebra
@@ -78,40 +79,31 @@ open DEXExactSequence (ConservationSystem kerProject surjective
   kerProject_add ker_inter_image_trivial decomposition_injective
   kerProject_fixes_ker kerProject_annihilates_section)
 
-/-! ## Part 1: Net Settlement Type (Settl) -/
+/-! ## Part 1: Net Settlement Type (Settl)
 
-structure Settl where
-  dx : ℤ
-  dy : ℤ
-  deriving Repr, DecidableEq
+This file reuses the canonical settlement object from `SettlementAlgebra`
+so its netting projection composes with the existing settlement theorem
+surface instead of introducing a parallel settlement type.
+-/
+
+abbrev Settl := SettlementAlgebra.Settlement
 
 @[ext] theorem Settl.ext {s₁ s₂ : Settl}
-    (hx : s₁.dx = s₂.dx) (hy : s₁.dy = s₂.dy) : s₁ = s₂ := by
-  cases s₁; cases s₂; simp_all
+    (hx : s₁.dx = s₂.dx) (hy : s₁.dy = s₂.dy) : s₁ = s₂ :=
+  SettlementAlgebra.Settlement.ext hx hy
 
-instance : Zero Settl := ⟨⟨0, 0⟩⟩
-instance : Add Settl := ⟨fun s₁ s₂ => ⟨s₁.dx + s₂.dx, s₁.dy + s₂.dy⟩⟩
-instance : Neg Settl := ⟨fun s => ⟨-s.dx, -s.dy⟩⟩
-instance : Sub Settl := ⟨fun s₁ s₂ => s₁ + (-s₂)⟩
+namespace Settl
 
-@[simp] theorem Settl.zero_dx : (0 : Settl).dx = 0 := rfl
-@[simp] theorem Settl.zero_dy : (0 : Settl).dy = 0 := rfl
-@[simp] theorem Settl.add_dx (s₁ s₂ : Settl) :
+@[simp] theorem zero_dx : (0 : SettlementAlgebra.Settlement).dx = 0 := rfl
+@[simp] theorem zero_dy : (0 : SettlementAlgebra.Settlement).dy = 0 := rfl
+@[simp] theorem add_dx (s₁ s₂ : SettlementAlgebra.Settlement) :
     (s₁ + s₂).dx = s₁.dx + s₂.dx := rfl
-@[simp] theorem Settl.add_dy (s₁ s₂ : Settl) :
+@[simp] theorem add_dy (s₁ s₂ : SettlementAlgebra.Settlement) :
     (s₁ + s₂).dy = s₁.dy + s₂.dy := rfl
-@[simp] theorem Settl.neg_dx (s : Settl) : (-s).dx = -s.dx := rfl
-@[simp] theorem Settl.neg_dy (s : Settl) : (-s).dy = -s.dy := rfl
+@[simp] theorem neg_dx (s : SettlementAlgebra.Settlement) : (-s).dx = -s.dx := rfl
+@[simp] theorem neg_dy (s : SettlementAlgebra.Settlement) : (-s).dy = -s.dy := rfl
 
-instance : AddCommGroup Settl where
-  add_assoc := fun a b c => by ext <;> simp <;> ring
-  zero_add := fun a => by ext <;> simp
-  add_zero := fun a => by ext <;> simp
-  add_comm := fun a b => by ext <;> simp <;> ring
-  neg_add_cancel := fun a => by ext <;> simp
-  sub_eq_add_neg := fun _ _ => rfl
-  nsmul := nsmulRec
-  zsmul := zsmulRec
+end Settl
 
 /-! ## Part 2: Rich Settlement Type (with internal volume) -/
 
@@ -437,7 +429,9 @@ theorem kerPart_in_ker (s : RichSettl) :
     netProject (kerPart s) = 0 := by
   unfold kerPart
   simp only [netProject, embed, AddMonoidHom.coe_mk, ZeroHom.coe_mk]
-  show Settl.mk (s + (-⟨s.dx, s.dy, (0 : ℤ)⟩)).dx (s + (-⟨s.dx, s.dy, (0 : ℤ)⟩)).dy = 0
+  show SettlementAlgebra.Settlement.mk
+      (s + (-⟨s.dx, s.dy, (0 : ℤ)⟩)).dx
+      (s + (-⟨s.dx, s.dy, (0 : ℤ)⟩)).dy = 0
   ext <;> simp
 
 /-- The kernel part captures exactly the internal volume. -/
@@ -485,9 +479,11 @@ theorem decomposition_unique (s₁ s₂ : RichSettl)
     s₁ = s₂ := by
   simp only [netProject, internalVol, AddMonoidHom.coe_mk, ZeroHom.coe_mk] at hnet hint
   have hx : s₁.dx = s₂.dx := by
-    have := congr_arg Settl.dx hnet; simpa using this
+    have := congr_arg (fun s : Settl => s.dx) hnet
+    simpa using this
   have hy : s₁.dy = s₂.dy := by
-    have := congr_arg Settl.dy hnet; simpa using this
+    have := congr_arg (fun s : Settl => s.dy) hnet
+    simpa using this
   ext
   · exact hx
   · exact hy
@@ -726,7 +722,7 @@ theorem witness_conservation_factors :
     ⟨42, -17, 99⟩ maps to (⟨42,-17⟩, 99) and back. -/
 theorem witness_product_roundtrip :
     let s : RichSettl := ⟨42, -17, 99⟩
-    toProduct s = (Settl.mk 42 (-17), 99) ∧
+    toProduct s = (SettlementAlgebra.Settlement.mk 42 (-17), 99) ∧
     fromProduct (toProduct s) = s := by native_decide
 
 /-- Witness: netting pair savings matches the per-component formula.
