@@ -2,6 +2,7 @@ import Proofs.BatchAuctionCanonical
 import Proofs.SettlementAlgebra
 import Proofs.BatchOptimality
 import Proofs.CPMMInvariants
+import Proofs.CpmmSwapV8ExactInAdmissibility
 import Proofs.CPMMSettlement
 import Proofs.BatchCPMMUnification
 import Proofs.PerpEpochSafety
