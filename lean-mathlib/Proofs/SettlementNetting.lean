@@ -159,12 +159,8 @@ def Δ_rich : RichSettl →+ ℤ where
   map_add' := fun a b => by
     show (a.dx + b.dx) + (a.dy + b.dy) = (a.dx + a.dy) + (b.dx + b.dy); ring
 
-/-- Conservation on Settl: Δ_net(s) = dx + dy. -/
-def Δ_net : Settl →+ ℤ where
-  toFun := fun s => s.dx + s.dy
-  map_zero' := by rfl
-  map_add' := fun a b => by
-    show (a.dx + b.dx) + (a.dy + b.dy) = (a.dx + a.dy) + (b.dx + b.dy); ring
+/-- Conservation on Settl: reuse the canonical raw-flow homomorphism from `SettlementAlgebra`. -/
+abbrev Δ_net : Settl →+ ℤ := SettlementAlgebra.Δ
 
 /-- The netting projection: forget internal volume, keep net flows. -/
 def netProject : RichSettl →+ Settl where
@@ -208,7 +204,7 @@ def richCS : ConservationSystem RichSettl where
     projects away one field then sums the remaining two. -/
 theorem conservation_factors (s : RichSettl) :
     Δ_rich s = Δ_net (netProject s) := by
-  simp only [Δ_rich, Δ_net, netProject, AddMonoidHom.coe_mk, ZeroHom.coe_mk]
+  simp only [Δ_rich, Δ_net, SettlementAlgebra.Δ, SettlementAlgebra.netFlow, netProject, AddMonoidHom.coe_mk, ZeroHom.coe_mk]
 
 /-- Conservation factors as a homomorphism equality. -/
 theorem conservation_factors_hom :
@@ -645,7 +641,7 @@ theorem richCS_trivial_intersection (s : RichSettl) (n : ℤ)
     g = Δ_rich.comp embed := factor_through_netProject_unique Δ_rich g hfactor
     _ = Δ_net := by
       ext n
-      simp [Δ_rich, Δ_net, embed, AddMonoidHom.comp_apply]
+      simp [Δ_rich, Δ_net, SettlementAlgebra.Δ, SettlementAlgebra.netFlow, embed, AddMonoidHom.comp_apply]
 
 /-! ## Part 11: Connecting Savings to Settlements
 
