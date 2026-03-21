@@ -21,7 +21,7 @@ rounding on any cycle.
 1. `AntiFragmentation.lean`: `swapOut`, `single_hop_gap`, `swap_euclidean`
 2. This file: `ceilDiv`, gap ∈ {0, 1}, per-edge ε = 1
 3. `CrossSliceComposition.lean`: `perturbed_no_arbitrage` with ε = 1
-4. This file: `cpmm_certificate_rounding_safe` (composition)
+4. This file: `cpmm_certificate_rounding_safe` (abstract composition)
 
 ## Results
 
@@ -33,8 +33,7 @@ rounding on any cycle.
 | 4 | `cpmm_edge_gap_le_one` | ceilSwapOut - swapOut ≤ 1 |
 | 5 | `cpmm_floor_le_ceil` | swapOut ≤ ceilSwapOut |
 | 6 | `cpmm_edge_perturbation` | ↑swapOut ≥ ↑ceilSwapOut - 1 (ℤ form) |
-| 7 | `cpmm_certificate_rounding_safe` | **Main**: margin ≥ 1 ⇒ rounding-safe |
-| 8 | `cpmm_no_arb_with_rounding` | Full instantiation for CPMM pool graphs |
+| 7 | `cpmm_certificate_rounding_safe` | **Main**: margin ≥ 1 ⇒ abstract rounding-safe certificate |
 | W | 5 witnesses | Non-vacuity via native_decide |
 -/
 
@@ -163,12 +162,13 @@ theorem cpmm_edge_perturbation (x y a : ℕ) :
 /-! ## Part 4: Composition with Arbitrage Certificates
 
 Main theorem: an arbitrage certificate with margin ≥ 1 on ceiling
-(ideal) CPMM edge weights remains valid on floor (actual) edge weights.
+(ideal) edge weights remains valid on floor (actual) edge weights.
 
 This composes cpmm_edge_perturbation with CrossSliceComposition's
 perturbed_no_arbitrage to close the known gap in rounding_arb_composition. -/
 
-/-- **MAIN THEOREM**: CPMM arbitrage certificates with margin ≥ 1 are rounding-safe.
+/-- **MAIN THEOREM**: abstract certificates with margin ≥ 1 are rounding-safe
+    under the CPMM per-edge floor/ceiling gap bound.
 
     Given:
     - `w_ceil`: ceiling-division CPMM edge weights (ideal, favorable to trader)
@@ -204,31 +204,6 @@ theorem cpmm_gap_instantiation (pools : ℕ → ℕ → ℕ × ℕ × ℕ)
   intro u v
   rw [h_ceil, h_floor]
   exact cpmm_edge_perturbation (pools u v).1 (pools u v).2.1 (pools u v).2.2
-
-/-- COMPLETE CPMM NO-ARBITRAGE: for any CPMM pool graph with certificate,
-    if the certificate has margin ≥ 1 on ceiling weights, then no arbitrage
-    exists even with floor division rounding.
-
-    This is the full instantiation: defines pool graph, computes both
-    weight functions, provides the gap bound, and concludes no-arbitrage.
-
-    Composes: cpmm_edge_perturbation + perturbed_no_arbitrage. -/
-theorem cpmm_no_arb_with_rounding
-    (pools : ℕ → ℕ → ℕ × ℕ × ℕ) (π : ℕ → ℤ)
-    (h_margin : ∀ u v,
-      ↑(ceilSwapOut (pools u v).1 (pools u v).2.1 (pools u v).2.2) +
-        π u - π v ≥ 1)
-    (s : ℕ) (mid : List ℕ) :
-    pathWeight
-      (fun u v => ↑(swapOut (pools u v).1 (pools u v).2.1 (pools u v).2.2))
-      (s :: (mid ++ [s])) ≥ 0 :=
-  cpmm_certificate_rounding_safe
-    (fun u v => ↑(ceilSwapOut (pools u v).1 (pools u v).2.1 (pools u v).2.2))
-    (fun u v => ↑(swapOut (pools u v).1 (pools u v).2.1 (pools u v).2.2))
-    π h_margin
-    (fun u v => cpmm_edge_perturbation
-      (pools u v).1 (pools u v).2.1 (pools u v).2.2)
-    s mid
 
 /-! ## Part 5: Non-Vacuity Witnesses -/
 
