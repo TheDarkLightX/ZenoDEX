@@ -13,15 +13,16 @@ If a potential certificate has margin ≥ ε on all edges (reduced cost ≥ ε),
 and actual weights differ from theoretical by at most ε (e.g., due to rounding),
 then the certificate still certifies no-arbitrage on the actual graph.
 
-Combined with `RoundingErrorBound.rounding_gap_bound` (gap ≤ 2k-1 for k hops):
-a certificate with margin ≥ 2k-1 absorbs all rounding for k-hop routes.
+This file is intentionally limited to **edgewise** perturbation reasoning.
+It does not derive an edgewise budget from a route-level total-gap theorem;
+that bridge must be provided separately by the caller.
 
 ## Composition chain
 
 1. `ArbitrageCertificate.certificate_soundness`: exact weights → no-arb cycles
 2. `margin_absorbs_perturbation` (this file): margin ε absorbs error ≤ ε
-3. `RoundingErrorBound.rounding_gap_bound`: k hops → error ≤ 2k-1
-4. **Composition**: margin ≥ 2k-1 → no-arb cycles even with rounding
+3. a separate bridge that turns a route-level gap bound into an edgewise budget
+4. **Composition once that bridge exists**: margin ≥ ε → no-arb cycles under ε-bounded edge perturbations
 -/
 
 namespace Proofs
@@ -66,9 +67,12 @@ theorem perturbed_no_arbitrage
 
 /-! ## Rounding-specific instantiations -/
 
-/-- For k-hop rounding with conservative bound (ε = 2k - 1),
-    certificate margin ≥ 2k - 1 absorbs all rounding error.
-    This instantiates the cross-slice invariant `rounding_preserves_arb_freedom`. -/
+/-- If a caller provides a **uniform edgewise** perturbation budget
+    `2*k - 1`, then certificate margin `2*k - 1` absorbs that budget.
+
+    This theorem does not derive the edgewise budget from the actual route
+    length `mid.length + 1`; it only packages the margin-absorption step once
+    such a budget is already available. -/
 theorem k_hop_conservative_margin
     (w w_actual : ℕ → ℕ → ℤ) (π : ℕ → ℤ) (k : ℕ) (hk : 0 < k)
     (h_margin : ∀ u v, w u v + π u - π v ≥ 2 * ↑k - 1)
@@ -77,7 +81,11 @@ theorem k_hop_conservative_margin
     pathWeight w_actual (s :: (mid ++ [s])) ≥ 0 :=
   perturbed_no_arbitrage w w_actual π (2 * ↑k - 1) (by omega) h_margin h_round s mid
 
-/-- Under Lipschitz-1 CPMM assumption, tighter margin ≥ k suffices for k hops. -/
+/-- If a caller provides a **uniform edgewise** perturbation budget `k`,
+    then certificate margin `k` absorbs that budget.
+
+    As above, this theorem is an abstract edgewise packaging lemma, not a
+    derivation from a route-level rounding theorem. -/
 theorem k_hop_lipschitz_margin
     (w w_actual : ℕ → ℕ → ℤ) (π : ℕ → ℤ) (k : ℕ) (hk : 0 < k)
     (h_margin : ∀ u v, w u v + π u - π v ≥ ↑k)
