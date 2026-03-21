@@ -6,8 +6,9 @@ import pytest
 
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 
-UNSIGNED_SPEC = Path("src/tau_specs/perceptron_2input_single_output_v1.tau")
-SIGNED_OFFSET_SPEC = Path("src/tau_specs/perceptron_2input_signed_offset_v1.tau")
+ROOT = Path(__file__).resolve().parents[2]
+UNSIGNED_SPEC = ROOT / "src" / "tau_specs" / "perceptron_2input_single_output_v1.tau"
+SIGNED_OFFSET_SPEC = ROOT / "src" / "tau_specs" / "perceptron_2input_signed_offset_v1.tau"
 
 
 def test_tau_unsigned_perceptron_two_input_experiment() -> None:
