@@ -56,6 +56,16 @@ import Proofs.FeeRevenueBoundedness
 import Proofs.FeeSplitRoundingGap
 import Proofs.ProtocolFeeShareThreshold
 import Proofs.NoRisklessYieldLaw
+import Proofs.BatchRefinementOrder
+import Proofs.CircuitBreakerWindowArithmetic
+import Proofs.CurveDominanceArithmetic
+import Proofs.FundingImbalanceEV
+import Proofs.LiquidityRebalancerBounds
+import Proofs.LpMintOptimalBounds
+import Proofs.PerpFundingSymmetry
+import Proofs.PerpLiquidationInsuranceBound
+import Proofs.SwapRouterBounds
+import Proofs.VolatilityTrackerArithmetic
 import Proofs.AllocationTotality
 import Proofs.BatchGreedyOptimality
 import Proofs.IteratedSwapDecreasing
@@ -99,6 +109,16 @@ import Proofs.FeeRevenueBoundedness
 import Proofs.FeeSplitRoundingGap
 import Proofs.ProtocolFeeShareThreshold
 import Proofs.NoRisklessYieldLaw
+import Proofs.BatchRefinementOrder
+import Proofs.CircuitBreakerWindowArithmetic
+import Proofs.CurveDominanceArithmetic
+import Proofs.FundingImbalanceEV
+import Proofs.LiquidityRebalancerBounds
+import Proofs.LpMintOptimalBounds
+import Proofs.PerpFundingSymmetry
+import Proofs.PerpLiquidationInsuranceBound
+import Proofs.SwapRouterBounds
+import Proofs.VolatilityTrackerArithmetic
 
 /-!
 Proofs library root.
