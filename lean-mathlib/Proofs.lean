@@ -78,6 +78,9 @@ import Proofs.FeeAwareBatchKGap
 import Proofs.CPMMOutputMonotonicity
 import Proofs.RoundingErrorBound
 import Proofs.SettlementNetting
+import Proofs.ZUSDCeilDivAlgebra
+import Proofs.ZUSDFeePipeline
+import Proofs.ZUSDMCRHeadroom
 
 /-!
 Proofs library root.
