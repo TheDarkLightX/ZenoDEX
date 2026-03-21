@@ -84,6 +84,11 @@ import Proofs.ZUSDMCRHeadroom
 import Proofs.ZUSDCollateralFlowAlgebra
 import Proofs.ZUSDDebtHomomorphism
 import Proofs.ZUSDDualConservation
+import Proofs.MEVResistanceBound
+import Proofs.PerpFundingAlgebra
+import Proofs.ConstDenominatorSurrogateBounds
+import Proofs.UXAlgorithms
+import Proofs.DeterministicEpochWindow
 
 /-!
 Proofs library root.
