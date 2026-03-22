@@ -2778,6 +2778,8 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/dex/build_settlement_spot_price_attestation":
             packet_obj = obj.get("packet")
             signer_privkey = obj.get("signer_privkey")
+            attestation_policy_obj = obj.get("attestation_policy")
+            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
             if not isinstance(packet_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
                 return True
@@ -2788,14 +2790,26 @@ class _Handler(BaseHTTPRequestHandler):
                 from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
                     build_settlement_spot_price_attestation,
                 )
+                from src.integration.settlement_attestation_policy import (  # pylint: disable=import-outside-toplevel
+                    coerce_settlement_attestation_policy,
+                )
                 from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
                     SettlementSpotPricePacket,
                 )
+                from src.integration.settlement_signer_registry import (  # pylint: disable=import-outside-toplevel
+                    coerce_settlement_signer_registry_snapshot,
+                )
 
                 packet = SettlementSpotPricePacket.from_dict(packet_obj)
+                attestation_policy = coerce_settlement_attestation_policy(attestation_policy_obj)
+                attestation_registry_snapshot = coerce_settlement_signer_registry_snapshot(
+                    attestation_registry_snapshot_obj
+                )
                 attestation = build_settlement_spot_price_attestation(
                     packet=packet,
                     signer_privkey=signer_privkey,
+                    attestation_policy=attestation_policy,
+                    attestation_registry_snapshot=attestation_registry_snapshot,
                 )
                 self._write_json(200, {"ok": True, "attestation": attestation.to_dict()}, cors_origin=cors_origin)
                 return True

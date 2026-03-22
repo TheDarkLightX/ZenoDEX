@@ -34,7 +34,7 @@ except Exception:  # pragma: no cover - optional dependency
     _BLS12_381_CURVE_ORDER = None
 
 
-SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA = "zenodex/settlement-spot-price-attestation/v1"
+SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA = "zenodex/settlement-spot-price-attestation/v2"
 SETTLEMENT_SPOT_PRICE_ATTESTATION_BUNDLE_SCHEMA = "zenodex/settlement-spot-price-attestation-bundle/v1"
 _PRICE_ATTESTATION_VERIFY_CACHE: dict[tuple[object, ...], tuple[bool, str | None]] = {}
 
@@ -45,6 +45,12 @@ class SettlementSpotPriceAttestation:
     signer_pubkey: str
     signed_at_epoch: int
     packet_hash: str
+    attestation_policy_id: str
+    attestation_policy_epoch: int
+    attestation_policy_chain_id: int
+    attestation_policy_registry_contract: str
+    attestation_policy_root: str
+    attestation_policy_hash: str
     signature: str
     schema: str = SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA
 
@@ -65,6 +71,32 @@ class SettlementSpotPriceAttestation:
             "packet_hash",
             canonical_hex_fixed_allow_0x(self.packet_hash, nbytes=32, name="packet_hash"),
         )
+        if not isinstance(self.attestation_policy_id, str) or not self.attestation_policy_id.strip():
+            raise ValueError("attestation_policy_id must be a non-empty string")
+        object.__setattr__(self, "attestation_policy_id", self.attestation_policy_id.strip())
+        for name in ("attestation_policy_epoch", "attestation_policy_chain_id"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError(f"{name} must be a non-negative int")
+        object.__setattr__(
+            self,
+            "attestation_policy_registry_contract",
+            canonical_hex_fixed_allow_0x(
+                self.attestation_policy_registry_contract,
+                nbytes=20,
+                name="attestation_policy_registry_contract",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "attestation_policy_root",
+            canonical_hex_fixed_allow_0x(self.attestation_policy_root, nbytes=32, name="attestation_policy_root"),
+        )
+        object.__setattr__(
+            self,
+            "attestation_policy_hash",
+            canonical_hex_fixed_allow_0x(self.attestation_policy_hash, nbytes=32, name="attestation_policy_hash"),
+        )
         object.__setattr__(
             self,
             "signature",
@@ -78,6 +110,12 @@ class SettlementSpotPriceAttestation:
             "signer_pubkey": self.signer_pubkey,
             "signed_at_epoch": int(self.signed_at_epoch),
             "packet_hash": self.packet_hash,
+            "attestation_policy_id": self.attestation_policy_id,
+            "attestation_policy_epoch": int(self.attestation_policy_epoch),
+            "attestation_policy_chain_id": int(self.attestation_policy_chain_id),
+            "attestation_policy_registry_contract": self.attestation_policy_registry_contract,
+            "attestation_policy_root": self.attestation_policy_root,
+            "attestation_policy_hash": self.attestation_policy_hash,
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -98,6 +136,12 @@ class SettlementSpotPriceAttestation:
             signer_pubkey=str(payload.get("signer_pubkey", "")),
             signed_at_epoch=int(payload.get("signed_at_epoch", -1)),
             packet_hash=str(payload.get("packet_hash", "")),
+            attestation_policy_id=str(payload.get("attestation_policy_id", "")),
+            attestation_policy_epoch=int(payload.get("attestation_policy_epoch", -1)),
+            attestation_policy_chain_id=int(payload.get("attestation_policy_chain_id", -1)),
+            attestation_policy_registry_contract=str(payload.get("attestation_policy_registry_contract", "")),
+            attestation_policy_root=str(payload.get("attestation_policy_root", "")),
+            attestation_policy_hash=str(payload.get("attestation_policy_hash", "")),
             signature=str(payload.get("signature", "")),
         )
 
@@ -129,6 +173,7 @@ class SettlementSpotPriceAttestationBundle:
         if not self.attestations:
             raise ValueError("attestations must be non-empty")
         seen_signers: set[str] = set()
+        expected_policy_binding: tuple[object, ...] | None = None
         for attestation in self.attestations:
             if not isinstance(attestation, SettlementSpotPriceAttestation):
                 raise TypeError("attestations must contain SettlementSpotPriceAttestation values")
@@ -136,6 +181,11 @@ class SettlementSpotPriceAttestationBundle:
                 raise ValueError("bundle attestation signed_at_epoch must match bundle.signed_at_epoch")
             if attestation.signer_pubkey in seen_signers:
                 raise ValueError("bundle attestation signer_pubkey values must be distinct")
+            policy_binding = _attestation_policy_binding_tuple(attestation)
+            if expected_policy_binding is None:
+                expected_policy_binding = policy_binding
+            elif policy_binding != expected_policy_binding:
+                raise ValueError("bundle attestation policy bindings must be identical")
             seen_signers.add(attestation.signer_pubkey)
         expected_packet = _build_bundle_consensus_packet(self.attestations)
         expected_packet_hash = _packet_hash_hex(expected_packet)
@@ -197,27 +247,40 @@ def build_settlement_spot_price_attestation(
     *,
     packet: SettlementSpotPricePacket,
     signer_privkey: str | int | bytes | bytearray,
+    attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> SettlementSpotPriceAttestation:
     ok, err = verify_settlement_spot_price_packet(packet=packet)
     if not ok:
         raise ValueError(f"invalid settlement spot price packet: {err}")
     if not packet.provenance_ok:
         raise ValueError("settlement spot price packet is not provenance_ok")
+    attestation_policy, _loaded_snapshot = load_attestation_policy_and_registry_snapshot(
+        attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
+        attestation_registry_snapshot_loader=None,
+        consumer_now_epoch=int(packet.now_epoch),
+    )
+    if attestation_policy is None:
+        raise ValueError("build_settlement_spot_price_attestation requires attestation_policy or attestation_registry_snapshot")
     _require_bls()
     sk_int = _parse_privkey_to_int(signer_privkey)
-    signer_pubkey = canonical_hex_fixed_allow_0x(
-        "0x" + G2Basic.SkToPk(sk_int).hex(),
-        nbytes=48,
-        name="signer_pubkey",
-    )
+    signer_pubkey = settlement_spot_price_attestation_signer_pubkey_from_privkey(signer_privkey)
     signed_at_epoch = int(packet.now_epoch)
     packet_hash = _packet_hash_hex(packet)
+    policy_hash = attestation_policy.policy_hash_hex()
     unsigned = {
         "schema": SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA,
         "packet": packet.to_dict(),
         "signer_pubkey": signer_pubkey,
         "signed_at_epoch": signed_at_epoch,
         "packet_hash": packet_hash,
+        "attestation_policy_id": attestation_policy.policy_id,
+        "attestation_policy_epoch": int(attestation_policy.policy_epoch),
+        "attestation_policy_chain_id": int(attestation_policy.chain_id),
+        "attestation_policy_registry_contract": attestation_policy.registry_contract,
+        "attestation_policy_root": attestation_policy.registry_root,
+        "attestation_policy_hash": policy_hash,
     }
     signature = "0x" + G2Basic.Sign(sk_int, _attestation_message_bytes(unsigned)).hex()
     return SettlementSpotPriceAttestation(
@@ -225,6 +288,12 @@ def build_settlement_spot_price_attestation(
         signer_pubkey=signer_pubkey,
         signed_at_epoch=signed_at_epoch,
         packet_hash=packet_hash,
+        attestation_policy_id=attestation_policy.policy_id,
+        attestation_policy_epoch=int(attestation_policy.policy_epoch),
+        attestation_policy_chain_id=int(attestation_policy.chain_id),
+        attestation_policy_registry_contract=attestation_policy.registry_contract,
+        attestation_policy_root=attestation_policy.registry_root,
+        attestation_policy_hash=policy_hash,
         signature=signature,
     )
 
@@ -246,6 +315,18 @@ def build_settlement_spot_price_attestation_bundle(
         packet_hash=_packet_hash_hex(consensus_packet),
         signed_at_epoch=int(consensus_packet.now_epoch),
         attestations=tuple(attestations),
+    )
+
+
+def settlement_spot_price_attestation_signer_pubkey_from_privkey(
+    signer_privkey: str | int | bytes | bytearray,
+) -> str:
+    _require_bls()
+    sk_int = _parse_privkey_to_int(signer_privkey)
+    return canonical_hex_fixed_allow_0x(
+        "0x" + G2Basic.SkToPk(sk_int).hex(),
+        nbytes=48,
+        name="signer_pubkey",
     )
 
 
@@ -289,11 +370,18 @@ def verify_settlement_spot_price_attestation(
     policy_check = check_settlement_attestation_policy(
         policy=attestation_policy,
         consumer_now_epoch=int(consumer_now_epoch),
+        policy_reference_epoch=int(attestation.signed_at_epoch),
         signer_pubkeys=(attestation.signer_pubkey,),
         packet_source_ids=_packet_source_ids(attestation.packet),
     )
     if not policy_check.ok:
         return False, policy_check.error
+    ok, err = _verify_settlement_spot_price_attestation_policy_binding(
+        attestation=attestation,
+        attestation_policy=attestation_policy,
+    )
+    if not ok:
+        return False, err
     cache_key = _price_attestation_verify_cache_key(
         attestation=attestation,
         consumer_now_epoch=int(consumer_now_epoch),
@@ -354,11 +442,19 @@ def verify_settlement_spot_price_attestation_bundle(
     policy_check = check_settlement_attestation_policy(
         policy=attestation_policy,
         consumer_now_epoch=int(consumer_now_epoch),
+        policy_reference_epoch=int(bundle.signed_at_epoch),
         signer_pubkeys=tuple(attestation.signer_pubkey for attestation in bundle.attestations),
         packet_source_ids=_packet_source_ids(bundle.packet),
     )
     if not policy_check.ok:
         return False, policy_check.error
+    for attestation in bundle.attestations:
+        ok, err = _verify_settlement_spot_price_attestation_policy_binding(
+            attestation=attestation,
+            attestation_policy=attestation_policy,
+        )
+        if not ok:
+            return False, err
     consensus_check = check_settlement_spot_price_attestation_bundle_consensus(
         bundle=bundle,
         attestation_policy=attestation_policy,
@@ -610,6 +706,48 @@ def _verify_settlement_spot_price_attestation_signature(
     return True, None
 
 
+def _verify_settlement_spot_price_attestation_policy_binding(
+    *,
+    attestation: SettlementSpotPriceAttestation,
+    attestation_policy: SettlementAttestationPolicy | None,
+) -> tuple[bool, str | None]:
+    if attestation_policy is None:
+        return False, "settlement spot price attestation requires attestation_policy"
+    observed = {
+        "attestation_policy_id": attestation.attestation_policy_id,
+        "attestation_policy_epoch": int(attestation.attestation_policy_epoch),
+        "attestation_policy_chain_id": int(attestation.attestation_policy_chain_id),
+        "attestation_policy_registry_contract": attestation.attestation_policy_registry_contract,
+        "attestation_policy_root": attestation.attestation_policy_root,
+        "attestation_policy_hash": attestation.attestation_policy_hash,
+    }
+    expected = {
+        "attestation_policy_id": attestation_policy.policy_id,
+        "attestation_policy_epoch": int(attestation_policy.policy_epoch),
+        "attestation_policy_chain_id": int(attestation_policy.chain_id),
+        "attestation_policy_registry_contract": attestation_policy.registry_contract,
+        "attestation_policy_root": attestation_policy.registry_root,
+        "attestation_policy_hash": attestation_policy.policy_hash_hex(),
+    }
+    if observed != expected:
+        detail_items = {
+            "observed_attestation_policy_id": observed["attestation_policy_id"],
+            "observed_attestation_policy_epoch": observed["attestation_policy_epoch"],
+            "observed_attestation_policy_chain_id": observed["attestation_policy_chain_id"],
+            "observed_attestation_policy_registry_contract": observed["attestation_policy_registry_contract"],
+            "observed_attestation_policy_root": observed["attestation_policy_root"],
+            "observed_attestation_policy_hash": observed["attestation_policy_hash"],
+            "expected_attestation_policy_id": expected["attestation_policy_id"],
+            "expected_attestation_policy_epoch": expected["attestation_policy_epoch"],
+            "expected_attestation_policy_chain_id": expected["attestation_policy_chain_id"],
+            "expected_attestation_policy_registry_contract": expected["attestation_policy_registry_contract"],
+            "expected_attestation_policy_root": expected["attestation_policy_root"],
+            "expected_attestation_policy_hash": expected["attestation_policy_hash"],
+        }
+        return False, _format_bundle_consensus_error("attestation policy binding mismatch", details=detail_items)
+    return True, None
+
+
 def verify_settlement_spot_price_attestation_payload(
     *,
     payload: Mapping[str, Any],
@@ -644,7 +782,7 @@ def _packet_source_ids(packet: SettlementSpotPricePacket) -> tuple[str, ...]:
 
 
 def _attestation_message_bytes(unsigned_payload: Mapping[str, Any]) -> bytes:
-    return domain_sep_bytes("settlement_spot_price_attestation", version=1) + canonical_json_bytes(dict(unsigned_payload))
+    return domain_sep_bytes("settlement_spot_price_attestation", version=2) + canonical_json_bytes(dict(unsigned_payload))
 
 
 def _price_attestation_verify_cache_key(
@@ -673,6 +811,12 @@ def _price_attestation_verify_cache_key(
         attestation.packet_hash,
         attestation.signer_pubkey,
         int(attestation.signed_at_epoch),
+        attestation.attestation_policy_id,
+        int(attestation.attestation_policy_epoch),
+        int(attestation.attestation_policy_chain_id),
+        attestation.attestation_policy_registry_contract,
+        attestation.attestation_policy_root,
+        attestation.attestation_policy_hash,
         attestation.signature,
         attestation.packet.price_vector_sha256,
         attestation.packet.provenance_vector_sha256,
@@ -697,6 +841,17 @@ def _cache_attestation_verify_result(
     if len(_PRICE_ATTESTATION_VERIFY_CACHE) >= 512:
         _PRICE_ATTESTATION_VERIFY_CACHE.clear()
     _PRICE_ATTESTATION_VERIFY_CACHE[key] = result
+
+
+def _attestation_policy_binding_tuple(attestation: SettlementSpotPriceAttestation) -> tuple[object, ...]:
+    return (
+        attestation.attestation_policy_id,
+        int(attestation.attestation_policy_epoch),
+        int(attestation.attestation_policy_chain_id),
+        attestation.attestation_policy_registry_contract,
+        attestation.attestation_policy_root,
+        attestation.attestation_policy_hash,
+    )
 
 
 def _parse_privkey_to_int(privkey: str | int | bytes | bytearray) -> int:

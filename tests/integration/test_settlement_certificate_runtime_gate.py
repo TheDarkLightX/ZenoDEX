@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.integration._attestation_policy_helper import make_attestation_policy
+from tests.integration._attestation_policy_helper import build_policy_bound_attestation, make_attestation_policy
 
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
@@ -12,6 +12,7 @@ from src.integration.settlement_end_to_end_certificate_packet import SettlementE
 from src.integration.settlement_price_attestation import (
     build_settlement_spot_price_attestation,
     build_settlement_spot_price_attestation_bundle,
+    settlement_spot_price_attestation_signer_pubkey_from_privkey,
 )
 from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
 from src.integration.settlement_strong_certificate import SettlementProofFlags
@@ -226,7 +227,7 @@ def test_validate_operations_accepts_when_end_to_end_certificate_required_from_a
     intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
     intents = parse_intents({"2": intent_dicts})
     settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
-    attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
 
     ok, err = validate_operations(
         intents=intents,
@@ -253,7 +254,7 @@ def test_validate_operations_accepts_when_end_to_end_certificate_required_from_a
 
 def test_settlement_end_to_end_certificate_inputs_require_policy_or_snapshot_in_attestation_mode() -> None:
     _intent_dicts, _balances, _pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
-    attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
 
     try:
         SettlementEndToEndCertificateInputs(
@@ -276,14 +277,20 @@ def test_validate_operations_accepts_when_end_to_end_certificate_required_from_a
     intents = parse_intents({"2": intent_dicts})
     settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
     price_packet = _spot_price_packet(asset0, asset1)
-    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
-    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8)
-    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
     attestation_policy = make_attestation_policy(
-        attestation_a,
+        {
+            "signer_pubkey": settlement_spot_price_attestation_signer_pubkey_from_privkey(7),
+            "signed_at_epoch": int(price_packet.now_epoch),
+            "packet": price_packet.to_dict(),
+        },
         min_distinct_signers=2,
-        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+        additional_allowed_signers={
+            settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+        },
     )
+    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7, attestation_policy=attestation_policy)
+    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8, attestation_policy=attestation_policy)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
 
     ok, err = validate_operations(
         intents=intents,

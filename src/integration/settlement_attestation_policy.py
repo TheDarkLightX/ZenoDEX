@@ -188,11 +188,14 @@ def check_settlement_attestation_policy(
     *,
     policy: SettlementAttestationPolicy | None,
     consumer_now_epoch: int,
+    policy_reference_epoch: int,
     signer_pubkeys: Sequence[str],
     packet_source_ids: Sequence[str],
 ) -> SettlementAttestationPolicyCheckResult:
     if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
         raise ValueError("consumer_now_epoch must be a non-negative int")
+    if not isinstance(policy_reference_epoch, int) or isinstance(policy_reference_epoch, bool) or policy_reference_epoch < 0:
+        raise ValueError("policy_reference_epoch must be a non-negative int")
 
     policy_present = policy is not None
     canonical_signers = tuple(
@@ -204,6 +207,7 @@ def check_settlement_attestation_policy(
         error_code = "attestation_policy_missing"
         details = {
             "consumer_now_epoch": int(consumer_now_epoch),
+            "policy_reference_epoch": int(policy_reference_epoch),
             "observed_signer_pubkeys": canonical_signers,
             "observed_source_ids": canonical_sources,
             "observed_distinct_signers": len(set(canonical_signers)),
@@ -233,8 +237,8 @@ def check_settlement_attestation_policy(
     governance_approved = bool(policy.governance_approved)
     timelock_elapsed = bool(policy.timelock_elapsed)
     multisig_approved = bool(policy.multisig_approved)
-    epoch_active = int(policy.effective_from_epoch) <= int(consumer_now_epoch)
-    epoch_unexpired = int(consumer_now_epoch) <= int(policy.expires_at_epoch)
+    epoch_active = int(policy.effective_from_epoch) <= int(policy_reference_epoch)
+    epoch_unexpired = int(policy_reference_epoch) <= int(policy.expires_at_epoch)
     allowlist_nonempty = bool(policy.allowed_signers)
     distinct_signers_ok = len(set(canonical_signers)) >= int(policy.min_distinct_signers)
     distinct_sources_ok = len(set(canonical_sources)) >= int(policy.min_distinct_sources)
@@ -275,6 +279,7 @@ def check_settlement_attestation_policy(
         "registry_root": policy.registry_root,
         "policy_hash": policy.policy_hash_hex(),
         "consumer_now_epoch": int(consumer_now_epoch),
+        "policy_reference_epoch": int(policy_reference_epoch),
         "effective_from_epoch": int(policy.effective_from_epoch),
         "expires_at_epoch": int(policy.expires_at_epoch),
         "observed_signer_pubkeys": canonical_signers,
