@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Fail-closed ratchet check for promoted ShapeForge negative knowledge."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from tools.shapeforge_validate import validate_artifact
+
+
+DEFAULT_NEGATIVE_KNOWLEDGE = (
+    ROOT / "docs" / "zenodex" / "shapeforge_promoted" / "zenodex_negative_knowledge.seed.json"
+)
+
+REQUIRES_SCOPED_REPLACEMENT_STATUSES = {
+    "narrowed",
+}
+
+
+def check_negative_knowledge_ratchet(
+    *,
+    negative_knowledge_path: Path = DEFAULT_NEGATIVE_KNOWLEDGE,
+) -> dict[str, Any]:
+    errors = validate_artifact(negative_knowledge_path)
+    if errors:
+        raise ValueError("\n".join(errors))
+
+    data = json.loads(negative_knowledge_path.read_text(encoding="utf-8"))
+    records = data["records"]
+
+    narrowed_ids: list[str] = []
+    for record in records:
+        hypothesis_id = str(record["hypothesis_id"])
+        status = str(record["status"])
+        if status not in REQUIRES_SCOPED_REPLACEMENT_STATUSES:
+            continue
+
+        narrowed_ids.append(hypothesis_id)
+
+        replacement_claim = str(record.get("replacement_claim") or "").strip()
+        replay_pointer = str(record.get("replay_pointer") or "").strip()
+        remaining_excluded_domain = str(record.get("remaining_excluded_domain") or "").strip()
+        claim = str(record.get("claim") or "").strip()
+
+        if not replacement_claim:
+            errors.append(f"{negative_knowledge_path}: record {hypothesis_id} missing replacement_claim")
+        elif replacement_claim == claim:
+            errors.append(
+                f"{negative_knowledge_path}: record {hypothesis_id} replacement_claim must narrow or replace the original claim"
+            )
+
+        if not replay_pointer:
+            errors.append(f"{negative_knowledge_path}: record {hypothesis_id} missing replay_pointer")
+
+        if not remaining_excluded_domain:
+            errors.append(
+                f"{negative_knowledge_path}: record {hypothesis_id} missing remaining_excluded_domain"
+            )
+
+    if errors:
+        raise ValueError("\n".join(errors))
+
+    return {
+        "ok": True,
+        "negative_knowledge_path": str(negative_knowledge_path),
+        "narrowed_count": len(narrowed_ids),
+        "narrowed_hypothesis_ids": narrowed_ids,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Fail-closed negative-knowledge ratchet check.")
+    parser.add_argument(
+        "--negative-knowledge-path",
+        type=Path,
+        default=DEFAULT_NEGATIVE_KNOWLEDGE,
+        help="Path to the promoted negative-knowledge artifact",
+    )
+    args = parser.parse_args()
+
+    report = check_negative_knowledge_ratchet(
+        negative_knowledge_path=args.negative_knowledge_path.resolve(),
+    )
+    print(
+        "OK NEGATIVE_KNOWLEDGE "
+        f"narrowed={report['narrowed_count']} "
+        + ",".join(report["narrowed_hypothesis_ids"])
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
