@@ -398,13 +398,15 @@ class TauNetTcpClient:
     def getstateproof_view(self) -> TauNetStateProofView:
         payload = _coerce_mapping_json_response(self.getstateproof(full=True), label="getstateproof full")
         state_hash = payload.get("state_hash", "")
-        if state_hash in ("", None):
-            normalized_state_hash = ""
-        else:
-            normalized_state_hash = _coerce_hex_32_noprefix(state_hash, label="getstateproof full state_hash")
         present = payload.get("present")
         if not isinstance(present, bool):
             raise TauNetRpcError(f"getstateproof full present must be a bool, got {present!r}")
+        if state_hash in ("", None):
+            if present:
+                raise TauNetRpcError("getstateproof full state_hash must be a 64-hex string when present=true")
+            normalized_state_hash = ""
+        else:
+            normalized_state_hash = _coerce_hex_32_noprefix(state_hash, label="getstateproof full state_hash")
         proof_type = payload.get("proof_type")
         if proof_type is not None and (not isinstance(proof_type, str) or not proof_type.strip()):
             raise TauNetRpcError(f"getstateproof full proof_type must be a non-empty string when present, got {proof_type!r}")
