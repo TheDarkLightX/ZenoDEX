@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 
+from .settlement_attestation_policy import (
+    SettlementAttestationPolicy,
+    check_settlement_attestation_policy,
+    coerce_settlement_attestation_policy,
+)
 from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
 
 try:
@@ -129,7 +134,7 @@ def verify_settlement_spot_price_attestation(
     attestation: SettlementSpotPriceAttestation,
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
-    allowed_signers: Mapping[str, Sequence[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> tuple[bool, str | None]:
     if not isinstance(attestation, SettlementSpotPriceAttestation):
         return False, "attestation must be a SettlementSpotPriceAttestation"
@@ -141,6 +146,10 @@ def verify_settlement_spot_price_attestation(
         or max_attestation_age_epochs < 0
     ):
         return False, "max_attestation_age_epochs must be a non-negative int"
+    try:
+        attestation_policy = coerce_settlement_attestation_policy(attestation_policy)
+    except Exception as exc:
+        return False, str(exc)
 
     ok, err = verify_settlement_spot_price_packet(packet=attestation.packet)
     if not ok:
@@ -156,32 +165,24 @@ def verify_settlement_spot_price_attestation(
         return False, "attestation signed_at_epoch is in the future"
     if int(consumer_now_epoch) - int(attestation.signed_at_epoch) > int(max_attestation_age_epochs):
         return False, "settlement spot price attestation is stale"
-    if allowed_signers is None:
-        return False, "settlement spot price attestation requires allowed_signers"
 
-    normalized_allowlist = _canonical_allowed_signers(allowed_signers)
-    if not normalized_allowlist:
-        return False, "settlement spot price attestation requires non-empty allowed_signers"
+    policy_check = check_settlement_attestation_policy(
+        policy=attestation_policy,
+        consumer_now_epoch=int(consumer_now_epoch),
+        signer_pubkeys=(attestation.signer_pubkey,),
+        packet_source_ids=_packet_source_ids(attestation.packet),
+    )
+    if not policy_check.ok:
+        return False, policy_check.error
     cache_key = _price_attestation_verify_cache_key(
         attestation=attestation,
         consumer_now_epoch=int(consumer_now_epoch),
         max_attestation_age_epochs=int(max_attestation_age_epochs),
-        normalized_allowlist=normalized_allowlist,
+        attestation_policy=attestation_policy,
     )
     cached = _PRICE_ATTESTATION_VERIFY_CACHE.get(cache_key)
     if cached is not None:
         return cached
-    if normalized_allowlist is not None:
-        allowed_sources = normalized_allowlist.get(attestation.signer_pubkey)
-        if allowed_sources is None:
-            result = (False, "signer_pubkey not allowlisted")
-            _cache_attestation_verify_result(cache_key, result)
-            return result
-        for source_id in _packet_source_ids(attestation.packet):
-            if source_id not in allowed_sources:
-                result = (False, f"source_id not allowlisted for signer: {source_id}")
-                _cache_attestation_verify_result(cache_key, result)
-                return result
 
     _require_bls()
     unsigned = attestation.to_unsigned_dict()
@@ -206,7 +207,7 @@ def verify_settlement_spot_price_attestation_payload(
     payload: Mapping[str, Any],
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
-    allowed_signers: Mapping[str, Sequence[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> tuple[bool, str | None]:
     try:
         attestation = SettlementSpotPriceAttestation.from_dict(payload)
@@ -216,32 +217,8 @@ def verify_settlement_spot_price_attestation_payload(
         attestation=attestation,
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
-        allowed_signers=allowed_signers,
+        attestation_policy=attestation_policy,
     )
-
-
-def _canonical_allowed_signers(
-    allowed_signers: Mapping[str, Sequence[str]] | None,
-) -> dict[str, frozenset[str]] | None:
-    if allowed_signers is None:
-        return None
-    if not isinstance(allowed_signers, Mapping):
-        raise TypeError("allowed_signers must be a mapping when provided")
-    normalized: dict[str, frozenset[str]] = {}
-    for raw_pubkey, raw_sources in allowed_signers.items():
-        pubkey = canonical_hex_fixed_allow_0x(str(raw_pubkey), nbytes=48, name="allowed_signer_pubkey")
-        if not isinstance(raw_sources, Sequence) or isinstance(raw_sources, (str, bytes, bytearray)):
-            raise TypeError("allowed_signer source ids must be a sequence of strings")
-        source_ids = []
-        for raw_source in raw_sources:
-            if not isinstance(raw_source, str):
-                raise TypeError("allowed_signer source ids must be strings")
-            source_id = raw_source.strip()
-            if not source_id:
-                raise ValueError("allowed_signer source ids must be non-empty")
-            source_ids.append(source_id)
-        normalized[pubkey] = frozenset(source_ids)
-    return normalized
 
 
 def _packet_hash_hex(packet: SettlementSpotPricePacket) -> str:
@@ -263,13 +240,14 @@ def _price_attestation_verify_cache_key(
     attestation: SettlementSpotPriceAttestation,
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
-    normalized_allowlist: Mapping[str, frozenset[str]] | None,
+    attestation_policy: SettlementAttestationPolicy | None,
 ) -> tuple[object, ...]:
-    allowlist_key = None
-    if normalized_allowlist is not None:
-        allowlist_key = tuple(
-            sorted((pubkey, tuple(sorted(source_ids))) for pubkey, source_ids in normalized_allowlist.items())
-        )
+    policy_key = None if attestation_policy is None else (
+        attestation_policy.policy_id,
+        int(attestation_policy.policy_epoch),
+        attestation_policy.registry_root,
+        attestation_policy.policy_hash_hex(),
+    )
     return (
         attestation.packet_hash,
         attestation.signer_pubkey,
@@ -286,7 +264,7 @@ def _price_attestation_verify_cache_key(
         ),
         int(consumer_now_epoch),
         int(max_attestation_age_epochs),
-        allowlist_key,
+        policy_key,
     )
 
 

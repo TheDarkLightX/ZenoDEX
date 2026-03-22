@@ -4,6 +4,8 @@ from dataclasses import replace
 
 import pytest
 
+from tests.integration._attestation_policy_helper import make_attestation_policy
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -166,7 +168,7 @@ def test_settlement_spot_value_contract_builds_from_attested_price_packet() -> N
         price_attestation=price_attestation,
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
-        allowed_signers={price_attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=make_attestation_policy(price_attestation),
     )
     assert contract.schema == SETTLEMENT_SPOT_VALUE_CONTRACT_SCHEMA
     assert contract.value_conservation_ok is True

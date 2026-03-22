@@ -1518,7 +1518,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
@@ -1545,8 +1545,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -1565,7 +1565,7 @@ class _Handler(BaseHTTPRequestHandler):
                         price_attestation=price_attestation,
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 elif price_packet_obj is not None:
                     from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
@@ -1614,7 +1614,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             contract_obj = obj.get("contract")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
@@ -1642,8 +1642,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             if not isinstance(contract_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
@@ -1662,7 +1662,7 @@ class _Handler(BaseHTTPRequestHandler):
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         contract_payload=contract_obj,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 elif price_packet_obj is not None:
                     from src.integration.settlement_value_contract import (  # pylint: disable=import-outside-toplevel
@@ -1709,7 +1709,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             lp_unit_values_obj = obj.get("lp_unit_values")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
@@ -1740,8 +1740,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -1770,7 +1770,7 @@ class _Handler(BaseHTTPRequestHandler):
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         lp_unit_values=lp_unit_values,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 elif price_packet_obj is not None:
                     from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
@@ -1821,7 +1821,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             lp_unit_values_obj = obj.get("lp_unit_values")
             contract_obj = obj.get("contract")
             if not isinstance(settlement_obj, dict):
@@ -1853,8 +1853,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             if not isinstance(contract_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_contract"}, cors_origin=cors_origin)
@@ -1883,7 +1883,7 @@ class _Handler(BaseHTTPRequestHandler):
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         lp_unit_values=lp_unit_values,
                         contract_payload=contract_obj,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 elif price_packet_obj is not None:
                     from src.integration.settlement_lp_value_contract import (  # pylint: disable=import-outside-toplevel
@@ -1931,7 +1931,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             lp_unit_values_obj = obj.get("lp_unit_values")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
@@ -1959,8 +1959,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -1992,7 +1992,7 @@ class _Handler(BaseHTTPRequestHandler):
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         lp_unit_values=lp_unit_values,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 else:
                     from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
@@ -2024,7 +2024,7 @@ class _Handler(BaseHTTPRequestHandler):
             price_attestation_obj = obj.get("price_attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             lp_unit_values_obj = obj.get("lp_unit_values")
             packet_obj = obj.get("packet")
             if not isinstance(settlement_obj, dict):
@@ -2056,8 +2056,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -2086,7 +2086,7 @@ class _Handler(BaseHTTPRequestHandler):
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         packet_payload=packet_obj,
                         lp_unit_values=lp_unit_values,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 else:
                     from src.integration.settlement_value_packet import (  # pylint: disable=import-outside-toplevel
@@ -2116,7 +2116,7 @@ class _Handler(BaseHTTPRequestHandler):
             pool_snapshots_obj = obj.get("pool_snapshots")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
@@ -2143,8 +2143,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -2168,7 +2168,7 @@ class _Handler(BaseHTTPRequestHandler):
                         consumer_now_epoch=int(consumer_now_epoch),
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         pool_snapshots=pool_snapshots,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 else:
                     from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
@@ -2198,7 +2198,7 @@ class _Handler(BaseHTTPRequestHandler):
             pool_snapshots_obj = obj.get("pool_snapshots")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             packet_obj = obj.get("packet")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
@@ -2229,8 +2229,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -2248,7 +2248,7 @@ class _Handler(BaseHTTPRequestHandler):
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         pool_snapshots_payload=pool_snapshots_obj,
                         packet_payload=packet_obj,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 else:
                     ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_packet(
@@ -2324,7 +2324,7 @@ class _Handler(BaseHTTPRequestHandler):
             lp_unit_values_obj = obj.get("lp_unit_values")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
@@ -2357,8 +2357,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -2404,7 +2404,7 @@ class _Handler(BaseHTTPRequestHandler):
                         max_attestation_age_epochs=int(max_attestation_age_epochs),
                         lp_unit_values=lp_unit_values,
                         pool_snapshots=pool_snapshots,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 else:
                     from src.integration.settlement_price_provenance import (  # pylint: disable=import-outside-toplevel
@@ -2442,7 +2442,7 @@ class _Handler(BaseHTTPRequestHandler):
             lp_unit_values_obj = obj.get("lp_unit_values")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             packet_obj = obj.get("packet")
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
@@ -2479,8 +2479,8 @@ class _Handler(BaseHTTPRequestHandler):
                 ):
                     self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                     return True
-                if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                    self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+                if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                    self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                     return True
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
@@ -2515,7 +2515,7 @@ class _Handler(BaseHTTPRequestHandler):
                         packet_payload=packet_obj,
                         lp_unit_values=lp_unit_values,
                         pool_snapshots_payload=pool_snapshots_obj,
-                        allowed_signers=allowed_signers_obj,
+                        attestation_policy=attestation_policy_obj,
                     )
                 else:
                     ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_packet(
@@ -2640,7 +2640,7 @@ class _Handler(BaseHTTPRequestHandler):
             attestation_obj = obj.get("attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
-            allowed_signers_obj = obj.get("allowed_signers")
+            attestation_policy_obj = obj.get("attestation_policy")
             if not isinstance(attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_attestation"}, cors_origin=cors_origin)
                 return True
@@ -2654,8 +2654,8 @@ class _Handler(BaseHTTPRequestHandler):
             ):
                 self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
                 return True
-            if allowed_signers_obj is not None and not isinstance(allowed_signers_obj, dict):
-                self._write_json(400, {"ok": False, "error": "bad_allowed_signers"}, cors_origin=cors_origin)
+            if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
                 return True
             try:
                 from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
@@ -2666,7 +2666,7 @@ class _Handler(BaseHTTPRequestHandler):
                     payload=attestation_obj,
                     consumer_now_epoch=int(consumer_now_epoch),
                     max_attestation_age_epochs=int(max_attestation_age_epochs),
-                    allowed_signers=allowed_signers_obj,
+                    attestation_policy=attestation_policy_obj,
                 )
                 self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
                 return True

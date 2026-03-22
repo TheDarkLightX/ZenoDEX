@@ -1,0 +1,209 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_attestation_policy_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded fail-closed guard for settlement attestation policy admission.
+
+    Purpose:
+    - make the operator/governance boundary explicit
+    - require governance approval, timelock, multisig, active epoch window,
+      non-empty signer policy, signer admission, source admission, and quorum
+      thresholds at the same time
+
+    Scope boundary:
+    - does not model on-chain contract execution or BLS cryptography
+    - treats policy metadata and signer/source observations as bounded inputs
+    - only checks the deterministic acceptance relation for one policy snapshot
+
+observables:
+  state_vars:
+    [
+      "governance_approved",
+      "timelock_elapsed",
+      "multisig_approved",
+      "epoch_active",
+      "epoch_unexpired",
+      "allowlist_nonempty",
+      "signer_allowlisted",
+      "source_policy_ok",
+      "distinct_signer_count",
+      "min_distinct_signers",
+      "distinct_source_count",
+      "min_distinct_sources",
+      "policy_ok",
+    ]
+  effects: ["policy_ok"]
+
+types: []
+
+state_vars:
+  - id: "governance_approved"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "timelock_elapsed"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "multisig_approved"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "epoch_active"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "epoch_unexpired"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "allowlist_nonempty"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "signer_allowlisted"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "source_policy_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "distinct_signer_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "min_distinct_signers"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4 }
+  - id: "distinct_source_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "min_distinct_sources"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4 }
+  - id: "policy_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "governance_approved"
+    expr: { bool: false }
+  - var: "timelock_elapsed"
+    expr: { bool: false }
+  - var: "multisig_approved"
+    expr: { bool: false }
+  - var: "epoch_active"
+    expr: { bool: false }
+  - var: "epoch_unexpired"
+    expr: { bool: false }
+  - var: "allowlist_nonempty"
+    expr: { bool: false }
+  - var: "signer_allowlisted"
+    expr: { bool: false }
+  - var: "source_policy_ok"
+    expr: { bool: false }
+  - var: "distinct_signer_count"
+    expr: { const: 0 }
+  - var: "min_distinct_signers"
+    expr: { const: 1 }
+  - var: "distinct_source_count"
+    expr: { const: 0 }
+  - var: "min_distinct_sources"
+    expr: { const: 1 }
+  - var: "policy_ok"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_policy_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "policy_ok" }
+        - op: "and"
+          args:
+            - { var: "governance_approved" }
+            - { var: "timelock_elapsed" }
+            - { var: "multisig_approved" }
+            - { var: "epoch_active" }
+            - { var: "epoch_unexpired" }
+            - { var: "allowlist_nonempty" }
+            - { var: "signer_allowlisted" }
+            - { var: "source_policy_ok" }
+            - op: ">="
+              args:
+                - { var: "distinct_signer_count" }
+                - { var: "min_distinct_signers" }
+            - op: ">="
+              args:
+                - { var: "distinct_source_count" }
+                - { var: "min_distinct_sources" }
+
+actions:
+  - id: "rebuild_policy_guard"
+    params:
+      - id: "governance_approved_in"
+        type: { kind: "bool" }
+      - id: "timelock_elapsed_in"
+        type: { kind: "bool" }
+      - id: "multisig_approved_in"
+        type: { kind: "bool" }
+      - id: "epoch_active_in"
+        type: { kind: "bool" }
+      - id: "epoch_unexpired_in"
+        type: { kind: "bool" }
+      - id: "allowlist_nonempty_in"
+        type: { kind: "bool" }
+      - id: "signer_allowlisted_in"
+        type: { kind: "bool" }
+      - id: "source_policy_ok_in"
+        type: { kind: "bool" }
+      - id: "distinct_signer_count_in"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "min_distinct_signers_in"
+        type: { kind: "int", min: 1, max: 4 }
+      - id: "distinct_source_count_in"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "min_distinct_sources_in"
+        type: { kind: "int", min: 1, max: 4 }
+    guard: { bool: true }
+    updates:
+      - var: "governance_approved"
+        expr: { param: "governance_approved_in" }
+      - var: "timelock_elapsed"
+        expr: { param: "timelock_elapsed_in" }
+      - var: "multisig_approved"
+        expr: { param: "multisig_approved_in" }
+      - var: "epoch_active"
+        expr: { param: "epoch_active_in" }
+      - var: "epoch_unexpired"
+        expr: { param: "epoch_unexpired_in" }
+      - var: "allowlist_nonempty"
+        expr: { param: "allowlist_nonempty_in" }
+      - var: "signer_allowlisted"
+        expr: { param: "signer_allowlisted_in" }
+      - var: "source_policy_ok"
+        expr: { param: "source_policy_ok_in" }
+      - var: "distinct_signer_count"
+        expr: { param: "distinct_signer_count_in" }
+      - var: "min_distinct_signers"
+        expr: { param: "min_distinct_signers_in" }
+      - var: "distinct_source_count"
+        expr: { param: "distinct_source_count_in" }
+      - var: "min_distinct_sources"
+        expr: { param: "min_distinct_sources_in" }
+      - var: "policy_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "governance_approved_in" }
+            - { param: "timelock_elapsed_in" }
+            - { param: "multisig_approved_in" }
+            - { param: "epoch_active_in" }
+            - { param: "epoch_unexpired_in" }
+            - { param: "allowlist_nonempty_in" }
+            - { param: "signer_allowlisted_in" }
+            - { param: "source_policy_ok_in" }
+            - op: ">="
+              args:
+                - { param: "distinct_signer_count_in" }
+                - { param: "min_distinct_signers_in" }
+            - op: ">="
+              args:
+                - { param: "distinct_source_count_in" }
+                - { param: "min_distinct_sources_in" }
+    effects:
+      policy_ok: { var: "policy_ok" }
