@@ -6,6 +6,7 @@ import pytest
 
 from tests.integration._attestation_policy_helper import (
     make_attestation_registry_anchor,
+    make_attestation_registry_contract_interface,
     make_attestation_policy,
     make_attestation_registry_snapshot,
 )
@@ -23,6 +24,7 @@ from src.integration.settlement_signer_registry import (
     SettlementSignerRegistrySnapshot,
     check_settlement_attestation_policy_registry_binding,
     coerce_settlement_signer_registry_anchor,
+    coerce_settlement_signer_registry_contract_interface,
     coerce_settlement_signer_registry_snapshot,
     load_attestation_policy_and_registry_snapshot,
     resolve_attestation_policy_and_registry_snapshot,
@@ -128,6 +130,15 @@ def test_settlement_signer_registry_anchor_round_trips() -> None:
     assert rebuilt == anchor
 
 
+def test_settlement_signer_registry_contract_interface_round_trips() -> None:
+    attestation = _attestation()
+    interface = make_attestation_registry_contract_interface(attestation)
+
+    rebuilt = coerce_settlement_signer_registry_contract_interface(interface.to_dict())
+
+    assert rebuilt == interface
+
+
 def test_chain_anchored_snapshot_loader_rebinds_snapshot_to_anchor_block() -> None:
     attestation = _attestation()
     policy = make_attestation_policy(attestation)
@@ -197,6 +208,7 @@ def test_chain_anchored_snapshot_loader_rejects_anchor_drift() -> None:
 def test_json_rpc_settlement_signer_registry_anchor_loader_accepts_typed_anchor() -> None:
     attestation = _attestation()
     policy = make_attestation_policy(attestation)
+    interface = make_attestation_registry_contract_interface(attestation)
     request_seen: dict[str, object] = {}
 
     def _transport(endpoint_url: str, headers: dict[str, str], payload: dict[str, object], timeout_s: float) -> dict[str, object]:
@@ -212,6 +224,7 @@ def test_json_rpc_settlement_signer_registry_anchor_loader_accepts_typed_anchor(
 
     loader = JsonRpcSettlementSignerRegistryAnchorLoader(
         "https://rpc.example.invalid",
+        interface=interface,
         transport=_transport,
     )
 
@@ -255,6 +268,7 @@ def test_json_rpc_settlement_signer_registry_anchor_loader_accepts_typed_anchor(
 def test_json_rpc_settlement_signer_registry_anchor_loader_rejects_rpc_error() -> None:
     attestation = _attestation()
     policy = make_attestation_policy(attestation)
+    interface = make_attestation_registry_contract_interface(attestation)
 
     def _transport(_endpoint_url: str, _headers: dict[str, str], payload: dict[str, object], _timeout_s: float) -> dict[str, object]:
         return {
@@ -265,10 +279,36 @@ def test_json_rpc_settlement_signer_registry_anchor_loader_rejects_rpc_error() -
 
     loader = JsonRpcSettlementSignerRegistryAnchorLoader(
         "https://rpc.example.invalid",
+        interface=interface,
         transport=_transport,
     )
 
     with pytest.raises(ValueError, match="attestation registry json-rpc returned an error"):
+        load_attestation_policy_and_registry_snapshot(
+            attestation_policy=policy,
+            attestation_registry_snapshot=None,
+            attestation_registry_snapshot_loader=ChainAnchoredSettlementSignerRegistrySnapshotLoader(
+                anchor_loader=loader,
+                snapshot_loader=InMemorySettlementSignerRegistrySnapshotLoader(
+                    {(int(policy.chain_id), policy.registry_contract, policy.policy_id, int(policy.policy_epoch)): make_attestation_registry_snapshot(attestation)}
+                ),
+            ),
+            consumer_now_epoch=103,
+        )
+
+
+def test_json_rpc_settlement_signer_registry_anchor_loader_rejects_interface_drift() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    drifting_interface = make_attestation_registry_contract_interface(attestation, chain_id=2)
+
+    loader = JsonRpcSettlementSignerRegistryAnchorLoader(
+        "https://rpc.example.invalid",
+        interface=drifting_interface,
+        transport=lambda *_args: {"jsonrpc": "2.0", "id": "settlement-signer-registry-anchor", "result": None},
+    )
+
+    with pytest.raises(ValueError, match="attestation registry interface chain_id does not match request"):
         load_attestation_policy_and_registry_snapshot(
             attestation_policy=policy,
             attestation_registry_snapshot=None,
