@@ -16,11 +16,14 @@ def _maybe_add_external_toolchain() -> None:
 
 _maybe_add_external_toolchain()
 
-if importlib.util.find_spec("ESSO") is None:  # pragma: no cover
-    pytest.skip("verification toolchain not installed", allow_module_level=True)
+
+def _require_esso() -> None:
+    if importlib.util.find_spec("ESSO") is None:  # pragma: no cover
+        pytest.skip("verification toolchain not installed")
 
 
 def _cfg():
+    _require_esso()
     from ESSO.verify.ltlf_synth import LTLFSynthConfig
 
     return LTLFSynthConfig(
@@ -34,6 +37,7 @@ def _cfg():
 
 
 def _ir():
+    _require_esso()
     import yaml
 
     from ESSO.ir.schema import CandidateIR
@@ -46,6 +50,7 @@ def _ir():
 
 
 def test_autotrader_live_admission_submit_is_reachable() -> None:
+    _require_esso()
     from ESSO.verify.ltlf_synth import LTLFSynthFail, synthesize_ltlf_reachability
 
     report = synthesize_ltlf_reachability(
@@ -60,6 +65,7 @@ def test_autotrader_live_admission_submit_is_reachable() -> None:
 
 
 def test_autotrader_live_admission_finalize_is_reachable() -> None:
+    _require_esso()
     from ESSO.verify.ltlf_synth import LTLFSynthFail, synthesize_ltlf_reachability
 
     report = synthesize_ltlf_reachability(
@@ -74,6 +80,7 @@ def test_autotrader_live_admission_finalize_is_reachable() -> None:
 
 
 def test_autotrader_live_admission_goal_family_realizable() -> None:
+    _require_esso()
     import yaml
 
     from ESSO.verify.ltlf_synth import LTLFSynthFail, synthesize_ltlf_multi_property

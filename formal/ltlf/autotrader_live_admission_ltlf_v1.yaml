@@ -12,6 +12,7 @@ observables:
       "admission_checks_ok",
       "nonce_accepted",
       "nonce_consumed",
+      "nonce_released",
       "submit_ok",
       "emit_ready",
       "finalized",
@@ -52,6 +53,9 @@ state_vars:
   - id: "nonce_consumed"
     role: "data"
     type: { kind: "bool" }
+  - id: "nonce_released"
+    role: "data"
+    type: { kind: "bool" }
   - id: "submit_ok"
     role: "data"
     type: { kind: "bool" }
@@ -75,6 +79,8 @@ init:
   - var: "nonce_accepted"
     expr: { bool: false }
   - var: "nonce_consumed"
+    expr: { bool: false }
+  - var: "nonce_released"
     expr: { bool: false }
   - var: "submit_ok"
     expr: { bool: false }
@@ -107,6 +113,20 @@ invariants:
       args:
         - { var: "nonce_consumed" }
         - { var: "nonce_accepted" }
+  - id: "inv_nonce_released_implies_accepted"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "nonce_released" }
+        - { var: "nonce_accepted" }
+  - id: "inv_nonce_released_excludes_consumed"
+    kind: "safety"
+    expr:
+      op: "not"
+      args:
+        - op: "and"
+          args: [{ var: "nonce_released" }, { var: "nonce_consumed" }]
   - id: "inv_phase_finalized_matches_flag"
     kind: "safety"
     expr:
@@ -237,6 +257,8 @@ actions:
     updates:
       - var: "phase"
         expr: { const: 6 }
+      - var: "nonce_released"
+        expr: { bool: true }
       - var: "explicit_failure"
         expr: { bool: true }
     effects:

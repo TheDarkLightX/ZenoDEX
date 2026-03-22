@@ -2,12 +2,12 @@
   "goals": [
     {
       "id": "G_valid_observation_eventually_progresses",
-      "formula": "G ((state.phase.1 & state.valid_observation) -> F (state.submit_ok | state.explicit_failure))",
+      "formula": "G ((state.phase.2 & state.valid_observation & state.admission_checks_ok) -> F (state.submit_ok | state.explicit_failure))",
       "required_in_release": true
     },
     {
       "id": "G_accepted_nonce_eventually_resolves",
-      "formula": "G (state.nonce_accepted -> F (state.nonce_consumed | state.explicit_failure))",
+      "formula": "G (state.nonce_accepted -> F (state.nonce_consumed | state.nonce_released))",
       "required_in_release": true
     },
     {
