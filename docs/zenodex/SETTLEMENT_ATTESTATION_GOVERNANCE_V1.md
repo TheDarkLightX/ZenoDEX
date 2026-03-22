@@ -149,6 +149,7 @@ Current runtime consequence:
 - if a caller supplies both `P` and a registry snapshot `R`, the runtime rejects unless `RegistryBindingOK(P, R)` holds exactly
 - if a caller supplies only `R`, the runtime derives `P := R.policy` and continues fail-closed from the snapshot
 - if the runtime holds `P` plus a registry-snapshot loader, it may derive `R` from the loader and still fail closed on missing or drifting snapshot state
+- if the runtime holds a chain-anchor loader plus a snapshot source, it can rebind the final snapshot to chain-derived block metadata and reject any off-chain snapshot whose root or policy hash drifts from the chain anchor
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 
