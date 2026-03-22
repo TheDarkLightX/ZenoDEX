@@ -156,8 +156,12 @@ def verify_settlement_spot_price_attestation(
         return False, "attestation signed_at_epoch is in the future"
     if int(consumer_now_epoch) - int(attestation.signed_at_epoch) > int(max_attestation_age_epochs):
         return False, "settlement spot price attestation is stale"
+    if allowed_signers is None:
+        return False, "settlement spot price attestation requires allowed_signers"
 
     normalized_allowlist = _canonical_allowed_signers(allowed_signers)
+    if not normalized_allowlist:
+        return False, "settlement spot price attestation requires non-empty allowed_signers"
     cache_key = _price_attestation_verify_cache_key(
         attestation=attestation,
         consumer_now_epoch=int(consumer_now_epoch),
