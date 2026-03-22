@@ -24,6 +24,8 @@ class SettlementAttestationPolicy:
     min_distinct_signers: int
     min_distinct_sources: int
     allowed_signers: Mapping[str, Sequence[str]]
+    bundle_price_consensus_method: str = "lower_median"
+    max_bundle_price_spread_bps: int = 0
     schema: str = SETTLEMENT_ATTESTATION_POLICY_SCHEMA
 
     def __post_init__(self) -> None:
@@ -49,6 +51,7 @@ class SettlementAttestationPolicy:
             "expires_at_epoch",
             "min_distinct_signers",
             "min_distinct_sources",
+            "max_bundle_price_spread_bps",
         ):
             value = getattr(self, name)
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
@@ -62,6 +65,8 @@ class SettlementAttestationPolicy:
         for name in ("governance_approved", "timelock_elapsed", "multisig_approved"):
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be a bool")
+        if self.bundle_price_consensus_method != "lower_median":
+            raise ValueError("bundle_price_consensus_method must be 'lower_median'")
         normalized_allowlist = canonical_attestation_policy_allowlist(self.allowed_signers)
         if not normalized_allowlist:
             raise ValueError("allowed_signers must be non-empty")
@@ -83,6 +88,8 @@ class SettlementAttestationPolicy:
             "min_distinct_signers": int(self.min_distinct_signers),
             "min_distinct_sources": int(self.min_distinct_sources),
             "allowed_signers": {pubkey: list(source_ids) for pubkey, source_ids in self.allowed_signers.items()},
+            "bundle_price_consensus_method": self.bundle_price_consensus_method,
+            "max_bundle_price_spread_bps": int(self.max_bundle_price_spread_bps),
         }
 
     @classmethod
@@ -104,6 +111,8 @@ class SettlementAttestationPolicy:
             min_distinct_signers=int(payload.get("min_distinct_signers", 0)),
             min_distinct_sources=int(payload.get("min_distinct_sources", 0)),
             allowed_signers=payload.get("allowed_signers", {}),
+            bundle_price_consensus_method=str(payload.get("bundle_price_consensus_method", "lower_median")),
+            max_bundle_price_spread_bps=int(payload.get("max_bundle_price_spread_bps", 0)),
         )
 
     def policy_hash_hex(self) -> str:
@@ -274,6 +283,8 @@ def check_settlement_attestation_policy(
         "observed_distinct_sources": len(set(canonical_sources)),
         "required_distinct_signers": int(policy.min_distinct_signers),
         "required_distinct_sources": int(policy.min_distinct_sources),
+        "bundle_price_consensus_method": policy.bundle_price_consensus_method,
+        "max_bundle_price_spread_bps": int(policy.max_bundle_price_spread_bps),
         "allowlisted_sources_for_observed_signers": allowlisted_sources_for_observed_signers,
     }
     error_code, error = _resolve_policy_failure(
