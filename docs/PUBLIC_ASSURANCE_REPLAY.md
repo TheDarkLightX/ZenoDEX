@@ -14,17 +14,21 @@ This repo exposes a narrow, replayable public assurance surface. The goal is:
 
 Current pinned release snapshot on this tree:
 
-- acceptance TCB: `341 passed`, `100%` branch coverage
-- critical gate: `1311 passed`, `100%` branch coverage
-- release gate: passed end to end
+- release tag: `shape-v1-rc1`
+- release note: `docs/zenodex/SHAPE_V1_RC1.md`
+- acceptance TCB: `361 passed`, `99.4%` branch coverage
+- critical gate: `735 passed`, `1 skipped`, `99%` branch-enabled coverage
+- release gate: passed end to end on the candidate branch that became `shape-v1-rc1`
 - mutation gate: `7/7` killed
 - fuzz gate: `11 passed`
-- snapshot recovery: `16 passed`
-- Tau syntax: `58/58`
+- snapshot recovery: `19 passed`
+- Tau syntax: `62/62`
+- Tau trace registry: `1/1`
 
 The scoped release decision checklist for this snapshot is:
 
 - `docs/zenodex/SHAPE_V1_RELEASE_CHECKLIST.md`
+- `docs/zenodex/SHAPE_V1_RC1.md`
 
 Current derivatives note:
 

@@ -64,6 +64,28 @@ What it is for:
 - complementing the local ESSO guard `src/kernels/dex/settlement_attestation_policy_guard_v1.yaml`,
 - making the trust boundary explicit: local safety is not enough without temporal governance semantics.
 
+## Settlement signer registry Tau bridge
+
+Files:
+
+- `formal/tla/SettlementSignerRegistryTauBridge.tla`
+- `formal/tla/SettlementSignerRegistryTauBridge.cfg`
+
+What it models:
+
+- issuance of a settlement request that must bind to a signer-registry policy epoch,
+- loading a registry snapshot and a chain anchor,
+- explicit clean vs drifted snapshot/anchor outcomes,
+- acceptance only when request/snapshot/anchor/proof signals all agree,
+- eventual rejection when drift is visible,
+- eventual acceptance when the bridge-ready condition holds under weak fairness.
+
+What it is for:
+
+- making the missing Tau-native signer-registry proof path explicit,
+- complementing the Tau-side bridge guard `src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau`,
+- preventing adapter-bound registry loading from being misdescribed as direct chain-state proof.
+
 ## Tau shadow semantics
 
 Files:
