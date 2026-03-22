@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.integration._attestation_policy_helper import make_attestation_policy
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -101,6 +103,7 @@ def test_endogenous_lp_value_packet_round_trips_from_attestation() -> None:
         max_staleness_epochs=10,
     )
     attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation_policy = make_attestation_policy(attestation)
 
     packet = build_settlement_endogenous_lp_value_packet_from_price_attestation(
         settlement=settlement,
@@ -108,11 +111,15 @@ def test_endogenous_lp_value_packet_round_trips_from_attestation() -> None:
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
         pool_snapshots=(pool,),
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert packet.price_input_kind == "attestation"
     assert packet.price_attestation is not None
     assert packet.packet_ok is True
+    assert packet.attestation_policy_id == attestation_policy.policy_id
+    assert packet.attestation_policy_epoch == attestation_policy.policy_epoch
+    assert packet.attestation_policy_root == attestation_policy.registry_root
+    assert packet.attestation_policy_hash == attestation_policy.policy_hash_hex()
 
     ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
         settlement=settlement,
@@ -121,7 +128,7 @@ def test_endogenous_lp_value_packet_round_trips_from_attestation() -> None:
         max_attestation_age_epochs=5,
         pool_snapshots_payload=list(packet.pool_snapshots),
         packet_payload=packet.to_dict(),
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert ok is True
     assert err is None

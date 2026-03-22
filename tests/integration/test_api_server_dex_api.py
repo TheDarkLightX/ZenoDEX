@@ -4,6 +4,8 @@ import json
 import threading
 from http.client import HTTPConnection
 
+from tests.integration._attestation_policy_helper import make_attestation_policy_payload
+
 
 def _start_test_server(*, dex_enabled: bool = True):
     from src.integration import api_server
@@ -1029,7 +1031,7 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation() -> None
                     "attestation": attestation,
                     "consumer_now_epoch": 103,
                     "max_attestation_age_epochs": 5,
-                    "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
+                    "attestation_policy": make_attestation_policy_payload(attestation),
                 }
             ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
@@ -1043,7 +1045,7 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation() -> None
         _stop_test_server(httpd, t)
 
 
-def test_api_server_verify_settlement_spot_price_attestation_requires_allowlist() -> None:
+def test_api_server_verify_settlement_spot_price_attestation_requires_policy() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         build_packet_req = {
@@ -1109,7 +1111,7 @@ def test_api_server_verify_settlement_spot_price_attestation_requires_allowlist(
         body2 = json.loads(resp2.read().decode("utf-8"))
         assert resp2.status == 200
         assert body2["ok"] is False
-        assert body2["error"] == "settlement spot price attestation requires allowed_signers"
+        assert body2["error"] == "settlement spot price attestation requires attestation_policy"
     finally:
         _stop_test_server(httpd, t)
 
@@ -1170,7 +1172,7 @@ def test_api_server_build_settlement_spot_value_contract_from_price_attestation(
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
+            "attestation_policy": make_attestation_policy_payload(attestation),
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
@@ -1330,7 +1332,7 @@ def test_api_server_build_settlement_lp_value_contract_from_price_attestation() 
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
+            "attestation_policy": make_attestation_policy_payload(attestation),
             "lp_unit_values": {pool_id: 91},
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -1490,7 +1492,7 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
+            "attestation_policy": make_attestation_policy_payload(attestation),
             "lp_unit_values": {pool_id: 91},
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -1656,7 +1658,7 @@ def test_api_server_build_endogenous_lp_value_packet_from_attestation() -> None:
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
+            "attestation_policy": make_attestation_policy_payload(attestation),
             "pool_snapshots": [pool_snapshot],
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -1837,7 +1839,7 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "allowed_signers": {attestation["signer_pubkey"]: ["oracle:a", "oracle:b"]},
+            "attestation_policy": make_attestation_policy_payload(attestation),
             "pool_snapshots": [pool_snapshot],
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)

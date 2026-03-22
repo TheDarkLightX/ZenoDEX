@@ -4,6 +4,8 @@ import importlib.util
 
 import pytest
 
+from tests.integration._attestation_policy_helper import make_attestation_policy
+
 from src.integration.settlement_price_attestation import (
     build_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation,
@@ -41,7 +43,7 @@ def test_settlement_spot_price_attestation_round_trips() -> None:
         attestation=attestation,
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=make_attestation_policy(attestation),
     )
     assert ok is True
     assert err is None
@@ -50,7 +52,7 @@ def test_settlement_spot_price_attestation_round_trips() -> None:
         payload=attestation.to_dict(),
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=make_attestation_policy(attestation),
     )
     assert ok2 is True
     assert err2 is None
@@ -67,7 +69,7 @@ def test_settlement_spot_price_attestation_rejects_stale_consumer_epoch() -> Non
         attestation=attestation,
         consumer_now_epoch=107,
         max_attestation_age_epochs=5,
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=make_attestation_policy(attestation),
     )
     assert ok is False
     assert err == "settlement spot price attestation is stale"
@@ -84,13 +86,13 @@ def test_settlement_spot_price_attestation_rejects_source_allowlist_violation() 
         attestation=attestation,
         consumer_now_epoch=102,
         max_attestation_age_epochs=5,
-        allowed_signers={attestation.signer_pubkey: ["oracle:a"]},
+        attestation_policy=make_attestation_policy(attestation, allowed_sources=("oracle:a",)),
     )
     assert ok is False
-    assert err == "source_id not allowlisted for signer: oracle:b"
+    assert err == "source_id not allowlisted by attestation policy: oracle:b"
 
 
-def test_settlement_spot_price_attestation_rejects_missing_allowlist() -> None:
+def test_settlement_spot_price_attestation_rejects_missing_policy() -> None:
     packet = _packet()
     attestation = build_settlement_spot_price_attestation(
         packet=packet,
@@ -101,10 +103,10 @@ def test_settlement_spot_price_attestation_rejects_missing_allowlist() -> None:
         attestation=attestation,
         consumer_now_epoch=102,
         max_attestation_age_epochs=5,
-        allowed_signers=None,
+        attestation_policy=None,
     )
     assert ok is False
-    assert err == "settlement spot price attestation requires allowed_signers"
+    assert err == "settlement spot price attestation requires attestation_policy"
 
 
 def test_settlement_spot_price_attestation_rejects_tampering() -> None:
@@ -120,7 +122,7 @@ def test_settlement_spot_price_attestation_rejects_tampering() -> None:
         payload=attestation,
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
-        allowed_signers={built.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=make_attestation_policy(built),
     )
     assert ok is False
     assert err == "packet_hash mismatch"

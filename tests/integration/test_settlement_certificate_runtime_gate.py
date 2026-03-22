@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.integration._attestation_policy_helper import make_attestation_policy
+
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
 from src.core.liquidity import create_pool
@@ -239,14 +241,14 @@ def test_validate_operations_accepts_when_end_to_end_certificate_required_from_a
             price_attestation=attestation,
             consumer_now_epoch=103,
             max_attestation_age_epochs=5,
-            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+            attestation_policy=make_attestation_policy(attestation),
         ),
     )
     assert ok is True
     assert err is None
 
 
-def test_settlement_end_to_end_certificate_inputs_require_allowlist_in_attestation_mode() -> None:
+def test_settlement_end_to_end_certificate_inputs_require_policy_in_attestation_mode() -> None:
     _intent_dicts, _balances, _pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
     attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
 
@@ -258,12 +260,12 @@ def test_settlement_end_to_end_certificate_inputs_require_allowlist_in_attestati
             price_attestation=attestation,
             consumer_now_epoch=103,
             max_attestation_age_epochs=5,
-            allowed_signers=None,
+            attestation_policy=None,
         )
     except ValueError as exc:
-        assert str(exc) == "attestation mode requires allowed_signers"
+        assert str(exc) == "attestation mode requires attestation_policy"
     else:
-        raise AssertionError("expected attestation-mode inputs without allowlist to fail")
+        raise AssertionError("expected attestation-mode inputs without policy to fail")
 
 
 def test_validate_operations_rejects_when_end_to_end_certificate_required_but_inputs_missing() -> None:

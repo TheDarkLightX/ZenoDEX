@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.integration._attestation_policy_helper import make_attestation_policy
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -98,6 +100,7 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
         max_staleness_epochs=10,
     )
     attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation_policy = make_attestation_policy(attestation)
 
     packet = build_settlement_value_packet_from_price_attestation(
         settlement=settlement,
@@ -105,7 +108,7 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
         lp_unit_values={pool_id: 50},
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert packet.schema == SETTLEMENT_VALUE_PACKET_SCHEMA
     assert packet.mode == "lp_aware"
@@ -114,6 +117,10 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
     assert packet.lp_value_contract is not None
     assert packet.lp_liability_balanced_ok is True
     assert packet.packet_ok is True
+    assert packet.attestation_policy_id == attestation_policy.policy_id
+    assert packet.attestation_policy_epoch == attestation_policy.policy_epoch
+    assert packet.attestation_policy_root == attestation_policy.registry_root
+    assert packet.attestation_policy_hash == attestation_policy.policy_hash_hex()
 
     ok, err = verify_settlement_value_packet_payload_from_price_attestation(
         settlement=settlement,
@@ -122,7 +129,7 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
         max_attestation_age_epochs=5,
         packet_payload=packet.to_dict(),
         lp_unit_values={pool_id: 50},
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert ok is True
     assert err is None

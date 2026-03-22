@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.integration._attestation_policy_helper import make_attestation_policy
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -165,6 +167,7 @@ def test_end_to_end_certificate_packet_round_trips_for_endogenous_attestation() 
         max_staleness_epochs=10,
     )
     attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation_policy = make_attestation_policy(attestation)
     packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
         settlement=settlement,
         proof_flags=SettlementProofFlags.all_true(),
@@ -174,12 +177,14 @@ def test_end_to_end_certificate_packet_round_trips_for_endogenous_attestation() 
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
         pool_snapshots=(pool,),
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert packet.value_packet_kind == "endogenous_lp_value"
     assert packet.price_input_kind == "attestation"
     assert packet.lp_liability_balanced_ok is True
     assert packet.packet_ok is True
+    assert packet.endogenous_lp_value_packet is not None
+    assert packet.endogenous_lp_value_packet.attestation_policy_id == attestation_policy.policy_id
 
     ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation(
         settlement=settlement,
@@ -203,7 +208,7 @@ def test_end_to_end_certificate_packet_round_trips_for_endogenous_attestation() 
             "curve_params": pool.curve_params,
         }],
         packet_payload=packet.to_dict(),
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert ok is True
     assert err is None
@@ -241,7 +246,7 @@ def test_end_to_end_certificate_packet_rejects_tampering() -> None:
     assert err == "settlement end-to-end certificate packet mismatch"
 
 
-def test_end_to_end_certificate_packet_from_attestation_requires_allowlist() -> None:
+def test_end_to_end_certificate_packet_from_attestation_requires_policy() -> None:
     _pk, asset0, asset1, _pool_id, pool, settlement = _four_swap_context()
     price_packet = build_settlement_spot_price_packet(
         entries=(
@@ -263,9 +268,9 @@ def test_end_to_end_certificate_packet_from_attestation_requires_allowlist() -> 
             consumer_now_epoch=103,
             max_attestation_age_epochs=5,
             pool_snapshots=(pool,),
-            allowed_signers=None,
+            attestation_policy=None,
         )
     except ValueError as exc:
-        assert str(exc) == "invalid settlement spot price attestation: settlement spot price attestation requires allowed_signers"
+        assert str(exc) == "invalid settlement spot price attestation: settlement spot price attestation requires attestation_policy"
     else:
-        raise AssertionError("expected attestation packet build without allowlist to fail")
+        raise AssertionError("expected attestation packet build without policy to fail")
