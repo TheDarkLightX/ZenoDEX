@@ -256,3 +256,49 @@ def test_tau_net_tcp_client_methods_and_send_signed_tx(monkeypatch: pytest.Monke
         expiration_seconds=10,
     ) == "submitted"
     assert sent_payloads[-1]["sequence_number"] == 3
+
+
+def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = tau_net_client.TauNetTcpClient()
+
+    def _rpc(cmd: str) -> str:
+        if cmd == "getappstate full":
+            return (
+                '{"app_hash":"'
+                + "ab" * 32
+                + '","app_state":{"schema":"zenodex/tau_app_state/v1","settlement_signer_registry_tau_bridge":{"schema":"zenodex/settlement-signer-registry-tau-bridge/v1"}}}'
+            )
+        if cmd == "getstateproof full":
+            return (
+                '{"state_hash":"'
+                + "cd" * 32
+                + '","present":true,"proof_type":"risc0.tauswap_transition.v1","proof_bytes":321,"proof_sha256":"'
+                + "ef" * 32
+                + '"}'
+            )
+        raise AssertionError(f"unexpected cmd: {cmd}")
+
+    monkeypatch.setattr(client, "rpc", _rpc)
+
+    app_state_view = client.getappstate_view()
+    state_proof_view = client.getstateproof_view()
+
+    assert app_state_view.app_hash == "ab" * 32
+    assert app_state_view.app_state["schema"] == "zenodex/tau_app_state/v1"
+    assert state_proof_view.state_hash == "cd" * 32
+    assert state_proof_view.present is True
+    assert state_proof_view.proof_type == "risc0.tauswap_transition.v1"
+    assert state_proof_view.proof_bytes == 321
+    assert state_proof_view.proof_sha256 == "ef" * 32
+
+
+def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = tau_net_client.TauNetTcpClient()
+
+    monkeypatch.setattr(client, "rpc", lambda cmd: "not-json" if cmd == "getappstate full" else '{"state_hash":"","present":"yes"}')
+
+    with pytest.raises(tau_net_client.TauNetRpcError, match="getappstate full returned invalid JSON"):
+        client.getappstate_view()
+
+    with pytest.raises(tau_net_client.TauNetRpcError, match="getstateproof full present must be a bool"):
+        client.getstateproof_view()
