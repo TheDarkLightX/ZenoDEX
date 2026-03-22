@@ -494,9 +494,13 @@ def build_quote_receipt_signal_packet(
     amount_out = _require_u32("receipt.body.amount_out", body_raw.get("amount_out"), minimum=1)
     receipt_hash = _require_safe_token("receipt.receipt_hash", receipt.get("receipt_hash"))
     quote_epoch_present = "quote_epoch" in body_raw
-    quote_epoch = 0
     if quote_epoch_present:
         quote_epoch = _require_u32("receipt.body.quote_epoch", body_raw.get("quote_epoch"))
+    else:
+        # Legacy route receipts may omit quote_epoch. Use the observation epoch so the
+        # packet remains consumable until all callers emit receipt freshness explicitly.
+        quote_epoch = current_epoch
+        quote_epoch_present = True
 
     verify_ok, verify_error = verify_route_quote_receipt(dict(receipt), pools_by_id=dict(pools_by_id))
     return QuoteReceiptSignalPacket(

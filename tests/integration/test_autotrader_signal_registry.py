@@ -349,3 +349,21 @@ def test_observation_packet_requires_registry_for_trusted_external_signals() -> 
             external_signals=(_trusted_external(),),
             signal_source_registry=ExternalSignalSourceRegistry(entries=()),
         )
+
+
+def test_quote_receipt_signal_packet_accepts_legacy_receipt_without_quote_epoch() -> None:
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000)}
+    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=100)
+    assert quote is not None
+    legacy_receipt = make_route_quote_receipt(kind="exact_in", quote=quote, pools_by_id=pools)
+
+    signal = build_quote_receipt_signal_packet(
+        receipt=legacy_receipt,
+        pools_by_id=pools,
+        current_epoch=9,
+    )
+
+    assert signal.quote_epoch == 9
+    assert signal.quote_epoch_present is True
+    packet = build_autotrader_observation_packet(primary_signal=signal)
+    assert packet.primary_signal.quote_epoch == 9
