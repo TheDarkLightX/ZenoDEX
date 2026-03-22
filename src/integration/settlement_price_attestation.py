@@ -9,7 +9,12 @@ from .settlement_attestation_policy import (
     SettlementAttestationPolicy,
     check_settlement_attestation_policy,
 )
-from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
+from .settlement_price_provenance import (
+    SettlementSpotPriceEntry,
+    SettlementSpotPricePacket,
+    build_settlement_spot_price_packet,
+    verify_settlement_spot_price_packet,
+)
 from .settlement_signer_registry import (
     SettlementSignerRegistrySnapshot,
     load_attestation_policy_and_registry_snapshot,
@@ -123,24 +128,23 @@ class SettlementSpotPriceAttestationBundle:
             object.__setattr__(self, "attestations", tuple(self.attestations))
         if not self.attestations:
             raise ValueError("attestations must be non-empty")
-        expected_packet_hash = _packet_hash_hex(self.packet)
-        if self.packet_hash != expected_packet_hash:
-            raise ValueError("bundle packet_hash must match bundle.packet")
-        if int(self.signed_at_epoch) != int(self.packet.now_epoch):
-            raise ValueError("bundle signed_at_epoch must equal bundle.packet.now_epoch")
         seen_signers: set[str] = set()
         for attestation in self.attestations:
             if not isinstance(attestation, SettlementSpotPriceAttestation):
                 raise TypeError("attestations must contain SettlementSpotPriceAttestation values")
-            if attestation.packet != self.packet:
-                raise ValueError("bundle attestation packet must match bundle.packet")
-            if attestation.packet_hash != self.packet_hash:
-                raise ValueError("bundle attestation packet_hash must match bundle.packet_hash")
             if int(attestation.signed_at_epoch) != int(self.signed_at_epoch):
                 raise ValueError("bundle attestation signed_at_epoch must match bundle.signed_at_epoch")
             if attestation.signer_pubkey in seen_signers:
                 raise ValueError("bundle attestation signer_pubkey values must be distinct")
             seen_signers.add(attestation.signer_pubkey)
+        expected_packet = _build_bundle_consensus_packet(self.attestations)
+        expected_packet_hash = _packet_hash_hex(expected_packet)
+        if self.packet != expected_packet:
+            raise ValueError("bundle packet must equal the lower-median consensus packet derived from attestations")
+        if self.packet_hash != expected_packet_hash:
+            raise ValueError("bundle packet_hash must match bundle.packet")
+        if int(self.signed_at_epoch) != int(self.packet.now_epoch):
+            raise ValueError("bundle signed_at_epoch must equal bundle.packet.now_epoch")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -168,6 +172,25 @@ class SettlementSpotPriceAttestationBundle:
             signed_at_epoch=int(payload.get("signed_at_epoch", -1)),
             attestations=tuple(SettlementSpotPriceAttestation.from_dict(item) for item in attestation_payloads),
         )
+
+
+@dataclass(frozen=True)
+class SettlementSpotPriceAttestationBundleConsensusCheckResult:
+    ok: bool
+    error: str | None = None
+    error_code: str | None = None
+    details: Mapping[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": bool(self.ok),
+            "error": self.error,
+            "error_code": self.error_code,
+            "details": None if self.details is None else dict(self.details),
+        }
+
+    def telemetry_payload(self) -> dict[str, Any]:
+        return self.to_dict()
 
 
 def build_settlement_spot_price_attestation(
@@ -217,10 +240,11 @@ def build_settlement_spot_price_attestation_bundle(
     first = attestations[0]
     if not isinstance(first, SettlementSpotPriceAttestation):
         raise TypeError("attestations must contain SettlementSpotPriceAttestation values")
+    consensus_packet = _build_bundle_consensus_packet(tuple(attestations))
     return SettlementSpotPriceAttestationBundle(
-        packet=first.packet,
-        packet_hash=first.packet_hash,
-        signed_at_epoch=int(first.signed_at_epoch),
+        packet=consensus_packet,
+        packet_hash=_packet_hash_hex(consensus_packet),
+        signed_at_epoch=int(consensus_packet.now_epoch),
         attestations=tuple(attestations),
     )
 
@@ -335,6 +359,12 @@ def verify_settlement_spot_price_attestation_bundle(
     )
     if not policy_check.ok:
         return False, policy_check.error
+    consensus_check = check_settlement_spot_price_attestation_bundle_consensus(
+        bundle=bundle,
+        attestation_policy=attestation_policy,
+    )
+    if not consensus_check.ok:
+        return False, consensus_check.error
     return True, None
 
 
@@ -361,6 +391,85 @@ def verify_settlement_spot_price_attestation_bundle_payload(
     )
 
 
+def check_settlement_spot_price_attestation_bundle_consensus(
+    *,
+    bundle: SettlementSpotPriceAttestationBundle,
+    attestation_policy: SettlementAttestationPolicy | None,
+) -> SettlementSpotPriceAttestationBundleConsensusCheckResult:
+    if attestation_policy is None:
+        details = {
+            "bundle_signer_pubkeys": tuple(attestation.signer_pubkey for attestation in bundle.attestations),
+            "bundle_signed_at_epoch": int(bundle.signed_at_epoch),
+        }
+        return SettlementSpotPriceAttestationBundleConsensusCheckResult(
+            ok=False,
+            error=_format_bundle_consensus_error(
+                "bundle consensus check requires attestation_policy",
+                details=details,
+            ),
+            error_code="attestation_bundle_policy_missing",
+            details=details,
+        )
+    try:
+        expected_packet = _build_bundle_consensus_packet(bundle.attestations)
+    except Exception as exc:
+        details = {
+            "policy_id": attestation_policy.policy_id,
+            "policy_epoch": int(attestation_policy.policy_epoch),
+            "bundle_signer_pubkeys": tuple(attestation.signer_pubkey for attestation in bundle.attestations),
+            "bundle_signed_at_epoch": int(bundle.signed_at_epoch),
+        }
+        return SettlementSpotPriceAttestationBundleConsensusCheckResult(
+            ok=False,
+            error=_format_bundle_consensus_error(str(exc), details=details),
+            error_code="attestation_bundle_packet_shape_mismatch",
+            details=details,
+        )
+    if bundle.packet != expected_packet:
+        details = {
+            "policy_id": attestation_policy.policy_id,
+            "policy_epoch": int(attestation_policy.policy_epoch),
+            "consensus_method": attestation_policy.bundle_price_consensus_method,
+            "expected_packet_hash": _packet_hash_hex(expected_packet),
+            "observed_packet_hash": bundle.packet_hash,
+        }
+        return SettlementSpotPriceAttestationBundleConsensusCheckResult(
+            ok=False,
+            error=_format_bundle_consensus_error(
+                "bundle packet does not match derived consensus packet",
+                details=details,
+            ),
+            error_code="attestation_bundle_packet_consensus_mismatch",
+            details=details,
+        )
+    per_asset = _bundle_price_deviation_details(bundle.attestations, expected_packet)
+    max_observed_spread_bps = max((item["max_deviation_bps"] for item in per_asset.values()), default=0)
+    details = {
+        "policy_id": attestation_policy.policy_id,
+        "policy_epoch": int(attestation_policy.policy_epoch),
+        "consensus_method": attestation_policy.bundle_price_consensus_method,
+        "allowed_max_bundle_price_spread_bps": int(attestation_policy.max_bundle_price_spread_bps),
+        "observed_max_bundle_price_spread_bps": int(max_observed_spread_bps),
+        "per_asset": per_asset,
+    }
+    if max_observed_spread_bps > int(attestation_policy.max_bundle_price_spread_bps):
+        return SettlementSpotPriceAttestationBundleConsensusCheckResult(
+            ok=False,
+            error=_format_bundle_consensus_error(
+                "bundle price disagreement exceeds attestation policy bound",
+                details=details,
+            ),
+            error_code="attestation_bundle_price_spread_too_wide",
+            details=details,
+        )
+    return SettlementSpotPriceAttestationBundleConsensusCheckResult(
+        ok=True,
+        error=None,
+        error_code=None,
+        details=details,
+    )
+
+
 def _verify_settlement_spot_price_attestation_packet_consistency(
     *,
     attestation: SettlementSpotPriceAttestation,
@@ -382,6 +491,107 @@ def _verify_settlement_spot_price_attestation_packet_consistency(
     if int(consumer_now_epoch) - int(attestation.signed_at_epoch) > int(max_attestation_age_epochs):
         return False, "settlement spot price attestation is stale"
     return True, None
+
+
+def _build_bundle_consensus_packet(
+    attestations: tuple[SettlementSpotPriceAttestation, ...],
+) -> SettlementSpotPricePacket:
+    if not attestations:
+        raise ValueError("bundle attestations must be non-empty")
+    template = attestations[0].packet
+    template_key = _bundle_packet_shape_key(template)
+    per_asset_prices: dict[str, list[int]] = {entry.asset: [int(entry.price)] for entry in template.entries}
+    for attestation in attestations[1:]:
+        if _bundle_packet_shape_key(attestation.packet) != template_key:
+            raise ValueError(
+                f"bundle attestation packet shape mismatch for signer_pubkey={attestation.signer_pubkey}"
+            )
+        for entry in attestation.packet.entries:
+            per_asset_prices[entry.asset].append(int(entry.price))
+    consensus_entries = tuple(
+        SettlementSpotPriceEntry(
+            asset=entry.asset,
+            price=_lower_median(per_asset_prices[entry.asset]),
+            observed_epoch=int(entry.observed_epoch),
+            age_epochs=int(entry.age_epochs),
+            source_id=entry.source_id,
+        )
+        for entry in template.entries
+    )
+    return build_settlement_spot_price_packet(
+        entries=consensus_entries,
+        now_epoch=int(template.now_epoch),
+        max_staleness_epochs=int(template.max_staleness_epochs),
+        cross_module_sync_required=bool(template.cross_module_sync_required),
+        cross_module_sync_contract=template.cross_module_sync_contract,
+    )
+
+
+def _bundle_packet_shape_key(packet: SettlementSpotPricePacket) -> tuple[object, ...]:
+    sync_contract_key = None if packet.cross_module_sync_contract is None else canonical_json_bytes(
+        packet.cross_module_sync_contract
+    )
+    return (
+        int(packet.now_epoch),
+        int(packet.max_staleness_epochs),
+        bool(packet.cross_module_sync_required),
+        bool(packet.cross_module_sync_ok),
+        bool(packet.unique_assets),
+        bool(packet.all_positive),
+        bool(packet.all_fresh),
+        bool(packet.provenance_ok),
+        sync_contract_key,
+        tuple(
+            (
+                entry.asset,
+                int(entry.observed_epoch),
+                int(entry.age_epochs),
+                entry.source_id,
+            )
+            for entry in packet.entries
+        ),
+    )
+
+
+def _lower_median(values: list[int]) -> int:
+    ordered = sorted(int(value) for value in values)
+    return int(ordered[(len(ordered) - 1) // 2])
+
+
+def _bundle_price_deviation_details(
+    attestations: tuple[SettlementSpotPriceAttestation, ...],
+    consensus_packet: SettlementSpotPricePacket,
+) -> dict[str, dict[str, Any]]:
+    observed_by_asset: dict[str, list[int]] = {entry.asset: [] for entry in consensus_packet.entries}
+    for attestation in attestations:
+        for entry in attestation.packet.entries:
+            observed_by_asset[entry.asset].append(int(entry.price))
+    out: dict[str, dict[str, Any]] = {}
+    for entry in consensus_packet.entries:
+        median_price = int(entry.price)
+        observed_prices = tuple(observed_by_asset[entry.asset])
+        max_deviation_bps = max(
+            (_deviation_bps(observed_price, median_price) for observed_price in observed_prices),
+            default=0,
+        )
+        out[entry.asset] = {
+            "median_price": median_price,
+            "observed_prices": observed_prices,
+            "max_deviation_bps": int(max_deviation_bps),
+            "source_id": entry.source_id,
+        }
+    return out
+
+
+def _deviation_bps(value: int, median_value: int) -> int:
+    if int(median_value) <= 0:
+        raise ValueError("bundle consensus median_price must be positive")
+    return (abs(int(value) - int(median_value)) * 10_000) // int(median_value)
+
+
+def _format_bundle_consensus_error(message: str, *, details: Mapping[str, Any]) -> str:
+    ordered_items = ", ".join(f"{key}={details[key]!r}" for key in sorted(details))
+    return f"{message}; {ordered_items}" if ordered_items else message
 
 
 def _verify_settlement_spot_price_attestation_signature(

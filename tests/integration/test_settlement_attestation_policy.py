@@ -38,13 +38,15 @@ def _attestation():
 
 def test_settlement_attestation_policy_round_trips_and_hashes_stably() -> None:
     attestation = _attestation()
-    policy = make_attestation_policy(attestation)
+    policy = make_attestation_policy(attestation, max_bundle_price_spread_bps=125)
     rebuilt = SettlementAttestationPolicy.from_dict(policy.to_dict())
     coerced = coerce_settlement_attestation_policy(policy.to_dict())
 
     assert rebuilt == policy
     assert coerced == policy
     assert rebuilt.policy_hash_hex() == policy.policy_hash_hex()
+    assert rebuilt.bundle_price_consensus_method == "lower_median"
+    assert rebuilt.max_bundle_price_spread_bps == 125
 
 
 @pytest.mark.parametrize(
@@ -132,7 +134,7 @@ def test_settlement_attestation_policy_rejects_unlisted_source() -> None:
 
 def test_settlement_attestation_policy_accepts_active_single_attestation_policy() -> None:
     attestation = _attestation()
-    policy = make_attestation_policy(attestation)
+    policy = make_attestation_policy(attestation, max_bundle_price_spread_bps=75)
 
     result = check_settlement_attestation_policy(
         policy=policy,
@@ -146,6 +148,8 @@ def test_settlement_attestation_policy_accepts_active_single_attestation_policy(
     assert result.error_code is None
     assert result.details is not None
     assert result.details["policy_hash"] == policy.policy_hash_hex()
+    assert result.details["bundle_price_consensus_method"] == "lower_median"
+    assert result.details["max_bundle_price_spread_bps"] == 75
 
 
 def test_settlement_attestation_policy_missing_policy_exposes_debuggable_telemetry() -> None:

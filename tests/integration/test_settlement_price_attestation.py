@@ -27,10 +27,14 @@ pytestmark = pytest.mark.skipif(importlib.util.find_spec("py_ecc") is None, reas
 
 
 def _packet() -> SettlementSpotPricePacket:
+    return _packet_with_prices(price_a=100, price_b=120)
+
+
+def _packet_with_prices(*, price_a: int, price_b: int) -> SettlementSpotPricePacket:
     return build_settlement_spot_price_packet(
         entries=(
-            SettlementSpotPriceEntry(asset="0x" + "01" * 32, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
-            SettlementSpotPriceEntry(asset="0x" + "02" * 32, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+            SettlementSpotPriceEntry(asset="0x" + "01" * 32, price=price_a, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset="0x" + "02" * 32, price=price_b, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
         ),
         now_epoch=100,
         max_staleness_epochs=10,
@@ -235,6 +239,53 @@ def test_settlement_spot_price_attestation_bundle_accepts_multi_signer_quorum() 
     )
     assert ok2 is True
     assert err2 is None
+
+
+def test_settlement_spot_price_attestation_bundle_accepts_bounded_disagreement_with_lower_median_consensus() -> None:
+    attestation_a = build_settlement_spot_price_attestation(packet=_packet_with_prices(price_a=100, price_b=120), signer_privkey=7)
+    attestation_b = build_settlement_spot_price_attestation(packet=_packet_with_prices(price_a=101, price_b=121), signer_privkey=8)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
+    policy = make_attestation_policy(
+        attestation_a,
+        min_distinct_signers=2,
+        max_bundle_price_spread_bps=100,
+        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+    )
+
+    assert [entry.price for entry in bundle.packet.entries] == [100, 120]
+
+    ok, err = verify_settlement_spot_price_attestation_bundle(
+        bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=policy,
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_settlement_spot_price_attestation_bundle_rejects_price_spread_above_policy_bound() -> None:
+    attestation_a = build_settlement_spot_price_attestation(packet=_packet_with_prices(price_a=100, price_b=120), signer_privkey=7)
+    attestation_b = build_settlement_spot_price_attestation(packet=_packet_with_prices(price_a=120, price_b=150), signer_privkey=8)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
+    policy = make_attestation_policy(
+        attestation_a,
+        min_distinct_signers=2,
+        max_bundle_price_spread_bps=500,
+        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+    )
+
+    ok, err = verify_settlement_spot_price_attestation_bundle(
+        bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=policy,
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith("bundle price disagreement exceeds attestation policy bound")
+    assert "allowed_max_bundle_price_spread_bps=500" in err
+    assert "observed_max_bundle_price_spread_bps=2500" in err
 
 
 def test_settlement_spot_price_attestation_bundle_rejects_signer_quorum_not_met() -> None:

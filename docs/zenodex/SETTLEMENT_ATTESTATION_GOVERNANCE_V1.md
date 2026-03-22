@@ -145,7 +145,7 @@ RegistryBindingOK(P, R)
 
 Current runtime consequence:
 - single-attestation settlement only works when `P.min_distinct_signers = 1`
-- if governance sets `P.min_distinct_signers > 1`, the current runtime rejects settlement until a multi-attestation bundle is implemented
+- if governance sets `P.min_distinct_signers > 1`, settlement must use a typed multi-attestation bundle or the runtime rejects fail-closed
 - if a caller supplies both `P` and a registry snapshot `R`, the runtime rejects unless `RegistryBindingOK(P, R)` holds exactly
 - if a caller supplies only `R`, the runtime derives `P := R.policy` and continues fail-closed from the snapshot
 - if the runtime holds `P` plus a registry-snapshot loader, it may derive `R` from the loader and still fail closed on missing or drifting snapshot state
@@ -153,7 +153,8 @@ Current runtime consequence:
 - the current chain-anchor transport can be a typed JSON-RPC method (`zenodex_getSettlementSignerRegistryAnchor`), but that is still an adapter contract, not a direct ABI-decoded proof of on-chain state
 - the JSON-RPC anchor transport can now be bound to an explicit `SettlementSignerRegistryContractInterface`, so the method name, chain id, and registry contract are all validated as part of the typed interface surface rather than remaining free string parameters
 - the repo now has a typed multi-attestation bundle verifier, and settlement value packets plus end-to-end certificate packets can carry those bundle objects, so `min_distinct_signers > 1` is enforceable through the packet/certificate path as well
-- bundle admission still only proves signer/source quorum over matching packets; disagreement, medianization, and broader multi-source aggregation policy remain out of scope for this slice
+- bundle consensus now uses a deterministic lower-median price vector over attestation packets that share the same asset/source/epoch structure, and policy can bound per-asset disagreement with `P.max_bundle_price_spread_bps`
+- broader multi-source aggregation policy is still out of scope for this slice: the bundle does not yet model source-weighting, dispute resolution, or a richer median/quorum mechanism than lower-median plus a fail-closed spread bound
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 
