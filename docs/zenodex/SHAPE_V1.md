@@ -35,6 +35,10 @@ python3 tools/check_shape_v1_ratchet.py
 
 That gate must remain green before widening any public assurance claim.
 
+The operational release decision checklist for this claim is:
+
+- `docs/zenodex/SHAPE_V1_RELEASE_CHECKLIST.md`
+
 ## Clause Manifest
 
 ### `cbc_validity`
