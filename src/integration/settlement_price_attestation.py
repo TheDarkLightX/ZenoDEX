@@ -8,9 +8,12 @@ from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_byt
 from .settlement_attestation_policy import (
     SettlementAttestationPolicy,
     check_settlement_attestation_policy,
-    coerce_settlement_attestation_policy,
 )
 from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
+from .settlement_signer_registry import (
+    SettlementSignerRegistrySnapshot,
+    resolve_attestation_policy_and_registry_snapshot,
+)
 
 try:
     from py_ecc.bls import G2Basic
@@ -135,6 +138,7 @@ def verify_settlement_spot_price_attestation(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> tuple[bool, str | None]:
     if not isinstance(attestation, SettlementSpotPriceAttestation):
         return False, "attestation must be a SettlementSpotPriceAttestation"
@@ -147,7 +151,10 @@ def verify_settlement_spot_price_attestation(
     ):
         return False, "max_attestation_age_epochs must be a non-negative int"
     try:
-        attestation_policy = coerce_settlement_attestation_policy(attestation_policy)
+        attestation_policy, attestation_registry_snapshot = resolve_attestation_policy_and_registry_snapshot(
+            attestation_policy=attestation_policy,
+            attestation_registry_snapshot=attestation_registry_snapshot,
+        )
     except Exception as exc:
         return False, str(exc)
 
@@ -179,6 +186,7 @@ def verify_settlement_spot_price_attestation(
         consumer_now_epoch=int(consumer_now_epoch),
         max_attestation_age_epochs=int(max_attestation_age_epochs),
         attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
     )
     cached = _PRICE_ATTESTATION_VERIFY_CACHE.get(cache_key)
     if cached is not None:
@@ -208,6 +216,7 @@ def verify_settlement_spot_price_attestation_payload(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> tuple[bool, str | None]:
     try:
         attestation = SettlementSpotPriceAttestation.from_dict(payload)
@@ -218,6 +227,7 @@ def verify_settlement_spot_price_attestation_payload(
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
         attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
     )
 
 
@@ -241,12 +251,21 @@ def _price_attestation_verify_cache_key(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     attestation_policy: SettlementAttestationPolicy | None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None,
 ) -> tuple[object, ...]:
     policy_key = None if attestation_policy is None else (
         attestation_policy.policy_id,
         int(attestation_policy.policy_epoch),
         attestation_policy.registry_root,
         attestation_policy.policy_hash_hex(),
+    )
+    snapshot_key = None if attestation_registry_snapshot is None else (
+        int(attestation_registry_snapshot.chain_id),
+        attestation_registry_snapshot.registry_contract,
+        attestation_registry_snapshot.registry_root,
+        int(attestation_registry_snapshot.snapshot_block_number),
+        attestation_registry_snapshot.snapshot_block_hash,
+        attestation_registry_snapshot.snapshot_hash_hex(),
     )
     return (
         attestation.packet_hash,
@@ -265,6 +284,7 @@ def _price_attestation_verify_cache_key(
         int(consumer_now_epoch),
         int(max_attestation_age_epochs),
         policy_key,
+        snapshot_key,
     )
 
 

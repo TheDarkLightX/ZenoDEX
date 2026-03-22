@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.integration._attestation_policy_helper import make_attestation_policy
+from tests.integration._attestation_policy_helper import make_attestation_policy, make_attestation_registry_snapshot
 
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
@@ -175,3 +175,32 @@ def test_settlement_value_packet_from_dict_round_trips() -> None:
     packet = build_settlement_value_packet_from_price_packet(settlement=settlement, price_packet=price_packet)
     rebuilt = SettlementValuePacket.from_dict(packet.to_dict())
     assert rebuilt == packet
+
+
+def test_settlement_value_packet_builds_from_registry_snapshot_only() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    registry_snapshot = make_attestation_registry_snapshot(attestation)
+
+    packet = build_settlement_value_packet_from_price_attestation(
+        settlement=settlement,
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50},
+        attestation_policy=None,
+        attestation_registry_snapshot=registry_snapshot,
+    )
+    assert packet.attestation_policy_id == registry_snapshot.policy.policy_id
+    assert packet.attestation_policy_epoch == registry_snapshot.policy.policy_epoch
+    assert packet.attestation_policy_root == registry_snapshot.registry_root
+    assert packet.attestation_policy_hash == registry_snapshot.policy.policy_hash_hex()

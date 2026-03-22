@@ -23,7 +23,11 @@ It narrows the local safety claim to a replayable policy-admission relation.
     consumer_now_epoch,
     policy_id,
     policy_epoch,
+    chain_id,
+    registry_contract,
     registry_root,
+    snapshot_block_number,
+    snapshot_block_hash,
     effective_from_epoch,
     expires_at_epoch,
     min_distinct_signers,
@@ -36,6 +40,7 @@ It narrows the local safety claim to a replayable policy-admission relation.
     multisig_approved,
     policy_active,
     policy_unexpired,
+    registry_binding_ok,
     signer_allowlisted,
     source_policy_ok,
     distinct_signers_ok,
@@ -45,6 +50,7 @@ It narrows the local safety claim to a replayable policy-admission relation.
   K = { policy_hash = H(policy) },
   E = {
     contract: settlement_attestation_policy.py,
+    contract: settlement_signer_registry.py,
     contract: settlement_price_attestation.py,
     contract: settlement_*_packet.py,
     proved: settlement_attestation_policy_guard_v1.yaml,
@@ -59,7 +65,7 @@ It narrows the local safety claim to a replayable policy-admission relation.
     operator-local allowlist is not decentralized oracle governance,
     single-signer attestation is not a quorum oracle
   },
-  Δ = explicit governed policy object + fail-closed policy gate
+  Δ = explicit governed policy object + chain-anchored registry snapshot binding + fail-closed policy gate
 ⟩
 ```
 
@@ -127,11 +133,21 @@ AttestationPolicyOK(P, a, now)
    ∧ SignerOK(P, a.signer_pubkey)
    ∧ SourceOK(P, a.signer_pubkey, source_ids(a.packet))
    ∧ QuorumOK(P, [a.signer_pubkey], source_ids(a.packet))
+
+RegistryBindingOK(P, R)
+  := P.chain_id = R.chain_id
+   ∧ P.registry_contract = R.registry_contract
+   ∧ P.registry_root = R.registry_root
+   ∧ P.policy_id = R.policy.policy_id
+   ∧ P.policy_epoch = R.policy.policy_epoch
+   ∧ H(P) = H(R.policy)
 ```
 
 Current runtime consequence:
 - single-attestation settlement only works when `P.min_distinct_signers = 1`
 - if governance sets `P.min_distinct_signers > 1`, the current runtime rejects settlement until a multi-attestation bundle is implemented
+- if a caller supplies both `P` and a registry snapshot `R`, the runtime rejects unless `RegistryBindingOK(P, R)` holds exactly
+- if a caller supplies only `R`, the runtime derives `P := R.policy` and continues fail-closed from the snapshot
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 
@@ -203,3 +219,8 @@ Those require:
 - on-chain registry retrieval / proof of current root
 - multi-attestation bundle verification
 - disagreement / median / quorum rules across independent signers
+
+The current runtime improvement is narrower:
+- it can bind a governed policy object to a chain-anchored registry snapshot,
+- and it exposes stable error strings/codes when policy and snapshot drift,
+- but it still depends on an external component to fetch or prove the registry snapshot itself.

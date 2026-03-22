@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tests.integration._attestation_policy_helper import make_attestation_policy
+from tests.integration._attestation_policy_helper import make_attestation_policy, make_attestation_registry_snapshot
 
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
@@ -244,6 +244,36 @@ def test_end_to_end_certificate_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement end-to-end certificate packet mismatch"
+
+
+def test_end_to_end_certificate_inputs_accept_registry_snapshot_without_policy() -> None:
+    _pk, asset0, asset1, _pool_id, _pool, settlement = _four_swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    registry_snapshot = make_attestation_registry_snapshot(attestation)
+
+    packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs=_feature_extension_inputs(),
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=None,
+        attestation_registry_snapshot=registry_snapshot,
+    )
+
+    assert packet.packet_ok is True
+    assert packet.value_packet is not None
+    assert packet.value_packet.attestation_policy_id == registry_snapshot.policy.policy_id
 
 
 def test_end_to_end_certificate_packet_from_attestation_requires_policy() -> None:
