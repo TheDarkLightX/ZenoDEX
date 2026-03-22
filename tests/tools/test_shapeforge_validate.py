@@ -86,3 +86,43 @@ def test_world_model_rejects_duplicate_cross_slice_invariant_ids(tmp_path: Path)
     )
     assert result.returncode != 0
     assert "cross_slice_invariants must have unique ids" in result.stderr
+
+
+def test_negative_knowledge_rejects_narrowed_record_without_remaining_excluded_domain(tmp_path: Path) -> None:
+    negative_knowledge = json.loads(NEGATIVE_KNOWLEDGE.read_text(encoding="utf-8"))
+    for record in negative_knowledge["records"]:
+        if record["status"] == "narrowed":
+            record.pop("remaining_excluded_domain", None)
+            break
+    broken = tmp_path / "negative_knowledge_missing_remaining_domain.json"
+    broken.write_text(json.dumps(negative_knowledge, indent=2), encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR), str(broken)],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "narrowed records must have a nonempty remaining_excluded_domain" in result.stderr
+
+
+def test_negative_knowledge_rejects_narrowed_record_without_replacement_claim(tmp_path: Path) -> None:
+    negative_knowledge = json.loads(NEGATIVE_KNOWLEDGE.read_text(encoding="utf-8"))
+    for record in negative_knowledge["records"]:
+        if record["status"] == "narrowed":
+            record["replacement_claim"] = None
+            break
+    broken = tmp_path / "negative_knowledge_missing_replacement_claim.json"
+    broken.write_text(json.dumps(negative_knowledge, indent=2), encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR), str(broken)],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "narrowed records must have a nonempty replacement_claim" in result.stderr

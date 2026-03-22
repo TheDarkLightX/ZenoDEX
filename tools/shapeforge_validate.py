@@ -418,6 +418,23 @@ def validate_negative_knowledge_data(data: dict, path: Path) -> list[str]:
 
         replacement_claim = record.get("replacement_claim")
         _require(errors, replacement_claim is None or _is_nonempty_string(replacement_claim), f"{path}: record {hypothesis_id} replacement_claim must be null or a nonempty string")
+        remaining_excluded_domain = record.get("remaining_excluded_domain")
+        _require(
+            errors,
+            remaining_excluded_domain is None or _is_nonempty_string(remaining_excluded_domain),
+            f"{path}: record {hypothesis_id} remaining_excluded_domain must be null or a nonempty string",
+        )
+        if record.get("status") == "narrowed":
+            _require(
+                errors,
+                _is_nonempty_string(replacement_claim),
+                f"{path}: record {hypothesis_id} narrowed records must have a nonempty replacement_claim",
+            )
+            _require(
+                errors,
+                _is_nonempty_string(remaining_excluded_domain),
+                f"{path}: record {hypothesis_id} narrowed records must have a nonempty remaining_excluded_domain",
+            )
 
         if linked_world_model is not None:
             _require(
