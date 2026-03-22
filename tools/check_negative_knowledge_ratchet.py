@@ -19,6 +19,7 @@ from tools.shapeforge_validate import validate_artifact
 DEFAULT_NEGATIVE_KNOWLEDGE = (
     ROOT / "docs" / "zenodex" / "shapeforge_promoted" / "zenodex_negative_knowledge.seed.json"
 )
+EXPECTED_NEGATIVE_KNOWLEDGE_SCHEMA = "shapeforge/negative-knowledge-seed/v2"
 
 REQUIRES_SCOPED_REPLACEMENT_STATUSES = {
     "narrowed",
@@ -46,6 +47,12 @@ def check_negative_knowledge_ratchet(
         raise ValueError("\n".join(errors))
 
     data = json.loads(negative_knowledge_path.read_text(encoding="utf-8"))
+    schema = str(data.get("schema") or "").strip()
+    if schema != EXPECTED_NEGATIVE_KNOWLEDGE_SCHEMA:
+        raise ValueError(
+            f"{negative_knowledge_path}: schema {schema!r} != {EXPECTED_NEGATIVE_KNOWLEDGE_SCHEMA!r}"
+        )
+
     records = data["records"]
 
     narrowed_ids: list[str] = []
@@ -103,6 +110,7 @@ def check_negative_knowledge_ratchet(
     return {
         "ok": True,
         "negative_knowledge_path": str(negative_knowledge_path),
+        "expected_schema": EXPECTED_NEGATIVE_KNOWLEDGE_SCHEMA,
         "narrowed_count": len(narrowed_ids),
         "narrowed_hypothesis_ids": narrowed_ids,
         "expected_narrowed_hypothesis_ids": sorted(EXPECTED_NARROWED_HYPOTHESIS_IDS),
