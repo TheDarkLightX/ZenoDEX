@@ -12,6 +12,7 @@ from .settlement_attestation_policy import (
 
 
 SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA = "zenodex/settlement-signer-registry-snapshot/v1"
+SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA = "zenodex/settlement-signer-registry-anchor/v1"
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,79 @@ class SettlementSignerRegistrySnapshot:
     def snapshot_hash_hex(self) -> str:
         return sha256_hex(
             domain_sep_bytes("settlement_signer_registry_snapshot", version=1) + canonical_json_bytes(self.to_dict())
+        )
+
+
+@dataclass(frozen=True)
+class SettlementSignerRegistryAnchor:
+    chain_id: int
+    registry_contract: str
+    policy_id: str
+    policy_epoch: int
+    registry_root: str
+    policy_hash: str
+    anchor_block_number: int
+    anchor_block_hash: str
+    schema: str = SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA
+
+    def __post_init__(self) -> None:
+        if self.schema != SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA:
+            raise ValueError(f"unsupported schema: {self.schema!r}")
+        if not isinstance(self.policy_id, str) or not self.policy_id.strip():
+            raise ValueError("policy_id must be a non-empty string")
+        object.__setattr__(self, "policy_id", self.policy_id.strip())
+        for name in ("chain_id", "policy_epoch", "anchor_block_number"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError(f"{name} must be a non-negative int")
+        object.__setattr__(
+            self,
+            "registry_contract",
+            canonical_hex_fixed_allow_0x(self.registry_contract, nbytes=20, name="registry_contract"),
+        )
+        object.__setattr__(
+            self,
+            "registry_root",
+            canonical_hex_fixed_allow_0x(self.registry_root, nbytes=32, name="registry_root"),
+        )
+        object.__setattr__(
+            self,
+            "policy_hash",
+            canonical_hex_fixed_allow_0x(self.policy_hash, nbytes=32, name="policy_hash"),
+        )
+        object.__setattr__(
+            self,
+            "anchor_block_hash",
+            canonical_hex_fixed_allow_0x(self.anchor_block_hash, nbytes=32, name="anchor_block_hash"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "chain_id": int(self.chain_id),
+            "registry_contract": self.registry_contract,
+            "policy_id": self.policy_id,
+            "policy_epoch": int(self.policy_epoch),
+            "registry_root": self.registry_root,
+            "policy_hash": self.policy_hash,
+            "anchor_block_number": int(self.anchor_block_number),
+            "anchor_block_hash": self.anchor_block_hash,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementSignerRegistryAnchor":
+        if not isinstance(payload, Mapping):
+            raise ValueError("attestation_registry_anchor must be an object")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            chain_id=int(payload.get("chain_id", -1)),
+            registry_contract=str(payload.get("registry_contract", "")),
+            policy_id=str(payload.get("policy_id", "")),
+            policy_epoch=int(payload.get("policy_epoch", -1)),
+            registry_root=str(payload.get("registry_root", "")),
+            policy_hash=str(payload.get("policy_hash", "")),
+            anchor_block_number=int(payload.get("anchor_block_number", -1)),
+            anchor_block_hash=str(payload.get("anchor_block_hash", "")),
         )
 
 
@@ -225,6 +299,83 @@ class InMemorySettlementSignerRegistrySnapshotLoader:
         )
 
 
+class InMemorySettlementSignerRegistryAnchorLoader:
+    def __init__(self, anchors: Mapping[tuple[int, str, str, int], SettlementSignerRegistryAnchor | Mapping[str, Any]]):
+        if not isinstance(anchors, Mapping):
+            raise TypeError("anchors must be a mapping")
+        normalized: dict[tuple[int, str, str, int], SettlementSignerRegistryAnchor] = {}
+        for key, raw_anchor in anchors.items():
+            if (
+                not isinstance(key, tuple)
+                or len(key) != 4
+                or not isinstance(key[0], int)
+                or not isinstance(key[1], str)
+                or not isinstance(key[2], str)
+                or not isinstance(key[3], int)
+            ):
+                raise TypeError("anchor loader keys must be (chain_id, registry_contract, policy_id, policy_epoch)")
+            normalized_key = (
+                int(key[0]),
+                canonical_hex_fixed_allow_0x(key[1], nbytes=20, name="registry_contract"),
+                str(key[2]).strip(),
+                int(key[3]),
+            )
+            normalized[normalized_key] = coerce_settlement_signer_registry_anchor(raw_anchor)
+        self._anchors = normalized
+
+    def load_anchor(self, request: SettlementSignerRegistrySnapshotRequest) -> SettlementSignerRegistryAnchor | None:
+        return self._anchors.get(
+            (
+                int(request.chain_id),
+                request.registry_contract,
+                request.policy_id,
+                int(request.policy_epoch),
+            )
+        )
+
+
+class ChainAnchoredSettlementSignerRegistrySnapshotLoader:
+    def __init__(self, *, anchor_loader: object, snapshot_loader: object):
+        load_anchor = getattr(anchor_loader, "load_anchor", None)
+        if not callable(load_anchor):
+            raise TypeError("anchor_loader must define load_anchor(request)")
+        load_snapshot = getattr(snapshot_loader, "load_snapshot", None)
+        if not callable(load_snapshot):
+            raise TypeError("snapshot_loader must define load_snapshot(request)")
+        self._anchor_loader = anchor_loader
+        self._snapshot_loader = snapshot_loader
+
+    def load_snapshot(self, request: SettlementSignerRegistrySnapshotRequest) -> SettlementSignerRegistrySnapshot | None:
+        anchor = getattr(self._anchor_loader, "load_anchor")(request)
+        if anchor is None:
+            raise ValueError(
+                _format_binding_error(
+                    "attestation registry anchor loader returned no anchor",
+                    details=request.to_dict(),
+                )
+            )
+        anchor = coerce_settlement_signer_registry_anchor(anchor)
+        _require_anchor_matches_request(anchor=anchor, request=request)
+        raw_snapshot = getattr(self._snapshot_loader, "load_snapshot")(request)
+        if raw_snapshot is None:
+            raise ValueError(
+                _format_binding_error(
+                    "attestation registry snapshot source returned no snapshot",
+                    details={**request.to_dict(), **anchor.to_dict()},
+                )
+            )
+        snapshot = coerce_settlement_signer_registry_snapshot(raw_snapshot)
+        _require_snapshot_matches_anchor(snapshot=snapshot, anchor=anchor)
+        return SettlementSignerRegistrySnapshot(
+            chain_id=int(anchor.chain_id),
+            registry_contract=anchor.registry_contract,
+            registry_root=anchor.registry_root,
+            snapshot_block_number=int(anchor.anchor_block_number),
+            snapshot_block_hash=anchor.anchor_block_hash,
+            policy=snapshot.policy,
+        )
+
+
 def check_settlement_attestation_policy_registry_binding(
     *,
     policy: SettlementAttestationPolicy | None,
@@ -351,6 +502,16 @@ def coerce_settlement_signer_registry_snapshot(
     )
 
 
+def coerce_settlement_signer_registry_anchor(
+    anchor: SettlementSignerRegistryAnchor | Mapping[str, Any],
+) -> SettlementSignerRegistryAnchor:
+    if isinstance(anchor, SettlementSignerRegistryAnchor):
+        return anchor
+    if isinstance(anchor, Mapping):
+        return SettlementSignerRegistryAnchor.from_dict(anchor)
+    raise TypeError("attestation_registry_anchor must be a SettlementSignerRegistryAnchor or object mapping")
+
+
 def resolve_attestation_policy_and_registry_snapshot(
     *,
     attestation_policy: SettlementAttestationPolicy | Mapping[str, Any] | None,
@@ -437,14 +598,149 @@ def _format_detail_value(value: Any) -> str:
     return str(value)
 
 
+def _require_anchor_matches_request(
+    *,
+    anchor: SettlementSignerRegistryAnchor,
+    request: SettlementSignerRegistrySnapshotRequest,
+) -> None:
+    details = {
+        "request_chain_id": int(request.chain_id),
+        "request_registry_contract": request.registry_contract,
+        "request_policy_id": request.policy_id,
+        "request_policy_epoch": int(request.policy_epoch),
+        "request_registry_root_hint": request.registry_root_hint,
+        "request_policy_hash_hint": request.policy_hash_hint,
+        "anchor_chain_id": int(anchor.chain_id),
+        "anchor_registry_contract": anchor.registry_contract,
+        "anchor_policy_id": anchor.policy_id,
+        "anchor_policy_epoch": int(anchor.policy_epoch),
+        "anchor_registry_root": anchor.registry_root,
+        "anchor_policy_hash": anchor.policy_hash,
+        "anchor_block_number": int(anchor.anchor_block_number),
+        "anchor_block_hash": anchor.anchor_block_hash,
+    }
+    if int(anchor.chain_id) != int(request.chain_id):
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry anchor chain_id does not match request",
+                details=details,
+            )
+        )
+    if anchor.registry_contract != request.registry_contract:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry anchor registry_contract does not match request",
+                details=details,
+            )
+        )
+    if anchor.policy_id != request.policy_id:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry anchor policy_id does not match request",
+                details=details,
+            )
+        )
+    if int(anchor.policy_epoch) != int(request.policy_epoch):
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry anchor policy_epoch does not match request",
+                details=details,
+            )
+        )
+    if anchor.registry_root != request.registry_root_hint:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry anchor registry_root does not match request hint",
+                details=details,
+            )
+        )
+    if anchor.policy_hash != request.policy_hash_hint:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry anchor policy_hash does not match request hint",
+                details=details,
+            )
+        )
+
+
+def _require_snapshot_matches_anchor(
+    *,
+    snapshot: SettlementSignerRegistrySnapshot,
+    anchor: SettlementSignerRegistryAnchor,
+) -> None:
+    details = {
+        "anchor_chain_id": int(anchor.chain_id),
+        "anchor_registry_contract": anchor.registry_contract,
+        "anchor_policy_id": anchor.policy_id,
+        "anchor_policy_epoch": int(anchor.policy_epoch),
+        "anchor_registry_root": anchor.registry_root,
+        "anchor_policy_hash": anchor.policy_hash,
+        "snapshot_chain_id": int(snapshot.chain_id),
+        "snapshot_registry_contract": snapshot.registry_contract,
+        "snapshot_policy_id": snapshot.policy.policy_id,
+        "snapshot_policy_epoch": int(snapshot.policy.policy_epoch),
+        "snapshot_registry_root": snapshot.registry_root,
+        "snapshot_policy_hash": snapshot.policy.policy_hash_hex(),
+        "snapshot_block_number": int(snapshot.snapshot_block_number),
+        "snapshot_block_hash": snapshot.snapshot_block_hash,
+    }
+    if int(snapshot.chain_id) != int(anchor.chain_id):
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry snapshot chain_id does not match chain anchor",
+                details=details,
+            )
+        )
+    if snapshot.registry_contract != anchor.registry_contract:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry snapshot registry_contract does not match chain anchor",
+                details=details,
+            )
+        )
+    if snapshot.policy.policy_id != anchor.policy_id:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry snapshot policy_id does not match chain anchor",
+                details=details,
+            )
+        )
+    if int(snapshot.policy.policy_epoch) != int(anchor.policy_epoch):
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry snapshot policy_epoch does not match chain anchor",
+                details=details,
+            )
+        )
+    if snapshot.registry_root != anchor.registry_root:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry snapshot registry_root does not match chain anchor",
+                details=details,
+            )
+        )
+    if snapshot.policy.policy_hash_hex() != anchor.policy_hash:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry snapshot policy content does not match chain anchor",
+                details=details,
+            )
+        )
+
+
 __all__ = [
+    "SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA",
     "SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA",
     "SettlementAttestationRegistryBindingResult",
+    "SettlementSignerRegistryAnchor",
     "SettlementSignerRegistrySnapshotLoadResult",
     "SettlementSignerRegistrySnapshotRequest",
     "SettlementSignerRegistrySnapshot",
+    "ChainAnchoredSettlementSignerRegistrySnapshotLoader",
+    "InMemorySettlementSignerRegistryAnchorLoader",
     "InMemorySettlementSignerRegistrySnapshotLoader",
     "check_settlement_attestation_policy_registry_binding",
+    "coerce_settlement_signer_registry_anchor",
     "coerce_settlement_signer_registry_snapshot",
     "load_attestation_policy_and_registry_snapshot",
     "resolve_attestation_policy_and_registry_snapshot",
