@@ -6,17 +6,23 @@ from typing import Any, Mapping
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
-from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from src.state.canonical import (
+    canonical_hex_fixed_allow_0x,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 
 from .settlement_attestation_policy import (
     SettlementAttestationPolicy,
     coerce_settlement_attestation_policy,
 )
-
+from .tau_net_client import TauNetAppStateView, TauNetStateProofView
 
 SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA = "zenodex/settlement-signer-registry-snapshot/v1"
 SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA = "zenodex/settlement-signer-registry-anchor/v1"
 SETTLEMENT_SIGNER_REGISTRY_INTERFACE_SCHEMA = "zenodex/settlement-signer-registry-interface/v1"
+SETTLEMENT_SIGNER_REGISTRY_TAU_BRIDGE_SCHEMA = "zenodex/settlement-signer-registry-tau-bridge/v1"
 
 
 @dataclass(frozen=True)
@@ -514,7 +520,7 @@ class ChainAnchoredSettlementSignerRegistrySnapshotLoader:
         self._snapshot_loader = snapshot_loader
 
     def load_snapshot(self, request: SettlementSignerRegistrySnapshotRequest) -> SettlementSignerRegistrySnapshot | None:
-        anchor = getattr(self._anchor_loader, "load_anchor")(request)
+        anchor = self._anchor_loader.load_anchor(request)
         if anchor is None:
             raise ValueError(
                 _format_binding_error(
@@ -524,7 +530,7 @@ class ChainAnchoredSettlementSignerRegistrySnapshotLoader:
             )
         anchor = coerce_settlement_signer_registry_anchor(anchor)
         _require_anchor_matches_request(anchor=anchor, request=request)
-        raw_snapshot = getattr(self._snapshot_loader, "load_snapshot")(request)
+        raw_snapshot = self._snapshot_loader.load_snapshot(request)
         if raw_snapshot is None:
             raise ValueError(
                 _format_binding_error(
@@ -534,6 +540,139 @@ class ChainAnchoredSettlementSignerRegistrySnapshotLoader:
             )
         snapshot = coerce_settlement_signer_registry_snapshot(raw_snapshot)
         _require_snapshot_matches_anchor(snapshot=snapshot, anchor=anchor)
+        return SettlementSignerRegistrySnapshot(
+            chain_id=int(anchor.chain_id),
+            registry_contract=anchor.registry_contract,
+            registry_root=anchor.registry_root,
+            snapshot_block_number=int(anchor.anchor_block_number),
+            snapshot_block_hash=anchor.anchor_block_hash,
+            policy=snapshot.policy,
+        )
+
+
+class TauNetSettlementSignerRegistrySnapshotLoader:
+    def __init__(
+        self,
+        tau_client: object,
+        *,
+        bridge_key: str = "settlement_signer_registry_tau_bridge",
+        require_state_proof: bool = True,
+    ):
+        getappstate_view = getattr(tau_client, "getappstate_view", None)
+        if not callable(getappstate_view):
+            raise TypeError("tau_client must define getappstate_view()")
+        getstateproof_view = getattr(tau_client, "getstateproof_view", None)
+        if require_state_proof and not callable(getstateproof_view):
+            raise TypeError("tau_client must define getstateproof_view() when require_state_proof is enabled")
+        if not isinstance(bridge_key, str) or not bridge_key.strip():
+            raise ValueError("bridge_key must be a non-empty string")
+        if not isinstance(require_state_proof, bool):
+            raise TypeError("require_state_proof must be a bool")
+        self._tau_client = tau_client
+        self._bridge_key = bridge_key.strip()
+        self._require_state_proof = require_state_proof
+
+    def load_snapshot(self, request: SettlementSignerRegistrySnapshotRequest) -> SettlementSignerRegistrySnapshot | None:
+        app_state_view = self._tau_client.getappstate_view()
+        if not isinstance(app_state_view, TauNetAppStateView):
+            raise TypeError("tau_client.getappstate_view() must return TauNetAppStateView")
+        if not app_state_view.app_hash:
+            raise ValueError(
+                _format_binding_error(
+                    "Tau app_state hash missing for settlement signer registry bridge",
+                    details=request.to_dict(),
+                )
+            )
+        if not isinstance(app_state_view.app_state, Mapping):
+            raise ValueError(
+                _format_binding_error(
+                    "Tau app_state must be an object to load settlement signer registry bridge",
+                    details={**request.to_dict(), "tau_app_hash": app_state_view.app_hash},
+                )
+            )
+        bridge_obj = app_state_view.app_state.get(self._bridge_key)
+        if bridge_obj is None:
+            raise ValueError(
+                _format_binding_error(
+                    "Tau app_state is missing settlement signer registry bridge payload",
+                    details={
+                        **request.to_dict(),
+                        "tau_app_hash": app_state_view.app_hash,
+                        "bridge_key": self._bridge_key,
+                    },
+                )
+            )
+        if not isinstance(bridge_obj, Mapping):
+            raise ValueError(
+                _format_binding_error(
+                    "Tau settlement signer registry bridge payload must be an object",
+                    details={
+                        **request.to_dict(),
+                        "tau_app_hash": app_state_view.app_hash,
+                        "bridge_key": self._bridge_key,
+                        "bridge_type": type(bridge_obj).__name__,
+                    },
+                )
+            )
+        bridge_schema = bridge_obj.get("schema")
+        if bridge_schema != SETTLEMENT_SIGNER_REGISTRY_TAU_BRIDGE_SCHEMA:
+            raise ValueError(
+                _format_binding_error(
+                    "Tau settlement signer registry bridge schema mismatch",
+                    details={
+                        **request.to_dict(),
+                        "tau_app_hash": app_state_view.app_hash,
+                        "bridge_key": self._bridge_key,
+                        "observed_schema": bridge_schema,
+                        "expected_schema": SETTLEMENT_SIGNER_REGISTRY_TAU_BRIDGE_SCHEMA,
+                    },
+                )
+            )
+        anchor = coerce_settlement_signer_registry_anchor(bridge_obj.get("anchor"))
+        snapshot = coerce_settlement_signer_registry_snapshot(bridge_obj.get("snapshot"))
+        if snapshot is None:
+            raise ValueError(
+                _format_binding_error(
+                    "Tau settlement signer registry bridge is missing snapshot payload",
+                    details={
+                        **request.to_dict(),
+                        "tau_app_hash": app_state_view.app_hash,
+                        "bridge_key": self._bridge_key,
+                    },
+                )
+            )
+        _require_anchor_matches_request(anchor=anchor, request=request)
+        _require_snapshot_matches_anchor(snapshot=snapshot, anchor=anchor)
+        if self._require_state_proof:
+            state_proof_view = self._tau_client.getstateproof_view()
+            if not isinstance(state_proof_view, TauNetStateProofView):
+                raise TypeError("tau_client.getstateproof_view() must return TauNetStateProofView")
+            if not state_proof_view.present:
+                raise ValueError(
+                    _format_binding_error(
+                        "Tau state proof missing for settlement signer registry bridge",
+                        details={
+                            **request.to_dict(),
+                            "tau_app_hash": app_state_view.app_hash,
+                            "tau_state_hash": state_proof_view.state_hash,
+                            "bridge_key": self._bridge_key,
+                        },
+                    )
+                )
+            if state_proof_view.error:
+                raise ValueError(
+                    _format_binding_error(
+                        "Tau state proof surface reported an error for settlement signer registry bridge",
+                        details={
+                            **request.to_dict(),
+                            "tau_app_hash": app_state_view.app_hash,
+                            "tau_state_hash": state_proof_view.state_hash,
+                            "tau_state_proof_error": state_proof_view.error,
+                            "tau_state_proof_type": state_proof_view.proof_type,
+                            "bridge_key": self._bridge_key,
+                        },
+                    )
+                )
         return SettlementSignerRegistrySnapshot(
             chain_id=int(anchor.chain_id),
             registry_contract=anchor.registry_contract,
