@@ -16,6 +16,7 @@ from .settlement_attestation_policy import (
 
 SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA = "zenodex/settlement-signer-registry-snapshot/v1"
 SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA = "zenodex/settlement-signer-registry-anchor/v1"
+SETTLEMENT_SIGNER_REGISTRY_INTERFACE_SCHEMA = "zenodex/settlement-signer-registry-interface/v1"
 
 
 @dataclass(frozen=True)
@@ -160,6 +161,53 @@ class SettlementSignerRegistryAnchor:
             policy_hash=str(payload.get("policy_hash", "")),
             anchor_block_number=int(payload.get("anchor_block_number", -1)),
             anchor_block_hash=str(payload.get("anchor_block_hash", "")),
+        )
+
+
+@dataclass(frozen=True)
+class SettlementSignerRegistryContractInterface:
+    interface_id: str
+    chain_id: int
+    registry_contract: str
+    anchor_rpc_method: str
+    schema: str = SETTLEMENT_SIGNER_REGISTRY_INTERFACE_SCHEMA
+
+    def __post_init__(self) -> None:
+        if self.schema != SETTLEMENT_SIGNER_REGISTRY_INTERFACE_SCHEMA:
+            raise ValueError(f"unsupported schema: {self.schema!r}")
+        if not isinstance(self.interface_id, str) or not self.interface_id.strip():
+            raise ValueError("interface_id must be a non-empty string")
+        object.__setattr__(self, "interface_id", self.interface_id.strip())
+        if not isinstance(self.chain_id, int) or isinstance(self.chain_id, bool) or self.chain_id < 0:
+            raise ValueError("chain_id must be a non-negative int")
+        object.__setattr__(
+            self,
+            "registry_contract",
+            canonical_hex_fixed_allow_0x(self.registry_contract, nbytes=20, name="registry_contract"),
+        )
+        if not isinstance(self.anchor_rpc_method, str) or not self.anchor_rpc_method.strip():
+            raise ValueError("anchor_rpc_method must be a non-empty string")
+        object.__setattr__(self, "anchor_rpc_method", self.anchor_rpc_method.strip())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "interface_id": self.interface_id,
+            "chain_id": int(self.chain_id),
+            "registry_contract": self.registry_contract,
+            "anchor_rpc_method": self.anchor_rpc_method,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementSignerRegistryContractInterface":
+        if not isinstance(payload, Mapping):
+            raise ValueError("settlement_signer_registry_interface must be an object")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            interface_id=str(payload.get("interface_id", "")),
+            chain_id=int(payload.get("chain_id", -1)),
+            registry_contract=str(payload.get("registry_contract", "")),
+            anchor_rpc_method=str(payload.get("anchor_rpc_method", "")),
         )
 
 
@@ -343,6 +391,7 @@ class JsonRpcSettlementSignerRegistryAnchorLoader:
         endpoint_url: str,
         *,
         method: str = "zenodex_getSettlementSignerRegistryAnchor",
+        interface: SettlementSignerRegistryContractInterface | Mapping[str, Any] | None = None,
         timeout_s: float = 5.0,
         headers: Mapping[str, str] | None = None,
         transport: object | None = None,
@@ -356,6 +405,7 @@ class JsonRpcSettlementSignerRegistryAnchorLoader:
             raise ValueError("method must be a non-empty string")
         if not isinstance(timeout_s, (int, float)) or isinstance(timeout_s, bool) or float(timeout_s) <= 0.0:
             raise ValueError("timeout_s must be a positive number")
+        resolved_interface = coerce_settlement_signer_registry_contract_interface(interface)
         normalized_headers: dict[str, str] = {"Content-Type": "application/json"}
         if headers is not None:
             if not isinstance(headers, Mapping):
@@ -369,12 +419,18 @@ class JsonRpcSettlementSignerRegistryAnchorLoader:
         if transport is not None and not callable(transport):
             raise TypeError("transport must be callable")
         self._endpoint_url = normalized_endpoint
-        self._method = method.strip()
+        self._method = resolved_interface.anchor_rpc_method if resolved_interface is not None else method.strip()
+        self._interface = resolved_interface
         self._timeout_s = float(timeout_s)
         self._headers = dict(sorted(normalized_headers.items()))
         self._transport = transport
 
     def load_anchor(self, request: SettlementSignerRegistrySnapshotRequest) -> SettlementSignerRegistryAnchor | None:
+        if self._interface is not None:
+            _require_contract_interface_matches_request(
+                interface=self._interface,
+                request=request,
+            )
         payload = {
             "jsonrpc": "2.0",
             "id": "settlement-signer-registry-anchor",
@@ -624,6 +680,20 @@ def coerce_settlement_signer_registry_anchor(
     raise TypeError("attestation_registry_anchor must be a SettlementSignerRegistryAnchor or object mapping")
 
 
+def coerce_settlement_signer_registry_contract_interface(
+    interface: SettlementSignerRegistryContractInterface | Mapping[str, Any] | None,
+) -> SettlementSignerRegistryContractInterface | None:
+    if interface is None:
+        return None
+    if isinstance(interface, SettlementSignerRegistryContractInterface):
+        return interface
+    if isinstance(interface, Mapping):
+        return SettlementSignerRegistryContractInterface.from_dict(interface)
+    raise TypeError(
+        "settlement_signer_registry_interface must be a SettlementSignerRegistryContractInterface or object mapping"
+    )
+
+
 def resolve_attestation_policy_and_registry_snapshot(
     *,
     attestation_policy: SettlementAttestationPolicy | Mapping[str, Any] | None,
@@ -775,6 +845,37 @@ def _require_anchor_matches_request(
         )
 
 
+def _require_contract_interface_matches_request(
+    *,
+    interface: SettlementSignerRegistryContractInterface,
+    request: SettlementSignerRegistrySnapshotRequest,
+) -> None:
+    details = {
+        "interface_id": interface.interface_id,
+        "interface_chain_id": int(interface.chain_id),
+        "interface_registry_contract": interface.registry_contract,
+        "interface_anchor_rpc_method": interface.anchor_rpc_method,
+        "request_chain_id": int(request.chain_id),
+        "request_registry_contract": request.registry_contract,
+        "request_policy_id": request.policy_id,
+        "request_policy_epoch": int(request.policy_epoch),
+    }
+    if int(interface.chain_id) != int(request.chain_id):
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry interface chain_id does not match request",
+                details=details,
+            )
+        )
+    if interface.registry_contract != request.registry_contract:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry interface registry_contract does not match request",
+                details=details,
+            )
+        )
+
+
 def _require_snapshot_matches_anchor(
     *,
     snapshot: SettlementSignerRegistrySnapshot,
@@ -902,9 +1003,11 @@ def _json_rpc_post_json(
 
 __all__ = [
     "SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA",
+    "SETTLEMENT_SIGNER_REGISTRY_INTERFACE_SCHEMA",
     "SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA",
     "SettlementAttestationRegistryBindingResult",
     "SettlementSignerRegistryAnchor",
+    "SettlementSignerRegistryContractInterface",
     "SettlementSignerRegistrySnapshotLoadResult",
     "SettlementSignerRegistrySnapshotRequest",
     "SettlementSignerRegistrySnapshot",
@@ -914,6 +1017,7 @@ __all__ = [
     "JsonRpcSettlementSignerRegistryAnchorLoader",
     "check_settlement_attestation_policy_registry_binding",
     "coerce_settlement_signer_registry_anchor",
+    "coerce_settlement_signer_registry_contract_interface",
     "coerce_settlement_signer_registry_snapshot",
     "load_attestation_policy_and_registry_snapshot",
     "resolve_attestation_policy_and_registry_snapshot",

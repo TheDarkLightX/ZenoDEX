@@ -151,6 +151,7 @@ Current runtime consequence:
 - if the runtime holds `P` plus a registry-snapshot loader, it may derive `R` from the loader and still fail closed on missing or drifting snapshot state
 - if the runtime holds a chain-anchor loader plus a snapshot source, it can rebind the final snapshot to chain-derived block metadata and reject any off-chain snapshot whose root or policy hash drifts from the chain anchor
 - the current chain-anchor transport can be a typed JSON-RPC method (`zenodex_getSettlementSignerRegistryAnchor`), but that is still an adapter contract, not a direct ABI-decoded proof of on-chain state
+- the JSON-RPC anchor transport can now be bound to an explicit `SettlementSignerRegistryContractInterface`, so the method name, chain id, and registry contract are all validated as part of the typed interface surface rather than remaining free string parameters
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 
