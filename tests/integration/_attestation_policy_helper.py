@@ -62,6 +62,7 @@ def make_attestation_policy(
     min_distinct_signers: int = 1,
     min_distinct_sources: int | None = None,
     allowed_sources: Sequence[str] | None = None,
+    additional_allowed_signers: Mapping[str, Sequence[str]] | None = None,
     effective_from_epoch: int | None = None,
     expires_at_epoch: int | None = None,
 ) -> SettlementAttestationPolicy:
@@ -73,6 +74,16 @@ def make_attestation_policy(
         effective_from_epoch = max(0, signed_at_epoch - 1)
     if expires_at_epoch is None:
         expires_at_epoch = signed_at_epoch + 100
+    allowed_signers: dict[str, Sequence[str]] = {signer_pubkey: canonical_sources}
+    if additional_allowed_signers is not None:
+        if not isinstance(additional_allowed_signers, Mapping):
+            raise TypeError("additional_allowed_signers must be a mapping")
+        for raw_pubkey, raw_sources in additional_allowed_signers.items():
+            if not isinstance(raw_pubkey, str) or not raw_pubkey.strip():
+                raise ValueError("additional allowed signer pubkeys must be non-empty strings")
+            if not isinstance(raw_sources, Sequence) or isinstance(raw_sources, (str, bytes, bytearray)):
+                raise TypeError("additional allowed signer source ids must be a sequence of strings")
+            allowed_signers[raw_pubkey] = tuple(raw_sources)
     return SettlementAttestationPolicy(
         policy_id=policy_id,
         policy_epoch=policy_epoch,
@@ -86,7 +97,7 @@ def make_attestation_policy(
         multisig_approved=multisig_approved,
         min_distinct_signers=min_distinct_signers,
         min_distinct_sources=min_distinct_sources,
-        allowed_signers={signer_pubkey: canonical_sources},
+        allowed_signers=allowed_signers,
     )
 
 
