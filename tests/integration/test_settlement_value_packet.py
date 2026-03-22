@@ -1,15 +1,27 @@
 from __future__ import annotations
 
+from tests.integration._attestation_policy_helper import (
+    build_policy_bound_attestation,
+    make_attestation_policy,
+    make_attestation_registry_snapshot,
+)
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
+from src.integration.settlement_price_attestation import (
+    build_settlement_spot_price_attestation,
+    build_settlement_spot_price_attestation_bundle,
+    settlement_spot_price_attestation_signer_pubkey_from_privkey,
+)
 from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
 from src.integration.settlement_value_packet import (
     SETTLEMENT_VALUE_PACKET_SCHEMA,
     SettlementValuePacket,
+    build_settlement_value_packet_from_price_attestation_bundle,
     build_settlement_value_packet_from_price_attestation,
     build_settlement_value_packet_from_price_packet,
+    verify_settlement_value_packet_payload_from_price_attestation_bundle,
     verify_settlement_value_packet_payload_from_price_attestation,
     verify_settlement_value_packet_payload_from_price_packet,
 )
@@ -97,7 +109,8 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
+    attestation_policy = make_attestation_policy(attestation)
 
     packet = build_settlement_value_packet_from_price_attestation(
         settlement=settlement,
@@ -105,7 +118,7 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
         lp_unit_values={pool_id: 50},
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert packet.schema == SETTLEMENT_VALUE_PACKET_SCHEMA
     assert packet.mode == "lp_aware"
@@ -114,6 +127,12 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
     assert packet.lp_value_contract is not None
     assert packet.lp_liability_balanced_ok is True
     assert packet.packet_ok is True
+    assert packet.attestation_policy_id == attestation_policy.policy_id
+    assert packet.attestation_policy_epoch == attestation_policy.policy_epoch
+    assert packet.attestation_policy_chain_id == attestation_policy.chain_id
+    assert packet.attestation_policy_registry_contract == attestation_policy.registry_contract
+    assert packet.attestation_policy_root == attestation_policy.registry_root
+    assert packet.attestation_policy_hash == attestation_policy.policy_hash_hex()
 
     ok, err = verify_settlement_value_packet_payload_from_price_attestation(
         settlement=settlement,
@@ -122,7 +141,7 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
         max_attestation_age_epochs=5,
         packet_payload=packet.to_dict(),
         lp_unit_values={pool_id: 50},
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert ok is True
     assert err is None
@@ -168,3 +187,136 @@ def test_settlement_value_packet_from_dict_round_trips() -> None:
     packet = build_settlement_value_packet_from_price_packet(settlement=settlement, price_packet=price_packet)
     rebuilt = SettlementValuePacket.from_dict(packet.to_dict())
     assert rebuilt == packet
+
+
+def test_settlement_value_packet_builds_from_registry_snapshot_only() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation, _policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
+    registry_snapshot = make_attestation_registry_snapshot(attestation)
+
+    packet = build_settlement_value_packet_from_price_attestation(
+        settlement=settlement,
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50},
+        attestation_policy=None,
+        attestation_registry_snapshot=registry_snapshot,
+    )
+    assert packet.attestation_policy_id == registry_snapshot.policy.policy_id
+    assert packet.attestation_policy_epoch == registry_snapshot.policy.policy_epoch
+    assert packet.attestation_policy_chain_id == registry_snapshot.policy.chain_id
+    assert packet.attestation_policy_registry_contract == registry_snapshot.policy.registry_contract
+    assert packet.attestation_policy_root == registry_snapshot.registry_root
+    assert packet.attestation_policy_hash == registry_snapshot.policy.policy_hash_hex()
+
+
+def test_settlement_value_packet_round_trips_for_bundle_attestation() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation_policy = make_attestation_policy(
+        {
+            "signer_pubkey": settlement_spot_price_attestation_signer_pubkey_from_privkey(7),
+            "signed_at_epoch": int(price_packet.now_epoch),
+            "packet": price_packet.to_dict(),
+        },
+        min_distinct_signers=2,
+        additional_allowed_signers={
+            settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+        },
+    )
+    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7, attestation_policy=attestation_policy)
+    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8, attestation_policy=attestation_policy)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
+
+    packet = build_settlement_value_packet_from_price_attestation_bundle(
+        settlement=settlement,
+        price_attestation_bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50},
+        attestation_policy=attestation_policy,
+    )
+    assert packet.schema == SETTLEMENT_VALUE_PACKET_SCHEMA
+    assert packet.mode == "lp_aware"
+    assert packet.price_input_kind == "attestation_bundle"
+    assert packet.price_attestation is None
+    assert packet.price_attestation_bundle is not None
+    assert packet.packet_ok is True
+
+    ok, err = verify_settlement_value_packet_payload_from_price_attestation_bundle(
+        settlement=settlement,
+        price_attestation_bundle_payload=bundle.to_dict(),
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        packet_payload=packet.to_dict(),
+        lp_unit_values={pool_id: 50},
+        attestation_policy=attestation_policy,
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_settlement_value_packet_uses_bundle_consensus_prices_under_bounded_disagreement() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    packet_a = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    packet_b = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=101, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=121, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation_policy = make_attestation_policy(
+        {
+            "signer_pubkey": settlement_spot_price_attestation_signer_pubkey_from_privkey(7),
+            "signed_at_epoch": int(packet_a.now_epoch),
+            "packet": packet_a.to_dict(),
+        },
+        min_distinct_signers=2,
+        max_bundle_price_spread_bps=100,
+        additional_allowed_signers={
+            settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+        },
+    )
+    attestation_a = build_settlement_spot_price_attestation(packet=packet_a, signer_privkey=7, attestation_policy=attestation_policy)
+    attestation_b = build_settlement_spot_price_attestation(packet=packet_b, signer_privkey=8, attestation_policy=attestation_policy)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
+
+    packet = build_settlement_value_packet_from_price_attestation_bundle(
+        settlement=settlement,
+        price_attestation_bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50},
+        attestation_policy=attestation_policy,
+    )
+    assert [entry.price for entry in packet.price_packet.entries] == [100, 120]
+    assert packet.price_attestation_bundle is not None
+    assert [entry.price for entry in packet.price_attestation_bundle.packet.entries] == [100, 120]
