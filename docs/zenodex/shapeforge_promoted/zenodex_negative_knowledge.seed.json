@@ -50,6 +50,7 @@
         "canonical_winner_requires_total_key"
       ],
       "replacement_claim": "Canonicality comes from minimizing route_key_out = (input_total, leg_count, legs_lex) over complete candidates; the repaired two-pool runtime now reflects that key on the bounded emitted candidate set.",
+      "remaining_excluded_domain": "Candidate domains outside the repaired bounded emitted set remain excluded: stable runtime enumeration is still not a semantic canonicality argument without explicit total-key minimization plus candidate completeness.",
       "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break",
       "scenario_id": "drop_exact_out_canonical_minimizer_tie_break",
       "slice_id": "exact_out_canonical_minimizer",
@@ -594,7 +595,7 @@
     }
   ],
   "repo_root": "github.com/TheDarkLightX/ZenoDEX",
-  "schema": "shapeforge/negative-knowledge-seed/v1",
+  "schema": "shapeforge/negative-knowledge-seed/v2",
   "world_model_id": "zenodex_shape_reference_v3",
   "world_model_path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json"
 }
