@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
 
 from src.core.settlement import Settlement
+from src.state.canonical import canonical_hex_fixed_allow_0x
 from src.state.pools import PoolState, PoolStatus
 
 from .settlement_lp_value_contract import SettlementLPValueContract, build_settlement_lp_value_contract
@@ -16,6 +17,7 @@ from .settlement_price_provenance import (
 )
 
 if TYPE_CHECKING:
+    from .settlement_attestation_policy import SettlementAttestationPolicy
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
 
@@ -27,6 +29,10 @@ class SettlementEndogenousLPValuePacket:
     price_input_kind: str
     price_packet: SettlementSpotPricePacket
     price_attestation: SettlementSpotPriceAttestation | None
+    attestation_policy_id: str | None
+    attestation_policy_epoch: int | None
+    attestation_policy_root: str | None
+    attestation_policy_hash: str | None
     pool_snapshots: tuple[dict[str, Any], ...]
     pool_snapshot_vector_sha256: str
     lp_value_contract: SettlementLPValueContract
@@ -51,9 +57,49 @@ class SettlementEndogenousLPValuePacket:
         if self.price_input_kind == "packet":
             if self.price_attestation is not None:
                 raise ValueError("price_attestation must be None for packet mode")
+            if any(
+                value is not None
+                for value in (
+                    self.attestation_policy_id,
+                    self.attestation_policy_epoch,
+                    self.attestation_policy_root,
+                    self.attestation_policy_hash,
+                )
+            ):
+                raise ValueError("attestation policy fields must be None for packet mode")
         else:
             if self.price_attestation is None:
                 raise ValueError("price_attestation must be present for attestation mode")
+            if not isinstance(self.attestation_policy_id, str) or not self.attestation_policy_id:
+                raise ValueError("attestation_policy_id must be present for attestation mode")
+            if (
+                not isinstance(self.attestation_policy_epoch, int)
+                or isinstance(self.attestation_policy_epoch, bool)
+                or self.attestation_policy_epoch < 0
+            ):
+                raise ValueError("attestation_policy_epoch must be a non-negative int")
+            if not isinstance(self.attestation_policy_root, str):
+                raise ValueError("attestation_policy_root must be present for attestation mode")
+            if not isinstance(self.attestation_policy_hash, str):
+                raise ValueError("attestation_policy_hash must be present for attestation mode")
+            object.__setattr__(
+                self,
+                "attestation_policy_root",
+                canonical_hex_fixed_allow_0x(
+                    self.attestation_policy_root,
+                    nbytes=32,
+                    name="attestation_policy_root",
+                ),
+            )
+            object.__setattr__(
+                self,
+                "attestation_policy_hash",
+                canonical_hex_fixed_allow_0x(
+                    self.attestation_policy_hash,
+                    nbytes=32,
+                    name="attestation_policy_hash",
+                ),
+            )
         if not self.pool_snapshots:
             raise ValueError("pool_snapshots must be non-empty")
         if not all(isinstance(snapshot, dict) for snapshot in self.pool_snapshots):
@@ -81,6 +127,10 @@ class SettlementEndogenousLPValuePacket:
             "price_input_kind": self.price_input_kind,
             "price_packet": self.price_packet.to_dict(),
             "price_attestation": None if self.price_attestation is None else self.price_attestation.to_dict(),
+            "attestation_policy_id": self.attestation_policy_id,
+            "attestation_policy_epoch": self.attestation_policy_epoch,
+            "attestation_policy_root": self.attestation_policy_root,
+            "attestation_policy_hash": self.attestation_policy_hash,
             "pool_snapshots": [dict(snapshot) for snapshot in self.pool_snapshots],
             "pool_snapshot_vector_sha256": self.pool_snapshot_vector_sha256,
             "lp_value_contract": self.lp_value_contract.to_dict(),
@@ -120,6 +170,10 @@ class SettlementEndogenousLPValuePacket:
                 if price_attestation_payload is None
                 else SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
             ),
+            attestation_policy_id=payload.get("attestation_policy_id"),
+            attestation_policy_epoch=payload.get("attestation_policy_epoch"),
+            attestation_policy_root=payload.get("attestation_policy_root"),
+            attestation_policy_hash=payload.get("attestation_policy_hash"),
             pool_snapshots=tuple(dict(snapshot) for snapshot in pool_snapshots_payload),
             pool_snapshot_vector_sha256=str(payload.get("pool_snapshot_vector_sha256", "")),
             lp_value_contract=SettlementLPValueContract.from_dict(lp_value_contract_payload),
@@ -160,6 +214,10 @@ def build_settlement_endogenous_lp_value_packet_from_price_packet(
         price_input_kind="packet",
         price_packet=price_packet,
         price_attestation=None,
+        attestation_policy_id=None,
+        attestation_policy_epoch=None,
+        attestation_policy_root=None,
+        attestation_policy_hash=None,
         pool_snapshots=canonical_snapshots,
         pool_snapshot_vector_sha256=_sha256_json({"pool_snapshots": list(canonical_snapshots)}),
         lp_value_contract=contract,
@@ -187,18 +245,23 @@ def build_settlement_endogenous_lp_value_packet_from_price_attestation(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     pool_snapshots: Sequence[PoolState],
-    allowed_signers: Mapping[str, Sequence[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> SettlementEndogenousLPValuePacket:
+    from .settlement_attestation_policy import coerce_settlement_attestation_policy
     from .settlement_price_attestation import verify_settlement_spot_price_attestation
+
+    attestation_policy = coerce_settlement_attestation_policy(attestation_policy)
 
     ok, err = verify_settlement_spot_price_attestation(
         attestation=price_attestation,
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
-        allowed_signers=allowed_signers,
+        attestation_policy=attestation_policy,
     )
     if not ok:
         raise ValueError(f"invalid settlement spot price attestation: {err}")
+    if attestation_policy is None:
+        raise ValueError("attestation mode requires attestation_policy")
     canonical_snapshots = _canonical_pool_snapshots(pool_snapshots)
     unit_values = _derive_lp_unit_values(
         canonical_snapshots=canonical_snapshots,
@@ -213,6 +276,10 @@ def build_settlement_endogenous_lp_value_packet_from_price_attestation(
         price_input_kind="attestation",
         price_packet=price_attestation.packet,
         price_attestation=price_attestation,
+        attestation_policy_id=attestation_policy.policy_id,
+        attestation_policy_epoch=int(attestation_policy.policy_epoch),
+        attestation_policy_root=attestation_policy.registry_root,
+        attestation_policy_hash=attestation_policy.policy_hash_hex(),
         pool_snapshots=canonical_snapshots,
         pool_snapshot_vector_sha256=_sha256_json({"pool_snapshots": list(canonical_snapshots)}),
         lp_value_contract=contract,
@@ -275,7 +342,7 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
     max_attestation_age_epochs: int,
     pool_snapshots_payload: Sequence[Mapping[str, Any]],
     packet_payload: Mapping[str, Any],
-    allowed_signers: Mapping[str, Sequence[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -294,7 +361,7 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
             consumer_now_epoch=consumer_now_epoch,
             max_attestation_age_epochs=max_attestation_age_epochs,
             pool_snapshots=pool_snapshots,
-            allowed_signers=allowed_signers,
+            attestation_policy=attestation_policy,
         )
     except Exception as exc:
         return False, str(exc)

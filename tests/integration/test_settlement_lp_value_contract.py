@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.integration._attestation_policy_helper import make_attestation_policy
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -117,7 +119,7 @@ def test_settlement_lp_value_contract_builds_from_price_attestation() -> None:
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
         lp_unit_values={pool_id: 91},
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=make_attestation_policy(attestation),
     )
     assert contract.lp_user_value_sum == 3 * 91
     assert contract.lp_protocol_liability_value_sum == -(3 * 91)

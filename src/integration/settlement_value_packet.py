@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Mapping
 
 from src.core.settlement import Settlement
+from src.state.canonical import canonical_hex_fixed_allow_0x
 
 from .settlement_lp_value_contract import (
     SettlementLPValueContract,
@@ -20,6 +21,7 @@ from .settlement_value_contract import (
 )
 
 if TYPE_CHECKING:
+    from .settlement_attestation_policy import SettlementAttestationPolicy
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
 
@@ -32,6 +34,10 @@ class SettlementValuePacket:
     price_input_kind: str
     price_packet: SettlementSpotPricePacket
     price_attestation: SettlementSpotPriceAttestation | None
+    attestation_policy_id: str | None
+    attestation_policy_epoch: int | None
+    attestation_policy_root: str | None
+    attestation_policy_hash: str | None
     spot_value_contract: SettlementSpotValueContract | None
     lp_value_contract: SettlementLPValueContract | None
     price_provenance_ok: bool
@@ -54,9 +60,49 @@ class SettlementValuePacket:
         if self.price_input_kind == "packet":
             if self.price_attestation is not None:
                 raise ValueError("price_attestation must be None for packet mode")
+            if any(
+                value is not None
+                for value in (
+                    self.attestation_policy_id,
+                    self.attestation_policy_epoch,
+                    self.attestation_policy_root,
+                    self.attestation_policy_hash,
+                )
+            ):
+                raise ValueError("attestation policy fields must be None for packet mode")
         else:
             if self.price_attestation is None:
                 raise ValueError("price_attestation must be present for attestation mode")
+            if not isinstance(self.attestation_policy_id, str) or not self.attestation_policy_id:
+                raise ValueError("attestation_policy_id must be present for attestation mode")
+            if (
+                not isinstance(self.attestation_policy_epoch, int)
+                or isinstance(self.attestation_policy_epoch, bool)
+                or self.attestation_policy_epoch < 0
+            ):
+                raise ValueError("attestation_policy_epoch must be a non-negative int")
+            if not isinstance(self.attestation_policy_root, str):
+                raise ValueError("attestation_policy_root must be present for attestation mode")
+            if not isinstance(self.attestation_policy_hash, str):
+                raise ValueError("attestation_policy_hash must be present for attestation mode")
+            object.__setattr__(
+                self,
+                "attestation_policy_root",
+                canonical_hex_fixed_allow_0x(
+                    self.attestation_policy_root,
+                    nbytes=32,
+                    name="attestation_policy_root",
+                ),
+            )
+            object.__setattr__(
+                self,
+                "attestation_policy_hash",
+                canonical_hex_fixed_allow_0x(
+                    self.attestation_policy_hash,
+                    nbytes=32,
+                    name="attestation_policy_hash",
+                ),
+            )
         if self.mode == "spot_only":
             if self.spot_value_contract is None or self.lp_value_contract is not None:
                 raise ValueError("spot_only mode requires only spot_value_contract")
@@ -81,6 +127,10 @@ class SettlementValuePacket:
             "price_input_kind": self.price_input_kind,
             "price_packet": self.price_packet.to_dict(),
             "price_attestation": None if self.price_attestation is None else self.price_attestation.to_dict(),
+            "attestation_policy_id": self.attestation_policy_id,
+            "attestation_policy_epoch": self.attestation_policy_epoch,
+            "attestation_policy_root": self.attestation_policy_root,
+            "attestation_policy_hash": self.attestation_policy_hash,
             "spot_value_contract": None if self.spot_value_contract is None else self.spot_value_contract.to_dict(),
             "lp_value_contract": None if self.lp_value_contract is None else self.lp_value_contract.to_dict(),
             "price_provenance_ok": bool(self.price_provenance_ok),
@@ -113,6 +163,10 @@ class SettlementValuePacket:
                 if price_attestation_payload is None
                 else SettlementSpotPriceAttestation.from_dict(price_attestation_payload)
             ),
+            attestation_policy_id=payload.get("attestation_policy_id"),
+            attestation_policy_epoch=payload.get("attestation_policy_epoch"),
+            attestation_policy_root=payload.get("attestation_policy_root"),
+            attestation_policy_hash=payload.get("attestation_policy_hash"),
             spot_value_contract=(
                 None if spot_contract_payload is None else SettlementSpotValueContract.from_dict(spot_contract_payload)
             ),
@@ -149,6 +203,10 @@ def build_settlement_value_packet_from_price_packet(
             price_input_kind="packet",
             price_packet=price_packet,
             price_attestation=None,
+            attestation_policy_id=None,
+            attestation_policy_epoch=None,
+            attestation_policy_root=None,
+            attestation_policy_hash=None,
             spot_value_contract=contract,
             lp_value_contract=None,
             price_provenance_ok=bool(price_packet.provenance_ok),
@@ -168,6 +226,10 @@ def build_settlement_value_packet_from_price_packet(
         price_input_kind="packet",
         price_packet=price_packet,
         price_attestation=None,
+        attestation_policy_id=None,
+        attestation_policy_epoch=None,
+        attestation_policy_root=None,
+        attestation_policy_hash=None,
         spot_value_contract=None,
         lp_value_contract=contract_lp,
         price_provenance_ok=bool(price_packet.provenance_ok),
@@ -191,18 +253,23 @@ def build_settlement_value_packet_from_price_attestation(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     lp_unit_values: Mapping[str, int] | None = None,
-    allowed_signers: Mapping[str, tuple[str, ...] | list[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> SettlementValuePacket:
+    from .settlement_attestation_policy import coerce_settlement_attestation_policy
     from .settlement_price_attestation import verify_settlement_spot_price_attestation
+
+    attestation_policy = coerce_settlement_attestation_policy(attestation_policy)
 
     ok, err = verify_settlement_spot_price_attestation(
         attestation=price_attestation,
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
-        allowed_signers=allowed_signers,
+        attestation_policy=attestation_policy,
     )
     if not ok:
         raise ValueError(f"invalid settlement spot price attestation: {err}")
+    if attestation_policy is None:
+        raise ValueError("attestation mode requires attestation_policy")
     if lp_unit_values is None:
         contract = build_settlement_spot_value_contract(
             settlement=settlement,
@@ -213,6 +280,10 @@ def build_settlement_value_packet_from_price_attestation(
             price_input_kind="attestation",
             price_packet=price_attestation.packet,
             price_attestation=price_attestation,
+            attestation_policy_id=attestation_policy.policy_id,
+            attestation_policy_epoch=int(attestation_policy.policy_epoch),
+            attestation_policy_root=attestation_policy.registry_root,
+            attestation_policy_hash=attestation_policy.policy_hash_hex(),
             spot_value_contract=contract,
             lp_value_contract=None,
             price_provenance_ok=bool(price_attestation.packet.provenance_ok),
@@ -236,6 +307,10 @@ def build_settlement_value_packet_from_price_attestation(
         price_input_kind="attestation",
         price_packet=price_attestation.packet,
         price_attestation=price_attestation,
+        attestation_policy_id=attestation_policy.policy_id,
+        attestation_policy_epoch=int(attestation_policy.policy_epoch),
+        attestation_policy_root=attestation_policy.registry_root,
+        attestation_policy_hash=attestation_policy.policy_hash_hex(),
         spot_value_contract=None,
         lp_value_contract=contract_lp,
         price_provenance_ok=bool(price_attestation.packet.provenance_ok),
@@ -290,7 +365,7 @@ def verify_settlement_value_packet_payload_from_price_attestation(
     max_attestation_age_epochs: int,
     packet_payload: Mapping[str, Any],
     lp_unit_values: Mapping[str, int] | None = None,
-    allowed_signers: Mapping[str, tuple[str, ...] | list[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -305,7 +380,7 @@ def verify_settlement_value_packet_payload_from_price_attestation(
             consumer_now_epoch=consumer_now_epoch,
             max_attestation_age_epochs=max_attestation_age_epochs,
             lp_unit_values=lp_unit_values,
-            allowed_signers=allowed_signers,
+            attestation_policy=attestation_policy,
         )
     except Exception as exc:
         return False, str(exc)

@@ -16,6 +16,7 @@ from .settlement_price_provenance import (
 )
 
 if TYPE_CHECKING:
+    from .settlement_attestation_policy import SettlementAttestationPolicy
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
 
@@ -284,15 +285,18 @@ def build_settlement_spot_value_contract_from_price_attestation(
     price_attestation: SettlementSpotPriceAttestation,
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
-    allowed_signers: Mapping[str, tuple[str, ...] | list[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> SettlementSpotValueContract:
+    from .settlement_attestation_policy import coerce_settlement_attestation_policy
     from .settlement_price_attestation import verify_settlement_spot_price_attestation
+
+    attestation_policy = coerce_settlement_attestation_policy(attestation_policy)
 
     ok, err = verify_settlement_spot_price_attestation(
         attestation=price_attestation,
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
-        allowed_signers=allowed_signers,
+        attestation_policy=attestation_policy,
     )
     if not ok:
         raise ValueError(f"invalid settlement spot price attestation: {err}")
@@ -309,7 +313,7 @@ def verify_settlement_spot_value_contract_from_price_attestation(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     contract: SettlementSpotValueContract,
-    allowed_signers: Mapping[str, tuple[str, ...] | list[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> tuple[bool, str | None]:
     try:
         expected = build_settlement_spot_value_contract_from_price_attestation(
@@ -317,7 +321,7 @@ def verify_settlement_spot_value_contract_from_price_attestation(
             price_attestation=price_attestation,
             consumer_now_epoch=consumer_now_epoch,
             max_attestation_age_epochs=max_attestation_age_epochs,
-            allowed_signers=allowed_signers,
+            attestation_policy=attestation_policy,
         )
     except Exception as exc:
         return False, str(exc)
@@ -373,7 +377,7 @@ def verify_settlement_spot_value_contract_payload_from_price_attestation(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     contract_payload: Mapping[str, Any],
-    allowed_signers: Mapping[str, tuple[str, ...] | list[str]] | None = None,
+    attestation_policy: SettlementAttestationPolicy | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -391,7 +395,7 @@ def verify_settlement_spot_value_contract_payload_from_price_attestation(
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
         contract=contract,
-        allowed_signers=allowed_signers,
+        attestation_policy=attestation_policy,
     )
 
 
