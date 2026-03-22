@@ -1949,6 +1949,7 @@ class _Handler(BaseHTTPRequestHandler):
             settlement_obj = obj.get("settlement")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
+            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
             attestation_policy_obj = obj.get("attestation_policy")
@@ -1957,7 +1958,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if price_packet_obj is None and price_attestation_obj is None:
+            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -1966,10 +1967,13 @@ class _Handler(BaseHTTPRequestHandler):
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
                 return True
+            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
+                return True
             if lp_unit_values_obj is not None and (not isinstance(lp_unit_values_obj, dict) or not lp_unit_values_obj):
                 self._write_json(400, {"ok": False, "error": "bad_lp_unit_values"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None:
+            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -2001,7 +2005,25 @@ class _Handler(BaseHTTPRequestHandler):
                             raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
                         lp_unit_values[pool_id] = int(raw_unit_value)
 
-                if price_attestation_obj is not None:
+                if price_attestation_bundle_obj is not None:
+                    from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
+                        SettlementSpotPriceAttestationBundle,
+                    )
+                    from src.integration.settlement_value_packet import (  # pylint: disable=import-outside-toplevel
+                        build_settlement_value_packet_from_price_attestation_bundle,
+                    )
+
+                    price_attestation_bundle = SettlementSpotPriceAttestationBundle.from_dict(price_attestation_bundle_obj)
+                    packet = build_settlement_value_packet_from_price_attestation_bundle(
+                        settlement=settlement,
+                        price_attestation_bundle=price_attestation_bundle,
+                        consumer_now_epoch=int(consumer_now_epoch),
+                        max_attestation_age_epochs=int(max_attestation_age_epochs),
+                        lp_unit_values=lp_unit_values,
+                        attestation_policy=attestation_policy_obj,
+                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                    )
+                elif price_attestation_obj is not None:
                     from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
                         SettlementSpotPriceAttestation,
                     )
@@ -2047,6 +2069,7 @@ class _Handler(BaseHTTPRequestHandler):
             settlement_obj = obj.get("settlement")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
+            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
             attestation_policy_obj = obj.get("attestation_policy")
@@ -2056,7 +2079,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if price_packet_obj is None and price_attestation_obj is None:
+            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -2065,13 +2088,16 @@ class _Handler(BaseHTTPRequestHandler):
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
                 return True
+            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
+                return True
             if lp_unit_values_obj is not None and (not isinstance(lp_unit_values_obj, dict) or not lp_unit_values_obj):
                 self._write_json(400, {"ok": False, "error": "bad_lp_unit_values"}, cors_origin=cors_origin)
                 return True
             if not isinstance(packet_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None:
+            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -2103,7 +2129,22 @@ class _Handler(BaseHTTPRequestHandler):
                             raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
                         lp_unit_values[pool_id] = int(raw_unit_value)
 
-                if price_attestation_obj is not None:
+                if price_attestation_bundle_obj is not None:
+                    from src.integration.settlement_value_packet import (  # pylint: disable=import-outside-toplevel
+                        verify_settlement_value_packet_payload_from_price_attestation_bundle,
+                    )
+
+                    ok, err = verify_settlement_value_packet_payload_from_price_attestation_bundle(
+                        settlement=settlement,
+                        price_attestation_bundle_payload=price_attestation_bundle_obj,
+                        consumer_now_epoch=int(consumer_now_epoch),
+                        max_attestation_age_epochs=int(max_attestation_age_epochs),
+                        packet_payload=packet_obj,
+                        lp_unit_values=lp_unit_values,
+                        attestation_policy=attestation_policy_obj,
+                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                    )
+                elif price_attestation_obj is not None:
                     from src.integration.settlement_value_packet import (  # pylint: disable=import-outside-toplevel
                         verify_settlement_value_packet_payload_from_price_attestation,
                     )
@@ -2143,6 +2184,7 @@ class _Handler(BaseHTTPRequestHandler):
             settlement_obj = obj.get("settlement")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
+            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             pool_snapshots_obj = obj.get("pool_snapshots")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
@@ -2151,7 +2193,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if price_packet_obj is None and price_attestation_obj is None:
+            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -2160,10 +2202,13 @@ class _Handler(BaseHTTPRequestHandler):
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
                 return True
+            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
+                return True
             if not isinstance(pool_snapshots_obj, list) or not pool_snapshots_obj:
                 self._write_json(400, {"ok": False, "error": "bad_pool_snapshots"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None:
+            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -2184,13 +2229,29 @@ class _Handler(BaseHTTPRequestHandler):
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
                 from src.integration.settlement_endogenous_lp_value_packet import (  # pylint: disable=import-outside-toplevel
                     _pool_from_dict,
+                    build_settlement_endogenous_lp_value_packet_from_price_attestation_bundle,
                     build_settlement_endogenous_lp_value_packet_from_price_attestation,
                     build_settlement_endogenous_lp_value_packet_from_price_packet,
                 )
 
                 settlement = _parse_settlement(settlement_obj)
                 pool_snapshots = tuple(_pool_from_dict(snapshot) for snapshot in pool_snapshots_obj)
-                if price_attestation_obj is not None:
+                if price_attestation_bundle_obj is not None:
+                    from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
+                        SettlementSpotPriceAttestationBundle,
+                    )
+
+                    price_attestation_bundle = SettlementSpotPriceAttestationBundle.from_dict(price_attestation_bundle_obj)
+                    packet = build_settlement_endogenous_lp_value_packet_from_price_attestation_bundle(
+                        settlement=settlement,
+                        price_attestation_bundle=price_attestation_bundle,
+                        consumer_now_epoch=int(consumer_now_epoch),
+                        max_attestation_age_epochs=int(max_attestation_age_epochs),
+                        pool_snapshots=pool_snapshots,
+                        attestation_policy=attestation_policy_obj,
+                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                    )
+                elif price_attestation_obj is not None:
                     from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
                         SettlementSpotPriceAttestation,
                     )
@@ -2230,6 +2291,7 @@ class _Handler(BaseHTTPRequestHandler):
             settlement_obj = obj.get("settlement")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
+            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             pool_snapshots_obj = obj.get("pool_snapshots")
             consumer_now_epoch = obj.get("consumer_now_epoch")
             max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
@@ -2239,7 +2301,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if price_packet_obj is None and price_attestation_obj is None:
+            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -2248,13 +2310,16 @@ class _Handler(BaseHTTPRequestHandler):
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
                 return True
+            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
+                return True
             if not isinstance(pool_snapshots_obj, list) or not pool_snapshots_obj:
                 self._write_json(400, {"ok": False, "error": "bad_pool_snapshots"}, cors_origin=cors_origin)
                 return True
             if not isinstance(packet_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None:
+            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -2274,12 +2339,24 @@ class _Handler(BaseHTTPRequestHandler):
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
                 from src.integration.settlement_endogenous_lp_value_packet import (  # pylint: disable=import-outside-toplevel
+                    verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation_bundle,
                     verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation,
                     verify_settlement_endogenous_lp_value_packet_payload_from_price_packet,
                 )
 
                 settlement = _parse_settlement(settlement_obj)
-                if price_attestation_obj is not None:
+                if price_attestation_bundle_obj is not None:
+                    ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation_bundle(
+                        settlement=settlement,
+                        price_attestation_bundle_payload=price_attestation_bundle_obj,
+                        consumer_now_epoch=int(consumer_now_epoch),
+                        max_attestation_age_epochs=int(max_attestation_age_epochs),
+                        pool_snapshots_payload=pool_snapshots_obj,
+                        packet_payload=packet_obj,
+                        attestation_policy=attestation_policy_obj,
+                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                    )
+                elif price_attestation_obj is not None:
                     ok, err = verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
                         settlement=settlement,
                         price_attestation_payload=price_attestation_obj,
@@ -2360,6 +2437,7 @@ class _Handler(BaseHTTPRequestHandler):
             feature_extension_inputs_obj = obj.get("feature_extension_inputs")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
+            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             pool_snapshots_obj = obj.get("pool_snapshots")
             lp_unit_values_obj = obj.get("lp_unit_values")
             consumer_now_epoch = obj.get("consumer_now_epoch")
@@ -2369,7 +2447,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if price_packet_obj is None and price_attestation_obj is None:
+            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -2377,6 +2455,9 @@ class _Handler(BaseHTTPRequestHandler):
                 return True
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
+                return True
+            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
                 return True
             if pool_snapshots_obj is not None and (not isinstance(pool_snapshots_obj, list) or not pool_snapshots_obj):
                 self._write_json(400, {"ok": False, "error": "bad_pool_snapshots"}, cors_origin=cors_origin)
@@ -2387,7 +2468,7 @@ class _Handler(BaseHTTPRequestHandler):
             if pool_snapshots_obj is not None and lp_unit_values_obj is not None:
                 self._write_json(400, {"ok": False, "error": "conflicting_value_mode_inputs"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None:
+            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -2407,6 +2488,7 @@ class _Handler(BaseHTTPRequestHandler):
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
                 from src.integration.settlement_end_to_end_certificate_packet import (  # pylint: disable=import-outside-toplevel
+                    build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle,
                     build_settlement_end_to_end_certificate_packet_from_price_attestation,
                     build_settlement_end_to_end_certificate_packet_from_price_packet,
                 )
@@ -2432,7 +2514,26 @@ class _Handler(BaseHTTPRequestHandler):
                             raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
                         lp_unit_values[pool_id] = int(raw_unit_value)
 
-                if price_attestation_obj is not None:
+                if price_attestation_bundle_obj is not None:
+                    from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
+                        SettlementSpotPriceAttestationBundle,
+                    )
+
+                    price_attestation_bundle = SettlementSpotPriceAttestationBundle.from_dict(price_attestation_bundle_obj)
+                    packet = build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle(
+                        settlement=settlement,
+                        proof_flags=proof_flags,
+                        price_history=price_history,
+                        feature_extension_inputs=feature_extension_inputs,
+                        price_attestation_bundle=price_attestation_bundle,
+                        consumer_now_epoch=int(consumer_now_epoch),
+                        max_attestation_age_epochs=int(max_attestation_age_epochs),
+                        lp_unit_values=lp_unit_values,
+                        pool_snapshots=pool_snapshots,
+                        attestation_policy=attestation_policy_obj,
+                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                    )
+                elif price_attestation_obj is not None:
                     from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
                         SettlementSpotPriceAttestation,
                     )
@@ -2483,6 +2584,7 @@ class _Handler(BaseHTTPRequestHandler):
             feature_extension_inputs_obj = obj.get("feature_extension_inputs")
             price_packet_obj = obj.get("price_packet")
             price_attestation_obj = obj.get("price_attestation")
+            price_attestation_bundle_obj = obj.get("price_attestation_bundle")
             pool_snapshots_obj = obj.get("pool_snapshots")
             lp_unit_values_obj = obj.get("lp_unit_values")
             consumer_now_epoch = obj.get("consumer_now_epoch")
@@ -2493,7 +2595,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(settlement_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_settlement"}, cors_origin=cors_origin)
                 return True
-            if price_packet_obj is None and price_attestation_obj is None:
+            if sum(value is not None for value in (price_packet_obj, price_attestation_obj, price_attestation_bundle_obj)) != 1:
                 self._write_json(400, {"ok": False, "error": "missing_price_input"}, cors_origin=cors_origin)
                 return True
             if price_packet_obj is not None and not isinstance(price_packet_obj, dict):
@@ -2501,6 +2603,9 @@ class _Handler(BaseHTTPRequestHandler):
                 return True
             if price_attestation_obj is not None and not isinstance(price_attestation_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_price_attestation"}, cors_origin=cors_origin)
+                return True
+            if price_attestation_bundle_obj is not None and not isinstance(price_attestation_bundle_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_price_attestation_bundle"}, cors_origin=cors_origin)
                 return True
             if pool_snapshots_obj is not None and (not isinstance(pool_snapshots_obj, list) or not pool_snapshots_obj):
                 self._write_json(400, {"ok": False, "error": "bad_pool_snapshots"}, cors_origin=cors_origin)
@@ -2514,7 +2619,7 @@ class _Handler(BaseHTTPRequestHandler):
             if not isinstance(packet_obj, dict):
                 self._write_json(400, {"ok": False, "error": "bad_packet"}, cors_origin=cors_origin)
                 return True
-            if price_attestation_obj is not None:
+            if price_attestation_obj is not None or price_attestation_bundle_obj is not None:
                 if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
                     self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
                     return True
@@ -2534,6 +2639,7 @@ class _Handler(BaseHTTPRequestHandler):
             try:
                 from src.integration.operations import _parse_settlement  # pylint: disable=import-outside-toplevel
                 from src.integration.settlement_end_to_end_certificate_packet import (  # pylint: disable=import-outside-toplevel
+                    verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation_bundle,
                     verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation,
                     verify_settlement_end_to_end_certificate_packet_payload_from_price_packet,
                 )
@@ -2552,7 +2658,22 @@ class _Handler(BaseHTTPRequestHandler):
                             raise ValueError(f"lp unit value must be a non-negative int for {pool_id}")
                         lp_unit_values[pool_id] = int(raw_unit_value)
 
-                if price_attestation_obj is not None:
+                if price_attestation_bundle_obj is not None:
+                    ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation_bundle(
+                        settlement=settlement,
+                        proof_flags=proof_flags,
+                        price_history=price_history,
+                        feature_extension_inputs_payload=feature_extension_inputs_obj,
+                        price_attestation_bundle_payload=price_attestation_bundle_obj,
+                        consumer_now_epoch=int(consumer_now_epoch),
+                        max_attestation_age_epochs=int(max_attestation_age_epochs),
+                        packet_payload=packet_obj,
+                        lp_unit_values=lp_unit_values,
+                        pool_snapshots_payload=pool_snapshots_obj,
+                        attestation_policy=attestation_policy_obj,
+                        attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                    )
+                elif price_attestation_obj is not None:
                     ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation(
                         settlement=settlement,
                         proof_flags=proof_flags,
@@ -2686,6 +2807,29 @@ class _Handler(BaseHTTPRequestHandler):
                 )
                 return True
 
+        if path == "/api/dex/build_settlement_spot_price_attestation_bundle":
+            attestations_obj = obj.get("attestations")
+            if not isinstance(attestations_obj, list) or not attestations_obj:
+                self._write_json(400, {"ok": False, "error": "bad_attestations"}, cors_origin=cors_origin)
+                return True
+            try:
+                from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
+                    SettlementSpotPriceAttestation,
+                    build_settlement_spot_price_attestation_bundle,
+                )
+
+                attestations = tuple(SettlementSpotPriceAttestation.from_dict(attestation) for attestation in attestations_obj)
+                bundle = build_settlement_spot_price_attestation_bundle(attestations=attestations)
+                self._write_json(200, {"ok": True, "bundle": bundle.to_dict()}, cors_origin=cors_origin)
+                return True
+            except Exception as exc:
+                self._write_json(
+                    400,
+                    {"ok": False, "error": "build_settlement_spot_price_attestation_bundle_error", "details": str(exc)[:200]},
+                    cors_origin=cors_origin,
+                )
+                return True
+
         if path == "/api/dex/verify_settlement_spot_price_attestation":
             attestation_obj = obj.get("attestation")
             consumer_now_epoch = obj.get("consumer_now_epoch")
@@ -2729,6 +2873,53 @@ class _Handler(BaseHTTPRequestHandler):
                 self._write_json(
                     400,
                     {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": str(exc)[:200]},
+                    cors_origin=cors_origin,
+                )
+                return True
+
+        if path == "/api/dex/verify_settlement_spot_price_attestation_bundle":
+            bundle_obj = obj.get("bundle")
+            consumer_now_epoch = obj.get("consumer_now_epoch")
+            max_attestation_age_epochs = obj.get("max_attestation_age_epochs")
+            attestation_policy_obj = obj.get("attestation_policy")
+            attestation_registry_snapshot_obj = obj.get("attestation_registry_snapshot")
+            if not isinstance(bundle_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_bundle"}, cors_origin=cors_origin)
+                return True
+            if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
+                self._write_json(400, {"ok": False, "error": "bad_consumer_now_epoch"}, cors_origin=cors_origin)
+                return True
+            if (
+                not isinstance(max_attestation_age_epochs, int)
+                or isinstance(max_attestation_age_epochs, bool)
+                or max_attestation_age_epochs < 0
+            ):
+                self._write_json(400, {"ok": False, "error": "bad_max_attestation_age_epochs"}, cors_origin=cors_origin)
+                return True
+            if attestation_policy_obj is not None and not isinstance(attestation_policy_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_attestation_policy"}, cors_origin=cors_origin)
+                return True
+            if attestation_registry_snapshot_obj is not None and not isinstance(attestation_registry_snapshot_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_attestation_registry_snapshot"}, cors_origin=cors_origin)
+                return True
+            try:
+                from src.integration.settlement_price_attestation import (  # pylint: disable=import-outside-toplevel
+                    verify_settlement_spot_price_attestation_bundle_payload,
+                )
+
+                ok, err = verify_settlement_spot_price_attestation_bundle_payload(
+                    payload=bundle_obj,
+                    consumer_now_epoch=int(consumer_now_epoch),
+                    max_attestation_age_epochs=int(max_attestation_age_epochs),
+                    attestation_policy=attestation_policy_obj,
+                    attestation_registry_snapshot=attestation_registry_snapshot_obj,
+                )
+                self._write_json(200, {"ok": bool(ok), "error": err}, cors_origin=cors_origin)
+                return True
+            except Exception as exc:
+                self._write_json(
+                    400,
+                    {"ok": False, "error": "verify_settlement_spot_price_attestation_bundle_error", "details": str(exc)[:200]},
                     cors_origin=cors_origin,
                 )
                 return True
