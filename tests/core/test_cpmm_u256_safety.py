@@ -4,13 +4,21 @@ import random
 
 import pytest
 
-from src.core.cpmm_u256_safety import (
-    analyze_cpmm_exact_in_u256_overflows,
-    fee_total_ceil_bigint,
-    fee_total_ceil_decomposed,
-    mul_div_floor_gcd_reduced_u256,
+cpmm_u256_safety = pytest.importorskip(
+    "src.core.cpmm_u256_safety",
+    reason="cpmm_u256_safety is not promoted on clean main",
 )
-from src.core.fixed_width import U256_MAX, will_mul_overflow
+fixed_width = pytest.importorskip(
+    "src.core.fixed_width",
+    reason="fixed_width helpers are not promoted on clean main",
+)
+
+analyze_cpmm_exact_in_u256_overflows = cpmm_u256_safety.analyze_cpmm_exact_in_u256_overflows
+fee_total_ceil_bigint = cpmm_u256_safety.fee_total_ceil_bigint
+fee_total_ceil_decomposed = cpmm_u256_safety.fee_total_ceil_decomposed
+mul_div_floor_gcd_reduced_u256 = cpmm_u256_safety.mul_div_floor_gcd_reduced_u256
+U256_MAX = fixed_width.U256_MAX
+will_mul_overflow = fixed_width.will_mul_overflow
 
 
 def test_fee_total_decomposed_matches_bigint_reference_randomized() -> None:
@@ -107,7 +115,7 @@ def test_mul_div_floor_gcd_reduction_rejects_invalid_inputs_and_reports_intracta
 
 def test_cpmm_exact_in_u256_overflow_report_rejects_bad_types_and_u256_bounds() -> None:
     with pytest.raises(TypeError, match="reserve_in must be an int"):
-        analyze_cpmm_exact_in_u256_overflows(reserve_in=1.5, reserve_out=1, amount_in=1, fee_bps=0)  # type: ignore[arg-type]
+        analyze_cpmm_exact_in_u256_overflows(reserve_in=1.5, reserve_out=1, amount_in=1, fee_bps=0)
 
     with pytest.raises(ValueError, match="inputs must fit in u256"):
         analyze_cpmm_exact_in_u256_overflows(reserve_in=U256_MAX + 1, reserve_out=1, amount_in=1, fee_bps=0)

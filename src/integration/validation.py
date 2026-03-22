@@ -16,13 +16,12 @@ from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
 from ..state.pools import PoolState
-from .settlement_strong_certificate import (
-    SettlementProofFlags,
-    enforce_replay_bound_settlement_certificate,
-)
 from .settlement_end_to_end_certificate_packet import (
     SettlementEndToEndCertificateInputs,
     enforce_settlement_end_to_end_certificate,
+)
+from .settlement_strong_certificate import (
+    SettlementProofFlags,
 )
 
 if TYPE_CHECKING:
