@@ -12,7 +12,7 @@ from .settlement_attestation_policy import (
 from .settlement_price_provenance import SettlementSpotPricePacket, verify_settlement_spot_price_packet
 from .settlement_signer_registry import (
     SettlementSignerRegistrySnapshot,
-    resolve_attestation_policy_and_registry_snapshot,
+    load_attestation_policy_and_registry_snapshot,
 )
 
 try:
@@ -139,6 +139,7 @@ def verify_settlement_spot_price_attestation(
     max_attestation_age_epochs: int,
     attestation_policy: SettlementAttestationPolicy | None = None,
     attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
+    attestation_registry_snapshot_loader: object | None = None,
 ) -> tuple[bool, str | None]:
     if not isinstance(attestation, SettlementSpotPriceAttestation):
         return False, "attestation must be a SettlementSpotPriceAttestation"
@@ -151,9 +152,11 @@ def verify_settlement_spot_price_attestation(
     ):
         return False, "max_attestation_age_epochs must be a non-negative int"
     try:
-        attestation_policy, attestation_registry_snapshot = resolve_attestation_policy_and_registry_snapshot(
+        attestation_policy, attestation_registry_snapshot = load_attestation_policy_and_registry_snapshot(
             attestation_policy=attestation_policy,
             attestation_registry_snapshot=attestation_registry_snapshot,
+            attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+            consumer_now_epoch=int(consumer_now_epoch),
         )
     except Exception as exc:
         return False, str(exc)
@@ -217,6 +220,7 @@ def verify_settlement_spot_price_attestation_payload(
     max_attestation_age_epochs: int,
     attestation_policy: SettlementAttestationPolicy | None = None,
     attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
+    attestation_registry_snapshot_loader: object | None = None,
 ) -> tuple[bool, str | None]:
     try:
         attestation = SettlementSpotPriceAttestation.from_dict(payload)
@@ -228,6 +232,7 @@ def verify_settlement_spot_price_attestation_payload(
         max_attestation_age_epochs=max_attestation_age_epochs,
         attestation_policy=attestation_policy,
         attestation_registry_snapshot=attestation_registry_snapshot,
+        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
     )
 
 

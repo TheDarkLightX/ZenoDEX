@@ -275,13 +275,16 @@ def build_settlement_endogenous_lp_value_packet_from_price_attestation(
     pool_snapshots: Sequence[PoolState],
     attestation_policy: SettlementAttestationPolicy | None = None,
     attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
+    attestation_registry_snapshot_loader: object | None = None,
 ) -> SettlementEndogenousLPValuePacket:
     from .settlement_price_attestation import verify_settlement_spot_price_attestation
-    from .settlement_signer_registry import resolve_attestation_policy_and_registry_snapshot
+    from .settlement_signer_registry import load_attestation_policy_and_registry_snapshot
 
-    attestation_policy, attestation_registry_snapshot = resolve_attestation_policy_and_registry_snapshot(
+    attestation_policy, attestation_registry_snapshot = load_attestation_policy_and_registry_snapshot(
         attestation_policy=attestation_policy,
         attestation_registry_snapshot=attestation_registry_snapshot,
+        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+        consumer_now_epoch=int(consumer_now_epoch),
     )
 
     ok, err = verify_settlement_spot_price_attestation(
@@ -290,6 +293,7 @@ def build_settlement_endogenous_lp_value_packet_from_price_attestation(
         max_attestation_age_epochs=max_attestation_age_epochs,
         attestation_policy=attestation_policy,
         attestation_registry_snapshot=attestation_registry_snapshot,
+        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
     )
     if not ok:
         raise ValueError(f"invalid settlement spot price attestation: {err}")
@@ -379,6 +383,7 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
     packet_payload: Mapping[str, Any],
     attestation_policy: SettlementAttestationPolicy | None = None,
     attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
+    attestation_registry_snapshot_loader: object | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -399,6 +404,7 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
             pool_snapshots=pool_snapshots,
             attestation_policy=attestation_policy,
             attestation_registry_snapshot=attestation_registry_snapshot,
+            attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
         )
     except Exception as exc:
         return False, str(exc)
