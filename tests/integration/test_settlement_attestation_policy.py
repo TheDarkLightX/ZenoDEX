@@ -49,6 +49,19 @@ def test_settlement_attestation_policy_round_trips_and_hashes_stably() -> None:
     assert rebuilt.max_bundle_price_spread_bps == 125
 
 
+@pytest.mark.parametrize("field_name", ["governance_approved", "timelock_elapsed", "multisig_approved"])
+def test_settlement_attestation_policy_rejects_truthy_string_booleans(field_name: str) -> None:
+    attestation = _attestation()
+    policy_payload = make_attestation_policy(attestation).to_dict()
+    policy_payload[field_name] = "false"
+
+    with pytest.raises(TypeError, match=rf"^{field_name} must be a bool$"):
+        SettlementAttestationPolicy.from_dict(policy_payload)
+
+    with pytest.raises(TypeError, match=rf"^{field_name} must be a bool$"):
+        coerce_settlement_attestation_policy(policy_payload)
+
+
 @pytest.mark.parametrize(
     ("policy_kwargs", "expected_error", "expected_code"),
     [
