@@ -159,6 +159,30 @@ def test_quote_receipt_exact_in_roundtrip() -> None:
     assert err2 in {"pool_snapshot_mismatch", "hop_quote_mismatch", "hop_quote_error"}
 
 
+def test_quote_receipt_roundtrip_with_quote_epoch() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert q is not None
+
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=7)
+    assert receipt["body"]["quote_epoch"] == 7
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
+    assert ok, err
+
+
+def test_make_route_quote_receipt_rejects_bad_quote_epoch() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert q is not None
+
+    with pytest.raises(ValueError, match="quote_epoch must be a non-negative int"):
+        make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=-1)
+
+
 def test_quote_receipt_exact_out_split_roundtrip() -> None:
     pools = {
         "p1": _pool("p1", "A", "B", 1000, 1000, 0),
@@ -171,6 +195,17 @@ def test_quote_receipt_exact_out_split_roundtrip() -> None:
     receipt = make_route_quote_receipt(kind="exact_out", quote=q, pools_by_id=pools)
     ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools)
     assert ok, err
+
+
+def test_quote_receipt_rejects_bad_quote_epoch() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+    body = copy.deepcopy(receipt["body"])
+    body["quote_epoch"] = -1
+    bad = {"body": body, "receipt_hash": receipt_hash(body)}
+
+    ok, err = verify_route_quote_receipt(bad, pools_by_id=pools)
+    assert not ok
+    assert err == "bad_quote_epoch"
 
 
 def test_quote_receipt_verifier_rejects_repeated_pool_split_with_stale_second_leg() -> None:
