@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Mapping
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 from src.state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 
@@ -331,6 +334,115 @@ class InMemorySettlementSignerRegistryAnchorLoader:
                 request.policy_id,
                 int(request.policy_epoch),
             )
+        )
+
+
+class JsonRpcSettlementSignerRegistryAnchorLoader:
+    def __init__(
+        self,
+        endpoint_url: str,
+        *,
+        method: str = "zenodex_getSettlementSignerRegistryAnchor",
+        timeout_s: float = 5.0,
+        headers: Mapping[str, str] | None = None,
+        transport: object | None = None,
+    ):
+        if not isinstance(endpoint_url, str) or not endpoint_url.strip():
+            raise ValueError("endpoint_url must be a non-empty string")
+        normalized_endpoint = endpoint_url.strip()
+        if not (normalized_endpoint.startswith("http://") or normalized_endpoint.startswith("https://")):
+            raise ValueError("endpoint_url must start with http:// or https://")
+        if not isinstance(method, str) or not method.strip():
+            raise ValueError("method must be a non-empty string")
+        if not isinstance(timeout_s, (int, float)) or isinstance(timeout_s, bool) or float(timeout_s) <= 0.0:
+            raise ValueError("timeout_s must be a positive number")
+        normalized_headers: dict[str, str] = {"Content-Type": "application/json"}
+        if headers is not None:
+            if not isinstance(headers, Mapping):
+                raise TypeError("headers must be a mapping")
+            for raw_key, raw_value in headers.items():
+                if not isinstance(raw_key, str) or not raw_key.strip():
+                    raise ValueError("header names must be non-empty strings")
+                if not isinstance(raw_value, str):
+                    raise TypeError("header values must be strings")
+                normalized_headers[raw_key.strip()] = raw_value
+        if transport is not None and not callable(transport):
+            raise TypeError("transport must be callable")
+        self._endpoint_url = normalized_endpoint
+        self._method = method.strip()
+        self._timeout_s = float(timeout_s)
+        self._headers = dict(sorted(normalized_headers.items()))
+        self._transport = transport
+
+    def load_anchor(self, request: SettlementSignerRegistrySnapshotRequest) -> SettlementSignerRegistryAnchor | None:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "settlement-signer-registry-anchor",
+            "method": self._method,
+            "params": request.to_dict(),
+        }
+        response = self._call(payload)
+        if not isinstance(response, Mapping):
+            raise ValueError(
+                _format_binding_error(
+                    "attestation registry json-rpc response must be an object",
+                    details={
+                        "endpoint_url": self._endpoint_url,
+                        "method": self._method,
+                        "response_type": type(response).__name__,
+                    },
+                )
+            )
+        rpc_error = response.get("error")
+        if rpc_error is not None:
+            if isinstance(rpc_error, Mapping):
+                code = rpc_error.get("code")
+                message = rpc_error.get("message")
+                data = rpc_error.get("data")
+                raise ValueError(
+                    _format_binding_error(
+                        "attestation registry json-rpc returned an error",
+                        details={
+                            "endpoint_url": self._endpoint_url,
+                            "method": self._method,
+                            "request": request.to_dict(),
+                            "rpc_error_code": code,
+                            "rpc_error_message": message,
+                            "rpc_error_data": data,
+                        },
+                    )
+                )
+            raise ValueError(
+                _format_binding_error(
+                    "attestation registry json-rpc returned a non-object error",
+                    details={
+                        "endpoint_url": self._endpoint_url,
+                        "method": self._method,
+                        "request": request.to_dict(),
+                        "rpc_error": rpc_error,
+                    },
+                )
+            )
+        result = response.get("result")
+        if result is None:
+            return None
+        anchor = coerce_settlement_signer_registry_anchor(result)
+        _require_anchor_matches_request(anchor=anchor, request=request)
+        return anchor
+
+    def _call(self, payload: Mapping[str, Any]) -> Any:
+        if self._transport is not None:
+            return self._transport(
+                self._endpoint_url,
+                dict(self._headers),
+                dict(payload),
+                self._timeout_s,
+            )
+        return _json_rpc_post_json(
+            endpoint_url=self._endpoint_url,
+            headers=self._headers,
+            payload=payload,
+            timeout_s=self._timeout_s,
         )
 
 
@@ -728,6 +840,66 @@ def _require_snapshot_matches_anchor(
         )
 
 
+def _json_rpc_post_json(
+    *,
+    endpoint_url: str,
+    headers: Mapping[str, str],
+    payload: Mapping[str, Any],
+    timeout_s: float,
+) -> Any:
+    body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    req = urllib_request.Request(endpoint_url, data=body, method="POST")
+    for key, value in headers.items():
+        req.add_header(key, value)
+    try:
+        with urllib_request.urlopen(req, timeout=timeout_s) as resp:
+            raw = resp.read()
+    except urllib_error.HTTPError as exc:
+        raw = exc.read()
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry json-rpc endpoint returned HTTP error",
+                details={
+                    "endpoint_url": endpoint_url,
+                    "status": int(exc.code),
+                    "body": raw.decode("utf-8", "replace"),
+                },
+            )
+        ) from exc
+    except urllib_error.URLError as exc:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry json-rpc request failed",
+                details={
+                    "endpoint_url": endpoint_url,
+                    "reason": exc.reason,
+                },
+            )
+        ) from exc
+    except OSError as exc:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry json-rpc transport failed",
+                details={
+                    "endpoint_url": endpoint_url,
+                    "reason": str(exc),
+                },
+            )
+        ) from exc
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry json-rpc response is not valid json",
+                details={
+                    "endpoint_url": endpoint_url,
+                    "body": raw.decode("utf-8", "replace"),
+                },
+            )
+        ) from exc
+
+
 __all__ = [
     "SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA",
     "SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA",
@@ -739,6 +911,7 @@ __all__ = [
     "ChainAnchoredSettlementSignerRegistrySnapshotLoader",
     "InMemorySettlementSignerRegistryAnchorLoader",
     "InMemorySettlementSignerRegistrySnapshotLoader",
+    "JsonRpcSettlementSignerRegistryAnchorLoader",
     "check_settlement_attestation_policy_registry_binding",
     "coerce_settlement_signer_registry_anchor",
     "coerce_settlement_signer_registry_snapshot",
