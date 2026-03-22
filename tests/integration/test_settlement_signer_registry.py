@@ -19,6 +19,7 @@ from src.integration.settlement_signer_registry import (
     ChainAnchoredSettlementSignerRegistrySnapshotLoader,
     InMemorySettlementSignerRegistryAnchorLoader,
     InMemorySettlementSignerRegistrySnapshotLoader,
+    JsonRpcSettlementSignerRegistryAnchorLoader,
     SettlementSignerRegistrySnapshot,
     check_settlement_attestation_policy_registry_binding,
     coerce_settlement_signer_registry_anchor,
@@ -189,5 +190,93 @@ def test_chain_anchored_snapshot_loader_rejects_anchor_drift() -> None:
             attestation_policy=policy,
             attestation_registry_snapshot=None,
             attestation_registry_snapshot_loader=anchored_loader,
+            consumer_now_epoch=103,
+        )
+
+
+def test_json_rpc_settlement_signer_registry_anchor_loader_accepts_typed_anchor() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    request_seen: dict[str, object] = {}
+
+    def _transport(endpoint_url: str, headers: dict[str, str], payload: dict[str, object], timeout_s: float) -> dict[str, object]:
+        request_seen["endpoint_url"] = endpoint_url
+        request_seen["headers"] = headers
+        request_seen["payload"] = payload
+        request_seen["timeout_s"] = timeout_s
+        return {
+            "jsonrpc": "2.0",
+            "id": payload["id"],
+            "result": make_attestation_registry_anchor(attestation).to_dict(),
+        }
+
+    loader = JsonRpcSettlementSignerRegistryAnchorLoader(
+        "https://rpc.example.invalid",
+        transport=_transport,
+    )
+
+    resolved_policy, resolved_snapshot = load_attestation_policy_and_registry_snapshot(
+        attestation_policy=policy,
+        attestation_registry_snapshot=None,
+        attestation_registry_snapshot_loader=ChainAnchoredSettlementSignerRegistrySnapshotLoader(
+            anchor_loader=loader,
+            snapshot_loader=InMemorySettlementSignerRegistrySnapshotLoader(
+                {
+                    (int(policy.chain_id), policy.registry_contract, policy.policy_id, int(policy.policy_epoch)): (
+                        make_attestation_registry_snapshot(attestation)
+                    )
+                }
+            ),
+        ),
+        consumer_now_epoch=103,
+    )
+
+    assert resolved_policy == policy
+    assert resolved_snapshot is not None
+    assert request_seen["endpoint_url"] == "https://rpc.example.invalid"
+    assert request_seen["timeout_s"] == 5.0
+    assert isinstance(request_seen["headers"], dict)
+    assert request_seen["payload"] == {
+        "jsonrpc": "2.0",
+        "id": "settlement-signer-registry-anchor",
+        "method": "zenodex_getSettlementSignerRegistryAnchor",
+        "params": {
+            "chain_id": 1,
+            "registry_contract": policy.registry_contract,
+            "policy_id": policy.policy_id,
+            "policy_epoch": 1,
+            "registry_root_hint": policy.registry_root,
+            "policy_hash_hint": policy.policy_hash_hex(),
+            "consumer_now_epoch": 103,
+        },
+    }
+
+
+def test_json_rpc_settlement_signer_registry_anchor_loader_rejects_rpc_error() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+
+    def _transport(_endpoint_url: str, _headers: dict[str, str], payload: dict[str, object], _timeout_s: float) -> dict[str, object]:
+        return {
+            "jsonrpc": "2.0",
+            "id": payload["id"],
+            "error": {"code": -32001, "message": "anchor unavailable", "data": {"retryable": False}},
+        }
+
+    loader = JsonRpcSettlementSignerRegistryAnchorLoader(
+        "https://rpc.example.invalid",
+        transport=_transport,
+    )
+
+    with pytest.raises(ValueError, match="attestation registry json-rpc returned an error"):
+        load_attestation_policy_and_registry_snapshot(
+            attestation_policy=policy,
+            attestation_registry_snapshot=None,
+            attestation_registry_snapshot_loader=ChainAnchoredSettlementSignerRegistrySnapshotLoader(
+                anchor_loader=loader,
+                snapshot_loader=InMemorySettlementSignerRegistrySnapshotLoader(
+                    {(int(policy.chain_id), policy.registry_contract, policy.policy_id, int(policy.policy_epoch)): make_attestation_registry_snapshot(attestation)}
+                ),
+            ),
             consumer_now_epoch=103,
         )
