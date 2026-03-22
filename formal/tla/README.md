@@ -77,7 +77,8 @@ What it models:
 - loading a registry snapshot and a chain anchor,
 - explicit clean vs drifted snapshot/anchor outcomes,
 - acceptance only when request/snapshot/anchor/proof signals all agree,
-- eventual rejection when drift is visible,
+- eventual rejection when snapshot/anchor binding drift is visible,
+- eventual resolution when the proof path is still unresolved after the binding surface is otherwise ready,
 - eventual acceptance when the bridge-ready condition holds under weak fairness.
 
 What it is for:

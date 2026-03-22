@@ -67,7 +67,7 @@ BridgeReady ==
   /\ snapshotEpoch = requestEpoch
   /\ anchorEpoch = requestEpoch
 
-DriftVisible ==
+BindingMismatchVisible ==
   /\ requestIssued
   /\ ~accepted
   /\ ~rejected
@@ -77,6 +77,17 @@ DriftVisible ==
      \/ /\ anchorPresent
         /\ (anchorEpoch # requestEpoch \/ ~anchorBindingOk \/ ~policyBindingOk)
      )
+
+ProofPathRiskVisible ==
+  /\ requestIssued
+  /\ ~accepted
+  /\ ~rejected
+  /\ snapshotPresent
+  /\ anchorPresent
+  /\ requestBindingOk
+  /\ anchorBindingOk
+  /\ policyBindingOk
+  /\ ~proofOk
 
 Init ==
   /\ requestIssued = FALSE
@@ -237,7 +248,7 @@ Accept ==
 Reject ==
   /\ ~accepted
   /\ ~rejected
-  /\ DriftVisible
+  /\ BindingMismatchVisible \/ ProofPathRiskVisible
   /\ rejected' = TRUE
   /\ UNCHANGED <<
       requestIssued,
@@ -345,7 +356,10 @@ DriftedAnchorBlocksAcceptance == accepted => anchorEpoch = requestEpoch
 FairReadyRequestEventuallyAccepts ==
   (requestIssued /\ ~accepted /\ ~rejected /\ BridgeReady) ~> accepted
 
-FairDriftedRequestEventuallyRejects ==
-  DriftVisible ~> rejected
+FairBindingMismatchEventuallyRejects ==
+  BindingMismatchVisible ~> rejected
+
+FairProofPathEventuallyResolves ==
+  ProofPathRiskVisible ~> (rejected \/ proofOk)
 
 ====
