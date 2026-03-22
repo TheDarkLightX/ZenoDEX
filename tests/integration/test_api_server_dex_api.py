@@ -1192,6 +1192,142 @@ def test_api_server_verify_settlement_spot_price_attestation_accepts_registry_sn
         _stop_test_server(httpd, t)
 
 
+def test_api_server_build_and_verify_settlement_spot_price_attestation_bundle() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        build_packet_req_a = {
+            "entries": [
+                {
+                    "asset": "0x" + "05" * 32,
+                    "price": 100,
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": "0x" + "06" * 32,
+                    "price": 120,
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+        build_packet_req_b = {
+            "entries": [
+                {
+                    "asset": "0x" + "05" * 32,
+                    "price": 101,
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": "0x" + "06" * 32,
+                    "price": 121,
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+
+        conn0 = HTTPConnection(host, port, timeout=2.0)
+        conn0.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req_a).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp0 = conn0.getresponse()
+        body0 = json.loads(resp0.read().decode("utf-8"))
+        assert resp0.status == 200
+        assert body0["ok"] is True
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req_b).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        assert body1["ok"] is True
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        attestation_a = body2["attestation"]
+
+        conn3 = HTTPConnection(host, port, timeout=2.0)
+        conn3.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": body1["packet"], "signer_privkey": 8}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp3 = conn3.getresponse()
+        body3 = json.loads(resp3.read().decode("utf-8"))
+        assert resp3.status == 200
+        assert body3["ok"] is True
+        attestation_b = body3["attestation"]
+
+        conn4 = HTTPConnection(host, port, timeout=2.0)
+        conn4.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation_bundle",
+            body=json.dumps({"attestations": [attestation_a, attestation_b]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp4 = conn4.getresponse()
+        body4 = json.loads(resp4.read().decode("utf-8"))
+        assert resp4.status == 200
+        assert body4["ok"] is True
+        bundle = body4["bundle"]
+        assert [entry["price"] for entry in bundle["packet"]["entries"]] == [100, 120]
+
+        conn5 = HTTPConnection(host, port, timeout=2.0)
+        conn5.request(
+            "POST",
+            "/api/dex/verify_settlement_spot_price_attestation_bundle",
+            body=json.dumps(
+                {
+                    "bundle": bundle,
+                    "consumer_now_epoch": 103,
+                    "max_attestation_age_epochs": 5,
+                    "attestation_policy": make_attestation_policy_payload(
+                        attestation_a,
+                        min_distinct_signers=2,
+                        max_bundle_price_spread_bps=100,
+                        additional_allowed_signers={attestation_b["signer_pubkey"]: ("oracle:a", "oracle:b")},
+                    ),
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp5 = conn5.getresponse()
+        body5 = json.loads(resp5.read().decode("utf-8"))
+        assert resp5.status == 200
+        assert body5["ok"] is True
+        assert body5["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_build_settlement_spot_value_contract_from_price_attestation() -> None:
     httpd, t, host, port = _start_test_server()
     try:
@@ -1606,6 +1742,171 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
         _stop_test_server(httpd, t)
 
 
+def test_api_server_build_and_verify_settlement_value_packet_lp_bundle_attested() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        settlement, _asset_prices = _spot_settlement_request()
+        settlement["lp_deltas"] = [
+            {
+                "pubkey": settlement["balance_deltas"][0]["pubkey"],
+                "pool_id": settlement["reserve_deltas"][0]["pool_id"],
+                "delta_add": 3,
+                "delta_sub": 0,
+            }
+        ]
+        pool_id = settlement["reserve_deltas"][0]["pool_id"]
+
+        build_packet_req_a = {
+            "entries": [
+                {
+                    "asset": "0x" + "01" * 32,
+                    "price": 100,
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": "0x" + "02" * 32,
+                    "price": 120,
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+        build_packet_req_b = {
+            "entries": [
+                {
+                    "asset": "0x" + "01" * 32,
+                    "price": 101,
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": "0x" + "02" * 32,
+                    "price": 121,
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+
+        conn0 = HTTPConnection(host, port, timeout=2.0)
+        conn0.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req_a).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp0 = conn0.getresponse()
+        body0 = json.loads(resp0.read().decode("utf-8"))
+        assert resp0.status == 200
+        assert body0["ok"] is True
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req_b).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        assert body1["ok"] is True
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        attestation_a = body2["attestation"]
+
+        conn3 = HTTPConnection(host, port, timeout=2.0)
+        conn3.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": body1["packet"], "signer_privkey": 8}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp3 = conn3.getresponse()
+        body3 = json.loads(resp3.read().decode("utf-8"))
+        assert resp3.status == 200
+        assert body3["ok"] is True
+        attestation_b = body3["attestation"]
+
+        conn4 = HTTPConnection(host, port, timeout=2.0)
+        conn4.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation_bundle",
+            body=json.dumps({"attestations": [attestation_a, attestation_b]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp4 = conn4.getresponse()
+        body4 = json.loads(resp4.read().decode("utf-8"))
+        assert resp4.status == 200
+        assert body4["ok"] is True
+        bundle = body4["bundle"]
+
+        req = {
+            "settlement": settlement,
+            "price_attestation_bundle": bundle,
+            "consumer_now_epoch": 103,
+            "max_attestation_age_epochs": 5,
+            "attestation_policy": make_attestation_policy_payload(
+                attestation_a,
+                min_distinct_signers=2,
+                max_bundle_price_spread_bps=100,
+                additional_allowed_signers={attestation_b["signer_pubkey"]: ("oracle:a", "oracle:b")},
+            ),
+            "lp_unit_values": {pool_id: 91},
+        }
+        conn5 = HTTPConnection(host, port, timeout=2.0)
+        conn5.request(
+            "POST",
+            "/api/dex/build_settlement_value_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp5 = conn5.getresponse()
+        body5 = json.loads(resp5.read().decode("utf-8"))
+        assert resp5.status == 200
+        assert body5["ok"] is True
+        packet = body5["packet"]
+        assert packet["mode"] == "lp_aware"
+        assert packet["price_input_kind"] == "attestation_bundle"
+        assert packet["packet_ok"] is True
+
+        verify_req = dict(req)
+        verify_req["packet"] = packet
+        conn6 = HTTPConnection(host, port, timeout=2.0)
+        conn6.request(
+            "POST",
+            "/api/dex/verify_settlement_value_packet",
+            body=json.dumps(verify_req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp6 = conn6.getresponse()
+        body6 = json.loads(resp6.read().decode("utf-8"))
+        assert resp6.status == 200
+        assert body6["ok"] is True
+        assert body6["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_build_and_verify_settlement_endogenous_lp_value_packet() -> None:
     httpd, t, host, port = _start_test_server()
     try:
@@ -1753,6 +2054,160 @@ def test_api_server_build_endogenous_lp_value_packet_from_attestation() -> None:
         packet = body2["packet"]
         assert packet["price_input_kind"] == "attestation"
         assert packet["packet_ok"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_and_verify_settlement_endogenous_lp_value_packet_from_bundle() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        settlement, _asset_prices, pool_snapshot = _spot_settlement_request_with_pool()
+        build_packet_req_a = {
+            "entries": [
+                {
+                    "asset": "0x" + "01" * 32,
+                    "price": 100,
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": "0x" + "02" * 32,
+                    "price": 120,
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+        build_packet_req_b = {
+            "entries": [
+                {
+                    "asset": "0x" + "01" * 32,
+                    "price": 101,
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": "0x" + "02" * 32,
+                    "price": 121,
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+
+        conn0 = HTTPConnection(host, port, timeout=2.0)
+        conn0.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req_a).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp0 = conn0.getresponse()
+        body0 = json.loads(resp0.read().decode("utf-8"))
+        assert resp0.status == 200
+        assert body0["ok"] is True
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req_b).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        assert body1["ok"] is True
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        attestation_a = body2["attestation"]
+
+        conn3 = HTTPConnection(host, port, timeout=2.0)
+        conn3.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": body1["packet"], "signer_privkey": 8}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp3 = conn3.getresponse()
+        body3 = json.loads(resp3.read().decode("utf-8"))
+        assert resp3.status == 200
+        assert body3["ok"] is True
+        attestation_b = body3["attestation"]
+
+        conn4 = HTTPConnection(host, port, timeout=2.0)
+        conn4.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation_bundle",
+            body=json.dumps({"attestations": [attestation_a, attestation_b]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp4 = conn4.getresponse()
+        body4 = json.loads(resp4.read().decode("utf-8"))
+        assert resp4.status == 200
+        assert body4["ok"] is True
+        bundle = body4["bundle"]
+
+        req = {
+            "settlement": settlement,
+            "price_attestation_bundle": bundle,
+            "consumer_now_epoch": 103,
+            "max_attestation_age_epochs": 5,
+            "attestation_policy": make_attestation_policy_payload(
+                attestation_a,
+                min_distinct_signers=2,
+                max_bundle_price_spread_bps=100,
+                additional_allowed_signers={attestation_b["signer_pubkey"]: ("oracle:a", "oracle:b")},
+            ),
+            "pool_snapshots": [pool_snapshot],
+        }
+        conn5 = HTTPConnection(host, port, timeout=2.0)
+        conn5.request(
+            "POST",
+            "/api/dex/build_settlement_endogenous_lp_value_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp5 = conn5.getresponse()
+        body5 = json.loads(resp5.read().decode("utf-8"))
+        assert resp5.status == 200
+        assert body5["ok"] is True
+        packet = body5["packet"]
+        assert packet["price_input_kind"] == "attestation_bundle"
+        assert packet["packet_ok"] is True
+
+        verify_req = dict(req)
+        verify_req["packet"] = packet
+        conn6 = HTTPConnection(host, port, timeout=2.0)
+        conn6.request(
+            "POST",
+            "/api/dex/verify_settlement_endogenous_lp_value_packet",
+            body=json.dumps(verify_req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp6 = conn6.getresponse()
+        body6 = json.loads(resp6.read().decode("utf-8"))
+        assert resp6.status == 200
+        assert body6["ok"] is True
+        assert body6["error"] is None
     finally:
         _stop_test_server(httpd, t)
 
@@ -1950,6 +2405,175 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
         assert resp3.status == 200
         assert body3["ok"] is True
         assert body3["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_endogenous_bundle_attested() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        settlement, asset_prices, pool_snapshot = _four_swap_settlement_request_with_pool()
+        assets = list(asset_prices.items())
+        build_packet_req_a = {
+            "entries": [
+                {
+                    "asset": assets[0][0],
+                    "price": assets[0][1],
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": assets[1][0],
+                    "price": assets[1][1],
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+        build_packet_req_b = {
+            "entries": [
+                {
+                    "asset": assets[0][0],
+                    "price": assets[0][1] + 1,
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": assets[1][0],
+                    "price": assets[1][1] + 1,
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+
+        conn0 = HTTPConnection(host, port, timeout=2.0)
+        conn0.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req_a).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp0 = conn0.getresponse()
+        body0 = json.loads(resp0.read().decode("utf-8"))
+        assert resp0.status == 200
+        assert body0["ok"] is True
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req_b).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        assert body1["ok"] is True
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        attestation_a = body2["attestation"]
+
+        conn3 = HTTPConnection(host, port, timeout=2.0)
+        conn3.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": body1["packet"], "signer_privkey": 8}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp3 = conn3.getresponse()
+        body3 = json.loads(resp3.read().decode("utf-8"))
+        assert resp3.status == 200
+        assert body3["ok"] is True
+        attestation_b = body3["attestation"]
+
+        conn4 = HTTPConnection(host, port, timeout=2.0)
+        conn4.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation_bundle",
+            body=json.dumps({"attestations": [attestation_a, attestation_b]}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp4 = conn4.getresponse()
+        body4 = json.loads(resp4.read().decode("utf-8"))
+        assert resp4.status == 200
+        assert body4["ok"] is True
+        bundle = body4["bundle"]
+
+        req = {
+            "settlement": settlement,
+            "proof_flags": {
+                "cpmm_ok": 1,
+                "balance_ok": 1,
+                "token_ok": 1,
+                "buyback_floor_ok": 1,
+                "buyback_floor_fixedpoint_ok": 1,
+                "rebate_ok": 1,
+                "lock_weight_ok": 1,
+                "proof_ok": 1,
+                "binding_ok": 1,
+            },
+            "price_history": [100, 110, 120],
+            "feature_extension_inputs": _feature_extension_inputs_payload(),
+            "price_attestation_bundle": bundle,
+            "consumer_now_epoch": 103,
+            "max_attestation_age_epochs": 5,
+            "attestation_policy": make_attestation_policy_payload(
+                attestation_a,
+                min_distinct_signers=2,
+                max_bundle_price_spread_bps=100,
+                additional_allowed_signers={attestation_b["signer_pubkey"]: ("oracle:a", "oracle:b")},
+            ),
+            "pool_snapshots": [pool_snapshot],
+        }
+        conn5 = HTTPConnection(host, port, timeout=2.0)
+        conn5.request(
+            "POST",
+            "/api/dex/build_settlement_end_to_end_certificate_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp5 = conn5.getresponse()
+        body5 = json.loads(resp5.read().decode("utf-8"))
+        assert resp5.status == 200
+        assert body5["ok"] is True
+        packet = body5["packet"]
+        assert packet["packet_ok"] is True
+        assert packet["value_packet_kind"] == "endogenous_lp_value"
+        assert packet["price_input_kind"] == "attestation_bundle"
+
+        verify_req = dict(req)
+        verify_req["packet"] = packet
+        conn6 = HTTPConnection(host, port, timeout=2.0)
+        conn6.request(
+            "POST",
+            "/api/dex/verify_settlement_end_to_end_certificate_packet",
+            body=json.dumps(verify_req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp6 = conn6.getresponse()
+        body6 = json.loads(resp6.read().decode("utf-8"))
+        assert resp6.status == 200
+        assert body6["ok"] is True
+        assert body6["error"] is None
     finally:
         _stop_test_server(httpd, t)
 
