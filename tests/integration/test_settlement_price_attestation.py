@@ -7,7 +7,11 @@ import pytest
 from tests.integration._attestation_policy_helper import make_attestation_policy, make_attestation_registry_snapshot
 
 from src.integration.settlement_price_attestation import (
+    SettlementSpotPriceAttestationBundle,
+    build_settlement_spot_price_attestation_bundle,
     build_settlement_spot_price_attestation,
+    verify_settlement_spot_price_attestation_bundle,
+    verify_settlement_spot_price_attestation_bundle_payload,
     verify_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation_payload,
 )
@@ -199,3 +203,65 @@ def test_settlement_spot_price_attestation_accepts_snapshot_loader() -> None:
     )
     assert ok is True
     assert err is None
+
+
+def test_settlement_spot_price_attestation_bundle_accepts_multi_signer_quorum() -> None:
+    packet = _packet()
+    attestation_a = build_settlement_spot_price_attestation(packet=packet, signer_privkey=7)
+    attestation_b = build_settlement_spot_price_attestation(packet=packet, signer_privkey=8)
+    bundle = build_settlement_spot_price_attestation_bundle(
+        attestations=(attestation_a, attestation_b),
+    )
+    policy = make_attestation_policy(
+        attestation_a,
+        min_distinct_signers=2,
+        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+    )
+
+    ok, err = verify_settlement_spot_price_attestation_bundle(
+        bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=policy,
+    )
+    assert ok is True
+    assert err is None
+
+    ok2, err2 = verify_settlement_spot_price_attestation_bundle_payload(
+        payload=bundle.to_dict(),
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=policy,
+    )
+    assert ok2 is True
+    assert err2 is None
+
+
+def test_settlement_spot_price_attestation_bundle_rejects_signer_quorum_not_met() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(packet=packet, signer_privkey=7)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation,))
+    policy = make_attestation_policy(attestation, min_distinct_signers=2)
+
+    ok, err = verify_settlement_spot_price_attestation_bundle(
+        bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=policy,
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith("attestation policy signer quorum not met")
+
+
+def test_settlement_spot_price_attestation_bundle_rejects_duplicate_signers() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(packet=packet, signer_privkey=7)
+
+    with pytest.raises(ValueError, match="bundle attestation signer_pubkey values must be distinct"):
+        SettlementSpotPriceAttestationBundle(
+            packet=packet,
+            packet_hash=attestation.packet_hash,
+            signed_at_epoch=attestation.signed_at_epoch,
+            attestations=(attestation, attestation),
+        )
