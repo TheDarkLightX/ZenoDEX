@@ -34,7 +34,7 @@ def test_negative_knowledge_ratchet_requires_remaining_excluded_domain(tmp_path:
     try:
         check_negative_knowledge_ratchet(negative_knowledge_path=broken)
     except ValueError as exc:
-        assert "missing remaining_excluded_domain" in str(exc)
+        assert "narrowed records must have a nonempty remaining_excluded_domain" in str(exc)
     else:
         raise AssertionError("expected narrowed negative-knowledge ratchet to fail")
 
