@@ -1,0 +1,5128 @@
+{
+  "algorithm": {
+    "alpha": 1.25,
+    "cases_per_action": 16,
+    "global_state_pool": {
+      "action_accepts": {
+        "add_liquidity": 16,
+        "create_pool": 1,
+        "remove_liquidity": 31,
+        "swap_a_for_b": 1,
+        "swap_a_for_b_exact_out": 30,
+        "swap_b_for_a": 8,
+        "swap_b_for_a_exact_out": 35
+      },
+      "action_pulls": {
+        "add_liquidity": 200,
+        "create_pool": 200,
+        "remove_liquidity": 200,
+        "swap_a_for_b": 200,
+        "swap_a_for_b_exact_out": 200,
+        "swap_b_for_a": 200,
+        "swap_b_for_a_exact_out": 200
+      },
+      "baseline_prob": 0.25,
+      "max_states": 192,
+      "reset_prob": 0.15,
+      "seed_state_boundaries": {
+        "enabled": false
+      },
+      "state_pool_size": 105,
+      "top_k_candidates": 60,
+      "unique_states_seen": 105,
+      "walk_steps": 1400
+    },
+    "iterations_per_action": 520,
+    "max_candidates_per_action": 600,
+    "max_states": 192,
+    "name": "ucb1_boundary_sampler",
+    "outside_boundary_candidates": true,
+    "pair_density_bonus": true,
+    "refine_max_steps": 6,
+    "refine_pairs_per_action": 20
+  },
+  "cases": [
+    {
+      "action": "add_liquidity",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=max",
+        "provider=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 4
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1001,
+          "pool_b": 1001,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998998,
+          "u0_b": 1998998,
+          "u0_lp": 0,
+          "u1_a": 2000001,
+          "u1_b": 2000001,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 1,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1000,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 4
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1002,
+          "pool_a": 1002,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999000,
+          "u0_b": 1999000,
+          "u0_lp": 1,
+          "u1_a": 1999998,
+          "u1_b": 1999998,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1001,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1999000,
+        "u0_lp": 0,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.966667,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min+1",
+        "lp_recipient=max",
+        "provider=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 4
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1002,
+          "pool_a": 1002,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998997,
+          "u0_b": 1998997,
+          "u0_lp": 1,
+          "u1_a": 2000001,
+          "u1_b": 2000001,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 1,
+        "lp_recipient": 1,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1001,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 1,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 1.666667
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.966667,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min+1",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 4
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1002,
+          "pool_a": 1002,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999000,
+          "u0_b": 1999000,
+          "u0_lp": 1,
+          "u1_a": 1999998,
+          "u1_b": 1999998,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 2,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1001,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1999000,
+        "u0_lp": 0,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.666667
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.966667,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min+1",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 4
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1002,
+          "pool_a": 1002,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998999,
+          "u0_b": 1998999,
+          "u0_lp": 1,
+          "u1_a": 1999999,
+          "u1_b": 1999999,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 1,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1001,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.666667
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.966667,
+      "boundary_tags": [
+        "amount_a_desired=min+1",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 4
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1002,
+          "pool_a": 1002,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998999,
+          "u0_b": 1998999,
+          "u0_lp": 1,
+          "u1_a": 1999999,
+          "u1_b": 1999999,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 2,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1001,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.666667
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min-1",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": -1,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1001,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=max+1",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1000000001,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1003,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 3,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=min-1",
+        "provider=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": -1,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1007,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1999001,
+        "u0_lp": 0,
+        "u1_a": 1999993,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min-1",
+        "lp_recipient=min",
+        "provider=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": -1,
+        "lp_recipient": 0,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1002,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 2,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 2
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1009,
+        "pool_b": 999,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998995,
+        "u0_b": 1999002,
+        "u0_lp": 1,
+        "u1_a": 1999996,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=max+1",
+        "lp_recipient=min",
+        "provider=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 1000000001,
+        "lp_recipient": 0,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1002,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 2000002,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min-1",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 0,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1004,
+        "pool_a": 1004,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998997,
+        "u0_lp": 3,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": -1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1000,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=min",
+        "amount_b_min=min",
+        "lp_recipient=max+1",
+        "provider=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1,
+        "amount_b_min": 0,
+        "lp_recipient": 2,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1004,
+        "pool_a": 1004,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 3,
+        "u1_a": 1999998,
+        "u1_b": 1999998,
+        "u1_lp": 1
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "add_liquidity",
+      "boundary_score": 0.875,
+      "boundary_tags": [
+        "amount_a_desired=min",
+        "amount_a_min=min",
+        "amount_b_desired=max+1",
+        "amount_b_min=min",
+        "lp_recipient=min",
+        "provider=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_desired": 1,
+        "amount_a_min": 0,
+        "amount_b_desired": 1000000001,
+        "amount_b_min": 0,
+        "lp_recipient": 0,
+        "provider": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1004,
+        "pool_a": 1004,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 3,
+        "u1_a": 1999998,
+        "u1_b": 1999998,
+        "u1_lp": 1
+      },
+      "reward": 1.25
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min",
+        "creator=max",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 1
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1001,
+          "pool_b": 1001,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 2000000,
+          "u0_b": 2000000,
+          "u0_lp": 0,
+          "u1_a": 1998999,
+          "u1_b": 1998999,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1001,
+        "creator": 1,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min",
+        "creator=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 1
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1001,
+          "pool_b": 1001,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998999,
+          "u0_b": 1998999,
+          "u0_lp": 1,
+          "u1_a": 2000000,
+          "u1_b": 2000000,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1001,
+        "creator": 0,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_a=min+1",
+        "amount_b=min",
+        "creator=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 1
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1002,
+          "pool_b": 1001,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998998,
+          "u0_b": 1998999,
+          "u0_lp": 1,
+          "u1_a": 2000000,
+          "u1_b": 2000000,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1002,
+        "amount_b": 1001,
+        "creator": 0,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min+1",
+        "creator=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 1
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1001,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998999,
+          "u0_b": 1998998,
+          "u0_lp": 1,
+          "u1_a": 2000000,
+          "u1_b": 2000000,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1002,
+        "creator": 0,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min",
+        "creator=min",
+        "sqrt_product=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1001,
+        "creator": 0,
+        "sqrt_product": 1000
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min",
+        "creator=min-1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1001,
+        "creator": -1,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_a=min-1",
+        "amount_b=min",
+        "creator=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1000,
+        "amount_b": 1001,
+        "creator": 0,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min-1",
+        "creator=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1000,
+        "creator": 0,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=max+1",
+        "creator=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1000000001,
+        "creator": 0,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min",
+        "creator=max+1",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1001,
+        "creator": 2,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_a=max+1",
+        "amount_b=min",
+        "creator=min",
+        "sqrt_product=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1000000001,
+        "amount_b": 1001,
+        "creator": 0,
+        "sqrt_product": 1001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min",
+        "creator=min",
+        "sqrt_product=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1001,
+        "creator": 0,
+        "sqrt_product": 1000000001
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a=max",
+        "amount_b=min",
+        "creator=min",
+        "sqrt_product=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1000000000,
+        "amount_b": 1001,
+        "creator": 0,
+        "sqrt_product": 1000000000
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=max",
+        "creator=min",
+        "sqrt_product=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1000000000,
+        "creator": 0,
+        "sqrt_product": 1000000000
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1006,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998995,
+        "u0_b": 1999001,
+        "u0_lp": 1,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=min",
+        "creator=min",
+        "sqrt_product=max-1"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1001,
+        "creator": 0,
+        "sqrt_product": 999999999
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 0.63
+    },
+    {
+      "action": "create_pool",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_a=min",
+        "amount_b=max",
+        "creator=min",
+        "sqrt_product=min+1"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a": 1001,
+        "amount_b": 1000000000,
+        "creator": 0,
+        "sqrt_product": 1002
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 0.63
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=max",
+        "lp_amount=min",
+        "recipient=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 5
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1006,
+          "pool_b": 1004,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998996,
+          "u0_b": 1998995,
+          "u0_lp": 1,
+          "u1_a": 1999998,
+          "u1_b": 2000001,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": 1,
+        "lp_amount": 1,
+        "recipient": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1007,
+        "pool_b": 1005,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998995,
+        "u0_lp": 1,
+        "u1_a": 1999997,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 5
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1002,
+          "pool_b": 1004,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998998,
+          "u0_b": 1998996,
+          "u0_lp": 0,
+          "u1_a": 2000000,
+          "u1_b": 2000000,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1003,
+        "pool_b": 1005,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998995,
+        "u0_lp": 1,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.96,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=min+1",
+        "recipient=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 5
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1001,
+          "pool_b": 1001,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998999,
+          "u0_b": 1998999,
+          "u0_lp": 0,
+          "u1_a": 2000000,
+          "u1_b": 2000000,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 2,
+        "recipient": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1003,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 2,
+        "u1_a": 1999998,
+        "u1_b": 1999998,
+        "u1_lp": 1
+      },
+      "reward": 1.664
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.96,
+      "boundary_tags": [
+        "amount_a_min=min+1",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 5
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1002,
+          "pool_a": 1002,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998999,
+          "u0_b": 1998999,
+          "u0_lp": 1,
+          "u1_a": 1999999,
+          "u1_b": 1999999,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 1,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1003,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 2,
+        "u1_a": 1999998,
+        "u1_b": 1999998,
+        "u1_lp": 1
+      },
+      "reward": 1.664
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.96,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min+1",
+        "burner=max",
+        "lp_amount=min",
+        "recipient=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 5
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1005,
+          "pool_b": 1001,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999002,
+          "u0_b": 1999000,
+          "u0_lp": 0,
+          "u1_a": 1999993,
+          "u1_b": 1999999,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 1,
+        "burner": 1,
+        "lp_amount": 1,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1006,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999001,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 1999993,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.664
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=max+1",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 1000000001,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1007,
+        "pool_b": 997,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1999003,
+        "u0_lp": 0,
+        "u1_a": 1999997,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=max+1",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 1000000001,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1002,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 2,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=min-1",
+        "recipient=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 0,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1006,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998995,
+        "u0_b": 1998999,
+        "u0_lp": 2,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min-1",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": -1,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1004,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998997,
+        "u0_lp": 1,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=max+1",
+        "lp_amount=min",
+        "recipient=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": 2,
+        "lp_amount": 1,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1003,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 2,
+        "u1_a": 1999998,
+        "u1_b": 1999998,
+        "u1_lp": 1
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": -1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1002,
+        "pool_b": 1005,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998996,
+        "u0_lp": 2,
+        "u1_a": 2000000,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min-1",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": -1,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1002,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 2,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=max+1",
+        "recipient=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 1000000001,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1001,
+        "pool_b": 1007,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998994,
+        "u0_lp": 3,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": 2
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1002,
+        "pool_b": 1005,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998996,
+        "u0_lp": 2,
+        "u1_a": 2000000,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 0.85,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=min",
+        "burner=min-1",
+        "lp_amount=min",
+        "recipient=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 0,
+        "burner": -1,
+        "lp_amount": 1,
+        "recipient": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1001,
+        "pool_b": 1007,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998994,
+        "u0_lp": 3,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.24
+    },
+    {
+      "action": "remove_liquidity",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_a_min=min",
+        "amount_b_min=max",
+        "burner=min",
+        "lp_amount=min",
+        "recipient=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_a_min": 0,
+        "amount_b_min": 1000000000,
+        "burner": 0,
+        "lp_amount": 1,
+        "recipient": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1006,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1999000,
+        "u0_lp": 2,
+        "u1_a": 1999998,
+        "u1_b": 1999998,
+        "u1_lp": 1
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 2
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1005,
+          "pool_b": 1003,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999000,
+          "u0_b": 1998999,
+          "u0_lp": 0,
+          "u1_a": 1999995,
+          "u1_b": 1999998,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999002,
+        "u0_b": 1998998,
+        "u0_lp": 0,
+        "u1_a": 1999995,
+        "u1_b": 1999998,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min",
+        "recipient=max",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 2
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1001,
+          "pool_b": 1006,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998998,
+          "u0_b": 1998994,
+          "u0_lp": 0,
+          "u1_a": 2000001,
+          "u1_b": 2000000,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 0,
+        "recipient": 1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 999,
+        "pool_b": 1007,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998994,
+        "u0_lp": 0,
+        "u1_a": 2000001,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 2
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1002,
+          "pool_b": 1007,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999001,
+          "u0_b": 1998994,
+          "u0_lp": 1,
+          "u1_a": 1999997,
+          "u1_b": 1999999,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1000,
+        "pool_b": 1008,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999001,
+        "u0_b": 1998993,
+        "u0_lp": 1,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min+1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 2
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1005,
+          "pool_b": 1003,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998995,
+          "u0_b": 1998998,
+          "u0_lp": 0,
+          "u1_a": 2000000,
+          "u1_b": 1999999,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 1,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.64
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=min-1",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": -1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1004,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998997,
+        "u0_lp": 1,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min-1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 0,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1001,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1999000,
+        "u0_lp": 0,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=max+1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1000000001,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1002,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999001,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 1999997,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min-1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": -1,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998998,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": -1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1002,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 2,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 2
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1005,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 1999997,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=max+1",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": 2,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1000,
+        "pool_b": 1008,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999001,
+        "u0_b": 1998993,
+        "u0_lp": 1,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max+1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 1000000001,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1002,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 2,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=min",
+        "refine:bisect:err:ParamType->err:GuardFalse",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 0,
+        "lp_supply": 0,
+        "pool_a": 0,
+        "pool_b": 0,
+        "pool_initialized": 0,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 2000000,
+        "u0_b": 2000000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 0.933333
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=min",
+        "refine:bisect:err:GuardFalse->err:ParamType",
+        "trader=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1000,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1999000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 0.933333
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max",
+        "recipient=min",
+        "refine:bisect:err:ParamType->err:GuardFalse",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 1000000000,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998996,
+        "u0_lp": 0,
+        "u1_a": 1999997,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 0.933333
+    },
+    {
+      "action": "swap_a_for_b",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=max",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1000000000,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1000,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max",
+        "recipient=min",
+        "refine:bisect:ok->err:ParamType",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 6
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1009,
+          "pool_b": 1003,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998997,
+          "u0_b": 1998998,
+          "u0_lp": 0,
+          "u1_a": 1999994,
+          "u1_b": 1999999,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000000,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1006,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 1999994,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.963333
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max",
+        "recipient=min",
+        "refine:bisect:err:ParamType->ok",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 6
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1007,
+          "pool_b": 999,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998992,
+          "u0_b": 1999000,
+          "u0_lp": 1,
+          "u1_a": 2000001,
+          "u1_b": 2000001,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000000,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1004,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998995,
+        "u0_b": 1998999,
+        "u0_lp": 1,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 1.963333
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max",
+        "recipient=min",
+        "trader=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 6
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1002,
+          "pool_b": 1003,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999000,
+          "u0_b": 1998998,
+          "u0_lp": 0,
+          "u1_a": 1999998,
+          "u1_b": 1999999,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000000,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1000,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max",
+        "recipient=max",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 6
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1006,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998994,
+          "u0_b": 1998999,
+          "u0_lp": 1,
+          "u1_a": 2000000,
+          "u1_b": 1999999,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000000,
+        "recipient": 1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1003,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998999,
+        "u0_lp": 1,
+        "u1_a": 2000000,
+        "u1_b": 1999998,
+        "u1_lp": 0
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_out=min+1",
+        "max_amount_in=max",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 6
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1007,
+          "pool_b": 1002,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998998,
+          "u0_b": 1999000,
+          "u0_lp": 0,
+          "u1_a": 1999995,
+          "u1_b": 1999998,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 2,
+        "max_amount_in": 1000000000,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999002,
+        "u0_b": 1998998,
+        "u0_lp": 0,
+        "u1_a": 1999995,
+        "u1_b": 1999998,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max-1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 6
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1003,
+          "pool_b": 1005,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998995,
+          "u0_b": 1998995,
+          "u0_lp": 0,
+          "u1_a": 2000002,
+          "u1_b": 2000000,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 999999999,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1001,
+        "pool_b": 1006,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998994,
+        "u0_lp": 0,
+        "u1_a": 2000002,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=mid",
+        "recipient=max",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 6
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1011,
+          "pool_b": 997,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998988,
+          "u0_b": 1999001,
+          "u0_lp": 1,
+          "u1_a": 2000001,
+          "u1_b": 2000002,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 500000000,
+        "recipient": 1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1008,
+        "pool_b": 998,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998991,
+        "u0_b": 1999001,
+        "u0_lp": 1,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 1.605
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=max+1",
+        "max_amount_in=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1000000001,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1002,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998998,
+        "u0_lp": 0,
+        "u1_a": 1999998,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min-1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": -1,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1010,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998994,
+        "u0_b": 1998999,
+        "u0_lp": 2,
+        "u1_a": 1999996,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=min",
+        "trader=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": -1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1002,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 2000002,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min-1",
+        "max_amount_in=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 0,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1006,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999001,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 1999993,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=min",
+        "trader=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 2
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1000,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998996,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=max+1",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": 2,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1000,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998996,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max+1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000001,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1006,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 1999994,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=min-1",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": -1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000001,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_a_for_b_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=max",
+        "max_amount_in=min",
+        "recipient=min",
+        "refine:bisect:err:ParamType->err:GuardFalse",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1000000000,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1001,
+        "pool_b": 1006,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998994,
+        "u0_lp": 0,
+        "u1_a": 2000002,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 0.933333
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 3
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1003,
+          "pool_b": 1003,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999001,
+          "u0_b": 1999000,
+          "u0_lp": 1,
+          "u1_a": 1999996,
+          "u1_b": 1999997,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1004,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1999000,
+        "u0_lp": 1,
+        "u1_a": 1999996,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 3
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1002,
+          "pool_a": 1003,
+          "pool_b": 1005,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998997,
+          "u0_b": 1998995,
+          "u0_lp": 1,
+          "u1_a": 2000000,
+          "u1_b": 2000000,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1004,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998997,
+        "u0_lp": 1,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min",
+        "recipient=max",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 3
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1007,
+          "pool_b": 1001,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998993,
+          "u0_b": 1999000,
+          "u0_lp": 0,
+          "u1_a": 2000000,
+          "u1_b": 1999999,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 0,
+        "recipient": 1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1008,
+        "pool_b": 999,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998993,
+        "u0_b": 1999002,
+        "u0_lp": 0,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.9,
+      "boundary_tags": [
+        "amount_in=min+1",
+        "min_amount_out=min+1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 3
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1003,
+          "pool_b": 1003,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999000,
+          "u0_b": 1998996,
+          "u0_lp": 0,
+          "u1_a": 1999997,
+          "u1_b": 2000001,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 2,
+        "min_amount_out": 1,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1004,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998998,
+        "u0_lp": 0,
+        "u1_a": 1999997,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 1.64
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max+1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 1000000001,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1005,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998999,
+        "u0_lp": 1,
+        "u1_a": 1999999,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=max+1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1000000001,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1002,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999001,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 1999997,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min-1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": -1,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1005,
+        "pool_b": 999,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998995,
+        "u0_b": 1999001,
+        "u0_lp": 1,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": -1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998998,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 2
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1002,
+        "pool_a": 1002,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998998,
+        "u0_lp": 2,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=min-1",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": -1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1006,
+        "pool_b": 999,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1999003,
+        "u0_lp": 0,
+        "u1_a": 1999997,
+        "u1_b": 1999998,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=min",
+        "recipient=max+1",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 0,
+        "recipient": 2,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1004,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999003,
+        "u0_b": 1999000,
+        "u0_lp": 0,
+        "u1_a": 1999993,
+        "u1_b": 1999997,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_in=min-1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 0,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1006,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998995,
+        "u0_b": 1998999,
+        "u0_lp": 2,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=max",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1000000000,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1000,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998999,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 1000000000,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1005,
+        "pool_b": 999,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998994,
+        "u0_b": 1999000,
+        "u0_lp": 1,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_in=min",
+        "min_amount_out=max-1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 1,
+        "min_amount_out": 999999999,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1008,
+        "pool_b": 999,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998993,
+        "u0_b": 1999002,
+        "u0_lp": 0,
+        "u1_a": 1999999,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 0.63
+    },
+    {
+      "action": "swap_b_for_a",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_in=max-1",
+        "min_amount_out=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_in": 999999999,
+        "min_amount_out": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1002,
+        "pool_b": 1005,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 1999998,
+        "u1_b": 1999998,
+        "u1_lp": 0
+      },
+      "reward": 0.63
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max",
+        "recipient=min",
+        "refine:bisect:ok->err:ParamType",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 7
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1001,
+          "pool_b": 1010,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999003,
+          "u0_b": 1998994,
+          "u0_lp": 0,
+          "u1_a": 1999996,
+          "u1_b": 1999996,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000000,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1002,
+        "pool_b": 1007,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999002,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 1999996,
+        "u1_b": 1999996,
+        "u1_lp": 0
+      },
+      "reward": 1.963333
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max",
+        "recipient=min",
+        "trader=max"
+      ],
+      "expected": {
+        "effects": {
+          "event": 7
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 999,
+          "pool_b": 1007,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999001,
+          "u0_b": 1998997,
+          "u0_lp": 0,
+          "u1_a": 2000000,
+          "u1_b": 1999996,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000000,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1000,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max",
+        "recipient=max",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 7
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1003,
+          "pool_b": 1003,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998997,
+          "u0_b": 1998997,
+          "u0_lp": 0,
+          "u1_a": 2000000,
+          "u1_b": 2000000,
+          "u1_lp": 1
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000000,
+        "recipient": 1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1004,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 1999999,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.68
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_out=min+1",
+        "max_amount_in=max",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 7
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1001,
+          "pool_b": 1008,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1999004,
+          "u0_b": 1998994,
+          "u0_lp": 0,
+          "u1_a": 1999995,
+          "u1_b": 1999998,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 2,
+        "max_amount_in": 1000000000,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999002,
+        "u0_b": 1998998,
+        "u0_lp": 0,
+        "u1_a": 1999995,
+        "u1_b": 1999998,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max-1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 7
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1000,
+          "pool_a": 1000,
+          "pool_b": 1009,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998998,
+          "u0_b": 1998991,
+          "u0_lp": 0,
+          "u1_a": 2000002,
+          "u1_b": 2000000,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 999999999,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1001,
+        "pool_b": 1006,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1998994,
+        "u0_lp": 0,
+        "u1_a": 2000002,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.66
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=mid",
+        "recipient=max",
+        "trader=min"
+      ],
+      "expected": {
+        "effects": {
+          "event": 7
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "lock_lp": 1000,
+          "lp_supply": 1001,
+          "pool_a": 1007,
+          "pool_b": 1000,
+          "pool_initialized": 1,
+          "total_a_const": 4000000,
+          "total_b_const": 4000000,
+          "u0_a": 1998991,
+          "u0_b": 1998999,
+          "u0_lp": 1,
+          "u1_a": 2000002,
+          "u1_b": 2000001,
+          "u1_lp": 0
+        }
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 500000000,
+        "recipient": 1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1008,
+        "pool_b": 998,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998991,
+        "u0_b": 1999001,
+        "u0_lp": 1,
+        "u1_a": 2000001,
+        "u1_b": 2000001,
+        "u1_lp": 0
+      },
+      "reward": 1.605
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=max+1",
+        "max_amount_in=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1000000001,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 999,
+        "pool_b": 1007,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999001,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 1999996,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min-1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": -1,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1003,
+        "pool_a": 1010,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998994,
+        "u0_b": 1998999,
+        "u0_lp": 2,
+        "u1_a": 1999996,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=min",
+        "trader=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": -1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1002,
+        "pool_b": 1003,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 2000002,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min-1",
+        "max_amount_in=min",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 0,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1006,
+        "pool_b": 1002,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999001,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 1999993,
+        "u1_b": 1999999,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=min",
+        "trader=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 2
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1000,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998996,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=max+1",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": 2,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1001,
+        "pool_a": 1000,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998996,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 1
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max+1",
+        "recipient=min",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 1000000001,
+        "recipient": 0,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1006,
+        "pool_b": 1004,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1999000,
+        "u0_b": 1998997,
+        "u0_lp": 0,
+        "u1_a": 1999994,
+        "u1_b": 1999999,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=min-1",
+        "trader=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": -1,
+        "trader": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1001,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998996,
+        "u0_b": 1998999,
+        "u0_lp": 0,
+        "u1_a": 2000001,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=min",
+        "refine:bisect:err:ParamType->err:GuardFalse",
+        "trader=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1000,
+        "pool_b": 1009,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998998,
+        "u0_b": 1998991,
+        "u0_lp": 0,
+        "u1_a": 2000002,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 0.933333
+    },
+    {
+      "action": "swap_b_for_a_exact_out",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "recipient=min",
+        "refine:bisect:err:GuardFalse->err:ParamType",
+        "trader=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "recipient": 0,
+        "trader": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "lock_lp": 1000,
+        "lp_supply": 1000,
+        "pool_a": 1003,
+        "pool_b": 1000,
+        "pool_initialized": 1,
+        "total_a_const": 4000000,
+        "total_b_const": 4000000,
+        "u0_a": 1998997,
+        "u0_b": 1999000,
+        "u0_lp": 0,
+        "u1_a": 2000000,
+        "u1_b": 2000000,
+        "u1_lp": 0
+      },
+      "reward": 0.933333
+    }
+  ],
+  "model_path": "src/kernels/dex/dex_step_core_v2.yaml",
+  "model_sha256": "1d8ff050a208a3318d7c8658e38f7311cabd6372061ad8b3224f235d194fd092",
+  "schema": "zenodex/ml-boundary-bva/v1",
+  "seed": 0,
+  "summary": {
+    "action_count": 7,
+    "per_action": {
+      "add_liquidity": {
+        "candidate_count": 110,
+        "iterations": 520,
+        "raw_record_count": 457,
+        "refine_max_steps": 6,
+        "refine_pairs_per_action": 20,
+        "selected": 16,
+        "state_pool_size": 139
+      },
+      "create_pool": {
+        "candidate_count": 58,
+        "iterations": 520,
+        "raw_record_count": 184,
+        "refine_max_steps": 6,
+        "refine_pairs_per_action": 20,
+        "selected": 16,
+        "state_pool_size": 110
+      },
+      "remove_liquidity": {
+        "candidate_count": 71,
+        "iterations": 520,
+        "raw_record_count": 487,
+        "refine_max_steps": 6,
+        "refine_pairs_per_action": 20,
+        "selected": 16,
+        "state_pool_size": 151
+      },
+      "swap_a_for_b": {
+        "candidate_count": 41,
+        "iterations": 520,
+        "raw_record_count": 492,
+        "refine_max_steps": 6,
+        "refine_pairs_per_action": 20,
+        "selected": 16,
+        "state_pool_size": 127
+      },
+      "swap_a_for_b_exact_out": {
+        "candidate_count": 41,
+        "iterations": 520,
+        "raw_record_count": 507,
+        "refine_max_steps": 6,
+        "refine_pairs_per_action": 20,
+        "selected": 16,
+        "state_pool_size": 192
+      },
+      "swap_b_for_a": {
+        "candidate_count": 41,
+        "iterations": 520,
+        "raw_record_count": 491,
+        "refine_max_steps": 6,
+        "refine_pairs_per_action": 20,
+        "selected": 16,
+        "state_pool_size": 138
+      },
+      "swap_b_for_a_exact_out": {
+        "candidate_count": 41,
+        "iterations": 520,
+        "raw_record_count": 493,
+        "refine_max_steps": 6,
+        "refine_pairs_per_action": 20,
+        "selected": 16,
+        "state_pool_size": 192
+      }
+    },
+    "total_cases": 112
+  }
+}
