@@ -17,8 +17,12 @@ def _mk_intent_id(n: int) -> str:
 
 
 def _settlement_from_fills(intents: list[Intent], fills: list[Fill]) -> Settlement:
-    intent_ids = {intent.intent_id for intent in intents}
-    included = [(fill.intent_id, fill.action) for fill in fills if fill.intent_id in intent_ids]
+    action_by_intent = {fill.intent_id: fill.action for fill in fills}
+    included = [
+        (intent.intent_id, action_by_intent[intent.intent_id])
+        for intent in intents
+        if intent.intent_id in action_by_intent
+    ]
     return Settlement(
         module="TauSwap",
         version="0.1",
@@ -97,7 +101,8 @@ def test_tau_gate_catches_tau_runner_exceptions(monkeypatch) -> None:
 
 
 def test_tau_gate_fill_order_is_intent_order(monkeypatch) -> None:
-    # Two independent pools + two intents; fills are deliberately reversed.
+    # Two independent pools + two intents; fills are deliberately reversed but
+    # settlement.included_intents should preserve semantic intent order.
     pk = "0x" + "11" * 48
     pool_id_a, pool_a, _ = create_pool(
         asset0="0x" + "01" * 32,
@@ -158,7 +163,8 @@ def test_tau_gate_fill_order_is_intent_order(monkeypatch) -> None:
     ]
 
     def _fake_tau(*args, **kwargs):
-        # Fail only step 0; caller should attribute it to the first fill in the settlement list.
+        # Fail only step 0; caller should attribute it to the first semantic
+        # intent in settlement.included_intents, not the first raw fill.
         return {0: {"o1": 0}, 1: {"o1": 1}}
 
     monkeypatch.setattr(tau_gate, "run_tau_spec_steps", _fake_tau)
@@ -171,7 +177,7 @@ def test_tau_gate_fill_order_is_intent_order(monkeypatch) -> None:
         config=TauGateConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
     )
     assert not ok
-    assert err and intent_b.intent_id in err
+    assert err and intent_a.intent_id in err
 
 
 def test_tau_gate_requires_absolute_tau_bin_when_path_lookup_disabled() -> None:
