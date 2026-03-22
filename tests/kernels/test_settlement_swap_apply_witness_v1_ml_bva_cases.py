@@ -9,14 +9,6 @@ import yaml
 from tools.esso_gpu_semantics import ensure_esso_on_path
 
 
-def _load_cases_obj(path: Path) -> dict[str, object]:
-    if not path.exists():
-        pytest.skip(f"{path} is not present on clean main")
-    obj = json.loads(path.read_text(encoding="utf-8"))
-    assert isinstance(obj, dict)
-    return obj
-
-
 def _esso_available() -> bool:
     try:
         ensure_esso_on_path()
@@ -65,7 +57,7 @@ def test_settlement_swap_apply_witness_v1_ml_bva_cases_match_native_adapter() ->
     from src.kernels.python.settlement_swap_apply_witness_v1_native_adapter import make_adapter
 
     cases_path = Path("tests/kernels/data/settlement_swap_apply_witness_v1_ml_bva_cases.json")
-    obj = _load_cases_obj(cases_path)
+    obj = json.loads(cases_path.read_text(encoding="utf-8"))
     assert obj.get("schema") == "zenodex/ml-boundary-bva/v1"
 
     model_path = _resolve_model_path(str(obj["model_path"]))
@@ -130,7 +122,7 @@ def test_settlement_swap_apply_witness_v1_ml_bva_cases_replay_in_interpreter() -
     )
 
     cases_path = Path("tests/kernels/data/settlement_swap_apply_witness_v1_ml_bva_cases.json")
-    obj = _load_cases_obj(cases_path)
+    obj = json.loads(cases_path.read_text(encoding="utf-8"))
     assert obj.get("schema") == "zenodex/ml-boundary-bva/v1"
 
     model_path = _resolve_model_path(str(obj["model_path"]))
