@@ -118,6 +118,8 @@ def test_endogenous_lp_value_packet_round_trips_from_attestation() -> None:
     assert packet.packet_ok is True
     assert packet.attestation_policy_id == attestation_policy.policy_id
     assert packet.attestation_policy_epoch == attestation_policy.policy_epoch
+    assert packet.attestation_policy_chain_id == attestation_policy.chain_id
+    assert packet.attestation_policy_registry_contract == attestation_policy.registry_contract
     assert packet.attestation_policy_root == attestation_policy.registry_root
     assert packet.attestation_policy_hash == attestation_policy.policy_hash_hex()
 
