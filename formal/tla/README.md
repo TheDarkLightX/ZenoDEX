@@ -43,6 +43,27 @@ Notes:
   the semantic-assurance lane.
 - Bounds are intentionally tiny (`EPOCH_MAX=3`) to keep exploration fast.
 
+## Settlement attestation governance
+
+Files:
+
+- `formal/tla/SettlementAttestationGovernance.tla`
+- `formal/tla/SettlementAttestationGovernance.cfg`
+
+What it models:
+
+- governed signer/source policy proposals,
+- timelock countdown and activation,
+- settlement acceptance only under the active policy epoch,
+- revocation blocking future settlement acceptance,
+- infinite-trace liveness under weak fairness of timelock progression and activation.
+
+What it is for:
+
+- protocol-level decentralization and liveness claims for the settlement attestation lane,
+- complementing the local ESSO guard `src/kernels/dex/settlement_attestation_policy_guard_v1.yaml`,
+- making the trust boundary explicit: local safety is not enough without temporal governance semantics.
+
 ## Tau shadow semantics
 
 Files:

@@ -135,6 +135,33 @@ Current runtime consequence:
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 
+## Temporal Protocol Model
+
+This slice now has a bounded infinite-trace protocol model in:
+
+- `formal/tla/SettlementAttestationGovernance.tla`
+- `formal/tla/SettlementAttestationGovernance.cfg`
+
+The TLA+ model complements the local ESSO guard:
+
+- ESSO proves the local admission relation is fail-closed for one policy snapshot.
+- TLA+ checks the protocol lifecycle around proposal, timelock, activation, revocation, and settlement binding over time.
+
+Pinned temporal obligations:
+
+```text
+AcceptedSettlementRequiresActiveGovernedPolicy
+RevokedPolicyRejectsFutureSettlement
+NoRetroactiveEpochDriftOnAcceptedSettlement
+FairImpliesApprovedPolicyEventuallyActivates
+```
+
+Interpretation:
+- accepted settlement must bind to the currently active governed policy,
+- revoked policy blocks future acceptance,
+- later policy evolution cannot retroactively rewrite the accepted policy epoch,
+- under weak fairness of timelock progression and activation, an approved pending policy eventually activates.
+
 ## Game Theory
 
 ### Operator-only policy
