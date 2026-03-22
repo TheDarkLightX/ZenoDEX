@@ -150,12 +150,11 @@ Current runtime consequence:
 - if a caller supplies only `R`, the runtime derives `P := R.policy` and continues fail-closed from the snapshot
 - if the runtime holds `P` plus a registry-snapshot loader, it may derive `R` from the loader and still fail closed on missing or drifting snapshot state
 - if the runtime holds a chain-anchor loader plus a snapshot source, it can rebind the final snapshot to chain-derived block metadata and reject any off-chain snapshot whose root or policy hash drifts from the chain anchor
-- the current chain-anchor transport can be a typed JSON-RPC method (`zenodex_getSettlementSignerRegistryAnchor`), but that is still an adapter contract, not a direct ABI-decoded proof of on-chain state
+- the current chain-anchor transport can be a typed adapter method such as `zenodex_getSettlementSignerRegistryAnchor`; for this repo that should be treated as a Tau-side integration boundary, not a direct proof of chain state
 - the JSON-RPC anchor transport can now be bound to an explicit `SettlementSignerRegistryContractInterface`, so the method name, chain id, and registry contract are all validated as part of the typed interface surface rather than remaining free string parameters
-- the repo now also has a direct `eth_call` anchor loader for a fixed registry interface `getPolicyAnchor(bytes32,uint256)`, with fail-closed ABI decoding of `(registry_root, policy_hash, anchor_block_number, anchor_block_hash)`
 - the repo now has a typed multi-attestation bundle verifier, and settlement value packets plus end-to-end certificate packets can carry those bundle objects, so `min_distinct_signers > 1` is enforceable through the packet/certificate path as well
 - bundle consensus now uses a deterministic lower-median price vector over attestation packets that share the same asset/source/epoch structure, and policy can bound per-asset disagreement with `P.max_bundle_price_spread_bps`
-- broader multi-source aggregation policy is still out of scope for this slice: the bundle does not yet model source-weighting, dispute resolution, or a richer median/quorum mechanism than lower-median plus a fail-closed spread bound, and the `eth_call` path still does not provide Merkle/storage proofs
+- broader multi-source aggregation policy is still out of scope for this slice: the bundle does not yet model source-weighting, dispute resolution, or a richer median/quorum mechanism than lower-median plus a fail-closed spread bound, and the current Tau-side anchor adapter still does not provide state proofs or a Tau-native direct loader
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 
@@ -226,7 +225,7 @@ This slice still does not prove:
 Those require:
 - on-chain registry retrieval / proof of current root
 - multi-attestation bundle verification
-- ABI-stable contract interface and direct contract-state decoding
+- Tau-native registry retrieval or proof of current root
 - disagreement / median / quorum rules across independent signers
 
 The current runtime improvement is narrower:

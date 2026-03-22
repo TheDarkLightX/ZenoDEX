@@ -13,17 +13,10 @@ from .settlement_attestation_policy import (
     coerce_settlement_attestation_policy,
 )
 
-try:
-    from eth_hash.auto import keccak as _keccak_256
-except Exception:  # pragma: no cover - optional dependency
-    _keccak_256 = None
-
 
 SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA = "zenodex/settlement-signer-registry-snapshot/v1"
 SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA = "zenodex/settlement-signer-registry-anchor/v1"
 SETTLEMENT_SIGNER_REGISTRY_INTERFACE_SCHEMA = "zenodex/settlement-signer-registry-interface/v1"
-SETTLEMENT_SIGNER_REGISTRY_ETH_CALL_SIGNATURE = "getPolicyAnchor(bytes32,uint256)"
-SETTLEMENT_SIGNER_REGISTRY_ETH_CALL_SELECTOR = "0x184520e1"
 
 
 @dataclass(frozen=True)
@@ -509,172 +502,6 @@ class JsonRpcSettlementSignerRegistryAnchorLoader:
         )
 
 
-class EthCallSettlementSignerRegistryAnchorLoader:
-    def __init__(
-        self,
-        endpoint_url: str,
-        *,
-        chain_id: int,
-        registry_contract: str,
-        function_signature: str = SETTLEMENT_SIGNER_REGISTRY_ETH_CALL_SIGNATURE,
-        block_tag: str = "latest",
-        timeout_s: float = 5.0,
-        headers: Mapping[str, str] | None = None,
-        transport: object | None = None,
-    ):
-        if not isinstance(endpoint_url, str) or not endpoint_url.strip():
-            raise ValueError("endpoint_url must be a non-empty string")
-        normalized_endpoint = endpoint_url.strip()
-        if not (normalized_endpoint.startswith("http://") or normalized_endpoint.startswith("https://")):
-            raise ValueError("endpoint_url must start with http:// or https://")
-        if not isinstance(chain_id, int) or isinstance(chain_id, bool) or chain_id < 0:
-            raise ValueError("chain_id must be a non-negative int")
-        normalized_registry_contract = canonical_hex_fixed_allow_0x(
-            registry_contract,
-            nbytes=20,
-            name="registry_contract",
-        )
-        if not isinstance(function_signature, str) or not function_signature.strip():
-            raise ValueError("function_signature must be a non-empty string")
-        if not isinstance(block_tag, str) or not block_tag.strip():
-            raise ValueError("block_tag must be a non-empty string")
-        if not isinstance(timeout_s, (int, float)) or isinstance(timeout_s, bool) or float(timeout_s) <= 0.0:
-            raise ValueError("timeout_s must be a positive number")
-        normalized_headers: dict[str, str] = {"Content-Type": "application/json"}
-        if headers is not None:
-            if not isinstance(headers, Mapping):
-                raise TypeError("headers must be a mapping")
-            for raw_key, raw_value in headers.items():
-                if not isinstance(raw_key, str) or not raw_key.strip():
-                    raise ValueError("header names must be non-empty strings")
-                if not isinstance(raw_value, str):
-                    raise TypeError("header values must be strings")
-                normalized_headers[raw_key.strip()] = raw_value
-        if transport is not None and not callable(transport):
-            raise TypeError("transport must be callable")
-        self._endpoint_url = normalized_endpoint
-        self._chain_id = int(chain_id)
-        self._registry_contract = normalized_registry_contract
-        self._function_signature = function_signature.strip()
-        self._block_tag = block_tag.strip()
-        self._timeout_s = float(timeout_s)
-        self._headers = dict(sorted(normalized_headers.items()))
-        self._transport = transport
-
-    def load_anchor(self, request: SettlementSignerRegistrySnapshotRequest) -> SettlementSignerRegistryAnchor | None:
-        if int(request.chain_id) != self._chain_id:
-            raise ValueError(
-                _format_binding_error(
-                    "attestation registry eth_call chain_id does not match request",
-                    details={
-                        "loader_chain_id": self._chain_id,
-                        "request_chain_id": int(request.chain_id),
-                        "registry_contract": self._registry_contract,
-                        "function_signature": self._function_signature,
-                    },
-                )
-            )
-        if request.registry_contract != self._registry_contract:
-            raise ValueError(
-                _format_binding_error(
-                    "attestation registry eth_call registry_contract does not match request",
-                    details={
-                        "loader_registry_contract": self._registry_contract,
-                        "request_registry_contract": request.registry_contract,
-                        "chain_id": self._chain_id,
-                        "function_signature": self._function_signature,
-                    },
-                )
-            )
-        selector = _eth_function_selector(self._function_signature)
-        call_data = _encode_eth_call_policy_anchor_request(
-            selector=selector,
-            policy_id=request.policy_id,
-            policy_epoch=int(request.policy_epoch),
-        )
-        payload = {
-            "jsonrpc": "2.0",
-            "id": "settlement-signer-registry-eth-call",
-            "method": "eth_call",
-            "params": [
-                {
-                    "to": self._registry_contract,
-                    "data": call_data,
-                },
-                self._block_tag,
-            ],
-        }
-        response = self._call(payload)
-        if not isinstance(response, Mapping):
-            raise ValueError(
-                _format_binding_error(
-                    "attestation registry eth_call response must be an object",
-                    details={
-                        "endpoint_url": self._endpoint_url,
-                        "chain_id": self._chain_id,
-                        "registry_contract": self._registry_contract,
-                        "function_signature": self._function_signature,
-                        "response_type": type(response).__name__,
-                    },
-                )
-            )
-        rpc_error = response.get("error")
-        if rpc_error is not None:
-            if isinstance(rpc_error, Mapping):
-                raise ValueError(
-                    _format_binding_error(
-                        "attestation registry eth_call returned an error",
-                        details={
-                            "endpoint_url": self._endpoint_url,
-                            "chain_id": self._chain_id,
-                            "registry_contract": self._registry_contract,
-                            "function_signature": self._function_signature,
-                            "request": request.to_dict(),
-                            "rpc_error_code": rpc_error.get("code"),
-                            "rpc_error_message": rpc_error.get("message"),
-                            "rpc_error_data": rpc_error.get("data"),
-                        },
-                    )
-                )
-            raise ValueError(
-                _format_binding_error(
-                    "attestation registry eth_call returned a non-object error",
-                    details={
-                        "endpoint_url": self._endpoint_url,
-                        "chain_id": self._chain_id,
-                        "registry_contract": self._registry_contract,
-                        "function_signature": self._function_signature,
-                        "request": request.to_dict(),
-                        "rpc_error": rpc_error,
-                    },
-                )
-            )
-        result = response.get("result")
-        if result is None:
-            return None
-        anchor = _decode_eth_call_policy_anchor_result(
-            result=result,
-            request=request,
-        )
-        _require_anchor_matches_request(anchor=anchor, request=request)
-        return anchor
-
-    def _call(self, payload: Mapping[str, Any]) -> Any:
-        if self._transport is not None:
-            return self._transport(
-                self._endpoint_url,
-                dict(self._headers),
-                dict(payload),
-                self._timeout_s,
-            )
-        return _json_rpc_post_json(
-            endpoint_url=self._endpoint_url,
-            headers=self._headers,
-            payload=payload,
-            timeout_s=self._timeout_s,
-        )
-
-
 class ChainAnchoredSettlementSignerRegistrySnapshotLoader:
     def __init__(self, *, anchor_loader: object, snapshot_loader: object):
         load_anchor = getattr(anchor_loader, "load_anchor", None)
@@ -1114,93 +941,6 @@ def _require_snapshot_matches_anchor(
         )
 
 
-def _encode_eth_call_policy_anchor_request(
-    *,
-    selector: str,
-    policy_id: str,
-    policy_epoch: int,
-) -> str:
-    if not isinstance(selector, str) or not selector.startswith("0x") or len(selector) != 10:
-        raise ValueError("selector must be a 4-byte hex string")
-    policy_id_digest = sha256_hex(policy_id.encode("utf-8"))
-    return selector + policy_id_digest + f"{int(policy_epoch):064x}"
-
-
-def _decode_eth_call_policy_anchor_result(
-    *,
-    result: Any,
-    request: SettlementSignerRegistrySnapshotRequest,
-) -> SettlementSignerRegistryAnchor:
-    if not isinstance(result, str) or not result.startswith("0x"):
-        raise ValueError(
-            _format_binding_error(
-                "attestation registry eth_call result must be a 0x-prefixed hex string",
-                details={
-                    "request": request.to_dict(),
-                    "result_type": type(result).__name__,
-                    "result": result,
-                },
-            )
-        )
-    body = result[2:]
-    if len(body) != 64 * 4:
-        raise ValueError(
-            _format_binding_error(
-                "attestation registry eth_call result length is invalid",
-                details={
-                    "request": request.to_dict(),
-                    "result_length": len(body),
-                    "expected_length": 64 * 4,
-                    "result": result,
-                },
-            )
-        )
-    try:
-        registry_root = "0x" + body[0:64]
-        policy_hash = "0x" + body[64:128]
-        anchor_block_number = int(body[128:192], 16)
-        anchor_block_hash = "0x" + body[192:256]
-    except Exception as exc:
-        raise ValueError(
-            _format_binding_error(
-                "attestation registry eth_call result could not be decoded",
-                details={
-                    "request": request.to_dict(),
-                    "result": result,
-                },
-            )
-        ) from exc
-    return SettlementSignerRegistryAnchor(
-        chain_id=int(request.chain_id),
-        registry_contract=request.registry_contract,
-        policy_id=request.policy_id,
-        policy_epoch=int(request.policy_epoch),
-        registry_root=registry_root,
-        policy_hash=policy_hash,
-        anchor_block_number=anchor_block_number,
-        anchor_block_hash=anchor_block_hash,
-    )
-
-
-def _eth_function_selector(function_signature: str) -> str:
-    if not isinstance(function_signature, str) or not function_signature.strip():
-        raise ValueError("function_signature must be a non-empty string")
-    normalized = function_signature.strip()
-    if normalized == SETTLEMENT_SIGNER_REGISTRY_ETH_CALL_SIGNATURE:
-        return SETTLEMENT_SIGNER_REGISTRY_ETH_CALL_SELECTOR
-    if _keccak_256 is None:
-        raise ValueError(
-            "eth_hash with a keccak backend is required for non-default settlement signer registry eth_call signatures"
-        )
-    try:
-        digest = _keccak_256(normalized.encode("ascii"))
-    except Exception as exc:
-        raise ValueError(
-            "eth_hash with a keccak backend is required for non-default settlement signer registry eth_call signatures"
-        ) from exc
-    return "0x" + digest[:4].hex()
-
-
 def _json_rpc_post_json(
     *,
     endpoint_url: str,
@@ -1262,12 +1002,9 @@ def _json_rpc_post_json(
 
 
 __all__ = [
-    "SETTLEMENT_SIGNER_REGISTRY_ETH_CALL_SELECTOR",
-    "SETTLEMENT_SIGNER_REGISTRY_ETH_CALL_SIGNATURE",
     "SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA",
     "SETTLEMENT_SIGNER_REGISTRY_INTERFACE_SCHEMA",
     "SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA",
-    "EthCallSettlementSignerRegistryAnchorLoader",
     "SettlementAttestationRegistryBindingResult",
     "SettlementSignerRegistryAnchor",
     "SettlementSignerRegistryContractInterface",
