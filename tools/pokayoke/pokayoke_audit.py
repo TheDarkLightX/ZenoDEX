@@ -7,7 +7,7 @@ Goal
   Identify where mistake-proofing yields the highest ROI by:
   - mapping degrees of freedom (user-controllable inputs)
   - enumerating failure modes + risk signals
-  - detecting existing guardrails in the UI code
+  - detecting existing guardrails in current repo surfaces
   - ranking missing/weak guardrails via a lightweight FMEA score
 
 This tool is intentionally heuristic: it produces a ranked *experiment queue*,
@@ -56,11 +56,9 @@ class FailureMode:
     representation_shift: str  # equiv|reduce|relax|restrict|heuristic|lift|project|decompose
 
 
-UI_SURFACES: list[Surface] = [
+SURFACES: list[Surface] = [
     Surface(surface_id="swap", relpath="tools/dex-ui/src/components/SwapInterface.jsx", flow="swap"),
-    Surface(surface_id="add_liquidity", relpath="tools/dex-ui/src/components/AddLiquidityModal.jsx", flow="liquidity_add"),
-    Surface(surface_id="remove_liquidity", relpath="tools/dex-ui/src/components/RemoveLiquidityModal.jsx", flow="liquidity_remove"),
-    Surface(surface_id="perps_order", relpath="tools/dex-ui/src/components/perps/PerpOrderForm.jsx", flow="perps_order"),
+    Surface(surface_id="swap_signer_preflight", relpath="src/agents/intent_signer.py", flow="swap"),
 ]
 
 
@@ -83,6 +81,9 @@ FAILURE_MODES: list[FailureMode] = [
             r"apiSlippageAdvice\?\.(?:pokayoke|pokayokeDecision)|apiSlippageAdvice\?\.\s*pokayoke",
             r"typed_confirm",
             r"typed\s+confirmation",
+            r"_enforce_pokayoke_max_action",
+            r"_preflight_swap_pokayoke_exact_in_cpmm",
+            r"pokayoke_guardrail:",
         ],
         proposed_intervention="Add an interlock: when slippage advisor status is mev_conflict, require typed confirmation (or default to block in non-advanced mode).",
         representation_shift="restrict",
@@ -101,6 +102,8 @@ FAILURE_MODES: list[FailureMode] = [
         ],
         interlock_markers=[
             r"apiSlippageAdvice\?\.(?:pokayoke|pokayokeDecision)|apiSlippageAdvice\?\.\s*pokayoke",
+            r"_enforce_pokayoke_max_action",
+            r"_preflight_swap_pokayoke_exact_in_cpmm",
         ],
         proposed_intervention="Surface fail-closed semantics: require explicit confirmation when status is inconclusive_mev, and log overrides.",
         representation_shift="restrict",
@@ -120,6 +123,8 @@ FAILURE_MODES: list[FailureMode] = [
         interlock_markers=[
             r"apiSlippageAdvice\?\.(?:pokayoke|pokayokeDecision)|apiSlippageAdvice\?\.\s*pokayoke",
             r"typed_confirm",
+            r"_enforce_pokayoke_max_action",
+            r"_preflight_swap_pokayoke_exact_in_cpmm",
         ],
         proposed_intervention="Add an interlock: typed confirm (or block) when no_revert_safe_option; offer a deterministic amount-reduction suggestion.",
         representation_shift="reduce",
@@ -140,6 +145,7 @@ FAILURE_MODES: list[FailureMode] = [
         interlock_markers=[
             r"handleSwapClick[\s\S]*priceImpact\s*>\s*0\.01",
             r"setShowConfirm\(",
+            r"_enforce_pokayoke_max_action",
         ],
         proposed_intervention="Escalate interlocks by tier: confirm at >=1% impact, typed confirm at >=5% impact (non-advanced mode).",
         representation_shift="restrict",
@@ -252,11 +258,14 @@ def main() -> int:
     # Inventory: surfaces + hashes + marker hits.
     inventory: dict[str, Any] = {"schema": "zenodex/pokayoke_audit_inventory/v1", "created_at": _now_utc_compact(), "surfaces": []}
     surface_text_by_flow: dict[str, str] = {}
-    for s in UI_SURFACES:
+    active_flows: set[str] = set()
+    for s in SURFACES:
         p = (repo_root / s.relpath).resolve()
         text = _read_text(p) if p.exists() else ""
         surface_text_by_flow.setdefault(str(s.flow), "")
         surface_text_by_flow[str(s.flow)] += "\n" + text
+        if p.exists():
+            active_flows.add(str(s.flow))
         inventory["surfaces"].append(
             {
                 "surface_id": s.surface_id,
@@ -270,6 +279,8 @@ def main() -> int:
 
     opportunities: list[dict[str, Any]] = []
     for fm in FAILURE_MODES:
+        if str(fm.flow) not in active_flows:
+            continue
         text = surface_text_by_flow.get(str(fm.flow), "")
         signal_hits = _pattern_hits(text, fm.signal_markers)
         interlock_hits = _pattern_hits(text, fm.interlock_markers)
