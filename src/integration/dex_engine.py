@@ -339,13 +339,14 @@ def _verify_intent_signature_bytes(
         return False, "py_ecc (BLS) not available"
     if G2Basic is None:
         return False, "py_ecc.bls.G2Basic unavailable"
+    bls = G2Basic
     try:
         pubkey_bytes = _hex_to_bytes_allow_0x(sender_pubkey_hex, name="sender_pubkey", expected_nbytes=48)
         sig_bytes = _hex_to_bytes_allow_0x(signature_hex, name="signature", expected_nbytes=96)
 
         msg = domain_sep_bytes(f"dex_intent_sig:{chain_id}", version=1) + signing_payload_bytes
         msg_hash = hashlib.sha256(msg).digest()
-        ok = bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
+        ok = bool(bls.Verify(pubkey_bytes, msg_hash, sig_bytes))
         if not ok:
             return False, "invalid intent signature"
         return True, None
