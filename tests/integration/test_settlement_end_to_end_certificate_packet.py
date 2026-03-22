@@ -15,6 +15,10 @@ from src.integration.settlement_end_to_end_certificate_packet import (
 )
 from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
+from src.integration.settlement_signer_registry import (
+    InMemorySettlementSignerRegistrySnapshotLoader,
+    SettlementSignerRegistrySnapshot,
+)
 from src.integration.settlement_strong_certificate import SettlementProofFlags
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
@@ -274,6 +278,57 @@ def test_end_to_end_certificate_inputs_accept_registry_snapshot_without_policy()
     assert packet.packet_ok is True
     assert packet.value_packet is not None
     assert packet.value_packet.attestation_policy_id == registry_snapshot.policy.policy_id
+
+
+def test_end_to_end_certificate_packet_accepts_snapshot_loader_without_direct_snapshot() -> None:
+    _pk, asset0, asset1, _pool_id, _pool, settlement = _four_swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation_policy = make_attestation_policy(attestation)
+    registry_snapshot = SettlementSignerRegistrySnapshot(
+        chain_id=attestation_policy.chain_id,
+        registry_contract=attestation_policy.registry_contract,
+        registry_root=attestation_policy.registry_root,
+        snapshot_block_number=1_234_567,
+        snapshot_block_hash="0x" + "56" * 32,
+        policy=attestation_policy,
+    )
+    loader = InMemorySettlementSignerRegistrySnapshotLoader(
+        {
+            (
+                registry_snapshot.chain_id,
+                registry_snapshot.registry_contract,
+                registry_snapshot.policy.policy_id,
+                registry_snapshot.policy.policy_epoch,
+            ): registry_snapshot
+        }
+    )
+
+    packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs=_feature_extension_inputs(),
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=attestation_policy,
+        attestation_registry_snapshot=None,
+        attestation_registry_snapshot_loader=loader,
+    )
+
+    assert packet.packet_ok is True
+    assert packet.value_packet is not None
+    assert packet.value_packet.attestation_policy_id == registry_snapshot.policy.policy_id
+    assert packet.value_packet.attestation_policy_epoch == registry_snapshot.policy.policy_epoch
+    assert packet.value_packet.attestation_policy_root == registry_snapshot.registry_root
 
 
 def test_end_to_end_certificate_packet_from_attestation_requires_policy() -> None:

@@ -15,9 +15,11 @@ from src.integration.settlement_price_provenance import (
     build_settlement_spot_price_packet,
 )
 from src.integration.settlement_signer_registry import (
+    InMemorySettlementSignerRegistrySnapshotLoader,
     SettlementSignerRegistrySnapshot,
     check_settlement_attestation_policy_registry_binding,
     coerce_settlement_signer_registry_snapshot,
+    load_attestation_policy_and_registry_snapshot,
     resolve_attestation_policy_and_registry_snapshot,
 )
 
@@ -84,3 +86,29 @@ def test_settlement_signer_registry_binding_rejects_policy_drift() -> None:
     assert result.details is not None
     assert result.details["policy_epoch"] == 1
     assert result.details["snapshot_policy_epoch"] == 2
+
+
+def test_settlement_signer_registry_loader_returns_bound_snapshot() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    snapshot = make_attestation_registry_snapshot(attestation)
+    loader = InMemorySettlementSignerRegistrySnapshotLoader(
+        {
+            (
+                int(policy.chain_id),
+                policy.registry_contract,
+                policy.policy_id,
+                int(policy.policy_epoch),
+            ): snapshot
+        }
+    )
+
+    resolved_policy, resolved_snapshot = load_attestation_policy_and_registry_snapshot(
+        attestation_policy=policy,
+        attestation_registry_snapshot=None,
+        attestation_registry_snapshot_loader=loader,
+        consumer_now_epoch=103,
+    )
+
+    assert resolved_policy == policy
+    assert resolved_snapshot == snapshot
