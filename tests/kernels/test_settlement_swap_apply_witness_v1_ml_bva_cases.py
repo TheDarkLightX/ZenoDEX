@@ -13,7 +13,7 @@ def _esso_available() -> bool:
     try:
         ensure_esso_on_path()
         import ESSO.kernel.interpreter  # type: ignore  # noqa: F401
-    except ModuleNotFoundError:
+    except (FileNotFoundError, ModuleNotFoundError):
         return False
     return True
 
@@ -47,7 +47,12 @@ def _in_range_int(v: object, *, lo: int, hi: int) -> bool:
 @pytest.mark.skipif(not _esso_available(), reason="ESSO toolchain is not installed")
 def test_settlement_swap_apply_witness_v1_ml_bva_cases_match_native_adapter() -> None:
     from ESSO.ir.schema import CandidateIR  # type: ignore
-    from ESSO.kernel.interpreter import Command, StepError, StepOk, prepare_step_context  # type: ignore
+    from ESSO.kernel.interpreter import (  # type: ignore
+        Command,
+        StepError,
+        StepOk,
+        prepare_step_context,
+    )
 
     from src.kernels.python.settlement_swap_apply_witness_v1_native_adapter import make_adapter
 
@@ -109,7 +114,12 @@ def test_settlement_swap_apply_witness_v1_ml_bva_cases_match_native_adapter() ->
 @pytest.mark.skipif(not _esso_available(), reason="ESSO interpreter is not installed")
 def test_settlement_swap_apply_witness_v1_ml_bva_cases_replay_in_interpreter() -> None:
     from ESSO.ir.schema import CandidateIR  # type: ignore
-    from ESSO.kernel.interpreter import Command, StepError, prepare_step_context, step_ctx  # type: ignore
+    from ESSO.kernel.interpreter import (  # type: ignore
+        Command,
+        StepError,
+        prepare_step_context,
+        step_ctx,
+    )
 
     cases_path = Path("tests/kernels/data/settlement_swap_apply_witness_v1_ml_bva_cases.json")
     obj = json.loads(cases_path.read_text(encoding="utf-8"))
@@ -140,4 +150,3 @@ def test_settlement_swap_apply_witness_v1_ml_bva_cases_replay_in_interpreter() -
         else:
             assert isinstance(interp_res, StepError), f"row {i}: expected interpreter failure"
             assert str(interp_res.code) == str(expected.get("code", "")), f"row {i}: interpreter error code mismatch"
-
