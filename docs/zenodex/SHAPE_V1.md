@@ -39,6 +39,10 @@ The operational release decision checklist for this claim is:
 
 - `docs/zenodex/SHAPE_V1_RELEASE_CHECKLIST.md`
 
+The current frozen release-candidate note for this claim is:
+
+- `docs/zenodex/SHAPE_V1_RC1.md`
+
 ## Clause Manifest
 
 ### `cbc_validity`

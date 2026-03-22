@@ -87,10 +87,16 @@ Current limit that still blocks a stronger decentralization claim:
 At tag time, publish one authoritative release bundle:
 
 - commit sha
+- release tag
+- release note
 - Shape ratchet receipt
 - release gate receipt
 - pinned public claim text
 - explicit exclusions / out-of-scope items
+
+Current authoritative example:
+
+- `docs/zenodex/SHAPE_V1_RC1.md`
 
 Do not rely on multiple hand-maintained summaries as the authority surface.
 

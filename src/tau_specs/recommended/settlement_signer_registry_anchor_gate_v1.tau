@@ -1,0 +1,34 @@
+# Settlement signer registry anchor gate v1
+#
+# Purpose: fail-closed Tau-side control gate for Tau-native registry binding.
+# Heavy data logic stays host-side; Tau consumes only the binding/proof booleans
+# plus small echoed identifiers for replay and traceability.
+#
+# Inputs:
+# i1 = exec_req (sbf)
+# i2 = snapshot_present (sbf)
+# i3 = anchor_present (sbf)
+# i4 = request_binding_ok (sbf)
+# i5 = anchor_binding_ok (sbf)
+# i6 = policy_binding_ok (sbf)
+# i7 = proof_ok (sbf)
+# i8..i9 = policy_epoch_hi/lo (bv[16])
+# i10..i11 = anchor_block_number_hi/lo (bv[16])
+#
+# Outputs:
+# o1 = gate_ok
+# o2 = bridge_ready
+# o3 = proof_bundle_ok
+# o4..o5 = echoed policy_epoch_hi/lo
+# o6..o7 = echoed anchor_block_number_hi/lo
+
+set charvar off
+
+always
+  (o1[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf) &&
+  (o2[t]:sbf = i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf) &&
+  (o3[t]:sbf = i6[t]:sbf & i7[t]:sbf) &&
+  (o4[t]:bv[16] = i8[t]:bv[16]) &&
+  (o5[t]:bv[16] = i9[t]:bv[16]) &&
+  (o6[t]:bv[16] = i10[t]:bv[16]) &&
+  (o7[t]:bv[16] = i11[t]:bv[16]).
