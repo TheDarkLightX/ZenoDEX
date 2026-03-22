@@ -30,6 +30,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 SETTLEMENT_SPOT_PRICE_ATTESTATION_SCHEMA = "zenodex/settlement-spot-price-attestation/v1"
+SETTLEMENT_SPOT_PRICE_ATTESTATION_BUNDLE_SCHEMA = "zenodex/settlement-spot-price-attestation-bundle/v1"
 _PRICE_ATTESTATION_VERIFY_CACHE: dict[tuple[object, ...], tuple[bool, str | None]] = {}
 
 
@@ -96,6 +97,79 @@ class SettlementSpotPriceAttestation:
         )
 
 
+@dataclass(frozen=True)
+class SettlementSpotPriceAttestationBundle:
+    packet: SettlementSpotPricePacket
+    packet_hash: str
+    signed_at_epoch: int
+    attestations: tuple[SettlementSpotPriceAttestation, ...]
+    schema: str = SETTLEMENT_SPOT_PRICE_ATTESTATION_BUNDLE_SCHEMA
+
+    def __post_init__(self) -> None:
+        if self.schema != SETTLEMENT_SPOT_PRICE_ATTESTATION_BUNDLE_SCHEMA:
+            raise ValueError(f"unsupported schema: {self.schema!r}")
+        if not isinstance(self.packet, SettlementSpotPricePacket):
+            raise TypeError("packet must be a SettlementSpotPricePacket")
+        object.__setattr__(
+            self,
+            "packet_hash",
+            canonical_hex_fixed_allow_0x(self.packet_hash, nbytes=32, name="packet_hash"),
+        )
+        if not isinstance(self.signed_at_epoch, int) or isinstance(self.signed_at_epoch, bool) or self.signed_at_epoch < 0:
+            raise ValueError("signed_at_epoch must be a non-negative int")
+        if not isinstance(self.attestations, tuple):
+            if not isinstance(self.attestations, (list, tuple)):
+                raise TypeError("attestations must be a non-empty sequence of SettlementSpotPriceAttestation")
+            object.__setattr__(self, "attestations", tuple(self.attestations))
+        if not self.attestations:
+            raise ValueError("attestations must be non-empty")
+        expected_packet_hash = _packet_hash_hex(self.packet)
+        if self.packet_hash != expected_packet_hash:
+            raise ValueError("bundle packet_hash must match bundle.packet")
+        if int(self.signed_at_epoch) != int(self.packet.now_epoch):
+            raise ValueError("bundle signed_at_epoch must equal bundle.packet.now_epoch")
+        seen_signers: set[str] = set()
+        for attestation in self.attestations:
+            if not isinstance(attestation, SettlementSpotPriceAttestation):
+                raise TypeError("attestations must contain SettlementSpotPriceAttestation values")
+            if attestation.packet != self.packet:
+                raise ValueError("bundle attestation packet must match bundle.packet")
+            if attestation.packet_hash != self.packet_hash:
+                raise ValueError("bundle attestation packet_hash must match bundle.packet_hash")
+            if int(attestation.signed_at_epoch) != int(self.signed_at_epoch):
+                raise ValueError("bundle attestation signed_at_epoch must match bundle.signed_at_epoch")
+            if attestation.signer_pubkey in seen_signers:
+                raise ValueError("bundle attestation signer_pubkey values must be distinct")
+            seen_signers.add(attestation.signer_pubkey)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema": self.schema,
+            "packet": self.packet.to_dict(),
+            "packet_hash": self.packet_hash,
+            "signed_at_epoch": int(self.signed_at_epoch),
+            "attestations": [attestation.to_dict() for attestation in self.attestations],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementSpotPriceAttestationBundle":
+        if not isinstance(payload, Mapping):
+            raise ValueError("attestation bundle must be an object")
+        packet_payload = payload.get("packet")
+        attestation_payloads = payload.get("attestations")
+        if not isinstance(packet_payload, Mapping):
+            raise ValueError("attestation bundle.packet must be an object")
+        if not isinstance(attestation_payloads, list):
+            raise ValueError("attestation bundle.attestations must be an array")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            packet=SettlementSpotPricePacket.from_dict(packet_payload),
+            packet_hash=str(payload.get("packet_hash", "")),
+            signed_at_epoch=int(payload.get("signed_at_epoch", -1)),
+            attestations=tuple(SettlementSpotPriceAttestation.from_dict(item) for item in attestation_payloads),
+        )
+
+
 def build_settlement_spot_price_attestation(
     *,
     packet: SettlementSpotPricePacket,
@@ -132,6 +206,25 @@ def build_settlement_spot_price_attestation(
     )
 
 
+def build_settlement_spot_price_attestation_bundle(
+    *,
+    attestations: tuple[SettlementSpotPriceAttestation, ...] | list[SettlementSpotPriceAttestation],
+) -> SettlementSpotPriceAttestationBundle:
+    if not isinstance(attestations, (list, tuple)):
+        raise TypeError("attestations must be a non-empty sequence of SettlementSpotPriceAttestation")
+    if not attestations:
+        raise ValueError("attestations must be non-empty")
+    first = attestations[0]
+    if not isinstance(first, SettlementSpotPriceAttestation):
+        raise TypeError("attestations must contain SettlementSpotPriceAttestation values")
+    return SettlementSpotPriceAttestationBundle(
+        packet=first.packet,
+        packet_hash=first.packet_hash,
+        signed_at_epoch=int(first.signed_at_epoch),
+        attestations=tuple(attestations),
+    )
+
+
 def verify_settlement_spot_price_attestation(
     *,
     attestation: SettlementSpotPriceAttestation,
@@ -161,20 +254,13 @@ def verify_settlement_spot_price_attestation(
     except Exception as exc:
         return False, str(exc)
 
-    ok, err = verify_settlement_spot_price_packet(packet=attestation.packet)
+    ok, err = _verify_settlement_spot_price_attestation_packet_consistency(
+        attestation=attestation,
+        consumer_now_epoch=int(consumer_now_epoch),
+        max_attestation_age_epochs=int(max_attestation_age_epochs),
+    )
     if not ok:
-        return False, f"invalid settlement spot price packet: {err}"
-    if not attestation.packet.provenance_ok:
-        return False, "settlement spot price packet is not provenance_ok"
-    expected_packet_hash = _packet_hash_hex(attestation.packet)
-    if attestation.packet_hash != expected_packet_hash:
-        return False, "packet_hash mismatch"
-    if int(attestation.signed_at_epoch) != int(attestation.packet.now_epoch):
-        return False, "signed_at_epoch must equal packet.now_epoch"
-    if int(consumer_now_epoch) < int(attestation.signed_at_epoch):
-        return False, "attestation signed_at_epoch is in the future"
-    if int(consumer_now_epoch) - int(attestation.signed_at_epoch) > int(max_attestation_age_epochs):
-        return False, "settlement spot price attestation is stale"
+        return False, err
 
     policy_check = check_settlement_attestation_policy(
         policy=attestation_policy,
@@ -195,22 +281,123 @@ def verify_settlement_spot_price_attestation(
     if cached is not None:
         return cached
 
+    result = _verify_settlement_spot_price_attestation_signature(attestation=attestation)
+    _cache_attestation_verify_result(cache_key, result)
+    return result
+
+
+def verify_settlement_spot_price_attestation_bundle(
+    *,
+    bundle: SettlementSpotPriceAttestationBundle,
+    consumer_now_epoch: int,
+    max_attestation_age_epochs: int,
+    attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
+    attestation_registry_snapshot_loader: object | None = None,
+) -> tuple[bool, str | None]:
+    if not isinstance(bundle, SettlementSpotPriceAttestationBundle):
+        return False, "bundle must be a SettlementSpotPriceAttestationBundle"
+    if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
+        return False, "consumer_now_epoch must be a non-negative int"
+    if (
+        not isinstance(max_attestation_age_epochs, int)
+        or isinstance(max_attestation_age_epochs, bool)
+        or max_attestation_age_epochs < 0
+    ):
+        return False, "max_attestation_age_epochs must be a non-negative int"
+    try:
+        attestation_policy, attestation_registry_snapshot = load_attestation_policy_and_registry_snapshot(
+            attestation_policy=attestation_policy,
+            attestation_registry_snapshot=attestation_registry_snapshot,
+            attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+            consumer_now_epoch=int(consumer_now_epoch),
+        )
+    except Exception as exc:
+        return False, str(exc)
+
+    for attestation in bundle.attestations:
+        ok, err = _verify_settlement_spot_price_attestation_packet_consistency(
+            attestation=attestation,
+            consumer_now_epoch=int(consumer_now_epoch),
+            max_attestation_age_epochs=int(max_attestation_age_epochs),
+        )
+        if not ok:
+            return False, err
+        ok, err = _verify_settlement_spot_price_attestation_signature(attestation=attestation)
+        if not ok:
+            return False, err
+
+    policy_check = check_settlement_attestation_policy(
+        policy=attestation_policy,
+        consumer_now_epoch=int(consumer_now_epoch),
+        signer_pubkeys=tuple(attestation.signer_pubkey for attestation in bundle.attestations),
+        packet_source_ids=_packet_source_ids(bundle.packet),
+    )
+    if not policy_check.ok:
+        return False, policy_check.error
+    return True, None
+
+
+def verify_settlement_spot_price_attestation_bundle_payload(
+    *,
+    payload: Mapping[str, Any],
+    consumer_now_epoch: int,
+    max_attestation_age_epochs: int,
+    attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
+    attestation_registry_snapshot_loader: object | None = None,
+) -> tuple[bool, str | None]:
+    try:
+        bundle = SettlementSpotPriceAttestationBundle.from_dict(payload)
+    except Exception as exc:
+        return False, str(exc)
+    return verify_settlement_spot_price_attestation_bundle(
+        bundle=bundle,
+        consumer_now_epoch=consumer_now_epoch,
+        max_attestation_age_epochs=max_attestation_age_epochs,
+        attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
+        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+    )
+
+
+def _verify_settlement_spot_price_attestation_packet_consistency(
+    *,
+    attestation: SettlementSpotPriceAttestation,
+    consumer_now_epoch: int,
+    max_attestation_age_epochs: int,
+) -> tuple[bool, str | None]:
+    ok, err = verify_settlement_spot_price_packet(packet=attestation.packet)
+    if not ok:
+        return False, f"invalid settlement spot price packet: {err}"
+    if not attestation.packet.provenance_ok:
+        return False, "settlement spot price packet is not provenance_ok"
+    expected_packet_hash = _packet_hash_hex(attestation.packet)
+    if attestation.packet_hash != expected_packet_hash:
+        return False, "packet_hash mismatch"
+    if int(attestation.signed_at_epoch) != int(attestation.packet.now_epoch):
+        return False, "signed_at_epoch must equal packet.now_epoch"
+    if int(consumer_now_epoch) < int(attestation.signed_at_epoch):
+        return False, "attestation signed_at_epoch is in the future"
+    if int(consumer_now_epoch) - int(attestation.signed_at_epoch) > int(max_attestation_age_epochs):
+        return False, "settlement spot price attestation is stale"
+    return True, None
+
+
+def _verify_settlement_spot_price_attestation_signature(
+    *,
+    attestation: SettlementSpotPriceAttestation,
+) -> tuple[bool, str | None]:
     _require_bls()
     unsigned = attestation.to_unsigned_dict()
     try:
         pubkey_bytes = bytes.fromhex(attestation.signer_pubkey[2:])
         sig_bytes = bytes.fromhex(attestation.signature[2:])
         if not bool(G2Basic.Verify(pubkey_bytes, _attestation_message_bytes(unsigned), sig_bytes)):
-            result = (False, "settlement spot price attestation signature invalid")
-            _cache_attestation_verify_result(cache_key, result)
-            return result
+            return False, "settlement spot price attestation signature invalid"
     except Exception as exc:
-        result = (False, f"settlement spot price attestation verification error: {exc}")
-        _cache_attestation_verify_result(cache_key, result)
-        return result
-    result = (True, None)
-    _cache_attestation_verify_result(cache_key, result)
-    return result
+        return False, f"settlement spot price attestation verification error: {exc}"
+    return True, None
 
 
 def verify_settlement_spot_price_attestation_payload(
