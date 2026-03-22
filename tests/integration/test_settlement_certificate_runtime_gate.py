@@ -9,7 +9,10 @@ from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import parse_intents
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
 from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
+from src.integration.settlement_price_attestation import (
+    build_settlement_spot_price_attestation,
+    build_settlement_spot_price_attestation_bundle,
+)
 from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
 from src.integration.settlement_strong_certificate import SettlementProofFlags
 from src.integration.validation import validate_operations
@@ -266,6 +269,43 @@ def test_settlement_end_to_end_certificate_inputs_require_policy_or_snapshot_in_
         assert str(exc) == "attestation mode requires attestation_policy or attestation_registry_snapshot"
     else:
         raise AssertionError("expected attestation-mode inputs without policy or snapshot to fail")
+
+
+def test_validate_operations_accepts_when_end_to_end_certificate_required_from_attestation_bundle() -> None:
+    intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
+    intents = parse_intents({"2": intent_dicts})
+    settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
+    price_packet = _spot_price_packet(asset0, asset1)
+    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
+    attestation_policy = make_attestation_policy(
+        attestation_a,
+        min_distinct_signers=2,
+        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+    )
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        require_settlement_end_to_end_certificate=True,
+        settlement_end_to_end_certificate_inputs=SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_attestation_bundle=bundle,
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            attestation_policy=attestation_policy,
+        ),
+    )
+    assert ok is True
+    assert err is None
 
 
 def test_validate_operations_rejects_when_end_to_end_certificate_required_but_inputs_missing() -> None:

@@ -5,13 +5,18 @@ from tests.integration._attestation_policy_helper import make_attestation_policy
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
+from src.integration.settlement_price_attestation import (
+    build_settlement_spot_price_attestation,
+    build_settlement_spot_price_attestation_bundle,
+)
 from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
 from src.integration.settlement_value_packet import (
     SETTLEMENT_VALUE_PACKET_SCHEMA,
     SettlementValuePacket,
+    build_settlement_value_packet_from_price_attestation_bundle,
     build_settlement_value_packet_from_price_attestation,
     build_settlement_value_packet_from_price_packet,
+    verify_settlement_value_packet_payload_from_price_attestation_bundle,
     verify_settlement_value_packet_payload_from_price_attestation,
     verify_settlement_value_packet_payload_from_price_packet,
 )
@@ -208,3 +213,51 @@ def test_settlement_value_packet_builds_from_registry_snapshot_only() -> None:
     assert packet.attestation_policy_registry_contract == registry_snapshot.policy.registry_contract
     assert packet.attestation_policy_root == registry_snapshot.registry_root
     assert packet.attestation_policy_hash == registry_snapshot.policy.policy_hash_hex()
+
+
+def test_settlement_value_packet_round_trips_for_bundle_attestation() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
+    attestation_policy = make_attestation_policy(
+        attestation_a,
+        min_distinct_signers=2,
+        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+    )
+
+    packet = build_settlement_value_packet_from_price_attestation_bundle(
+        settlement=settlement,
+        price_attestation_bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50},
+        attestation_policy=attestation_policy,
+    )
+    assert packet.schema == SETTLEMENT_VALUE_PACKET_SCHEMA
+    assert packet.mode == "lp_aware"
+    assert packet.price_input_kind == "attestation_bundle"
+    assert packet.price_attestation is None
+    assert packet.price_attestation_bundle is not None
+    assert packet.packet_ok is True
+
+    ok, err = verify_settlement_value_packet_payload_from_price_attestation_bundle(
+        settlement=settlement,
+        price_attestation_bundle_payload=bundle.to_dict(),
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        packet_payload=packet.to_dict(),
+        lp_unit_values={pool_id: 50},
+        attestation_policy=attestation_policy,
+    )
+    assert ok is True
+    assert err is None
