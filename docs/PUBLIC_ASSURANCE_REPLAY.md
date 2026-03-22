@@ -22,6 +22,10 @@ Current pinned release snapshot on this tree:
 - snapshot recovery: `16 passed`
 - Tau syntax: `58/58`
 
+The scoped release decision checklist for this snapshot is:
+
+- `docs/zenodex/SHAPE_V1_RELEASE_CHECKLIST.md`
+
 Current derivatives note:
 
 - The published v1.1 funding-rate formal story is the decomposed one:
