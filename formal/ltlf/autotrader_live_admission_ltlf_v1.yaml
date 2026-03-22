@@ -1,0 +1,277 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "autotrader_live_admission_ltlf_v1"
+  created_by: "zenodex"
+  notes: "Finite-trace autotrader admission/submit/finalize liveness model."
+
+observables:
+  state_vars:
+    [
+      "phase",
+      "valid_observation",
+      "admission_checks_ok",
+      "nonce_accepted",
+      "nonce_consumed",
+      "submit_ok",
+      "emit_ready",
+      "finalized",
+      "explicit_failure",
+    ]
+  effects: ["event"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "ObservationLoaded",
+          "ObservationRejected",
+          "AdmissionAccepted",
+          "NonceAccepted",
+          "NonceRejected",
+          "BundleSubmitted",
+          "EmitFinalized",
+          "EmitAborted",
+          "End",
+        ]
+
+state_vars:
+  - id: "phase"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "valid_observation"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "admission_checks_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "nonce_accepted"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "nonce_consumed"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "submit_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "emit_ready"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "finalized"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "explicit_failure"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "phase"
+    expr: { const: 0 }
+  - var: "valid_observation"
+    expr: { bool: false }
+  - var: "admission_checks_ok"
+    expr: { bool: false }
+  - var: "nonce_accepted"
+    expr: { bool: false }
+  - var: "nonce_consumed"
+    expr: { bool: false }
+  - var: "submit_ok"
+    expr: { bool: false }
+  - var: "emit_ready"
+    expr: { bool: false }
+  - var: "finalized"
+    expr: { bool: false }
+  - var: "explicit_failure"
+    expr: { bool: false }
+
+invariants:
+  - id: "inv_finalized_implies_submitted"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "finalized" }
+        - { var: "submit_ok" }
+  - id: "inv_failure_and_finalize_exclusive"
+    kind: "safety"
+    expr:
+      op: "not"
+      args:
+        - op: "and"
+          args: [{ var: "finalized" }, { var: "explicit_failure" }]
+  - id: "inv_nonce_consumed_implies_accepted"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "nonce_consumed" }
+        - { var: "nonce_accepted" }
+  - id: "inv_phase_finalized_matches_flag"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { const: 5 }]
+        - { var: "finalized" }
+  - id: "inv_phase_rejected_matches_flag"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { const: 6 }]
+        - { var: "explicit_failure" }
+
+actions:
+  - id: "observe_valid"
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { const: 0 }]
+    updates:
+      - var: "phase"
+        expr: { const: 1 }
+      - var: "valid_observation"
+        expr: { bool: true }
+      - var: "admission_checks_ok"
+        expr: { bool: true }
+    effects:
+      event: { enum: "ObservationLoaded" }
+
+  - id: "observe_invalid"
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { const: 0 }]
+    updates:
+      - var: "phase"
+        expr: { const: 1 }
+      - var: "valid_observation"
+        expr: { bool: false }
+      - var: "admission_checks_ok"
+        expr: { bool: false }
+    effects:
+      event: { enum: "ObservationLoaded" }
+
+  - id: "admit_live_bundle"
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { const: 1 }]
+        - { var: "valid_observation" }
+        - { var: "admission_checks_ok" }
+    updates:
+      - var: "phase"
+        expr: { const: 2 }
+    effects:
+      event: { enum: "AdmissionAccepted" }
+
+  - id: "reject_invalid_bundle"
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { const: 1 }]
+        - op: "or"
+          args:
+            - op: "not"
+              args: [{ var: "valid_observation" }]
+            - op: "not"
+              args: [{ var: "admission_checks_ok" }]
+    updates:
+      - var: "phase"
+        expr: { const: 6 }
+      - var: "explicit_failure"
+        expr: { bool: true }
+    effects:
+      event: { enum: "ObservationRejected" }
+
+  - id: "accept_nonce"
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { const: 2 }]
+    updates:
+      - var: "phase"
+        expr: { const: 3 }
+      - var: "nonce_accepted"
+        expr: { bool: true }
+    effects:
+      event: { enum: "NonceAccepted" }
+
+  - id: "reject_nonce"
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { const: 2 }]
+    updates:
+      - var: "phase"
+        expr: { const: 6 }
+      - var: "explicit_failure"
+        expr: { bool: true }
+    effects:
+      event: { enum: "NonceRejected" }
+
+  - id: "submit_bundle"
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { const: 3 }]
+        - { var: "nonce_accepted" }
+    updates:
+      - var: "phase"
+        expr: { const: 4 }
+      - var: "nonce_consumed"
+        expr: { bool: true }
+      - var: "submit_ok"
+        expr: { bool: true }
+      - var: "emit_ready"
+        expr: { bool: true }
+    effects:
+      event: { enum: "BundleSubmitted" }
+
+  - id: "abort_after_nonce"
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { const: 3 }]
+    updates:
+      - var: "phase"
+        expr: { const: 6 }
+      - var: "explicit_failure"
+        expr: { bool: true }
+    effects:
+      event: { enum: "EmitAborted" }
+
+  - id: "finalize_emit"
+    guard:
+      op: "and"
+      args:
+        - op: "="
+          args: [{ var: "phase" }, { const: 4 }]
+        - { var: "submit_ok" }
+        - { var: "emit_ready" }
+    updates:
+      - var: "phase"
+        expr: { const: 5 }
+      - var: "finalized"
+        expr: { bool: true }
+    effects:
+      event: { enum: "EmitFinalized" }
+
+  - id: "abort_after_submit"
+    guard:
+      op: "="
+      args: [{ var: "phase" }, { const: 4 }]
+    updates:
+      - var: "phase"
+        expr: { const: 6 }
+      - var: "explicit_failure"
+        expr: { bool: true }
+    effects:
+      event: { enum: "EmitAborted" }
+
+  - id: "end"
+    guard: { bool: true }
+    updates: []
+    effects:
+      event: { enum: "End" }
