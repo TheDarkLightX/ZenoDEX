@@ -19,6 +19,7 @@ from .settlement_value_contract import AssetNetValueEntry, AssetPriceEntry
 if TYPE_CHECKING:
     from .settlement_attestation_policy import SettlementAttestationPolicy
     from .settlement_price_attestation import SettlementSpotPriceAttestation
+    from .settlement_signer_registry import SettlementSignerRegistrySnapshot
 
 
 SETTLEMENT_LP_VALUE_CONTRACT_SCHEMA = "zenodex/settlement-lp-value-contract/v1"
@@ -336,17 +337,22 @@ def build_settlement_lp_value_contract_from_price_attestation(
     max_attestation_age_epochs: int,
     lp_unit_values: Mapping[str, int],
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> SettlementLPValueContract:
-    from .settlement_attestation_policy import coerce_settlement_attestation_policy
     from .settlement_price_attestation import verify_settlement_spot_price_attestation
+    from .settlement_signer_registry import resolve_attestation_policy_and_registry_snapshot
 
-    attestation_policy = coerce_settlement_attestation_policy(attestation_policy)
+    attestation_policy, attestation_registry_snapshot = resolve_attestation_policy_and_registry_snapshot(
+        attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
+    )
 
     ok, err = verify_settlement_spot_price_attestation(
         attestation=price_attestation,
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
         attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
     )
     if not ok:
         raise ValueError(f"invalid settlement spot price attestation: {err}")
@@ -412,6 +418,7 @@ def verify_settlement_lp_value_contract_payload_from_price_attestation(
     lp_unit_values: Mapping[str, int],
     contract_payload: Mapping[str, Any],
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -430,6 +437,7 @@ def verify_settlement_lp_value_contract_payload_from_price_attestation(
         max_attestation_age_epochs=max_attestation_age_epochs,
         lp_unit_values=lp_unit_values,
         attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
     )
     if contract.schema != expected.schema:
         return False, "schema mismatch"

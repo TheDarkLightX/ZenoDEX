@@ -248,7 +248,7 @@ def test_validate_operations_accepts_when_end_to_end_certificate_required_from_a
     assert err is None
 
 
-def test_settlement_end_to_end_certificate_inputs_require_policy_in_attestation_mode() -> None:
+def test_settlement_end_to_end_certificate_inputs_require_policy_or_snapshot_in_attestation_mode() -> None:
     _intent_dicts, _balances, _pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
     attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
 
@@ -263,9 +263,9 @@ def test_settlement_end_to_end_certificate_inputs_require_policy_in_attestation_
             attestation_policy=None,
         )
     except ValueError as exc:
-        assert str(exc) == "attestation mode requires attestation_policy"
+        assert str(exc) == "attestation mode requires attestation_policy or attestation_registry_snapshot"
     else:
-        raise AssertionError("expected attestation-mode inputs without policy to fail")
+        raise AssertionError("expected attestation-mode inputs without policy or snapshot to fail")
 
 
 def test_validate_operations_rejects_when_end_to_end_certificate_required_but_inputs_missing() -> None:

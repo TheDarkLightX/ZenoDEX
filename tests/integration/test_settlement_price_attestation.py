@@ -4,7 +4,7 @@ import importlib.util
 
 import pytest
 
-from tests.integration._attestation_policy_helper import make_attestation_policy
+from tests.integration._attestation_policy_helper import make_attestation_policy, make_attestation_registry_snapshot
 
 from src.integration.settlement_price_attestation import (
     build_settlement_spot_price_attestation,
@@ -130,3 +130,40 @@ def test_settlement_spot_price_attestation_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "packet_hash mismatch"
+
+
+def test_settlement_spot_price_attestation_accepts_registry_snapshot_without_policy() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=None,
+        attestation_registry_snapshot=make_attestation_registry_snapshot(attestation),
+    )
+    assert ok is True
+    assert err is None
+
+
+def test_settlement_spot_price_attestation_rejects_policy_snapshot_binding_drift() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=make_attestation_policy(attestation, policy_epoch=1),
+        attestation_registry_snapshot=make_attestation_registry_snapshot(attestation, policy_epoch=2),
+    )
+    assert ok is False
+    assert err is not None
+    assert err.startswith("attestation policy_epoch does not match registry snapshot policy")

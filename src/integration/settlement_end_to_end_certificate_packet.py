@@ -34,6 +34,7 @@ from .settlement_value_packet import (
 if TYPE_CHECKING:
     from .settlement_attestation_policy import SettlementAttestationPolicy
     from .settlement_price_attestation import SettlementSpotPriceAttestation
+    from .settlement_signer_registry import SettlementSignerRegistrySnapshot
     from src.state.pools import PoolState
 
 
@@ -52,6 +53,7 @@ class SettlementEndToEndCertificateInputs:
     lp_unit_values: Mapping[str, int] | None = None
     pool_snapshots: Sequence[PoolState] | None = None
     attestation_policy: SettlementAttestationPolicy | None = None
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.proof_flags, SettlementProofFlags):
@@ -86,9 +88,17 @@ class SettlementEndToEndCertificateInputs:
             from .settlement_attestation_policy import SettlementAttestationPolicy as RuntimeSettlementAttestationPolicy
 
             if self.attestation_policy is None:
-                raise ValueError("attestation mode requires attestation_policy")
-            if not isinstance(self.attestation_policy, RuntimeSettlementAttestationPolicy):
+                if self.attestation_registry_snapshot is None:
+                    raise ValueError("attestation mode requires attestation_policy or attestation_registry_snapshot")
+            elif not isinstance(self.attestation_policy, RuntimeSettlementAttestationPolicy):
                 raise TypeError("attestation_policy must be a SettlementAttestationPolicy")
+            if self.attestation_registry_snapshot is not None:
+                from .settlement_signer_registry import (
+                    SettlementSignerRegistrySnapshot as RuntimeSettlementSignerRegistrySnapshot,
+                )
+
+                if not isinstance(self.attestation_registry_snapshot, RuntimeSettlementSignerRegistrySnapshot):
+                    raise TypeError("attestation_registry_snapshot must be a SettlementSignerRegistrySnapshot")
         _validate_value_mode_inputs(
             lp_unit_values=self.lp_unit_values,
             pool_snapshots=self.pool_snapshots,
@@ -248,6 +258,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation(
     lp_unit_values: Mapping[str, int] | None = None,
     pool_snapshots: Sequence[PoolState] | None = None,
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> SettlementEndToEndCertificatePacket:
     _validate_value_mode_inputs(lp_unit_values=lp_unit_values, pool_snapshots=pool_snapshots)
     feature_extension_packet = build_settlement_feature_extension_packet(feature_extension_inputs)
@@ -274,6 +285,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation(
             max_attestation_age_epochs=max_attestation_age_epochs,
             lp_unit_values=lp_unit_values,
             attestation_policy=attestation_policy,
+            attestation_registry_snapshot=attestation_registry_snapshot,
         )
         return _assemble_packet(
             price_input_kind="attestation",
@@ -291,6 +303,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation(
         max_attestation_age_epochs=max_attestation_age_epochs,
         pool_snapshots=pool_snapshots,
         attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
     )
     return _assemble_packet(
         price_input_kind="attestation",
@@ -391,6 +404,7 @@ def enforce_settlement_end_to_end_certificate(
                 lp_unit_values=certificate_inputs.lp_unit_values,
                 pool_snapshots=certificate_inputs.pool_snapshots,
                 attestation_policy=certificate_inputs.attestation_policy,
+                attestation_registry_snapshot=certificate_inputs.attestation_registry_snapshot,
             )
     except Exception as exc:
         return False, str(exc), None
@@ -413,6 +427,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
     lp_unit_values: Mapping[str, int] | None = None,
     pool_snapshots_payload: Sequence[Mapping[str, Any]] | None = None,
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -435,6 +450,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
             lp_unit_values=lp_unit_values,
             pool_snapshots=pool_snapshots,
             attestation_policy=attestation_policy,
+            attestation_registry_snapshot=attestation_registry_snapshot,
         )
     except Exception as exc:
         return False, str(exc)
@@ -540,6 +556,7 @@ def build_settlement_end_to_end_endogenous_from_attestation(
     max_attestation_age_epochs: int,
     pool_snapshots: Sequence[PoolState],
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> SettlementEndogenousLPValuePacket:
     return build_settlement_endogenous_lp_value_packet_from_price_attestation(
         settlement=settlement,
@@ -548,6 +565,7 @@ def build_settlement_end_to_end_endogenous_from_attestation(
         max_attestation_age_epochs=max_attestation_age_epochs,
         pool_snapshots=pool_snapshots,
         attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
     )
 
 

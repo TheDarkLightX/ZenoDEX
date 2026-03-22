@@ -19,6 +19,7 @@ from .settlement_price_provenance import (
 if TYPE_CHECKING:
     from .settlement_attestation_policy import SettlementAttestationPolicy
     from .settlement_price_attestation import SettlementSpotPriceAttestation
+    from .settlement_signer_registry import SettlementSignerRegistrySnapshot
 
 
 SETTLEMENT_ENDOGENOUS_LP_VALUE_PACKET_SCHEMA = "zenodex/settlement-endogenous-lp-value-packet/v1"
@@ -246,17 +247,22 @@ def build_settlement_endogenous_lp_value_packet_from_price_attestation(
     max_attestation_age_epochs: int,
     pool_snapshots: Sequence[PoolState],
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> SettlementEndogenousLPValuePacket:
-    from .settlement_attestation_policy import coerce_settlement_attestation_policy
     from .settlement_price_attestation import verify_settlement_spot_price_attestation
+    from .settlement_signer_registry import resolve_attestation_policy_and_registry_snapshot
 
-    attestation_policy = coerce_settlement_attestation_policy(attestation_policy)
+    attestation_policy, attestation_registry_snapshot = resolve_attestation_policy_and_registry_snapshot(
+        attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
+    )
 
     ok, err = verify_settlement_spot_price_attestation(
         attestation=price_attestation,
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
         attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
     )
     if not ok:
         raise ValueError(f"invalid settlement spot price attestation: {err}")
@@ -343,6 +349,7 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
     pool_snapshots_payload: Sequence[Mapping[str, Any]],
     packet_payload: Mapping[str, Any],
     attestation_policy: SettlementAttestationPolicy | None = None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -362,6 +369,7 @@ def verify_settlement_endogenous_lp_value_packet_payload_from_price_attestation(
             max_attestation_age_epochs=max_attestation_age_epochs,
             pool_snapshots=pool_snapshots,
             attestation_policy=attestation_policy,
+            attestation_registry_snapshot=attestation_registry_snapshot,
         )
     except Exception as exc:
         return False, str(exc)
