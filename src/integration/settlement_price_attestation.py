@@ -167,17 +167,20 @@ def verify_settlement_spot_price_attestation(
     cached = _PRICE_ATTESTATION_VERIFY_CACHE.get(cache_key)
     if cached is not None:
         return cached
-    if normalized_allowlist is not None:
-        allowed_sources = normalized_allowlist.get(attestation.signer_pubkey)
-        if allowed_sources is None:
-            result = (False, "signer_pubkey not allowlisted")
+    if normalized_allowlist is None:
+        result = (False, "allowed_signers is required")
+        _cache_attestation_verify_result(cache_key, result)
+        return result
+    allowed_sources = normalized_allowlist.get(attestation.signer_pubkey)
+    if allowed_sources is None:
+        result = (False, "signer_pubkey not allowlisted")
+        _cache_attestation_verify_result(cache_key, result)
+        return result
+    for source_id in _packet_source_ids(attestation.packet):
+        if source_id not in allowed_sources:
+            result = (False, f"source_id not allowlisted for signer: {source_id}")
             _cache_attestation_verify_result(cache_key, result)
             return result
-        for source_id in _packet_source_ids(attestation.packet):
-            if source_id not in allowed_sources:
-                result = (False, f"source_id not allowlisted for signer: {source_id}")
-                _cache_attestation_verify_result(cache_key, result)
-                return result
 
     _require_bls()
     unsigned = attestation.to_unsigned_dict()

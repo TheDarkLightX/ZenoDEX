@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
 from src.core.liquidity import create_pool
@@ -439,3 +441,18 @@ def test_apply_ops_rejects_when_engine_requires_full_price_rails_and_history_fai
     )
     assert res.ok is False
     assert res.error == "settlement end-to-end certificate full price rails rejected"
+
+
+def test_attestation_certificate_inputs_require_allowed_signers() -> None:
+    _intent_dicts, _balances, _pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
+    attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+
+    with pytest.raises(ValueError, match="attestation mode requires allowed_signers"):
+        SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_attestation=attestation,
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+        )

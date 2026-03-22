@@ -56,6 +56,22 @@ def test_settlement_spot_price_attestation_round_trips() -> None:
     assert err2 is None
 
 
+def test_settlement_spot_price_attestation_requires_allowlist() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+    )
+    assert ok is False
+    assert err == "allowed_signers is required"
+
+
 def test_settlement_spot_price_attestation_rejects_stale_consumer_epoch() -> None:
     packet = _packet()
     attestation = build_settlement_spot_price_attestation(

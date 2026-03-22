@@ -76,6 +76,8 @@ class SettlementEndToEndCertificateInputs:
                 raise ValueError(
                     "attestation mode requires consumer_now_epoch and max_attestation_age_epochs"
                 )
+            if self.allowed_signers is None:
+                raise ValueError("attestation mode requires allowed_signers")
             if not isinstance(self.consumer_now_epoch, int) or isinstance(self.consumer_now_epoch, bool):
                 raise TypeError("consumer_now_epoch must be an int")
             if not isinstance(self.max_attestation_age_epochs, int) or isinstance(
