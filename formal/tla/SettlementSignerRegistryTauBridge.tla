@@ -420,6 +420,40 @@ Spec ==
       snapshotEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
+      requestBindingOk,
+      anchorBindingOk,
+      policyBindingOk,
+      proofOk,
+      accepted,
+      rejected,
+      lastAction
+     >>(VerifyCleanPolicyBinding)
+  /\ WF_<<
+      requestIssued,
+      execReq,
+      requestEpoch,
+      snapshotPresent,
+      snapshotEpoch,
+      anchorPresent,
+      anchorEpoch,
+      policyBindingChecked,
+      requestBindingOk,
+      anchorBindingOk,
+      policyBindingOk,
+      proofOk,
+      accepted,
+      rejected,
+      lastAction
+     >>(VerifyDriftedPolicyBinding)
+  /\ WF_<<
+      requestIssued,
+      execReq,
+      requestEpoch,
+      snapshotPresent,
+      snapshotEpoch,
+      anchorPresent,
+      anchorEpoch,
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
@@ -443,5 +477,16 @@ FairBindingMismatchEventuallyRejects ==
 
 FairProofPathEventuallyResolves ==
   ProofPathRiskVisible ~> (rejected \/ proofOk)
+
+FairCleanArtifactsEventuallyCheckPolicyBinding ==
+  /\ requestIssued
+  /\ snapshotPresent
+  /\ anchorPresent
+  /\ requestBindingOk
+  /\ anchorBindingOk
+  /\ ~policyBindingChecked
+  /\ ~accepted
+  /\ ~rejected
+  ~> policyBindingChecked
 
 ====
