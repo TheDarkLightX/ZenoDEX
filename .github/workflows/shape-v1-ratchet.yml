@@ -33,9 +33,13 @@ jobs:
       - name: Enforce SHAPE_V1 ratchet
         run: python tools/check_shape_v1_ratchet.py
 
+      - name: Enforce negative-knowledge ratchet
+        run: python tools/check_negative_knowledge_ratchet.py
+
       - name: Run focused ShapeForge tests
         run: |
           pytest -q \
             tests/tools/test_shapeforge_validate.py \
             tests/tools/test_shapeforge_target_shape_eval.py \
-            tests/tools/test_check_shape_v1_ratchet.py
+            tests/tools/test_check_shape_v1_ratchet.py \
+            tests/tools/test_check_negative_knowledge_ratchet.py
