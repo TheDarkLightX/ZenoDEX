@@ -60,6 +60,7 @@ def make_route_quote_receipt(
     kind: str,
     quote: RouteQuote,
     pools_by_id: Dict[str, PoolState],
+    quote_epoch: int | None = None,
 ) -> Dict[str, Any]:
     """
     Create a deterministic receipt for a RouteQuote.
@@ -69,6 +70,11 @@ def make_route_quote_receipt(
     k = str(kind).strip().lower()
     if k not in {"exact_in", "exact_out"}:
         raise ValueError("kind must be 'exact_in' or 'exact_out'")
+
+    if quote_epoch is not None:
+        quote_epoch = _require_receipt_int(quote_epoch)
+        if quote_epoch is None or quote_epoch < 0:
+            raise ValueError("quote_epoch must be a non-negative int")
 
     # Receipt legs/hops are stored as plain dicts (canonical JSON friendly).
     legs = []
@@ -109,6 +115,8 @@ def make_route_quote_receipt(
         # Deterministic map of pool_id -> snapshot fingerprint.
         "pools": {pid: pool_fps[pid] for pid in sorted(pool_fps.keys())},
     }
+    if quote_epoch is not None:
+        body["quote_epoch"] = int(quote_epoch)
     return {
         "body": body,
         "receipt_hash": receipt_hash(body),
@@ -205,6 +213,11 @@ def verify_route_quote_receipt(
         or body_asset_in == body_asset_out
     ):
         return False, "bad_body_assets"
+
+    if "quote_epoch" in body:
+        quote_epoch = _require_receipt_int(body.get("quote_epoch"))
+        if quote_epoch is None or quote_epoch < 0:
+            return False, "bad_quote_epoch"
 
     pools = body.get("pools")
     if not isinstance(pools, dict):
