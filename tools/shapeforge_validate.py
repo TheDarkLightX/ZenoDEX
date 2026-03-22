@@ -244,8 +244,30 @@ def validate_world_model_data(data: dict, path: Path) -> list[str]:
 
     evidence_class_set = set(evidence_classes)
     axis_set = set(slice_axes)
+    invariants = data.get("cross_slice_invariants", [])
+    _require(errors, evidence_class_set <= ALLOWED_EVIDENCE_CLASSES, f"{path}: evidence_classes contains unsupported values")
     _require(errors, axis_set <= ALLOWED_AXES, f"{path}: slice_axes contains unsupported values")
     _require(errors, _ids_unique(slices, "slice_id"), f"{path}: slice ids must be unique and nonempty")
+    _require(errors, isinstance(invariants, list), f"{path}: cross_slice_invariants must be a list")
+    if isinstance(invariants, list) and invariants:
+        _require(errors, _ids_unique(invariants, "id"), f"{path}: cross_slice_invariants must have unique ids")
+
+    for invariant in invariants if isinstance(invariants, list) else []:
+        if not isinstance(invariant, dict):
+            errors.append(f"{path}: each cross-slice invariant must be an object")
+            continue
+        invariant_id = invariant.get("id", "<missing>")
+        _require(errors, _is_nonempty_string(invariant.get("id")), f"{path}: cross-slice invariant {invariant_id} must have a nonempty id")
+        _require(
+            errors,
+            _is_nonempty_string(invariant.get("formula")),
+            f"{path}: cross-slice invariant {invariant_id} must have a nonempty formula",
+        )
+        _require(
+            errors,
+            _is_nonempty_string_list(invariant.get("sources")),
+            f"{path}: cross-slice invariant {invariant_id} must have nonempty sources",
+        )
 
     slice_ids = {slice_obj["slice_id"] for slice_obj in slices if isinstance(slice_obj, dict) and "slice_id" in slice_obj}
 
