@@ -156,6 +156,15 @@ def test_strategy_ir_legacy_tau_spec_expands_to_canonical_bundle() -> None:
     assert roundtrip.tau_policy_specs == AUTOTRADER_TAU_POLICY_SPECS
 
 
+def test_strategy_ir_legacy_session_capability_tau_spec_expands_to_canonical_bundle() -> None:
+    strategy = _make_strategy(
+        backend=PolicyBackend.TAU,
+        tau_policy_spec="autotrader_session_capability_binding_guard_v1",
+    )
+    assert strategy.tau_policy_specs == AUTOTRADER_TAU_POLICY_SPECS
+    assert strategy.tau_policy_spec is None
+
+
 def test_strategy_ir_legacy_tau_bundle_expands_to_canonical_bundle() -> None:
     strategy = _make_strategy(
         backend=PolicyBackend.TAU,
