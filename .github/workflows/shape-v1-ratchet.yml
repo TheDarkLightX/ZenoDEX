@@ -1,0 +1,41 @@
+name: shape-v1-ratchet
+
+on:
+  push:
+    branches:
+      - main
+      - review/shape-v1-release-freeze
+  pull_request:
+
+jobs:
+  shape-v1-ratchet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install minimal test tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Validate ShapeForge promoted artifacts
+        run: |
+          python tools/shapeforge_validate.py docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json
+          python tools/shapeforge_validate.py docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json
+          python tools/shapeforge_validate.py docs/zenodex/shapeforge_promoted/zenodex_target_shapes.seed.json
+
+      - name: Enforce SHAPE_V1 ratchet
+        run: python tools/check_shape_v1_ratchet.py
+
+      - name: Run focused ShapeForge tests
+        run: |
+          pytest -q \
+            tests/tools/test_shapeforge_validate.py \
+            tests/tools/test_shapeforge_target_shape_eval.py \
+            tests/tools/test_check_shape_v1_ratchet.py
