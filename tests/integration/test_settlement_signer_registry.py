@@ -5,6 +5,7 @@ import importlib.util
 import pytest
 
 from tests.integration._attestation_policy_helper import (
+    make_attestation_registry_anchor,
     make_attestation_policy,
     make_attestation_registry_snapshot,
 )
@@ -15,9 +16,12 @@ from src.integration.settlement_price_provenance import (
     build_settlement_spot_price_packet,
 )
 from src.integration.settlement_signer_registry import (
+    ChainAnchoredSettlementSignerRegistrySnapshotLoader,
+    InMemorySettlementSignerRegistryAnchorLoader,
     InMemorySettlementSignerRegistrySnapshotLoader,
     SettlementSignerRegistrySnapshot,
     check_settlement_attestation_policy_registry_binding,
+    coerce_settlement_signer_registry_anchor,
     coerce_settlement_signer_registry_snapshot,
     load_attestation_policy_and_registry_snapshot,
     resolve_attestation_policy_and_registry_snapshot,
@@ -112,3 +116,78 @@ def test_settlement_signer_registry_loader_returns_bound_snapshot() -> None:
 
     assert resolved_policy == policy
     assert resolved_snapshot == snapshot
+
+
+def test_settlement_signer_registry_anchor_round_trips() -> None:
+    attestation = _attestation()
+    anchor = make_attestation_registry_anchor(attestation)
+
+    rebuilt = coerce_settlement_signer_registry_anchor(anchor.to_dict())
+
+    assert rebuilt == anchor
+
+
+def test_chain_anchored_snapshot_loader_rebinds_snapshot_to_anchor_block() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    source_snapshot = make_attestation_registry_snapshot(
+        attestation,
+        snapshot_block_number=7,
+        snapshot_block_hash="0x" + "90" * 32,
+    )
+    anchor = make_attestation_registry_anchor(
+        attestation,
+        anchor_block_number=55,
+        anchor_block_hash="0x" + "ab" * 32,
+    )
+    anchored_loader = ChainAnchoredSettlementSignerRegistrySnapshotLoader(
+        anchor_loader=InMemorySettlementSignerRegistryAnchorLoader(
+            {(int(policy.chain_id), policy.registry_contract, policy.policy_id, int(policy.policy_epoch)): anchor}
+        ),
+        snapshot_loader=InMemorySettlementSignerRegistrySnapshotLoader(
+            {(int(policy.chain_id), policy.registry_contract, policy.policy_id, int(policy.policy_epoch)): source_snapshot}
+        ),
+    )
+
+    resolved_policy, resolved_snapshot = load_attestation_policy_and_registry_snapshot(
+        attestation_policy=policy,
+        attestation_registry_snapshot=None,
+        attestation_registry_snapshot_loader=anchored_loader,
+        consumer_now_epoch=103,
+    )
+
+    assert resolved_policy == policy
+    assert resolved_snapshot is not None
+    assert resolved_snapshot.snapshot_block_number == 55
+    assert resolved_snapshot.snapshot_block_hash == "0x" + "ab" * 32
+    assert resolved_snapshot.registry_root == anchor.registry_root
+    assert resolved_snapshot.policy == source_snapshot.policy
+
+
+def test_chain_anchored_snapshot_loader_rejects_anchor_drift() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    snapshot = make_attestation_registry_snapshot(attestation)
+    drifting_anchor = make_attestation_registry_anchor(attestation, anchor_block_number=99)
+    drifting_anchor = coerce_settlement_signer_registry_anchor(
+        {
+            **drifting_anchor.to_dict(),
+            "policy_hash": "0x" + "ff" * 32,
+        }
+    )
+    anchored_loader = ChainAnchoredSettlementSignerRegistrySnapshotLoader(
+        anchor_loader=InMemorySettlementSignerRegistryAnchorLoader(
+            {(int(policy.chain_id), policy.registry_contract, policy.policy_id, int(policy.policy_epoch)): drifting_anchor}
+        ),
+        snapshot_loader=InMemorySettlementSignerRegistrySnapshotLoader(
+            {(int(policy.chain_id), policy.registry_contract, policy.policy_id, int(policy.policy_epoch)): snapshot}
+        ),
+    )
+
+    with pytest.raises(ValueError, match="attestation registry anchor policy_hash does not match request hint"):
+        load_attestation_policy_and_registry_snapshot(
+            attestation_policy=policy,
+            attestation_registry_snapshot=None,
+            attestation_registry_snapshot_loader=anchored_loader,
+            consumer_now_epoch=103,
+        )

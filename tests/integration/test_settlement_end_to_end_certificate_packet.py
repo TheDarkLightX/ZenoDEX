@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from tests.integration._attestation_policy_helper import make_attestation_policy, make_attestation_registry_snapshot
+from tests.integration._attestation_policy_helper import (
+    make_attestation_policy,
+    make_attestation_registry_anchor,
+    make_attestation_registry_snapshot,
+)
 
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
@@ -16,6 +20,8 @@ from src.integration.settlement_end_to_end_certificate_packet import (
 from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
 from src.integration.settlement_signer_registry import (
+    ChainAnchoredSettlementSignerRegistrySnapshotLoader,
+    InMemorySettlementSignerRegistryAnchorLoader,
     InMemorySettlementSignerRegistrySnapshotLoader,
     SettlementSignerRegistrySnapshot,
 )
@@ -292,23 +298,40 @@ def test_end_to_end_certificate_packet_accepts_snapshot_loader_without_direct_sn
     )
     attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
     attestation_policy = make_attestation_policy(attestation)
-    registry_snapshot = SettlementSignerRegistrySnapshot(
+    source_snapshot = SettlementSignerRegistrySnapshot(
         chain_id=attestation_policy.chain_id,
         registry_contract=attestation_policy.registry_contract,
         registry_root=attestation_policy.registry_root,
-        snapshot_block_number=1_234_567,
+        snapshot_block_number=7,
         snapshot_block_hash="0x" + "56" * 32,
         policy=attestation_policy,
     )
-    loader = InMemorySettlementSignerRegistrySnapshotLoader(
-        {
-            (
-                registry_snapshot.chain_id,
-                registry_snapshot.registry_contract,
-                registry_snapshot.policy.policy_id,
-                registry_snapshot.policy.policy_epoch,
-            ): registry_snapshot
-        }
+    anchor = make_attestation_registry_anchor(
+        attestation,
+        anchor_block_number=1_234_567,
+        anchor_block_hash="0x" + "78" * 32,
+    )
+    loader = ChainAnchoredSettlementSignerRegistrySnapshotLoader(
+        anchor_loader=InMemorySettlementSignerRegistryAnchorLoader(
+            {
+                (
+                    anchor.chain_id,
+                    anchor.registry_contract,
+                    anchor.policy_id,
+                    anchor.policy_epoch,
+                ): anchor
+            }
+        ),
+        snapshot_loader=InMemorySettlementSignerRegistrySnapshotLoader(
+            {
+                (
+                    source_snapshot.chain_id,
+                    source_snapshot.registry_contract,
+                    source_snapshot.policy.policy_id,
+                    source_snapshot.policy.policy_epoch,
+                ): source_snapshot
+            }
+        ),
     )
 
     packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
@@ -326,9 +349,9 @@ def test_end_to_end_certificate_packet_accepts_snapshot_loader_without_direct_sn
 
     assert packet.packet_ok is True
     assert packet.value_packet is not None
-    assert packet.value_packet.attestation_policy_id == registry_snapshot.policy.policy_id
-    assert packet.value_packet.attestation_policy_epoch == registry_snapshot.policy.policy_epoch
-    assert packet.value_packet.attestation_policy_root == registry_snapshot.registry_root
+    assert packet.value_packet.attestation_policy_id == anchor.policy_id
+    assert packet.value_packet.attestation_policy_epoch == anchor.policy_epoch
+    assert packet.value_packet.attestation_policy_root == anchor.registry_root
 
 
 def test_end_to_end_certificate_packet_from_attestation_requires_policy() -> None:
