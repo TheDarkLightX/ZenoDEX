@@ -17,7 +17,8 @@ from pathlib import Path
 
 
 WORLD_MODEL_SCHEMA = "shapeforge/world-model-seed/v1"
-NEGATIVE_KNOWLEDGE_SCHEMA = "shapeforge/negative-knowledge-seed/v1"
+NEGATIVE_KNOWLEDGE_SCHEMA_V1 = "shapeforge/negative-knowledge-seed/v1"
+NEGATIVE_KNOWLEDGE_SCHEMA_V2 = "shapeforge/negative-knowledge-seed/v2"
 TARGET_SHAPES_SCHEMA = "shapeforge/target-shapes-seed/v1"
 
 WORLD_MODEL_TOP_LEVEL_KEYS = {
@@ -321,12 +322,13 @@ def validate_world_model_data(data: dict, path: Path) -> list[str]:
 
 def validate_negative_knowledge_data(data: dict, path: Path) -> list[str]:
     errors: list[str] = []
+    schema = data.get("schema")
 
     _require(errors, NEGATIVE_TOP_LEVEL_KEYS.issubset(data.keys()), f"{path}: missing top-level keys")
     _require(
         errors,
-        data.get("schema") == NEGATIVE_KNOWLEDGE_SCHEMA,
-        f"{path}: schema must equal {NEGATIVE_KNOWLEDGE_SCHEMA}",
+        schema in {NEGATIVE_KNOWLEDGE_SCHEMA_V1, NEGATIVE_KNOWLEDGE_SCHEMA_V2},
+        f"{path}: schema must equal {NEGATIVE_KNOWLEDGE_SCHEMA_V1} or {NEGATIVE_KNOWLEDGE_SCHEMA_V2}",
     )
     _require(errors, _is_nonempty_string(data.get("repo_root")), f"{path}: repo_root must be a nonempty string")
     _require(errors, _is_nonempty_string(data.get("context_key")), f"{path}: context_key must be a nonempty string")
@@ -424,7 +426,7 @@ def validate_negative_knowledge_data(data: dict, path: Path) -> list[str]:
             remaining_excluded_domain is None or _is_nonempty_string(remaining_excluded_domain),
             f"{path}: record {hypothesis_id} remaining_excluded_domain must be null or a nonempty string",
         )
-        if record.get("status") == "narrowed":
+        if schema == NEGATIVE_KNOWLEDGE_SCHEMA_V2 and record.get("status") == "narrowed":
             _require(
                 errors,
                 _is_nonempty_string(replacement_claim),
@@ -648,7 +650,7 @@ def validate_artifact(path: Path) -> list[str]:
     schema = data.get("schema")
     if schema == WORLD_MODEL_SCHEMA:
         return validate_world_model_data(data, path)
-    if schema == NEGATIVE_KNOWLEDGE_SCHEMA:
+    if schema in {NEGATIVE_KNOWLEDGE_SCHEMA_V1, NEGATIVE_KNOWLEDGE_SCHEMA_V2}:
         return validate_negative_knowledge_data(data, path)
     if schema == TARGET_SHAPES_SCHEMA:
         return validate_target_shapes_data(data, path)

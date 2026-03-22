@@ -28,6 +28,14 @@ EXPECTED_NARROWED_HYPOTHESIS_IDS = {
     "exact_out_runtime_order_is_semantic_canonicality_v1",
 }
 
+EXPECTED_NARROWED_BASELINES = {
+    "exact_out_runtime_order_is_semantic_canonicality_v1": {
+        "replacement_claim": "Canonicality comes from minimizing route_key_out = (input_total, leg_count, legs_lex) over complete candidates; the repaired two-pool runtime now reflects that key on the bounded emitted candidate set.",
+        "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break",
+        "remaining_excluded_domain": "Candidate domains outside the repaired bounded emitted set remain excluded: stable runtime enumeration is still not a semantic canonicality argument without explicit total-key minimization plus candidate completeness.",
+    }
+}
+
 
 def check_negative_knowledge_ratchet(
     *,
@@ -69,6 +77,19 @@ def check_negative_knowledge_ratchet(
                 f"{negative_knowledge_path}: record {hypothesis_id} missing remaining_excluded_domain"
             )
 
+        expected_fields = EXPECTED_NARROWED_BASELINES.get(hypothesis_id)
+        if expected_fields is None:
+            errors.append(
+                f"{negative_knowledge_path}: record {hypothesis_id} missing pinned narrowed baseline"
+            )
+        else:
+            for field_name, expected_value in expected_fields.items():
+                actual_value = str(record.get(field_name) or "").strip()
+                if actual_value != expected_value:
+                    errors.append(
+                        f"{negative_knowledge_path}: record {hypothesis_id} field {field_name} drifted from pinned baseline"
+                    )
+
     if errors:
         raise ValueError("\n".join(errors))
 
@@ -85,6 +106,7 @@ def check_negative_knowledge_ratchet(
         "narrowed_count": len(narrowed_ids),
         "narrowed_hypothesis_ids": narrowed_ids,
         "expected_narrowed_hypothesis_ids": sorted(EXPECTED_NARROWED_HYPOTHESIS_IDS),
+        "expected_narrowed_baselines": EXPECTED_NARROWED_BASELINES,
     }
 
 

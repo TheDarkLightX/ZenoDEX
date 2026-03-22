@@ -595,7 +595,7 @@
     }
   ],
   "repo_root": "github.com/TheDarkLightX/ZenoDEX",
-  "schema": "shapeforge/negative-knowledge-seed/v1",
+  "schema": "shapeforge/negative-knowledge-seed/v2",
   "world_model_id": "zenodex_shape_reference_v3",
   "world_model_path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json"
 }

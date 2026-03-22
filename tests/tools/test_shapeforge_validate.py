@@ -126,3 +126,24 @@ def test_negative_knowledge_rejects_narrowed_record_without_replacement_claim(tm
     )
     assert result.returncode != 0
     assert "narrowed records must have a nonempty replacement_claim" in result.stderr
+
+
+def test_negative_knowledge_v1_allows_missing_remaining_excluded_domain(tmp_path: Path) -> None:
+    negative_knowledge = json.loads(NEGATIVE_KNOWLEDGE.read_text(encoding="utf-8"))
+    negative_knowledge["schema"] = "shapeforge/negative-knowledge-seed/v1"
+    for record in negative_knowledge["records"]:
+        if record["status"] == "narrowed":
+            record.pop("remaining_excluded_domain", None)
+            break
+    older = tmp_path / "negative_knowledge_v1_without_remaining_domain.json"
+    older.write_text(json.dumps(negative_knowledge, indent=2), encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(VALIDATOR), str(older)],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"OK {older}"
