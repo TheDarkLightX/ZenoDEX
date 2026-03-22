@@ -435,20 +435,23 @@ def test_compute_support_state_root_covers_positive_lp_section_unknown_status_an
 
 
 def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> None:
-    pk = "0x" + "11" * 48
+    pk = "0x" + "ab" * 48
+    pk_alt = pk.upper().replace("0X", "0x")
     pool_id = "0x" + "aa" * 32
     asset = "0x" + "01" * 32
     balances = BalanceTable()
     balances.set(pk, asset, 1)
+    balances.set(pk_alt, asset, 1)
     lp = LPTable()
     lp.set(pk, pool_id, 1)
+    lp.set(pk_alt, pool_id, 1)
 
     with pytest.raises(ValueError, match="duplicate decoded \\(pubkey, asset\\)"):
         compute_support_state_root(
             balances=balances,
             pools={},
             lp_balances=LPTable(),
-            support=BatchStateSupport(balance_keys=((pk, asset), (pk.upper().replace("0X", "0x"), asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
+            support=BatchStateSupport(balance_keys=((pk, asset), (pk_alt, asset)), pool_ids=(), lp_keys=(), nonce_keys=()),
         )
 
     with pytest.raises(ValueError, match="duplicate decoded pool_id"):
@@ -464,12 +467,11 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             balances=BalanceTable(),
             pools={},
             lp_balances=lp,
-            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk.upper().replace("0X", "0x"), pool_id)), nonce_keys=()),
+            support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk_alt, pool_id)), nonce_keys=()),
         )
 
     nonces = NonceTable()
     nonces.set_last(pk, 1)
-    nonces.set_last(pk.upper().replace("0X", "0x"), 2)
     with pytest.raises(ValueError, match="duplicate decoded pubkey in support nonces"):
         compute_support_state_root(
             balances=BalanceTable(),
@@ -479,7 +481,7 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
                 balance_keys=(),
                 pool_ids=(),
                 lp_keys=(),
-                nonce_keys=(pk, pk.upper().replace("0X", "0x")),
+                nonce_keys=(pk, pk_alt),
             ),
             nonces=nonces,
         )
