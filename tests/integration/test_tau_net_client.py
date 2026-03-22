@@ -302,3 +302,7 @@ def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkey
 
     with pytest.raises(tau_net_client.TauNetRpcError, match="getstateproof full present must be a bool"):
         client.getstateproof_view()
+
+    monkeypatch.setattr(client, "rpc", lambda _cmd: '{"state_hash":"","present":true}')
+    with pytest.raises(tau_net_client.TauNetRpcError, match="getstateproof full state_hash must be a 64-hex string when present=true"):
+        client.getstateproof_view()

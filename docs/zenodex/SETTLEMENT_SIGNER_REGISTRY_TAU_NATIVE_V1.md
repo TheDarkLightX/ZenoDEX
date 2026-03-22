@@ -147,7 +147,8 @@ Implemented in this slice:
 
 Current runtime behavior:
 
-- loads `getappstate full`
+- reads `getstateproof full`, then `getappstate full`, then `getstateproof full` again
+- retries boundedly until the Tau state-proof view is stable across that window
 - requires a typed app-state bridge payload:
 
 ```json
@@ -161,11 +162,13 @@ Current runtime behavior:
 ```
 
 - optionally requires `getstateproof full` to report `present=true`
+- rejects `present=true` if the Tau proof surface does not also expose a committed `state_hash`
 - rejects on:
   - missing app-state hash
   - missing or malformed bridge payload
   - request/anchor drift
   - anchor/snapshot drift
+  - unstable Tau proof metadata during bridge load
   - state-proof absence
   - state-proof surface errors
 
