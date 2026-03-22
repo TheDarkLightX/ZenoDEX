@@ -121,6 +121,110 @@ class SettlementAttestationRegistryBindingResult:
         return self.to_dict()
 
 
+@dataclass(frozen=True)
+class SettlementSignerRegistrySnapshotRequest:
+    chain_id: int
+    registry_contract: str
+    policy_id: str
+    policy_epoch: int
+    registry_root_hint: str
+    policy_hash_hint: str
+    consumer_now_epoch: int
+
+    def __post_init__(self) -> None:
+        for name in ("chain_id", "policy_epoch", "consumer_now_epoch"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError(f"{name} must be a non-negative int")
+        if not isinstance(self.policy_id, str) or not self.policy_id.strip():
+            raise ValueError("policy_id must be a non-empty string")
+        object.__setattr__(self, "policy_id", self.policy_id.strip())
+        object.__setattr__(
+            self,
+            "registry_contract",
+            canonical_hex_fixed_allow_0x(self.registry_contract, nbytes=20, name="registry_contract"),
+        )
+        object.__setattr__(
+            self,
+            "registry_root_hint",
+            canonical_hex_fixed_allow_0x(self.registry_root_hint, nbytes=32, name="registry_root_hint"),
+        )
+        object.__setattr__(
+            self,
+            "policy_hash_hint",
+            canonical_hex_fixed_allow_0x(self.policy_hash_hint, nbytes=32, name="policy_hash_hint"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "chain_id": int(self.chain_id),
+            "registry_contract": self.registry_contract,
+            "policy_id": self.policy_id,
+            "policy_epoch": int(self.policy_epoch),
+            "registry_root_hint": self.registry_root_hint,
+            "policy_hash_hint": self.policy_hash_hint,
+            "consumer_now_epoch": int(self.consumer_now_epoch),
+        }
+
+
+@dataclass(frozen=True)
+class SettlementSignerRegistrySnapshotLoadResult:
+    ok: bool
+    snapshot_present: bool
+    binding_ok: bool
+    error: str | None = None
+    error_code: str | None = None
+    details: Mapping[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": bool(self.ok),
+            "snapshot_present": bool(self.snapshot_present),
+            "binding_ok": bool(self.binding_ok),
+            "error": self.error,
+            "error_code": self.error_code,
+            "details": None if self.details is None else dict(self.details),
+        }
+
+    def telemetry_payload(self) -> dict[str, Any]:
+        return self.to_dict()
+
+
+class InMemorySettlementSignerRegistrySnapshotLoader:
+    def __init__(self, snapshots: Mapping[tuple[int, str, str, int], SettlementSignerRegistrySnapshot | Mapping[str, Any]]):
+        if not isinstance(snapshots, Mapping):
+            raise TypeError("snapshots must be a mapping")
+        normalized: dict[tuple[int, str, str, int], SettlementSignerRegistrySnapshot] = {}
+        for key, raw_snapshot in snapshots.items():
+            if (
+                not isinstance(key, tuple)
+                or len(key) != 4
+                or not isinstance(key[0], int)
+                or not isinstance(key[1], str)
+                or not isinstance(key[2], str)
+                or not isinstance(key[3], int)
+            ):
+                raise TypeError("snapshot loader keys must be (chain_id, registry_contract, policy_id, policy_epoch)")
+            normalized_key = (
+                int(key[0]),
+                canonical_hex_fixed_allow_0x(key[1], nbytes=20, name="registry_contract"),
+                str(key[2]).strip(),
+                int(key[3]),
+            )
+            normalized[normalized_key] = coerce_settlement_signer_registry_snapshot(raw_snapshot)
+        self._snapshots = normalized
+
+    def load_snapshot(self, request: SettlementSignerRegistrySnapshotRequest) -> SettlementSignerRegistrySnapshot | None:
+        return self._snapshots.get(
+            (
+                int(request.chain_id),
+                request.registry_contract,
+                request.policy_id,
+                int(request.policy_epoch),
+            )
+        )
+
+
 def check_settlement_attestation_policy_registry_binding(
     *,
     policy: SettlementAttestationPolicy | None,
@@ -267,6 +371,52 @@ def resolve_attestation_policy_and_registry_snapshot(
     return policy, registry_snapshot
 
 
+def load_attestation_policy_and_registry_snapshot(
+    *,
+    attestation_policy: SettlementAttestationPolicy | Mapping[str, Any] | None,
+    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | Mapping[str, Any] | None,
+    attestation_registry_snapshot_loader: object | None,
+    consumer_now_epoch: int,
+) -> tuple[SettlementAttestationPolicy | None, SettlementSignerRegistrySnapshot | None]:
+    policy, registry_snapshot = resolve_attestation_policy_and_registry_snapshot(
+        attestation_policy=attestation_policy,
+        attestation_registry_snapshot=attestation_registry_snapshot,
+    )
+    if registry_snapshot is not None or policy is None or attestation_registry_snapshot_loader is None:
+        return policy, registry_snapshot
+    if not isinstance(consumer_now_epoch, int) or isinstance(consumer_now_epoch, bool) or consumer_now_epoch < 0:
+        raise ValueError("consumer_now_epoch must be a non-negative int")
+    load_snapshot = getattr(attestation_registry_snapshot_loader, "load_snapshot", None)
+    if not callable(load_snapshot):
+        raise TypeError("attestation_registry_snapshot_loader must define load_snapshot(request)")
+    request = SettlementSignerRegistrySnapshotRequest(
+        chain_id=int(policy.chain_id),
+        registry_contract=policy.registry_contract,
+        policy_id=policy.policy_id,
+        policy_epoch=int(policy.policy_epoch),
+        registry_root_hint=policy.registry_root,
+        policy_hash_hint=policy.policy_hash_hex(),
+        consumer_now_epoch=int(consumer_now_epoch),
+    )
+    raw_snapshot = load_snapshot(request)
+    if raw_snapshot is None:
+        details = request.to_dict()
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry snapshot loader returned no snapshot",
+                details=details,
+            )
+        )
+    registry_snapshot = coerce_settlement_signer_registry_snapshot(raw_snapshot)
+    binding = check_settlement_attestation_policy_registry_binding(
+        policy=policy,
+        registry_snapshot=registry_snapshot,
+    )
+    if not binding.ok:
+        raise ValueError(binding.error or "attestation policy registry binding failed")
+    return policy, registry_snapshot
+
+
 def _format_binding_error(base_error: str, *, details: Mapping[str, Any]) -> str:
     rendered = ", ".join(f"{key}={_format_detail_value(value)}" for key, value in sorted(details.items()))
     if not rendered:
@@ -290,8 +440,12 @@ def _format_detail_value(value: Any) -> str:
 __all__ = [
     "SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA",
     "SettlementAttestationRegistryBindingResult",
+    "SettlementSignerRegistrySnapshotLoadResult",
+    "SettlementSignerRegistrySnapshotRequest",
     "SettlementSignerRegistrySnapshot",
+    "InMemorySettlementSignerRegistrySnapshotLoader",
     "check_settlement_attestation_policy_registry_binding",
     "coerce_settlement_signer_registry_snapshot",
+    "load_attestation_policy_and_registry_snapshot",
     "resolve_attestation_policy_and_registry_snapshot",
 ]

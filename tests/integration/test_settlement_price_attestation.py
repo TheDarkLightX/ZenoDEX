@@ -11,6 +11,7 @@ from src.integration.settlement_price_attestation import (
     verify_settlement_spot_price_attestation,
     verify_settlement_spot_price_attestation_payload,
 )
+from src.integration.settlement_signer_registry import InMemorySettlementSignerRegistrySnapshotLoader
 from src.integration.settlement_price_provenance import (
     SettlementSpotPricePacket,
     SettlementSpotPriceEntry,
@@ -167,3 +168,34 @@ def test_settlement_spot_price_attestation_rejects_policy_snapshot_binding_drift
     assert ok is False
     assert err is not None
     assert err.startswith("attestation policy_epoch does not match registry snapshot policy")
+
+
+def test_settlement_spot_price_attestation_accepts_snapshot_loader() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+    policy = make_attestation_policy(attestation)
+    snapshot = make_attestation_registry_snapshot(attestation)
+    loader = InMemorySettlementSignerRegistrySnapshotLoader(
+        {
+            (
+                int(policy.chain_id),
+                policy.registry_contract,
+                policy.policy_id,
+                int(policy.policy_epoch),
+            ): snapshot
+        }
+    )
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=policy,
+        attestation_registry_snapshot=None,
+        attestation_registry_snapshot_loader=loader,
+    )
+    assert ok is True
+    assert err is None

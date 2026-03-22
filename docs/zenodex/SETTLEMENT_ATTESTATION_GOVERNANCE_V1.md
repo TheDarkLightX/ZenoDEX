@@ -148,6 +148,7 @@ Current runtime consequence:
 - if governance sets `P.min_distinct_signers > 1`, the current runtime rejects settlement until a multi-attestation bundle is implemented
 - if a caller supplies both `P` and a registry snapshot `R`, the runtime rejects unless `RegistryBindingOK(P, R)` holds exactly
 - if a caller supplies only `R`, the runtime derives `P := R.policy` and continues fail-closed from the snapshot
+- if the runtime holds `P` plus a registry-snapshot loader, it may derive `R` from the loader and still fail closed on missing or drifting snapshot state
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 
