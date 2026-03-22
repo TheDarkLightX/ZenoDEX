@@ -1,18 +1,37 @@
 from __future__ import annotations
 
+from tests.integration._attestation_policy_helper import (
+    build_policy_bound_attestation,
+    make_attestation_policy,
+    make_attestation_registry_anchor,
+    make_attestation_registry_snapshot,
+)
+
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
 from src.integration.settlement_end_to_end_certificate_packet import (
     SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA,
+    build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle,
     build_settlement_end_to_end_certificate_packet_from_price_attestation,
     build_settlement_end_to_end_certificate_packet_from_price_packet,
+    verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation_bundle,
     verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation,
     verify_settlement_end_to_end_certificate_packet_payload_from_price_packet,
 )
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
+from src.integration.settlement_price_attestation import (
+    build_settlement_spot_price_attestation,
+    build_settlement_spot_price_attestation_bundle,
+    settlement_spot_price_attestation_signer_pubkey_from_privkey,
+)
 from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
+from src.integration.settlement_signer_registry import (
+    ChainAnchoredSettlementSignerRegistrySnapshotLoader,
+    InMemorySettlementSignerRegistryAnchorLoader,
+    InMemorySettlementSignerRegistrySnapshotLoader,
+    SettlementSignerRegistrySnapshot,
+)
 from src.integration.settlement_strong_certificate import SettlementProofFlags
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
@@ -164,7 +183,8 @@ def test_end_to_end_certificate_packet_round_trips_for_endogenous_attestation() 
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
+    attestation_policy = make_attestation_policy(attestation)
     packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
         settlement=settlement,
         proof_flags=SettlementProofFlags.all_true(),
@@ -174,12 +194,14 @@ def test_end_to_end_certificate_packet_round_trips_for_endogenous_attestation() 
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
         pool_snapshots=(pool,),
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert packet.value_packet_kind == "endogenous_lp_value"
     assert packet.price_input_kind == "attestation"
     assert packet.lp_liability_balanced_ok is True
     assert packet.packet_ok is True
+    assert packet.endogenous_lp_value_packet is not None
+    assert packet.endogenous_lp_value_packet.attestation_policy_id == attestation_policy.policy_id
 
     ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation(
         settlement=settlement,
@@ -203,7 +225,7 @@ def test_end_to_end_certificate_packet_round_trips_for_endogenous_attestation() 
             "curve_params": pool.curve_params,
         }],
         packet_payload=packet.to_dict(),
-        allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        attestation_policy=attestation_policy,
     )
     assert ok is True
     assert err is None
@@ -241,7 +263,104 @@ def test_end_to_end_certificate_packet_rejects_tampering() -> None:
     assert err == "settlement end-to-end certificate packet mismatch"
 
 
-def test_end_to_end_certificate_packet_from_attestation_requires_allowlist() -> None:
+def test_end_to_end_certificate_inputs_accept_registry_snapshot_without_policy() -> None:
+    _pk, asset0, asset1, _pool_id, _pool, settlement = _four_swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation, _policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
+    registry_snapshot = make_attestation_registry_snapshot(attestation)
+
+    packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs=_feature_extension_inputs(),
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=None,
+        attestation_registry_snapshot=registry_snapshot,
+    )
+
+    assert packet.packet_ok is True
+    assert packet.value_packet is not None
+    assert packet.value_packet.attestation_policy_id == registry_snapshot.policy.policy_id
+
+
+def test_end_to_end_certificate_packet_accepts_snapshot_loader_without_direct_snapshot() -> None:
+    _pk, asset0, asset1, _pool_id, _pool, settlement = _four_swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation, attestation_policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
+    source_snapshot = SettlementSignerRegistrySnapshot(
+        chain_id=attestation_policy.chain_id,
+        registry_contract=attestation_policy.registry_contract,
+        registry_root=attestation_policy.registry_root,
+        snapshot_block_number=7,
+        snapshot_block_hash="0x" + "56" * 32,
+        policy=attestation_policy,
+    )
+    anchor = make_attestation_registry_anchor(
+        attestation,
+        anchor_block_number=1_234_567,
+        anchor_block_hash="0x" + "78" * 32,
+    )
+    loader = ChainAnchoredSettlementSignerRegistrySnapshotLoader(
+        anchor_loader=InMemorySettlementSignerRegistryAnchorLoader(
+            {
+                (
+                    anchor.chain_id,
+                    anchor.registry_contract,
+                    anchor.policy_id,
+                    anchor.policy_epoch,
+                ): anchor
+            }
+        ),
+        snapshot_loader=InMemorySettlementSignerRegistrySnapshotLoader(
+            {
+                (
+                    source_snapshot.chain_id,
+                    source_snapshot.registry_contract,
+                    source_snapshot.policy.policy_id,
+                    source_snapshot.policy.policy_epoch,
+                ): source_snapshot
+            }
+        ),
+    )
+
+    packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs=_feature_extension_inputs(),
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        attestation_policy=attestation_policy,
+        attestation_registry_snapshot=None,
+        attestation_registry_snapshot_loader=loader,
+    )
+
+    assert packet.packet_ok is True
+    assert packet.value_packet is not None
+    assert packet.value_packet.attestation_policy_id == anchor.policy_id
+    assert packet.value_packet.attestation_policy_epoch == anchor.policy_epoch
+    assert packet.value_packet.attestation_policy_root == anchor.registry_root
+
+
+def test_end_to_end_certificate_packet_from_attestation_requires_policy() -> None:
     _pk, asset0, asset1, _pool_id, pool, settlement = _four_swap_context()
     price_packet = build_settlement_spot_price_packet(
         entries=(
@@ -251,7 +370,7 @@ def test_end_to_end_certificate_packet_from_attestation_requires_allowlist() -> 
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
 
     try:
         build_settlement_end_to_end_certificate_packet_from_price_attestation(
@@ -263,9 +382,80 @@ def test_end_to_end_certificate_packet_from_attestation_requires_allowlist() -> 
             consumer_now_epoch=103,
             max_attestation_age_epochs=5,
             pool_snapshots=(pool,),
-            allowed_signers=None,
+            attestation_policy=None,
         )
     except ValueError as exc:
-        assert str(exc) == "invalid settlement spot price attestation: settlement spot price attestation requires allowed_signers"
+        assert str(exc).startswith(
+            "invalid settlement spot price attestation: settlement spot price attestation requires attestation_policy"
+        )
     else:
-        raise AssertionError("expected attestation packet build without allowlist to fail")
+        raise AssertionError("expected attestation packet build without policy to fail")
+
+
+def test_end_to_end_certificate_packet_round_trips_for_bundle_attestation() -> None:
+    pk, asset0, asset1, pool_id, pool, settlement = _four_swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=2, delta_sub=0))
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation_policy = make_attestation_policy(
+        {
+            "signer_pubkey": settlement_spot_price_attestation_signer_pubkey_from_privkey(7),
+            "signed_at_epoch": int(price_packet.now_epoch),
+            "packet": price_packet.to_dict(),
+        },
+        min_distinct_signers=2,
+        additional_allowed_signers={
+            settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+        },
+    )
+    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7, attestation_policy=attestation_policy)
+    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8, attestation_policy=attestation_policy)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
+
+    packet = build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs=_feature_extension_inputs(),
+        price_attestation_bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        pool_snapshots=(pool,),
+        attestation_policy=attestation_policy,
+    )
+    assert packet.value_packet_kind == "endogenous_lp_value"
+    assert packet.price_input_kind == "attestation_bundle"
+    assert packet.packet_ok is True
+
+    ok, err = verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation_bundle(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        feature_extension_inputs_payload=_feature_extension_inputs().to_dict(),
+        price_attestation_bundle_payload=bundle.to_dict(),
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        pool_snapshots_payload=[{
+            "pool_id": pool.pool_id,
+            "asset0": pool.asset0,
+            "asset1": pool.asset1,
+            "reserve0": pool.reserve0,
+            "reserve1": pool.reserve1,
+            "fee_bps": pool.fee_bps,
+            "lp_supply": pool.lp_supply,
+            "status": pool.status.name,
+            "created_at": pool.created_at,
+            "curve_tag": pool.curve_tag,
+            "curve_params": pool.curve_params,
+        }],
+        packet_payload=packet.to_dict(),
+        attestation_policy=attestation_policy,
+    )
+    assert ok is True
+    assert err is None

@@ -1,0 +1,235 @@
+# Settlement Attestation Governance v1
+
+## Scope
+
+This slice formalizes the settlement price-attestation trust boundary.
+
+It does not claim that a signed spot-price attestation is a complete oracle-trust solution.
+It narrows the local safety claim to a replayable policy-admission relation.
+
+## ShapeForge State
+
+```text
+Φ := ⟨
+  M = ZenoDEX,
+  S = settlement spot-price attestation governance,
+  A = signer-policy authority,
+  T = replace operator-local allowlists with an explicit governed policy surface,
+  V = {
+    packet_hash,
+    signer_pubkey,
+    source_ids,
+    signed_at_epoch,
+    consumer_now_epoch,
+    policy_id,
+    policy_epoch,
+    chain_id,
+    registry_contract,
+    registry_root,
+    snapshot_block_number,
+    snapshot_block_hash,
+    effective_from_epoch,
+    expires_at_epoch,
+    min_distinct_signers,
+    min_distinct_sources
+  },
+  O = { verify_attestation, verify_policy, build_value_packet, build_end_to_end_certificate },
+  G = {
+    governance_approved,
+    timelock_elapsed,
+    multisig_approved,
+    policy_active,
+    policy_unexpired,
+    registry_binding_ok,
+    signer_allowlisted,
+    source_policy_ok,
+    distinct_signers_ok,
+    distinct_sources_ok
+  },
+  Obs = { attestation_ok, packet_ok, policy_hash },
+  K = { policy_hash = H(policy) },
+  E = {
+    contract: settlement_attestation_policy.py,
+    contract: settlement_signer_registry.py,
+    contract: settlement_price_attestation.py,
+    contract: settlement_*_packet.py,
+    proved: settlement_attestation_policy_guard_v1.yaml,
+    tested_discovery: focused integration regressions
+  },
+  Gap = {
+    on-chain registry retrieval,
+    multi-attestation bundle for signer quorum > 1,
+    disagreement policy across independent signers/sources
+  },
+  N = {
+    operator-local allowlist is not decentralized oracle governance,
+    single-signer attestation is not a quorum oracle
+  },
+  Δ = explicit governed policy object + chain-anchored registry snapshot binding + fail-closed policy gate
+⟩
+```
+
+## Disaster Paths
+
+### D1. Unpinned operator policy
+
+If the settlement verifier accepts an operator-supplied signer map, then the operator can authorize any signer they control.
+
+```text
+D1 := attest_ok ∧ operator_controls_allowlist ∧ operator_controls_feed
+```
+
+Impact:
+- attacker-controlled price packets can satisfy settlement value checks
+- the settlement path is centralized even if signatures are valid
+
+### D2. Instant governance rewrite
+
+If signer additions can become active immediately, governance capture for one block is enough to authorize a malicious signer.
+
+```text
+D2 := allowlist_update_addition ∧ ¬timelock_elapsed ∧ policy_active_now
+```
+
+Impact:
+- malicious signer can be whitelisted just before settlement
+- users have no exit window
+
+### D3. Pseudo-diversity
+
+If one operator can whitelist multiple keys they control, a nominal quorum does not imply independence.
+
+```text
+D3 := quorum_ok_by_key_count ∧ ¬independent_source_policy
+```
+
+Impact:
+- quorum claims overstate the actual trust split
+
+## Local Admission Logic
+
+We formalize the local gate as:
+
+```text
+PolicyActive(P, now)
+  := P.governance_approved
+   ∧ P.timelock_elapsed
+   ∧ P.multisig_approved
+   ∧ P.effective_from_epoch ≤ now
+   ∧ now ≤ P.expires_at_epoch
+
+SignerOK(P, s)
+  := s ∈ dom(P.allowed_signers)
+
+SourceOK(P, s, srcs)
+  := srcs ⊆ P.allowed_signers[s]
+
+QuorumOK(P, signers, srcs)
+  := |distinct(signers)| ≥ P.min_distinct_signers
+   ∧ |distinct(srcs)| ≥ P.min_distinct_sources
+
+AttestationPolicyOK(P, a, now)
+  := PolicyActive(P, now)
+   ∧ SignerOK(P, a.signer_pubkey)
+   ∧ SourceOK(P, a.signer_pubkey, source_ids(a.packet))
+   ∧ QuorumOK(P, [a.signer_pubkey], source_ids(a.packet))
+
+RegistryBindingOK(P, R)
+  := P.chain_id = R.chain_id
+   ∧ P.registry_contract = R.registry_contract
+   ∧ P.registry_root = R.registry_root
+   ∧ P.policy_id = R.policy.policy_id
+   ∧ P.policy_epoch = R.policy.policy_epoch
+   ∧ H(P) = H(R.policy)
+```
+
+Current runtime consequence:
+- single-attestation settlement only works when `P.min_distinct_signers = 1`
+- if governance sets `P.min_distinct_signers > 1`, settlement must use a typed multi-attestation bundle or the runtime rejects fail-closed
+- if a caller supplies both `P` and a registry snapshot `R`, the runtime rejects unless `RegistryBindingOK(P, R)` holds exactly
+- if a caller supplies only `R`, the runtime derives `P := R.policy` and continues fail-closed from the snapshot
+- if the runtime holds `P` plus a registry-snapshot loader, it may derive `R` from the loader and still fail closed on missing or drifting snapshot state
+- if the runtime holds a chain-anchor loader plus a snapshot source, it can rebind the final snapshot to chain-derived block metadata and reject any off-chain snapshot whose root or policy hash drifts from the chain anchor
+- the current chain-anchor transport can be a typed adapter method such as `zenodex_getSettlementSignerRegistryAnchor`; for this repo that should be treated as a Tau-side integration boundary, not a direct proof of chain state
+- the JSON-RPC anchor transport can now be bound to an explicit `SettlementSignerRegistryContractInterface`, so the method name, chain id, and registry contract are all validated as part of the typed interface surface rather than remaining free string parameters
+- the repo now has a typed multi-attestation bundle verifier, and settlement value packets plus end-to-end certificate packets can carry those bundle objects, so `min_distinct_signers > 1` is enforceable through the packet/certificate path as well
+- bundle consensus now uses a deterministic lower-median price vector over attestation packets that share the same asset/source/epoch structure, and policy can bound per-asset disagreement with `P.max_bundle_price_spread_bps`
+- broader multi-source aggregation policy is still out of scope for this slice: the bundle does not yet model source-weighting, dispute resolution, or a richer median/quorum mechanism than lower-median plus a fail-closed spread bound, and the current Tau-side anchor adapter still does not provide state proofs or a Tau-native direct loader
+
+That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
+
+## Temporal Protocol Model
+
+This slice now has a bounded infinite-trace protocol model in:
+
+- `formal/tla/SettlementAttestationGovernance.tla`
+- `formal/tla/SettlementAttestationGovernance.cfg`
+
+The TLA+ model complements the local ESSO guard:
+
+- ESSO proves the local admission relation is fail-closed for one policy snapshot.
+- TLA+ checks the protocol lifecycle around proposal, timelock, activation, revocation, and settlement binding over time.
+
+Pinned temporal obligations:
+
+```text
+AcceptedSettlementRequiresActiveGovernedPolicy
+RevokedPolicyRejectsFutureSettlement
+NoRetroactiveEpochDriftOnAcceptedSettlement
+FairImpliesApprovedPolicyEventuallyActivates
+```
+
+Interpretation:
+- accepted settlement must bind to the currently active governed policy,
+- revoked policy blocks future acceptance,
+- later policy evolution cannot retroactively rewrite the accepted policy epoch,
+- under weak fairness of timelock progression and activation, an approved pending policy eventually activates.
+
+## Game Theory
+
+### Operator-only policy
+
+Payoff:
+- cheapest path for a malicious operator is to whitelist their own signer and publish manipulated prices
+- defense cost is zero unless the verifier rejects operator-local policy entirely
+
+Conclusion:
+- operator-local allowlists are incompatible with a decentralization claim
+
+### Timelocked multisig policy
+
+Payoff shift:
+- malicious additions become delayed
+- users and watchers get an exit/challenge window
+- one compromised operator key is no longer enough
+
+Conclusion:
+- timelocked multisig is a pragmatic minimum governance surface
+
+### Token governance later
+
+Token governance can broaden control, but only if:
+- updates remain timelocked
+- quorum/approval thresholds are non-trivial
+- signer diversity rules prevent one actor from filling the set with its own keys
+
+Otherwise the system only changes from `trust one operator` to `trust a concentrated token block`.
+
+## Residual Limits
+
+This slice still does not prove:
+- that the governed signer set is independent in the real world
+- that multiple source ids are economically independent
+- that one signed packet is enough for decentralized price truth
+
+Those require:
+- on-chain registry retrieval / proof of current root
+- multi-attestation bundle verification
+- Tau-native registry retrieval or proof of current root
+- disagreement / median / quorum rules across independent signers
+
+The current runtime improvement is narrower:
+- it can bind a governed policy object to a chain-anchored registry snapshot,
+- attestation-derived value packets now carry `policy_id`, `policy_epoch`, `chain_id`, `registry_contract`, `registry_root`, and `policy_hash`,
+- and it exposes stable error strings/codes when policy and snapshot drift,
+- but it still depends on an external component to fetch or prove the registry snapshot itself.
