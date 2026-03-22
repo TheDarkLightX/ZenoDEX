@@ -5,6 +5,7 @@ from typing import Any
 
 from src.integration.settlement_attestation_policy import SettlementAttestationPolicy
 from src.integration.settlement_price_attestation import SettlementSpotPriceAttestation
+from src.integration.settlement_signer_registry import SettlementSignerRegistrySnapshot
 
 
 def _packet_entry_source_ids_from_payload(packet_payload: Mapping[str, Any]) -> tuple[str, ...]:
@@ -90,3 +91,28 @@ def make_attestation_policy_payload(
     **kwargs: Any,
 ) -> dict[str, Any]:
     return make_attestation_policy(attestation, **kwargs).to_dict()
+
+
+def make_attestation_registry_snapshot(
+    attestation: SettlementSpotPriceAttestation | Mapping[str, Any],
+    *,
+    snapshot_block_number: int = 1_234_567,
+    snapshot_block_hash: str = "0x" + "56" * 32,
+    **policy_kwargs: Any,
+) -> SettlementSignerRegistrySnapshot:
+    policy = make_attestation_policy(attestation, **policy_kwargs)
+    return SettlementSignerRegistrySnapshot(
+        chain_id=int(policy.chain_id),
+        registry_contract=policy.registry_contract,
+        registry_root=policy.registry_root,
+        snapshot_block_number=snapshot_block_number,
+        snapshot_block_hash=snapshot_block_hash,
+        policy=policy,
+    )
+
+
+def make_attestation_registry_snapshot_payload(
+    attestation: SettlementSpotPriceAttestation | Mapping[str, Any],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    return make_attestation_registry_snapshot(attestation, **kwargs).to_dict()
