@@ -239,3 +239,33 @@ def test_end_to_end_certificate_packet_rejects_tampering() -> None:
     )
     assert ok is False
     assert err == "settlement end-to-end certificate packet mismatch"
+
+
+def test_end_to_end_certificate_packet_from_attestation_requires_allowlist() -> None:
+    _pk, asset0, asset1, _pool_id, pool, settlement = _four_swap_context()
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+
+    try:
+        build_settlement_end_to_end_certificate_packet_from_price_attestation(
+            settlement=settlement,
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_attestation=attestation,
+            consumer_now_epoch=103,
+            max_attestation_age_epochs=5,
+            pool_snapshots=(pool,),
+            allowed_signers=None,
+        )
+    except ValueError as exc:
+        assert str(exc) == "invalid settlement spot price attestation: settlement spot price attestation requires allowed_signers"
+    else:
+        raise AssertionError("expected attestation packet build without allowlist to fail")

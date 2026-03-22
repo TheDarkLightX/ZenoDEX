@@ -82,6 +82,12 @@ class SettlementEndToEndCertificateInputs:
                 self.max_attestation_age_epochs, bool
             ):
                 raise TypeError("max_attestation_age_epochs must be an int")
+            if self.allowed_signers is None:
+                raise ValueError("attestation mode requires allowed_signers")
+            if not isinstance(self.allowed_signers, Mapping):
+                raise TypeError("allowed_signers must be a mapping")
+            if not self.allowed_signers:
+                raise ValueError("attestation mode requires non-empty allowed_signers")
         _validate_value_mode_inputs(
             lp_unit_values=self.lp_unit_values,
             pool_snapshots=self.pool_snapshots,
