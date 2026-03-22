@@ -124,8 +124,9 @@ Deliverable:
 
 Status:
 
-- done in `src/integration/decision_witness.py`
-- replay tests in `tests/integration/test_decision_witness_adapters.py`
+- not yet promoted on clean `main`
+- current clean tree still lacks `src/integration/decision_witness.py`
+- current clean tree still lacks `tests/integration/test_decision_witness_adapters.py`
 
 Acceptance:
 
@@ -139,8 +140,9 @@ Deliverable:
 
 Status:
 
-- done in `src/integration/decision_witness.py`
-- replay tests in `tests/integration/test_decision_witness_adapters.py`
+- not yet promoted on clean `main`
+- current clean tree still lacks `src/integration/decision_witness.py`
+- current clean tree still lacks `tests/integration/test_decision_witness_adapters.py`
 
 Acceptance:
 
@@ -155,8 +157,9 @@ Deliverable:
 
 Status:
 
-- done in `src/integration/decision_witness.py`
-- replay tests in `tests/integration/test_decision_witness_adapters.py`
+- not yet promoted on clean `main`
+- current clean tree still lacks `src/integration/decision_witness.py`
+- current clean tree still lacks `tests/integration/test_decision_witness_adapters.py`
 
 Acceptance:
 
@@ -203,10 +206,9 @@ Acceptance:
 
 Status note:
 
-- `v1` remains the older audited-bounds carrier for budget facts plus explicit public outcomes
-- `v2` is now the opt-in adaptive branch-coherence shell for exact-out many-pool routing
-- the new adaptive packet and API expose replayable cheap-path success vs repaired-fallback vs explicit-failure outcomes without changing the default runtime lane
-- the settlement side now also has a bounded replayable lifecycle carrier in `src/integration/settlement_witness_lifecycle.py` plus `src/tau_specs/recommended/settlement_witness_lifecycle_v1.tau` and `src/kernels/dex/settlement_witness_lifecycle_v1.yaml`
+- clean `main` does not yet ship the dedicated audited-bounds liveness Tau/ESSO carriers listed above
+- clean `main` also does not yet ship the settlement witness lifecycle carrier
+- the current clean release posture is still bounded certificate replay on the promoted exact-out and settlement surfaces, not a dedicated liveness contract with accept-or-reject outcomes
 
 ### L-2. No-spurious-failure replay checks
 
