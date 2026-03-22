@@ -97,7 +97,7 @@ This note records the current ShapeForge posture for the autotrader assurance su
   - `src/tau_specs/recommended/autotrader_nonce_guard_v1.tau`
   - `src/tau_specs/recommended/autotrader_tx_envelope_guard_v1.tau`
 
-### Contract / tested-discovery pending in `#90`
+### Contract / tested-discovery already landed on `main`
 - `src/agents/strategy_ir.py`
 - `src/integration/autotrader_signals.py`
 - `src/integration/autotrader_signal_registry.py`
@@ -140,14 +140,14 @@ Safety fragments exist, but there is no bounded finite-trace liveness artifact f
 ### Gap 4: optimization claims are under-specified
 The decision theorems on `main` are stronger than the runtime carrier currently merged. The missing bridge is explicit candidate-family completeness / bounded-domain optimality over the emitted candidate set.
 
-### Gap 5: coverage posture is not refreshed
-The acceptance TCB coverage gate is threshold-based and tooling is not currently installed in this environment. We cannot honestly claim the previous ~99% posture until we rerun the gate after the new slices land.
+### Gap 5: coverage posture must be refreshed against the published 100% baseline
+The published acceptance-TCB baseline elsewhere in-tree is `100%` branch coverage. Any refresh after the new autotrader slices should therefore compare against that stronger historical target, not a softer `~99%` proxy. Until the gate is rerun on the new branch set, coverage remains `implemented` / `tested_discovery`, not a refreshed public-assurance claim.
 
 ## Promotion targets in order
 
 ### 1. Autotrader signal/registry foundation
 Status:
-- `contract` / `tested_discovery` once `#90` lands
+- `contract` / `tested_discovery` on `main`
 
 Shape effect:
 - makes trusted external signals unrepresentable without an allowlisted registry binding
