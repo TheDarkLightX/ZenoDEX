@@ -24,6 +24,10 @@ REQUIRES_SCOPED_REPLACEMENT_STATUSES = {
     "narrowed",
 }
 
+EXPECTED_NARROWED_HYPOTHESIS_IDS = {
+    "exact_out_runtime_order_is_semantic_canonicality_v1",
+}
+
 
 def check_negative_knowledge_ratchet(
     *,
@@ -68,11 +72,19 @@ def check_negative_knowledge_ratchet(
     if errors:
         raise ValueError("\n".join(errors))
 
+    actual_narrowed_ids = set(narrowed_ids)
+    if actual_narrowed_ids != EXPECTED_NARROWED_HYPOTHESIS_IDS:
+        raise ValueError(
+            f"{negative_knowledge_path}: narrowed hypothesis ids {sorted(actual_narrowed_ids)} != "
+            f"{sorted(EXPECTED_NARROWED_HYPOTHESIS_IDS)}"
+        )
+
     return {
         "ok": True,
         "negative_knowledge_path": str(negative_knowledge_path),
         "narrowed_count": len(narrowed_ids),
         "narrowed_hypothesis_ids": narrowed_ids,
+        "expected_narrowed_hypothesis_ids": sorted(EXPECTED_NARROWED_HYPOTHESIS_IDS),
     }
 
 
