@@ -48,16 +48,29 @@ def test_settlement_attestation_policy_round_trips_and_hashes_stably() -> None:
 
 
 @pytest.mark.parametrize(
-    ("policy_kwargs", "expected_error"),
+    ("policy_kwargs", "expected_error", "expected_code"),
     [
-        ({"governance_approved": False}, "attestation policy governance approval missing"),
-        ({"timelock_elapsed": False}, "attestation policy timelock not elapsed"),
-        ({"multisig_approved": False}, "attestation policy multisig approval missing"),
+        (
+            {"governance_approved": False},
+            "attestation policy governance approval missing",
+            "attestation_policy_governance_missing",
+        ),
+        (
+            {"timelock_elapsed": False},
+            "attestation policy timelock not elapsed",
+            "attestation_policy_timelock_not_elapsed",
+        ),
+        (
+            {"multisig_approved": False},
+            "attestation policy multisig approval missing",
+            "attestation_policy_multisig_missing",
+        ),
     ],
 )
 def test_settlement_attestation_policy_rejects_missing_governance_controls(
     policy_kwargs: dict[str, object],
     expected_error: str,
+    expected_code: str,
 ) -> None:
     attestation = _attestation()
     policy = make_attestation_policy(attestation, **policy_kwargs)
@@ -70,7 +83,11 @@ def test_settlement_attestation_policy_rejects_missing_governance_controls(
     )
 
     assert result.ok is False
-    assert result.error == expected_error
+    assert result.error is not None
+    assert result.error.startswith(expected_error)
+    assert result.error_code == expected_code
+    assert result.details is not None
+    assert result.details["policy_id"] == policy.policy_id
 
 
 def test_settlement_attestation_policy_rejects_unmet_signer_quorum() -> None:
@@ -85,7 +102,12 @@ def test_settlement_attestation_policy_rejects_unmet_signer_quorum() -> None:
     )
 
     assert result.ok is False
-    assert result.error == "attestation policy signer quorum not met"
+    assert result.error is not None
+    assert result.error.startswith("attestation policy signer quorum not met")
+    assert result.error_code == "attestation_policy_signer_quorum_not_met"
+    assert result.details is not None
+    assert result.details["required_distinct_signers"] == 2
+    assert result.details["observed_distinct_signers"] == 1
 
 
 def test_settlement_attestation_policy_rejects_unlisted_source() -> None:
@@ -100,7 +122,12 @@ def test_settlement_attestation_policy_rejects_unlisted_source() -> None:
     )
 
     assert result.ok is False
-    assert result.error == "source_id not allowlisted by attestation policy: oracle:b"
+    assert result.error is not None
+    assert result.error.startswith("source_id not allowlisted by attestation policy: oracle:b")
+    assert result.error_code == "attestation_policy_source_not_allowlisted"
+    assert "violating_source=oracle:b" in result.error
+    assert result.details is not None
+    assert result.details["allowlisted_sources_for_observed_signers"][attestation.signer_pubkey] == ("oracle:a",)
 
 
 def test_settlement_attestation_policy_accepts_active_single_attestation_policy() -> None:
@@ -116,3 +143,28 @@ def test_settlement_attestation_policy_accepts_active_single_attestation_policy(
 
     assert result.ok is True
     assert result.error is None
+    assert result.error_code is None
+    assert result.details is not None
+    assert result.details["policy_hash"] == policy.policy_hash_hex()
+
+
+def test_settlement_attestation_policy_missing_policy_exposes_debuggable_telemetry() -> None:
+    attestation = _attestation()
+
+    result = check_settlement_attestation_policy(
+        policy=None,
+        consumer_now_epoch=103,
+        signer_pubkeys=(attestation.signer_pubkey,),
+        packet_source_ids=tuple(entry.source_id for entry in attestation.packet.entries),
+    )
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.startswith("settlement spot price attestation requires attestation_policy")
+    assert result.error_code == "attestation_policy_missing"
+    assert result.details is not None
+    assert result.details["observed_distinct_signers"] == 1
+    assert result.details["observed_distinct_sources"] == 2
+    telemetry = result.telemetry_payload()
+    assert telemetry["error_code"] == "attestation_policy_missing"
+    assert telemetry["details"]["consumer_now_epoch"] == 103

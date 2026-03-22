@@ -89,7 +89,9 @@ def test_settlement_spot_price_attestation_rejects_source_allowlist_violation() 
         attestation_policy=make_attestation_policy(attestation, allowed_sources=("oracle:a",)),
     )
     assert ok is False
-    assert err == "source_id not allowlisted by attestation policy: oracle:b"
+    assert err is not None
+    assert err.startswith("source_id not allowlisted by attestation policy: oracle:b")
+    assert "violating_source=oracle:b" in err
 
 
 def test_settlement_spot_price_attestation_rejects_missing_policy() -> None:
@@ -106,7 +108,9 @@ def test_settlement_spot_price_attestation_rejects_missing_policy() -> None:
         attestation_policy=None,
     )
     assert ok is False
-    assert err == "settlement spot price attestation requires attestation_policy"
+    assert err is not None
+    assert err.startswith("settlement spot price attestation requires attestation_policy")
+    assert "consumer_now_epoch=102" in err
 
 
 def test_settlement_spot_price_attestation_rejects_tampering() -> None:
