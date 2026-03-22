@@ -23,6 +23,12 @@ def test_negative_knowledge_ratchet_matches_current_baseline() -> None:
     assert report["expected_narrowed_hypothesis_ids"] == [
         "exact_out_runtime_order_is_semantic_canonicality_v1"
     ]
+    assert (
+        report["expected_narrowed_baselines"]["exact_out_runtime_order_is_semantic_canonicality_v1"][
+            "replay_pointer"
+        ]
+        == "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break"
+    )
 
 
 def test_negative_knowledge_ratchet_requires_remaining_excluded_domain(tmp_path: Path) -> None:
@@ -92,3 +98,20 @@ def test_negative_knowledge_ratchet_requires_expected_narrowed_status(tmp_path: 
         assert "narrowed hypothesis ids [] !=" in str(exc)
     else:
         raise AssertionError("expected changed narrowed status to fail")
+
+
+def test_negative_knowledge_ratchet_requires_expected_narrowed_fields(tmp_path: Path) -> None:
+    data = _load_negative_knowledge()
+    for record in data["records"]:
+        if record["hypothesis_id"] == "exact_out_runtime_order_is_semantic_canonicality_v1":
+            record["remaining_excluded_domain"] = "rewritten"
+            break
+    broken = tmp_path / "negative_knowledge_drifted_narrowed_field.json"
+    broken.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    try:
+        check_negative_knowledge_ratchet(negative_knowledge_path=broken)
+    except ValueError as exc:
+        assert "field remaining_excluded_domain drifted from pinned baseline" in str(exc)
+    else:
+        raise AssertionError("expected drifted narrowed field to fail")
