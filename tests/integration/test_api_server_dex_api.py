@@ -1111,7 +1111,8 @@ def test_api_server_verify_settlement_spot_price_attestation_requires_policy() -
         body2 = json.loads(resp2.read().decode("utf-8"))
         assert resp2.status == 200
         assert body2["ok"] is False
-        assert body2["error"] == "settlement spot price attestation requires attestation_policy"
+        assert body2["error"].startswith("settlement spot price attestation requires attestation_policy")
+        assert "consumer_now_epoch=103" in body2["error"]
     finally:
         _stop_test_server(httpd, t)
 
