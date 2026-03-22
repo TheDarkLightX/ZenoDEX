@@ -5,7 +5,11 @@ from typing import Any
 
 from src.integration.settlement_attestation_policy import SettlementAttestationPolicy
 from src.integration.settlement_price_attestation import SettlementSpotPriceAttestation
-from src.integration.settlement_signer_registry import SettlementSignerRegistryAnchor, SettlementSignerRegistrySnapshot
+from src.integration.settlement_signer_registry import (
+    SettlementSignerRegistryAnchor,
+    SettlementSignerRegistryContractInterface,
+    SettlementSignerRegistrySnapshot,
+)
 
 
 def _packet_entry_source_ids_from_payload(packet_payload: Mapping[str, Any]) -> tuple[str, ...]:
@@ -135,4 +139,20 @@ def make_attestation_registry_anchor(
         policy_hash=policy.policy_hash_hex(),
         anchor_block_number=anchor_block_number,
         anchor_block_hash=anchor_block_hash,
+    )
+
+
+def make_attestation_registry_contract_interface(
+    attestation: SettlementSpotPriceAttestation | Mapping[str, Any],
+    *,
+    interface_id: str = "settlement-signer-registry-interface-v1",
+    anchor_rpc_method: str = "zenodex_getSettlementSignerRegistryAnchor",
+    **policy_kwargs: Any,
+) -> SettlementSignerRegistryContractInterface:
+    policy = make_attestation_policy(attestation, **policy_kwargs)
+    return SettlementSignerRegistryContractInterface(
+        interface_id=interface_id,
+        chain_id=int(policy.chain_id),
+        registry_contract=policy.registry_contract,
+        anchor_rpc_method=anchor_rpc_method,
     )
