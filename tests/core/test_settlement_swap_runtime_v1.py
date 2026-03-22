@@ -17,8 +17,6 @@ from src.kernels.python.settlement_swap_runtime_v1 import (
 
 def _load_ml_bva_cases(filename: str) -> list[dict[str, object]]:
     path = Path("tests/kernels/data") / filename
-    if not path.exists():
-        pytest.skip(f"{path} is not present on clean main")
     obj = json.loads(path.read_text(encoding="utf-8"))
     cases = obj.get("cases")
     assert isinstance(cases, list) and cases
