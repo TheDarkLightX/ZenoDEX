@@ -90,6 +90,23 @@ def test_settlement_spot_price_attestation_rejects_source_allowlist_violation() 
     assert err == "source_id not allowlisted for signer: oracle:b"
 
 
+def test_settlement_spot_price_attestation_rejects_missing_allowlist() -> None:
+    packet = _packet()
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=7,
+    )
+
+    ok, err = verify_settlement_spot_price_attestation(
+        attestation=attestation,
+        consumer_now_epoch=102,
+        max_attestation_age_epochs=5,
+        allowed_signers=None,
+    )
+    assert ok is False
+    assert err == "settlement spot price attestation requires allowed_signers"
+
+
 def test_settlement_spot_price_attestation_rejects_tampering() -> None:
     packet = _packet()
     built = build_settlement_spot_price_attestation(
