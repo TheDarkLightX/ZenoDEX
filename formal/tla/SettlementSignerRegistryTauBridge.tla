@@ -21,6 +21,7 @@ VARIABLES
   snapshotEpoch,
   anchorPresent,
   anchorEpoch,
+  policyBindingChecked,
   requestBindingOk,
   anchorBindingOk,
   policyBindingOk,
@@ -37,6 +38,7 @@ TypeOK ==
   /\ snapshotEpoch \in Epochs
   /\ anchorPresent \in BOOLEAN
   /\ anchorEpoch \in Epochs
+  /\ policyBindingChecked \in BOOLEAN
   /\ requestBindingOk \in BOOLEAN
   /\ anchorBindingOk \in BOOLEAN
   /\ policyBindingOk \in BOOLEAN
@@ -50,6 +52,8 @@ TypeOK ==
       "load_drifted_snapshot",
       "load_clean_anchor",
       "load_drifted_anchor",
+      "verify_clean_policy_binding",
+      "verify_drifted_policy_binding",
       "grant_proof",
       "accept",
       "reject"
@@ -62,6 +66,7 @@ BridgeReady ==
   /\ anchorPresent
   /\ requestBindingOk
   /\ anchorBindingOk
+  /\ policyBindingChecked
   /\ policyBindingOk
   /\ proofOk
   /\ snapshotEpoch = requestEpoch
@@ -75,7 +80,13 @@ BindingMismatchVisible ==
        /\ snapshotPresent
        /\ (snapshotEpoch # requestEpoch \/ ~requestBindingOk)
      \/ /\ anchorPresent
-        /\ (anchorEpoch # requestEpoch \/ ~anchorBindingOk \/ ~policyBindingOk)
+        /\ (anchorEpoch # requestEpoch \/ ~anchorBindingOk)
+     \/ /\ snapshotPresent
+        /\ anchorPresent
+        /\ requestBindingOk
+        /\ anchorBindingOk
+        /\ policyBindingChecked
+        /\ ~policyBindingOk
      )
 
 ProofPathRiskVisible ==
@@ -86,6 +97,7 @@ ProofPathRiskVisible ==
   /\ anchorPresent
   /\ requestBindingOk
   /\ anchorBindingOk
+  /\ policyBindingChecked
   /\ policyBindingOk
   /\ ~proofOk
 
@@ -97,6 +109,7 @@ Init ==
   /\ snapshotEpoch = 0
   /\ anchorPresent = FALSE
   /\ anchorEpoch = 0
+  /\ policyBindingChecked = FALSE
   /\ requestBindingOk = FALSE
   /\ anchorBindingOk = FALSE
   /\ policyBindingOk = FALSE
@@ -114,6 +127,7 @@ IssueRequest ==
   /\ snapshotEpoch' = 0
   /\ anchorPresent' = FALSE
   /\ anchorEpoch' = 0
+  /\ policyBindingChecked' = FALSE
   /\ requestBindingOk' = FALSE
   /\ anchorBindingOk' = FALSE
   /\ policyBindingOk' = FALSE
@@ -134,6 +148,7 @@ LoadCleanSnapshot ==
       requestEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       anchorBindingOk,
       policyBindingOk,
       proofOk,
@@ -155,6 +170,7 @@ LoadDriftedSnapshot ==
       requestEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       anchorBindingOk,
       policyBindingOk,
       proofOk,
@@ -169,14 +185,15 @@ LoadCleanAnchor ==
   /\ anchorPresent' = TRUE
   /\ anchorEpoch' = requestEpoch
   /\ anchorBindingOk' = TRUE
-  /\ policyBindingOk' = TRUE
   /\ UNCHANGED <<
       requestIssued,
       execReq,
       requestEpoch,
       snapshotPresent,
       snapshotEpoch,
+      policyBindingChecked,
       requestBindingOk,
+      policyBindingOk,
       proofOk,
       accepted,
       rejected
@@ -189,6 +206,7 @@ LoadDriftedAnchor ==
   /\ anchorPresent' = TRUE
   /\ anchorEpoch' \in Epochs
   /\ anchorEpoch' # requestEpoch
+  /\ policyBindingChecked' = FALSE
   /\ anchorBindingOk' = FALSE
   /\ policyBindingOk' = FALSE
   /\ UNCHANGED <<
@@ -204,8 +222,64 @@ LoadDriftedAnchor ==
      >>
   /\ lastAction' = "load_drifted_anchor"
 
+VerifyCleanPolicyBinding ==
+  /\ requestIssued
+  /\ snapshotPresent
+  /\ anchorPresent
+  /\ requestBindingOk
+  /\ anchorBindingOk
+  /\ ~policyBindingChecked
+  /\ policyBindingChecked' = TRUE
+  /\ policyBindingOk' = TRUE
+  /\ UNCHANGED <<
+      requestIssued,
+      execReq,
+      requestEpoch,
+      snapshotPresent,
+      snapshotEpoch,
+      anchorPresent,
+      anchorEpoch,
+      requestBindingOk,
+      anchorBindingOk,
+      proofOk,
+      accepted,
+      rejected
+     >>
+  /\ lastAction' = "verify_clean_policy_binding"
+
+VerifyDriftedPolicyBinding ==
+  /\ requestIssued
+  /\ snapshotPresent
+  /\ anchorPresent
+  /\ requestBindingOk
+  /\ anchorBindingOk
+  /\ ~policyBindingChecked
+  /\ policyBindingChecked' = TRUE
+  /\ policyBindingOk' = FALSE
+  /\ UNCHANGED <<
+      requestIssued,
+      execReq,
+      requestEpoch,
+      snapshotPresent,
+      snapshotEpoch,
+      anchorPresent,
+      anchorEpoch,
+      requestBindingOk,
+      anchorBindingOk,
+      proofOk,
+      accepted,
+      rejected
+     >>
+  /\ lastAction' = "verify_drifted_policy_binding"
+
 GrantProof ==
   /\ requestIssued
+  /\ snapshotPresent
+  /\ anchorPresent
+  /\ requestBindingOk
+  /\ anchorBindingOk
+  /\ policyBindingChecked
+  /\ policyBindingOk
   /\ ~proofOk
   /\ proofOk' = TRUE
   /\ UNCHANGED <<
@@ -216,6 +290,7 @@ GrantProof ==
       snapshotEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
@@ -237,6 +312,7 @@ Accept ==
       snapshotEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
@@ -258,6 +334,7 @@ Reject ==
       snapshotEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
@@ -276,6 +353,7 @@ TerminalStutter ==
       snapshotEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
@@ -291,6 +369,8 @@ Next ==
   \/ LoadDriftedSnapshot
   \/ LoadCleanAnchor
   \/ LoadDriftedAnchor
+  \/ VerifyCleanPolicyBinding
+  \/ VerifyDriftedPolicyBinding
   \/ GrantProof
   \/ Accept
   \/ Reject
@@ -306,6 +386,7 @@ Spec ==
       snapshotEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
@@ -322,6 +403,7 @@ Spec ==
       snapshotEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
