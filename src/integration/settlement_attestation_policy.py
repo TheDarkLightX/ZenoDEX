@@ -105,9 +105,9 @@ class SettlementAttestationPolicy:
             registry_root=str(payload.get("registry_root", "")),
             effective_from_epoch=int(payload.get("effective_from_epoch", -1)),
             expires_at_epoch=int(payload.get("expires_at_epoch", -1)),
-            governance_approved=bool(payload.get("governance_approved", False)),
-            timelock_elapsed=bool(payload.get("timelock_elapsed", False)),
-            multisig_approved=bool(payload.get("multisig_approved", False)),
+            governance_approved=_coerce_policy_bool_field(payload, "governance_approved"),
+            timelock_elapsed=_coerce_policy_bool_field(payload, "timelock_elapsed"),
+            multisig_approved=_coerce_policy_bool_field(payload, "multisig_approved"),
             min_distinct_signers=int(payload.get("min_distinct_signers", 0)),
             min_distinct_sources=int(payload.get("min_distinct_sources", 0)),
             allowed_signers=payload.get("allowed_signers", {}),
@@ -330,6 +330,13 @@ def coerce_settlement_attestation_policy(
     if isinstance(policy, Mapping):
         return SettlementAttestationPolicy.from_dict(policy)
     raise TypeError("attestation_policy must be a SettlementAttestationPolicy or object mapping")
+
+
+def _coerce_policy_bool_field(payload: Mapping[str, Any], field_name: str) -> bool:
+    value = payload.get(field_name, False)
+    if not isinstance(value, bool):
+        raise TypeError(f"{field_name} must be a bool")
+    return value
 
 
 def _canonical_source_id(source_id: object) -> str:
