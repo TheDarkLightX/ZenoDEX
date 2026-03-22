@@ -94,6 +94,18 @@ Best next campaigns:
 2. cluster flips by reason transition (`high_price_impact -> moderate_price_impact`, `ok -> mev_conflict`, etc.)
 3. derive a small counterexample corpus for regression tests and UI explainers
 
+The repo now has a deterministic bounded miner for this lane:
+
+- `tools/pokayoke/pokayoke_flip_miner.py`
+
+Current preserved witness family in the fixed `500/500` zero-fee pool:
+
+- `20 -> 21` drops from `typed_confirm` to `confirm`
+- `22 -> 23` rises from `confirm` to `typed_confirm`
+
+That is the right Morph posture for Pokayoke today: mine and preserve small
+falsifiers first, then decide which sub-surface is stable enough for Lean.
+
 ### Lean
 
 Do not try to prove the full Pokayoke action surface first. The honest Lean
