@@ -261,3 +261,45 @@ def test_settlement_value_packet_round_trips_for_bundle_attestation() -> None:
     )
     assert ok is True
     assert err is None
+
+
+def test_settlement_value_packet_uses_bundle_consensus_prices_under_bounded_disagreement() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    packet_a = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    packet_b = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=101, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=121, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation_a = build_settlement_spot_price_attestation(packet=packet_a, signer_privkey=7)
+    attestation_b = build_settlement_spot_price_attestation(packet=packet_b, signer_privkey=8)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
+    attestation_policy = make_attestation_policy(
+        attestation_a,
+        min_distinct_signers=2,
+        max_bundle_price_spread_bps=100,
+        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+    )
+
+    packet = build_settlement_value_packet_from_price_attestation_bundle(
+        settlement=settlement,
+        price_attestation_bundle=bundle,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50},
+        attestation_policy=attestation_policy,
+    )
+    assert [entry.price for entry in packet.price_packet.entries] == [100, 120]
+    assert packet.price_attestation_bundle is not None
+    assert [entry.price for entry in packet.price_attestation_bundle.packet.entries] == [100, 120]

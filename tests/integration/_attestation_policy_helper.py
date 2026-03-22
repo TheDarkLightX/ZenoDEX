@@ -61,6 +61,8 @@ def make_attestation_policy(
     multisig_approved: bool = True,
     min_distinct_signers: int = 1,
     min_distinct_sources: int | None = None,
+    bundle_price_consensus_method: str = "lower_median",
+    max_bundle_price_spread_bps: int = 0,
     allowed_sources: Sequence[str] | None = None,
     additional_allowed_signers: Mapping[str, Sequence[str]] | None = None,
     effective_from_epoch: int | None = None,
@@ -98,6 +100,8 @@ def make_attestation_policy(
         min_distinct_signers=min_distinct_signers,
         min_distinct_sources=min_distinct_sources,
         allowed_signers=allowed_signers,
+        bundle_price_consensus_method=bundle_price_consensus_method,
+        max_bundle_price_spread_bps=max_bundle_price_spread_bps,
     )
 
 
