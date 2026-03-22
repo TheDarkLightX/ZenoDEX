@@ -4,7 +4,10 @@ import json
 import threading
 from http.client import HTTPConnection
 
-from tests.integration._attestation_policy_helper import make_attestation_policy_payload
+from tests.integration._attestation_policy_helper import (
+    make_attestation_policy_payload,
+    make_attestation_registry_snapshot_payload,
+)
 
 
 def _start_test_server(*, dex_enabled: bool = True):
@@ -1117,6 +1120,78 @@ def test_api_server_verify_settlement_spot_price_attestation_requires_policy() -
         _stop_test_server(httpd, t)
 
 
+def test_api_server_verify_settlement_spot_price_attestation_accepts_registry_snapshot() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        build_packet_req = {
+            "entries": [
+                {
+                    "asset": "0x" + "05" * 32,
+                    "price": 100,
+                    "observed_epoch": 95,
+                    "age_epochs": 5,
+                    "source_id": "oracle:a",
+                },
+                {
+                    "asset": "0x" + "06" * 32,
+                    "price": 120,
+                    "observed_epoch": 97,
+                    "age_epochs": 3,
+                    "source_id": "oracle:b",
+                },
+            ],
+            "now_epoch": 100,
+            "max_staleness_epochs": 10,
+        }
+        conn0 = HTTPConnection(host, port, timeout=2.0)
+        conn0.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_packet",
+            body=json.dumps(build_packet_req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp0 = conn0.getresponse()
+        body0 = json.loads(resp0.read().decode("utf-8"))
+        assert resp0.status == 200
+        assert body0["ok"] is True
+        packet = body0["packet"]
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_spot_price_attestation",
+            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        assert body1["ok"] is True
+        attestation = body1["attestation"]
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_settlement_spot_price_attestation",
+            body=json.dumps(
+                {
+                    "attestation": attestation,
+                    "consumer_now_epoch": 103,
+                    "max_attestation_age_epochs": 5,
+                    "attestation_registry_snapshot": make_attestation_registry_snapshot_payload(attestation),
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        assert body2["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_build_settlement_spot_value_contract_from_price_attestation() -> None:
     httpd, t, host, port = _start_test_server()
     try:
@@ -1493,7 +1568,7 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
             "price_attestation": attestation,
             "consumer_now_epoch": 103,
             "max_attestation_age_epochs": 5,
-            "attestation_policy": make_attestation_policy_payload(attestation),
+            "attestation_registry_snapshot": make_attestation_registry_snapshot_payload(attestation),
             "lp_unit_values": {pool_id: 91},
         }
         conn2 = HTTPConnection(host, port, timeout=2.0)
@@ -1510,6 +1585,8 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
         packet = body2["packet"]
         assert packet["mode"] == "lp_aware"
         assert packet["packet_ok"] is True
+        assert packet["attestation_policy_chain_id"] == 1
+        assert packet["attestation_policy_registry_contract"] == "0x" + "12" * 20
 
         verify_req = dict(req)
         verify_req["packet"] = packet

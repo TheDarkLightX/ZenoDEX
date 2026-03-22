@@ -222,5 +222,6 @@ Those require:
 
 The current runtime improvement is narrower:
 - it can bind a governed policy object to a chain-anchored registry snapshot,
+- attestation-derived value packets now carry `policy_id`, `policy_epoch`, `chain_id`, `registry_contract`, `registry_root`, and `policy_hash`,
 - and it exposes stable error strings/codes when policy and snapshot drift,
 - but it still depends on an external component to fetch or prove the registry snapshot itself.

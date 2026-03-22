@@ -32,6 +32,8 @@ class SettlementEndogenousLPValuePacket:
     price_attestation: SettlementSpotPriceAttestation | None
     attestation_policy_id: str | None
     attestation_policy_epoch: int | None
+    attestation_policy_chain_id: int | None
+    attestation_policy_registry_contract: str | None
     attestation_policy_root: str | None
     attestation_policy_hash: str | None
     pool_snapshots: tuple[dict[str, Any], ...]
@@ -63,6 +65,8 @@ class SettlementEndogenousLPValuePacket:
                 for value in (
                     self.attestation_policy_id,
                     self.attestation_policy_epoch,
+                    self.attestation_policy_chain_id,
+                    self.attestation_policy_registry_contract,
                     self.attestation_policy_root,
                     self.attestation_policy_hash,
                 )
@@ -79,10 +83,27 @@ class SettlementEndogenousLPValuePacket:
                 or self.attestation_policy_epoch < 0
             ):
                 raise ValueError("attestation_policy_epoch must be a non-negative int")
+            if (
+                not isinstance(self.attestation_policy_chain_id, int)
+                or isinstance(self.attestation_policy_chain_id, bool)
+                or self.attestation_policy_chain_id < 0
+            ):
+                raise ValueError("attestation_policy_chain_id must be a non-negative int")
+            if not isinstance(self.attestation_policy_registry_contract, str):
+                raise ValueError("attestation_policy_registry_contract must be present for attestation mode")
             if not isinstance(self.attestation_policy_root, str):
                 raise ValueError("attestation_policy_root must be present for attestation mode")
             if not isinstance(self.attestation_policy_hash, str):
                 raise ValueError("attestation_policy_hash must be present for attestation mode")
+            object.__setattr__(
+                self,
+                "attestation_policy_registry_contract",
+                canonical_hex_fixed_allow_0x(
+                    self.attestation_policy_registry_contract,
+                    nbytes=20,
+                    name="attestation_policy_registry_contract",
+                ),
+            )
             object.__setattr__(
                 self,
                 "attestation_policy_root",
@@ -130,6 +151,8 @@ class SettlementEndogenousLPValuePacket:
             "price_attestation": None if self.price_attestation is None else self.price_attestation.to_dict(),
             "attestation_policy_id": self.attestation_policy_id,
             "attestation_policy_epoch": self.attestation_policy_epoch,
+            "attestation_policy_chain_id": self.attestation_policy_chain_id,
+            "attestation_policy_registry_contract": self.attestation_policy_registry_contract,
             "attestation_policy_root": self.attestation_policy_root,
             "attestation_policy_hash": self.attestation_policy_hash,
             "pool_snapshots": [dict(snapshot) for snapshot in self.pool_snapshots],
@@ -173,6 +196,8 @@ class SettlementEndogenousLPValuePacket:
             ),
             attestation_policy_id=payload.get("attestation_policy_id"),
             attestation_policy_epoch=payload.get("attestation_policy_epoch"),
+            attestation_policy_chain_id=payload.get("attestation_policy_chain_id"),
+            attestation_policy_registry_contract=payload.get("attestation_policy_registry_contract"),
             attestation_policy_root=payload.get("attestation_policy_root"),
             attestation_policy_hash=payload.get("attestation_policy_hash"),
             pool_snapshots=tuple(dict(snapshot) for snapshot in pool_snapshots_payload),
@@ -217,6 +242,8 @@ def build_settlement_endogenous_lp_value_packet_from_price_packet(
         price_attestation=None,
         attestation_policy_id=None,
         attestation_policy_epoch=None,
+        attestation_policy_chain_id=None,
+        attestation_policy_registry_contract=None,
         attestation_policy_root=None,
         attestation_policy_hash=None,
         pool_snapshots=canonical_snapshots,
@@ -284,6 +311,8 @@ def build_settlement_endogenous_lp_value_packet_from_price_attestation(
         price_attestation=price_attestation,
         attestation_policy_id=attestation_policy.policy_id,
         attestation_policy_epoch=int(attestation_policy.policy_epoch),
+        attestation_policy_chain_id=int(attestation_policy.chain_id),
+        attestation_policy_registry_contract=attestation_policy.registry_contract,
         attestation_policy_root=attestation_policy.registry_root,
         attestation_policy_hash=attestation_policy.policy_hash_hex(),
         pool_snapshots=canonical_snapshots,
