@@ -152,7 +152,8 @@ Current runtime consequence:
 - if the runtime holds a chain-anchor loader plus a snapshot source, it can rebind the final snapshot to chain-derived block metadata and reject any off-chain snapshot whose root or policy hash drifts from the chain anchor
 - the current chain-anchor transport can be a typed JSON-RPC method (`zenodex_getSettlementSignerRegistryAnchor`), but that is still an adapter contract, not a direct ABI-decoded proof of on-chain state
 - the JSON-RPC anchor transport can now be bound to an explicit `SettlementSignerRegistryContractInterface`, so the method name, chain id, and registry contract are all validated as part of the typed interface surface rather than remaining free string parameters
-- the repo now has a typed multi-attestation bundle verifier, so `min_distinct_signers > 1` is enforceable at the attestation-object layer, but downstream settlement value packets and end-to-end certificate packets still consume single attestation objects only
+- the repo now has a typed multi-attestation bundle verifier, and settlement value packets plus end-to-end certificate packets can carry those bundle objects, so `min_distinct_signers > 1` is enforceable through the packet/certificate path as well
+- bundle admission still only proves signer/source quorum over matching packets; disagreement, medianization, and broader multi-source aggregation policy remain out of scope for this slice
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 
