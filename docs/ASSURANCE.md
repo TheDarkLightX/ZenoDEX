@@ -31,6 +31,10 @@ python3 tools/permissionless_assurance.py replay critical
 python3 tools/permissionless_assurance.py replay release
 ```
 
+Operational release checklist:
+
+- `docs/zenodex/SHAPE_V1_RELEASE_CHECKLIST.md`
+
 ## Evidence Stack
 
 We use several evidence layers at once:
