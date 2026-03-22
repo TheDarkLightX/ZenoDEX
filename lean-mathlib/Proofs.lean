@@ -138,6 +138,7 @@ import Proofs.DeterministicAgentTieBreakSort
 import Proofs.ImpossibilityTheoremV2
 import Proofs.SplitRoutingArgmaxPlateau
 import Proofs.MSTCertificateBasics
+import Proofs.PokayokeImpactGate
 
 /-!
 Proofs library root.
