@@ -467,6 +467,23 @@ def test_compute_support_state_root_rejects_duplicate_decoded_support_keys() -> 
             support=BatchStateSupport(balance_keys=(), pool_ids=(), lp_keys=((pk, pool_id), (pk.upper().replace("0X", "0x"), pool_id)), nonce_keys=()),
         )
 
+    nonces = NonceTable()
+    nonces.set_last(pk, 1)
+    nonces.set_last(pk.upper().replace("0X", "0x"), 2)
+    with pytest.raises(ValueError, match="duplicate decoded pubkey in support nonces"):
+        compute_support_state_root(
+            balances=BalanceTable(),
+            pools={},
+            lp_balances=LPTable(),
+            support=BatchStateSupport(
+                balance_keys=(),
+                pool_ids=(),
+                lp_keys=(),
+                nonce_keys=(pk, pk.upper().replace("0X", "0x")),
+            ),
+            nonces=nonces,
+        )
+
 
 def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() -> None:
     pk = "0x" + "11" * 48
