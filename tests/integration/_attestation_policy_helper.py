@@ -4,7 +4,12 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from src.integration.settlement_attestation_policy import SettlementAttestationPolicy
-from src.integration.settlement_price_attestation import SettlementSpotPriceAttestation
+from src.integration.settlement_price_attestation import (
+    SettlementSpotPriceAttestation,
+    build_settlement_spot_price_attestation,
+    settlement_spot_price_attestation_signer_pubkey_from_privkey,
+)
+from src.integration.settlement_price_provenance import SettlementSpotPricePacket
 from src.integration.settlement_signer_registry import (
     SettlementSignerRegistryAnchor,
     SettlementSignerRegistryContractInterface,
@@ -110,6 +115,51 @@ def make_attestation_policy_payload(
     **kwargs: Any,
 ) -> dict[str, Any]:
     return make_attestation_policy(attestation, **kwargs).to_dict()
+
+
+def make_attestation_policy_for_packet(
+    packet: SettlementSpotPricePacket | Mapping[str, Any],
+    *,
+    signer_privkey: str | int | bytes | bytearray,
+    **kwargs: Any,
+) -> SettlementAttestationPolicy:
+    if isinstance(packet, Mapping):
+        packet = SettlementSpotPricePacket.from_dict(packet)
+    if not isinstance(packet, SettlementSpotPricePacket):
+        raise TypeError("packet must be a SettlementSpotPricePacket or payload mapping")
+    signer_pubkey = settlement_spot_price_attestation_signer_pubkey_from_privkey(signer_privkey)
+    attestation_payload = {
+        "signer_pubkey": signer_pubkey,
+        "signed_at_epoch": int(packet.now_epoch),
+        "packet": packet.to_dict(),
+    }
+    return make_attestation_policy(attestation_payload, **kwargs)
+
+
+def make_attestation_policy_payload_for_packet(
+    packet: SettlementSpotPricePacket | Mapping[str, Any],
+    *,
+    signer_privkey: str | int | bytes | bytearray,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    return make_attestation_policy_for_packet(packet, signer_privkey=signer_privkey, **kwargs).to_dict()
+
+
+def build_policy_bound_attestation(
+    *,
+    packet: SettlementSpotPricePacket | Mapping[str, Any],
+    signer_privkey: str | int | bytes | bytearray,
+    **policy_kwargs: Any,
+) -> tuple[SettlementSpotPriceAttestation, SettlementAttestationPolicy]:
+    policy = make_attestation_policy_for_packet(packet, signer_privkey=signer_privkey, **policy_kwargs)
+    if isinstance(packet, Mapping):
+        packet = SettlementSpotPricePacket.from_dict(packet)
+    attestation = build_settlement_spot_price_attestation(
+        packet=packet,
+        signer_privkey=signer_privkey,
+        attestation_policy=policy,
+    )
+    return attestation, policy
 
 
 def make_attestation_registry_snapshot(

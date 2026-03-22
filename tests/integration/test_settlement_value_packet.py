@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from tests.integration._attestation_policy_helper import make_attestation_policy, make_attestation_registry_snapshot
+from tests.integration._attestation_policy_helper import (
+    build_policy_bound_attestation,
+    make_attestation_policy,
+    make_attestation_registry_snapshot,
+)
 
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
@@ -8,6 +12,7 @@ from src.core.settlement import LPDelta
 from src.integration.settlement_price_attestation import (
     build_settlement_spot_price_attestation,
     build_settlement_spot_price_attestation_bundle,
+    settlement_spot_price_attestation_signer_pubkey_from_privkey,
 )
 from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
 from src.integration.settlement_value_packet import (
@@ -104,7 +109,7 @@ def test_settlement_value_packet_round_trips_for_lp_attestation() -> None:
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
     attestation_policy = make_attestation_policy(attestation)
 
     packet = build_settlement_value_packet_from_price_attestation(
@@ -195,7 +200,7 @@ def test_settlement_value_packet_builds_from_registry_snapshot_only() -> None:
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
     registry_snapshot = make_attestation_registry_snapshot(attestation)
 
     packet = build_settlement_value_packet_from_price_attestation(
@@ -226,14 +231,20 @@ def test_settlement_value_packet_round_trips_for_bundle_attestation() -> None:
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
-    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8)
-    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
     attestation_policy = make_attestation_policy(
-        attestation_a,
+        {
+            "signer_pubkey": settlement_spot_price_attestation_signer_pubkey_from_privkey(7),
+            "signed_at_epoch": int(price_packet.now_epoch),
+            "packet": price_packet.to_dict(),
+        },
         min_distinct_signers=2,
-        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+        additional_allowed_signers={
+            settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+        },
     )
+    attestation_a = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7, attestation_policy=attestation_policy)
+    attestation_b = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=8, attestation_policy=attestation_policy)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
 
     packet = build_settlement_value_packet_from_price_attestation_bundle(
         settlement=settlement,
@@ -282,15 +293,21 @@ def test_settlement_value_packet_uses_bundle_consensus_prices_under_bounded_disa
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    attestation_a = build_settlement_spot_price_attestation(packet=packet_a, signer_privkey=7)
-    attestation_b = build_settlement_spot_price_attestation(packet=packet_b, signer_privkey=8)
-    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
     attestation_policy = make_attestation_policy(
-        attestation_a,
+        {
+            "signer_pubkey": settlement_spot_price_attestation_signer_pubkey_from_privkey(7),
+            "signed_at_epoch": int(packet_a.now_epoch),
+            "packet": packet_a.to_dict(),
+        },
         min_distinct_signers=2,
         max_bundle_price_spread_bps=100,
-        additional_allowed_signers={attestation_b.signer_pubkey: ("oracle:a", "oracle:b")},
+        additional_allowed_signers={
+            settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+        },
     )
+    attestation_a = build_settlement_spot_price_attestation(packet=packet_a, signer_privkey=7, attestation_policy=attestation_policy)
+    attestation_b = build_settlement_spot_price_attestation(packet=packet_b, signer_privkey=8, attestation_policy=attestation_policy)
+    bundle = build_settlement_spot_price_attestation_bundle(attestations=(attestation_a, attestation_b))
 
     packet = build_settlement_value_packet_from_price_attestation_bundle(
         settlement=settlement,

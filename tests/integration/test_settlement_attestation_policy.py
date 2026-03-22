@@ -4,14 +4,13 @@ import importlib.util
 
 import pytest
 
-from tests.integration._attestation_policy_helper import make_attestation_policy
+from tests.integration._attestation_policy_helper import build_policy_bound_attestation, make_attestation_policy
 
 from src.integration.settlement_attestation_policy import (
     SettlementAttestationPolicy,
     check_settlement_attestation_policy,
     coerce_settlement_attestation_policy,
 )
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
@@ -33,7 +32,8 @@ def _packet():
 
 
 def _attestation():
-    return build_settlement_spot_price_attestation(packet=_packet(), signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=_packet(), signer_privkey=7)
+    return attestation
 
 
 def test_settlement_attestation_policy_round_trips_and_hashes_stably() -> None:
@@ -93,6 +93,7 @@ def test_settlement_attestation_policy_rejects_missing_governance_controls(
     result = check_settlement_attestation_policy(
         policy=policy,
         consumer_now_epoch=103,
+        policy_reference_epoch=int(attestation.signed_at_epoch),
         signer_pubkeys=(attestation.signer_pubkey,),
         packet_source_ids=tuple(entry.source_id for entry in attestation.packet.entries),
     )
@@ -112,6 +113,7 @@ def test_settlement_attestation_policy_rejects_unmet_signer_quorum() -> None:
     result = check_settlement_attestation_policy(
         policy=policy,
         consumer_now_epoch=103,
+        policy_reference_epoch=int(attestation.signed_at_epoch),
         signer_pubkeys=(attestation.signer_pubkey,),
         packet_source_ids=tuple(entry.source_id for entry in attestation.packet.entries),
     )
@@ -132,6 +134,7 @@ def test_settlement_attestation_policy_rejects_unlisted_source() -> None:
     result = check_settlement_attestation_policy(
         policy=policy,
         consumer_now_epoch=103,
+        policy_reference_epoch=int(attestation.signed_at_epoch),
         signer_pubkeys=(attestation.signer_pubkey,),
         packet_source_ids=tuple(entry.source_id for entry in attestation.packet.entries),
     )
@@ -152,6 +155,7 @@ def test_settlement_attestation_policy_accepts_active_single_attestation_policy(
     result = check_settlement_attestation_policy(
         policy=policy,
         consumer_now_epoch=103,
+        policy_reference_epoch=int(attestation.signed_at_epoch),
         signer_pubkeys=(attestation.signer_pubkey,),
         packet_source_ids=tuple(entry.source_id for entry in attestation.packet.entries),
     )
@@ -171,6 +175,7 @@ def test_settlement_attestation_policy_missing_policy_exposes_debuggable_telemet
     result = check_settlement_attestation_policy(
         policy=None,
         consumer_now_epoch=103,
+        policy_reference_epoch=int(attestation.signed_at_epoch),
         signer_pubkeys=(attestation.signer_pubkey,),
         packet_source_ids=tuple(entry.source_id for entry in attestation.packet.entries),
     )

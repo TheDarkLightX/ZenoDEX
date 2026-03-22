@@ -5,13 +5,12 @@ import importlib.util
 import pytest
 
 from tests.integration._attestation_policy_helper import (
+    build_policy_bound_attestation,
     make_attestation_registry_anchor,
     make_attestation_registry_contract_interface,
     make_attestation_policy,
     make_attestation_registry_snapshot,
 )
-
-from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
@@ -55,7 +54,8 @@ def _attestation():
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    return build_settlement_spot_price_attestation(packet=packet, signer_privkey=7)
+    attestation, _policy = build_policy_bound_attestation(packet=packet, signer_privkey=7)
+    return attestation
 
 
 def test_settlement_signer_registry_snapshot_round_trips_and_resolves_policy() -> None:
@@ -320,4 +320,3 @@ def test_json_rpc_settlement_signer_registry_anchor_loader_rejects_interface_dri
             ),
             consumer_now_epoch=103,
         )
-

@@ -6,8 +6,10 @@ from http.client import HTTPConnection
 
 from tests.integration._attestation_policy_helper import (
     make_attestation_policy_payload,
+    make_attestation_policy_payload_for_packet,
     make_attestation_registry_snapshot_payload,
 )
+from src.integration.settlement_price_attestation import settlement_spot_price_attestation_signer_pubkey_from_privkey
 
 
 def _start_test_server(*, dex_enabled: bool = True):
@@ -1016,7 +1018,13 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation() -> None
         conn.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": packet,
+                    "signer_privkey": 7,
+                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp = conn.getresponse()
@@ -1088,7 +1096,13 @@ def test_api_server_verify_settlement_spot_price_attestation_requires_policy() -
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": packet,
+                    "signer_privkey": 7,
+                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -1160,7 +1174,13 @@ def test_api_server_verify_settlement_spot_price_attestation_accepts_registry_sn
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": packet,
+                    "signer_privkey": 7,
+                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -1260,11 +1280,27 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation_bundle() 
         assert resp1.status == 200
         assert body1["ok"] is True
 
+        bundle_attestation_policy = make_attestation_policy_payload_for_packet(
+            body0["packet"],
+            signer_privkey=7,
+            min_distinct_signers=2,
+            max_bundle_price_spread_bps=100,
+            additional_allowed_signers={
+                settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+            },
+        )
+
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body0["packet"],
+                    "signer_privkey": 7,
+                    "attestation_policy": bundle_attestation_policy,
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp2 = conn2.getresponse()
@@ -1277,7 +1313,13 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation_bundle() 
         conn3.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body1["packet"], "signer_privkey": 8}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body1["packet"],
+                    "signer_privkey": 8,
+                    "attestation_policy": bundle_attestation_policy,
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp3 = conn3.getresponse()
@@ -1370,7 +1412,13 @@ def test_api_server_build_settlement_spot_value_contract_from_price_attestation(
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": packet,
+                    "signer_privkey": 7,
+                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -1530,7 +1578,13 @@ def test_api_server_build_settlement_lp_value_contract_from_price_attestation() 
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": packet,
+                    "signer_privkey": 7,
+                    "attestation_policy": make_attestation_policy_payload_for_packet(packet, signer_privkey=7),
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -1690,7 +1744,13 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": price_packet, "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": price_packet,
+                    "signer_privkey": 7,
+                    "attestation_policy": make_attestation_policy_payload_for_packet(price_packet, signer_privkey=7),
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -1821,11 +1881,27 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_bundle_attested(
         assert resp1.status == 200
         assert body1["ok"] is True
 
+        bundle_attestation_policy = make_attestation_policy_payload_for_packet(
+            body0["packet"],
+            signer_privkey=7,
+            min_distinct_signers=2,
+            max_bundle_price_spread_bps=100,
+            additional_allowed_signers={
+                settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+            },
+        )
+
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body0["packet"],
+                    "signer_privkey": 7,
+                    "attestation_policy": bundle_attestation_policy,
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp2 = conn2.getresponse()
@@ -1838,7 +1914,13 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_bundle_attested(
         conn3.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body1["packet"], "signer_privkey": 8}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body1["packet"],
+                    "signer_privkey": 8,
+                    "attestation_policy": bundle_attestation_policy,
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp3 = conn3.getresponse()
@@ -2023,7 +2105,13 @@ def test_api_server_build_endogenous_lp_value_packet_from_attestation() -> None:
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body0["packet"],
+                    "signer_privkey": 7,
+                    "attestation_policy": make_attestation_policy_payload_for_packet(body0["packet"], signer_privkey=7),
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -2127,11 +2215,27 @@ def test_api_server_build_and_verify_settlement_endogenous_lp_value_packet_from_
         assert resp1.status == 200
         assert body1["ok"] is True
 
+        bundle_attestation_policy = make_attestation_policy_payload_for_packet(
+            body0["packet"],
+            signer_privkey=7,
+            min_distinct_signers=2,
+            max_bundle_price_spread_bps=100,
+            additional_allowed_signers={
+                settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+            },
+        )
+
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body0["packet"],
+                    "signer_privkey": 7,
+                    "attestation_policy": bundle_attestation_policy,
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp2 = conn2.getresponse()
@@ -2144,7 +2248,13 @@ def test_api_server_build_and_verify_settlement_endogenous_lp_value_packet_from_
         conn3.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body1["packet"], "signer_privkey": 8}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body1["packet"],
+                    "signer_privkey": 8,
+                    "attestation_policy": bundle_attestation_policy,
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp3 = conn3.getresponse()
@@ -2345,7 +2455,13 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
         conn1.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": price_packet, "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": price_packet,
+                    "signer_privkey": 7,
+                    "attestation_policy": make_attestation_policy_payload_for_packet(price_packet, signer_privkey=7),
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp1 = conn1.getresponse()
@@ -2479,11 +2595,27 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
         assert resp1.status == 200
         assert body1["ok"] is True
 
+        bundle_attestation_policy = make_attestation_policy_payload_for_packet(
+            body0["packet"],
+            signer_privkey=7,
+            min_distinct_signers=2,
+            max_bundle_price_spread_bps=100,
+            additional_allowed_signers={
+                settlement_spot_price_attestation_signer_pubkey_from_privkey(8): ("oracle:a", "oracle:b")
+            },
+        )
+
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body0["packet"],
+                    "signer_privkey": 7,
+                    "attestation_policy": bundle_attestation_policy,
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp2 = conn2.getresponse()
@@ -2496,7 +2628,13 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
         conn3.request(
             "POST",
             "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body1["packet"], "signer_privkey": 8}).encode("utf-8"),
+            body=json.dumps(
+                {
+                    "packet": body1["packet"],
+                    "signer_privkey": 8,
+                    "attestation_policy": bundle_attestation_policy,
+                }
+            ).encode("utf-8"),
             headers={"Content-Type": "application/json"},
         )
         resp3 = conn3.getresponse()
