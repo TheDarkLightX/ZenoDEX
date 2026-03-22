@@ -127,6 +127,30 @@ class SettlementAttestationPolicyCheckResult:
     distinct_signers_ok: bool
     distinct_sources_ok: bool
     error: str | None = None
+    error_code: str | None = None
+    details: Mapping[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ok": bool(self.ok),
+            "policy_present": bool(self.policy_present),
+            "governance_approved": bool(self.governance_approved),
+            "timelock_elapsed": bool(self.timelock_elapsed),
+            "multisig_approved": bool(self.multisig_approved),
+            "epoch_active": bool(self.epoch_active),
+            "epoch_unexpired": bool(self.epoch_unexpired),
+            "allowlist_nonempty": bool(self.allowlist_nonempty),
+            "signer_allowlisted": bool(self.signer_allowlisted),
+            "source_policy_ok": bool(self.source_policy_ok),
+            "distinct_signers_ok": bool(self.distinct_signers_ok),
+            "distinct_sources_ok": bool(self.distinct_sources_ok),
+            "error": self.error,
+            "error_code": self.error_code,
+            "details": None if self.details is None else dict(self.details),
+        }
+
+    def telemetry_payload(self) -> dict[str, Any]:
+        return self.to_dict()
 
 
 def canonical_attestation_policy_allowlist(
@@ -162,7 +186,20 @@ def check_settlement_attestation_policy(
         raise ValueError("consumer_now_epoch must be a non-negative int")
 
     policy_present = policy is not None
+    canonical_signers = tuple(
+        canonical_hex_fixed_allow_0x(str(pubkey), nbytes=48, name="signer_pubkey") for pubkey in signer_pubkeys
+    )
+    canonical_sources: tuple[str, ...] = tuple(_canonical_source_id(source_id) for source_id in packet_source_ids)
+
     if not policy_present:
+        error_code = "attestation_policy_missing"
+        details = {
+            "consumer_now_epoch": int(consumer_now_epoch),
+            "observed_signer_pubkeys": canonical_signers,
+            "observed_source_ids": canonical_sources,
+            "observed_distinct_signers": len(set(canonical_signers)),
+            "observed_distinct_sources": len(set(canonical_sources)),
+        }
         return SettlementAttestationPolicyCheckResult(
             ok=False,
             policy_present=False,
@@ -176,13 +213,13 @@ def check_settlement_attestation_policy(
             source_policy_ok=False,
             distinct_signers_ok=False,
             distinct_sources_ok=False,
-            error="settlement spot price attestation requires attestation_policy",
+            error=_format_policy_error(
+                "settlement spot price attestation requires attestation_policy",
+                details=details,
+            ),
+            error_code=error_code,
+            details=details,
         )
-
-    canonical_signers = tuple(
-        canonical_hex_fixed_allow_0x(str(pubkey), nbytes=48, name="signer_pubkey") for pubkey in signer_pubkeys
-    )
-    canonical_sources: tuple[str, ...] = tuple(_canonical_source_id(source_id) for source_id in packet_source_ids)
 
     governance_approved = bool(policy.governance_approved)
     timelock_elapsed = bool(policy.timelock_elapsed)
@@ -196,8 +233,10 @@ def check_settlement_attestation_policy(
 
     source_policy_ok = signer_allowlisted
     violating_source: str | None = None
+    allowlisted_sources_for_observed_signers: dict[str, tuple[str, ...]] = {}
     if signer_allowlisted:
         for pubkey in canonical_signers:
+            allowlisted_sources_for_observed_signers[pubkey] = tuple(policy.allowed_signers[pubkey])
             allowed_sources = set(policy.allowed_signers[pubkey])
             for source_id in canonical_sources:
                 if source_id not in allowed_sources:
@@ -219,6 +258,38 @@ def check_settlement_attestation_policy(
         and signer_allowlisted
         and source_policy_ok
     )
+    details = {
+        "policy_id": policy.policy_id,
+        "policy_epoch": int(policy.policy_epoch),
+        "chain_id": int(policy.chain_id),
+        "registry_contract": policy.registry_contract,
+        "registry_root": policy.registry_root,
+        "policy_hash": policy.policy_hash_hex(),
+        "consumer_now_epoch": int(consumer_now_epoch),
+        "effective_from_epoch": int(policy.effective_from_epoch),
+        "expires_at_epoch": int(policy.expires_at_epoch),
+        "observed_signer_pubkeys": canonical_signers,
+        "observed_source_ids": canonical_sources,
+        "observed_distinct_signers": len(set(canonical_signers)),
+        "observed_distinct_sources": len(set(canonical_sources)),
+        "required_distinct_signers": int(policy.min_distinct_signers),
+        "required_distinct_sources": int(policy.min_distinct_sources),
+        "allowlisted_sources_for_observed_signers": allowlisted_sources_for_observed_signers,
+    }
+    error_code, error = _resolve_policy_failure(
+        governance_approved=governance_approved,
+        timelock_elapsed=timelock_elapsed,
+        multisig_approved=multisig_approved,
+        epoch_active=epoch_active,
+        epoch_unexpired=epoch_unexpired,
+        allowlist_nonempty=allowlist_nonempty,
+        distinct_signers_ok=distinct_signers_ok,
+        distinct_sources_ok=distinct_sources_ok,
+        signer_allowlisted=signer_allowlisted,
+        source_policy_ok=source_policy_ok,
+        violating_source=violating_source,
+        details=details,
+    )
     return SettlementAttestationPolicyCheckResult(
         ok=ok,
         policy_present=policy_present,
@@ -232,19 +303,9 @@ def check_settlement_attestation_policy(
         source_policy_ok=source_policy_ok,
         distinct_signers_ok=distinct_signers_ok,
         distinct_sources_ok=distinct_sources_ok,
-        error=_resolve_policy_error(
-            governance_approved=governance_approved,
-            timelock_elapsed=timelock_elapsed,
-            multisig_approved=multisig_approved,
-            epoch_active=epoch_active,
-            epoch_unexpired=epoch_unexpired,
-            allowlist_nonempty=allowlist_nonempty,
-            distinct_signers_ok=distinct_signers_ok,
-            distinct_sources_ok=distinct_sources_ok,
-            signer_allowlisted=signer_allowlisted,
-            source_policy_ok=source_policy_ok,
-            violating_source=violating_source,
-        ),
+        error=error,
+        error_code=error_code,
+        details=details,
     )
 
 
@@ -269,7 +330,7 @@ def _canonical_source_id(source_id: object) -> str:
     return out
 
 
-def _resolve_policy_error(
+def _resolve_policy_failure(
     *,
     governance_approved: bool,
     timelock_elapsed: bool,
@@ -282,30 +343,90 @@ def _resolve_policy_error(
     signer_allowlisted: bool,
     source_policy_ok: bool,
     violating_source: str | None,
-) -> str | None:
+    details: Mapping[str, Any],
+) -> tuple[str | None, str | None]:
     if not governance_approved:
-        return "attestation policy governance approval missing"
+        return (
+            "attestation_policy_governance_missing",
+            _format_policy_error("attestation policy governance approval missing", details=details),
+        )
     if not timelock_elapsed:
-        return "attestation policy timelock not elapsed"
+        return (
+            "attestation_policy_timelock_not_elapsed",
+            _format_policy_error("attestation policy timelock not elapsed", details=details),
+        )
     if not multisig_approved:
-        return "attestation policy multisig approval missing"
+        return (
+            "attestation_policy_multisig_missing",
+            _format_policy_error("attestation policy multisig approval missing", details=details),
+        )
     if not epoch_active:
-        return "attestation policy is not active yet"
+        return (
+            "attestation_policy_not_active",
+            _format_policy_error("attestation policy is not active yet", details=details),
+        )
     if not epoch_unexpired:
-        return "attestation policy expired"
+        return (
+            "attestation_policy_expired",
+            _format_policy_error("attestation policy expired", details=details),
+        )
     if not allowlist_nonempty:
-        return "attestation policy requires non-empty allowed_signers"
+        return (
+            "attestation_policy_allowlist_empty",
+            _format_policy_error("attestation policy requires non-empty allowed_signers", details=details),
+        )
     if not distinct_signers_ok:
-        return "attestation policy signer quorum not met"
+        return (
+            "attestation_policy_signer_quorum_not_met",
+            _format_policy_error("attestation policy signer quorum not met", details=details),
+        )
     if not distinct_sources_ok:
-        return "attestation policy source quorum not met"
+        return (
+            "attestation_policy_source_quorum_not_met",
+            _format_policy_error("attestation policy source quorum not met", details=details),
+        )
     if not signer_allowlisted:
-        return "signer_pubkey not allowlisted by attestation policy"
+        return (
+            "attestation_policy_signer_not_allowlisted",
+            _format_policy_error("signer_pubkey not allowlisted by attestation policy", details=details),
+        )
     if not source_policy_ok:
         if violating_source is None:
-            return "packet source ids not allowlisted by attestation policy"
-        return f"source_id not allowlisted by attestation policy: {violating_source}"
-    return None
+            return (
+                "attestation_policy_sources_not_allowlisted",
+                _format_policy_error("packet source ids not allowlisted by attestation policy", details=details),
+            )
+        detail_map = dict(details)
+        detail_map["violating_source"] = violating_source
+        return (
+            "attestation_policy_source_not_allowlisted",
+            _format_policy_error(
+                f"source_id not allowlisted by attestation policy: {violating_source}",
+                details=detail_map,
+            ),
+        )
+    return None, None
+
+
+def _format_policy_error(base_error: str, *, details: Mapping[str, Any]) -> str:
+    rendered = ", ".join(
+        f"{key}={_format_detail_value(value)}" for key, value in sorted(details.items()) if value is not None
+    )
+    if not rendered:
+        return base_error
+    return f"{base_error} [{rendered}]"
+
+
+def _format_detail_value(value: Any) -> str:
+    if isinstance(value, Mapping):
+        return "{" + ", ".join(
+            f"{_format_detail_value(k)}:{_format_detail_value(v)}" for k, v in sorted(value.items(), key=lambda item: str(item[0]))
+        ) + "}"
+    if isinstance(value, tuple):
+        return "(" + ", ".join(_format_detail_value(item) for item in value) + ")"
+    if isinstance(value, list):
+        return "[" + ", ".join(_format_detail_value(item) for item in value) + "]"
+    return str(value)
 
 
 __all__ = [

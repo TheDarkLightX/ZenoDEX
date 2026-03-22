@@ -271,6 +271,8 @@ def test_end_to_end_certificate_packet_from_attestation_requires_policy() -> Non
             attestation_policy=None,
         )
     except ValueError as exc:
-        assert str(exc) == "invalid settlement spot price attestation: settlement spot price attestation requires attestation_policy"
+        assert str(exc).startswith(
+            "invalid settlement spot price attestation: settlement spot price attestation requires attestation_policy"
+        )
     else:
         raise AssertionError("expected attestation packet build without policy to fail")
