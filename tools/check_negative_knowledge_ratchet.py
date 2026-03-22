@@ -31,6 +31,8 @@ EXPECTED_NARROWED_HYPOTHESIS_IDS = {
 
 EXPECTED_NARROWED_BASELINES = {
     "exact_out_runtime_order_is_semantic_canonicality_v1": {
+        "claim": "Stable runtime enumeration order is enough to justify exact-out canonicality.",
+        "evidence_or_falsifier": "The previous symmetric counterexample has been repaired by switching the two-pool exact-out runtime tie-break to the explicit route_key_out. The remaining lesson still stands: runtime determinism is useful, but canonicality comes from the explicit total key plus candidate completeness, not from stable enumeration folklore.",
         "replacement_claim": "Canonicality comes from minimizing route_key_out = (input_total, leg_count, legs_lex) over complete candidates; the repaired two-pool runtime now reflects that key on the bounded emitted candidate set.",
         "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break",
         "remaining_excluded_domain": "Candidate domains outside the repaired bounded emitted set remain excluded: stable runtime enumeration is still not a semantic canonicality argument without explicit total-key minimization plus candidate completeness.",

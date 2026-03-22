@@ -118,6 +118,40 @@ def test_negative_knowledge_ratchet_requires_expected_narrowed_fields(tmp_path: 
         raise AssertionError("expected drifted narrowed field to fail")
 
 
+def test_negative_knowledge_ratchet_requires_expected_original_claim(tmp_path: Path) -> None:
+    data = _load_negative_knowledge()
+    for record in data["records"]:
+        if record["hypothesis_id"] == "exact_out_runtime_order_is_semantic_canonicality_v1":
+            record["claim"] = "rewritten blocker"
+            break
+    broken = tmp_path / "negative_knowledge_drifted_original_claim.json"
+    broken.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    try:
+        check_negative_knowledge_ratchet(negative_knowledge_path=broken)
+    except ValueError as exc:
+        assert "field claim drifted from pinned baseline" in str(exc)
+    else:
+        raise AssertionError("expected drifted original claim to fail")
+
+
+def test_negative_knowledge_ratchet_requires_expected_evidence_or_falsifier(tmp_path: Path) -> None:
+    data = _load_negative_knowledge()
+    for record in data["records"]:
+        if record["hypothesis_id"] == "exact_out_runtime_order_is_semantic_canonicality_v1":
+            record["evidence_or_falsifier"] = "rewritten evidence"
+            break
+    broken = tmp_path / "negative_knowledge_drifted_evidence_or_falsifier.json"
+    broken.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    try:
+        check_negative_knowledge_ratchet(negative_knowledge_path=broken)
+    except ValueError as exc:
+        assert "field evidence_or_falsifier drifted from pinned baseline" in str(exc)
+    else:
+        raise AssertionError("expected drifted evidence_or_falsifier to fail")
+
+
 def test_negative_knowledge_ratchet_requires_v2_schema(tmp_path: Path) -> None:
     data = _load_negative_knowledge()
     data["schema"] = "shapeforge/negative-knowledge-seed/v1"
