@@ -4,7 +4,7 @@ system_id: zenodex_core_compose
 system_version: 1.3.0
 
 modules:
-  - req_id: cpmm_swap_compose_v2
+  - req_id: cpmm_swap_compose_v1
     req_version: 1.0.0
     alias: swap
   - req_id: liquidity_pool_compose_v2
@@ -88,4 +88,3 @@ wiring:
   - from: "vault.unstake.new_staked_lp_shares"
     to: "lp.vault_staked_lp_shares_mirror"
     op: set
-

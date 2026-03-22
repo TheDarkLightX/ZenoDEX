@@ -1,0 +1,505 @@
+{
+  "algorithm": {
+    "alpha": 1.25,
+    "cases_per_action": 12,
+    "global_state_pool": {
+      "action_accepts": {
+        "swap_exact_out_apply": 0
+      },
+      "action_pulls": {
+        "swap_exact_out_apply": 800
+      },
+      "baseline_prob": 0.25,
+      "max_states": 128,
+      "reset_prob": 0.15,
+      "state_pool_size": 1,
+      "top_k_candidates": 40,
+      "unique_states_seen": 1,
+      "walk_steps": 800
+    },
+    "iterations_per_action": 220,
+    "max_candidates_per_action": 400,
+    "max_states": 128,
+    "name": "ucb1_boundary_sampler",
+    "outside_boundary_candidates": true,
+    "pair_density_bonus": true,
+    "refine_max_steps": 6,
+    "refine_pairs_per_action": 12
+  },
+  "cases": [
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.0,
+      "boundary_tags": [
+        "seeded-accepting-case",
+        "amount_out=1",
+        "max_amount_in=10",
+        "witness_reserve_in=state",
+        "witness_reserve_out=state"
+      ],
+      "expected": {
+        "effects": {
+          "amount_in": 3,
+          "amount_out": 1,
+          "amount_out_quote": 1,
+          "fee_paid": 1,
+          "gap_bps": 0,
+          "k_after": 672,
+          "k_before": 625,
+          "net_in_actual": 2,
+          "overdelivery_gap": 0,
+          "slippage_ok": 1,
+          "witness_ok": true
+        },
+        "ok": true,
+        "state": {
+          "fee_bps": 30,
+          "recipient_out": 1,
+          "reserve_in": 28,
+          "reserve_in_before": 25,
+          "reserve_out": 24,
+          "reserve_out_before": 25,
+          "total_in_const": 35,
+          "total_out_const": 25,
+          "trader_in": 7
+        }
+      },
+      "generator": "seeded_accepting_case",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 10,
+        "witness_reserve_in": 25,
+        "witness_reserve_out": 25
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 0.0
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "witness_reserve_in=min-1",
+        "witness_reserve_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "witness_reserve_in": 0,
+        "witness_reserve_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=max+1",
+        "max_amount_in=min",
+        "witness_reserve_in=min",
+        "witness_reserve_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 50,
+        "max_amount_in": 0,
+        "witness_reserve_in": 1,
+        "witness_reserve_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=max+1",
+        "witness_reserve_in=min",
+        "witness_reserve_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 51,
+        "witness_reserve_in": 1,
+        "witness_reserve_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "witness_reserve_in=min",
+        "witness_reserve_out=min-1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "witness_reserve_in": 1,
+        "witness_reserve_out": 0
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min-1",
+        "max_amount_in=min",
+        "witness_reserve_in=min",
+        "witness_reserve_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 0,
+        "max_amount_in": 0,
+        "witness_reserve_in": 1,
+        "witness_reserve_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "witness_reserve_in=max+1",
+        "witness_reserve_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "witness_reserve_in": 51,
+        "witness_reserve_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min-1",
+        "witness_reserve_in=min",
+        "witness_reserve_out=min"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": -1,
+        "witness_reserve_in": 1,
+        "witness_reserve_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.8125,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "witness_reserve_in=min",
+        "witness_reserve_out=max+1"
+      ],
+      "expected": {
+        "code": "ParamType",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "witness_reserve_in": 1,
+        "witness_reserve_out": 51
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 1.225
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=max",
+        "max_amount_in=max",
+        "witness_reserve_in=min",
+        "witness_reserve_out=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 49,
+        "max_amount_in": 50,
+        "witness_reserve_in": 1,
+        "witness_reserve_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 1.0,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "witness_reserve_in=max",
+        "witness_reserve_out=max"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "witness_reserve_in": 50,
+        "witness_reserve_out": 50
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 0.65
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_out=min",
+        "max_amount_in=min",
+        "witness_reserve_in=max-1",
+        "witness_reserve_out=min"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 1,
+        "max_amount_in": 0,
+        "witness_reserve_in": 49,
+        "witness_reserve_out": 1
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 0.63
+    },
+    {
+      "action": "swap_exact_out_apply",
+      "boundary_score": 0.95,
+      "boundary_tags": [
+        "amount_out=max",
+        "max_amount_in=min",
+        "witness_reserve_in=min",
+        "witness_reserve_out=min+1"
+      ],
+      "expected": {
+        "code": "GuardFalse",
+        "ok": false
+      },
+      "generator": "ml_bva_ucb1",
+      "params": {
+        "amount_out": 49,
+        "max_amount_in": 0,
+        "witness_reserve_in": 1,
+        "witness_reserve_out": 2
+      },
+      "pre_state": {
+        "fee_bps": 30,
+        "recipient_out": 0,
+        "reserve_in": 25,
+        "reserve_in_before": 25,
+        "reserve_out": 25,
+        "reserve_out_before": 25,
+        "total_in_const": 35,
+        "total_out_const": 25,
+        "trader_in": 10
+      },
+      "reward": 0.63
+    }
+  ],
+  "model_path": "src/kernels/dex/settlement_swap_exact_out_apply_witness_v1.yaml",
+  "model_sha256": "ba70dead95466fb659114bcac48aecea0773d84ddaeeaa5e43c9bb01484ba5ed",
+  "schema": "zenodex/ml-boundary-bva/v1",
+  "seed": 0,
+  "summary": {
+    "action_count": 1,
+    "per_action": {
+      "swap_exact_out_apply": {
+        "candidate_count": 79,
+        "iterations": 220,
+        "raw_record_count": 79,
+        "refine_max_steps": 6,
+        "refine_pairs_per_action": 12,
+        "seeded_accepting_cases": 1,
+        "selected": 13,
+        "state_pool_size": 1
+      }
+    },
+    "seeded_accepting_cases": 1,
+    "total_cases": 13
+  }
+}
