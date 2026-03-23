@@ -20,6 +20,14 @@ from ..core.dex_intent_auth_message import hash_dex_intent_auth_message_v1
 from ..core.perp_submission_auth_message import hash_perp_op_auth_message_v1
 
 try:
+    from blake3 import blake3 as _blake3
+
+    _BLAKE3_AVAILABLE = True
+except Exception:  # pragma: no cover - optional dependency
+    _blake3 = None
+    _BLAKE3_AVAILABLE = False
+
+try:
     from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
@@ -71,6 +79,24 @@ class TauNetTauStateView:
 
 
 _DEFAULT_TAU_NET_TCP_CONFIG = TauNetTcpConfig()
+
+
+def compute_tau_state_commitment_hash_hex(*, rules: str, accounts_hash: str, app_hash: str = "") -> str:
+    if not _BLAKE3_AVAILABLE or _blake3 is None:
+        raise TauNetRpcError("blake3 is required for Tau state commitment validation (install blake3)")
+    if not isinstance(rules, str):
+        raise TauNetRpcError(f"tau_state rules must be a string, got {rules!r}")
+    normalized_accounts_hash = _coerce_hex_32_noprefix(accounts_hash, label="tau_state accounts_hash")
+    normalized_app_hash = ""
+    if app_hash not in ("", None):
+        normalized_app_hash = _coerce_hex_32_noprefix(app_hash, label="tau_state app_hash")
+
+    hasher = _blake3()
+    hasher.update(rules.encode("utf-8"))
+    hasher.update(bytes.fromhex(normalized_accounts_hash))
+    if normalized_app_hash:
+        hasher.update(bytes.fromhex(normalized_app_hash))
+    return hasher.hexdigest()
 
 
 def _require_bls() -> None:
@@ -460,6 +486,15 @@ class TauNetTcpClient:
             normalized_app_hash = _coerce_hex_32_noprefix(
                 raw_app_hash,
                 label=f"gettaustate {normalized_state_hash} app_hash",
+            )
+        computed_state_hash = compute_tau_state_commitment_hash_hex(
+            rules=rules,
+            accounts_hash=accounts_hash,
+            app_hash=normalized_app_hash,
+        )
+        if computed_state_hash != normalized_state_hash:
+            raise TauNetRpcError(
+                f"gettaustate {normalized_state_hash} payload does not hash to requested state_hash"
             )
         return TauNetTauStateView(
             state_hash=normalized_state_hash,

@@ -18,7 +18,13 @@ from .settlement_attestation_policy import (
     SettlementAttestationPolicy,
     coerce_settlement_attestation_policy,
 )
-from .tau_net_client import TauNetAppStateView, TauNetStateProofView, TauNetTauStateView
+from .tau_net_client import (
+    TauNetAppStateView,
+    TauNetRpcError,
+    TauNetStateProofView,
+    TauNetTauStateView,
+    compute_tau_state_commitment_hash_hex,
+)
 
 SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA = "zenodex/settlement-signer-registry-snapshot/v1"
 SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA = "zenodex/settlement-signer-registry-anchor/v1"
@@ -675,6 +681,40 @@ class TauNetSettlementSignerRegistrySnapshotLoader:
                 )
         if self._require_tau_state_app_hash_binding:
             assert tau_state_view is not None
+            assert state_proof_view is not None
+            try:
+                computed_tau_state_hash = compute_tau_state_commitment_hash_hex(
+                    rules=tau_state_view.rules,
+                    accounts_hash=tau_state_view.accounts_hash,
+                    app_hash=tau_state_view.app_hash,
+                )
+            except TauNetRpcError as exc:
+                raise ValueError(
+                    _format_binding_error(
+                        "Tau state snapshot could not be validated against committed state_hash for settlement signer registry bridge",
+                        details={
+                            **request.to_dict(),
+                            "tau_app_hash": app_state_view.app_hash,
+                            "tau_state_hash": tau_state_view.state_hash,
+                            "tau_state_validation_error": str(exc),
+                            "bridge_key": self._bridge_key,
+                        },
+                    )
+                ) from exc
+            if computed_tau_state_hash != state_proof_view.state_hash:
+                raise ValueError(
+                    _format_binding_error(
+                        "Tau state snapshot does not hash to committed state_hash for settlement signer registry bridge",
+                        details={
+                            **request.to_dict(),
+                            "tau_app_hash": app_state_view.app_hash,
+                            "tau_state_hash": tau_state_view.state_hash,
+                            "tau_state_committed_hash": state_proof_view.state_hash,
+                            "tau_state_computed_hash": computed_tau_state_hash,
+                            "bridge_key": self._bridge_key,
+                        },
+                    )
+                )
             if not tau_state_view.app_hash:
                 raise ValueError(
                     _format_binding_error(

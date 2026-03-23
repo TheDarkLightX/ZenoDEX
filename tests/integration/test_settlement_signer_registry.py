@@ -5,6 +5,7 @@ import importlib.util
 
 import pytest
 
+import src.integration.tau_net_client as tau_net_client
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
@@ -38,6 +39,11 @@ from tests.integration._attestation_policy_helper import (
 )
 
 pytestmark = pytest.mark.skipif(importlib.util.find_spec("py_ecc") is None, reason="py_ecc is not available")
+
+
+def _require_blake3() -> None:
+    if importlib.util.find_spec("blake3") is None:
+        pytest.skip("blake3 not installed (install blake3 to run Tau state commitment validation tests)")
 
 
 def _attestation():
@@ -397,15 +403,25 @@ def _tau_state_proof_view(
 
 def _tau_tau_state_view(
     *,
-    state_hash: str,
+    state_hash: str | None = None,
     app_hash: str,
     rules: str = "rule_text",
     accounts_hash: str | None = None,
 ) -> TauNetTauStateView:
+    normalized_accounts_hash = ("12" * 32) if accounts_hash is None else accounts_hash
+    normalized_state_hash = (
+        tau_net_client.compute_tau_state_commitment_hash_hex(
+            rules=rules,
+            accounts_hash=normalized_accounts_hash,
+            app_hash=app_hash,
+        )
+        if state_hash is None
+        else state_hash
+    )
     return TauNetTauStateView(
-        state_hash=state_hash,
+        state_hash=normalized_state_hash,
         rules=rules,
-        accounts_hash=("12" * 32) if accounts_hash is None else accounts_hash,
+        accounts_hash=normalized_accounts_hash,
         app_hash=app_hash,
     )
 
@@ -454,6 +470,7 @@ def test_tau_net_settlement_signer_registry_loader_reads_bridge_from_app_state()
 
 
 def test_tau_net_settlement_signer_registry_loader_binds_app_hash_to_tau_state_when_enabled() -> None:
+    _require_blake3()
     attestation = _attestation()
     policy = make_attestation_policy(attestation)
     anchor = make_attestation_registry_anchor(attestation)
@@ -465,20 +482,18 @@ def test_tau_net_settlement_signer_registry_loader_binds_app_hash_to_tau_state_w
             "snapshot": source_snapshot.to_dict(),
         }
     )
+    tau_state_view = _tau_tau_state_view(app_hash=app_state_view.app_hash)
     tau_loader = TauNetSettlementSignerRegistrySnapshotLoader(
         _FakeTauClient(
             app_state_view=app_state_view,
             state_proof_view=_tau_state_proof_view(
-                state_hash="cd" * 32,
+                state_hash=tau_state_view.state_hash,
                 present=True,
                 proof_type="risc0.tauswap_transition.v1",
                 proof_bytes=123,
                 proof_sha256="ef" * 32,
             ),
-            tau_state_view=_tau_tau_state_view(
-                state_hash="cd" * 32,
-                app_hash=app_state_view.app_hash,
-            ),
+            tau_state_view=tau_state_view,
         ),
         require_tau_state_app_hash_binding=True,
     )
@@ -496,6 +511,48 @@ def test_tau_net_settlement_signer_registry_loader_binds_app_hash_to_tau_state_w
 
 
 def test_tau_net_settlement_signer_registry_loader_rejects_tau_state_app_hash_drift() -> None:
+    _require_blake3()
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    anchor = make_attestation_registry_anchor(attestation)
+    snapshot = make_attestation_registry_snapshot(attestation)
+    app_state_view = _tau_bridge_app_state_view(
+        {
+            "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+            "anchor": anchor.to_dict(),
+            "snapshot": snapshot.to_dict(),
+        }
+    )
+    tau_state_view = _tau_tau_state_view(app_hash="34" * 32)
+    tau_loader = TauNetSettlementSignerRegistrySnapshotLoader(
+        _FakeTauClient(
+            app_state_view=app_state_view,
+            state_proof_view=_tau_state_proof_view(
+                state_hash=tau_state_view.state_hash,
+                present=True,
+                proof_type="risc0.tauswap_transition.v1",
+                proof_bytes=123,
+                proof_sha256="ef" * 32,
+            ),
+            tau_state_view=tau_state_view,
+        ),
+        require_tau_state_app_hash_binding=True,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Tau state snapshot app_hash does not match committed app_state hash for settlement signer registry bridge",
+    ):
+        load_attestation_policy_and_registry_snapshot(
+            attestation_policy=policy,
+            attestation_registry_snapshot=None,
+            attestation_registry_snapshot_loader=tau_loader,
+            consumer_now_epoch=103,
+        )
+
+
+def test_tau_net_settlement_signer_registry_loader_rejects_tau_state_hash_drift() -> None:
+    _require_blake3()
     attestation = _attestation()
     policy = make_attestation_policy(attestation)
     anchor = make_attestation_registry_anchor(attestation)
@@ -511,7 +568,7 @@ def test_tau_net_settlement_signer_registry_loader_rejects_tau_state_app_hash_dr
         _FakeTauClient(
             app_state_view=app_state_view,
             state_proof_view=_tau_state_proof_view(
-                state_hash="cd" * 32,
+                state_hash="ef" * 32,
                 present=True,
                 proof_type="risc0.tauswap_transition.v1",
                 proof_bytes=123,
@@ -519,7 +576,7 @@ def test_tau_net_settlement_signer_registry_loader_rejects_tau_state_app_hash_dr
             ),
             tau_state_view=_tau_tau_state_view(
                 state_hash="cd" * 32,
-                app_hash="34" * 32,
+                app_hash=app_state_view.app_hash,
             ),
         ),
         require_tau_state_app_hash_binding=True,
@@ -527,7 +584,7 @@ def test_tau_net_settlement_signer_registry_loader_rejects_tau_state_app_hash_dr
 
     with pytest.raises(
         ValueError,
-        match="Tau state snapshot app_hash does not match committed app_state hash for settlement signer registry bridge",
+        match="Tau state snapshot does not hash to committed state_hash for settlement signer registry bridge",
     ):
         load_attestation_policy_and_registry_snapshot(
             attestation_policy=policy,

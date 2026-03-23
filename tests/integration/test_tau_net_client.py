@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import socket
 
 import pytest
@@ -7,6 +8,11 @@ import pytest
 import src.integration.tau_net_client as tau_net_client
 
 pytest.importorskip("py_ecc.bls", reason="py_ecc not installed (install py-ecc to run Tau client signing tests)")
+
+
+def _require_blake3() -> None:
+    if importlib.util.find_spec("blake3") is None:
+        pytest.skip("blake3 not installed (install blake3 to run Tau state commitment validation tests)")
 
 
 def test_tau_net_client_bls_requirement_and_privkey_parsing_edges(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -259,7 +265,13 @@ def test_tau_net_tcp_client_methods_and_send_signed_tx(monkeypatch: pytest.Monke
 
 
 def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: pytest.MonkeyPatch) -> None:
+    _require_blake3()
     client = tau_net_client.TauNetTcpClient()
+    tau_state_hash = tau_net_client.compute_tau_state_commitment_hash_hex(
+        rules="rule_text",
+        accounts_hash="12" * 32,
+        app_hash="ab" * 32,
+    )
 
     def _rpc(cmd: str) -> str:
         if cmd == "getappstate full":
@@ -271,12 +283,12 @@ def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: py
         if cmd == "getstateproof full":
             return (
                 '{"state_hash":"'
-                + "cd" * 32
+                + tau_state_hash
                 + '","present":true,"proof_type":"risc0.tauswap_transition.v1","proof_bytes":321,"proof_sha256":"'
                 + "ef" * 32
                 + '"}'
             )
-        if cmd == f"gettaustate {'cd' * 32}":
+        if cmd == f"gettaustate {tau_state_hash}":
             return (
                 '{"rules":"rule_text","accounts_hash":"'
                 + "12" * 32
@@ -290,22 +302,23 @@ def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: py
 
     app_state_view = client.getappstate_view()
     state_proof_view = client.getstateproof_view()
-    tau_state_view = client.gettaustate_view("cd" * 32)
+    tau_state_view = client.gettaustate_view(tau_state_hash)
 
     assert app_state_view.app_hash == "ab" * 32
     assert app_state_view.app_state["schema"] == "zenodex/tau_app_state/v1"
-    assert state_proof_view.state_hash == "cd" * 32
+    assert state_proof_view.state_hash == tau_state_hash
     assert state_proof_view.present is True
     assert state_proof_view.proof_type == "risc0.tauswap_transition.v1"
     assert state_proof_view.proof_bytes == 321
     assert state_proof_view.proof_sha256 == "ef" * 32
-    assert tau_state_view.state_hash == "cd" * 32
+    assert tau_state_view.state_hash == tau_state_hash
     assert tau_state_view.rules == "rule_text"
     assert tau_state_view.accounts_hash == "12" * 32
     assert tau_state_view.app_hash == "ab" * 32
 
 
 def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkeypatch: pytest.MonkeyPatch) -> None:
+    _require_blake3()
     client = tau_net_client.TauNetTcpClient()
 
     monkeypatch.setattr(client, "rpc", lambda cmd: "not-json" if cmd == "getappstate full" else '{"state_hash":"","present":"yes"}')
@@ -326,4 +339,8 @@ def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkey
 
     monkeypatch.setattr(client, "rpc", lambda _cmd: '{"rules":"ok","accounts_hash":"zz"}')
     with pytest.raises(tau_net_client.TauNetRpcError, match="accounts_hash must be a 64-hex string"):
+        client.gettaustate_view("ab" * 32)
+
+    monkeypatch.setattr(client, "rpc", lambda _cmd: '{"rules":"ok","accounts_hash":"' + "12" * 32 + '"}')
+    with pytest.raises(tau_net_client.TauNetRpcError, match="payload does not hash to requested state_hash"):
         client.gettaustate_view("ab" * 32)
