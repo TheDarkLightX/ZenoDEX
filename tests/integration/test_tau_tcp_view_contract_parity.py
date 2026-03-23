@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 import pytest
@@ -191,10 +192,18 @@ def test_getstateproof_view_contract_parity(case: _StateProofCase) -> None:
     ids=lambda case: case.name,
 )
 def test_gettaustate_view_contract_parity(case: _TauStateCase) -> None:
-    client = _client_with_rpc(lambda cmd: case.raw if cmd == f"gettaustate {'ab' * 32}" else "")
+    request_state_hash = "ab" * 32
+    if case.error_match is None:
+        payload = json.loads(case.raw)
+        request_state_hash = tau_net_client.compute_tau_state_commitment_hash_hex(
+            rules=payload["rules"],
+            accounts_hash=payload["accounts_hash"],
+            app_hash=payload.get("app_hash", ""),
+        )
+    client = _client_with_rpc(lambda cmd: case.raw if cmd == f"gettaustate {request_state_hash}" else "")
     if case.error_match is not None:
         with pytest.raises(tau_net_client.TauNetRpcError, match=case.error_match):
-            client.gettaustate_view("ab" * 32)
+            client.gettaustate_view(request_state_hash)
         return
-    view = client.gettaustate_view("ab" * 32)
+    view = client.gettaustate_view(request_state_hash)
     assert view.app_hash == case.expected_app_hash
