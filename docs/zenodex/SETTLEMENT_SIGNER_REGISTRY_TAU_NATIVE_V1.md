@@ -11,7 +11,7 @@ This document states the minimal Tau-native bridge contract we need before widen
 
 External-control boundary:
 
-- [EXTERNAL_ASSUMPTION_BOUNDARY_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md)
+- `docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md`
   states the strongest honest claim when the Tau Testnet node surface is controlled outside this repository.
 
 ## ShapeForge State
@@ -203,10 +203,10 @@ That is the correct next step because it moves runtime loading onto Tau state su
 
 The current provenance shell is now expressed in four aligned forms:
 
-- [TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md)
-- [tau_state_app_hash_provenance_guard_v1.yaml](/tmp/zenodex-main-merge.RjwkAn/src/kernels/dex/tau_state_app_hash_provenance_guard_v1.yaml)
-- [TauStateAppHashProvenanceBridge.tla](/tmp/zenodex-main-merge.RjwkAn/formal/tla/TauStateAppHashProvenanceBridge.tla)
-- [ZenoDEXTauStateAppHashProvenance.lean](/tmp/zenodex-main-merge.RjwkAn/lean-mathlib/Proofs/ZenoDEXTauStateAppHashProvenance.lean)
+- `docs/zenodex/TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md`
+- `src/kernels/dex/tau_state_app_hash_provenance_guard_v1.yaml`
+- `formal/tla/TauStateAppHashProvenanceBridge.tla`
+- `lean-mathlib/Proofs/ZenoDEXTauStateAppHashProvenance.lean`
 
 These artifacts give:
 
