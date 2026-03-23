@@ -165,10 +165,13 @@ Current runtime behavior:
 - optionally requires `getstateproof full` to report `present=true`
 - rejects `present=true` if the Tau proof surface does not also expose a committed `state_hash`
 - rejects if the decoded `getappstate full` object does not hash back to the committed `app_hash`
+- rejects if the stable `getstateproof full` view is missing `tau_state.app_hash`
+- rejects if `tau_state.app_hash` from the stable proof view does not match the committed `app_hash`
 - rejects if the bridge payload does not echo the same `tau_state_hash` as the stable `getstateproof full` view
 - rejects on:
   - missing app-state hash
   - `app_state` / `app_hash` commitment drift
+  - missing or drifted `tau_state.app_hash` in the proof surface
   - missing or malformed bridge payload
   - missing or drifted `tau_state_hash` echo in the bridge payload
   - request/anchor drift

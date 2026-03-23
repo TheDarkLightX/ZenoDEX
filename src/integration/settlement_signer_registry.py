@@ -696,6 +696,32 @@ class TauNetSettlementSignerRegistrySnapshotLoader:
                         },
                     )
                 )
+            if not state_proof_view.tau_state_app_hash:
+                raise ValueError(
+                    _format_binding_error(
+                        "Tau state proof is missing tau_state.app_hash for settlement signer registry bridge",
+                        details={
+                            **request.to_dict(),
+                            "tau_app_hash": app_state_view.app_hash,
+                            "tau_state_hash": state_proof_view.state_hash,
+                            "tau_state_proof_type": state_proof_view.proof_type,
+                            "bridge_key": self._bridge_key,
+                        },
+                    )
+                )
+            if state_proof_view.tau_state_app_hash != app_state_view.app_hash:
+                raise ValueError(
+                    _format_binding_error(
+                        "Tau state proof tau_state.app_hash does not match committed Tau app_hash for settlement signer registry bridge",
+                        details={
+                            **request.to_dict(),
+                            "tau_app_hash": app_state_view.app_hash,
+                            "tau_state_hash": state_proof_view.state_hash,
+                            "tau_state_proof_app_hash": state_proof_view.tau_state_app_hash,
+                            "bridge_key": self._bridge_key,
+                        },
+                    )
+                )
         return SettlementSignerRegistrySnapshot(
             chain_id=int(anchor.chain_id),
             registry_contract=anchor.registry_contract,
@@ -988,6 +1014,7 @@ def _tau_state_proof_view_details(view: TauNetStateProofView) -> dict[str, Any]:
         "proof_type": view.proof_type,
         "proof_bytes": view.proof_bytes,
         "proof_sha256": view.proof_sha256,
+        "tau_state_app_hash": view.tau_state_app_hash,
         "error": view.error,
     }
 
