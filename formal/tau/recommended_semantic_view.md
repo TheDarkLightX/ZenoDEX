@@ -1289,7 +1289,8 @@ Spec count: `162`
 - Profile: `bundle_or_composition`
 - Rule: `batching_and_settlement_suite`
 - Temporal: `False`
-- Execution: `missing` via ``
+- Execution: `ok` via `repl`
+- Observed output signatures: `0000000`
 - Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7`, bv inputs `i8, i9, i10, i11`, always clauses `1`
 - Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
 - Always: `(o1[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf) && (o2[t]:sbf = i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf) && (o3[t]:sbf = i6[t]:sbf & i7[t]:sbf) && (o4[t]:bv[16] = ...`
