@@ -155,6 +155,10 @@ Current runtime consequence:
 - the repo now has a typed multi-attestation bundle verifier, and settlement value packets plus end-to-end certificate packets can carry those bundle objects, so `min_distinct_signers > 1` is enforceable through the packet/certificate path as well
 - bundle consensus now uses a deterministic lower-median price vector over attestation packets that share the same asset/source/epoch structure, and policy can bound per-asset disagreement with `P.max_bundle_price_spread_bps`
 - broader multi-source aggregation policy is still out of scope for this slice: the bundle does not yet model source-weighting, dispute resolution, or a richer median/quorum mechanism than lower-median plus a fail-closed spread bound, and the current Tau-side anchor adapter still does not provide state proofs or a Tau-native direct loader
+- the missing Tau-native state-binding lane is now spelled out explicitly in:
+  - `docs/zenodex/SETTLEMENT_SIGNER_REGISTRY_TAU_NATIVE_V1.md`
+  - `src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau`
+  - `formal/tla/SettlementSignerRegistryTauBridge.tla`
 
 That is intentional. It prevents the code from pretending to satisfy a decentralization posture it does not yet implement.
 

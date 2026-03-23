@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/tau/semantic-view/v1",
   "execution_census_ref": "formal/tau/recommended_execution_census_best.json",
-  "spec_count": 157,
+  "spec_count": 162,
   "packets": [
     {
       "spec_id": "add_liquidity_apply_v1",
@@ -14324,6 +14324,116 @@
       }
     },
     {
+      "spec_id": "settlement_core_module_bundle_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_core_module_bundle_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "bundles_and_compositions",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "settlement_feature_extension_bundle_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_feature_extension_bundle_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "bundles_and_compositions",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf)))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
       "spec_id": "settlement_module_flag_bundle_v1",
       "spec_path": "src/tau_specs/recommended/settlement_module_flag_bundle_v1.tau",
       "profile": "bundle_or_composition",
@@ -14561,6 +14671,185 @@
         "runner": "repl",
         "observed_output_signatures": [
           "1"
+        ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "settlement_proof_binding_bundle_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_proof_binding_bundle_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "bundles_and_compositions",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf)))"
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "settlement_signer_registry_anchor_gate_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau",
+      "profile": "bundle_or_composition",
+      "rule": "batching_and_settlement_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "bv[16]",
+        "i9": "bv[16]",
+        "i10": "bv[16]",
+        "i11": "bv[16]"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "bv[16]",
+        "o5": "bv[16]",
+        "o6": "bv[16]",
+        "o7": "bv[16]"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7"
+        ],
+        "bv_inputs": [
+          "i8",
+          "i9",
+          "i10",
+          "i11"
+        ],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf) && (o2[t]:sbf = i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf) && (o3[t]:sbf = i6[t]:sbf & i7[t]:sbf) && (o4[t]:bv[16] = ..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 7,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6",
+          "o7"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "direct_assign",
+            "expr_short": "i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "direct_assign",
+            "expr_short": "i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "direct_assign",
+            "expr_short": "i6[t]:sbf & i7[t]:sbf"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "bv[16]",
+            "style": "direct_assign",
+            "expr_short": "i8[t]:bv[16]"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "bv[16]",
+            "style": "direct_assign",
+            "expr_short": "i9[t]:bv[16]"
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "bv[16]",
+            "style": "direct_assign",
+            "expr_short": "i10[t]:bv[16]"
+          },
+          {
+            "name": "o7",
+            "index": "t",
+            "type": "bv[16]",
+            "style": "direct_assign",
+            "expr_short": "i11[t]:bv[16]"
+          }
+        ]
+      },
+      "execution": {
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "0000000"
         ],
         "error_messages": []
       }
@@ -21227,6 +21516,93 @@
           "tau failed (rc=-1): tau timed out",
           "tau failed (rc=-1): tau timed out"
         ]
+      }
+    },
+    {
+      "spec_id": "zusd_cross_module_oracle_sync_gate_v1",
+      "spec_path": "src/tau_specs/recommended/zusd_cross_module_oracle_sync_gate_v1.tau",
+      "profile": "stateful_policy_guard",
+      "rule": "zusd_suite",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> sync_gate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))"
+        ],
+        "control_helper_names": [
+          "env_ok",
+          "sync_gate_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "env_ok",
+            "kind": "control_predicate",
+            "params": [
+              "sync_snapshot_available"
+            ],
+            "body": "(sync_snapshot_available = 1:sbf)",
+            "body_short": "(sync_snapshot_available = 1:sbf)"
+          },
+          {
+            "name": "sync_gate_ok",
+            "kind": "control_predicate",
+            "params": [
+              "sync_snapshot_available",
+              "divergence_bounded",
+              "epoch_lag_bounded"
+            ],
+            "body": "env_ok(sync_snapshot_available) && (divergence_bounded = 1:sbf) && (epoch_lag_bounded = 1:sbf)",
+            "body_short": "env_ok(sync_snapshot_available) && (divergence_bounded = 1:sbf) && (epoch_lag_bounded = 1:sbf)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 2,
+        "covered_outputs": [
+          "o1",
+          "o2"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((i1[t]:sbf) = 1:sbf))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((i2[t]:sbf) = 1:sbf) && ((i3[t]:sbf) = 1:sbf))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
       }
     },
     {
