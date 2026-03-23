@@ -276,12 +276,21 @@ def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: py
                 + "ef" * 32
                 + '"}'
             )
+        if cmd == f"gettaustate {'cd' * 32}":
+            return (
+                '{"rules":"rule_text","accounts_hash":"'
+                + "12" * 32
+                + '","app_hash":"'
+                + "ab" * 32
+                + '"}'
+            )
         raise AssertionError(f"unexpected cmd: {cmd}")
 
     monkeypatch.setattr(client, "rpc", _rpc)
 
     app_state_view = client.getappstate_view()
     state_proof_view = client.getstateproof_view()
+    tau_state_view = client.gettaustate_view("cd" * 32)
 
     assert app_state_view.app_hash == "ab" * 32
     assert app_state_view.app_state["schema"] == "zenodex/tau_app_state/v1"
@@ -290,6 +299,10 @@ def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: py
     assert state_proof_view.proof_type == "risc0.tauswap_transition.v1"
     assert state_proof_view.proof_bytes == 321
     assert state_proof_view.proof_sha256 == "ef" * 32
+    assert tau_state_view.state_hash == "cd" * 32
+    assert tau_state_view.rules == "rule_text"
+    assert tau_state_view.accounts_hash == "12" * 32
+    assert tau_state_view.app_hash == "ab" * 32
 
 
 def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -306,3 +319,11 @@ def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkey
     monkeypatch.setattr(client, "rpc", lambda _cmd: '{"state_hash":"","present":true}')
     with pytest.raises(tau_net_client.TauNetRpcError, match="getstateproof full state_hash must be a 64-hex string when present=true"):
         client.getstateproof_view()
+
+    monkeypatch.setattr(client, "rpc", lambda _cmd: '{"rules":1,"accounts_hash":"","app_hash":"zz"}')
+    with pytest.raises(tau_net_client.TauNetRpcError, match="rules must be a string"):
+        client.gettaustate_view("ab" * 32)
+
+    monkeypatch.setattr(client, "rpc", lambda _cmd: '{"rules":"ok","accounts_hash":"zz"}')
+    with pytest.raises(tau_net_client.TauNetRpcError, match="accounts_hash must be a 64-hex string"):
+        client.gettaustate_view("ab" * 32)

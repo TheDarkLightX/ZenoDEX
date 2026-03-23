@@ -23,7 +23,11 @@ from src.integration.settlement_signer_registry import (
     load_attestation_policy_and_registry_snapshot,
     resolve_attestation_policy_and_registry_snapshot,
 )
-from src.integration.tau_net_client import TauNetAppStateView, TauNetStateProofView
+from src.integration.tau_net_client import (
+    TauNetAppStateView,
+    TauNetStateProofView,
+    TauNetTauStateView,
+)
 from src.state.canonical import canonical_json_bytes
 from tests.integration._attestation_policy_helper import (
     build_policy_bound_attestation,
@@ -331,11 +335,17 @@ class _FakeTauClient:
         *,
         app_state_view: TauNetAppStateView | list[TauNetAppStateView],
         state_proof_view: TauNetStateProofView | list[TauNetStateProofView],
+        tau_state_view: TauNetTauStateView | list[TauNetTauStateView] | None = None,
     ) -> None:
         self._app_state_views = app_state_view if isinstance(app_state_view, list) else [app_state_view]
         self._state_proof_views = state_proof_view if isinstance(state_proof_view, list) else [state_proof_view]
+        if tau_state_view is None:
+            self._tau_state_views: list[TauNetTauStateView] = []
+        else:
+            self._tau_state_views = tau_state_view if isinstance(tau_state_view, list) else [tau_state_view]
         self._app_state_index = 0
         self._state_proof_index = 0
+        self._tau_state_index = 0
 
     def getappstate_view(self) -> TauNetAppStateView:
         idx = min(self._app_state_index, len(self._app_state_views) - 1)
@@ -346,6 +356,13 @@ class _FakeTauClient:
         idx = min(self._state_proof_index, len(self._state_proof_views) - 1)
         self._state_proof_index += 1
         return self._state_proof_views[idx]
+
+    def gettaustate_view(self, _state_hash: str) -> TauNetTauStateView:
+        if not self._tau_state_views:
+            raise AssertionError("unexpected gettaustate_view call")
+        idx = min(self._tau_state_index, len(self._tau_state_views) - 1)
+        self._tau_state_index += 1
+        return self._tau_state_views[idx]
 
 
 def _tau_bridge_app_state_view(bridge_payload: dict[str, object], *, app_hash: str | None = None) -> TauNetAppStateView:
@@ -375,6 +392,21 @@ def _tau_state_proof_view(
         proof_bytes=proof_bytes,
         proof_sha256=proof_sha256,
         error=error,
+    )
+
+
+def _tau_tau_state_view(
+    *,
+    state_hash: str,
+    app_hash: str,
+    rules: str = "rule_text",
+    accounts_hash: str | None = None,
+) -> TauNetTauStateView:
+    return TauNetTauStateView(
+        state_hash=state_hash,
+        rules=rules,
+        accounts_hash=("12" * 32) if accounts_hash is None else accounts_hash,
+        app_hash=app_hash,
     )
 
 
@@ -419,6 +451,127 @@ def test_tau_net_settlement_signer_registry_loader_reads_bridge_from_app_state()
     assert resolved_snapshot.snapshot_block_number == anchor.anchor_block_number
     assert resolved_snapshot.snapshot_block_hash == anchor.anchor_block_hash
     assert resolved_snapshot.policy == source_snapshot.policy
+
+
+def test_tau_net_settlement_signer_registry_loader_binds_app_hash_to_tau_state_when_enabled() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    anchor = make_attestation_registry_anchor(attestation)
+    source_snapshot = make_attestation_registry_snapshot(attestation)
+    app_state_view = _tau_bridge_app_state_view(
+        {
+            "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+            "anchor": anchor.to_dict(),
+            "snapshot": source_snapshot.to_dict(),
+        }
+    )
+    tau_loader = TauNetSettlementSignerRegistrySnapshotLoader(
+        _FakeTauClient(
+            app_state_view=app_state_view,
+            state_proof_view=_tau_state_proof_view(
+                state_hash="cd" * 32,
+                present=True,
+                proof_type="risc0.tauswap_transition.v1",
+                proof_bytes=123,
+                proof_sha256="ef" * 32,
+            ),
+            tau_state_view=_tau_tau_state_view(
+                state_hash="cd" * 32,
+                app_hash=app_state_view.app_hash,
+            ),
+        ),
+        require_tau_state_app_hash_binding=True,
+    )
+
+    resolved_policy, resolved_snapshot = load_attestation_policy_and_registry_snapshot(
+        attestation_policy=policy,
+        attestation_registry_snapshot=None,
+        attestation_registry_snapshot_loader=tau_loader,
+        consumer_now_epoch=103,
+    )
+
+    assert resolved_policy == policy
+    assert resolved_snapshot is not None
+    assert resolved_snapshot.policy == source_snapshot.policy
+
+
+def test_tau_net_settlement_signer_registry_loader_rejects_tau_state_app_hash_drift() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    anchor = make_attestation_registry_anchor(attestation)
+    snapshot = make_attestation_registry_snapshot(attestation)
+    app_state_view = _tau_bridge_app_state_view(
+        {
+            "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+            "anchor": anchor.to_dict(),
+            "snapshot": snapshot.to_dict(),
+        }
+    )
+    tau_loader = TauNetSettlementSignerRegistrySnapshotLoader(
+        _FakeTauClient(
+            app_state_view=app_state_view,
+            state_proof_view=_tau_state_proof_view(
+                state_hash="cd" * 32,
+                present=True,
+                proof_type="risc0.tauswap_transition.v1",
+                proof_bytes=123,
+                proof_sha256="ef" * 32,
+            ),
+            tau_state_view=_tau_tau_state_view(
+                state_hash="cd" * 32,
+                app_hash="34" * 32,
+            ),
+        ),
+        require_tau_state_app_hash_binding=True,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Tau state snapshot app_hash does not match committed app_state hash for settlement signer registry bridge",
+    ):
+        load_attestation_policy_and_registry_snapshot(
+            attestation_policy=policy,
+            attestation_registry_snapshot=None,
+            attestation_registry_snapshot_loader=tau_loader,
+            consumer_now_epoch=103,
+        )
+
+
+def test_tau_net_settlement_signer_registry_loader_rejects_unstable_tau_state_view() -> None:
+    attestation = _attestation()
+    policy = make_attestation_policy(attestation)
+    anchor = make_attestation_registry_anchor(attestation)
+    snapshot = make_attestation_registry_snapshot(attestation)
+    app_state_view = _tau_bridge_app_state_view(
+        {
+            "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+            "anchor": anchor.to_dict(),
+            "snapshot": snapshot.to_dict(),
+        }
+    )
+    tau_loader = TauNetSettlementSignerRegistrySnapshotLoader(
+        _FakeTauClient(
+            app_state_view=[app_state_view, app_state_view],
+            state_proof_view=[
+                _tau_state_proof_view(state_hash="cd" * 32, present=True, proof_type="proof-a"),
+                _tau_state_proof_view(state_hash="cd" * 32, present=True, proof_type="proof-a"),
+            ],
+            tau_state_view=[
+                _tau_tau_state_view(state_hash="cd" * 32, app_hash=app_state_view.app_hash, rules="rule-a"),
+                _tau_tau_state_view(state_hash="cd" * 32, app_hash=app_state_view.app_hash, rules="rule-b"),
+            ],
+        ),
+        require_tau_state_app_hash_binding=True,
+        stable_read_attempts=1,
+    )
+
+    with pytest.raises(ValueError, match="Tau bridge views changed during settlement signer registry bridge load"):
+        load_attestation_policy_and_registry_snapshot(
+            attestation_policy=policy,
+            attestation_registry_snapshot=None,
+            attestation_registry_snapshot_loader=tau_loader,
+            consumer_now_epoch=103,
+        )
 
 
 def test_tau_net_settlement_signer_registry_loader_rejects_missing_state_proof() -> None:

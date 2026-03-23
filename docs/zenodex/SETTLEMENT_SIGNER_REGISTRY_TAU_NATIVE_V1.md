@@ -144,6 +144,7 @@ Implemented in this slice:
 
 - `TauNetSettlementSignerRegistrySnapshotLoader` in `src/integration/settlement_signer_registry.py`
 - typed TCP response views in `src/integration/tau_net_client.py`
+- optional typed `gettaustate <state_hash>` binding path in `src/integration/tau_net_client.py`
 
 Current runtime behavior:
 
@@ -164,20 +165,24 @@ Current runtime behavior:
 - optionally requires `getstateproof full` to report `present=true`
 - rejects `present=true` if the Tau proof surface does not also expose a committed `state_hash`
 - rejects if the decoded `getappstate full` object does not hash back to the committed `app_hash`
+- when `require_tau_state_app_hash_binding=True`, also reads `gettaustate <state_hash>` and rejects unless `tau_state.app_hash == getappstate.app_hash`
 - rejects on:
   - missing app-state hash
   - `app_state` / `app_hash` commitment drift
+  - `tau_state.app_hash` / `app_state.app_hash` drift when the stronger Tau-state binding path is enabled
   - missing or malformed bridge payload
   - unstable app-state view during bridge load
   - request/anchor drift
   - anchor/snapshot drift
   - unstable Tau proof metadata during bridge load
+  - unstable Tau state view during bridge load
   - state-proof absence
   - state-proof surface errors
 
 Important remaining limit:
 
-- the current Tau TCP surface still does not prove that the committed `app_hash` from `getappstate full` is the same `app_hash` committed under the stable `state_hash` from `getstateproof full`
+- the stronger app-hash provenance check now exists in runtime code, but it depends on the Tau node exposing a `gettaustate <state_hash>` transport that returns the committed `tau_state:<state_hash>` payload
+- until that Tau-side command is shipped, the default TCP surface still cannot prove that the committed `app_hash` from `getappstate full` is the same `app_hash` committed under the stable `state_hash` from `getstateproof full`
 - the current Tau TCP surface does not yet independently prove that `anchor_block_hash` is the same chain object referenced by the reported `state_hash`
 - so the bridge is now Tau-native at the app-state retrieval boundary, but not yet a full provenance proof for the app-hash or anchor-block bindings
 
