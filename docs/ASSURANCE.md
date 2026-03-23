@@ -37,6 +37,10 @@ Operational release checklist:
 
 - `docs/zenodex/SHAPE_V1_RELEASE_CHECKLIST.md`
 
+Single-document reviewer audit note:
+
+- `docs/zenodex/DEX_ALGORITHM_AUDIT_V1.md`
+
 ## Evidence Stack
 
 We use several evidence layers at once:

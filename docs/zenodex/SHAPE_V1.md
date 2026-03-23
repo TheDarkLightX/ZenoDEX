@@ -43,6 +43,11 @@ The current frozen release-candidate note for this claim is:
 
 - `docs/zenodex/SHAPE_V1_RC1.md`
 
+The single-document reviewer audit entry point for the main algorithms and
+assurance boundaries is:
+
+- `docs/zenodex/DEX_ALGORITHM_AUDIT_V1.md`
+
 ## Clause Manifest
 
 ### `cbc_validity`
