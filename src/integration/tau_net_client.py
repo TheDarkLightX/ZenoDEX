@@ -59,6 +59,7 @@ class TauNetStateProofView:
     proof_type: str | None = None
     proof_bytes: int | None = None
     proof_sha256: str | None = None
+    tau_state_app_hash: str | None = None
     error: str | None = None
 
 
@@ -416,6 +417,19 @@ class TauNetTcpClient:
         proof_sha256 = payload.get("proof_sha256")
         if proof_sha256 is not None:
             proof_sha256 = _coerce_hex_32_noprefix(proof_sha256, label="getstateproof full proof_sha256")
+        tau_state = payload.get("tau_state")
+        if tau_state is not None and not isinstance(tau_state, Mapping):
+            raise TauNetRpcError(
+                f"getstateproof full tau_state must be an object when present, got {type(tau_state).__name__}"
+            )
+        tau_state_app_hash_raw = None if not isinstance(tau_state, Mapping) else tau_state.get("app_hash")
+        if tau_state_app_hash_raw in ("", None):
+            tau_state_app_hash = None
+        else:
+            tau_state_app_hash = _coerce_hex_32_noprefix(
+                tau_state_app_hash_raw,
+                label="getstateproof full tau_state.app_hash",
+            )
         error = payload.get("error")
         if error is not None and not isinstance(error, str):
             raise TauNetRpcError(f"getstateproof full error must be a string when present, got {error!r}")
@@ -425,6 +439,7 @@ class TauNetTcpClient:
             proof_type=proof_type.strip() if isinstance(proof_type, str) else None,
             proof_bytes=proof_bytes,
             proof_sha256=proof_sha256,
+            tau_state_app_hash=tau_state_app_hash,
             error=error,
         )
 
