@@ -72,6 +72,13 @@ Notes:
 - `replay full` runs the full release gate.
 - `internal/` artifacts are regenerated locally during replay. They are not part of the repo payload.
 
+External-boundary note:
+
+- replayable host-side proofs and gates around Tau transport do not prove the
+  external Tau Testnet implementation
+- the strongest honest statement for those lanes is documented in
+  `docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md`
+
 Pre-commit / pre-merge hygiene:
 
 ```bash

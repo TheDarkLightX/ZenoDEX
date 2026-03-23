@@ -51,6 +51,13 @@ We use several evidence layers at once:
 
 That combination is materially stronger than a line-coverage target by itself.
 
+For Tau-native provenance and registry-binding lanes, the strongest honest claim
+remains conditional on the external Tau node surface. The in-repo host-side
+contract is formalized and replay-gated here, but the upstream Tau Testnet
+implementation is outside this repository's proof boundary. See:
+
+- `docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md`
+
 ## Subsystem Matrix
 
 ### Acceptance TCB
@@ -164,6 +171,7 @@ Bad interpretations:
 - `99%` coverage does not mean "zero bugs"
 - one green replay does not mean all repo modules are equally hardened
 - a module existing in `src/` does not mean it is part of the published high-assurance lane
+- a host-side proof or gate around Tau transport does not prove the external Tau node implementation
 
 ## Short Answers
 

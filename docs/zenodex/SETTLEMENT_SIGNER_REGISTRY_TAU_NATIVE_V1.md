@@ -9,6 +9,11 @@ That is stronger than operator-local allowlists, but it is still not a Tau-nativ
 
 This document states the minimal Tau-native bridge contract we need before widening the decentralization claim.
 
+External-control boundary:
+
+- [EXTERNAL_ASSUMPTION_BOUNDARY_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md)
+  states the strongest honest claim when the Tau Testnet node surface is controlled outside this repository.
+
 ## ShapeForge State
 
 ```text

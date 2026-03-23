@@ -79,6 +79,11 @@ This tag does not justify any of the following:
 - universal settlement authorization beyond the promoted bounded surface
 - repo-wide `1.0` status for weaker subsystems such as `zUSD`
 
+External-dependency note:
+
+- Tau-native provenance beyond the published host-side contract remains conditional on the external Tau Testnet surface documented in
+  [EXTERNAL_ASSUMPTION_BOUNDARY_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md)
+
 ## Replay Entry Points
 
 Fresh-clone replay surface:
@@ -99,5 +104,6 @@ The next hardening lane after this freeze is:
 That lane is formalized in:
 
 - `docs/zenodex/SETTLEMENT_SIGNER_REGISTRY_TAU_NATIVE_V1.md`
+- `docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md`
 - `src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau`
 - `formal/tla/SettlementSignerRegistryTauBridge.tla`
