@@ -66,11 +66,14 @@ BridgeReady ==
   /\ anchorPresent
   /\ requestBindingOk
   /\ anchorBindingOk
+  /\ snapshotEpoch = requestEpoch
+  /\ anchorEpoch = requestEpoch
+
+TauNativeRegistryBindingOK ==
+  /\ BridgeReady
   /\ policyBindingChecked
   /\ policyBindingOk
   /\ proofOk
-  /\ snapshotEpoch = requestEpoch
-  /\ anchorEpoch = requestEpoch
 
 BindingMismatchVisible ==
   /\ requestIssued
@@ -302,7 +305,7 @@ GrantProof ==
 Accept ==
   /\ ~accepted
   /\ ~rejected
-  /\ BridgeReady
+  /\ TauNativeRegistryBindingOK
   /\ accepted' = TRUE
   /\ UNCHANGED <<
       requestIssued,
@@ -463,14 +466,17 @@ Spec ==
       lastAction
      >>(Reject)
 
-AcceptedRequiresBoundSnapshot == accepted => BridgeReady
+AcceptedRequiresBoundSnapshot == accepted => TauNativeRegistryBindingOK
 
 DriftedSnapshotBlocksAcceptance == accepted => snapshotEpoch = requestEpoch
 
 DriftedAnchorBlocksAcceptance == accepted => anchorEpoch = requestEpoch
 
 FairReadyRequestEventuallyAccepts ==
-  (requestIssued /\ ~accepted /\ ~rejected /\ BridgeReady) ~> accepted
+  (requestIssued /\ ~accepted /\ ~rejected /\ TauNativeRegistryBindingOK) ~> accepted
+
+FairBridgeReadyEventuallyChecksPolicyBinding ==
+  (requestIssued /\ ~accepted /\ ~rejected /\ BridgeReady /\ ~policyBindingChecked) ~> policyBindingChecked
 
 FairBindingMismatchEventuallyRejects ==
   BindingMismatchVisible ~> rejected

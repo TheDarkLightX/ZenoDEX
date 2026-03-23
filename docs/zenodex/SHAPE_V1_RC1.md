@@ -4,7 +4,7 @@
 
 - tag: `shape-v1-rc1`
 - release target commit: `dfeee90d3893309c6df72982a9c2d69c5add6a4b`
-- note publication commit: `51ac3af8edb99bf99d125c0ed48cfbb6ef2d998b`
+- note publication commit: `51ac3afd168fd0cf6b3353703639810d593bdb9f`
 - claim label: `ZenoDEX SHAPE_V1 release candidate`
 
 This document is the scoped freeze note for the first `SHAPE_V1` release candidate.
