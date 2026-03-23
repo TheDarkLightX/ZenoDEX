@@ -94,6 +94,16 @@ It is the explicit contract boundary between:
 - typed host views
 - and the previously formalized stable-window / loader predicates
 
+## Executable Parity
+
+The repo also carries parser-parity tests for representative boundary cases:
+
+- [test_tau_tcp_view_contract_parity.py](/tmp/zenodex-main-merge.RjwkAn/tests/integration/test_tau_tcp_view_contract_parity.py)
+
+These are not proofs of the upstream Tau node implementation.
+They do pin the concrete Python parser behavior to the stated typed-view
+contracts so the formal notes and the runtime do not drift independently.
+
 ## Honest limit
 
 This note does not prove:
