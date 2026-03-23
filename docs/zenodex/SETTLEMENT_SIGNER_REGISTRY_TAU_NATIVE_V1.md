@@ -147,15 +147,14 @@ Implemented in this slice:
 
 Current runtime behavior:
 
-- reads `getstateproof full`, then `getappstate full`, then `getstateproof full` again
-- retries boundedly until the Tau state-proof view is stable across that window
+- reads `getstateproof full`, then `getappstate full` twice, then `getstateproof full` again
+- retries boundedly until both the Tau app-state view and the Tau state-proof view are stable across that window
 - requires a typed app-state bridge payload:
 
 ```json
 {
   "settlement_signer_registry_tau_bridge": {
     "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
-    "tau_state_hash": "<64-hex from getstateproof full state_hash>",
     "anchor": { "...": "SettlementSignerRegistryAnchor" },
     "snapshot": { "...": "SettlementSignerRegistrySnapshot" }
   }
@@ -165,15 +164,11 @@ Current runtime behavior:
 - optionally requires `getstateproof full` to report `present=true`
 - rejects `present=true` if the Tau proof surface does not also expose a committed `state_hash`
 - rejects if the decoded `getappstate full` object does not hash back to the committed `app_hash`
-- rejects if the stable `getstateproof full` view is missing `tau_state.app_hash`
-- rejects if `tau_state.app_hash` from the stable proof view does not match the committed `app_hash`
-- rejects if the bridge payload does not echo the same `tau_state_hash` as the stable `getstateproof full` view
 - rejects on:
   - missing app-state hash
   - `app_state` / `app_hash` commitment drift
-  - missing or drifted `tau_state.app_hash` in the proof surface
   - missing or malformed bridge payload
-  - missing or drifted `tau_state_hash` echo in the bridge payload
+  - unstable app-state view during bridge load
   - request/anchor drift
   - anchor/snapshot drift
   - unstable Tau proof metadata during bridge load
@@ -182,8 +177,9 @@ Current runtime behavior:
 
 Important remaining limit:
 
+- the current Tau TCP surface still does not prove that the committed `app_hash` from `getappstate full` is the same `app_hash` committed under the stable `state_hash` from `getstateproof full`
 - the current Tau TCP surface does not yet independently prove that `anchor_block_hash` is the same chain object referenced by the reported `state_hash`
-- so the bridge is now Tau-native at the app-state retrieval boundary, but not yet a full provenance proof for the anchor block identity
+- so the bridge is now Tau-native at the app-state retrieval boundary, but not yet a full provenance proof for the app-hash or anchor-block bindings
 
 ## Upgrade Discipline
 

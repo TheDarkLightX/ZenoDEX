@@ -621,7 +621,6 @@ class TauNetSettlementSignerRegistrySnapshotLoader:
                     },
                 )
             )
-        bridge_tau_state_hash_raw = bridge_obj.get("tau_state_hash")
         anchor = coerce_settlement_signer_registry_anchor(bridge_obj.get("anchor"))
         snapshot = coerce_settlement_signer_registry_snapshot(bridge_obj.get("snapshot"))
         if snapshot is None:
@@ -665,63 +664,6 @@ class TauNetSettlementSignerRegistrySnapshotLoader:
                         },
                     )
                 )
-            try:
-                bridge_tau_state_hash = _coerce_tau_state_hash_noprefix(
-                    bridge_tau_state_hash_raw,
-                    label="Tau settlement signer registry bridge tau_state_hash",
-                )
-            except ValueError as exc:
-                raise ValueError(
-                    _format_binding_error(
-                        str(exc),
-                        details={
-                            **request.to_dict(),
-                            "tau_app_hash": app_state_view.app_hash,
-                            "bridge_key": self._bridge_key,
-                            "bridge_tau_state_hash": bridge_tau_state_hash_raw,
-                            "stable_tau_state_hash": state_proof_view.state_hash,
-                        },
-                    )
-                ) from exc
-            if bridge_tau_state_hash != state_proof_view.state_hash:
-                raise ValueError(
-                    _format_binding_error(
-                        "Tau settlement signer registry bridge tau_state_hash does not match stable Tau state proof",
-                        details={
-                            **request.to_dict(),
-                            "tau_app_hash": app_state_view.app_hash,
-                            "bridge_key": self._bridge_key,
-                            "bridge_tau_state_hash": bridge_tau_state_hash,
-                            "stable_tau_state_hash": state_proof_view.state_hash,
-                        },
-                    )
-                )
-            if not state_proof_view.tau_state_app_hash:
-                raise ValueError(
-                    _format_binding_error(
-                        "Tau state proof is missing tau_state.app_hash for settlement signer registry bridge",
-                        details={
-                            **request.to_dict(),
-                            "tau_app_hash": app_state_view.app_hash,
-                            "tau_state_hash": state_proof_view.state_hash,
-                            "tau_state_proof_type": state_proof_view.proof_type,
-                            "bridge_key": self._bridge_key,
-                        },
-                    )
-                )
-            if state_proof_view.tau_state_app_hash != app_state_view.app_hash:
-                raise ValueError(
-                    _format_binding_error(
-                        "Tau state proof tau_state.app_hash does not match committed Tau app_hash for settlement signer registry bridge",
-                        details={
-                            **request.to_dict(),
-                            "tau_app_hash": app_state_view.app_hash,
-                            "tau_state_hash": state_proof_view.state_hash,
-                            "tau_state_proof_app_hash": state_proof_view.tau_state_app_hash,
-                            "bridge_key": self._bridge_key,
-                        },
-                    )
-                )
         return SettlementSignerRegistrySnapshot(
             chain_id=int(anchor.chain_id),
             registry_contract=anchor.registry_contract,
@@ -742,28 +684,34 @@ class TauNetSettlementSignerRegistrySnapshotLoader:
 
         last_before: TauNetStateProofView | None = None
         last_after: TauNetStateProofView | None = None
-        last_app_state: TauNetAppStateView | None = None
+        last_app_state_before: TauNetAppStateView | None = None
+        last_app_state_after: TauNetAppStateView | None = None
         for _attempt in range(1, self._stable_read_attempts + 1):
             state_proof_before = self._tau_client.getstateproof_view()
             if not isinstance(state_proof_before, TauNetStateProofView):
                 raise TypeError("tau_client.getstateproof_view() must return TauNetStateProofView")
-            app_state_view = self._tau_client.getappstate_view()
-            _require_tau_app_state_view(app_state_view=app_state_view, request=request)
+            app_state_before = self._tau_client.getappstate_view()
+            _require_tau_app_state_view(app_state_view=app_state_before, request=request)
+            app_state_after = self._tau_client.getappstate_view()
+            _require_tau_app_state_view(app_state_view=app_state_after, request=request)
             state_proof_after = self._tau_client.getstateproof_view()
             if not isinstance(state_proof_after, TauNetStateProofView):
                 raise TypeError("tau_client.getstateproof_view() must return TauNetStateProofView")
             last_before = state_proof_before
             last_after = state_proof_after
-            last_app_state = app_state_view
-            if state_proof_before == state_proof_after:
-                return app_state_view, state_proof_before
+            last_app_state_before = app_state_before
+            last_app_state_after = app_state_after
+            if state_proof_before == state_proof_after and app_state_before == app_state_after:
+                return app_state_before, state_proof_before
         raise ValueError(
             _format_binding_error(
-                "Tau state proof view changed during settlement signer registry bridge load",
+                "Tau bridge views changed during settlement signer registry bridge load",
                 details={
                     **request.to_dict(),
-                    "tau_app_hash": "" if last_app_state is None else last_app_state.app_hash,
+                    "tau_app_hash": "" if last_app_state_before is None else last_app_state_before.app_hash,
                     "stable_read_attempts": self._stable_read_attempts,
+                    "app_state_before": None if last_app_state_before is None else _tau_app_state_view_details(last_app_state_before),
+                    "app_state_after": None if last_app_state_after is None else _tau_app_state_view_details(last_app_state_after),
                     "state_proof_before": None if last_before is None else _tau_state_proof_view_details(last_before),
                     "state_proof_after": None if last_after is None else _tau_state_proof_view_details(last_after),
                 },
@@ -1014,22 +962,14 @@ def _tau_state_proof_view_details(view: TauNetStateProofView) -> dict[str, Any]:
         "proof_type": view.proof_type,
         "proof_bytes": view.proof_bytes,
         "proof_sha256": view.proof_sha256,
-        "tau_state_app_hash": view.tau_state_app_hash,
         "error": view.error,
     }
 
-
-def _coerce_tau_state_hash_noprefix(value: Any, *, label: str) -> str:
-    if not isinstance(value, str) or len(value.strip()) != 64:
-        raise ValueError(f"{label} must be a 64-hex string")
-    normalized = value.strip().lower()
-    try:
-        raw = bytes.fromhex(normalized)
-    except ValueError as exc:
-        raise ValueError(f"{label} must be a 64-hex string") from exc
-    if len(raw) != 32:
-        raise ValueError(f"{label} must be a 64-hex string")
-    return normalized
+def _tau_app_state_view_details(view: TauNetAppStateView) -> dict[str, Any]:
+    return {
+        "app_hash": view.app_hash,
+        "app_state": view.app_state,
+    }
 
 
 def _require_tau_app_state_view(
