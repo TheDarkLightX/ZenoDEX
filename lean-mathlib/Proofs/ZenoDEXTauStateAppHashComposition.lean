@@ -19,6 +19,9 @@ def toProvenanceInputs (inputs : TauStateAppHashStableWindow.Inputs) :
   {
     execReq := true
     bridgePayloadPresent := inputs.bridgePayloadReady
+    bridgePayloadObjectOk := true
+    bridgeSchemaOk := true
+    bridgeSnapshotPresent := true
     requestBindingOk := true
     anchorBindingOk := true
     policyBindingOk := true
@@ -26,6 +29,7 @@ def toProvenanceInputs (inputs : TauStateAppHashStableWindow.Inputs) :
     stateProofPresent := inputs.stateProofPresent
     stateHashPresent := inputs.stateHashPresent
     stateProofStable := inputs.stateProofStable
+    stateProofErrorFree := true
     appStatePresent := inputs.appStatePresent
     appStateStable := inputs.appStateStable
     appStateHashOk := inputs.appStateHashOk
@@ -53,8 +57,7 @@ theorem transportRefinementImpliesLoaderOk (inputs : TauStateAppHashStableWindow
           Bool.and_eq_true,
           and_assoc,
         ] at hRefine ⊢
-        rcases hRefine with ⟨hb, hpres, hhash, happ, hah, hps, has⟩
-        exact ⟨hb, ⟨hpres, ⟨hhash, ⟨hps, ⟨happ, ⟨has, hah⟩⟩⟩⟩⟩⟩
+        simpa [and_assoc, and_left_comm, and_comm] using hRefine
       · simp [
           transportRefinementOk,
           stableWindowOk,
@@ -63,9 +66,7 @@ theorem transportRefinementImpliesLoaderOk (inputs : TauStateAppHashStableWindow
           Bool.and_eq_true,
           and_assoc,
         ] at hRefine ⊢
-        rcases hRefine with ⟨hb, hpres, hhash, happ, hah, hps, has, hts, hta, htp, hth, haph, haeq⟩
-        exact
-          ⟨hb, ⟨hpres, ⟨hhash, ⟨hps, ⟨happ, ⟨has, ⟨hah, ⟨hta, ⟨htp, ⟨hts, ⟨hth, ⟨haph, haeq⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
+        simpa [and_assoc, and_left_comm, and_comm] using hRefine
 
 end TauStateAppHashComposition
 end TauSwap
