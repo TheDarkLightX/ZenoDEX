@@ -25,10 +25,36 @@ VARIABLES
   requestBindingOk,
   anchorBindingOk,
   policyBindingOk,
+  policyBindingActualOk,
+  proofPathChecked,
+  proofPathAvailable,
+  proofPathActualAvailable,
   proofOk,
   accepted,
   rejected,
   lastAction
+
+Vars == <<
+  requestIssued,
+  execReq,
+  requestEpoch,
+  snapshotPresent,
+  snapshotEpoch,
+  anchorPresent,
+  anchorEpoch,
+  policyBindingChecked,
+  requestBindingOk,
+  anchorBindingOk,
+  policyBindingOk,
+  policyBindingActualOk,
+  proofPathChecked,
+  proofPathAvailable,
+  proofPathActualAvailable,
+  proofOk,
+  accepted,
+  rejected,
+  lastAction
+>>
 
 TypeOK ==
   /\ requestIssued \in BOOLEAN
@@ -42,6 +68,10 @@ TypeOK ==
   /\ requestBindingOk \in BOOLEAN
   /\ anchorBindingOk \in BOOLEAN
   /\ policyBindingOk \in BOOLEAN
+  /\ policyBindingActualOk \in BOOLEAN
+  /\ proofPathChecked \in BOOLEAN
+  /\ proofPathAvailable \in BOOLEAN
+  /\ proofPathActualAvailable \in BOOLEAN
   /\ proofOk \in BOOLEAN
   /\ accepted \in BOOLEAN
   /\ rejected \in BOOLEAN
@@ -54,6 +84,8 @@ TypeOK ==
       "load_drifted_anchor",
       "verify_clean_policy_binding",
       "verify_drifted_policy_binding",
+      "check_proof_path_available",
+      "check_proof_path_unavailable",
       "grant_proof",
       "accept",
       "reject"
@@ -73,6 +105,8 @@ TauNativeRegistryBindingOK ==
   /\ BridgeReady
   /\ policyBindingChecked
   /\ policyBindingOk
+  /\ proofPathChecked
+  /\ proofPathAvailable
   /\ proofOk
 
 BindingMismatchVisible ==
@@ -92,7 +126,20 @@ BindingMismatchVisible ==
         /\ ~policyBindingOk
      )
 
-ProofPathRiskVisible ==
+ProofPathUnavailableVisible ==
+  /\ requestIssued
+  /\ ~accepted
+  /\ ~rejected
+  /\ snapshotPresent
+  /\ anchorPresent
+  /\ requestBindingOk
+  /\ anchorBindingOk
+  /\ policyBindingChecked
+  /\ policyBindingOk
+  /\ proofPathChecked
+  /\ ~proofPathAvailable
+
+ProofPathPending ==
   /\ requestIssued
   /\ ~accepted
   /\ ~rejected
@@ -116,6 +163,10 @@ Init ==
   /\ requestBindingOk = FALSE
   /\ anchorBindingOk = FALSE
   /\ policyBindingOk = FALSE
+  /\ policyBindingActualOk = FALSE
+  /\ proofPathChecked = FALSE
+  /\ proofPathAvailable = FALSE
+  /\ proofPathActualAvailable = FALSE
   /\ proofOk = FALSE
   /\ accepted = FALSE
   /\ rejected = FALSE
@@ -134,6 +185,10 @@ IssueRequest ==
   /\ requestBindingOk' = FALSE
   /\ anchorBindingOk' = FALSE
   /\ policyBindingOk' = FALSE
+  /\ policyBindingActualOk' \in BOOLEAN
+  /\ proofPathChecked' = FALSE
+  /\ proofPathAvailable' = FALSE
+  /\ proofPathActualAvailable' \in BOOLEAN
   /\ proofOk' = FALSE
   /\ accepted' = FALSE
   /\ rejected' = FALSE
@@ -154,6 +209,10 @@ LoadCleanSnapshot ==
       policyBindingChecked,
       anchorBindingOk,
       policyBindingOk,
+      policyBindingActualOk,
+      proofPathChecked,
+      proofPathAvailable,
+      proofPathActualAvailable,
       proofOk,
       accepted,
       rejected
@@ -176,6 +235,10 @@ LoadDriftedSnapshot ==
       policyBindingChecked,
       anchorBindingOk,
       policyBindingOk,
+      policyBindingActualOk,
+      proofPathChecked,
+      proofPathAvailable,
+      proofPathActualAvailable,
       proofOk,
       accepted,
       rejected
@@ -197,6 +260,10 @@ LoadCleanAnchor ==
       policyBindingChecked,
       requestBindingOk,
       policyBindingOk,
+      policyBindingActualOk,
+      proofPathChecked,
+      proofPathAvailable,
+      proofPathActualAvailable,
       proofOk,
       accepted,
       rejected
@@ -212,20 +279,24 @@ LoadDriftedAnchor ==
   /\ policyBindingChecked' = FALSE
   /\ anchorBindingOk' = FALSE
   /\ policyBindingOk' = FALSE
+  /\ proofPathChecked' = FALSE
+  /\ proofPathAvailable' = FALSE
   /\ UNCHANGED <<
       requestIssued,
       execReq,
       requestEpoch,
       snapshotPresent,
       snapshotEpoch,
+      policyBindingActualOk,
       requestBindingOk,
+      proofPathActualAvailable,
       proofOk,
       accepted,
       rejected
      >>
   /\ lastAction' = "load_drifted_anchor"
 
-VerifyCleanPolicyBinding ==
+VerifyPolicyBinding ==
   /\ requestIssued
   /\ snapshotPresent
   /\ anchorPresent
@@ -233,7 +304,7 @@ VerifyCleanPolicyBinding ==
   /\ anchorBindingOk
   /\ ~policyBindingChecked
   /\ policyBindingChecked' = TRUE
-  /\ policyBindingOk' = TRUE
+  /\ policyBindingOk' = policyBindingActualOk
   /\ UNCHANGED <<
       requestIssued,
       execReq,
@@ -244,21 +315,27 @@ VerifyCleanPolicyBinding ==
       anchorEpoch,
       requestBindingOk,
       anchorBindingOk,
+      policyBindingActualOk,
+      proofPathChecked,
+      proofPathAvailable,
+      proofPathActualAvailable,
       proofOk,
       accepted,
       rejected
      >>
-  /\ lastAction' = "verify_clean_policy_binding"
+  /\ lastAction' = IF policyBindingActualOk THEN "verify_clean_policy_binding" ELSE "verify_drifted_policy_binding"
 
-VerifyDriftedPolicyBinding ==
+CheckProofPath ==
   /\ requestIssued
   /\ snapshotPresent
   /\ anchorPresent
   /\ requestBindingOk
   /\ anchorBindingOk
-  /\ ~policyBindingChecked
-  /\ policyBindingChecked' = TRUE
-  /\ policyBindingOk' = FALSE
+  /\ policyBindingChecked
+  /\ policyBindingOk
+  /\ ~proofPathChecked
+  /\ proofPathChecked' = TRUE
+  /\ proofPathAvailable' = proofPathActualAvailable
   /\ UNCHANGED <<
       requestIssued,
       execReq,
@@ -267,13 +344,17 @@ VerifyDriftedPolicyBinding ==
       snapshotEpoch,
       anchorPresent,
       anchorEpoch,
+      policyBindingChecked,
       requestBindingOk,
       anchorBindingOk,
+      policyBindingOk,
+      policyBindingActualOk,
+      proofPathActualAvailable,
       proofOk,
       accepted,
       rejected
      >>
-  /\ lastAction' = "verify_drifted_policy_binding"
+  /\ lastAction' = IF proofPathActualAvailable THEN "check_proof_path_available" ELSE "check_proof_path_unavailable"
 
 GrantProof ==
   /\ requestIssued
@@ -283,6 +364,8 @@ GrantProof ==
   /\ anchorBindingOk
   /\ policyBindingChecked
   /\ policyBindingOk
+  /\ proofPathChecked
+  /\ proofPathAvailable
   /\ ~proofOk
   /\ proofOk' = TRUE
   /\ UNCHANGED <<
@@ -297,6 +380,10 @@ GrantProof ==
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
+      policyBindingActualOk,
+      proofPathChecked,
+      proofPathAvailable,
+      proofPathActualAvailable,
       accepted,
       rejected
      >>
@@ -319,6 +406,10 @@ Accept ==
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
+      policyBindingActualOk,
+      proofPathChecked,
+      proofPathAvailable,
+      proofPathActualAvailable,
       proofOk,
       rejected
      >>
@@ -327,7 +418,7 @@ Accept ==
 Reject ==
   /\ ~accepted
   /\ ~rejected
-  /\ BindingMismatchVisible \/ ProofPathRiskVisible
+  /\ BindingMismatchVisible \/ ProofPathUnavailableVisible
   /\ rejected' = TRUE
   /\ UNCHANGED <<
       requestIssued,
@@ -341,6 +432,10 @@ Reject ==
       requestBindingOk,
       anchorBindingOk,
       policyBindingOk,
+      policyBindingActualOk,
+      proofPathChecked,
+      proofPathAvailable,
+      proofPathActualAvailable,
       proofOk,
       accepted
      >>
@@ -348,23 +443,7 @@ Reject ==
 
 TerminalStutter ==
   /\ accepted \/ rejected
-  /\ UNCHANGED <<
-      requestIssued,
-      execReq,
-      requestEpoch,
-      snapshotPresent,
-      snapshotEpoch,
-      anchorPresent,
-      anchorEpoch,
-      policyBindingChecked,
-      requestBindingOk,
-      anchorBindingOk,
-      policyBindingOk,
-      proofOk,
-      accepted,
-      rejected,
-      lastAction
-     >>
+  /\ UNCHANGED Vars
 
 Next ==
   \/ IssueRequest
@@ -372,8 +451,8 @@ Next ==
   \/ LoadDriftedSnapshot
   \/ LoadCleanAnchor
   \/ LoadDriftedAnchor
-  \/ VerifyCleanPolicyBinding
-  \/ VerifyDriftedPolicyBinding
+  \/ VerifyPolicyBinding
+  \/ CheckProofPath
   \/ GrantProof
   \/ Accept
   \/ Reject
@@ -381,90 +460,12 @@ Next ==
 
 Spec ==
   Init
-  /\ [][Next]_<<
-      requestIssued,
-      execReq,
-      requestEpoch,
-      snapshotPresent,
-      snapshotEpoch,
-      anchorPresent,
-      anchorEpoch,
-      policyBindingChecked,
-      requestBindingOk,
-      anchorBindingOk,
-      policyBindingOk,
-      proofOk,
-      accepted,
-      rejected,
-      lastAction
-     >>
-  /\ WF_<<
-      requestIssued,
-      execReq,
-      requestEpoch,
-      snapshotPresent,
-      snapshotEpoch,
-      anchorPresent,
-      anchorEpoch,
-      policyBindingChecked,
-      requestBindingOk,
-      anchorBindingOk,
-      policyBindingOk,
-      proofOk,
-      accepted,
-      rejected,
-      lastAction
-     >>(Accept)
-  /\ WF_<<
-      requestIssued,
-      execReq,
-      requestEpoch,
-      snapshotPresent,
-      snapshotEpoch,
-      anchorPresent,
-      anchorEpoch,
-      policyBindingChecked,
-      requestBindingOk,
-      anchorBindingOk,
-      policyBindingOk,
-      proofOk,
-      accepted,
-      rejected,
-      lastAction
-     >>(VerifyCleanPolicyBinding)
-  /\ WF_<<
-      requestIssued,
-      execReq,
-      requestEpoch,
-      snapshotPresent,
-      snapshotEpoch,
-      anchorPresent,
-      anchorEpoch,
-      policyBindingChecked,
-      requestBindingOk,
-      anchorBindingOk,
-      policyBindingOk,
-      proofOk,
-      accepted,
-      rejected,
-      lastAction
-     >>(VerifyDriftedPolicyBinding)
-  /\ WF_<<
-      requestIssued,
-      execReq,
-      requestEpoch,
-      snapshotPresent,
-      snapshotEpoch,
-      anchorPresent,
-      anchorEpoch,
-      requestBindingOk,
-      anchorBindingOk,
-      policyBindingOk,
-      proofOk,
-      accepted,
-      rejected,
-      lastAction
-     >>(Reject)
+  /\ [][Next]_Vars
+  /\ WF_Vars(Accept)
+  /\ WF_Vars(VerifyPolicyBinding)
+  /\ WF_Vars(CheckProofPath)
+  /\ WF_Vars(GrantProof)
+  /\ WF_Vars(Reject)
 
 AcceptedRequiresBoundSnapshot == accepted => TauNativeRegistryBindingOK
 
@@ -478,11 +479,14 @@ FairReadyRequestEventuallyAccepts ==
 FairBridgeReadyEventuallyChecksPolicyBinding ==
   (requestIssued /\ ~accepted /\ ~rejected /\ BridgeReady /\ ~policyBindingChecked) ~> policyBindingChecked
 
+FairPolicyBoundArtifactsEventuallyCheckProofPath ==
+  (requestIssued /\ ~accepted /\ ~rejected /\ BridgeReady /\ policyBindingChecked /\ policyBindingOk /\ ~proofPathChecked) ~> proofPathChecked
+
 FairBindingMismatchEventuallyRejects ==
   BindingMismatchVisible ~> rejected
 
 FairProofPathEventuallyResolves ==
-  ProofPathRiskVisible ~> (rejected \/ proofOk)
+  ProofPathPending ~> (rejected \/ proofOk)
 
 FairCleanArtifactsEventuallyCheckPolicyBinding ==
   /\ requestIssued

@@ -122,7 +122,7 @@ D3 := snapshot_present ∧ anchor_present ∧ ¬proof_ok ∧ settlement_admitted
 
 If the runtime can fall back from a Tau-native proof lane to an unproved adapter path without changing the admission result, the public claim overstates the system.
 
-In the bounded protocol model, once the request/snapshot/anchor bindings are otherwise ready, an unresolved or downgraded proof path is treated as rejectable drift rather than a state that may stutter forever.
+In the bounded protocol model, once the request/snapshot/anchor bindings are otherwise ready, proof-path availability is an explicit state bit. An unavailable or downgraded proof lane is treated as rejectable drift rather than being conflated with 'proof not granted yet' or a state that may stutter forever.
 
 ## Artifact Plan
 
