@@ -185,7 +185,62 @@ This is the main determinism primitive in the repo. Routing, batch clearing,
 and certificate verification all become suspect if the canonical key is not
 total.
 
-## Audit Entry 3: Batch Auction Canonical Objective
+## Audit Entry 3: Exact-In Canonical Route Lane
+
+**Status**
+
+- `PROVED`
+- `IMPLEMENTED`
+- `REPLAY_GATED`
+
+**Primary sources**
+
+- `src/integration/exact_in_route_certificate.py`
+- `lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean`
+- `lean-mathlib/Proofs/ZenoDEXExactInTrueKeyWinner.lean`
+- `docs/zenodex/SHAPE_V1.md`
+
+**Formula**
+
+```text
+ExactInKey(candidate) := (routeKeyRank, candidateIndex)
+winner := argmin(ExactInKey, candidates)
+```
+
+The main interpretation-packet shell is:
+
+```text
+packet_ok
+  := rank_projection_packet_ok
+   ∧ winner_index_in_range
+   ∧ candidate_indices_match_stream
+   ∧ candidate_route_keys_match_quotes
+   ∧ winner_matches_certificate_candidate
+   ∧ winner_true_key_minimal
+```
+
+**Standard reading**
+
+- `ExactInKey` is defined as the lexicographic pair
+  `(routeKeyRank, candidateIndex)`
+- `winner` is defined as the candidate with minimal exact-in key
+- `packet_ok` is defined as rank projection success and winner index in range
+  and candidate/stream alignment and route-key agreement and certificate/winner
+  agreement and true-key minimality
+
+**Audit question**
+
+- Does the exact-in certificate lane actually prove that the emitted winner is
+  the minimal `(routeKeyRank, candidateIndex)` candidate over the admitted
+  stream?
+
+**Why this matters**
+
+The exact-in lane is one of the promoted optimizer/certificate surfaces in
+`SHAPE_V1`. A single-document reviewer entry is incomplete if it omits this
+route canonicality path.
+
+## Audit Entry 4: Batch Auction Canonical Objective
 
 **Status**
 
@@ -211,23 +266,40 @@ key(v1, s1, o1) <= key(v2, s2, o2)
  ∨ (v1 = v2 ∧ ((s2 < s1) ∨ (s1 = s2 ∧ o1 <= o2)))
 ```
 
+Bounded runtime scope law:
+
+```text
+bounded_ab_mode := same_direction_batch ∧ batch_size <= 7
+
+bounded_ab_mode -> runtime_uses_optimal_ab_bounded
+¬bounded_ab_mode -> no_blanket_ab_optimality_claim
+```
+
 **Standard reading**
 
 - the batch key is defined as volume in descending order, then surplus in
   descending order, then order in ascending lexicographic order
 - the comparison law says higher volume wins; among equal volume, higher
   surplus wins; among equal volume and surplus, smaller order wins
+- `bounded_ab_mode` is defined as the same-direction bounded batch lane with at
+  most seven swaps
+- `bounded_ab_mode` implies the runtime uses the exact bounded `A/B/lex` path
+- not `bounded_ab_mode` implies there is no blanket `A/B/lex` optimality claim
+  for every batch-clearing path
 
 **Audit question**
 
-- Does every batch-clearing path preserve the declared `A/B/lex` objective?
+- Does the reviewer distinguish the proved bounded same-direction `A/B/lex`
+  lane from the broader runtime paths that can still fall back to other
+  orderings?
 
 **Why this matters**
 
 This is the core anti-ambiguity rule for batched execution. If this order
-changes, the fairness and canonicality story changes.
+changes, the fairness and canonicality story changes. But it must be scoped
+honestly to the bounded mode where that statement is actually proved and wired.
 
-## Audit Entry 4: Exact-Out Audited-Domain Canonical Quote
+## Audit Entry 5: Exact-Out Audited-Domain Canonical Quote
 
 **Status**
 
@@ -267,7 +339,7 @@ audited_domain_only -> no_global_generator_completeness_claim
 - Is the claimed exact-out result explicitly bounded to the repaired audited
   lane, rather than overstated as global completeness?
 
-## Audit Entry 5: Settlement End-To-End Certificate Gate
+## Audit Entry 6: Settlement End-To-End Certificate Gate
 
 **Status**
 
@@ -314,7 +386,7 @@ reads as:
 
 - not `packet_ok` implies reject
 
-## Audit Entry 6: Perps Funding Rule
+## Audit Entry 7: Perps Funding Rule
 
 **Status**
 
@@ -351,7 +423,7 @@ rate_bps
 Funding is small in code size but large in mechanism effect. A sign or cap bug
 here is economically material.
 
-## Audit Entry 7: zUSD Oracle Pending Gate
+## Audit Entry 8: zUSD Oracle Pending Gate
 
 **Status**
 
@@ -387,7 +459,7 @@ action_allowed := ¬risky_requested ∨ risky_ops_allowed
 - Does every risky zUSD action remain fail-closed on stale, missing, or
   diverged oracle state?
 
-## Audit Entry 8: Tau Provenance Loader
+## Audit Entry 9: Tau Provenance Loader
 
 **Status**
 
@@ -471,7 +543,7 @@ reads as:
 
 That is precisely the path the current formal bundle is designed to rule out.
 
-## Audit Entry 9: External Assumption Boundary
+## Audit Entry 10: External Assumption Boundary
 
 **Status**
 
