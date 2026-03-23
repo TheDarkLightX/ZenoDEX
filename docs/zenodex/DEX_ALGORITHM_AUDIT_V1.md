@@ -198,6 +198,8 @@ total.
 - `src/integration/exact_in_route_certificate.py`
 - `lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean`
 - `lean-mathlib/Proofs/ZenoDEXExactInTrueKeyWinner.lean`
+- `lean-mathlib/Proofs/ZenoDEXExactInRouteRankProjectionPacket.lean`
+- `lean-mathlib/Proofs/ZenoDEXExactInRouteTrueKeyInterpretationPacket.lean`
 - `docs/zenodex/SHAPE_V1.md`
 
 **Formula**
@@ -269,7 +271,10 @@ key(v1, s1, o1) <= key(v2, s2, o2)
 Bounded runtime scope law:
 
 ```text
-bounded_ab_mode := same_direction_batch ∧ batch_size <= 7
+bounded_ab_mode
+  := same_direction_batch
+   ∧ batch_size <= 7
+   ∧ post_swap_ordering = optimal_ab_bounded
 
 bounded_ab_mode -> runtime_uses_optimal_ab_bounded
 ¬bounded_ab_mode -> no_blanket_ab_optimality_claim
@@ -282,7 +287,7 @@ bounded_ab_mode -> runtime_uses_optimal_ab_bounded
 - the comparison law says higher volume wins; among equal volume, higher
   surplus wins; among equal volume and surplus, smaller order wins
 - `bounded_ab_mode` is defined as the same-direction bounded batch lane with at
-  most seven swaps
+  most seven swaps and explicit `optimal_ab_bounded` ordering selected
 - `bounded_ab_mode` implies the runtime uses the exact bounded `A/B/lex` path
 - not `bounded_ab_mode` implies there is no blanket `A/B/lex` optimality claim
   for every batch-clearing path
