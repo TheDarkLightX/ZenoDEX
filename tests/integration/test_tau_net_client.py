@@ -274,9 +274,7 @@ def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: py
                 + "cd" * 32
                 + '","present":true,"proof_type":"risc0.tauswap_transition.v1","proof_bytes":321,"proof_sha256":"'
                 + "ef" * 32
-                + '","tau_state":{"app_hash":"'
-                + "ab" * 32
-                + '"}}'
+                + '"}'
             )
         raise AssertionError(f"unexpected cmd: {cmd}")
 
@@ -292,7 +290,6 @@ def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: py
     assert state_proof_view.proof_type == "risc0.tauswap_transition.v1"
     assert state_proof_view.proof_bytes == 321
     assert state_proof_view.proof_sha256 == "ef" * 32
-    assert state_proof_view.tau_state_app_hash == "ab" * 32
 
 
 def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -308,8 +305,4 @@ def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkey
 
     monkeypatch.setattr(client, "rpc", lambda _cmd: '{"state_hash":"","present":true}')
     with pytest.raises(tau_net_client.TauNetRpcError, match="getstateproof full state_hash must be a 64-hex string when present=true"):
-        client.getstateproof_view()
-
-    monkeypatch.setattr(client, "rpc", lambda _cmd: '{"state_hash":"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd","present":true,"tau_state":"bad"}')
-    with pytest.raises(tau_net_client.TauNetRpcError, match="getstateproof full tau_state must be an object when present"):
         client.getstateproof_view()
