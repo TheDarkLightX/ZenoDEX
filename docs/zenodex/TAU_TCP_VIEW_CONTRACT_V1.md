@@ -104,6 +104,14 @@ These are not proofs of the upstream Tau node implementation.
 They do pin the concrete Python parser behavior to the stated typed-view
 contracts so the formal notes and the runtime do not drift independently.
 
+The repo also carries an optional live-node conformance harness:
+
+- [test_tau_tcp_live_contract_conformance.py](/tmp/zenodex-main-merge.RjwkAn/tests/integration/test_tau_tcp_live_contract_conformance.py)
+- [TAU_NODE_CONFORMANCE_BOUNDARY_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/TAU_NODE_CONFORMANCE_BOUNDARY_V1.md)
+
+That harness is observational only. It checks whether a running Tau node emits
+payloads accepted by these contracts. It is not a proof of the upstream server.
+
 ## Honest limit
 
 This note does not prove:
