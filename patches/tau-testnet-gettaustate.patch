@@ -1,0 +1,116 @@
+diff --git a/app/container.py b/app/container.py
+index 74e5f75..8d1c4cf 100644
+--- a/app/container.py
++++ b/app/container.py
+@@ -19,6 +19,7 @@ from commands import (
+     getallaccounts,
+     getbalance,
+     getblocks,
++    gettaustate,
+     getappstate,
+     getmempool,
+     getsequence,
+@@ -67,6 +68,7 @@ class ServiceContainer:
+             "history": history,
+             "getblocks": getblocks,
+             "getallaccounts": getallaccounts,
++            "gettaustate": gettaustate,
+             "getappstate": getappstate,
+         }
+
+diff --git a/commands/gettaustate.py b/commands/gettaustate.py
+new file mode 100644
+index 0000000..d2b9d86
+--- /dev/null
++++ b/commands/gettaustate.py
+@@ -0,0 +1,79 @@
++import json
++import logging
++import re
++
++import chain_state
++
++
++logger = logging.getLogger(__name__)
++
++
++def execute(raw_command: str, container):
++    """
++    gettaustate <state_hash>
++
++    Returns the committed `tau_state:<state_hash>` payload when present.
++    The response is JSON so downstream runtimes can fail closed on:
++      - missing payloads,
++      - malformed hashes,
++      - missing `app_hash` / `accounts_hash` fields.
++    """
++    parts = (raw_command or "").strip().split()
++    if len(parts) != 2:
++        return json.dumps(
++            {
++                "present": False,
++                "error": "usage: gettaustate <64-hex-state-hash>",
++            },
++            sort_keys=True,
++            separators=(",", ":"),
++        ) + "\r\n"
++
++    state_hash = parts[1].strip().lower()
++    if state_hash.startswith("0x"):
++        state_hash = state_hash[2:]
++    if not re.fullmatch(r"[0-9a-f]{64}", state_hash):
++        return json.dumps(
++            {"state_hash": state_hash, "present": False, "error": "state_hash must be 64 hex chars"},
++            sort_keys=True,
++            separators=(",", ":"),
++        ) + "\r\n"
++
++    payload = chain_state.fetch_tau_state_snapshot_payload(state_hash)
++    if payload is None:
++        current_state_hash = str(getattr(chain_state, "_tau_engine_state_hash", "") or "").strip().lower()
++        if current_state_hash == state_hash:
++            try:
++                rules = chain_state.get_rules_state()
++                app_hash = chain_state.get_app_hash() or ""
++                balances = getattr(chain_state, "_balances", {})
++                sequences = getattr(chain_state, "_sequence_numbers", {})
++                accounts_hash = chain_state.compute_accounts_hash(balances, sequences).hex()
++            except Exception as exc:
++                logger.exception("gettaustate failed to build local committed snapshot")
++                return json.dumps(
++                    {"state_hash": state_hash, "present": False, "error": f"current tau_state unavailable: {exc}"},
++                    sort_keys=True,
++                    separators=(",", ":"),
++                ) + "\r\n"
++
++            payload = {
++                "rules": rules,
++                "accounts_hash": accounts_hash,
++                "app_hash": app_hash,
++            }
++        else:
++            return json.dumps(
++                {"state_hash": state_hash, "present": False, "error": "tau_state snapshot not found"},
++                sort_keys=True,
++                separators=(",", ":"),
++            ) + "\r\n"
++
++    if not isinstance(payload, dict):
++        return json.dumps(
++            {"state_hash": state_hash, "present": False, "error": "tau_state payload malformed"},
++            sort_keys=True,
++            separators=(",", ":"),
++        ) + "\r\n"
++
++    payload = dict(payload)
++    payload["state_hash"] = state_hash
++    payload["present"] = True
++    try:
++        return json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\r\n"
++    except Exception as exc:
++        logger.exception("gettaustate failed to serialize payload")
++        return json.dumps(
++            {"state_hash": state_hash, "present": False, "error": f"tau_state payload malformed: {exc}"},
++            sort_keys=True,
++            separators=(",", ":"),
++        ) + "\r\n"
