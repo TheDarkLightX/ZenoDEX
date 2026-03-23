@@ -52,9 +52,9 @@ This document states the minimal Tau-native bridge contract we need before widen
     proved: SettlementSignerRegistryTauBridge.tla
   },
   Gap = {
-    Tau-native state proof retrieval,
-    runtime loader wired to Tau Net state instead of adapter-only transport,
-    stronger proof story for anchor_block_hash provenance
+    stronger binding between Tau state proof metadata and anchor_block_hash provenance,
+    Tau-native state proof verification beyond presence/error gating,
+    direct Tau block/header retrieval for anchor identity
   },
   N = {
     adapter binding is not chain proof,
@@ -140,12 +140,50 @@ In the bounded protocol model, once the request/snapshot/anchor bindings are oth
 
 ### Runtime Wiring Target
 
-The next runtime integration should be a Tau-native loader layered on `src/integration/tau_net_client.py` or a Tau state-proof surface.
-It should emit the booleans consumed by the Tau guard above and fail closed when any of them is false.
+Implemented in this slice:
+
+- `TauNetSettlementSignerRegistrySnapshotLoader` in `src/integration/settlement_signer_registry.py`
+- typed TCP response views in `src/integration/tau_net_client.py`
+
+Current runtime behavior:
+
+- reads `getstateproof full`, then `getappstate full` twice, then `getstateproof full` again
+- retries boundedly until both the Tau app-state view and the Tau state-proof view are stable across that window
+- requires a typed app-state bridge payload:
+
+```json
+{
+  "settlement_signer_registry_tau_bridge": {
+    "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+    "anchor": { "...": "SettlementSignerRegistryAnchor" },
+    "snapshot": { "...": "SettlementSignerRegistrySnapshot" }
+  }
+}
+```
+
+- optionally requires `getstateproof full` to report `present=true`
+- rejects `present=true` if the Tau proof surface does not also expose a committed `state_hash`
+- rejects if the decoded `getappstate full` object does not hash back to the committed `app_hash`
+- rejects on:
+  - missing app-state hash
+  - `app_state` / `app_hash` commitment drift
+  - missing or malformed bridge payload
+  - unstable app-state view during bridge load
+  - request/anchor drift
+  - anchor/snapshot drift
+  - unstable Tau proof metadata during bridge load
+  - state-proof absence
+  - state-proof surface errors
+
+Important remaining limit:
+
+- the current Tau TCP surface still does not prove that the committed `app_hash` from `getappstate full` is the same `app_hash` committed under the stable `state_hash` from `getstateproof full`
+- the current Tau TCP surface does not yet independently prove that `anchor_block_hash` is the same chain object referenced by the reported `state_hash`
+- so the bridge is now Tau-native at the app-state retrieval boundary, but not yet a full provenance proof for the app-hash or anchor-block bindings
 
 ## Upgrade Discipline
 
 This slice does not yet prove direct Tau state proof verification in runtime code.
 It does make the missing contract explicit and replayable.
 
-That is the correct next step because it prevents the repo from claiming a decentralized registry path before the chain-bound loader actually exists.
+That is the correct next step because it moves runtime loading onto Tau state surfaces without overstating the remaining provenance gap.
