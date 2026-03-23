@@ -79,6 +79,7 @@ echo "== release: tla/tlc shadow models =="
 echo "== release: tau shadow assurance =="
 "$PY" "$ROOT_DIR/tools/check_tau_shadow_assurance.py"
 
+run_if_present "tau provenance formal gate" "$ROOT_DIR/tools/run_tau_provenance_formal_gate.sh"
 run_if_present "perps evidence" "$ROOT_DIR/tools/run_perps_evidence.sh"
 run_if_present "spot proof assurance" "$ROOT_DIR/tools/run_spot_proof_assurance_gate.sh"
 run_if_present "spot evidence" "$ROOT_DIR/tools/run_spot_evidence.sh"

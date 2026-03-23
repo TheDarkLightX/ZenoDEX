@@ -209,3 +209,8 @@ These artifacts give:
 - a bounded ESSO fail-closed guard,
 - a bounded TLA+ control model for accept/reject outcomes,
 - and a Lean theorem shell for the canonical verifier relation.
+
+Focused replay gate:
+
+- [run_tau_provenance_formal_gate.sh](/tmp/zenodex-main-merge.RjwkAn/tools/run_tau_provenance_formal_gate.sh)
+  runs the exact ESSO, TLA+, Lean, and parser/runtime parity checks for this Tau app-hash provenance chain.
