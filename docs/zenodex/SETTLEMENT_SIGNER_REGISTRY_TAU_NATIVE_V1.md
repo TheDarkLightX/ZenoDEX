@@ -193,3 +193,19 @@ This slice does not yet prove direct Tau state proof verification in runtime cod
 It does make the missing contract explicit and replayable.
 
 That is the correct next step because it moves runtime loading onto Tau state surfaces without overstating the remaining provenance gap.
+
+## Formal Artifact Bundle
+
+The current provenance shell is now expressed in four aligned forms:
+
+- [TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md)
+- [tau_state_app_hash_provenance_guard_v1.yaml](/tmp/zenodex-main-merge.RjwkAn/src/kernels/dex/tau_state_app_hash_provenance_guard_v1.yaml)
+- [TauStateAppHashProvenanceBridge.tla](/tmp/zenodex-main-merge.RjwkAn/formal/tla/TauStateAppHashProvenanceBridge.tla)
+- [ZenoDEXTauStateAppHashProvenance.lean](/tmp/zenodex-main-merge.RjwkAn/lean-mathlib/Proofs/ZenoDEXTauStateAppHashProvenance.lean)
+
+These artifacts give:
+
+- the exact boolean acceptance law,
+- a bounded ESSO fail-closed guard,
+- a bounded TLA+ control model for accept/reject outcomes,
+- and a Lean theorem shell for the canonical verifier relation.
