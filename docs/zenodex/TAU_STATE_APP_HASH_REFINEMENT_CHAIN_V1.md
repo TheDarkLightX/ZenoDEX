@@ -149,6 +149,9 @@ This must be impossible.
 - [TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md](./TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md)
 - [TauStateAppHashStableWindow.tla](../../formal/tla/TauStateAppHashStableWindow.tla)
 - [ZenoDEXTauStateAppHashStableWindow.lean](../../lean-mathlib/Proofs/ZenoDEXTauStateAppHashStableWindow.lean)
+- [TAU_TCP_VIEW_CONTRACT_V1.md](./TAU_TCP_VIEW_CONTRACT_V1.md)
+- [ZenoDEXTauTcpViewContracts.lean](../../lean-mathlib/Proofs/ZenoDEXTauTcpViewContracts.lean)
+- [ZenoDEXTauStateAppHashComposition.lean](../../lean-mathlib/Proofs/ZenoDEXTauStateAppHashComposition.lean)
 
 ## Honest limit
 

@@ -94,6 +94,8 @@ import Proofs.ZenoDEXSettlementFeatureExtensionPacket
 import Proofs.ZenoDEXSettlementPriceHistoryCertificate
 import Proofs.ZenoDEXTauStateAppHashProvenance
 import Proofs.ZenoDEXTauStateAppHashStableWindow
+import Proofs.ZenoDEXTauTcpViewContracts
+import Proofs.ZenoDEXTauStateAppHashComposition
 import Proofs.ZenoDEXSettlementValuePacket
 import Proofs.ZenoDEXAutoTraderBinaryDecision
 import Proofs.ZenoDEXAutoTraderDecisionBinding
