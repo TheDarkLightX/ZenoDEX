@@ -58,7 +58,7 @@ Do not treat external Tau node behavior as repo-proved unless the upstream
 boundary itself is brought under proof or equivalent machine-checked contract
 control. The current assumption boundary is documented in:
 
-- [EXTERNAL_ASSUMPTION_BOUNDARY_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md)
+- `docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md`
 
 ## Documentation Gate
 
