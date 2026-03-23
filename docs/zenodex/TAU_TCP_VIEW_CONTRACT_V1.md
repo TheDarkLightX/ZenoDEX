@@ -98,7 +98,7 @@ It is the explicit contract boundary between:
 
 The repo also carries parser-parity tests for representative boundary cases:
 
-- [test_tau_tcp_view_contract_parity.py](/tmp/zenodex-main-merge.RjwkAn/tests/integration/test_tau_tcp_view_contract_parity.py)
+- `tests/integration/test_tau_tcp_view_contract_parity.py`
 
 These are not proofs of the upstream Tau node implementation.
 They do pin the concrete Python parser behavior to the stated typed-view
