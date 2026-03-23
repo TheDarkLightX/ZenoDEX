@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from dataclasses import dataclass
 
@@ -38,6 +39,11 @@ def _client_with_rpc(handler):
     client = tau_net_client.TauNetTcpClient()
     client.rpc = handler  # type: ignore[method-assign]
     return client
+
+
+def _require_blake3() -> None:
+    if importlib.util.find_spec("blake3") is None:
+        pytest.skip("blake3 not installed (install blake3 to run Tau state commitment validation tests)")
 
 
 @pytest.mark.parametrize(
@@ -194,6 +200,7 @@ def test_getstateproof_view_contract_parity(case: _StateProofCase) -> None:
 def test_gettaustate_view_contract_parity(case: _TauStateCase) -> None:
     request_state_hash = "ab" * 32
     if case.error_match is None:
+        _require_blake3()
         payload = json.loads(case.raw)
         request_state_hash = tau_net_client.compute_tau_state_commitment_hash_hex(
             rules=payload["rules"],
