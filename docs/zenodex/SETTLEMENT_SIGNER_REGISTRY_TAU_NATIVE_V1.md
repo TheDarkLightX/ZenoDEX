@@ -155,6 +155,7 @@ Current runtime behavior:
 {
   "settlement_signer_registry_tau_bridge": {
     "schema": "zenodex/settlement-signer-registry-tau-bridge/v1",
+    "tau_state_hash": "<64-hex from getstateproof full state_hash>",
     "anchor": { "...": "SettlementSignerRegistryAnchor" },
     "snapshot": { "...": "SettlementSignerRegistrySnapshot" }
   }
@@ -163,9 +164,11 @@ Current runtime behavior:
 
 - optionally requires `getstateproof full` to report `present=true`
 - rejects `present=true` if the Tau proof surface does not also expose a committed `state_hash`
+- rejects if the bridge payload does not echo the same `tau_state_hash` as the stable `getstateproof full` view
 - rejects on:
   - missing app-state hash
   - missing or malformed bridge payload
+  - missing or drifted `tau_state_hash` echo in the bridge payload
   - request/anchor drift
   - anchor/snapshot drift
   - unstable Tau proof metadata during bridge load
