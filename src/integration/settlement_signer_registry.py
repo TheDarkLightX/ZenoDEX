@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -1023,6 +1024,18 @@ def _require_tau_app_state_view(
             _format_binding_error(
                 "Tau app_state must be an object to load settlement signer registry bridge",
                 details={**request.to_dict(), "tau_app_hash": app_state_view.app_hash},
+            )
+        )
+    observed_app_hash = hashlib.sha256(canonical_json_bytes(app_state_view.app_state)).hexdigest()
+    if observed_app_hash != app_state_view.app_hash:
+        raise ValueError(
+            _format_binding_error(
+                "Tau app_state does not hash to the committed app_hash for settlement signer registry bridge",
+                details={
+                    **request.to_dict(),
+                    "tau_app_hash": app_state_view.app_hash,
+                    "observed_app_hash": observed_app_hash,
+                },
             )
         )
 
