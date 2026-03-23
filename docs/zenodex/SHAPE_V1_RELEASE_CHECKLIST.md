@@ -54,6 +54,12 @@ Do not widen that statement to any of:
 - globally closed autotrader safety or liveness
 - universal settlement authorization beyond the promoted bounded surface
 
+Do not treat external Tau node behavior as repo-proved unless the upstream
+boundary itself is brought under proof or equivalent machine-checked contract
+control. The current assumption boundary is documented in:
+
+- [EXTERNAL_ASSUMPTION_BOUNDARY_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md)
+
 ## Documentation Gate
 
 Before tagging:
@@ -81,6 +87,7 @@ If those are not all on the release branch, the release must explicitly exclude 
 Current limit that still blocks a stronger decentralization claim:
 
 - the repo does not yet ship a Tau-native direct registry/state-proof loader
+- the Tau Testnet node surface remains externally controlled and therefore part of the release assumption boundary
 
 ## Publication Bundle
 
