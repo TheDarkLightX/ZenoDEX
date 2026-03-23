@@ -26,7 +26,7 @@ theorem appStateViewOk_iff (inputs : AppStateInputs) :
 structure StateProofInputs where
   responseIsObject : Bool
   presentFieldIsBool : Bool
-  presentFalse : Bool
+  present : Bool
   stateHashFieldOk : Bool
   proofTypeFieldOk : Bool
   proofBytesFieldOk : Bool
@@ -37,7 +37,7 @@ structure StateProofInputs where
 def stateProofViewOk (inputs : StateProofInputs) : Bool :=
   inputs.responseIsObject &&
   inputs.presentFieldIsBool &&
-  (inputs.presentFalse || inputs.stateHashFieldOk) &&
+  ((!inputs.present) || inputs.stateHashFieldOk) &&
   inputs.proofTypeFieldOk &&
   inputs.proofBytesFieldOk &&
   inputs.proofSha256FieldOk &&
@@ -47,7 +47,7 @@ theorem stateProofViewOk_iff (inputs : StateProofInputs) :
     stateProofViewOk inputs = true ↔
       inputs.responseIsObject = true ∧
       inputs.presentFieldIsBool = true ∧
-      (inputs.presentFalse = true ∨ inputs.stateHashFieldOk = true) ∧
+      (inputs.present = false ∨ inputs.stateHashFieldOk = true) ∧
       inputs.proofTypeFieldOk = true ∧
       inputs.proofBytesFieldOk = true ∧
       inputs.proofSha256FieldOk = true ∧
@@ -57,9 +57,10 @@ theorem stateProofViewOk_iff (inputs : StateProofInputs) :
 structure TauStateInputs where
   responseIsObject : Bool
   presentFieldOk : Bool
+  present : Bool
   errorFieldOk : Bool
-  notPresentFalse : Bool
-  notErrorNonempty : Bool
+  errorEmpty : Bool
+  stateHashFieldOk : Bool
   rulesFieldIsString : Bool
   accountsHashFieldOk : Bool
   appHashFieldOk : Bool
@@ -68,9 +69,10 @@ structure TauStateInputs where
 def tauStateViewOk (inputs : TauStateInputs) : Bool :=
   inputs.responseIsObject &&
   inputs.presentFieldOk &&
+  inputs.present &&
   inputs.errorFieldOk &&
-  inputs.notPresentFalse &&
-  inputs.notErrorNonempty &&
+  inputs.errorEmpty &&
+  inputs.stateHashFieldOk &&
   inputs.rulesFieldIsString &&
   inputs.accountsHashFieldOk &&
   inputs.appHashFieldOk
@@ -79,9 +81,10 @@ theorem tauStateViewOk_iff (inputs : TauStateInputs) :
     tauStateViewOk inputs = true ↔
       inputs.responseIsObject = true ∧
       inputs.presentFieldOk = true ∧
+      inputs.present = true ∧
       inputs.errorFieldOk = true ∧
-      inputs.notPresentFalse = true ∧
-      inputs.notErrorNonempty = true ∧
+      inputs.errorEmpty = true ∧
+      inputs.stateHashFieldOk = true ∧
       inputs.rulesFieldIsString = true ∧
       inputs.accountsHashFieldOk = true ∧
       inputs.appHashFieldOk = true := by
