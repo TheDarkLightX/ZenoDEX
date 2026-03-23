@@ -30,19 +30,48 @@ def _live_client() -> tau_net_client.TauNetTcpClient:
 
 
 def _live_state_hash_for_gettaustate(client: tau_net_client.TauNetTcpClient) -> str:
+    state_proof_view = client.getstateproof_view()
+    if state_proof_view.present and len(state_proof_view.state_hash) == 64:
+        return state_proof_view.state_hash
+
     supplied_state_hash = os.getenv("ZENODEX_TAU_LIVE_STATE_HASH") or os.getenv("TAU_STATE_HASH", "")
     supplied_state_hash = supplied_state_hash.strip()
     if supplied_state_hash:
         return supplied_state_hash
 
-    state_proof_view = client.getstateproof_view()
-    if state_proof_view.present and len(state_proof_view.state_hash) == 64:
-        return state_proof_view.state_hash
-
     pytest.skip(
         "live gettaustate requested but state proofs are absent and no "
         "ZENODEX_TAU_LIVE_STATE_HASH/TAU_STATE_HASH was supplied"
     )
+
+
+class _FakeLiveTauClient:
+    def __init__(self, *, present: bool, state_hash: str) -> None:
+        self._state_proof_view = tau_net_client.TauNetStateProofView(
+            state_hash=state_hash,
+            present=present,
+            proof_type="",
+            proof_bytes=0,
+            proof_sha256="",
+            error=None,
+        )
+
+    def getstateproof_view(self) -> tau_net_client.TauNetStateProofView:
+        return self._state_proof_view
+
+
+def test_live_state_hash_prefers_stateproof_when_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ZENODEX_TAU_LIVE_STATE_HASH", "b" * 64)
+    client = _FakeLiveTauClient(present=True, state_hash="a" * 64)
+
+    assert _live_state_hash_for_gettaustate(client) == "a" * 64
+
+
+def test_live_state_hash_uses_env_only_as_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ZENODEX_TAU_LIVE_STATE_HASH", "b" * 64)
+    client = _FakeLiveTauClient(present=False, state_hash="")
+
+    assert _live_state_hash_for_gettaustate(client) == "b" * 64
 
 
 def test_live_tau_node_appstate_and_stateproof_conformance() -> None:
