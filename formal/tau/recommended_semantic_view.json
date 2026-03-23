@@ -14846,9 +14846,11 @@
         ]
       },
       "execution": {
-        "status": "missing",
-        "runner": "",
-        "observed_output_signatures": [],
+        "status": "ok",
+        "runner": "repl",
+        "observed_output_signatures": [
+          "0000000"
+        ],
         "error_messages": []
       }
     },

@@ -4,8 +4,8 @@
     "formal/tau/recommended_execution_census.json",
     "formal/tau/recommended_execution_census_retry120.json"
   ],
-  "recommended_spec_count": 174,
-  "ok_count": 149,
+  "recommended_spec_count": 162,
+  "ok_count": 150,
   "error_count": 25,
   "entries": [
     {
@@ -5263,6 +5263,64 @@
       "runner": "repl",
       "status": "ok",
       "elapsed_ms": 487
+    },
+    {
+      "spec_id": "settlement_signer_registry_anchor_gate_v1",
+      "spec_path": "src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau",
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "bv[16]",
+        "i9": "bv[16]",
+        "i10": "bv[16]",
+        "i11": "bv[16]"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "bv[16]",
+        "o5": "bv[16]",
+        "o6": "bv[16]",
+        "o7": "bv[16]"
+      },
+      "steps": [
+        {
+          "i1": 0,
+          "i2": 0,
+          "i3": 0,
+          "i4": 0,
+          "i5": 0,
+          "i6": 0,
+          "i7": 0,
+          "i8": 0,
+          "i9": 0,
+          "i10": 0,
+          "i11": 0
+        }
+      ],
+      "observed_outputs": [
+        {
+          "o1": 0,
+          "o2": 0,
+          "o3": 0,
+          "o4": 0,
+          "o5": 0,
+          "o6": 0,
+          "o7": 0
+        }
+      ],
+      "observed_output_signatures": [
+        "0000000"
+      ],
+      "runner": "repl",
+      "status": "ok",
+      "elapsed_ms": 364
     },
     {
       "spec_id": "settlement_v1_proof_gate",
