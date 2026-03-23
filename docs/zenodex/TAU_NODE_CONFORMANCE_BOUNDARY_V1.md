@@ -61,3 +61,17 @@ Treat live conformance as:
 - useful for detecting server/transport drift,
 - subordinate to the formal host-side artifacts,
 - and never a substitute for a proof of upstream implementation semantics.
+
+Operationally, the live harness follows repo-standard Tau node addressing:
+
+- `ZENODEX_TAU_HOST` / `ZENODEX_TAU_PORT` override everything
+- otherwise it falls back to `TAU_HOST` / `TAU_PORT`
+
+For optional `gettaustate` checks:
+
+- if `getstateproof full` returns `present=true`, the harness uses that
+  `state_hash`
+- otherwise the harness accepts a supplied
+  `ZENODEX_TAU_LIVE_STATE_HASH` / `TAU_STATE_HASH`
+- if neither exists, the `gettaustate` check is skipped rather than treated as a
+  failed conformance proof
