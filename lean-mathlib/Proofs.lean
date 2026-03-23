@@ -93,6 +93,7 @@ import Proofs.ZenoDEXSettlementEndogenousLPValuePacket
 import Proofs.ZenoDEXSettlementFeatureExtensionPacket
 import Proofs.ZenoDEXSettlementPriceHistoryCertificate
 import Proofs.ZenoDEXTauStateAppHashProvenance
+import Proofs.ZenoDEXTauStateAppHashStableWindow
 import Proofs.ZenoDEXSettlementValuePacket
 import Proofs.ZenoDEXAutoTraderBinaryDecision
 import Proofs.ZenoDEXAutoTraderDecisionBinding

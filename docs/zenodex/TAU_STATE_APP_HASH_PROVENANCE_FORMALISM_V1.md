@@ -179,10 +179,13 @@ D4 := state_proof_present
 
 - [`TauStateAppHashProvenanceBridge.tla`](../../formal/tla/TauStateAppHashProvenanceBridge.tla)
 - [`TauStateAppHashProvenanceBridge.cfg`](../../formal/tla/TauStateAppHashProvenanceBridge.cfg)
+- [`TauStateAppHashStableWindow.tla`](../../formal/tla/TauStateAppHashStableWindow.tla)
+- [`TauStateAppHashStableWindow.cfg`](../../formal/tla/TauStateAppHashStableWindow.cfg)
 
 ### Lean
 
 - [`ZenoDEXTauStateAppHashProvenance.lean`](../../lean-mathlib/Proofs/ZenoDEXTauStateAppHashProvenance.lean)
+- [`ZenoDEXTauStateAppHashStableWindow.lean`](../../lean-mathlib/Proofs/ZenoDEXTauStateAppHashStableWindow.lean)
 
 ## Honest limit
 
