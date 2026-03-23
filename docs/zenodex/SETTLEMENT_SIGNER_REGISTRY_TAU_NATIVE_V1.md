@@ -212,5 +212,5 @@ These artifacts give:
 
 Focused replay gate:
 
-- [run_tau_provenance_formal_gate.sh](/tmp/zenodex-main-merge.RjwkAn/tools/run_tau_provenance_formal_gate.sh)
+- `tools/run_tau_provenance_formal_gate.sh`
   runs the exact ESSO, TLA+, Lean, and parser/runtime parity checks for this Tau app-hash provenance chain.
