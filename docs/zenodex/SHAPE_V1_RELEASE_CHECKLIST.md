@@ -65,6 +65,8 @@ control. The current assumption boundary is documented in:
 Before tagging:
 
 - `docs/zenodex/SHAPE_V1.md` matches the promoted Shape surface
+- `docs/zenodex/DEX_ALGORITHM_AUDIT_V1.md` matches the main algorithm and
+  assurance surface
 - `docs/PUBLIC_ASSURANCE_REPLAY.md` matches the pinned replay surface
 - `docs/ASSURANCE.md` does not overstate weaker subsystems
 - Shape/backlog docs do not describe witness or liveness carriers that are not on clean `main`
