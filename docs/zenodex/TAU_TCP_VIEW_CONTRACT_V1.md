@@ -35,7 +35,7 @@ Host-side note:
 StateProofViewOK
   := response_is_object
    ∧ present_field_is_bool
-   ∧ (present_false ∨ state_hash_field_ok)
+   ∧ (¬present ∨ state_hash_field_ok)
    ∧ proof_type_field_ok
    ∧ proof_bytes_field_ok
    ∧ proof_sha256_field_ok
@@ -54,8 +54,9 @@ TauStateViewOK
   := response_is_object
    ∧ present_field_ok
    ∧ error_field_ok
-   ∧ not_present_false
-   ∧ not_error_nonempty
+   ∧ present
+   ∧ error_empty
+   ∧ state_hash_field_ok
    ∧ rules_field_is_string
    ∧ accounts_hash_field_ok
    ∧ app_hash_field_ok
@@ -63,8 +64,11 @@ TauStateViewOK
 
 Interpretation:
 
+- `present` is the actual semantic presence bit after typed parsing
+- `error_empty` means the typed `error` field is absent or empty
 - a typed `present=false` response is rejected
 - a non-empty typed `error` response is rejected
+- returned `state_hash`, when present, must be canonical and match the requested hash
 - `rules` must be a string
 - `accounts_hash` must be canonical 32-byte hex
 - `app_hash` may be empty or canonical 32-byte hex
