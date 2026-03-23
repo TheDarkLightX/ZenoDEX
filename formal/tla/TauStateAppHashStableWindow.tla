@@ -4,9 +4,13 @@ EXTENDS Naturals
 (***********************************************************************
 Bounded control model for the stable-read window used by the Tau-state
 app-hash provenance loader.
+
+The runtime loader retries up to three times by default. Each retry is a fresh
+transport observation; it is not forced to reuse the same "stable/unstable"
+outcome from a previous attempt.
 ***********************************************************************)
 
-Attempts == 0..2
+Attempts == 0..3
 
 VARIABLES
   requestIssued,
@@ -15,6 +19,9 @@ VARIABLES
   proofMayStabilize,
   appMayStabilize,
   tauMayStabilize,
+  proofStableObserved,
+  appStableObserved,
+  tauStableObserved,
   stableWindowFound,
   returned,
   rejected,
@@ -27,6 +34,9 @@ Vars == <<
   proofMayStabilize,
   appMayStabilize,
   tauMayStabilize,
+  proofStableObserved,
+  appStableObserved,
+  tauStableObserved,
   stableWindowFound,
   returned,
   rejected,
@@ -40,6 +50,9 @@ TypeOK ==
   /\ proofMayStabilize \in BOOLEAN
   /\ appMayStabilize \in BOOLEAN
   /\ tauMayStabilize \in BOOLEAN
+  /\ proofStableObserved \in BOOLEAN
+  /\ appStableObserved \in BOOLEAN
+  /\ tauStableObserved \in BOOLEAN
   /\ stableWindowFound \in BOOLEAN
   /\ returned \in BOOLEAN
   /\ rejected \in BOOLEAN
@@ -57,6 +70,11 @@ StableWindowPossible ==
   /\ appMayStabilize
   /\ (~strongBindingRequired \/ tauMayStabilize)
 
+StableWindowObserved ==
+  /\ proofStableObserved
+  /\ appStableObserved
+  /\ (~strongBindingRequired \/ tauStableObserved)
+
 Init ==
   /\ requestIssued = FALSE
   /\ strongBindingRequired = FALSE
@@ -64,6 +82,9 @@ Init ==
   /\ proofMayStabilize = FALSE
   /\ appMayStabilize = FALSE
   /\ tauMayStabilize = FALSE
+  /\ proofStableObserved = FALSE
+  /\ appStableObserved = FALSE
+  /\ tauStableObserved = FALSE
   /\ stableWindowFound = FALSE
   /\ returned = FALSE
   /\ rejected = FALSE
@@ -73,10 +94,13 @@ IssueRequest ==
   /\ ~requestIssued
   /\ requestIssued' = TRUE
   /\ strongBindingRequired' \in BOOLEAN
-  /\ attemptsLeft' = 2
+  /\ attemptsLeft' = 3
   /\ proofMayStabilize' \in BOOLEAN
   /\ appMayStabilize' \in BOOLEAN
   /\ tauMayStabilize' \in BOOLEAN
+  /\ proofStableObserved' = FALSE
+  /\ appStableObserved' = FALSE
+  /\ tauStableObserved' = FALSE
   /\ stableWindowFound' = FALSE
   /\ returned' = FALSE
   /\ rejected' = FALSE
@@ -88,6 +112,9 @@ ObserveStableWindow ==
   /\ ~rejected
   /\ attemptsLeft > 0
   /\ StableWindowPossible
+  /\ proofStableObserved' = TRUE
+  /\ appStableObserved' = TRUE
+  /\ tauStableObserved' = IF strongBindingRequired THEN TRUE ELSE FALSE
   /\ stableWindowFound' = TRUE
   /\ returned' = TRUE
   /\ rejected' = FALSE
@@ -106,7 +133,17 @@ ObserveUnstableWindow ==
   /\ ~returned
   /\ ~rejected
   /\ attemptsLeft > 0
-  /\ ~StableWindowPossible
+  /\ proofStableObserved' \in BOOLEAN
+  /\ appStableObserved' \in BOOLEAN
+  /\ tauStableObserved' \in BOOLEAN
+  /\ proofStableObserved' => proofMayStabilize
+  /\ appStableObserved' => appMayStabilize
+  /\ tauStableObserved' => tauMayStabilize
+  /\ ~(
+       proofStableObserved'
+       /\ appStableObserved'
+       /\ (~strongBindingRequired \/ tauStableObserved')
+      )
   /\ stableWindowFound' = FALSE
   /\ returned' = FALSE
   /\ rejected' = FALSE
@@ -125,17 +162,19 @@ RejectExhausted ==
   /\ ~returned
   /\ ~rejected
   /\ attemptsLeft = 0
-  /\ ~StableWindowPossible
   /\ rejected' = TRUE
   /\ returned' = FALSE
   /\ stableWindowFound' = FALSE
-  /\ attemptsLeft' = attemptsLeft
   /\ UNCHANGED <<
       requestIssued,
       strongBindingRequired,
+      attemptsLeft,
       proofMayStabilize,
       appMayStabilize,
-      tauMayStabilize
+      tauMayStabilize,
+      proofStableObserved,
+      appStableObserved,
+      tauStableObserved
      >>
   /\ lastAction' = "reject_exhausted"
 
@@ -160,20 +199,14 @@ Spec ==
 ReturnedRequiresStableWindow ==
   returned => stableWindowFound
 
+StableWindowFoundRequiresReturned ==
+  stableWindowFound => returned
+
 StrongBindingWithoutTauStabilityBlocksReturn ==
   /\ requestIssued
   /\ strongBindingRequired
   /\ ~tauMayStabilize
   => ~returned
-
-FairStabilizableWindowEventuallyReturns ==
-  [](
-    /\ requestIssued
-    /\ ~returned
-    /\ ~rejected
-    /\ StableWindowPossible
-    => <> returned
-  )
 
 FairUnstabilizableWindowEventuallyRejects ==
   [](

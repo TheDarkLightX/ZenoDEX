@@ -20,7 +20,14 @@ The runtime reads:
 - `getappstate full`
 - optional `gettaustate <state_hash>`
 
-twice across a bounded stable-read window.
+across a bounded stable-read window with `stable_read_attempts = 3` by default.
+
+Each retry is a fresh observation. The model does not assume that an unstable
+first attempt forces every later attempt to stay unstable.
+
+Because the runtime budget is finite, `StableWindowPossible` does not imply
+eventual return by itself. Three fresh unstable observations may still exhaust
+the retry budget before a stable one is seen.
 
 ### L1. Typed host views
 
@@ -139,9 +146,9 @@ This must be impossible.
 
 ## Artifact bundle
 
-- [TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md](/tmp/zenodex-main-merge.RjwkAn/docs/zenodex/TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md)
-- [TauStateAppHashStableWindow.tla](/tmp/zenodex-main-merge.RjwkAn/formal/tla/TauStateAppHashStableWindow.tla)
-- [ZenoDEXTauStateAppHashStableWindow.lean](/tmp/zenodex-main-merge.RjwkAn/lean-mathlib/Proofs/ZenoDEXTauStateAppHashStableWindow.lean)
+- [TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md](./TAU_STATE_APP_HASH_PROVENANCE_FORMALISM_V1.md)
+- [TauStateAppHashStableWindow.tla](../../formal/tla/TauStateAppHashStableWindow.tla)
+- [ZenoDEXTauStateAppHashStableWindow.lean](../../lean-mathlib/Proofs/ZenoDEXTauStateAppHashStableWindow.lean)
 
 ## Honest limit
 
