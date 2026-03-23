@@ -62,6 +62,14 @@ class TauNetStateProofView:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class TauNetTauStateView:
+    state_hash: str
+    rules: str
+    accounts_hash: str
+    app_hash: str
+
+
 _DEFAULT_TAU_NET_TCP_CONFIG = TauNetTcpConfig()
 
 
@@ -426,6 +434,38 @@ class TauNetTcpClient:
             proof_bytes=proof_bytes,
             proof_sha256=proof_sha256,
             error=error,
+        )
+
+    def gettaustate(self, state_hash: str) -> str:
+        normalized_state_hash = _coerce_hex_32_noprefix(state_hash, label="gettaustate state_hash")
+        return self.rpc(f"gettaustate {normalized_state_hash}").strip()
+
+    def gettaustate_view(self, state_hash: str) -> TauNetTauStateView:
+        normalized_state_hash = _coerce_hex_32_noprefix(state_hash, label="gettaustate state_hash")
+        payload = _coerce_mapping_json_response(
+            self.gettaustate(normalized_state_hash),
+            label=f"gettaustate {normalized_state_hash}",
+        )
+        rules = payload.get("rules")
+        if not isinstance(rules, str):
+            raise TauNetRpcError(f"gettaustate {normalized_state_hash} rules must be a string, got {rules!r}")
+        accounts_hash = _coerce_hex_32_noprefix(
+            payload.get("accounts_hash", ""),
+            label=f"gettaustate {normalized_state_hash} accounts_hash",
+        )
+        raw_app_hash = payload.get("app_hash", "")
+        if raw_app_hash in ("", None):
+            normalized_app_hash = ""
+        else:
+            normalized_app_hash = _coerce_hex_32_noprefix(
+                raw_app_hash,
+                label=f"gettaustate {normalized_state_hash} app_hash",
+            )
+        return TauNetTauStateView(
+            state_hash=normalized_state_hash,
+            rules=rules,
+            accounts_hash=accounts_hash,
+            app_hash=normalized_app_hash,
         )
 
     def send_signed_tx(

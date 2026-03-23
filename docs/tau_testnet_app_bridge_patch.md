@@ -56,3 +56,30 @@ bash tools/run_tau_testnet_local_smoke.sh
 Notes:
 - `balances_patch` is **disabled by default** in Tau Testnet; enable only if you intentionally want an app plugin to rewrite native balances:
   - `export TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH=1`
+
+## Follow-on transport for runtime provenance
+
+The app-bridge patch publishes the committed payload we need under `tau_state:<state_hash>`, but the current documented TCP surface only exposes `getappstate [full]`.
+
+For the settlement signer-registry provenance path, the Tau node should also expose:
+
+```text
+gettaustate <state_hash>
+```
+
+Recommended response shape:
+
+```json
+{
+  "rules": "<utf-8 Tau rules text>",
+  "accounts_hash": "<64-hex>",
+  "app_hash": "<64-hex or empty>"
+}
+```
+
+Why this matters:
+- `getstateproof full` gives the stable `state_hash`
+- `gettaustate <state_hash>` reveals the committed `tau_state:<state_hash>` payload
+- `getappstate full` reveals the decoded app snapshot and its `app_hash`
+
+That lets the runtime reject unless the app snapshot hash matches the `app_hash` committed inside the stable Tau-state payload, instead of only trusting two separate TCP views.
