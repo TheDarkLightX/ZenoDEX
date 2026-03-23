@@ -42,6 +42,7 @@ require_path() {
 require_cmd "lake"
 require_cmd "java"
 require_module "pytest" "pytest"
+require_module "py_ecc.bls" "py-ecc"
 
 if [[ -d "$ROOT_DIR/external/ESSO" ]]; then
   export PYTHONPATH="$ROOT_DIR/external/ESSO${PYTHONPATH:+:$PYTHONPATH}"
