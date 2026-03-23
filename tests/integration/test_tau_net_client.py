@@ -290,7 +290,9 @@ def test_tau_net_tcp_client_parses_appstate_and_stateproof_views(monkeypatch: py
             )
         if cmd == f"gettaustate {tau_state_hash}":
             return (
-                '{"rules":"rule_text","accounts_hash":"'
+                '{"state_hash":"'
+                + tau_state_hash
+                + '","present":true,"rules":"rule_text","accounts_hash":"'
                 + "12" * 32
                 + '","app_hash":"'
                 + "ab" * 32
@@ -341,6 +343,32 @@ def test_tau_net_tcp_client_rejects_invalid_appstate_and_stateproof_views(monkey
     with pytest.raises(tau_net_client.TauNetRpcError, match="accounts_hash must be a 64-hex string"):
         client.gettaustate_view("ab" * 32)
 
-    monkeypatch.setattr(client, "rpc", lambda _cmd: '{"rules":"ok","accounts_hash":"' + "12" * 32 + '"}')
+    monkeypatch.setattr(client, "rpc", lambda _cmd: '{"state_hash":"cd' + 'cd' * 31 + '","present":true,"rules":"ok","accounts_hash":"' + "12" * 32 + '"}')
+    with pytest.raises(tau_net_client.TauNetRpcError, match="returned state_hash does not match requested state_hash"):
+        client.gettaustate_view("ab" * 32)
+
+    monkeypatch.setattr(
+        client,
+        "rpc",
+        lambda _cmd: '{"state_hash":"'
+        + "ab" * 32
+        + '","present":false,"error":"tau_state_not_found"}',
+    )
+    with pytest.raises(tau_net_client.TauNetRpcError, match="reported no committed tau_state payload: tau_state_not_found"):
+        client.gettaustate_view("ab" * 32)
+
+    monkeypatch.setattr(client, "rpc", lambda _cmd: '{"state_hash":"' + "ab" * 32 + '","present":"no"}')
+    with pytest.raises(tau_net_client.TauNetRpcError, match="present must be a bool"):
+        client.gettaustate_view("ab" * 32)
+
+    monkeypatch.setattr(
+        client,
+        "rpc",
+        lambda _cmd: '{"state_hash":"'
+        + "ab" * 32
+        + '","present":true,"rules":"ok","accounts_hash":"'
+        + "12" * 32
+        + '"}',
+    )
     with pytest.raises(tau_net_client.TauNetRpcError, match="payload does not hash to requested state_hash"):
         client.gettaustate_view("ab" * 32)

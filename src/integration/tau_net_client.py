@@ -472,6 +472,35 @@ class TauNetTcpClient:
             self.gettaustate(normalized_state_hash),
             label=f"gettaustate {normalized_state_hash}",
         )
+        returned_state_hash = payload.get("state_hash", "")
+        if returned_state_hash in ("", None):
+            normalized_returned_state_hash = ""
+        else:
+            normalized_returned_state_hash = _coerce_hex_32_noprefix(
+                returned_state_hash,
+                label=f"gettaustate {normalized_state_hash} returned state_hash",
+            )
+            if normalized_returned_state_hash != normalized_state_hash:
+                raise TauNetRpcError(
+                    f"gettaustate {normalized_state_hash} returned state_hash does not match requested state_hash"
+                )
+        present = payload.get("present")
+        if present is not None and not isinstance(present, bool):
+            raise TauNetRpcError(
+                f"gettaustate {normalized_state_hash} present must be a bool when provided, got {present!r}"
+            )
+        error = payload.get("error")
+        if error is not None and not isinstance(error, str):
+            raise TauNetRpcError(
+                f"gettaustate {normalized_state_hash} error must be a string when provided, got {error!r}"
+            )
+        if present is False:
+            raise TauNetRpcError(
+                f"gettaustate {normalized_state_hash} reported no committed tau_state payload"
+                + (f": {error}" if error else "")
+            )
+        if isinstance(error, str) and error.strip():
+            raise TauNetRpcError(f"gettaustate {normalized_state_hash} returned an error: {error.strip()}")
         rules = payload.get("rules")
         if not isinstance(rules, str):
             raise TauNetRpcError(f"gettaustate {normalized_state_hash} rules must be a string, got {rules!r}")
@@ -497,7 +526,7 @@ class TauNetTcpClient:
                 f"gettaustate {normalized_state_hash} payload does not hash to requested state_hash"
             )
         return TauNetTauStateView(
-            state_hash=normalized_state_hash,
+            state_hash=normalized_returned_state_hash or normalized_state_hash,
             rules=rules,
             accounts_hash=accounts_hash,
             app_hash=normalized_app_hash,

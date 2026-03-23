@@ -165,7 +165,7 @@ Current runtime behavior:
 - optionally requires `getstateproof full` to report `present=true`
 - rejects `present=true` if the Tau proof surface does not also expose a committed `state_hash`
 - rejects if the decoded `getappstate full` object does not hash back to the committed `app_hash`
-- when `require_tau_state_app_hash_binding=True`, also reads `gettaustate <state_hash>` and rejects unless `tau_state.app_hash == getappstate.app_hash`
+- when `require_tau_state_app_hash_binding=True`, also reads `gettaustate <state_hash>` and rejects unless the returned `state_hash` matches the requested committed hash and `tau_state.app_hash == getappstate.app_hash`
 - rejects on:
   - missing app-state hash
   - `app_state` / `app_hash` commitment drift
@@ -181,7 +181,8 @@ Current runtime behavior:
 
 Important remaining limit:
 
-- the stronger app-hash provenance check now exists in runtime code, but it depends on the Tau node exposing a `gettaustate <state_hash>` transport that returns the committed `tau_state:<state_hash>` payload
+- the stronger app-hash provenance check now exists in runtime code, and this repo now carries a follow-on Tau patch artifact for the missing transport at `patches/tau-testnet-gettaustate.patch`
+- until that Tau-side command is actually shipped on the target node, the runtime cannot rely on the stronger provenance path in production
 - until that Tau-side command is shipped, the default TCP surface still cannot prove that the committed `app_hash` from `getappstate full` is the same `app_hash` committed under the stable `state_hash` from `getstateproof full`
 - the current Tau TCP surface does not yet independently prove that `anchor_block_hash` is the same chain object referenced by the reported `state_hash`
 - so the bridge is now Tau-native at the app-state retrieval boundary, but not yet a full provenance proof for the app-hash or anchor-block bindings
