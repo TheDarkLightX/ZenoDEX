@@ -1,7 +1,7 @@
 # Tau Semantic View
 
 Execution census: `formal/tau/recommended_execution_census_best.json`
-Spec count: `157`
+Spec count: `162`
 
 ## add_liquidity_apply_v1
 
@@ -1210,6 +1210,26 @@ Spec count: `157`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:bv[16] < i2[t]:bv[16]) && (i2[t]:bv[16] < i3[t]:bv[16]) && (i3[t]:bv[16] < i4[t]:bv[16])))`
 
+## settlement_core_module_bundle_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf)))`
+
+## settlement_feature_extension_bundle_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3, i4`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 1:sbf)))`
+
 ## settlement_module_flag_bundle_v1
 
 - Profile: `bundle_or_composition`
@@ -1253,6 +1273,27 @@ Spec count: `157`
 - Control surface: sbf inputs `(none)`, bv inputs `i1, i2`, always clauses `1`
 - Equation surface: extractable `True`, equations `1`, covered outputs `o1`
 - Always: `(o1[t]:sbf = 1:sbf <-> (((i2[t]:bv[16] >= i1[t]:bv[16]) && (i2[t]:bv[16] - i1[t]:bv[16] < { #x0032 }:bv[16])) || ((i2[t]:bv[16] < i1[t]:bv[16]) && (i1[t]:bv[16] - i2[t]:bv[16] < { #x0032 }:bv[16]))))`
+
+## settlement_proof_binding_bundle_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `bundles_and_compositions`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2`, bv inputs `(none)`, always clauses `1`
+- Equation surface: extractable `True`, equations `1`, covered outputs `o1`
+- Always: `(o1[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 1:sbf)))`
+
+## settlement_signer_registry_anchor_gate_v1
+
+- Profile: `bundle_or_composition`
+- Rule: `batching_and_settlement_suite`
+- Temporal: `False`
+- Execution: `ok` via `repl`
+- Observed output signatures: `0000000`
+- Control surface: sbf inputs `i1, i2, i3, i4, i5, i6, i7`, bv inputs `i8, i9, i10, i11`, always clauses `1`
+- Equation surface: extractable `True`, equations `7`, covered outputs `o1, o2, o3, o4, o5, o6, o7`
+- Always: `(o1[t]:sbf = i1[t]:sbf & i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf & i6[t]:sbf & i7[t]:sbf) && (o2[t]:sbf = i2[t]:sbf & i3[t]:sbf & i4[t]:sbf & i5[t]:sbf) && (o3[t]:sbf = i6[t]:sbf & i7[t]:sbf) && (o4[t]:bv[16] = ...`
 
 ## settlement_v1_proof_gate
 
@@ -1759,6 +1800,17 @@ Spec count: `157`
 - Data helpers: `duration_ok, lock_capped, lock_max_ok, lock_zero_ok, max_safe_32, max_safe_32_mult, multiplier_ok, safe_range_ok, tokens_ok, weight_max_ok, weight_min_ok`
 - Equation surface: extractable `True`, equations `4`, covered outputs `o1, o2, o3, o4`
 - Always: `(o1[t]:sbf = 1:sbf <-> params_ok(i1[t]:bv[32], i4[t]:bv[32], i3[t]:bv[32], i5[t]:bv[32])) && (o2[t]:sbf = 1:sbf <-> multiplier_ok(i3[t]:bv[32])) && (o3[t]:sbf = 1:sbf <-> weight_math_ok(i1[t]:bv[32], i4[t]:bv[32], i3[...`
+
+## zusd_cross_module_oracle_sync_gate_v1
+
+- Profile: `stateful_policy_guard`
+- Rule: `zusd_suite`
+- Temporal: `False`
+- Execution: `missing` via ``
+- Control surface: sbf inputs `i1, i2, i3`, bv inputs `(none)`, always clauses `1`
+- Control helpers: `env_ok, sync_gate_ok`
+- Equation surface: extractable `True`, equations `2`, covered outputs `o1, o2`
+- Always: `(o1[t]:sbf = 1:sbf <-> env_ok(i1[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> sync_gate_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf))`
 
 ## zusd_deposit_sp_guard_v1
 

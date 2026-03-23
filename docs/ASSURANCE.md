@@ -10,17 +10,19 @@ The rule in this repo is:
 ## Published Release-Lane Numbers
 
 Current public release snapshot on `main`:
+- release tag: `shape-v1-rc1`
+- authoritative release note: `docs/zenodex/SHAPE_V1_RC1.md`
 - public assurance lanes ready: `6/6`
 - tracked exported refs required by the public lanes: `10/10`
-- acceptance TCB gate: `336` tests, `100%` branch coverage
-- critical quality gate: `737` tests, `99%` overall branch-enabled coverage
+- acceptance TCB gate: `361` tests, `99.4%` branch coverage
+- critical quality gate: `735` tests, `99%` overall branch-enabled coverage
 - critical mutation gate: `7/7` mutants killed, mutation score `1.0`
 - acceptance fuzz gate: `11` tests passed
-- snapshot recovery gate: `16` tests passed
-- Tau syntax gate: `58/58` specs passed
+- snapshot recovery gate: `19` tests passed
+- Tau syntax gate: `62/62` specs passed
 - Tau trace registry gate: `1/1` passed
 - perps evidence lane: `330` tests passed in the release lane, plus ESSO cross-solver verification and Lean proof builds
-- spot evidence lane: `225` tests passed in the release lane, plus ESSO cross-solver verification
+- spot evidence lane: `214` tests passed in the release lane, `2` skipped, plus ESSO cross-solver verification
 
 Replay commands:
 

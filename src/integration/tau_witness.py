@@ -13,7 +13,6 @@ from typing import Dict
 
 from .tau_runner import split_u32
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TAU_SPECS_DIR = PROJECT_ROOT / "src" / "tau_specs"
 RECOMMENDED_SPECS_DIR = PROJECT_ROOT / "src" / "tau_specs" / "recommended"
@@ -523,6 +522,12 @@ PARAMETER_REGISTRY_V1 = TauSpecRef(
 PARAMETER_REGISTRY_V2 = TauSpecRef(
     spec_id="parameter_registry_v2",
     path=RECOMMENDED_SPECS_DIR / "parameter_registry_v2.tau",
+    gate_output="o1",
+)
+
+SETTLEMENT_SIGNER_REGISTRY_ANCHOR_GATE_V1 = TauSpecRef(
+    spec_id="settlement_signer_registry_anchor_gate_v1",
+    path=RECOMMENDED_SPECS_DIR / "settlement_signer_registry_anchor_gate_v1.tau",
     gate_output="o1",
 )
 
@@ -2242,6 +2247,38 @@ def build_parameter_registry_v2_step(
         "i13": _u16("weight3_applied", weight3_applied),
         "i14": _sbf("proof_ok", proof_ok),
         "i15": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_settlement_signer_registry_anchor_gate_v1_step(
+    *,
+    exec_req: int,
+    snapshot_present: int,
+    anchor_present: int,
+    request_binding_ok: int,
+    anchor_binding_ok: int,
+    policy_binding_ok: int,
+    proof_ok: int,
+    policy_epoch: int,
+    anchor_block_number: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau`.
+    """
+    policy_epoch_hi, policy_epoch_lo = _u32("policy_epoch", policy_epoch)
+    anchor_block_hi, anchor_block_lo = _u32("anchor_block_number", anchor_block_number)
+    return {
+        "i1": _sbf("exec_req", exec_req),
+        "i2": _sbf("snapshot_present", snapshot_present),
+        "i3": _sbf("anchor_present", anchor_present),
+        "i4": _sbf("request_binding_ok", request_binding_ok),
+        "i5": _sbf("anchor_binding_ok", anchor_binding_ok),
+        "i6": _sbf("policy_binding_ok", policy_binding_ok),
+        "i7": _sbf("proof_ok", proof_ok),
+        "i8": policy_epoch_hi,
+        "i9": policy_epoch_lo,
+        "i10": anchor_block_hi,
+        "i11": anchor_block_lo,
     }
 
 

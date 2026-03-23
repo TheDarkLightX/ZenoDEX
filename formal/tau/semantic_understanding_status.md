@@ -5,8 +5,8 @@ at the semantic level, using machine-derived tiers rather than prose only.
 
 ## Summary
 
-- Recommended specs: `157`
-- Execution observed: `133`
+- Recommended specs: `162`
+- Execution observed: `134`
 - Structured hard-review set: `24`
 - Source-backed confirmed-review specs: `11`
 - Lightweight semantic-contract specs: `4`
@@ -18,15 +18,16 @@ at the semantic level, using machine-derived tiers rather than prose only.
 ## Understanding Tiers
 
 - `bounded_formal_seeded`: `4`
-- `execution_observed`: `126`
+- `execution_observed`: `127`
 - `semantic_contract_covered`: `4`
 - `source_backed_confirmed_review`: `10`
 - `structured_hard_review`: `13`
+- `syntax_only`: `4`
 
 ## Heuristic Styles
 
-- `host_projected_boolean_gate`: `15`
-- `native_tau_guard`: `142`
+- `host_projected_boolean_gate`: `19`
+- `native_tau_guard`: `143`
 
 ## Remaining Hard Specs Without Confirmed Findings
 
