@@ -20,6 +20,9 @@ namespace TauStateAppHashProvenance
 structure Inputs where
   execReq : Bool
   bridgePayloadPresent : Bool
+  bridgePayloadObjectOk : Bool
+  bridgeSchemaOk : Bool
+  bridgeSnapshotPresent : Bool
   requestBindingOk : Bool
   anchorBindingOk : Bool
   policyBindingOk : Bool
@@ -27,6 +30,7 @@ structure Inputs where
   stateProofPresent : Bool
   stateHashPresent : Bool
   stateProofStable : Bool
+  stateProofErrorFree : Bool
   appStatePresent : Bool
   appStateStable : Bool
   appStateHashOk : Bool
@@ -50,6 +54,9 @@ def buildPacket (inputs : Inputs) : Packet :=
     bridgePayloadReady :=
       inputs.execReq &&
       inputs.bridgePayloadPresent &&
+      inputs.bridgePayloadObjectOk &&
+      inputs.bridgeSchemaOk &&
+      inputs.bridgeSnapshotPresent &&
       inputs.requestBindingOk &&
       inputs.anchorBindingOk &&
       inputs.policyBindingOk
@@ -57,6 +64,7 @@ def buildPacket (inputs : Inputs) : Packet :=
       inputs.stateProofPresent &&
       inputs.stateHashPresent &&
       inputs.stateProofStable &&
+      inputs.stateProofErrorFree &&
       inputs.appStatePresent &&
       inputs.appStateStable &&
       inputs.appStateHashOk
@@ -70,12 +78,16 @@ def buildPacket (inputs : Inputs) : Packet :=
     loaderOk :=
       (inputs.execReq &&
        inputs.bridgePayloadPresent &&
+       inputs.bridgePayloadObjectOk &&
+       inputs.bridgeSchemaOk &&
+       inputs.bridgeSnapshotPresent &&
        inputs.requestBindingOk &&
        inputs.anchorBindingOk &&
        inputs.policyBindingOk) &&
       (inputs.stateProofPresent &&
        inputs.stateHashPresent &&
        inputs.stateProofStable &&
+       inputs.stateProofErrorFree &&
        inputs.appStatePresent &&
        inputs.appStateStable &&
        inputs.appStateHashOk) &&
@@ -110,6 +122,9 @@ theorem bridgePayloadReady_iff (inputs : Inputs) :
     (buildPacket inputs).bridgePayloadReady = true ↔
       inputs.execReq = true ∧
       inputs.bridgePayloadPresent = true ∧
+      inputs.bridgePayloadObjectOk = true ∧
+      inputs.bridgeSchemaOk = true ∧
+      inputs.bridgeSnapshotPresent = true ∧
       inputs.requestBindingOk = true ∧
       inputs.anchorBindingOk = true ∧
       inputs.policyBindingOk = true := by
@@ -120,6 +135,7 @@ theorem baselineProvenanceOk_iff (inputs : Inputs) :
       inputs.stateProofPresent = true ∧
       inputs.stateHashPresent = true ∧
       inputs.stateProofStable = true ∧
+      inputs.stateProofErrorFree = true ∧
       inputs.appStatePresent = true ∧
       inputs.appStateStable = true ∧
       inputs.appStateHashOk = true := by
@@ -139,12 +155,16 @@ theorem loaderOk_iff (inputs : Inputs) :
     (buildPacket inputs).loaderOk = true ↔
       inputs.execReq = true ∧
       inputs.bridgePayloadPresent = true ∧
+      inputs.bridgePayloadObjectOk = true ∧
+      inputs.bridgeSchemaOk = true ∧
+      inputs.bridgeSnapshotPresent = true ∧
       inputs.requestBindingOk = true ∧
       inputs.anchorBindingOk = true ∧
       inputs.policyBindingOk = true ∧
       inputs.stateProofPresent = true ∧
       inputs.stateHashPresent = true ∧
       inputs.stateProofStable = true ∧
+      inputs.stateProofErrorFree = true ∧
       inputs.appStatePresent = true ∧
       inputs.appStateStable = true ∧
       inputs.appStateHashOk = true ∧
@@ -155,46 +175,45 @@ theorem loaderOk_iff (inputs : Inputs) :
         inputs.tauStateHashMatchesProof = true ∧
         inputs.tauStateAppHashPresent = true ∧
         inputs.tauStateAppHashMatchesAppState = true) := by
-  cases inputs with
-  | mk execReq bridgePayloadPresent requestBindingOk anchorBindingOk policyBindingOk
-      strongBindingRequired stateProofPresent stateHashPresent stateProofStable appStatePresent
-      appStateStable appStateHashOk tauStateTransportAvailable tauStatePresent tauStateStable
-      tauStateHashMatchesProof tauStateAppHashPresent tauStateAppHashMatchesAppState =>
-      cases strongBindingRequired <;> simp [buildPacket, Bool.and_eq_true, and_assoc]
+  cases inputs <;> simp [buildPacket, Bool.and_eq_true, and_assoc]
 
 theorem loaderOk_iff_strongBindingDisabled (inputs : Inputs)
     (hRequired : inputs.strongBindingRequired = false) :
     (buildPacket inputs).loaderOk = true ↔
       inputs.execReq = true ∧
       inputs.bridgePayloadPresent = true ∧
+      inputs.bridgePayloadObjectOk = true ∧
+      inputs.bridgeSchemaOk = true ∧
+      inputs.bridgeSnapshotPresent = true ∧
       inputs.requestBindingOk = true ∧
       inputs.anchorBindingOk = true ∧
       inputs.policyBindingOk = true ∧
       inputs.stateProofPresent = true ∧
       inputs.stateHashPresent = true ∧
       inputs.stateProofStable = true ∧
+      inputs.stateProofErrorFree = true ∧
       inputs.appStatePresent = true ∧
       inputs.appStateStable = true ∧
       inputs.appStateHashOk = true := by
-  cases inputs with
-  | mk execReq bridgePayloadPresent requestBindingOk anchorBindingOk policyBindingOk
-      strongBindingRequired stateProofPresent stateHashPresent stateProofStable appStatePresent
-      appStateStable appStateHashOk tauStateTransportAvailable tauStatePresent tauStateStable
-      tauStateHashMatchesProof tauStateAppHashPresent tauStateAppHashMatchesAppState =>
-      cases hRequired
-      simp [buildPacket, Bool.and_eq_true, and_assoc]
+  cases inputs
+  cases hRequired
+  simp [buildPacket, Bool.and_eq_true, and_assoc]
 
 theorem loaderOk_iff_strongBindingEnabled (inputs : Inputs)
     (hRequired : inputs.strongBindingRequired = true) :
     (buildPacket inputs).loaderOk = true ↔
       inputs.execReq = true ∧
       inputs.bridgePayloadPresent = true ∧
+      inputs.bridgePayloadObjectOk = true ∧
+      inputs.bridgeSchemaOk = true ∧
+      inputs.bridgeSnapshotPresent = true ∧
       inputs.requestBindingOk = true ∧
       inputs.anchorBindingOk = true ∧
       inputs.policyBindingOk = true ∧
       inputs.stateProofPresent = true ∧
       inputs.stateHashPresent = true ∧
       inputs.stateProofStable = true ∧
+      inputs.stateProofErrorFree = true ∧
       inputs.appStatePresent = true ∧
       inputs.appStateStable = true ∧
       inputs.appStateHashOk = true ∧
@@ -204,13 +223,9 @@ theorem loaderOk_iff_strongBindingEnabled (inputs : Inputs)
       inputs.tauStateHashMatchesProof = true ∧
       inputs.tauStateAppHashPresent = true ∧
       inputs.tauStateAppHashMatchesAppState = true := by
-  cases inputs with
-  | mk execReq bridgePayloadPresent requestBindingOk anchorBindingOk policyBindingOk
-      strongBindingRequired stateProofPresent stateHashPresent stateProofStable appStatePresent
-      appStateStable appStateHashOk tauStateTransportAvailable tauStatePresent tauStateStable
-      tauStateHashMatchesProof tauStateAppHashPresent tauStateAppHashMatchesAppState =>
-      cases hRequired
-      simp [buildPacket, Bool.and_eq_true, and_assoc]
+  cases inputs
+  cases hRequired
+  simp [buildPacket, Bool.and_eq_true, and_assoc]
 
 end TauStateAppHashProvenance
 end TauSwap

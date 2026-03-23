@@ -40,6 +40,9 @@ It does **not** prove:
 
 - `exec_req`: the runtime is evaluating a settlement admission request
 - `bridge_payload_present`: the settlement signer-registry bridge object is present in app-state
+- `bridge_payload_object_ok`: the bridge payload decodes as an object
+- `bridge_schema_ok`: the bridge payload uses the expected Tau bridge schema
+- `bridge_snapshot_present`: the bridge payload includes a snapshot payload
 - `request_binding_ok`: requested policy tuple matches the intended settlement tuple
 - `anchor_binding_ok`: loaded anchor matches the intended request tuple
 - `policy_binding_ok`: loaded snapshot policy hash matches the governed policy object
@@ -50,6 +53,7 @@ It does **not** prove:
 - `state_proof_present`
 - `state_hash_present`
 - `state_proof_stable`
+- `state_proof_error_free`
 - `app_state_present`
 - `app_state_stable`
 - `app_state_hash_ok`
@@ -74,6 +78,9 @@ Interpretation:
 BridgePayloadReady
   := exec_req
    ∧ bridge_payload_present
+   ∧ bridge_payload_object_ok
+   ∧ bridge_schema_ok
+   ∧ bridge_snapshot_present
    ∧ request_binding_ok
    ∧ anchor_binding_ok
    ∧ policy_binding_ok
@@ -86,6 +93,7 @@ BaselineProvenanceOK
   := state_proof_present
    ∧ state_hash_present
    ∧ state_proof_stable
+   ∧ state_proof_error_free
    ∧ app_state_present
    ∧ app_state_stable
    ∧ app_state_hash_ok
@@ -160,21 +168,21 @@ D4 := state_proof_present
 
 ### Runtime
 
-- [tau_net_client.py](/tmp/zenodex-main-merge.RjwkAn/src/integration/tau_net_client.py)
-- [settlement_signer_registry.py](/tmp/zenodex-main-merge.RjwkAn/src/integration/settlement_signer_registry.py)
+- [tau_net_client.py](../../src/integration/tau_net_client.py)
+- [settlement_signer_registry.py](../../src/integration/settlement_signer_registry.py)
 
 ### ESSO
 
-- `src/kernels/dex/tau_state_app_hash_provenance_guard_v1.yaml`
+- [`tau_state_app_hash_provenance_guard_v1.yaml`](../../src/kernels/dex/tau_state_app_hash_provenance_guard_v1.yaml)
 
 ### TLA+
 
-- `formal/tla/TauStateAppHashProvenanceBridge.tla`
-- `formal/tla/TauStateAppHashProvenanceBridge.cfg`
+- [`TauStateAppHashProvenanceBridge.tla`](../../formal/tla/TauStateAppHashProvenanceBridge.tla)
+- [`TauStateAppHashProvenanceBridge.cfg`](../../formal/tla/TauStateAppHashProvenanceBridge.cfg)
 
 ### Lean
 
-- `lean-mathlib/Proofs/ZenoDEXTauStateAppHashProvenance.lean`
+- [`ZenoDEXTauStateAppHashProvenance.lean`](../../lean-mathlib/Proofs/ZenoDEXTauStateAppHashProvenance.lean)
 
 ## Honest limit
 

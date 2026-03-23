@@ -18,10 +18,18 @@ VARIABLES
   strongBindingRequired,
   bridgePayloadChecked,
   bridgePayloadOk,
+  bridgePayloadObjectOk,
+  bridgeSchemaOk,
+  bridgeSnapshotPresent,
   bridgePayloadActualOk,
+  bridgePayloadObjectActualOk,
+  bridgeSchemaActualOk,
+  bridgeSnapshotActualPresent,
   baselineChecked,
   baselineOk,
+  stateProofErrorFree,
   baselineActualOk,
+  stateProofActualErrorFree,
   tauTransportChecked,
   tauTransportAvailable,
   tauTransportActualAvailable,
@@ -38,10 +46,18 @@ Vars == <<
   strongBindingRequired,
   bridgePayloadChecked,
   bridgePayloadOk,
+  bridgePayloadObjectOk,
+  bridgeSchemaOk,
+  bridgeSnapshotPresent,
   bridgePayloadActualOk,
+  bridgePayloadObjectActualOk,
+  bridgeSchemaActualOk,
+  bridgeSnapshotActualPresent,
   baselineChecked,
   baselineOk,
+  stateProofErrorFree,
   baselineActualOk,
+  stateProofActualErrorFree,
   tauTransportChecked,
   tauTransportAvailable,
   tauTransportActualAvailable,
@@ -59,10 +75,18 @@ TypeOK ==
   /\ strongBindingRequired \in BOOLEAN
   /\ bridgePayloadChecked \in BOOLEAN
   /\ bridgePayloadOk \in BOOLEAN
+  /\ bridgePayloadObjectOk \in BOOLEAN
+  /\ bridgeSchemaOk \in BOOLEAN
+  /\ bridgeSnapshotPresent \in BOOLEAN
   /\ bridgePayloadActualOk \in BOOLEAN
+  /\ bridgePayloadObjectActualOk \in BOOLEAN
+  /\ bridgeSchemaActualOk \in BOOLEAN
+  /\ bridgeSnapshotActualPresent \in BOOLEAN
   /\ baselineChecked \in BOOLEAN
   /\ baselineOk \in BOOLEAN
+  /\ stateProofErrorFree \in BOOLEAN
   /\ baselineActualOk \in BOOLEAN
+  /\ stateProofActualErrorFree \in BOOLEAN
   /\ tauTransportChecked \in BOOLEAN
   /\ tauTransportAvailable \in BOOLEAN
   /\ tauTransportActualAvailable \in BOOLEAN
@@ -89,10 +113,14 @@ TypeOK ==
 BridgePayloadReady ==
   /\ bridgePayloadChecked
   /\ bridgePayloadOk
+  /\ bridgePayloadObjectOk
+  /\ bridgeSchemaOk
+  /\ bridgeSnapshotPresent
 
 BaselineProvenanceOK ==
   /\ baselineChecked
   /\ baselineOk
+  /\ stateProofErrorFree
 
 StrongTauStateBindingOK ==
   /\ tauTransportChecked
@@ -113,9 +141,9 @@ VisibleRejectReason ==
   /\ ~rejected
   /\ (
        /\ bridgePayloadChecked
-       /\ ~bridgePayloadOk
+       /\ ~(bridgePayloadOk /\ bridgePayloadObjectOk /\ bridgeSchemaOk /\ bridgeSnapshotPresent)
      \/ /\ baselineChecked
-        /\ ~baselineOk
+        /\ ~(baselineOk /\ stateProofErrorFree)
      \/ /\ strongBindingRequired
         /\ tauTransportChecked
         /\ ~tauTransportAvailable
@@ -130,10 +158,8 @@ CleanReadyPending ==
   /\ requestIssued
   /\ ~accepted
   /\ ~rejected
-  /\ bridgePayloadChecked
-  /\ bridgePayloadOk
-  /\ baselineChecked
-  /\ baselineOk
+  /\ BridgePayloadReady
+  /\ BaselineProvenanceOK
   /\ (
        /\ ~strongBindingRequired
      \/ /\ tauTransportChecked
@@ -148,10 +174,18 @@ Init ==
   /\ strongBindingRequired = FALSE
   /\ bridgePayloadChecked = FALSE
   /\ bridgePayloadOk = FALSE
+  /\ bridgePayloadObjectOk = FALSE
+  /\ bridgeSchemaOk = FALSE
+  /\ bridgeSnapshotPresent = FALSE
   /\ bridgePayloadActualOk = FALSE
+  /\ bridgePayloadObjectActualOk = FALSE
+  /\ bridgeSchemaActualOk = FALSE
+  /\ bridgeSnapshotActualPresent = FALSE
   /\ baselineChecked = FALSE
   /\ baselineOk = FALSE
+  /\ stateProofErrorFree = FALSE
   /\ baselineActualOk = FALSE
+  /\ stateProofActualErrorFree = FALSE
   /\ tauTransportChecked = FALSE
   /\ tauTransportAvailable = FALSE
   /\ tauTransportActualAvailable = FALSE
@@ -169,10 +203,18 @@ IssueRequest ==
   /\ strongBindingRequired' \in BOOLEAN
   /\ bridgePayloadChecked' = FALSE
   /\ bridgePayloadOk' = FALSE
+  /\ bridgePayloadObjectOk' = FALSE
+  /\ bridgeSchemaOk' = FALSE
+  /\ bridgeSnapshotPresent' = FALSE
   /\ bridgePayloadActualOk' \in BOOLEAN
+  /\ bridgePayloadObjectActualOk' \in BOOLEAN
+  /\ bridgeSchemaActualOk' \in BOOLEAN
+  /\ bridgeSnapshotActualPresent' \in BOOLEAN
   /\ baselineChecked' = FALSE
   /\ baselineOk' = FALSE
+  /\ stateProofErrorFree' = FALSE
   /\ baselineActualOk' \in BOOLEAN
+  /\ stateProofActualErrorFree' \in BOOLEAN
   /\ tauTransportChecked' = FALSE
   /\ tauTransportAvailable' = FALSE
   /\ tauTransportActualAvailable' \in BOOLEAN
@@ -187,16 +229,27 @@ CheckCleanBridgePayload ==
   /\ requestIssued
   /\ ~bridgePayloadChecked
   /\ bridgePayloadActualOk
+  /\ bridgePayloadObjectActualOk
+  /\ bridgeSchemaActualOk
+  /\ bridgeSnapshotActualPresent
   /\ bridgePayloadChecked' = TRUE
   /\ bridgePayloadOk' = TRUE
+  /\ bridgePayloadObjectOk' = TRUE
+  /\ bridgeSchemaOk' = TRUE
+  /\ bridgeSnapshotPresent' = TRUE
   /\ UNCHANGED <<
       requestIssued,
       execReq,
       strongBindingRequired,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineChecked,
       baselineOk,
+      stateProofErrorFree,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportChecked,
       tauTransportAvailable,
       tauTransportActualAvailable,
@@ -211,17 +264,30 @@ CheckCleanBridgePayload ==
 CheckDriftedBridgePayload ==
   /\ requestIssued
   /\ ~bridgePayloadChecked
-  /\ ~bridgePayloadActualOk
+  /\ ~(
+       bridgePayloadActualOk
+       /\ bridgePayloadObjectActualOk
+       /\ bridgeSchemaActualOk
+       /\ bridgeSnapshotActualPresent
+      )
   /\ bridgePayloadChecked' = TRUE
-  /\ bridgePayloadOk' = FALSE
+  /\ bridgePayloadOk' = bridgePayloadActualOk
+  /\ bridgePayloadObjectOk' = bridgePayloadObjectActualOk
+  /\ bridgeSchemaOk' = bridgeSchemaActualOk
+  /\ bridgeSnapshotPresent' = bridgeSnapshotActualPresent
   /\ UNCHANGED <<
       requestIssued,
       execReq,
       strongBindingRequired,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineChecked,
       baselineOk,
+      stateProofErrorFree,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportChecked,
       tauTransportAvailable,
       tauTransportActualAvailable,
@@ -236,19 +302,28 @@ CheckDriftedBridgePayload ==
 CheckCleanBaseline ==
   /\ requestIssued
   /\ bridgePayloadChecked
-  /\ bridgePayloadOk
+  /\ BridgePayloadReady
   /\ ~baselineChecked
   /\ baselineActualOk
+  /\ stateProofActualErrorFree
   /\ baselineChecked' = TRUE
   /\ baselineOk' = TRUE
+  /\ stateProofErrorFree' = TRUE
   /\ UNCHANGED <<
       requestIssued,
       execReq,
       strongBindingRequired,
       bridgePayloadChecked,
       bridgePayloadOk,
+      bridgePayloadObjectOk,
+      bridgeSchemaOk,
+      bridgeSnapshotPresent,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportChecked,
       tauTransportAvailable,
       tauTransportActualAvailable,
@@ -262,20 +337,27 @@ CheckCleanBaseline ==
 
 CheckDriftedBaseline ==
   /\ requestIssued
-  /\ bridgePayloadChecked
-  /\ bridgePayloadOk
+  /\ BridgePayloadReady
   /\ ~baselineChecked
-  /\ ~baselineActualOk
+  /\ ~(baselineActualOk /\ stateProofActualErrorFree)
   /\ baselineChecked' = TRUE
-  /\ baselineOk' = FALSE
+  /\ baselineOk' = baselineActualOk
+  /\ stateProofErrorFree' = stateProofActualErrorFree
   /\ UNCHANGED <<
       requestIssued,
       execReq,
       strongBindingRequired,
       bridgePayloadChecked,
       bridgePayloadOk,
+      bridgePayloadObjectOk,
+      bridgeSchemaOk,
+      bridgeSnapshotPresent,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportChecked,
       tauTransportAvailable,
       tauTransportActualAvailable,
@@ -290,10 +372,8 @@ CheckDriftedBaseline ==
 CheckTauTransportAvailable ==
   /\ requestIssued
   /\ strongBindingRequired
-  /\ bridgePayloadChecked
-  /\ bridgePayloadOk
-  /\ baselineChecked
-  /\ baselineOk
+  /\ BridgePayloadReady
+  /\ BaselineProvenanceOK
   /\ ~tauTransportChecked
   /\ tauTransportActualAvailable
   /\ tauTransportChecked' = TRUE
@@ -304,10 +384,18 @@ CheckTauTransportAvailable ==
       strongBindingRequired,
       bridgePayloadChecked,
       bridgePayloadOk,
+      bridgePayloadObjectOk,
+      bridgeSchemaOk,
+      bridgeSnapshotPresent,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineChecked,
       baselineOk,
+      stateProofErrorFree,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportActualAvailable,
       tauBindingChecked,
       tauBindingOk,
@@ -320,10 +408,8 @@ CheckTauTransportAvailable ==
 CheckTauTransportUnavailable ==
   /\ requestIssued
   /\ strongBindingRequired
-  /\ bridgePayloadChecked
-  /\ bridgePayloadOk
-  /\ baselineChecked
-  /\ baselineOk
+  /\ BridgePayloadReady
+  /\ BaselineProvenanceOK
   /\ ~tauTransportChecked
   /\ ~tauTransportActualAvailable
   /\ tauTransportChecked' = TRUE
@@ -334,10 +420,18 @@ CheckTauTransportUnavailable ==
       strongBindingRequired,
       bridgePayloadChecked,
       bridgePayloadOk,
+      bridgePayloadObjectOk,
+      bridgeSchemaOk,
+      bridgeSnapshotPresent,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineChecked,
       baselineOk,
+      stateProofErrorFree,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportActualAvailable,
       tauBindingChecked,
       tauBindingOk,
@@ -362,10 +456,18 @@ CheckCleanTauBinding ==
       strongBindingRequired,
       bridgePayloadChecked,
       bridgePayloadOk,
+      bridgePayloadObjectOk,
+      bridgeSchemaOk,
+      bridgeSnapshotPresent,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineChecked,
       baselineOk,
+      stateProofErrorFree,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportChecked,
       tauTransportAvailable,
       tauTransportActualAvailable,
@@ -390,10 +492,18 @@ CheckDriftedTauBinding ==
       strongBindingRequired,
       bridgePayloadChecked,
       bridgePayloadOk,
+      bridgePayloadObjectOk,
+      bridgeSchemaOk,
+      bridgeSnapshotPresent,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineChecked,
       baselineOk,
+      stateProofErrorFree,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportChecked,
       tauTransportAvailable,
       tauTransportActualAvailable,
@@ -415,10 +525,18 @@ Accept ==
       strongBindingRequired,
       bridgePayloadChecked,
       bridgePayloadOk,
+      bridgePayloadObjectOk,
+      bridgeSchemaOk,
+      bridgeSnapshotPresent,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineChecked,
       baselineOk,
+      stateProofErrorFree,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportChecked,
       tauTransportAvailable,
       tauTransportActualAvailable,
@@ -438,10 +556,18 @@ Reject ==
       strongBindingRequired,
       bridgePayloadChecked,
       bridgePayloadOk,
+      bridgePayloadObjectOk,
+      bridgeSchemaOk,
+      bridgeSnapshotPresent,
       bridgePayloadActualOk,
+      bridgePayloadObjectActualOk,
+      bridgeSchemaActualOk,
+      bridgeSnapshotActualPresent,
       baselineChecked,
       baselineOk,
+      stateProofErrorFree,
       baselineActualOk,
+      stateProofActualErrorFree,
       tauTransportChecked,
       tauTransportAvailable,
       tauTransportActualAvailable,

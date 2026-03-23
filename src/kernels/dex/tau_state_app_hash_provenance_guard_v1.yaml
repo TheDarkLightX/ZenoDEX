@@ -21,6 +21,9 @@ observables:
     [
       "exec_req",
       "bridge_payload_present",
+      "bridge_payload_object_ok",
+      "bridge_schema_ok",
+      "bridge_snapshot_present",
       "request_binding_ok",
       "anchor_binding_ok",
       "policy_binding_ok",
@@ -28,6 +31,7 @@ observables:
       "state_proof_present",
       "state_hash_present",
       "state_proof_stable",
+      "state_proof_error_free",
       "app_state_present",
       "app_state_stable",
       "app_state_hash_ok",
@@ -53,6 +57,15 @@ state_vars:
   - id: "bridge_payload_present"
     role: "data"
     type: { kind: "bool" }
+  - id: "bridge_payload_object_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "bridge_schema_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "bridge_snapshot_present"
+    role: "data"
+    type: { kind: "bool" }
   - id: "request_binding_ok"
     role: "data"
     type: { kind: "bool" }
@@ -72,6 +85,9 @@ state_vars:
     role: "data"
     type: { kind: "bool" }
   - id: "state_proof_stable"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "state_proof_error_free"
     role: "data"
     type: { kind: "bool" }
   - id: "app_state_present"
@@ -117,6 +133,9 @@ state_vars:
 init:
   - { var: "exec_req", expr: { bool: false } }
   - { var: "bridge_payload_present", expr: { bool: false } }
+  - { var: "bridge_payload_object_ok", expr: { bool: false } }
+  - { var: "bridge_schema_ok", expr: { bool: false } }
+  - { var: "bridge_snapshot_present", expr: { bool: false } }
   - { var: "request_binding_ok", expr: { bool: false } }
   - { var: "anchor_binding_ok", expr: { bool: false } }
   - { var: "policy_binding_ok", expr: { bool: false } }
@@ -124,6 +143,7 @@ init:
   - { var: "state_proof_present", expr: { bool: false } }
   - { var: "state_hash_present", expr: { bool: false } }
   - { var: "state_proof_stable", expr: { bool: false } }
+  - { var: "state_proof_error_free", expr: { bool: false } }
   - { var: "app_state_present", expr: { bool: false } }
   - { var: "app_state_stable", expr: { bool: false } }
   - { var: "app_state_hash_ok", expr: { bool: false } }
@@ -149,6 +169,9 @@ invariants:
           args:
             - { var: "exec_req" }
             - { var: "bridge_payload_present" }
+            - { var: "bridge_payload_object_ok" }
+            - { var: "bridge_schema_ok" }
+            - { var: "bridge_snapshot_present" }
             - { var: "request_binding_ok" }
             - { var: "anchor_binding_ok" }
             - { var: "policy_binding_ok" }
@@ -163,6 +186,7 @@ invariants:
             - { var: "state_proof_present" }
             - { var: "state_hash_present" }
             - { var: "state_proof_stable" }
+            - { var: "state_proof_error_free" }
             - { var: "app_state_present" }
             - { var: "app_state_stable" }
             - { var: "app_state_hash_ok" }
@@ -201,6 +225,9 @@ actions:
     params:
       - { id: "exec_req_in", type: { kind: "bool" } }
       - { id: "bridge_payload_present_in", type: { kind: "bool" } }
+      - { id: "bridge_payload_object_ok_in", type: { kind: "bool" } }
+      - { id: "bridge_schema_ok_in", type: { kind: "bool" } }
+      - { id: "bridge_snapshot_present_in", type: { kind: "bool" } }
       - { id: "request_binding_ok_in", type: { kind: "bool" } }
       - { id: "anchor_binding_ok_in", type: { kind: "bool" } }
       - { id: "policy_binding_ok_in", type: { kind: "bool" } }
@@ -208,6 +235,7 @@ actions:
       - { id: "state_proof_present_in", type: { kind: "bool" } }
       - { id: "state_hash_present_in", type: { kind: "bool" } }
       - { id: "state_proof_stable_in", type: { kind: "bool" } }
+      - { id: "state_proof_error_free_in", type: { kind: "bool" } }
       - { id: "app_state_present_in", type: { kind: "bool" } }
       - { id: "app_state_stable_in", type: { kind: "bool" } }
       - { id: "app_state_hash_ok_in", type: { kind: "bool" } }
@@ -221,6 +249,9 @@ actions:
     updates:
       - { var: "exec_req", expr: { param: "exec_req_in" } }
       - { var: "bridge_payload_present", expr: { param: "bridge_payload_present_in" } }
+      - { var: "bridge_payload_object_ok", expr: { param: "bridge_payload_object_ok_in" } }
+      - { var: "bridge_schema_ok", expr: { param: "bridge_schema_ok_in" } }
+      - { var: "bridge_snapshot_present", expr: { param: "bridge_snapshot_present_in" } }
       - { var: "request_binding_ok", expr: { param: "request_binding_ok_in" } }
       - { var: "anchor_binding_ok", expr: { param: "anchor_binding_ok_in" } }
       - { var: "policy_binding_ok", expr: { param: "policy_binding_ok_in" } }
@@ -228,6 +259,7 @@ actions:
       - { var: "state_proof_present", expr: { param: "state_proof_present_in" } }
       - { var: "state_hash_present", expr: { param: "state_hash_present_in" } }
       - { var: "state_proof_stable", expr: { param: "state_proof_stable_in" } }
+      - { var: "state_proof_error_free", expr: { param: "state_proof_error_free_in" } }
       - { var: "app_state_present", expr: { param: "app_state_present_in" } }
       - { var: "app_state_stable", expr: { param: "app_state_stable_in" } }
       - { var: "app_state_hash_ok", expr: { param: "app_state_hash_ok_in" } }
@@ -243,6 +275,9 @@ actions:
           args:
             - { param: "exec_req_in" }
             - { param: "bridge_payload_present_in" }
+            - { param: "bridge_payload_object_ok_in" }
+            - { param: "bridge_schema_ok_in" }
+            - { param: "bridge_snapshot_present_in" }
             - { param: "request_binding_ok_in" }
             - { param: "anchor_binding_ok_in" }
             - { param: "policy_binding_ok_in" }
@@ -253,6 +288,7 @@ actions:
             - { param: "state_proof_present_in" }
             - { param: "state_hash_present_in" }
             - { param: "state_proof_stable_in" }
+            - { param: "state_proof_error_free_in" }
             - { param: "app_state_present_in" }
             - { param: "app_state_stable_in" }
             - { param: "app_state_hash_ok_in" }
@@ -274,6 +310,9 @@ actions:
               args:
                 - { param: "exec_req_in" }
                 - { param: "bridge_payload_present_in" }
+                - { param: "bridge_payload_object_ok_in" }
+                - { param: "bridge_schema_ok_in" }
+                - { param: "bridge_snapshot_present_in" }
                 - { param: "request_binding_ok_in" }
                 - { param: "anchor_binding_ok_in" }
                 - { param: "policy_binding_ok_in" }
@@ -282,6 +321,7 @@ actions:
                 - { param: "state_proof_present_in" }
                 - { param: "state_hash_present_in" }
                 - { param: "state_proof_stable_in" }
+                - { param: "state_proof_error_free_in" }
                 - { param: "app_state_present_in" }
                 - { param: "app_state_stable_in" }
                 - { param: "app_state_hash_ok_in" }
