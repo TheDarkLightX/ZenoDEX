@@ -1,0 +1,91 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "quote_receipt_hop_replay_gate_v1"
+  notes: |
+    Bounded first-failure law for per-hop replay rejection and reserve writeback.
+
+observables:
+  state_vars:
+    - "direction_ok"
+    - "forward_direction"
+    - "swap_ok"
+    - "quote_matches"
+    - "next_reserve_in"
+    - "next_reserve_out"
+  effects:
+    - "replay_ok"
+    - "reject_tag"
+    - "next_reserve0"
+    - "next_reserve1"
+
+state_vars:
+  - id: "direction_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "forward_direction"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "swap_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "quote_matches"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "next_reserve_in"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+  - id: "next_reserve_out"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3000000000 }
+
+init:
+  - var: "direction_ok"
+    expr: { bool: false }
+  - var: "forward_direction"
+    expr: { bool: false }
+  - var: "swap_ok"
+    expr: { bool: false }
+  - var: "quote_matches"
+    expr: { bool: false }
+  - var: "next_reserve_in"
+    expr: { const: 0 }
+  - var: "next_reserve_out"
+    expr: { const: 0 }
+
+actions:
+  - id: "evaluate_route_quote_receipt_hop_replay_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      replay_ok:
+        op: "and"
+        args:
+          - { var: "direction_ok" }
+          - { var: "swap_ok" }
+          - { var: "quote_matches" }
+      reject_tag:
+        op: "ite"
+        cond: { op: "not", args: [{ var: "direction_ok" }] }
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond: { op: "not", args: [{ var: "swap_ok" }] }
+          then: { const: 2 }
+          else:
+            op: "ite"
+            cond: { op: "not", args: [{ var: "quote_matches" }] }
+            then: { const: 3 }
+            else: { const: 0 }
+      next_reserve0:
+        op: "ite"
+        cond: { var: "forward_direction" }
+        then: { var: "next_reserve_in" }
+        else: { var: "next_reserve_out" }
+      next_reserve1:
+        op: "ite"
+        cond: { var: "forward_direction" }
+        then: { var: "next_reserve_out" }
+        else: { var: "next_reserve_in" }
+
+invariants: []

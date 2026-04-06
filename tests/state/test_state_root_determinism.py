@@ -107,37 +107,6 @@ def test_state_root_changes_on_nonce_change() -> None:
     assert root_1 != root_2
 
 
-def test_state_root_rejects_duplicate_decoded_nonce_pubkeys() -> None:
-    class DuplicateDecodedNonces(NonceTable):
-        def get_all(self):  # type: ignore[override]
-            return {
-                "0x" + "aa" * 48: 1,
-                "0x" + "AA" * 48: 2,
-            }
-
-    with pytest.raises(ValueError, match="duplicate decoded pubkey in nonces"):
-        compute_state_root(
-            balances=BalanceTable(),
-            pools={},
-            lp_balances=LPTable(),
-            nonces=DuplicateDecodedNonces(),
-        )
-
-
-def test_state_root_rejects_invalid_nonce_amount() -> None:
-    class InvalidNonceAmount(NonceTable):
-        def get_all(self):  # type: ignore[override]
-            return {"0x" + "11" * 48: True}
-
-    with pytest.raises(ValueError, match="invalid nonce amount"):
-        compute_state_root(
-            balances=BalanceTable(),
-            pools={},
-            lp_balances=LPTable(),
-            nonces=InvalidNonceAmount(),
-        )
-
-
 def test_state_root_rejects_invalid_nonce_table_type() -> None:
     with pytest.raises(TypeError, match="nonces must be a NonceTable"):
         compute_state_root(

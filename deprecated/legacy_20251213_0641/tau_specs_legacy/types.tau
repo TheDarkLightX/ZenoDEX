@@ -1,0 +1,41 @@
+# TauSwap Type Definitions
+# Core types for DEX state and operations
+#
+# NOTE: This file is currently documentation-only; it is kept as a valid Tau spec
+# so it can be syntax-checked by the real Tau compiler.
+#
+# Bitvector types (documentation)
+# amount_lo : bv[16]
+# amount_hi : bv[16]
+# fee_bps : bv[16]
+# bool_flag : sbf
+#
+# Stream declarations for state validation (documentation)
+# reserve0_lo : bv[16] = in console
+# reserve0_hi : bv[16] = in console
+# reserve1_lo : bv[16] = in console
+# reserve1_hi : bv[16] = in console
+# amount_in_lo : bv[16] = in console
+# amount_in_hi : bv[16] = in console
+# fee_bps_value : bv[16] = in console
+# amount_out_lo : bv[16] = in console
+# amount_out_hi : bv[16] = in console
+# balance_lo : bv[16] = in console
+# balance_hi : bv[16] = in console
+# delta_add_lo : bv[16] = in console
+# delta_add_hi : bv[16] = in console
+# delta_sub_lo : bv[16] = in console
+# delta_sub_hi : bv[16] = in console
+#
+# Output streams (documentation)
+# swap_valid : sbf = out console
+# balance_safe : sbf = out console
+# reserve_non_negative : sbf = out console
+# settlement_valid : sbf = out console
+#
+# Constants (documentation)
+# ZERO_16 := { #x0000 }:bv[16]
+# MAX_FEE_BPS := { #x2710 }:bv[16]
+# ONE_16 := { #x0001 }:bv[16]
+
+T.

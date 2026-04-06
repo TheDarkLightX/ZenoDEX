@@ -1,0 +1,82 @@
+{
+  "synth_version": "1.1",
+  "backend": {
+    "kind": "sygus",
+    "solver": "cvc5",
+    "timeout_ms": 60000
+  },
+  "scope": {
+    "kind": "inductive",
+    "domain_caps": "from_model"
+  },
+  "holes": [
+    {
+      "hole_id": "lp_mint_expr",
+      "kind": "expr",
+      "type": "Int",
+      "used_in": [
+        {
+          "action": "mint",
+          "field": "lp_minted"
+        }
+      ],
+      "grammar_id": "G_lp_mint",
+      "semantic_constraints": [
+        "result >= 0",
+        "result * reserve0 <= amount0 * lp_supply",
+        "result * reserve1 <= amount1 * lp_supply"
+      ]
+    }
+  ],
+  "grammars": [
+    {
+      "grammar_id": "G_lp_mint",
+      "start": "Expr",
+      "productions": {
+        "MulA0": [
+          "(* amount0 lp_supply)"
+        ],
+        "MulA1": [
+          "(* amount1 lp_supply)"
+        ],
+        "Div0": [
+          "(safe_div MulA0 reserve0)"
+        ],
+        "Div1": [
+          "(safe_div MulA1 reserve1)"
+        ],
+        "CmpL": [
+          "(* amount0 reserve1)"
+        ],
+        "CmpR": [
+          "(* amount1 reserve0)"
+        ],
+        "Cond": [
+          "(<= CmpL CmpR)"
+        ],
+        "Expr": [
+          "Div0",
+          "Div1",
+          "(ite Cond Div0 Div1)"
+        ]
+      }
+    }
+  ],
+  "style_profile": {
+    "max_nesting": 4,
+    "max_branches": 1,
+    "max_ast_nodes": 64,
+    "penalties": {
+      "branch": 10,
+      "nesting": 20,
+      "ast_node": 1
+    }
+  },
+  "objective": {
+    "kind": "lexicographic",
+    "goals": [
+      "SATISFY",
+      "MINIMIZE_COST"
+    ]
+  }
+}

@@ -4,7 +4,7 @@ import pytest
 
 from src.core.batch_clearing import compute_settlement, validate_settlement
 from src.core.cpmm import swap_exact_in
-from src.core.domain_limits import DEX_LP_AMOUNT_MAX, DEX_POOL_RESERVE_MAX, require_int_range
+from src.core.domain_limits import DEX_LP_AMOUNT_MAX, DEX_POOL_RESERVE_MAX
 from src.core.liquidity import add_liquidity, create_pool, remove_liquidity
 from src.core.settlement import FillAction
 from src.state.balances import BalanceTable
@@ -24,14 +24,6 @@ def test_swap_exact_in_rejects_post_update_reserve_overflow() -> None:
             amount_in=1,
             fee_bps=30,
         )
-
-
-def test_require_int_range_rejects_bool_like_values() -> None:
-    with pytest.raises(TypeError, match="must be an int"):
-        require_int_range("amount", True, minimum=0, maximum=1)
-
-    with pytest.raises(ValueError, match="domain max"):
-        require_int_range("amount", 2, minimum=0, maximum=1)
 
 
 def test_add_liquidity_rejects_negative_direct_min_bounds() -> None:

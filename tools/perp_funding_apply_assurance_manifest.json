@@ -1,0 +1,139 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the isolated perps apply_funding admission micro-kernel. Update only alongside a successful run of tools/run_perp_funding_apply_assurance_gate.sh and tools/check_perp_funding_apply_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/perp_funding_apply_gate.py",
+      "sha256": "d1772b259cb847c68c22c4b9be0008983321b04af8f6b7d63b50d690aca618e1"
+    },
+    {
+      "path": "src/core/perp_v2/guards.py",
+      "sha256": "05e02958dc45258bb8eb6968ce5388157c42486bf44fab670725125a86ea3133"
+    },
+    {
+      "path": "src/kernels/dex/perp_funding_apply_v1.yaml",
+      "sha256": "007bd80266d378cc172feac0e92a9ef36bdf625efa99a1b5e88bb965bae1a801"
+    },
+    {
+      "path": "src/kernels/python/perp_funding_apply_v1_native_adapter.py",
+      "sha256": "2f7ac5861dbc1843e75789db868e79abfbd11a9cab6df9fe68926db6a7046238"
+    },
+    {
+      "path": "tests/core/test_perp_funding_apply_gate.py",
+      "sha256": "260fbc54a2c6559875e6c284552c9faa27ec715821cb8399809dd0fa6a7b2901"
+    },
+    {
+      "path": "tests/core/test_perp_v2/test_engine.py",
+      "sha256": "839311c5432c70f84bdde19306c1a11e9f39dbfbb41f33ffb742b15730850a4f"
+    },
+    {
+      "path": "tests/core/test_perp_v2/test_engine_boundary_bva.py",
+      "sha256": "9372b0c34b52e144eddab126dc380e91c1f14623c9ef92473915ca4d02c6758b"
+    },
+    {
+      "path": "tests/core/test_perp_v2/test_submodules.py",
+      "sha256": "ab09c89a9feb4edcfd8b28b8574f37303cc3f5dda9990b61a2183475b395aec6"
+    },
+    {
+      "path": "tests/kernels/test_perp_funding_apply_v1_native_adapter.py",
+      "sha256": "6d971a847c1562f07213a93157b076e73c3cecba0c89b6f39489cf357f88b9ca"
+    },
+    {
+      "path": "tools/check_perp_funding_apply_assurance_manifest.py",
+      "sha256": "7fec8790aae1f5f8eb9853333a0f59bff45272eef166840559658791185709d7"
+    },
+    {
+      "path": "tools/run_perp_funding_apply_assurance_gate.sh",
+      "sha256": "ece5d18069ea29c2c404eefc128bcd663149268d4468dc09c5c3b6d1656bb0c3"
+    },
+    {
+      "path": "tools/run_perps_evidence.sh",
+      "sha256": "bffb15124660bbf320a17361c3a6e389083b1301c5db9e91f34388d3beccd858"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/perp_funding_apply_v1/validate.json",
+    "model_path": "src/kernels/dex/perp_funding_apply_v1.yaml",
+    "ir_hash": "sha256:c62ac6429ab15e1d35066467854b647efe69c761a75984615c8b01a6c95fd15c"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/perp_funding_apply_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.perp_funding_apply_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:c62ac6429ab15e1d35066467854b647efe69c761a75984615c8b01a6c95fd15c",
+    "actions": [
+      "evaluate_funding_apply_gate"
+    ],
+    "effects": [
+      "auth_ok",
+      "collateral_after_quote",
+      "collateral_bounds_ok",
+      "cumulative_after_quote",
+      "cumulative_bounds_ok",
+      "funding_apply_allowed",
+      "funding_not_applied_this_epoch",
+      "funding_payment_quote",
+      "index_price_ok",
+      "maint_margin_ok",
+      "maint_req_quote",
+      "oracle_fresh",
+      "oracle_seen_ok",
+      "phase_allows_funding",
+      "position_open_ok",
+      "rate_within_cap",
+      "staleness_param_ok"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/perp_funding_apply_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/perp_funding_apply_v1.yaml",
+    "adapter_spec": "src.kernels.python.perp_funding_apply_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:c62ac6429ab15e1d35066467854b647efe69c761a75984615c8b01a6c95fd15c",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:c234b260a7c887923e9f2f84f0cb35f23a7758bf1ce74377f51b9c4d28fbd15d"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/perp_funding_apply_v1/verification_report.json",
+    "model_id": "perp_funding_apply_v1",
+    "ir_hash_short": "c62ac6429ab15e1d",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_perp_funding_apply_gate.py",
+    "tests/core/test_perp_v2/test_engine.py",
+    "tests/core/test_perp_v2/test_engine_boundary_bva.py",
+    "tests/core/test_perp_v2/test_submodules.py",
+    "tests/kernels/test_perp_funding_apply_v1_native_adapter.py"
+  ]
+}

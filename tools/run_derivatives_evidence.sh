@@ -13,6 +13,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
+RUN_SUPPLEMENTAL_FUNDING_RATE_MARKET_V1_1_MONOLITH="${RUN_SUPPLEMENTAL_FUNDING_RATE_MARKET_V1_1_MONOLITH:-0}"
+
 if [[ -n "${PYTHON:-}" ]]; then
   PY="$PYTHON"
 elif [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
@@ -40,10 +42,12 @@ echo "== derivatives: pytest =="
   "$ROOT_DIR/tests/core/test_derivatives_generated_refs.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_market.py" \
   "$ROOT_DIR/tests/core/test_funding_rate_market_ref_parity.py" \
+  "$ROOT_DIR/tests/core/test_funding_rate_settlement_runtime_v1_1.py" \
   "$ROOT_DIR/tests/core/test_il_futures.py" \
   "$ROOT_DIR/tests/core/test_curve_selection.py" \
   "$ROOT_DIR/tests/core/test_volatility_tier.py" \
-  "$ROOT_DIR/tests/core/test_volatility_tier_ref_parity.py"
+  "$ROOT_DIR/tests/core/test_volatility_tier_ref_parity.py" \
+  "$ROOT_DIR/tests/kernels/test_funding_rate_settlement_witness_v1_1_native_adapter.py"
 
 echo "== derivatives: kernel inductiveness (verify-multi) =="
 "$PY" -m ESSO verify-multi \
@@ -54,13 +58,39 @@ echo "== derivatives: kernel inductiveness (verify-multi) =="
   --output "$VERIFY_ROOT/funding_rate_market_v1" \
   --write-report
 
+echo "== derivatives: funding_rate_settlement_witness_v1_1 dual-solver proof =="
 "$PY" -m ESSO verify-multi \
-  "$ROOT_DIR/src/kernels/dex/funding_rate_market_v1_1.yaml" \
-  --solvers z3 \
+  "$ROOT_DIR/src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml" \
+  --solvers z3,cvc5 \
   --timeout-ms 60000 \
   --determinism-trials 2 \
-  --output "$VERIFY_ROOT/funding_rate_market_v1_1" \
+  --output "$VERIFY_ROOT/funding_rate_settlement_witness_v1_1" \
   --write-report
+
+echo "== derivatives: funding_rate_settlement_witness_v1_1 shell assurance =="
+"$PY" -m ESSO shell-lint \
+  "$ROOT_DIR/src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml" \
+  --adapter src.kernels.python.funding_rate_settlement_witness_v1_1_native_adapter:make_adapter \
+  --output "$VERIFY_ROOT/funding_rate_settlement_witness_v1_1_shell_lint.json"
+"$PY" -m ESSO verify-shell \
+  "$ROOT_DIR/src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml" \
+  --adapter src.kernels.python.funding_rate_settlement_witness_v1_1_native_adapter:make_adapter \
+  --traces 16 \
+  --max-steps 6 \
+  --determinism-trials 2 \
+  --output "$VERIFY_ROOT/funding_rate_settlement_witness_v1_1_shell_verify.json"
+
+if [[ "$RUN_SUPPLEMENTAL_FUNDING_RATE_MARKET_V1_1_MONOLITH" == "1" ]]; then
+  echo "== derivatives: funding_rate_market_v1_1 supplemental monolith check (z3-only) ==" >&2
+  echo "note: this is a supplementary parity/reference check only; it is not part of the published formal release lane." >&2
+  "$PY" -m ESSO verify-multi \
+    "$ROOT_DIR/src/kernels/dex/funding_rate_market_v1_1.yaml" \
+    --solvers z3 \
+    --timeout-ms 60000 \
+    --determinism-trials 2 \
+    --output "$VERIFY_ROOT/funding_rate_market_v1_1" \
+    --write-report
+fi
 
 "$PY" -m ESSO verify-multi \
   "$ROOT_DIR/src/kernels/dex/il_futures_market_v1.yaml" \

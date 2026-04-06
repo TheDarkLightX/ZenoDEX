@@ -1,0 +1,119 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the perps parse-level version/prefix guard micro-kernel. Update only alongside a successful run of tools/run_perp_market_version_prefix_assurance_gate.sh and tools/check_perp_market_version_prefix_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/perp_market_version_prefix_guard.py",
+      "sha256": "1ce6165d8f742d9f55e53d46741ef727966cb71a2614ea05390cb1699f323179"
+    },
+    {
+      "path": "src/integration/perp_engine.py",
+      "sha256": "b4c359df86578b20102df79fe75beee660efdf289346b581e9689f2a0ffacab2"
+    },
+    {
+      "path": "src/kernels/dex/perp_market_version_prefix_guard_v1.yaml",
+      "sha256": "f6d077be327104efa001463cdf2639a13bc3fd5a4ce5acf6b7bf3e8db5fcecc8"
+    },
+    {
+      "path": "src/kernels/python/perp_market_version_prefix_guard_v1_native_adapter.py",
+      "sha256": "6da83c464263914b95d0e3c0225fad98c1f4a2ef741ad0982bff971bc5c5c056"
+    },
+    {
+      "path": "tests/kernels/test_perp_market_version_prefix_guard_v1_native_adapter.py",
+      "sha256": "02a2b9f4ddb3041cfdc93082a260250f3979c412bf8a7f5136f84ca8d204ab5d"
+    },
+    {
+      "path": "tests/core/test_perp_market_version_prefix_guard.py",
+      "sha256": "a3e8d442e4fe0790fd18b28448f554fc4526d809948558957634f82b8b8fe93e"
+    },
+    {
+      "path": "tests/integration/test_perp_engine_parse_guards.py",
+      "sha256": "fa28819214db68436754b55d9aae3436f1f23121bc3a031f946aa6decf0c60b9"
+    },
+    {
+      "path": "tools/run_perp_market_version_prefix_assurance_gate.sh",
+      "sha256": "4549b69f8116da60b53b2e89b44fd1fe4e9f1b4bb6f8302a2365e6f60b1cc659"
+    },
+    {
+      "path": "tools/check_perp_market_version_prefix_assurance_manifest.py",
+      "sha256": "5ba9242a656c13798c5a12a5bdbb33d4c5d068e66030c1f452526ec4d519319d"
+    },
+    {
+      "path": "tools/run_perps_evidence.sh",
+      "sha256": "bffb15124660bbf320a17361c3a6e389083b1301c5db9e91f34388d3beccd858"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/perp_market_version_prefix_guard_v1/validate.json",
+    "model_path": "src/kernels/dex/perp_market_version_prefix_guard_v1.yaml",
+    "ir_hash": "sha256:c8e4924ab8c14e00ca170421d18d85b8e53c3292353fc335fb3736adcb64608a"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/perp_market_version_prefix_guard_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.perp_market_version_prefix_guard_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:c8e4924ab8c14e00ca170421d18d85b8e53c3292353fc335fb3736adcb64608a",
+    "actions": [
+      "check_market_version_prefix_guard"
+    ],
+    "effects": [
+      "admission_ok",
+      "clearinghouse_2p_version",
+      "clearinghouse_3p_version",
+      "isolated_version",
+      "market_prefix_ok",
+      "reject_code",
+      "version_ok"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/perp_market_version_prefix_guard_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/perp_market_version_prefix_guard_v1.yaml",
+    "adapter_spec": "src.kernels.python.perp_market_version_prefix_guard_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:c8e4924ab8c14e00ca170421d18d85b8e53c3292353fc335fb3736adcb64608a",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:990309e437dbb1f224f761ee82752272c86ed1a0c899e0bda3a107623c163e32"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/perp_market_version_prefix_guard_v1/verification_report.json",
+    "model_id": "perp_market_version_prefix_guard_v1",
+    "ir_hash_short": "c8e4924ab8c14e00",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_perp_market_version_prefix_guard.py",
+    "tests/kernels/test_perp_market_version_prefix_guard_v1_native_adapter.py",
+    "tests/integration/test_perp_engine_parse_guards.py"
+  ]
+}

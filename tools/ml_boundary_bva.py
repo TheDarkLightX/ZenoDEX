@@ -292,6 +292,22 @@ def _state_type_map(ir: Any) -> dict[str, Any]:
     return out
 
 
+def _state_boundary_values_for_var(t: Any) -> list[int | bool | str]:
+    kind = str(getattr(t, "kind", ""))
+    if kind == "bool":
+        return [True, False]
+    if kind == "enum":
+        syms = list(getattr(t, "symbols", None) or ())
+        return [str(s) for s in syms]
+    if kind == "int":
+        lo = int(getattr(t, "min", 0))
+        hi = int(getattr(t, "max", 0))
+        # State seeds must remain in-domain; outside points are filtered later via
+        # interpreter errors, but in-domain seeding avoids needless rejects.
+        return [int(x) for x in int_boundary_points(low=lo, high=hi)]
+    return []
+
+
 def _state_boundary_hits(state: Mapping[str, object], state_types: Mapping[str, Any]) -> int:
     hits = 0
     for k, t in state_types.items():
@@ -363,6 +379,108 @@ def _state_pool_replace(
     pool_scores[idx] = int(new_score)
 
 
+def _seed_state_pool_via_boundary_mutations(
+    *,
+    ir: Any,
+    ctx: Any,
+    initial: Mapping[str, object],
+    state_types: Mapping[str, Any],
+    validator_action_id: str,
+    validator_candidate: Candidate,
+    max_states: int,
+    seed_steps: int,
+    seed_width: int,
+    seed: int,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
+    """
+    Seed a state pool by mutating *state variables* to boundary values.
+
+    This is primarily useful for "calculator" kernels whose actions do not
+    transition state (updates=[]), so reachability-based MCMC cannot explore
+    alternative pre-states.
+
+    We validate candidate states by attempting a single interpreter step with a
+    known-good (baseline) command; any state that triggers a state-shape/type
+    error is rejected.
+    """
+    rng = random.Random(int(seed))
+    s0 = {str(k): initial[k] for k in sorted(initial.keys(), key=str)}
+    pool: list[dict[str, object]] = [dict(s0)]
+    pool_scores: list[int] = [_state_boundary_hits(s0, state_types)]
+    seen: set[str] = {_state_sig(s0)}
+
+    # Candidate variables to mutate.
+    var_ids: list[str] = []
+    values_by_var: dict[str, list[int | bool | str]] = {}
+    for vid in sorted(state_types.keys(), key=str):
+        t = state_types[vid]
+        vals = _state_boundary_values_for_var(t)
+        if not vals:
+            continue
+        var_ids.append(str(vid))
+        values_by_var[str(vid)] = vals
+
+    accepted = 0
+    rejected = 0
+    if not var_ids or int(seed_steps) <= 0:
+        return pool, {
+            "enabled": True,
+            "seed_steps": int(seed_steps),
+            "seed_width": int(seed_width),
+            "candidate_var_count": int(len(var_ids)),
+            "accepted": int(accepted),
+            "rejected": int(rejected),
+        }
+
+    width = max(1, min(int(seed_width), len(var_ids)))
+    for _t in range(int(seed_steps)):
+        if len(pool) >= int(max_states):
+            break
+        picked = rng.sample(var_ids, k=width) if width < len(var_ids) else list(var_ids)
+        st = dict(s0)
+        for vid in picked:
+            vals = values_by_var.get(str(vid), [])
+            if not vals:
+                continue
+            st[str(vid)] = vals[int(rng.randrange(len(vals)))]
+
+        rec = _evaluate_candidate(ir=ir, ctx=ctx, state=st, candidate=validator_candidate, state_types=state_types)
+        if rec.expected.get("ok", False):
+            ok = True
+        else:
+            code = str(rec.expected.get("code", ""))
+            ok = code not in {"InvalidState", "StateType", "StateShape"}
+        if not ok:
+            rejected += 1
+            continue
+
+        sig = _state_sig(st)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        accepted += 1
+
+        score = _state_boundary_hits(st, state_types)
+        if len(pool) < int(max_states):
+            pool.append(dict(st))
+            pool_scores.append(int(score))
+        else:
+            _state_pool_replace(pool=pool, pool_scores=pool_scores, new_state=st, new_score=score, seed_rng=rng)
+
+    summary = {
+        "enabled": True,
+        "seed_steps": int(seed_steps),
+        "seed_width": int(seed_width),
+        "candidate_var_count": int(len(var_ids)),
+        "accepted": int(accepted),
+        "rejected": int(rejected),
+        "state_pool_size": int(len(pool)),
+        "unique_states_seen": int(len(seen)),
+        "validator_action_id": str(validator_action_id),
+    }
+    return pool, summary
+
+
 def _build_global_state_pool_mcmc(
     *,
     ir: Any,
@@ -371,6 +489,9 @@ def _build_global_state_pool_mcmc(
     state_types: Mapping[str, Any],
     candidates_by_action: Mapping[str, list[Candidate]],
     max_states: int,
+    seed_state_boundaries: bool,
+    state_seed_steps: int,
+    state_seed_width: int,
     walk_steps: int,
     reset_prob: float,
     baseline_prob: float,
@@ -388,15 +509,39 @@ def _build_global_state_pool_mcmc(
     rng = random.Random(int(seed))
 
     s0 = {str(k): initial_state[k] for k in sorted(initial_state.keys(), key=str)}
-    pool: list[dict[str, object]] = [s0]
-    pool_scores: list[int] = [_state_boundary_hits(s0, state_types)]
-    seen: set[str] = {_state_sig(s0)}
+
+    # Pick a deterministic validator action + baseline candidate for state seeding.
+    action_ids_sorted = sorted([str(a.id) for a in list(ir.actions)])
+    if not action_ids_sorted:
+        raise ValueError("kernel has no actions; cannot build state pool")
+    validator_action_id = action_ids_sorted[0]
+    validator_candidate = _best_baseline_candidate(list(candidates_by_action.get(validator_action_id, [])))
+
+    if bool(seed_state_boundaries):
+        pool, seed_summary = _seed_state_pool_via_boundary_mutations(
+            ir=ir,
+            ctx=ctx,
+            initial=s0,
+            state_types=state_types,
+            validator_action_id=str(validator_action_id),
+            validator_candidate=validator_candidate,
+            max_states=int(max_states),
+            seed_steps=int(state_seed_steps),
+            seed_width=int(state_seed_width),
+            seed=int(seed),
+        )
+        pool_scores = [_state_boundary_hits(st, state_types) for st in pool]
+        seen = {_state_sig(st) for st in pool}
+    else:
+        pool = [s0]
+        pool_scores = [_state_boundary_hits(s0, state_types)]
+        seen = {_state_sig(s0)}
+        seed_summary = {"enabled": False}
 
     # Walk over the state graph; current state is part of the Markov chain.
     cur = dict(s0)
 
-    action_ids = [str(a.id) for a in list(ir.actions)]
-    action_ids.sort()
+    action_ids = list(action_ids_sorted)
     action_pulls: dict[str, int] = {aid: 0 for aid in action_ids}
     action_accepts: dict[str, int] = {aid: 0 for aid in action_ids}
 
@@ -448,6 +593,7 @@ def _build_global_state_pool_mcmc(
 
     summary = {
         "max_states": int(max_states),
+        "seed_state_boundaries": dict(seed_summary),
         "walk_steps": int(walk_steps),
         "reset_prob": float(reset_prob),
         "baseline_prob": float(baseline_prob),
@@ -634,6 +780,150 @@ def _evalrecord_with_reward_and_tags(
     )
 
 
+def _derive_witness_fixed_param_sets(
+    *,
+    state: Mapping[str, object],
+    base_params: Mapping[str, object],
+    param_types: Mapping[str, Any],
+) -> list[dict[str, object]]:
+    """
+    Generate a small set of state-conditioned parameter assignments.
+
+    Motivation:
+    Some kernels are "proof-carrying" and require cross-field consistency,
+    e.g. `witness_reserve_in == reserve_in` and `witness_reserve_out == reserve_out`.
+    Plain boundary enumeration (varying one param at a time) can fail to ever
+    reach an OK transition. This helper proposes a bounded set of candidates
+    that are consistent with the current pre-state.
+    """
+    witness_values: dict[str, int] = {}
+    for pid in sorted(param_types.keys(), key=str):
+        if not str(pid).startswith("witness_"):
+            continue
+        sid = str(pid)[len("witness_") :]
+        v = state.get(sid)
+        if isinstance(v, int) and not isinstance(v, bool):
+            witness_values[str(pid)] = int(v)
+
+    if not witness_values:
+        return []
+
+    fixed: dict[str, object] = {str(k): base_params[k] for k in sorted(base_params.keys(), key=str)}
+    for k, v in witness_values.items():
+        fixed[str(k)] = int(v)
+
+    proposals: list[dict[str, object]] = [dict(fixed)]
+
+    def add_variant(**overrides: object) -> None:
+        p = dict(fixed)
+        for k, v in overrides.items():
+            p[str(k)] = v
+        proposals.append(p)
+
+    def add_int_param_points(pid: str, *, extra: list[int] | None = None) -> None:
+        t = param_types.get(pid)
+        if t is None or str(getattr(t, "kind", "")) != "int":
+            return
+        lo = int(getattr(t, "min", 0))
+        hi = int(getattr(t, "max", 0))
+        mid = (lo + hi) // 2
+        vals = [lo, lo + 1, lo + 2, mid, hi, hi - 1]
+        if extra:
+            vals.extend(list(extra))
+        seen: set[int] = set()
+        for v in vals:
+            if int(v) < int(lo) or int(v) > int(hi):
+                continue
+            if int(v) in seen:
+                continue
+            seen.add(int(v))
+            add_variant(**{pid: int(v)})
+
+    # Common "swap-like" params.
+    add_int_param_points("amount_in")
+    add_int_param_points("min_amount_out")
+    add_int_param_points("max_amount_in")
+
+    reserve_out = state.get("reserve_out")
+    extra_out: list[int] = []
+    if isinstance(reserve_out, int) and not isinstance(reserve_out, bool):
+        extra_out = [int(reserve_out) - 1, int(reserve_out), int(reserve_out) + 1]
+    add_int_param_points("amount_out", extra=extra_out)
+
+    # Combined "likely-to-succeed" proposals: some proof-carrying kernels require
+    # multiple params to move together (e.g. `amount_in` and `min_amount_out`),
+    # otherwise we can get stuck exploring only GuardFalse / ParamType.
+    if "amount_in" in param_types and "min_amount_out" in param_types:
+        t_in = param_types.get("amount_in")
+        t_min = param_types.get("min_amount_out")
+        if (
+            t_in is not None
+            and t_min is not None
+            and str(getattr(t_in, "kind", "")) == "int"
+            and str(getattr(t_min, "kind", "")) == "int"
+        ):
+            lo_in = int(getattr(t_in, "min", 0))
+            hi_in = int(getattr(t_in, "max", 0))
+            lo_min = int(getattr(t_min, "min", 0))
+            mid_in = (lo_in + hi_in) // 2
+            in_points = [lo_in, lo_in + 1, lo_in + 2, mid_in]
+            seen: set[int] = set()
+            for v in in_points:
+                vv = int(v)
+                if vv < int(lo_in) or vv > int(hi_in):
+                    continue
+                if vv in seen:
+                    continue
+                seen.add(vv)
+                add_variant(amount_in=int(vv), min_amount_out=int(lo_min))
+
+    # A combined "likely-to-succeed" proposal for exact-out kernels: make the
+    # max bound permissive and choose a near-drain boundary.
+    if "amount_out" in param_types and "max_amount_in" in param_types:
+        t_out = param_types.get("amount_out")
+        t_max = param_types.get("max_amount_in")
+        if (
+            t_out is not None
+            and t_max is not None
+            and str(getattr(t_out, "kind", "")) == "int"
+            and str(getattr(t_max, "kind", "")) == "int"
+        ):
+            lo_out = int(getattr(t_out, "min", 0))
+            hi_out = int(getattr(t_out, "max", 0))
+            hi_max = int(getattr(t_max, "max", 0))
+            mid_out = (lo_out + hi_out) // 2
+
+            # Combined variants at low/mid output with permissive max bound,
+            # to increase chance of an OK transition in bounded trader states.
+            out_points = [lo_out, lo_out + 1, lo_out + 2, mid_out]
+            seen2: set[int] = set()
+            for v in out_points:
+                vv = int(v)
+                if vv < int(lo_out) or vv > int(hi_out):
+                    continue
+                if vv in seen2:
+                    continue
+                seen2.add(vv)
+                add_variant(amount_out=int(vv), max_amount_in=int(hi_max))
+
+            target_out = lo_out
+            if isinstance(reserve_out, int) and not isinstance(reserve_out, bool):
+                target_out = int(reserve_out) - 1
+            target_out = max(int(lo_out), min(int(hi_out), int(target_out)))
+            add_variant(amount_out=int(target_out), max_amount_in=int(hi_max))
+
+    # Deduplicate deterministically.
+    out: list[dict[str, object]] = []
+    seen_sig: set[str] = set()
+    for p in proposals:
+        sig = _json_dumps({str(k): p[k] for k in sorted(p.keys(), key=str)})
+        if sig in seen_sig:
+            continue
+        seen_sig.add(sig)
+        out.append(p)
+    return out
+
+
 def _refine_pair_bisection(
     *,
     ir: Any,
@@ -756,6 +1046,9 @@ def _ucb_generate_for_action(
     pre_state_by_sig: dict[str, dict[str, object]] = {}
     rng = random.Random(int(seed))
 
+    named_types = ir.named_types()
+    param_types = _action_param_type_map(action=action, named_types=named_types)
+
     if not state_pool_seed:
         raise ValueError("state_pool_seed must be non-empty")
     seed_pool = [{str(k): st[k] for k in sorted(st.keys(), key=str)} for st in state_pool_seed]
@@ -779,6 +1072,9 @@ def _ucb_generate_for_action(
         if rec0.next_state is not None:
             viable_states.append(st)
 
+    saw_ok = False
+    derived_evals = 0
+    derived_budget = 64
     iters = max(int(iterations_per_action), int(cases_per_action) * 4, len(candidates) * 2)
     for i in range(iters):
         idx = -1
@@ -815,6 +1111,8 @@ def _ucb_generate_for_action(
             st = state_pool[int(rng.randrange(len(state_pool)))]
         rec = _evaluate_candidate(ir=ir, ctx=ctx, state=st, candidate=cand, state_types=state_types)
         pre_state_by_sig.setdefault(_state_sig(rec.pre_state), dict(rec.pre_state))
+        if rec.next_state is not None:
+            saw_ok = True
 
         nov_key = (
             _json_dumps({"a": rec.action, "p": rec.params}),
@@ -844,6 +1142,51 @@ def _ucb_generate_for_action(
             pair_density_bonus = 0.6 / (1.0 + float(nearest))
         seen_outcomes_by_state.setdefault(pre_sig, []).append((dict(rec.params), str(rec.outcome_key)))
 
+        # If we haven't seen any OK transitions yet, try a small number of
+        # state-conditioned "witness-fixed" proposals to break out of
+        # cross-field constraint dead-ends (e.g. witness freshness).
+        if not saw_ok and derived_evals < int(derived_budget):
+            derived = _derive_witness_fixed_param_sets(
+                state=rec.pre_state,
+                base_params=rec.params,
+                param_types=param_types,
+            )
+            for p in derived:
+                if derived_evals >= int(derived_budget):
+                    break
+                if _json_dumps(p) == _json_dumps(rec.params):
+                    continue
+                derived_evals += 1
+                cand2 = _candidate_from_params(
+                    action_id=str(action.id),
+                    params=p,
+                    param_types=param_types,
+                    extra_tags=("derived:witness_fixed",),
+                    boundary_score_boost=0.25,
+                )
+                rec2 = _evaluate_candidate(ir=ir, ctx=ctx, state=st, candidate=cand2, state_types=state_types)
+                pre_state_by_sig.setdefault(_state_sig(rec2.pre_state), dict(rec2.pre_state))
+                if rec2.next_state is not None:
+                    saw_ok = True
+
+                nov2 = (
+                    _json_dumps({"a": rec2.action, "p": rec2.params}),
+                    str(rec2.outcome_key),
+                    _state_sig(rec2.pre_state),
+                )
+                if nov2 not in novelty_seen:
+                    novelty_seen.add(nov2)
+                    gathered.append(rec2)
+
+                pre_sig2 = _state_sig(rec2.pre_state)
+                seen_outcomes_by_state.setdefault(pre_sig2, []).append((dict(rec2.params), str(rec2.outcome_key)))
+
+                if rec2.next_state is not None and len(state_pool) < int(max_states):
+                    sig2 = _state_sig(rec2.next_state)
+                    if sig2 not in state_seen:
+                        state_seen.add(sig2)
+                        state_pool.append(dict(rec2.next_state))
+
         observed = float(rec.reward) + float(novelty_bonus) + float(pair_density_bonus)
         total += 1
         pulls[idx] += 1
@@ -854,9 +1197,6 @@ def _ucb_generate_for_action(
             if sig not in state_seen:
                 state_seen.add(sig)
                 state_pool.append(dict(rec.next_state))
-
-    named_types = ir.named_types()
-    param_types = _action_param_type_map(action=action, named_types=named_types)
 
     if int(refine_pairs_per_action) > 0 and int(refine_max_steps) > 0:
         # Build a small set of (close) outcome-crossing pairs per pre-state, then bisect.
@@ -933,6 +1273,9 @@ def generate_ml_bva_suite(
     global_reset_prob: float,
     global_baseline_prob: float,
     global_top_k_candidates: int,
+    seed_state_boundaries: bool = False,
+    state_seed_steps: int = 500,
+    state_seed_width: int = 2,
     refine_pairs_per_action: int,
     refine_max_steps: int,
     alpha: float,
@@ -954,6 +1297,10 @@ def generate_ml_bva_suite(
         raise ValueError("global_baseline_prob must be in [0,1]")
     if int(global_top_k_candidates) <= 0:
         raise ValueError("global_top_k_candidates must be > 0")
+    if int(state_seed_steps) < 0:
+        raise ValueError("state_seed_steps must be >= 0")
+    if int(state_seed_width) <= 0:
+        raise ValueError("state_seed_width must be > 0")
     if int(refine_pairs_per_action) < 0:
         raise ValueError("refine_pairs_per_action must be >= 0")
     if int(refine_max_steps) < 0:
@@ -1003,6 +1350,9 @@ def generate_ml_bva_suite(
         state_types=state_types,
         candidates_by_action=candidates_by_action,
         max_states=int(max_states),
+        seed_state_boundaries=bool(seed_state_boundaries),
+        state_seed_steps=int(state_seed_steps),
+        state_seed_width=int(state_seed_width),
         walk_steps=int(global_walk_steps),
         reset_prob=float(global_reset_prob),
         baseline_prob=float(global_baseline_prob),
@@ -1094,6 +1444,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap.add_argument("--global-reset-prob", type=float, default=0.15)
     ap.add_argument("--global-baseline-prob", type=float, default=0.25)
     ap.add_argument("--global-top-k-candidates", type=int, default=40)
+    ap.add_argument(
+        "--seed-state-boundaries",
+        action="store_true",
+        help="Seed the global pre-state pool by mutating state vars to boundary values (useful for calculator kernels).",
+    )
+    ap.add_argument("--state-seed-steps", type=int, default=500)
+    ap.add_argument("--state-seed-width", type=int, default=2, help="How many state vars to mutate per seed proposal.")
     ap.add_argument("--refine-pairs-per-action", type=int, default=12)
     ap.add_argument("--refine-max-steps", type=int, default=6)
     ap.add_argument("--alpha", type=float, default=1.25, help="UCB exploration coefficient.")
@@ -1114,6 +1471,9 @@ def main(argv: list[str] | None = None) -> int:
         global_reset_prob=float(args.global_reset_prob),
         global_baseline_prob=float(args.global_baseline_prob),
         global_top_k_candidates=int(args.global_top_k_candidates),
+        seed_state_boundaries=bool(args.seed_state_boundaries),
+        state_seed_steps=int(args.state_seed_steps),
+        state_seed_width=int(args.state_seed_width),
         refine_pairs_per_action=int(args.refine_pairs_per_action),
         refine_max_steps=int(args.refine_max_steps),
         alpha=float(args.alpha),

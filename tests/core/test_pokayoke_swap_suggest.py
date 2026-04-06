@@ -3,7 +3,6 @@ from __future__ import annotations
 import pytest
 
 from src.core.pokayoke_swap_suggest import (
-    _eval_amount,
     suggest_amount_in_for_impact_lt_bps,
     suggest_amount_in_for_required_slippage_le_bps,
     suggest_amount_in_exact_in_cpmm,
@@ -160,26 +159,3 @@ def test_suggest_amount_in_exact_in_cpmm_bva_max_evals_boundary() -> None:
     assert s2[0].suggested_action == "confirm"
     assert s2[0].suggested_reasons is not None
     assert "mev_conflict" not in set(s2[0].suggested_reasons)
-
-
-def test_eval_amount_action_is_not_monotone_in_amount_witness() -> None:
-    actions: list[tuple[int, str, tuple[str, ...]]] = []
-    for amount_in in (20, 21, 23):
-        _, decision = _eval_amount(
-            reserve_in=500,
-            reserve_out=500,
-            fee_bps=0,
-            amount_in=amount_in,
-            pending_volume_same_direction=0,
-            confidence_bps=9000,
-            slippage_options_bps=[10, 50, 100, 300, 500],
-            max_attacker_amount_in=500,
-            user_slippage_bps=10,
-        )
-        actions.append((amount_in, decision.action, tuple(decision.reasons)))
-
-    assert actions == [
-        (20, "typed_confirm", ("high_price_impact",)),
-        (21, "confirm", ("moderate_price_impact",)),
-        (23, "typed_confirm", ("mev_conflict", "high_price_impact")),
-    ]

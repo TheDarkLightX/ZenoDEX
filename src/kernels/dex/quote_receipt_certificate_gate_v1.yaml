@@ -1,0 +1,136 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "quote_receipt_certificate_gate_v1"
+  notes: |
+    Bounded local consistency law for canonical-route certificate fields after
+    the external certificate payload verifier has accepted the certificate.
+
+observables:
+  state_vars:
+    - "cert_present"
+    - "cert_dict_ok"
+    - "winner_quote_dict_ok"
+    - "asset_in_match"
+    - "asset_out_match"
+    - "amount_in_match"
+    - "amount_out_match"
+    - "legs_match"
+  effects:
+    - "certificate_ok"
+    - "reject_tag"
+
+state_vars:
+  - id: "cert_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "cert_dict_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "winner_quote_dict_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "asset_in_match"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "asset_out_match"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "amount_in_match"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "amount_out_match"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "legs_match"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "cert_present"
+    expr: { bool: false }
+  - var: "cert_dict_ok"
+    expr: { bool: false }
+  - var: "winner_quote_dict_ok"
+    expr: { bool: false }
+  - var: "asset_in_match"
+    expr: { bool: false }
+  - var: "asset_out_match"
+    expr: { bool: false }
+  - var: "amount_in_match"
+    expr: { bool: false }
+  - var: "amount_out_match"
+    expr: { bool: false }
+  - var: "legs_match"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_route_quote_receipt_certificate_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      certificate_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ var: "cert_present" }]
+          - op: "and"
+            args:
+              - { var: "cert_dict_ok" }
+              - { var: "winner_quote_dict_ok" }
+              - { var: "asset_in_match" }
+              - { var: "asset_out_match" }
+              - { var: "amount_in_match" }
+              - { var: "amount_out_match" }
+              - { var: "legs_match" }
+      reject_tag:
+        op: "ite"
+        cond:
+          op: "not"
+          args: [{ var: "cert_present" }]
+        then: { const: 0 }
+        else:
+          op: "ite"
+          cond:
+            op: "not"
+            args: [{ var: "cert_dict_ok" }]
+          then: { const: 1 }
+          else:
+            op: "ite"
+            cond:
+              op: "not"
+              args: [{ var: "winner_quote_dict_ok" }]
+            then: { const: 2 }
+            else:
+              op: "ite"
+              cond:
+                op: "not"
+                args: [{ var: "asset_in_match" }]
+              then: { const: 3 }
+              else:
+                op: "ite"
+                cond:
+                  op: "not"
+                  args: [{ var: "asset_out_match" }]
+                then: { const: 4 }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "not"
+                    args: [{ var: "amount_in_match" }]
+                  then: { const: 5 }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "not"
+                      args: [{ var: "amount_out_match" }]
+                    then: { const: 6 }
+                    else:
+                      op: "ite"
+                      cond:
+                        op: "not"
+                        args: [{ var: "legs_match" }]
+                      then: { const: 7 }
+                      else: { const: 0 }
+
+invariants: []

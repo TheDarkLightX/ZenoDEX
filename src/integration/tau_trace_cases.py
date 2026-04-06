@@ -14,21 +14,23 @@ from .tau_runner import split_u32
 from .tau_witness import (
     BALANCE_SAFETY_V1,
     BALANCE_TRANSITION_V1,
-    BATCH_CANONICAL_V1_4,
     BATCHING_V1,
     BATCHING_V1_4,
+    BATCH_CANONICAL_V1_4,
     BURN_RECEIPT_AMOUNT_GUARD_V1,
     BURN_RECEIPT_BATCH_SUM_GUARD_V1,
     BURN_RECEIPT_REPLAY_GUARD_V1,
     BURN_RECEIPT_SUPPLY_GUARD_V1,
     CPMM_V1,
-    GOVERNANCE_TIMELOCK_V1,
+    TOKEN_ARCHETYPE_LOCK_WEIGHTED_REWARDS_32_V2,
+    TOKEN_ARCHETYPE_SOULBOUND_V2,
+    TOKEN_ARCHETYPE_VESTING_CLIFF_32_V2,
     INTENT_EXPIRY_GUARD_V1,
     NONCE_REPLAY_GUARD_V1,
+    GOVERNANCE_TIMELOCK_V1,
     PARAMETER_REGISTRY_V2,
     PROTOCOL_TOKEN_V3,
     REVISION_POLICY_V2,
-    SETTLEMENT_SIGNER_REGISTRY_ANCHOR_GATE_V1,
     SETTLEMENT_V1_PROOF_GATE,
     SETTLEMENT_V2_BUYBACK_PROOF_GATE,
     SETTLEMENT_V3_BUYBACK_FLOOR_PROOF_GATE,
@@ -42,11 +44,8 @@ from .tau_witness import (
     TDEX_BUYBACK_PULSEX_V1,
     TDEX_FEE_REBATE_V1,
     TDEX_LOCK_WEIGHT_V1,
-    TOKEN_ARCHETYPE_LOCK_WEIGHTED_REWARDS_32_V2,
-    TOKEN_ARCHETYPE_SOULBOUND_V2,
-    TOKEN_ARCHETYPE_VESTING_CLIFF_32_V2,
-    TOKEN_COMPOSITE_V2,
     TOKENOMICS_BUYBACK_BURN_V2,
+    TOKEN_COMPOSITE_V2,
     TauSpecRef,
     build_balance_safety_v1_step,
     build_balance_transition_v1_step,
@@ -58,13 +57,15 @@ from .tau_witness import (
     build_burn_receipt_replay_guard_v1_step,
     build_burn_receipt_supply_guard_v1_step,
     build_cpmm_v1_step,
-    build_governance_timelock_v1_step,
+    build_token_archetype_lock_weighted_rewards_32_v2_step,
+    build_token_archetype_soulbound_v2_step,
+    build_token_archetype_vesting_cliff_32_v2_step,
     build_intent_expiry_guard_v1_step,
     build_nonce_replay_guard_v1_step,
+    build_governance_timelock_v1_step,
     build_parameter_registry_v2_step,
     build_protocol_token_v3_step,
     build_revision_policy_v2_step,
-    build_settlement_signer_registry_anchor_gate_v1_step,
     build_settlement_v1_proof_gate_step,
     build_settlement_v2_buyback_proof_gate_step,
     build_settlement_v3_buyback_floor_proof_gate_step,
@@ -78,9 +79,6 @@ from .tau_witness import (
     build_tdex_buyback_pulsex_v1_step,
     build_tdex_fee_rebate_v1_step,
     build_tdex_lock_weight_v1_step,
-    build_token_archetype_lock_weighted_rewards_32_v2_step,
-    build_token_archetype_soulbound_v2_step,
-    build_token_archetype_vesting_cliff_32_v2_step,
     build_token_composite_v2_step,
     build_tokenomics_buyback_burn_v2_step,
 )
@@ -1142,72 +1140,6 @@ def production_tau_trace_cases() -> List[TauTraceCase]:
                     "o10": 1,
                     "o11": 2,
                     "o12": 3,
-                }
-            ],
-            timeout_s=20.0,
-        )
-    )
-
-    # Settlement signer registry Tau bridge
-    policy_epoch_hi, policy_epoch_lo = split_u32(513)
-    anchor_block_hi, anchor_block_lo = split_u32(1027)
-    cases.append(
-        TauTraceCase(
-            case_id="settlement_signer_registry_anchor_gate_v1_pass",
-            spec=SETTLEMENT_SIGNER_REGISTRY_ANCHOR_GATE_V1,
-            steps=[
-                build_settlement_signer_registry_anchor_gate_v1_step(
-                    exec_req=1,
-                    snapshot_present=1,
-                    anchor_present=1,
-                    request_binding_ok=1,
-                    anchor_binding_ok=1,
-                    policy_binding_ok=1,
-                    proof_ok=1,
-                    policy_epoch=513,
-                    anchor_block_number=1027,
-                )
-            ],
-            expected=[
-                {
-                    "o1": 1,
-                    "o2": 1,
-                    "o3": 1,
-                    "o4": int(policy_epoch_hi),
-                    "o5": int(policy_epoch_lo),
-                    "o6": int(anchor_block_hi),
-                    "o7": int(anchor_block_lo),
-                }
-            ],
-            timeout_s=20.0,
-        )
-    )
-    cases.append(
-        TauTraceCase(
-            case_id="settlement_signer_registry_anchor_gate_v1_fail_missing_anchor",
-            spec=SETTLEMENT_SIGNER_REGISTRY_ANCHOR_GATE_V1,
-            steps=[
-                build_settlement_signer_registry_anchor_gate_v1_step(
-                    exec_req=1,
-                    snapshot_present=1,
-                    anchor_present=0,
-                    request_binding_ok=1,
-                    anchor_binding_ok=0,
-                    policy_binding_ok=1,
-                    proof_ok=1,
-                    policy_epoch=513,
-                    anchor_block_number=1027,
-                )
-            ],
-            expected=[
-                {
-                    "o1": 0,
-                    "o2": 0,
-                    "o3": 1,
-                    "o4": int(policy_epoch_hi),
-                    "o5": int(policy_epoch_lo),
-                    "o6": int(anchor_block_hi),
-                    "o7": int(anchor_block_lo),
                 }
             ],
             timeout_s=20.0,

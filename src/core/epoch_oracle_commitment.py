@@ -37,9 +37,16 @@ class OracleRegistry:
         self._latest_epoch = -1
 
     def commit(self, commitment: EpochOracleCommitment) -> None:
-        """Commit a new epoch price."""
+        """Commit a new epoch price.
+
+        Enforces:
+        - one commitment per epoch
+        - strictly increasing epoch sequence
+        """
         if commitment.epoch in self._commitments:
-            raise ValueError(f"Epoch {commitment.epoch} already has a commitment")
+            raise ValueError(
+                f"Epoch {commitment.epoch} already has a commitment"
+            )
         if commitment.epoch <= self._latest_epoch:
             raise ValueError(
                 f"Epoch {commitment.epoch} is not strictly after latest epoch {self._latest_epoch}"
@@ -53,10 +60,10 @@ class OracleRegistry:
 
     def get_price_e8(self, epoch: int) -> int:
         """Get committed price for an epoch or raise KeyError."""
-        commitment = self._commitments.get(epoch)
-        if commitment is None:
+        c = self._commitments.get(epoch)
+        if c is None:
             raise KeyError(f"No oracle commitment for epoch {epoch}")
-        return commitment.price_e8
+        return c.price_e8
 
     @property
     def latest_epoch(self) -> int:
@@ -102,7 +109,10 @@ def estimate_cross_module_arbitrage_bps(
     price_b_e8: int,
     trade_size_quote: int,
 ) -> int:
-    """Estimate price skew in basis points across two modules."""
+    """Rough arbitrage edge from price skew in bps.
+
+    Returns zero when prices match or trade size is non-positive.
+    """
     if price_a_e8 <= 0 or price_b_e8 <= 0:
         raise ValueError(f"Prices must be positive: ({price_a_e8}, {price_b_e8})")
     if trade_size_quote <= 0:
@@ -113,3 +123,4 @@ def estimate_cross_module_arbitrage_bps(
     if low == high:
         return 0
     return (high - low) * 10_000 // low
+

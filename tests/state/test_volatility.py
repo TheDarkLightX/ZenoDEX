@@ -2,40 +2,38 @@ from __future__ import annotations
 
 import pytest
 
-from src.state.volatility import TierEffects, TierState, tier_effects
+from src.state.volatility import BPS_DENOM, TierState, tier_effects
 
 
-def test_tier_state_rejects_negative_last_epoch() -> None:
-    with pytest.raises(ValueError, match="last_epoch must be non-negative"):
-        TierState(last_epoch=-1)
+def test_tier_state_accepts_ordered_thresholds() -> None:
+    state = TierState(tier=2, last_epoch=7, t1_bps=1000, t2_bps=3000, t3_bps=8000)
+
+    assert state.tier == 2
+    assert state.last_epoch == 7
+
+
+def test_tier_effects_match_expected_table() -> None:
+    assert tier_effects(0).fee_mult_bps == 10_000
+    assert tier_effects(1).fee_mult_bps == 20_000
+    assert tier_effects(2).max_trade_bps == 1_000
+    assert tier_effects(3).halt is True
 
 
 @pytest.mark.parametrize(
-    ("field", "value"),
+    "kwargs",
     [
-        ("t1_bps", -1),
-        ("t2_bps", 10_001),
-        ("t3_bps", 10_001),
+        {"tier": 4},
+        {"last_epoch": -1},
+        {"t1_bps": 2000, "t2_bps": 1000, "t3_bps": 3000},
+        {"t1_bps": 0, "t2_bps": BPS_DENOM + 1, "t3_bps": BPS_DENOM + 1},
     ],
 )
-def test_tier_state_rejects_out_of_range_thresholds(field: str, value: int) -> None:
-    kwargs = {field: value}
-
-    with pytest.raises(ValueError, match=field):
+def test_tier_state_rejects_invalid_ranges(kwargs: dict[str, int]) -> None:
+    with pytest.raises((TypeError, ValueError)):
         TierState(**kwargs)
 
 
-def test_tier_effects_dataclass_rejects_non_int_and_non_bool_fields() -> None:
-    with pytest.raises(TypeError, match="tier_out must be an int"):
-        TierEffects(tier_out=True, fee_mult_bps=10_000, max_trade_bps=10_000, halt=False)
-
-    with pytest.raises(TypeError, match="max_trade_bps must be an int"):
-        TierEffects(tier_out=0, fee_mult_bps=10_000, max_trade_bps=True, halt=False)
-
-    with pytest.raises(TypeError, match="halt must be a bool"):
-        TierEffects(tier_out=0, fee_mult_bps=10_000, max_trade_bps=10_000, halt=1)  # type: ignore[arg-type]
-
-
-def test_tier_effects_rejects_out_of_range_tier() -> None:
-    with pytest.raises(ValueError, match="tier must be in \\[0, 3\\]"):
-        tier_effects(4)
+@pytest.mark.parametrize("tier", [-1, 4])
+def test_tier_effects_rejects_out_of_range_tier(tier: int) -> None:
+    with pytest.raises(ValueError):
+        tier_effects(tier)

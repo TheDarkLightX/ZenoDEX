@@ -1,0 +1,72 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "intent_nonce_sender_resolution_gate_v1"
+  notes: |
+    Bounded first-failure law for per-sender nonce sequence outcome resolution.
+
+observables:
+  state_vars:
+    - "strict_increasing"
+    - "contiguous_from_last"
+    - "last_used_nonce"
+    - "next_last_nonce"
+  effects:
+    - "sender_ok"
+    - "resolved_last_nonce"
+    - "reject_tag"
+
+state_vars:
+  - id: "strict_increasing"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "contiguous_from_last"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "last_used_nonce"
+    role: "control"
+    type: { kind: "int", min: 0, max: 4294967295 }
+  - id: "next_last_nonce"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4294967295 }
+
+init:
+  - var: "strict_increasing"
+    expr: { bool: false }
+  - var: "contiguous_from_last"
+    expr: { bool: false }
+  - var: "last_used_nonce"
+    expr: { const: 0 }
+  - var: "next_last_nonce"
+    expr: { const: 0 }
+
+actions:
+  - id: "evaluate_sender_resolution"
+    params: []
+    guard: { op: ">=", args: [{ var: "next_last_nonce" }, { var: "last_used_nonce" }] }
+    updates: []
+    effects:
+      sender_ok:
+        op: "and"
+        args:
+          - { var: "strict_increasing" }
+          - { var: "contiguous_from_last" }
+      resolved_last_nonce:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { var: "strict_increasing" }
+            - { var: "contiguous_from_last" }
+        then: { var: "next_last_nonce" }
+        else: { var: "last_used_nonce" }
+      reject_tag:
+        op: "ite"
+        cond: { op: "not", args: [{ var: "strict_increasing" }] }
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond: { op: "not", args: [{ var: "contiguous_from_last" }] }
+          then: { const: 2 }
+          else: { const: 0 }
+
+invariants: []

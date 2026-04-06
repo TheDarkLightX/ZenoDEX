@@ -1,0 +1,249 @@
+# [FORGE] zUSD Redeem Fee Collateral v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_redeem_fee_collateral_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: single-vault redemption arithmetic and apply witness.
+
+    Purpose:
+      - Bind the claimed redemption fee, gross collateral, protocol collateral move,
+        and post-state debt/collateral updates for a single redeemed vault.
+      - Keep the certificate small enough to reuse from the multi-vault model after
+        a separate selector chooses the target vault.
+
+    Assume/guarantee split:
+      - Assumes oracle initialization/freshness/pending-match gating already passed.
+      - Assumes the target vault has already been selected (for multi-vault flows).
+      - Guarantees only the fee schedule, ceil fee math, gross/out collateral values,
+        and the post-state debt/collateral/protocol-collateral transition.
+
+    Non-goals:
+      - multi-vault closest-to-MCR selection
+      - base-rate decay dynamics over time
+      - redemption authorization / nonce / auth witnesses
+
+observables:
+  state_vars:
+    [
+      "price_e8",
+      "collateral_e8",
+      "debt_e8",
+      "free_debt_e8",
+      "protocol_collateral_e8",
+      "max_protocol_coll_e8",
+      "mcr_bps",
+      "redemption_fee_floor_bps",
+      "redemption_fee_max_bps",
+      "decayed_base_rate_bps",
+    ]
+  effects:
+    [
+      "redeemed_zusd_e8",
+      "redeemed_collateral_gross_e8",
+      "redeemed_collateral_out_e8",
+      "redemption_fee_collateral_e8",
+      "redemption_fee_bps",
+      "mcr_post_ok",
+    ]
+
+types: []
+
+state_vars:
+  - id: "price_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000000000 }
+  - id: "collateral_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "free_debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "protocol_collateral_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_protocol_coll_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "mcr_bps"
+    role: "data"
+    type: { kind: "int", min: 1, max: 20000 }
+  - id: "redemption_fee_floor_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "redemption_fee_max_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "decayed_base_rate_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+
+init:
+  - var: "price_e8"
+    expr: { const: 100000000 }
+  - var: "collateral_e8"
+    expr: { const: 0 }
+  - var: "debt_e8"
+    expr: { const: 0 }
+  - var: "free_debt_e8"
+    expr: { const: 0 }
+  - var: "protocol_collateral_e8"
+    expr: { const: 0 }
+  - var: "max_protocol_coll_e8"
+    expr: { const: 1000000000000 }
+  - var: "mcr_bps"
+    expr: { const: 11000 }
+  - var: "redemption_fee_floor_bps"
+    expr: { const: 0 }
+  - var: "redemption_fee_max_bps"
+    expr: { const: 1000 }
+  - var: "decayed_base_rate_bps"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_free_debt_le_total_debt"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "free_debt_e8" }, { var: "debt_e8" }]
+
+  - id: "inv_protocol_coll_le_cap"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "protocol_collateral_e8" }, { var: "max_protocol_coll_e8" }]
+
+  - id: "inv_redemption_fee_bounds"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "redemption_fee_floor_bps" }, { var: "redemption_fee_max_bps" }]
+
+actions:
+  - id: "apply_redeem_fee_collateral"
+    params:
+      - id: "amount_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "fee_bps"
+        type: { kind: "int", min: 0, max: 10000 }
+      - id: "gross_collateral_e8"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "redemption_fee_collateral_e8"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "collateral_out_e8"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "amount_e8" }, { var: "debt_e8" }] }
+        - { op: "<=", args: [{ param: "amount_e8" }, { var: "free_debt_e8" }] }
+        - op: "="
+          args:
+            - { param: "gross_collateral_e8" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ param: "amount_e8" }, { const: 100000000 }]
+                - { var: "price_e8" }
+        - { op: ">", args: [{ param: "gross_collateral_e8" }, { const: 0 }] }
+        - { op: "<=", args: [{ param: "gross_collateral_e8" }, { var: "collateral_e8" }] }
+        - op: "="
+          args:
+            - { param: "fee_bps" }
+            - op: "ite"
+              cond:
+                op: ">"
+                args:
+                  - op: "+"
+                    args: [{ var: "redemption_fee_floor_bps" }, { var: "decayed_base_rate_bps" }]
+                  - { var: "redemption_fee_max_bps" }
+              then: { var: "redemption_fee_max_bps" }
+              else:
+                op: "+"
+                args: [{ var: "redemption_fee_floor_bps" }, { var: "decayed_base_rate_bps" }]
+        - op: "="
+          args:
+            - { param: "redemption_fee_collateral_e8" }
+            - op: "div"
+              args:
+                - op: "+"
+                  args:
+                    - op: "*"
+                      args: [{ param: "gross_collateral_e8" }, { param: "fee_bps" }]
+                    - { const: 9999 }
+                - { const: 10000 }
+        - { op: "<", args: [{ param: "redemption_fee_collateral_e8" }, { param: "gross_collateral_e8" }] }
+        - op: "="
+          args:
+            - { param: "collateral_out_e8" }
+            - op: "-"
+              args: [{ param: "gross_collateral_e8" }, { param: "redemption_fee_collateral_e8" }]
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "protocol_collateral_e8" }, { param: "redemption_fee_collateral_e8" }]
+            - { var: "max_protocol_coll_e8" }
+        - op: "or"
+          args:
+            - op: "="
+              args:
+                - op: "-"
+                  args: [{ var: "debt_e8" }, { param: "amount_e8" }]
+                - { const: 0 }
+            - op: ">="
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args: [{ var: "collateral_e8" }, { param: "gross_collateral_e8" }]
+                    - op: "*"
+                      args: [{ var: "price_e8" }, { const: 10000 }]
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args: [{ var: "debt_e8" }, { param: "amount_e8" }]
+                    - op: "*"
+                      args: [{ var: "mcr_bps" }, { const: 100000000 }]
+    updates:
+      - var: "debt_e8"
+        expr:
+          op: "-"
+          args: [{ var: "debt_e8" }, { param: "amount_e8" }]
+      - var: "free_debt_e8"
+        expr:
+          op: "-"
+          args: [{ var: "free_debt_e8" }, { param: "amount_e8" }]
+      - var: "collateral_e8"
+        expr:
+          op: "-"
+          args: [{ var: "collateral_e8" }, { param: "gross_collateral_e8" }]
+      - var: "protocol_collateral_e8"
+        expr:
+          op: "+"
+          args: [{ var: "protocol_collateral_e8" }, { param: "redemption_fee_collateral_e8" }]
+    effects:
+      redeemed_zusd_e8: { param: "amount_e8" }
+      redeemed_collateral_gross_e8: { param: "gross_collateral_e8" }
+      redeemed_collateral_out_e8: { param: "collateral_out_e8" }
+      redemption_fee_collateral_e8: { param: "redemption_fee_collateral_e8" }
+      redemption_fee_bps: { param: "fee_bps" }
+      mcr_post_ok:
+        op: "or"
+        args:
+          - op: "="
+            args: [{ var: "debt_e8" }, { const: 0 }]
+          - op: ">="
+            args:
+              - op: "*"
+                args:
+                  - { var: "collateral_e8" }
+                  - op: "*"
+                    args: [{ var: "price_e8" }, { const: 10000 }]
+              - op: "*"
+                args:
+                  - { var: "debt_e8" }
+                  - op: "*"
+                    args: [{ var: "mcr_bps" }, { const: 100000000 }]

@@ -153,7 +153,7 @@ def _aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Iterative KRR self-improvement loop with auto-vs-off A/B gates.")
-    ap.add_argument("--loop-root", type=Path, default=Path("runs/krr_self_improve_loop"))
+    ap.add_argument("--loop-root", type=Path, default=Path("runs/manual_morph_supervised/krr_self_improve_loop"))
     ap.add_argument("--iterations", type=int, default=3)
     ap.add_argument("--cycle-base", type=int, default=200)
     ap.add_argument(

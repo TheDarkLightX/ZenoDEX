@@ -28,6 +28,7 @@ function WalletConnect({ wallet, onConnect }) {
                 balance: {
                     AGRS: 1234.56,
                     ZDEX: 5000,
+                    USD: 10000,
                 },
             });
         } catch (error) {
@@ -43,9 +44,13 @@ function WalletConnect({ wallet, onConnect }) {
     };
 
     const handleCopyAddress = () => {
-        navigator.clipboard.writeText(wallet.address);
-        setCopyFeedback(true);
-        setTimeout(() => setCopyFeedback(false), 2000);
+        try {
+            navigator.clipboard.writeText(wallet.address);
+            setCopyFeedback(true);
+            setTimeout(() => setCopyFeedback(false), 2000);
+        } catch {
+            // Ignore clipboard failures (browser permission / insecure context).
+        }
     };
 
     // Truncate BLS address for display (show first 8 and last 6 chars)
@@ -98,9 +103,14 @@ function WalletConnect({ wallet, onConnect }) {
                             {copyFeedback ? '✓ Copied!' : '📋 Copy Address'}
                         </button>
 
-                        <button className="dropdown-action" onClick={() => window.open('https://explorer.tau.net', '_blank')}>
+                        <a
+                            className="dropdown-action"
+                            href="https://explorer.tau.net"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
                             🔍 View on Explorer
-                        </button>
+                        </a>
 
                         <div className="dropdown-divider"></div>
 

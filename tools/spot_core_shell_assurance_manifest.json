@@ -1,0 +1,211 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the active spot-core shell adapter family. Update only alongside a successful run of tools/run_spot_core_shell_assurance_gate.sh and tools/check_spot_core_shell_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/cpmm_swap_v8.yaml",
+      "sha256": "5d1918413413a8004360f98330ef2048b1eadfc8dc9aa5d2e24e9089c937fde8"
+    },
+    {
+      "path": "src/kernels/dex/lp_mint_v8.yaml",
+      "sha256": "7baf2cd9cbd7d57c6594ee8b0282b00858413285ee088036682154b812f57fc9"
+    },
+    {
+      "path": "src/kernels/dex/vault_manager.yaml",
+      "sha256": "9b9bd9077e4efd877cec5671682c968269af69c0cac3c92ad9c753bd5c30301c"
+    },
+    {
+      "path": "src/kernels/dex/dex_step_core_v2.yaml",
+      "sha256": "1d8ff050a208a3318d7c8658e38f7311cabd6372061ad8b3224f235d194fd092"
+    },
+    {
+      "path": "src/kernels/python/cpmm_swap_v8_adapter.py",
+      "sha256": "e1b8977f459639bc1d0240a24f910b0859af3d8b4403ae0129157d09b4a95ac1"
+    },
+    {
+      "path": "src/kernels/python/lp_mint_v8_adapter.py",
+      "sha256": "32c7fc45eb97749534c3c0f2669e94a6e35b1442cbdf0e3b70530f5bcdea42d9"
+    },
+    {
+      "path": "src/kernels/python/vault_manager_adapter.py",
+      "sha256": "c82c9e700c85bd9ef18dc64c533edc74ba6b52c4ef618a628a31a7fe4d446454"
+    },
+    {
+      "path": "src/kernels/python/dex_step_core_v2_adapter.py",
+      "sha256": "43361903cca81823d84f659ca0eeb4f7a038d9e07ba3c6b05821f26718416232"
+    },
+    {
+      "path": "tests/core/test_dex_v8_ref_parity.py",
+      "sha256": "e9e86cc0d47d36d67a2398bebc505b525fb04e3cc7149914ea14fa2e056a84d6"
+    },
+    {
+      "path": "tests/core/test_vault_ref_parity.py",
+      "sha256": "35fadfede89a41c2912596f74815a3147ad5956ae3bc58abba60cd17dc0fca56"
+    },
+    {
+      "path": "tests/core/test_dex_step_core_v2_ref_parity.py",
+      "sha256": "b8b69f7db1b2546b0a4a5f9ce586a999804711736193d029caaefc4420704ef8"
+    },
+    {
+      "path": "tests/core/test_dex_step_core_v2_ml_bva_parity.py",
+      "sha256": "28a838c13699457e814de590a2589d27b678cd37e4c2146b54d592791f9caa34"
+    },
+    {
+      "path": "tests/kernels/test_cpmm_swap_v8_ml_bva_cases.py",
+      "sha256": "b09fc4dca869cc936ae6305736cf71c3edf99c43569315f9d952de15f8cced06"
+    },
+    {
+      "path": "tests/kernels/test_lp_mint_v8_ml_bva_cases.py",
+      "sha256": "d1c80dbbbb11028ec2911f83393e5380093edf33131581f386938f0a8e173892"
+    },
+    {
+      "path": "tests/kernels/test_python_adapter_wrappers.py",
+      "sha256": "e5ee01ddcf5eebcc4efb777e3ecaae136c54af97801aeec20110f4199fb6a802"
+    },
+    {
+      "path": "tests/kernels/test_spot_core_shell_adapters.py",
+      "sha256": "a68ef7ed3b63907db5d8b1a1b131acaf709a19d87fb97fac40015be01cb6357f"
+    }
+  ],
+  "shell_lint": [
+    {
+      "report_path": "internal/esso_verify/spot_core_shell_assurance/cpmm_swap_v8/shell_lint.json",
+      "adapter_spec": "src.kernels.python.cpmm_swap_v8_adapter:make_adapter",
+      "ir_hash": "sha256:19968d0f05064a188d422858e1ded2a1baf9d6e7fda04bbef4c6094f6f9ed491",
+      "actions": [
+        "swap"
+      ],
+      "effects": [
+        "amount_out",
+        "fee_split_ok",
+        "fee_total",
+        "gross_in",
+        "k_after",
+        "k_before",
+        "lp_fee",
+        "net_in",
+        "net_ok",
+        "new_reserve_in",
+        "new_reserve_out",
+        "protocol_fee"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/spot_core_shell_assurance/lp_mint_v8/shell_lint.json",
+      "adapter_spec": "src.kernels.python.lp_mint_v8_adapter:make_adapter",
+      "ir_hash": "sha256:881e066014e62b64c23592b663d8492dbfb7aee7e647705e3499c67f39ee7c73",
+      "actions": [
+        "mint",
+        "mint_initial"
+      ],
+      "effects": [
+        "amount0_refund",
+        "amount0_used",
+        "amount1_refund",
+        "amount1_used",
+        "liquidity_minted",
+        "total_supply"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/spot_core_shell_assurance/vault_manager/shell_lint.json",
+      "adapter_spec": "src.kernels.python.vault_manager_adapter:make_adapter",
+      "ir_hash": "sha256:2b27f6088aaf33c6c75d07572dfdd8df6ef3c82d947af294c2620d99aea543bb",
+      "actions": [
+        "deposit_rewards",
+        "harvest",
+        "stake",
+        "unstake"
+      ],
+      "effects": [
+        "delta_acc",
+        "harvested_reward"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/spot_core_shell_assurance/dex_step_core_v2/shell_lint.json",
+      "adapter_spec": "src.kernels.python.dex_step_core_v2_adapter:make_adapter",
+      "ir_hash": "sha256:ffbb1375c247b0618ab0bce01f25499353fef6646a76f6fec5d4a0fb398f10af",
+      "actions": [
+        "add_liquidity",
+        "create_pool",
+        "remove_liquidity",
+        "swap_a_for_b",
+        "swap_a_for_b_exact_out",
+        "swap_b_for_a",
+        "swap_b_for_a_exact_out"
+      ],
+      "effects": [
+        "event"
+      ]
+    }
+  ],
+  "verify_shell": [
+    {
+      "report_path": "internal/esso_verify/spot_core_shell_assurance/cpmm_swap_v8/verify_shell.json",
+      "kernel_path": "src/kernels/dex/cpmm_swap_v8.yaml",
+      "adapter_spec": "src.kernels.python.cpmm_swap_v8_adapter:make_adapter",
+      "ir_hash": "sha256:19968d0f05064a188d422858e1ded2a1baf9d6e7fda04bbef4c6094f6f9ed491",
+      "mode": "full",
+      "seed": 0,
+      "traces": 16,
+      "max_steps": 8,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:b5ddcf910bebe663810f7c0a055b46a2ce09aa8c08a866cc4bf857d059fd88ba"
+    },
+    {
+      "report_path": "internal/esso_verify/spot_core_shell_assurance/lp_mint_v8/verify_shell.json",
+      "kernel_path": "src/kernels/dex/lp_mint_v8.yaml",
+      "adapter_spec": "src.kernels.python.lp_mint_v8_adapter:make_adapter",
+      "ir_hash": "sha256:881e066014e62b64c23592b663d8492dbfb7aee7e647705e3499c67f39ee7c73",
+      "mode": "full",
+      "seed": 0,
+      "traces": 16,
+      "max_steps": 8,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:21473617c1d76265bd37d9b00919ae5976ca3a4c30c6e79564bfe163606bdc58"
+    },
+    {
+      "report_path": "internal/esso_verify/spot_core_shell_assurance/vault_manager/verify_shell.json",
+      "kernel_path": "src/kernels/dex/vault_manager.yaml",
+      "adapter_spec": "src.kernels.python.vault_manager_adapter:make_adapter",
+      "ir_hash": "sha256:2b27f6088aaf33c6c75d07572dfdd8df6ef3c82d947af294c2620d99aea543bb",
+      "mode": "full",
+      "seed": 0,
+      "traces": 16,
+      "max_steps": 8,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:1758410757e1aaa27f156f2b259e26c8455dfc03daac73da8dc0bcac0b77305c"
+    },
+    {
+      "report_path": "internal/esso_verify/spot_core_shell_assurance/dex_step_core_v2/verify_shell.json",
+      "kernel_path": "src/kernels/dex/dex_step_core_v2.yaml",
+      "adapter_spec": "src.kernels.python.dex_step_core_v2_adapter:make_adapter",
+      "ir_hash": "sha256:ffbb1375c247b0618ab0bce01f25499353fef6646a76f6fec5d4a0fb398f10af",
+      "mode": "full",
+      "seed": 0,
+      "traces": 16,
+      "max_steps": 8,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:f66e5de46d6bfcd6e0e3829053152890c10514129553ad41072e06b2dd980245"
+    }
+  ],
+  "adapter_regression_tests": [
+    "tests/core/test_dex_v8_ref_parity.py",
+    "tests/core/test_vault_ref_parity.py",
+    "tests/core/test_dex_step_core_v2_ref_parity.py",
+    "tests/core/test_dex_step_core_v2_ml_bva_parity.py",
+    "tests/kernels/test_cpmm_swap_v8_ml_bva_cases.py",
+    "tests/kernels/test_lp_mint_v8_ml_bva_cases.py",
+    "tests/kernels/test_python_adapter_wrappers.py",
+    "tests/kernels/test_spot_core_shell_adapters.py"
+  ]
+}

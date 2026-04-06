@@ -8,7 +8,6 @@ from src.core.settlement_strong_validator import validate_settlement_strong
 
 from .settlement_endogenous_lp_value_packet import (
     SettlementEndogenousLPValuePacket,
-    build_settlement_endogenous_lp_value_packet_from_price_attestation_bundle,
     build_settlement_endogenous_lp_value_packet_from_price_attestation,
     build_settlement_endogenous_lp_value_packet_from_price_packet,
     _pool_from_dict,
@@ -28,15 +27,12 @@ from .settlement_strong_certificate import (
 )
 from .settlement_value_packet import (
     SettlementValuePacket,
-    build_settlement_value_packet_from_price_attestation_bundle,
     build_settlement_value_packet_from_price_attestation,
     build_settlement_value_packet_from_price_packet,
 )
 
 if TYPE_CHECKING:
-    from .settlement_attestation_policy import SettlementAttestationPolicy
-    from .settlement_price_attestation import SettlementSpotPriceAttestation, SettlementSpotPriceAttestationBundle
-    from .settlement_signer_registry import SettlementSignerRegistrySnapshot
+    from .settlement_price_attestation import SettlementSpotPriceAttestation
     from src.state.pools import PoolState
 
 
@@ -50,14 +46,11 @@ class SettlementEndToEndCertificateInputs:
     feature_extension_inputs: SettlementFeatureExtensionInputs
     price_packet: SettlementSpotPricePacket | None = None
     price_attestation: SettlementSpotPriceAttestation | None = None
-    price_attestation_bundle: SettlementSpotPriceAttestationBundle | None = None
     consumer_now_epoch: int | None = None
     max_attestation_age_epochs: int | None = None
     lp_unit_values: Mapping[str, int] | None = None
     pool_snapshots: Sequence[PoolState] | None = None
-    attestation_policy: SettlementAttestationPolicy | None = None
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None
-    attestation_registry_snapshot_loader: object | None = None
+    allowed_signers: Mapping[str, Sequence[str]] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.proof_flags, SettlementProofFlags):
@@ -70,28 +63,15 @@ class SettlementEndToEndCertificateInputs:
             or any(not isinstance(v, int) or isinstance(v, bool) for v in self.price_history)
         ):
             raise ValueError("price_history must be a 3-tuple of ints")
-        surfaces_present = sum(
-            value is not None
-            for value in (
-                self.price_packet,
-                self.price_attestation,
-                self.price_attestation_bundle,
-            )
-        )
-        if surfaces_present != 1:
-            raise ValueError("exactly one of price_packet, price_attestation, or price_attestation_bundle must be provided")
+        if (self.price_packet is None) == (self.price_attestation is None):
+            raise ValueError("exactly one of price_packet or price_attestation must be provided")
         if self.price_packet is not None and not isinstance(self.price_packet, SettlementSpotPricePacket):
             raise TypeError("price_packet must be a SettlementSpotPricePacket")
-        if self.price_attestation is not None or self.price_attestation_bundle is not None:
+        if self.price_attestation is not None:
             from .settlement_price_attestation import SettlementSpotPriceAttestation as RuntimeSettlementSpotPriceAttestation
-            from .settlement_price_attestation import SettlementSpotPriceAttestationBundle as RuntimeSettlementSpotPriceAttestationBundle
 
-            if self.price_attestation is not None and not isinstance(self.price_attestation, RuntimeSettlementSpotPriceAttestation):
+            if not isinstance(self.price_attestation, RuntimeSettlementSpotPriceAttestation):
                 raise TypeError("price_attestation must be a SettlementSpotPriceAttestation")
-            if self.price_attestation_bundle is not None and not isinstance(
-                self.price_attestation_bundle, RuntimeSettlementSpotPriceAttestationBundle
-            ):
-                raise TypeError("price_attestation_bundle must be a SettlementSpotPriceAttestationBundle")
             if self.consumer_now_epoch is None or self.max_attestation_age_epochs is None:
                 raise ValueError(
                     "attestation mode requires consumer_now_epoch and max_attestation_age_epochs"
@@ -102,24 +82,6 @@ class SettlementEndToEndCertificateInputs:
                 self.max_attestation_age_epochs, bool
             ):
                 raise TypeError("max_attestation_age_epochs must be an int")
-            from .settlement_attestation_policy import SettlementAttestationPolicy as RuntimeSettlementAttestationPolicy
-
-            if self.attestation_policy is None:
-                if self.attestation_registry_snapshot is None:
-                    raise ValueError("attestation mode requires attestation_policy or attestation_registry_snapshot")
-            elif not isinstance(self.attestation_policy, RuntimeSettlementAttestationPolicy):
-                raise TypeError("attestation_policy must be a SettlementAttestationPolicy")
-            if self.attestation_registry_snapshot is not None:
-                from .settlement_signer_registry import (
-                    SettlementSignerRegistrySnapshot as RuntimeSettlementSignerRegistrySnapshot,
-                )
-
-                if not isinstance(self.attestation_registry_snapshot, RuntimeSettlementSignerRegistrySnapshot):
-                    raise TypeError("attestation_registry_snapshot must be a SettlementSignerRegistrySnapshot")
-            if self.attestation_registry_snapshot_loader is not None and not callable(
-                getattr(self.attestation_registry_snapshot_loader, "load_snapshot", None)
-            ):
-                raise TypeError("attestation_registry_snapshot_loader must define load_snapshot(request)")
         _validate_value_mode_inputs(
             lp_unit_values=self.lp_unit_values,
             pool_snapshots=self.pool_snapshots,
@@ -149,8 +111,8 @@ class SettlementEndToEndCertificatePacket:
     def __post_init__(self) -> None:
         if self.schema != SETTLEMENT_END_TO_END_CERTIFICATE_PACKET_SCHEMA:
             raise ValueError(f"unsupported schema: {self.schema!r}")
-        if self.price_input_kind not in {"packet", "attestation", "attestation_bundle"}:
-            raise ValueError("price_input_kind must be 'packet', 'attestation', or 'attestation_bundle'")
+        if self.price_input_kind not in {"packet", "attestation"}:
+            raise ValueError("price_input_kind must be 'packet' or 'attestation'")
         if self.value_packet_kind not in {"declared_value", "endogenous_lp_value"}:
             raise ValueError("value_packet_kind must be 'declared_value' or 'endogenous_lp_value'")
         if not isinstance(self.strong_certificate, SettlementStrongCertificate):
@@ -207,6 +169,40 @@ class SettlementEndToEndCertificatePacket:
             "value_conservation_ok": bool(self.value_conservation_ok),
             "packet_ok": bool(self.packet_ok),
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementEndToEndCertificatePacket":
+        if not isinstance(payload, Mapping):
+            raise ValueError("packet must be an object")
+        value_packet_payload = payload.get("value_packet")
+        endogenous_lp_value_packet_payload = payload.get("endogenous_lp_value_packet")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            price_input_kind=str(payload.get("price_input_kind", "")),
+            value_packet_kind=str(payload.get("value_packet_kind", "")),
+            strong_certificate=SettlementStrongCertificate.from_dict(payload.get("strong_certificate", {})),
+            feature_extension_packet=SettlementFeatureExtensionPacket.from_dict(
+                payload.get("feature_extension_packet", {})
+            ),
+            value_packet=(
+                None if value_packet_payload is None else SettlementValuePacket.from_dict(value_packet_payload)
+            ),
+            endogenous_lp_value_packet=(
+                None
+                if endogenous_lp_value_packet_payload is None
+                else SettlementEndogenousLPValuePacket.from_dict(endogenous_lp_value_packet_payload)
+            ),
+            strong_certificate_ok=bool(payload.get("strong_certificate_ok", False)),
+            feature_extension_packet_ok=bool(payload.get("feature_extension_packet_ok", False)),
+            module_bundle_ok=bool(payload.get("module_bundle_ok", False)),
+            full_price_rails_ok=bool(payload.get("full_price_rails_ok", False)),
+            price_provenance_ok=bool(payload.get("price_provenance_ok", False)),
+            attestation_ok=bool(payload.get("attestation_ok", False)),
+            asset_conservation_ok=bool(payload.get("asset_conservation_ok", False)),
+            lp_liability_balanced_ok=bool(payload.get("lp_liability_balanced_ok", False)),
+            value_conservation_ok=bool(payload.get("value_conservation_ok", False)),
+            packet_ok=bool(payload.get("packet_ok", False)),
+        )
 
 
 def build_settlement_end_to_end_certificate_packet_from_price_packet(
@@ -278,9 +274,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation(
     max_attestation_age_epochs: int,
     lp_unit_values: Mapping[str, int] | None = None,
     pool_snapshots: Sequence[PoolState] | None = None,
-    attestation_policy: SettlementAttestationPolicy | None = None,
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
-    attestation_registry_snapshot_loader: object | None = None,
+    allowed_signers: Mapping[str, Sequence[str]] | None = None,
 ) -> SettlementEndToEndCertificatePacket:
     _validate_value_mode_inputs(lp_unit_values=lp_unit_values, pool_snapshots=pool_snapshots)
     feature_extension_packet = build_settlement_feature_extension_packet(feature_extension_inputs)
@@ -306,9 +300,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation(
             consumer_now_epoch=consumer_now_epoch,
             max_attestation_age_epochs=max_attestation_age_epochs,
             lp_unit_values=lp_unit_values,
-            attestation_policy=attestation_policy,
-            attestation_registry_snapshot=attestation_registry_snapshot,
-            attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+            allowed_signers=allowed_signers,
         )
         return _assemble_packet(
             price_input_kind="attestation",
@@ -325,85 +317,10 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation(
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
         pool_snapshots=pool_snapshots,
-        attestation_policy=attestation_policy,
-        attestation_registry_snapshot=attestation_registry_snapshot,
-        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+        allowed_signers=allowed_signers,
     )
     return _assemble_packet(
         price_input_kind="attestation",
-        value_packet_kind="endogenous_lp_value",
-        strong_certificate=strong_certificate,
-        strong_certificate_ok=strong_certificate_ok,
-        feature_extension_packet=feature_extension_packet,
-        value_packet=None,
-        endogenous_lp_value_packet=nested_endogenous,
-    )
-
-
-def build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle(
-    *,
-    settlement: Settlement,
-    proof_flags: SettlementProofFlags,
-    price_history: tuple[int, int, int],
-    feature_extension_inputs: SettlementFeatureExtensionInputs,
-    price_attestation_bundle: SettlementSpotPriceAttestationBundle,
-    consumer_now_epoch: int,
-    max_attestation_age_epochs: int,
-    lp_unit_values: Mapping[str, int] | None = None,
-    pool_snapshots: Sequence[PoolState] | None = None,
-    attestation_policy: SettlementAttestationPolicy | None = None,
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
-    attestation_registry_snapshot_loader: object | None = None,
-) -> SettlementEndToEndCertificatePacket:
-    _validate_value_mode_inputs(lp_unit_values=lp_unit_values, pool_snapshots=pool_snapshots)
-    feature_extension_packet = build_settlement_feature_extension_packet(feature_extension_inputs)
-    effective_flags = _internalize_feature_extension_flags(
-        proof_flags=proof_flags,
-        feature_extension_packet=feature_extension_packet,
-    )
-    strong_certificate = build_replay_bound_settlement_strong_certificate(
-        settlement=settlement,
-        proof_flags=effective_flags,
-        price_history=price_history,
-    )
-    strong_certificate_ok, err = verify_settlement_strong_certificate(
-        settlement=settlement,
-        certificate=strong_certificate,
-    )
-    if not strong_certificate_ok:
-        raise ValueError(f"invalid settlement strong certificate: {err}")
-    if pool_snapshots is None:
-        nested = build_settlement_value_packet_from_price_attestation_bundle(
-            settlement=settlement,
-            price_attestation_bundle=price_attestation_bundle,
-            consumer_now_epoch=consumer_now_epoch,
-            max_attestation_age_epochs=max_attestation_age_epochs,
-            lp_unit_values=lp_unit_values,
-            attestation_policy=attestation_policy,
-            attestation_registry_snapshot=attestation_registry_snapshot,
-            attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
-        )
-        return _assemble_packet(
-            price_input_kind="attestation_bundle",
-            value_packet_kind="declared_value",
-            strong_certificate=strong_certificate,
-            strong_certificate_ok=strong_certificate_ok,
-            feature_extension_packet=feature_extension_packet,
-            value_packet=nested,
-            endogenous_lp_value_packet=None,
-        )
-    nested_endogenous = build_settlement_endogenous_lp_value_packet_from_price_attestation_bundle(
-        settlement=settlement,
-        price_attestation_bundle=price_attestation_bundle,
-        consumer_now_epoch=consumer_now_epoch,
-        max_attestation_age_epochs=max_attestation_age_epochs,
-        pool_snapshots=pool_snapshots,
-        attestation_policy=attestation_policy,
-        attestation_registry_snapshot=attestation_registry_snapshot,
-        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
-    )
-    return _assemble_packet(
-        price_input_kind="attestation_bundle",
         value_packet_kind="endogenous_lp_value",
         strong_certificate=strong_certificate,
         strong_certificate_ok=strong_certificate_ok,
@@ -489,7 +406,7 @@ def enforce_settlement_end_to_end_certificate(
                 lp_unit_values=certificate_inputs.lp_unit_values,
                 pool_snapshots=certificate_inputs.pool_snapshots,
             )
-        elif certificate_inputs.price_attestation is not None:
+        else:
             packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
                 settlement=settlement,
                 proof_flags=effective_flags,
@@ -500,24 +417,7 @@ def enforce_settlement_end_to_end_certificate(
                 max_attestation_age_epochs=int(certificate_inputs.max_attestation_age_epochs),
                 lp_unit_values=certificate_inputs.lp_unit_values,
                 pool_snapshots=certificate_inputs.pool_snapshots,
-                attestation_policy=certificate_inputs.attestation_policy,
-                attestation_registry_snapshot=certificate_inputs.attestation_registry_snapshot,
-                attestation_registry_snapshot_loader=certificate_inputs.attestation_registry_snapshot_loader,
-            )
-        else:
-            packet = build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle(
-                settlement=settlement,
-                proof_flags=effective_flags,
-                price_history=certificate_inputs.price_history,
-                feature_extension_inputs=certificate_inputs.feature_extension_inputs,
-                price_attestation_bundle=certificate_inputs.price_attestation_bundle,
-                consumer_now_epoch=int(certificate_inputs.consumer_now_epoch),
-                max_attestation_age_epochs=int(certificate_inputs.max_attestation_age_epochs),
-                lp_unit_values=certificate_inputs.lp_unit_values,
-                pool_snapshots=certificate_inputs.pool_snapshots,
-                attestation_policy=certificate_inputs.attestation_policy,
-                attestation_registry_snapshot=certificate_inputs.attestation_registry_snapshot,
-                attestation_registry_snapshot_loader=certificate_inputs.attestation_registry_snapshot_loader,
+                allowed_signers=certificate_inputs.allowed_signers,
             )
     except Exception as exc:
         return False, str(exc), None
@@ -539,9 +439,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
     packet_payload: Mapping[str, Any],
     lp_unit_values: Mapping[str, int] | None = None,
     pool_snapshots_payload: Sequence[Mapping[str, Any]] | None = None,
-    attestation_policy: SettlementAttestationPolicy | None = None,
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
-    attestation_registry_snapshot_loader: object | None = None,
+    allowed_signers: Mapping[str, Sequence[str]] | None = None,
 ) -> tuple[bool, str | None]:
     from .settlement_price_attestation import SettlementSpotPriceAttestation
 
@@ -563,60 +461,7 @@ def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestati
             max_attestation_age_epochs=max_attestation_age_epochs,
             lp_unit_values=lp_unit_values,
             pool_snapshots=pool_snapshots,
-            attestation_policy=attestation_policy,
-            attestation_registry_snapshot=attestation_registry_snapshot,
-            attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
-        )
-    except Exception as exc:
-        return False, str(exc)
-    if not isinstance(packet_payload, Mapping):
-        return False, "packet must be an object"
-    if str(packet_payload.get("schema", "")) != expected.schema:
-        return False, "schema mismatch"
-    if dict(packet_payload) != expected.to_dict():
-        return False, "settlement end-to-end certificate packet mismatch"
-    return True, None
-
-
-def verify_settlement_end_to_end_certificate_packet_payload_from_price_attestation_bundle(
-    *,
-    settlement: Settlement,
-    proof_flags: SettlementProofFlags,
-    price_history: tuple[int, int, int],
-    feature_extension_inputs_payload: Mapping[str, Any],
-    price_attestation_bundle_payload: Mapping[str, Any],
-    consumer_now_epoch: int,
-    max_attestation_age_epochs: int,
-    packet_payload: Mapping[str, Any],
-    lp_unit_values: Mapping[str, int] | None = None,
-    pool_snapshots_payload: Sequence[Mapping[str, Any]] | None = None,
-    attestation_policy: SettlementAttestationPolicy | None = None,
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
-    attestation_registry_snapshot_loader: object | None = None,
-) -> tuple[bool, str | None]:
-    from .settlement_price_attestation import SettlementSpotPriceAttestationBundle
-
-    try:
-        price_attestation_bundle = SettlementSpotPriceAttestationBundle.from_dict(price_attestation_bundle_payload)
-    except Exception as exc:
-        return False, str(exc)
-    try:
-        pool_snapshots = None
-        if pool_snapshots_payload is not None:
-            pool_snapshots = tuple(_pool_from_dict(snapshot) for snapshot in pool_snapshots_payload)
-        expected = build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle(
-            settlement=settlement,
-            proof_flags=proof_flags,
-            price_history=price_history,
-            feature_extension_inputs=SettlementFeatureExtensionInputs.from_dict(feature_extension_inputs_payload),
-            price_attestation_bundle=price_attestation_bundle,
-            consumer_now_epoch=consumer_now_epoch,
-            max_attestation_age_epochs=max_attestation_age_epochs,
-            lp_unit_values=lp_unit_values,
-            pool_snapshots=pool_snapshots,
-            attestation_policy=attestation_policy,
-            attestation_registry_snapshot=attestation_registry_snapshot,
-            attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+            allowed_signers=allowed_signers,
         )
     except Exception as exc:
         return False, str(exc)
@@ -721,9 +566,7 @@ def build_settlement_end_to_end_endogenous_from_attestation(
     consumer_now_epoch: int,
     max_attestation_age_epochs: int,
     pool_snapshots: Sequence[PoolState],
-    attestation_policy: SettlementAttestationPolicy | None = None,
-    attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
-    attestation_registry_snapshot_loader: object | None = None,
+    allowed_signers: Mapping[str, Sequence[str]] | None = None,
 ) -> SettlementEndogenousLPValuePacket:
     return build_settlement_endogenous_lp_value_packet_from_price_attestation(
         settlement=settlement,
@@ -731,9 +574,7 @@ def build_settlement_end_to_end_endogenous_from_attestation(
         consumer_now_epoch=consumer_now_epoch,
         max_attestation_age_epochs=max_attestation_age_epochs,
         pool_snapshots=pool_snapshots,
-        attestation_policy=attestation_policy,
-        attestation_registry_snapshot=attestation_registry_snapshot,
-        attestation_registry_snapshot_loader=attestation_registry_snapshot_loader,
+        allowed_signers=allowed_signers,
     )
 
 

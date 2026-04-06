@@ -1,0 +1,112 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the clearinghouse perps market-params admission micro-kernel. Update only alongside a successful run of tools/run_perp_clearinghouse_market_params_assurance_gate.sh and tools/check_perp_clearinghouse_market_params_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/perp_clearinghouse_market_params_guard.py",
+      "sha256": "b913920ab062af5b7f1866960d3067ae4b14dc3a3cdea59c071358e2fb3879c5"
+    },
+    {
+      "path": "src/integration/perp_engine.py",
+      "sha256": "b4c359df86578b20102df79fe75beee660efdf289346b581e9689f2a0ffacab2"
+    },
+    {
+      "path": "src/kernels/dex/perp_clearinghouse_market_params_guard_v1.yaml",
+      "sha256": "770b34d20899fefb936763878ecc562de071cb9220222cb388a600d94ff1c337"
+    },
+    {
+      "path": "src/kernels/python/perp_clearinghouse_market_params_guard_v1_native_adapter.py",
+      "sha256": "85c3f2d66969e976be80c8142349689bbb6a88bd303099bc615592be5dec1a7d"
+    },
+    {
+      "path": "tests/core/test_perp_clearinghouse_market_params_guard.py",
+      "sha256": "eb83ec1e7df7ffcf0581e4264a7175f4b1c1893f1e99988db2aba60f3cce6d72"
+    },
+    {
+      "path": "tests/kernels/test_perp_clearinghouse_market_params_guard_v1_native_adapter.py",
+      "sha256": "fd18b4c31a1c4a1b5ed7a11d9849fcc8e928c58fdac6550f30acb51622c2f1eb"
+    },
+    {
+      "path": "tools/run_perp_clearinghouse_market_params_assurance_gate.sh",
+      "sha256": "1515467b5673a554348183e55ebd91efcca0b8e41e6e634d74c1aa30527806b5"
+    },
+    {
+      "path": "tools/check_perp_clearinghouse_market_params_assurance_manifest.py",
+      "sha256": "595386b321e4e4322f85dd8d3ab44273e23b1e375d92955f955ea0930e290a14"
+    },
+    {
+      "path": "tools/run_perps_evidence.sh",
+      "sha256": "bffb15124660bbf320a17361c3a6e389083b1301c5db9e91f34388d3beccd858"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/perp_clearinghouse_market_params_guard_v1/validate.json",
+    "model_path": "src/kernels/dex/perp_clearinghouse_market_params_guard_v1.yaml",
+    "ir_hash": "sha256:1ed863d06f8ba90e77e2aac75258bac1cf14988d0afdf0ef0638fe1680e454eb"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/perp_clearinghouse_market_params_guard_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.perp_clearinghouse_market_params_guard_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:1ed863d06f8ba90e77e2aac75258bac1cf14988d0afdf0ef0638fe1680e454eb",
+    "actions": [
+      "evaluate_clearinghouse_market_params_guard"
+    ],
+    "effects": [
+      "admission_ok",
+      "market_kind_ok",
+      "penalty_below_maintenance_ok",
+      "penalty_increase_ok",
+      "positions_open",
+      "reject_code"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/perp_clearinghouse_market_params_guard_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/perp_clearinghouse_market_params_guard_v1.yaml",
+    "adapter_spec": "src.kernels.python.perp_clearinghouse_market_params_guard_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:1ed863d06f8ba90e77e2aac75258bac1cf14988d0afdf0ef0638fe1680e454eb",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:8eccd3fb361710df9ee7204aa7a3271d3d678091e4bba73b3a04b62c872c4d05"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/perp_clearinghouse_market_params_guard_v1/verification_report.json",
+    "model_id": "perp_clearinghouse_market_params_guard_v1",
+    "ir_hash_short": "1ed863d06f8ba90e",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_perp_clearinghouse_market_params_guard_v1_native_adapter.py"
+  ]
+}

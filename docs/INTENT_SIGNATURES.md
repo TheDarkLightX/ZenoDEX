@@ -1,3 +1,9 @@
+---
+title: INTENT_SIGNATURES
+type: note
+permalink: autonomous-tau-dex-review/docs/intent-signatures
+---
+
 # Intent Signatures (BLS12-381)
 
 ZenoDEX supports optional **per-intent signatures** so third parties can batch-settle user intents without requiring the outer transaction sender to equal each intent sender.

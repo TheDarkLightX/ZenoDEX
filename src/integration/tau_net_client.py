@@ -20,14 +20,6 @@ from ..core.dex_intent_auth_message import hash_dex_intent_auth_message_v1
 from ..core.perp_submission_auth_message import hash_perp_op_auth_message_v1
 
 try:
-    from blake3 import blake3 as _blake3
-
-    _BLAKE3_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
-    _blake3 = None
-    _BLAKE3_AVAILABLE = False
-
-try:
     from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
@@ -54,49 +46,7 @@ class TauNetTcpConfig:
     recv_max_bytes: int = 1_048_576
 
 
-@dataclass(frozen=True)
-class TauNetAppStateView:
-    app_hash: str
-    app_state: Any
-
-
-@dataclass(frozen=True)
-class TauNetStateProofView:
-    state_hash: str
-    present: bool
-    proof_type: str | None = None
-    proof_bytes: int | None = None
-    proof_sha256: str | None = None
-    error: str | None = None
-
-
-@dataclass(frozen=True)
-class TauNetTauStateView:
-    state_hash: str
-    rules: str
-    accounts_hash: str
-    app_hash: str
-
-
 _DEFAULT_TAU_NET_TCP_CONFIG = TauNetTcpConfig()
-
-
-def compute_tau_state_commitment_hash_hex(*, rules: str, accounts_hash: str, app_hash: str = "") -> str:
-    if not _BLAKE3_AVAILABLE or _blake3 is None:
-        raise TauNetRpcError("blake3 is required for Tau state commitment validation (install blake3)")
-    if not isinstance(rules, str):
-        raise TauNetRpcError(f"tau_state rules must be a string, got {rules!r}")
-    normalized_accounts_hash = _coerce_hex_32_noprefix(accounts_hash, label="tau_state accounts_hash")
-    normalized_app_hash = ""
-    if app_hash not in ("", None):
-        normalized_app_hash = _coerce_hex_32_noprefix(app_hash, label="tau_state app_hash")
-
-    hasher = _blake3()
-    hasher.update(rules.encode("utf-8"))
-    hasher.update(bytes.fromhex(normalized_accounts_hash))
-    if normalized_app_hash:
-        hasher.update(bytes.fromhex(normalized_app_hash))
-    return hasher.hexdigest()
 
 
 def _require_bls() -> None:
@@ -107,6 +57,8 @@ def _require_bls() -> None:
 def _coerce_nonnegative_int(value: object, *, label: str) -> int:
     if isinstance(value, bool):
         raise ValueError(f"{label} must be a non-negative integer")
+    if not isinstance(value, (int, float, str, bytes, bytearray)):
+        raise ValueError(f"{label} must be a non-negative integer")
     try:
         parsed = int(value)
     except Exception as exc:
@@ -116,22 +68,6 @@ def _coerce_nonnegative_int(value: object, *, label: str) -> int:
     if parsed < 0:
         raise ValueError(f"{label} must be a non-negative integer")
     return parsed
-
-
-def _coerce_mapping_json_response(raw: str, *, label: str) -> Mapping[str, Any]:
-    try:
-        payload = json.loads(raw)
-    except Exception as exc:
-        raise TauNetRpcError(f"{label} returned invalid JSON: {exc}; raw={raw!r}") from exc
-    if not isinstance(payload, Mapping):
-        raise TauNetRpcError(f"{label} returned non-object JSON: type={type(payload).__name__}, raw={raw!r}")
-    return payload
-
-
-def _coerce_hex_32_noprefix(value: object, *, label: str) -> str:
-    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", value.strip()):
-        raise TauNetRpcError(f"{label} must be a 64-hex string, got {value!r}")
-    return value.strip().lower()
 
 
 def _parse_privkey_int(privkey: int) -> int:
@@ -414,123 +350,8 @@ class TauNetTcpClient:
         # Back-compat alias; Tau Testnet now exposes `getappstate`.
         return self.getappstate(full=full)
 
-    def getappstate_view(self) -> TauNetAppStateView:
-        payload = _coerce_mapping_json_response(self.getappstate(full=True), label="getappstate full")
-        app_hash = payload.get("app_hash", "")
-        if app_hash in ("", None):
-            normalized_app_hash = ""
-        else:
-            normalized_app_hash = _coerce_hex_32_noprefix(app_hash, label="getappstate full app_hash")
-        return TauNetAppStateView(
-            app_hash=normalized_app_hash,
-            app_state=payload.get("app_state"),
-        )
-
     def getstateproof(self, *, full: bool = False) -> str:
         return self.rpc("getstateproof full" if full else "getstateproof").strip()
-
-    def getstateproof_view(self) -> TauNetStateProofView:
-        payload = _coerce_mapping_json_response(self.getstateproof(full=True), label="getstateproof full")
-        state_hash = payload.get("state_hash", "")
-        present = payload.get("present")
-        if not isinstance(present, bool):
-            raise TauNetRpcError(f"getstateproof full present must be a bool, got {present!r}")
-        if state_hash in ("", None):
-            if present:
-                raise TauNetRpcError("getstateproof full state_hash must be a 64-hex string when present=true")
-            normalized_state_hash = ""
-        else:
-            normalized_state_hash = _coerce_hex_32_noprefix(state_hash, label="getstateproof full state_hash")
-        proof_type = payload.get("proof_type")
-        if proof_type is not None and (not isinstance(proof_type, str) or not proof_type.strip()):
-            raise TauNetRpcError(f"getstateproof full proof_type must be a non-empty string when present, got {proof_type!r}")
-        proof_bytes = payload.get("proof_bytes")
-        if proof_bytes is not None:
-            proof_bytes = _coerce_nonnegative_int(proof_bytes, label="getstateproof full proof_bytes")
-        proof_sha256 = payload.get("proof_sha256")
-        if proof_sha256 is not None:
-            proof_sha256 = _coerce_hex_32_noprefix(proof_sha256, label="getstateproof full proof_sha256")
-        error = payload.get("error")
-        if error is not None and not isinstance(error, str):
-            raise TauNetRpcError(f"getstateproof full error must be a string when present, got {error!r}")
-        return TauNetStateProofView(
-            state_hash=normalized_state_hash,
-            present=present,
-            proof_type=proof_type.strip() if isinstance(proof_type, str) else None,
-            proof_bytes=proof_bytes,
-            proof_sha256=proof_sha256,
-            error=error,
-        )
-
-    def gettaustate(self, state_hash: str) -> str:
-        normalized_state_hash = _coerce_hex_32_noprefix(state_hash, label="gettaustate state_hash")
-        return self.rpc(f"gettaustate {normalized_state_hash}").strip()
-
-    def gettaustate_view(self, state_hash: str) -> TauNetTauStateView:
-        normalized_state_hash = _coerce_hex_32_noprefix(state_hash, label="gettaustate state_hash")
-        payload = _coerce_mapping_json_response(
-            self.gettaustate(normalized_state_hash),
-            label=f"gettaustate {normalized_state_hash}",
-        )
-        returned_state_hash = payload.get("state_hash", "")
-        if returned_state_hash in ("", None):
-            normalized_returned_state_hash = ""
-        else:
-            normalized_returned_state_hash = _coerce_hex_32_noprefix(
-                returned_state_hash,
-                label=f"gettaustate {normalized_state_hash} returned state_hash",
-            )
-            if normalized_returned_state_hash != normalized_state_hash:
-                raise TauNetRpcError(
-                    f"gettaustate {normalized_state_hash} returned state_hash does not match requested state_hash"
-                )
-        present = payload.get("present")
-        if present is not None and not isinstance(present, bool):
-            raise TauNetRpcError(
-                f"gettaustate {normalized_state_hash} present must be a bool when provided, got {present!r}"
-            )
-        error = payload.get("error")
-        if error is not None and not isinstance(error, str):
-            raise TauNetRpcError(
-                f"gettaustate {normalized_state_hash} error must be a string when provided, got {error!r}"
-            )
-        if present is False:
-            raise TauNetRpcError(
-                f"gettaustate {normalized_state_hash} reported no committed tau_state payload"
-                + (f": {error}" if error else "")
-            )
-        if isinstance(error, str) and error.strip():
-            raise TauNetRpcError(f"gettaustate {normalized_state_hash} returned an error: {error.strip()}")
-        rules = payload.get("rules")
-        if not isinstance(rules, str):
-            raise TauNetRpcError(f"gettaustate {normalized_state_hash} rules must be a string, got {rules!r}")
-        accounts_hash = _coerce_hex_32_noprefix(
-            payload.get("accounts_hash", ""),
-            label=f"gettaustate {normalized_state_hash} accounts_hash",
-        )
-        raw_app_hash = payload.get("app_hash", "")
-        if raw_app_hash in ("", None):
-            normalized_app_hash = ""
-        else:
-            normalized_app_hash = _coerce_hex_32_noprefix(
-                raw_app_hash,
-                label=f"gettaustate {normalized_state_hash} app_hash",
-            )
-        computed_state_hash = compute_tau_state_commitment_hash_hex(
-            rules=rules,
-            accounts_hash=accounts_hash,
-            app_hash=normalized_app_hash,
-        )
-        if computed_state_hash != normalized_state_hash:
-            raise TauNetRpcError(
-                f"gettaustate {normalized_state_hash} payload does not hash to requested state_hash"
-            )
-        return TauNetTauStateView(
-            state_hash=normalized_returned_state_hash or normalized_state_hash,
-            rules=rules,
-            accounts_hash=accounts_hash,
-            app_hash=normalized_app_hash,
-        )
 
     def send_signed_tx(
         self,

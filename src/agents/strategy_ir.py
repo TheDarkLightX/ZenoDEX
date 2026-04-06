@@ -78,7 +78,6 @@ _LEGACY_TAU_POLICY_SPEC_MAP: dict[str, tuple[str, ...]] = {
     "autotrader_external_signal_source_registry_guard_v1": AUTOTRADER_TAU_POLICY_SPECS,
     "autotrader_oracle_freshness_guard_v1": AUTOTRADER_TAU_POLICY_SPECS,
     "autotrader_route_economic_sanity_guard_v1": AUTOTRADER_TAU_POLICY_SPECS,
-    "autotrader_session_capability_binding_guard_v1": AUTOTRADER_TAU_POLICY_SPECS,
     "autotrader_session_state_guard_v1": AUTOTRADER_TAU_POLICY_SPECS,
     "autotrader_signal_provenance_guard_v1": AUTOTRADER_TAU_POLICY_SPECS,
     "autotrader_wallet_capability_guard_v1": AUTOTRADER_TAU_POLICY_SPECS,

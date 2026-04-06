@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import importlib
-
-import pytest
-
 from src.core.batch_clearing import (
     _SWAP_ORDERING_MCI_AB_GLOBAL,
     _eval_ordering_ab,
@@ -14,22 +10,11 @@ from src.core.batch_clearing import (
     validate_settlement,
 )
 from src.state.lp import LPTable
-
-
-def _import_or_skip_if_top_level_missing(module_name: str):
-    try:
-        return importlib.import_module(module_name)
-    except ModuleNotFoundError as exc:
-        if exc.name == module_name:
-            pytest.skip(f"{module_name} is not promoted on clean main", allow_module_level=True)
-        raise
-
-
-metamuse_batch_ordering_lane = _import_or_skip_if_top_level_missing("tools.metamuse_batch_ordering_lane")
-
-BATCH_MCI_CURATED_CASES = metamuse_batch_ordering_lane.BATCH_MCI_CURATED_CASES
-build_case_balances = metamuse_batch_ordering_lane.build_case_balances
-build_case_pool_and_intents = metamuse_batch_ordering_lane.build_case_pool_and_intents
+from tools.metamuse_batch_ordering_lane import (
+    BATCH_MCI_CURATED_CASES,
+    build_case_balances,
+    build_case_pool_and_intents,
+)
 
 
 def test_mci_global_matches_bounded_optimum_on_curated_corpus() -> None:

@@ -1,0 +1,88 @@
+# [FORGE] zUSD Repay Single Vault v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_repay_single_vault_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: single-vault repay transition.
+
+    Purpose:
+      - Make the local "repay burns free debt and selected-vault debt by the same amount"
+        rule explicit and replayable.
+      - Keep the boundary small enough to reuse from the multi-vault wrapper after a
+        separate selector chooses the target vault.
+
+    Assume/guarantee split:
+      - Assumes authorization / nonce / tau-gate checks already passed.
+      - Assumes the target vault has already been selected in multi-vault flows.
+      - Guarantees only the debt/free-debt pre-bounds, exact deltas, and the resulting
+        post-state for the selected vault plus free-debt bucket.
+
+    Non-goals:
+      - multi-vault target selection
+      - global supply aggregation outside the selected vault + free-debt bucket
+      - mint / redeem / liquidation policy
+
+observables:
+  state_vars:
+    [
+      "debt_e8",
+      "free_debt_e8",
+    ]
+  effects:
+    [
+      "debt_after_e8",
+      "debt_delta_e8",
+      "free_debt_after_e8",
+      "free_debt_delta_e8",
+      "repaid_zusd_e8",
+    ]
+
+types: []
+
+state_vars:
+  - id: "debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "free_debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+init:
+  - var: "debt_e8"
+    expr: { const: 0 }
+  - var: "free_debt_e8"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_free_debt_le_total_debt"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "free_debt_e8" }, { var: "debt_e8" }]
+
+actions:
+  - id: "apply_repay_single_vault"
+    params:
+      - id: "amount_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "amount_e8" }, { var: "debt_e8" }] }
+        - { op: "<=", args: [{ param: "amount_e8" }, { var: "free_debt_e8" }] }
+    updates:
+      - var: "debt_e8"
+        expr:
+          op: "-"
+          args: [{ var: "debt_e8" }, { param: "amount_e8" }]
+      - var: "free_debt_e8"
+        expr:
+          op: "-"
+          args: [{ var: "free_debt_e8" }, { param: "amount_e8" }]
+    effects:
+      repaid_zusd_e8: { param: "amount_e8" }
+      debt_after_e8: { var: "debt_e8" }
+      free_debt_after_e8: { var: "free_debt_e8" }
+      debt_delta_e8: { param: "amount_e8" }
+      free_debt_delta_e8: { param: "amount_e8" }

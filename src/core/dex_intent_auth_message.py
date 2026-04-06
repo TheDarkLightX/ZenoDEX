@@ -4,6 +4,10 @@ import hashlib
 from enum import Enum
 from typing import Any, Dict, Mapping
 
+from .dex_intent_auth_shape_gate import (
+    dex_intent_auth_shape_gate_error,
+    evaluate_dex_intent_auth_shape_gate,
+)
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes
 from ..state.intents import Intent
 
@@ -13,29 +17,34 @@ _DEX_INTENT_COMMON_KEYS = {"module", "version", "kind", "intent_id", "sender_pub
 
 def _normalize_intent_kind(kind: Any) -> Any:
     if isinstance(kind, Enum):
-        kind = kind.value
-    if isinstance(kind, str):
-        return kind.lower()
+        return kind.value
     return kind
 
 
 def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict[str, Any]:
     """Build the canonical signing dict for a DEX intent."""
     if isinstance(intent, Intent):
-        fields = intent.fields or {}
-        if not isinstance(fields, dict):
-            raise TypeError("intent.fields must be a dict")
+        fields = {} if intent.fields is None else intent.fields
+        shape = evaluate_dex_intent_auth_shape_gate(
+            intent_object_mode=1,
+            fields_object_ok=isinstance(fields, dict),
+            explicit_fields_present=0,
+            explicit_fields_mapping_ok=1,
+            salt_present=int(intent.salt is not None),
+        )
+        if not shape.shape_ok:
+            raise TypeError(dex_intent_auth_shape_gate_error(shape) or "invalid intent auth shape")
         fields = dict(fields)
         signing_dict: Dict[str, Any] = {
             "module": intent.module,
             "version": intent.version,
-            "kind": _normalize_intent_kind(intent.kind),
+            "kind": intent.kind.value,
             "intent_id": intent.intent_id,
             "sender_pubkey": intent.sender_pubkey,
             "deadline": intent.deadline,
             "fields": fields,
         }
-        if intent.salt is not None:
+        if shape.include_salt:
             signing_dict["salt"] = intent.salt
         return signing_dict
 
@@ -43,11 +52,21 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
         raise TypeError("intent must be an Intent or mapping")
 
     explicit_fields = intent.get("fields")
-    if explicit_fields is None:
+    shape = evaluate_dex_intent_auth_shape_gate(
+        intent_object_mode=0,
+        fields_object_ok=1,
+        explicit_fields_present=int(explicit_fields is not None),
+        explicit_fields_mapping_ok=int(
+            explicit_fields is None or isinstance(explicit_fields, Mapping)
+        ),
+        salt_present=int(intent.get("salt") is not None),
+    )
+    if not shape.shape_ok:
+        raise TypeError(dex_intent_auth_shape_gate_error(shape) or "invalid intent auth shape")
+
+    if shape.use_transport_flattened_fields:
         fields = {k: v for k, v in dict(intent).items() if k not in _DEX_INTENT_COMMON_KEYS and k != "signature"}
     else:
-        if not isinstance(explicit_fields, Mapping):
-            raise TypeError("intent.fields must be a mapping when present")
         fields = dict(explicit_fields)
 
     signing_dict = {
@@ -60,7 +79,7 @@ def build_dex_intent_signing_dict_v1(intent: Intent | Mapping[str, Any]) -> Dict
         "fields": fields,
     }
     salt = intent.get("salt")
-    if salt is not None:
+    if shape.include_salt:
         signing_dict["salt"] = salt
     return signing_dict
 

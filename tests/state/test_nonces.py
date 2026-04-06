@@ -91,6 +91,17 @@ def test_validate_and_apply_nonce_batch_rejects_mixed_nonce_presence_when_backwa
     assert updated is None
 
 
+def test_validate_and_apply_nonce_batch_missing_required_precedes_mixed_presence() -> None:
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[_intent(nonce=1), _intent(sender="0x" + "22" * 48, nonce=None)],
+        require_all_nonces=True,
+    )
+    assert ok is False
+    assert err == "Missing/invalid nonce"
+    assert updated is None
+
+
 def test_validate_and_apply_nonce_batch_accepts_nonce_free_batch_in_backward_compat_mode() -> None:
     ok, err, updated = validate_and_apply_intent_nonce_batch(
         nonces=NonceTable(),

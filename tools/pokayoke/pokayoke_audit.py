@@ -7,7 +7,7 @@ Goal
   Identify where mistake-proofing yields the highest ROI by:
   - mapping degrees of freedom (user-controllable inputs)
   - enumerating failure modes + risk signals
-  - detecting existing guardrails in current repo surfaces
+  - detecting existing guardrails in the UI code
   - ranking missing/weak guardrails via a lightweight FMEA score
 
 This tool is intentionally heuristic: it produces a ranked *experiment queue*,
@@ -56,9 +56,11 @@ class FailureMode:
     representation_shift: str  # equiv|reduce|relax|restrict|heuristic|lift|project|decompose
 
 
-SURFACES: list[Surface] = [
+UI_SURFACES: list[Surface] = [
     Surface(surface_id="swap", relpath="tools/dex-ui/src/components/SwapInterface.jsx", flow="swap"),
-    Surface(surface_id="swap_signer_preflight", relpath="src/agents/intent_signer.py", flow="swap"),
+    Surface(surface_id="add_liquidity", relpath="tools/dex-ui/src/components/AddLiquidityModal.jsx", flow="liquidity_add"),
+    Surface(surface_id="remove_liquidity", relpath="tools/dex-ui/src/components/RemoveLiquidityModal.jsx", flow="liquidity_remove"),
+    Surface(surface_id="perps_order", relpath="tools/dex-ui/src/components/perps/PerpOrderForm.jsx", flow="perps_order"),
 ]
 
 
@@ -81,9 +83,6 @@ FAILURE_MODES: list[FailureMode] = [
             r"apiSlippageAdvice\?\.(?:pokayoke|pokayokeDecision)|apiSlippageAdvice\?\.\s*pokayoke",
             r"typed_confirm",
             r"typed\s+confirmation",
-            r"_enforce_pokayoke_max_action",
-            r"_preflight_swap_pokayoke_exact_in_cpmm",
-            r"pokayoke_guardrail:",
         ],
         proposed_intervention="Add an interlock: when slippage advisor status is mev_conflict, require typed confirmation (or default to block in non-advanced mode).",
         representation_shift="restrict",
@@ -102,8 +101,6 @@ FAILURE_MODES: list[FailureMode] = [
         ],
         interlock_markers=[
             r"apiSlippageAdvice\?\.(?:pokayoke|pokayokeDecision)|apiSlippageAdvice\?\.\s*pokayoke",
-            r"_enforce_pokayoke_max_action",
-            r"_preflight_swap_pokayoke_exact_in_cpmm",
         ],
         proposed_intervention="Surface fail-closed semantics: require explicit confirmation when status is inconclusive_mev, and log overrides.",
         representation_shift="restrict",
@@ -123,8 +120,6 @@ FAILURE_MODES: list[FailureMode] = [
         interlock_markers=[
             r"apiSlippageAdvice\?\.(?:pokayoke|pokayokeDecision)|apiSlippageAdvice\?\.\s*pokayoke",
             r"typed_confirm",
-            r"_enforce_pokayoke_max_action",
-            r"_preflight_swap_pokayoke_exact_in_cpmm",
         ],
         proposed_intervention="Add an interlock: typed confirm (or block) when no_revert_safe_option; offer a deterministic amount-reduction suggestion.",
         representation_shift="reduce",
@@ -145,7 +140,6 @@ FAILURE_MODES: list[FailureMode] = [
         interlock_markers=[
             r"handleSwapClick[\s\S]*priceImpact\s*>\s*0\.01",
             r"setShowConfirm\(",
-            r"_enforce_pokayoke_max_action",
         ],
         proposed_intervention="Escalate interlocks by tier: confirm at >=1% impact, typed confirm at >=5% impact (non-advanced mode).",
         representation_shift="restrict",
@@ -223,16 +217,6 @@ def _roi_score(*, rpn: int, effort: int) -> float:
     return float(rpn) / float(e)
 
 
-def _coverage_status(*, signal_present: bool, interlock_present: bool) -> str:
-    if signal_present and interlock_present:
-        return "covered"
-    if interlock_present:
-        return "partial"
-    if signal_present:
-        return "signal_only"
-    return "uncovered"
-
-
 def _now_utc_compact() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -258,14 +242,11 @@ def main() -> int:
     # Inventory: surfaces + hashes + marker hits.
     inventory: dict[str, Any] = {"schema": "zenodex/pokayoke_audit_inventory/v1", "created_at": _now_utc_compact(), "surfaces": []}
     surface_text_by_flow: dict[str, str] = {}
-    active_flows: set[str] = set()
-    for s in SURFACES:
+    for s in UI_SURFACES:
         p = (repo_root / s.relpath).resolve()
         text = _read_text(p) if p.exists() else ""
         surface_text_by_flow.setdefault(str(s.flow), "")
         surface_text_by_flow[str(s.flow)] += "\n" + text
-        if p.exists():
-            active_flows.add(str(s.flow))
         inventory["surfaces"].append(
             {
                 "surface_id": s.surface_id,
@@ -279,17 +260,11 @@ def main() -> int:
 
     opportunities: list[dict[str, Any]] = []
     for fm in FAILURE_MODES:
-        if str(fm.flow) not in active_flows:
-            continue
         text = surface_text_by_flow.get(str(fm.flow), "")
         signal_hits = _pattern_hits(text, fm.signal_markers)
         interlock_hits = _pattern_hits(text, fm.interlock_markers)
         signal_present = any(v > 0 for v in signal_hits.values())
         interlock_present = any(v > 0 for v in interlock_hits.values())
-        coverage_status = _coverage_status(
-            signal_present=bool(signal_present),
-            interlock_present=bool(interlock_present),
-        )
         rpn = _fmea_rpn(severity=fm.severity, occurrence=fm.occurrence, detectability=fm.detectability)
         roi = _roi_score(rpn=rpn, effort=fm.effort)
         opportunities.append(
@@ -305,7 +280,6 @@ def main() -> int:
                 "roi": roi,
                 "signal_present": bool(signal_present),
                 "interlock_present": bool(interlock_present),
-                "coverage_status": coverage_status,
                 "signal_marker_hits": signal_hits,
                 "interlock_marker_hits": interlock_hits,
                 "proposed_intervention": fm.proposed_intervention,
@@ -316,11 +290,11 @@ def main() -> int:
     # Rank missing/weak interlocks first (signal present but no interlock),
     # then missing signals entirely, then already-interlocked items.
     def _rank_key(row: dict[str, Any]) -> tuple[int, float, int]:
-        if row["coverage_status"] == "signal_only":
+        if row["signal_present"] and not row["interlock_present"]:
             bucket = 0
-        elif row["coverage_status"] == "uncovered":
+        elif not row["signal_present"] and not row["interlock_present"]:
             bucket = 1
-        elif row["coverage_status"] == "partial":
+        elif row["interlock_present"]:
             bucket = 2
         else:
             bucket = 3
@@ -345,32 +319,26 @@ def main() -> int:
     lines.append(f"- created_at: `{report_json['created_at']}`")
     lines.append(f"- out_dir: `{out_dir}`")
     lines.append("")
-    lines.append("## Top Opportunities (Signal-Only Or Uncovered)")
+    lines.append("## Top Opportunities (Missing/Weak Guardrails)")
     lines.append("")
     for row in opportunities:
-        if row["coverage_status"] not in {"signal_only", "uncovered"}:
+        if row["interlock_present"]:
             continue
-        lines.append(
-            f"- **{row['failure_id']}** (flow `{row['flow']}`) ROI={row['roi']:.1f} "
-            f"RPN={row['rpn']} effort={row['effort']} coverage={row['coverage_status']}"
-        )
+        lines.append(f"- **{row['failure_id']}** (flow `{row['flow']}`) ROI={row['roi']:.1f} RPN={row['rpn']} effort={row['effort']}")
         lines.append(f"  - {row['description']}")
         lines.append(f"  - proposed: {row['proposed_intervention']}")
         lines.append(f"  - transform: `{row['representation_shift']}`")
         lines.append(f"  - signal_present: `{row['signal_present']}`")
-    if lines[-1] == "## Top Opportunities (Signal-Only Or Uncovered)":
+    if lines[-1] == "## Top Opportunities (Missing/Weak Guardrails)":
         lines.append("- (none detected by markers; extend catalog/markers)")
     lines.append("")
-    lines.append("## Existing Or Partial Guardrails Detected (By Markers)")
+    lines.append("## Existing Guardrails Detected (By Markers)")
     lines.append("")
     for row in opportunities:
-        if row["coverage_status"] not in {"covered", "partial"}:
+        if not row["interlock_present"]:
             continue
         markers = [p for p, n in row["interlock_marker_hits"].items() if n > 0]
-        lines.append(
-            f"- **{row['failure_id']}** (flow `{row['flow']}`) "
-            f"coverage={row['coverage_status']} interlock markers: {', '.join(markers)}"
-        )
+        lines.append(f"- **{row['failure_id']}** (flow `{row['flow']}`) interlock markers: {', '.join(markers)}")
     lines.append("")
     (out_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

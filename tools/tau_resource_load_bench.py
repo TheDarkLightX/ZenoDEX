@@ -136,15 +136,25 @@ def main() -> int:
     ap.add_argument("--max-seconds", type=float, default=60.0)
     ap.add_argument("--out", type=Path, default=Path("runs/tau_resource_load_bench/latest.json"))
     ap.add_argument(
+        "--experimental",
+        action="store_true",
+        help="Run tau with --experimental enabled (useful for A/B benchmarking transitioning features).",
+    )
+    ap.add_argument(
+        "--tau-bin",
+        type=Path,
+        help="Override Tau binary path (default: auto-detect; or set TAU_BIN=/path/to/tau).",
+    )
+    ap.add_argument(
         "--include-perp-risk",
         action="store_true",
         help="Include perp_risk_envelope_proof_gate_v1 in the benchmark set.",
     )
     args = ap.parse_args()
 
-    tau_bin = find_tau_bin(ROOT)
+    tau_bin = str(args.tau_bin) if getattr(args, "tau_bin", None) else find_tau_bin(ROOT)
     if not tau_bin:
-        raise SystemExit("tau binary not found")
+        raise SystemExit("tau binary not found (set TAU_BIN=/path/to/tau or build external/tau-lang/build-Release/tau)")
 
     bench_specs: list[tuple[str, Path, str, StepGen]] = [
         ("resource_budget_guard_v1", ROOT / "src/tau_specs/recommended/resource_budget_guard_v1.tau", "o3", _gen_resource_budget),
@@ -170,6 +180,7 @@ def main() -> int:
                 spec_path=spec_path,
                 steps=steps,
                 timeout_s=max_seconds,
+                experimental=bool(args.experimental),
             )
             elapsed = float(time.time() - t0)
             accepts = sum(1 for i in range(steps_n) if int(outputs.get(i, {}).get(gate_out, 0)) == 1)
@@ -179,6 +190,7 @@ def main() -> int:
                     "spec_path": str(spec_path),
                     "gate_output": gate_out,
                     "steps": steps_n,
+                    "experimental": bool(args.experimental),
                     "elapsed_s": elapsed,
                     "per_step_ms": (elapsed * 1000.0) / float(steps_n),
                     "accept_count": int(accepts),
@@ -206,6 +218,7 @@ def main() -> int:
         "tau_bin": str(tau_bin),
         "steps": steps_n,
         "max_seconds": max_seconds,
+        "experimental": bool(args.experimental),
         "results": results,
     }
 

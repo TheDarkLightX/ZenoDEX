@@ -29,7 +29,6 @@ Value = bool | int | str
 PERPS_STATE_VERSION_V4 = 4
 PERPS_STATE_VERSION_V5 = 5
 PERPS_STATE_VERSION = PERPS_STATE_VERSION_V5
-_BPS_MAX = 10_000
 
 
 def _pubkey_bytes48(pubkey: str, *, name: str) -> bytes:
@@ -42,95 +41,6 @@ def _pubkey_bytes48_or_none(pubkey: str) -> bytes | None:
         return _pubkey_bytes48(pubkey, name="pubkey")
     except Exception:
         return None
-
-
-def _require_non_negative_int(value: int, *, name: str) -> None:
-    if value < 0:
-        raise ValueError(f"{name} must be non-negative")
-
-
-def _require_positive_int(value: int, *, name: str) -> None:
-    if value <= 0:
-        raise ValueError(f"{name} must be positive")
-
-
-def _require_bps_range(value: int, *, name: str) -> None:
-    if not (0 <= value <= _BPS_MAX):
-        raise ValueError(f"{name} must be in [0,{_BPS_MAX}]")
-
-
-def _validate_common_perp_risk_state(
-    state: Dict[str, Value],
-    *,
-    has_depeg_buffer: bool,
-    has_funding_fields: bool,
-    has_min_bounty: bool,
-) -> None:
-    now_epoch = int(state["now_epoch"])
-    breaker_active = bool(state["breaker_active"])
-    breaker_last_trigger_epoch = int(state["breaker_last_trigger_epoch"])
-    clearing_price_seen = bool(state["clearing_price_seen"])
-    clearing_price_epoch = int(state["clearing_price_epoch"])
-    clearing_price_e8 = int(state["clearing_price_e8"])
-    oracle_seen = bool(state["oracle_seen"])
-    oracle_last_update_epoch = int(state["oracle_last_update_epoch"])
-    index_price_e8 = int(state["index_price_e8"])
-    max_oracle_staleness_epochs = int(state["max_oracle_staleness_epochs"])
-    max_oracle_move_bps = int(state["max_oracle_move_bps"])
-    initial_margin_bps = int(state["initial_margin_bps"])
-    maintenance_margin_bps = int(state["maintenance_margin_bps"])
-    liquidation_penalty_bps = int(state["liquidation_penalty_bps"])
-    max_position_abs = int(state["max_position_abs"])
-
-    _require_non_negative_int(now_epoch, name="now_epoch")
-    _require_non_negative_int(breaker_last_trigger_epoch, name="breaker_last_trigger_epoch")
-    _require_non_negative_int(clearing_price_epoch, name="clearing_price_epoch")
-    _require_non_negative_int(oracle_last_update_epoch, name="oracle_last_update_epoch")
-    _require_non_negative_int(max_oracle_staleness_epochs, name="max_oracle_staleness_epochs")
-    _require_bps_range(max_oracle_move_bps, name="max_oracle_move_bps")
-    _require_bps_range(initial_margin_bps, name="initial_margin_bps")
-    _require_bps_range(maintenance_margin_bps, name="maintenance_margin_bps")
-    _require_bps_range(liquidation_penalty_bps, name="liquidation_penalty_bps")
-    _require_positive_int(max_position_abs, name="max_position_abs")
-
-    if breaker_last_trigger_epoch > now_epoch:
-        raise ValueError("breaker_last_trigger_epoch must be <= now_epoch")
-    if clearing_price_epoch > now_epoch:
-        raise ValueError("clearing_price_epoch must be <= now_epoch")
-    if oracle_last_update_epoch > now_epoch:
-        raise ValueError("oracle_last_update_epoch must be <= now_epoch")
-
-    if not breaker_active and breaker_last_trigger_epoch != 0:
-        raise ValueError("breaker_last_trigger_epoch must be 0 when breaker_active is false")
-    if not clearing_price_seen and (clearing_price_epoch != 0 or clearing_price_e8 != 0):
-        raise ValueError("clearing_price fields must be 0 when clearing_price_seen is false")
-    if not oracle_seen and (oracle_last_update_epoch != 0 or index_price_e8 != 0):
-        raise ValueError("oracle fields must be 0 when oracle_seen is false")
-    if oracle_seen and index_price_e8 <= 0:
-        raise ValueError("index_price_e8 must be positive when oracle_seen is true")
-
-    depeg_buffer_bps = 0
-    if has_depeg_buffer:
-        depeg_buffer_bps = int(state["depeg_buffer_bps"])
-        _require_bps_range(depeg_buffer_bps, name="depeg_buffer_bps")
-
-    eff_maint = maintenance_margin_bps + depeg_buffer_bps
-    if eff_maint > initial_margin_bps or max_oracle_move_bps > eff_maint:
-        relation = "max_move <= maint+depeg <= initial" if has_depeg_buffer else "max_move <= maint <= initial"
-        raise ValueError(f"invalid margin params ordering ({relation})")
-    if liquidation_penalty_bps >= eff_maint:
-        limit_name = "maintenance_margin_bps + depeg_buffer_bps" if has_depeg_buffer else "maintenance_margin_bps"
-        raise ValueError(f"invalid liquidation_penalty_bps (must be < {limit_name})")
-
-    if has_funding_fields:
-        funding_cap_bps = int(state["funding_cap_bps"])
-        funding_rate_bps = int(state["funding_rate_bps"])
-        _require_bps_range(funding_cap_bps, name="funding_cap_bps")
-        if abs(funding_rate_bps) > funding_cap_bps:
-            raise ValueError("funding_rate_bps must be within [-funding_cap_bps, funding_cap_bps]")
-
-    if has_min_bounty:
-        _require_non_negative_int(int(state["min_notional_for_bounty"]), name="min_notional_for_bounty")
 
 
 def _infer_epoch_phase(gs: dict) -> int:
@@ -407,29 +317,60 @@ class PerpMarketState:
         epoch_phase = int(gs["epoch_phase"])
         epoch_phase_str = _EPOCH_PHASE_INT_TO_STR.get(epoch_phase, str(epoch_phase))
 
+        breaker_active = bool(gs["breaker_active"])
+        breaker_last_trigger_epoch = int(gs["breaker_last_trigger_epoch"])
+
         clearing_price_seen = bool(gs["clearing_price_seen"])
         clearing_price_epoch = int(gs["clearing_price_epoch"])
+        clearing_price_e8 = int(gs["clearing_price_e8"])
 
         oracle_seen = bool(gs["oracle_seen"])
         oracle_last_update_epoch = int(gs["oracle_last_update_epoch"])
         index_price_e8 = int(gs["index_price_e8"])
 
+        max_oracle_move_bps = int(gs["max_oracle_move_bps"])
+        initial_margin_bps = int(gs["initial_margin_bps"])
         maintenance_margin_bps = int(gs["maintenance_margin_bps"])
         depeg_buffer_bps = int(gs["depeg_buffer_bps"])
+        liquidation_penalty_bps = int(gs["liquidation_penalty_bps"])
 
         fee_pool_quote = int(gs["fee_pool_quote"])
+        funding_rate_bps = int(gs["funding_rate_bps"])
+        funding_cap_bps = int(gs["funding_cap_bps"])
 
         insurance_balance = int(gs["insurance_balance"])
         initial_insurance = int(gs["initial_insurance"])
         fee_income = int(gs["fee_income"])
         claims_paid = int(gs["claims_paid"])
 
-        _validate_common_perp_risk_state(
-            gs,
-            has_depeg_buffer=True,
-            has_funding_fields=True,
-            has_min_bounty=True,
-        )
+        # Basic temporal sanity: "from future" fields are invalid.
+        if breaker_last_trigger_epoch > now_epoch:
+            raise ValueError("breaker_last_trigger_epoch must be <= now_epoch")
+        if clearing_price_epoch > now_epoch:
+            raise ValueError("clearing_price_epoch must be <= now_epoch")
+        if oracle_last_update_epoch > now_epoch:
+            raise ValueError("oracle_last_update_epoch must be <= now_epoch")
+
+        # Zeroing invariants (fail-closed on partial fields).
+        if not breaker_active and breaker_last_trigger_epoch != 0:
+            raise ValueError("breaker_last_trigger_epoch must be 0 when breaker_active is false")
+        if not clearing_price_seen and (clearing_price_epoch != 0 or clearing_price_e8 != 0):
+            raise ValueError("clearing_price fields must be 0 when clearing_price_seen is false")
+        if not oracle_seen and (oracle_last_update_epoch != 0 or index_price_e8 != 0):
+            raise ValueError("oracle fields must be 0 when oracle_seen is false")
+        if oracle_seen and index_price_e8 <= 0:
+            raise ValueError("index_price_e8 must be positive when oracle_seen is true")
+
+        # Parameter ordering invariants.
+        eff_maint = maintenance_margin_bps + depeg_buffer_bps
+        if not (max_oracle_move_bps <= eff_maint <= initial_margin_bps):
+            raise ValueError("invalid margin params ordering (max_move <= maint+depeg <= initial)")
+        if liquidation_penalty_bps >= eff_maint:
+            raise ValueError("invalid liquidation_penalty_bps (must be < maintenance_margin_bps + depeg_buffer_bps)")
+
+        # Funding bounds + gate.
+        if abs(funding_rate_bps) > funding_cap_bps:
+            raise ValueError("funding_rate_bps must be within [-funding_cap_bps, funding_cap_bps]")
 
         # Insurance accounting + nonneg.
         if insurance_balance < 0:
@@ -532,13 +473,6 @@ class PerpClearinghouse2pMarketState:
                 continue
             raise TypeError(f"state[{k!r}] must be an int")
 
-        _validate_common_perp_risk_state(
-            self.state,
-            has_depeg_buffer=False,
-            has_funding_fields=False,
-            has_min_bounty=False,
-        )
-
         # Critical clearinghouse invariants (fail-closed on invalid snapshots):
         # - net exposure is structurally zero for the two-party market
         # - total quote-e8 is conserved across the two accounts + fee pool
@@ -621,13 +555,6 @@ class PerpClearinghouse3pTransferMarketState:
             if isinstance(v, int) and not isinstance(v, bool):
                 continue
             raise TypeError(f"state[{k!r}] must be an int")
-
-        _validate_common_perp_risk_state(
-            self.state,
-            has_depeg_buffer=False,
-            has_funding_fields=False,
-            has_min_bounty=False,
-        )
 
         # Critical clearinghouse invariants (fail-closed on invalid snapshots):
         # - net exposure is structurally zero across the three accounts

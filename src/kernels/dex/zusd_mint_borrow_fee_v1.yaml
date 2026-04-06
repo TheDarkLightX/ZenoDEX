@@ -1,0 +1,1052 @@
+# [FORGE] zUSD Mint Borrow Fee v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_mint_borrow_fee_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: single-vault mint arithmetic, fee schedule, and apply witness.
+
+    Purpose:
+      - Make the selected-vault mint path explicit: effective borrow fee schedule,
+        ceil fee arithmetic, debt/free-debt deltas, post-MCR check, and base-rate update.
+      - Keep the witness small enough to reuse from the multi-vault wrapper after a
+        separate selector chooses the target vault and the risky-ops gate already passed.
+
+    Assume/guarantee split:
+      - Assumes risky-op gating (oracle freshness / pending-match / recovery mode) passed.
+      - Assumes the target vault has already been selected in multi-vault flows.
+      - Guarantees only the local fee schedule, exact mint/debt deltas, per-vault / global
+        capacity bounds, post-MCR check, and base-rate transition.
+
+    Non-goals:
+      - oracle_report / oracle_commit policy
+      - multi-vault target selection
+      - protocol revenue accumulator update
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "price_e8",
+      "collateral_e8",
+      "debt_e8",
+      "free_debt_e8",
+      "max_debt_e8",
+      "max_debt_supply_e8",
+      "mcr_bps",
+      "min_debt_open_e8",
+      "base_rate_bps",
+      "base_rate_last_epoch",
+      "base_rate_decay_per_epoch_bps",
+      "base_rate_borrow_bump_bps",
+      "borrow_fee_floor_bps",
+      "borrow_fee_max_bps",
+    ]
+  effects:
+    [
+      "base_rate_after_bps",
+      "base_rate_last_epoch_after",
+      "debt_after_e8",
+      "debt_delta_e8",
+      "decayed_base_rate_bps",
+      "free_debt_after_e8",
+      "mcr_post_ok",
+      "mint_fee_bps",
+      "mint_fee_e8",
+      "principal_e8",
+    ]
+
+types: []
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "price_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000000000 }
+  - id: "collateral_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "free_debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_debt_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000000000 }
+  - id: "max_debt_supply_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000000000 }
+  - id: "mcr_bps"
+    role: "data"
+    type: { kind: "int", min: 1, max: 20000 }
+  - id: "min_debt_open_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000000000 }
+  - id: "base_rate_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "base_rate_last_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "base_rate_decay_per_epoch_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "base_rate_borrow_bump_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "borrow_fee_floor_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "borrow_fee_max_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "price_e8"
+    expr: { const: 100000000 }
+  - var: "collateral_e8"
+    expr: { const: 0 }
+  - var: "debt_e8"
+    expr: { const: 0 }
+  - var: "free_debt_e8"
+    expr: { const: 0 }
+  - var: "max_debt_e8"
+    expr: { const: 1000000000000 }
+  - var: "max_debt_supply_e8"
+    expr: { const: 1000000000000 }
+  - var: "mcr_bps"
+    expr: { const: 11000 }
+  - var: "min_debt_open_e8"
+    expr: { const: 100000000 }
+  - var: "base_rate_bps"
+    expr: { const: 0 }
+  - var: "base_rate_last_epoch"
+    expr: { const: 0 }
+  - var: "base_rate_decay_per_epoch_bps"
+    expr: { const: 0 }
+  - var: "base_rate_borrow_bump_bps"
+    expr: { const: 0 }
+  - var: "borrow_fee_floor_bps"
+    expr: { const: 0 }
+  - var: "borrow_fee_max_bps"
+    expr: { const: 10000 }
+
+invariants:
+  - id: "inv_base_rate_last_epoch_le_now"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "base_rate_last_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_borrow_fee_bounds"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "borrow_fee_floor_bps" }, { var: "borrow_fee_max_bps" }]
+
+  - id: "inv_free_debt_le_global_cap"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "free_debt_e8" }, { var: "max_debt_supply_e8" }]
+
+actions:
+  - id: "apply_mint_borrow_fee"
+    params:
+      - id: "amount_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: ">", args: [{ var: "debt_e8" }, { const: 0 }] }
+            - { op: ">=", args: [{ param: "amount_e8" }, { var: "min_debt_open_e8" }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "debt_e8" }
+                - op: "+"
+                  args:
+                    - { param: "amount_e8" }
+                    - op: "div"
+                      args:
+                        - op: "+"
+                          args:
+                            - op: "*"
+                              args:
+                                - { param: "amount_e8" }
+                                - op: "ite"
+                                  cond:
+                                    op: ">"
+                                    args:
+                                      - op: "+"
+                                        args:
+                                          - { var: "borrow_fee_floor_bps" }
+                                          - op: "ite"
+                                            cond:
+                                              op: ">"
+                                              args:
+                                                - op: "*"
+                                                  args:
+                                                    - op: "-"
+                                                      args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                    - { var: "base_rate_decay_per_epoch_bps" }
+                                                - { var: "base_rate_bps" }
+                                            then: { const: 0 }
+                                            else:
+                                              op: "-"
+                                              args:
+                                                - { var: "base_rate_bps" }
+                                                - op: "*"
+                                                  args:
+                                                    - op: "-"
+                                                      args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                    - { var: "base_rate_decay_per_epoch_bps" }
+                                      - { var: "borrow_fee_max_bps" }
+                                  then: { var: "borrow_fee_max_bps" }
+                                  else:
+                                    op: "ite"
+                                    cond:
+                                      op: ">"
+                                      args:
+                                        - op: "+"
+                                          args:
+                                            - { var: "borrow_fee_floor_bps" }
+                                            - op: "ite"
+                                              cond:
+                                                op: ">"
+                                                args:
+                                                  - op: "*"
+                                                    args:
+                                                      - op: "-"
+                                                        args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                      - { var: "base_rate_decay_per_epoch_bps" }
+                                                  - { var: "base_rate_bps" }
+                                              then: { const: 0 }
+                                              else:
+                                                op: "-"
+                                                args:
+                                                  - { var: "base_rate_bps" }
+                                                  - op: "*"
+                                                    args:
+                                                      - op: "-"
+                                                        args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                      - { var: "base_rate_decay_per_epoch_bps" }
+                                        - { const: 10000 }
+                                    then: { const: 10000 }
+                                    else:
+                                      op: "+"
+                                      args:
+                                        - { var: "borrow_fee_floor_bps" }
+                                        - op: "ite"
+                                          cond:
+                                            op: ">"
+                                            args:
+                                              - op: "*"
+                                                args:
+                                                  - op: "-"
+                                                    args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                  - { var: "base_rate_decay_per_epoch_bps" }
+                                              - { var: "base_rate_bps" }
+                                          then: { const: 0 }
+                                          else:
+                                            op: "-"
+                                            args:
+                                              - { var: "base_rate_bps" }
+                                              - op: "*"
+                                                args:
+                                                  - op: "-"
+                                                    args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                  - { var: "base_rate_decay_per_epoch_bps" }
+                            - { const: 9999 }
+                        - { const: 10000 }
+            - { var: "max_debt_e8" }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "free_debt_e8" }
+                - op: "+"
+                  args:
+                    - { param: "amount_e8" }
+                    - op: "div"
+                      args:
+                        - op: "+"
+                          args:
+                            - op: "*"
+                              args:
+                                - { param: "amount_e8" }
+                                - op: "ite"
+                                  cond:
+                                    op: ">"
+                                    args:
+                                      - op: "+"
+                                        args:
+                                          - { var: "borrow_fee_floor_bps" }
+                                          - op: "ite"
+                                            cond:
+                                              op: ">"
+                                              args:
+                                                - op: "*"
+                                                  args:
+                                                    - op: "-"
+                                                      args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                    - { var: "base_rate_decay_per_epoch_bps" }
+                                                - { var: "base_rate_bps" }
+                                            then: { const: 0 }
+                                            else:
+                                              op: "-"
+                                              args:
+                                                - { var: "base_rate_bps" }
+                                                - op: "*"
+                                                  args:
+                                                    - op: "-"
+                                                      args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                    - { var: "base_rate_decay_per_epoch_bps" }
+                                      - { var: "borrow_fee_max_bps" }
+                                  then: { var: "borrow_fee_max_bps" }
+                                  else:
+                                    op: "ite"
+                                    cond:
+                                      op: ">"
+                                      args:
+                                        - op: "+"
+                                          args:
+                                            - { var: "borrow_fee_floor_bps" }
+                                            - op: "ite"
+                                              cond:
+                                                op: ">"
+                                                args:
+                                                  - op: "*"
+                                                    args:
+                                                      - op: "-"
+                                                        args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                      - { var: "base_rate_decay_per_epoch_bps" }
+                                                  - { var: "base_rate_bps" }
+                                              then: { const: 0 }
+                                              else:
+                                                op: "-"
+                                                args:
+                                                  - { var: "base_rate_bps" }
+                                                  - op: "*"
+                                                    args:
+                                                      - op: "-"
+                                                        args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                      - { var: "base_rate_decay_per_epoch_bps" }
+                                        - { const: 10000 }
+                                    then: { const: 10000 }
+                                    else:
+                                      op: "+"
+                                      args:
+                                        - { var: "borrow_fee_floor_bps" }
+                                        - op: "ite"
+                                          cond:
+                                            op: ">"
+                                            args:
+                                              - op: "*"
+                                                args:
+                                                  - op: "-"
+                                                    args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                  - { var: "base_rate_decay_per_epoch_bps" }
+                                              - { var: "base_rate_bps" }
+                                          then: { const: 0 }
+                                          else:
+                                            op: "-"
+                                            args:
+                                              - { var: "base_rate_bps" }
+                                              - op: "*"
+                                                args:
+                                                  - op: "-"
+                                                    args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                  - { var: "base_rate_decay_per_epoch_bps" }
+                            - { const: 9999 }
+                        - { const: 10000 }
+            - { var: "max_debt_supply_e8" }
+        - op: ">="
+          args:
+            - op: "*"
+              args:
+                - { var: "collateral_e8" }
+                - op: "*"
+                  args: [{ var: "price_e8" }, { const: 10000 }]
+            - op: "*"
+              args:
+                - op: "+"
+                  args:
+                    - { var: "debt_e8" }
+                    - op: "+"
+                      args:
+                        - { param: "amount_e8" }
+                        - op: "div"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "*"
+                                  args:
+                                    - { param: "amount_e8" }
+                                    - op: "ite"
+                                      cond:
+                                        op: ">"
+                                        args:
+                                          - op: "+"
+                                            args:
+                                              - { var: "borrow_fee_floor_bps" }
+                                              - op: "ite"
+                                                cond:
+                                                  op: ">"
+                                                  args:
+                                                    - op: "*"
+                                                      args:
+                                                        - op: "-"
+                                                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                        - { var: "base_rate_decay_per_epoch_bps" }
+                                                    - { var: "base_rate_bps" }
+                                                then: { const: 0 }
+                                                else:
+                                                  op: "-"
+                                                  args:
+                                                    - { var: "base_rate_bps" }
+                                                    - op: "*"
+                                                      args:
+                                                        - op: "-"
+                                                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                        - { var: "base_rate_decay_per_epoch_bps" }
+                                          - { var: "borrow_fee_max_bps" }
+                                      then: { var: "borrow_fee_max_bps" }
+                                      else:
+                                        op: "ite"
+                                        cond:
+                                          op: ">"
+                                          args:
+                                            - op: "+"
+                                              args:
+                                                - { var: "borrow_fee_floor_bps" }
+                                                - op: "ite"
+                                                  cond:
+                                                    op: ">"
+                                                    args:
+                                                      - op: "*"
+                                                        args:
+                                                          - op: "-"
+                                                            args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                          - { var: "base_rate_decay_per_epoch_bps" }
+                                                      - { var: "base_rate_bps" }
+                                                  then: { const: 0 }
+                                                  else:
+                                                    op: "-"
+                                                    args:
+                                                      - { var: "base_rate_bps" }
+                                                      - op: "*"
+                                                        args:
+                                                          - op: "-"
+                                                            args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                          - { var: "base_rate_decay_per_epoch_bps" }
+                                            - { const: 10000 }
+                                        then: { const: 10000 }
+                                        else:
+                                          op: "+"
+                                          args:
+                                            - { var: "borrow_fee_floor_bps" }
+                                            - op: "ite"
+                                              cond:
+                                                op: ">"
+                                                args:
+                                                  - op: "*"
+                                                    args:
+                                                      - op: "-"
+                                                        args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                      - { var: "base_rate_decay_per_epoch_bps" }
+                                                  - { var: "base_rate_bps" }
+                                              then: { const: 0 }
+                                              else:
+                                                op: "-"
+                                                args:
+                                                  - { var: "base_rate_bps" }
+                                                  - op: "*"
+                                                    args:
+                                                      - op: "-"
+                                                        args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                      - { var: "base_rate_decay_per_epoch_bps" }
+                                - { const: 9999 }
+                            - { const: 10000 }
+                - op: "*"
+                  args: [{ var: "mcr_bps" }, { const: 100000000 }]
+    updates:
+      - var: "debt_e8"
+        expr:
+          op: "+"
+          args:
+            - { var: "debt_e8" }
+            - op: "+"
+              args:
+                - { param: "amount_e8" }
+                - op: "div"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: "amount_e8" }
+                            - op: "ite"
+                              cond:
+                                op: ">"
+                                args:
+                                  - op: "+"
+                                    args:
+                                      - { var: "borrow_fee_floor_bps" }
+                                      - op: "ite"
+                                        cond:
+                                          op: ">"
+                                          args:
+                                            - op: "*"
+                                              args:
+                                                - op: "-"
+                                                  args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                - { var: "base_rate_decay_per_epoch_bps" }
+                                            - { var: "base_rate_bps" }
+                                        then: { const: 0 }
+                                        else:
+                                          op: "-"
+                                          args:
+                                            - { var: "base_rate_bps" }
+                                            - op: "*"
+                                              args:
+                                                - op: "-"
+                                                  args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                - { var: "base_rate_decay_per_epoch_bps" }
+                                  - { var: "borrow_fee_max_bps" }
+                              then: { var: "borrow_fee_max_bps" }
+                              else:
+                                op: "ite"
+                                cond:
+                                  op: ">"
+                                  args:
+                                    - op: "+"
+                                      args:
+                                        - { var: "borrow_fee_floor_bps" }
+                                        - op: "ite"
+                                          cond:
+                                            op: ">"
+                                            args:
+                                              - op: "*"
+                                                args:
+                                                  - op: "-"
+                                                    args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                  - { var: "base_rate_decay_per_epoch_bps" }
+                                              - { var: "base_rate_bps" }
+                                          then: { const: 0 }
+                                          else:
+                                            op: "-"
+                                            args:
+                                              - { var: "base_rate_bps" }
+                                              - op: "*"
+                                                args:
+                                                  - op: "-"
+                                                    args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                  - { var: "base_rate_decay_per_epoch_bps" }
+                                    - { const: 10000 }
+                                then: { const: 10000 }
+                                else:
+                                  op: "+"
+                                  args:
+                                    - { var: "borrow_fee_floor_bps" }
+                                    - op: "ite"
+                                      cond:
+                                        op: ">"
+                                        args:
+                                          - op: "*"
+                                            args:
+                                              - op: "-"
+                                                args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                              - { var: "base_rate_decay_per_epoch_bps" }
+                                          - { var: "base_rate_bps" }
+                                      then: { const: 0 }
+                                      else:
+                                        op: "-"
+                                        args:
+                                          - { var: "base_rate_bps" }
+                                          - op: "*"
+                                            args:
+                                              - op: "-"
+                                                args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                              - { var: "base_rate_decay_per_epoch_bps" }
+                        - { const: 9999 }
+                    - { const: 10000 }
+      - var: "free_debt_e8"
+        expr:
+          op: "+"
+          args:
+            - { var: "free_debt_e8" }
+            - op: "+"
+              args:
+                - { param: "amount_e8" }
+                - op: "div"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "*"
+                          args:
+                            - { param: "amount_e8" }
+                            - op: "ite"
+                              cond:
+                                op: ">"
+                                args:
+                                  - op: "+"
+                                    args:
+                                      - { var: "borrow_fee_floor_bps" }
+                                      - op: "ite"
+                                        cond:
+                                          op: ">"
+                                          args:
+                                            - op: "*"
+                                              args:
+                                                - op: "-"
+                                                  args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                - { var: "base_rate_decay_per_epoch_bps" }
+                                            - { var: "base_rate_bps" }
+                                        then: { const: 0 }
+                                        else:
+                                          op: "-"
+                                          args:
+                                            - { var: "base_rate_bps" }
+                                            - op: "*"
+                                              args:
+                                                - op: "-"
+                                                  args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                - { var: "base_rate_decay_per_epoch_bps" }
+                                  - { var: "borrow_fee_max_bps" }
+                              then: { var: "borrow_fee_max_bps" }
+                              else:
+                                op: "ite"
+                                cond:
+                                  op: ">"
+                                  args:
+                                    - op: "+"
+                                      args:
+                                        - { var: "borrow_fee_floor_bps" }
+                                        - op: "ite"
+                                          cond:
+                                            op: ">"
+                                            args:
+                                              - op: "*"
+                                                args:
+                                                  - op: "-"
+                                                    args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                  - { var: "base_rate_decay_per_epoch_bps" }
+                                              - { var: "base_rate_bps" }
+                                          then: { const: 0 }
+                                          else:
+                                            op: "-"
+                                            args:
+                                              - { var: "base_rate_bps" }
+                                              - op: "*"
+                                                args:
+                                                  - op: "-"
+                                                    args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                                  - { var: "base_rate_decay_per_epoch_bps" }
+                                    - { const: 10000 }
+                                then: { const: 10000 }
+                                else:
+                                  op: "+"
+                                  args:
+                                    - { var: "borrow_fee_floor_bps" }
+                                    - op: "ite"
+                                      cond:
+                                        op: ">"
+                                        args:
+                                          - op: "*"
+                                            args:
+                                              - op: "-"
+                                                args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                              - { var: "base_rate_decay_per_epoch_bps" }
+                                          - { var: "base_rate_bps" }
+                                      then: { const: 0 }
+                                      else:
+                                        op: "-"
+                                        args:
+                                          - { var: "base_rate_bps" }
+                                          - op: "*"
+                                            args:
+                                              - op: "-"
+                                                args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                              - { var: "base_rate_decay_per_epoch_bps" }
+                        - { const: 9999 }
+                    - { const: 10000 }
+      - var: "base_rate_bps"
+        expr:
+          op: "ite"
+          cond:
+            op: ">"
+            args:
+              - op: "+"
+                args:
+                  - op: "ite"
+                    cond:
+                      op: ">"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                            - { var: "base_rate_decay_per_epoch_bps" }
+                        - { var: "base_rate_bps" }
+                    then: { const: 0 }
+                    else:
+                      op: "-"
+                      args:
+                        - { var: "base_rate_bps" }
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                            - { var: "base_rate_decay_per_epoch_bps" }
+                  - { var: "base_rate_borrow_bump_bps" }
+              - { const: 10000 }
+          then: { const: 10000 }
+          else:
+            op: "+"
+            args:
+              - op: "ite"
+                cond:
+                  op: ">"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                        - { var: "base_rate_decay_per_epoch_bps" }
+                    - { var: "base_rate_bps" }
+                then: { const: 0 }
+                else:
+                  op: "-"
+                  args:
+                    - { var: "base_rate_bps" }
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                        - { var: "base_rate_decay_per_epoch_bps" }
+              - { var: "base_rate_borrow_bump_bps" }
+      - var: "base_rate_last_epoch"
+        expr: { var: "now_epoch" }
+    effects:
+      principal_e8: { param: "amount_e8" }
+      mint_fee_e8:
+        op: "div"
+        args:
+          - op: "+"
+            args:
+              - op: "*"
+                args:
+                  - { param: "amount_e8" }
+                  - op: "ite"
+                    cond:
+                      op: ">"
+                      args:
+                        - op: "+"
+                          args:
+                            - { var: "borrow_fee_floor_bps" }
+                            - op: "ite"
+                              cond:
+                                op: ">"
+                                args:
+                                  - op: "*"
+                                    args:
+                                      - op: "-"
+                                        args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                      - { var: "base_rate_decay_per_epoch_bps" }
+                                  - { var: "base_rate_bps" }
+                              then: { const: 0 }
+                              else:
+                                op: "-"
+                                args:
+                                  - { var: "base_rate_bps" }
+                                  - op: "*"
+                                    args:
+                                      - op: "-"
+                                        args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                      - { var: "base_rate_decay_per_epoch_bps" }
+                        - { var: "borrow_fee_max_bps" }
+                    then: { var: "borrow_fee_max_bps" }
+                    else:
+                      op: "ite"
+                      cond:
+                        op: ">"
+                        args:
+                          - op: "+"
+                            args:
+                              - { var: "borrow_fee_floor_bps" }
+                              - op: "ite"
+                                cond:
+                                  op: ">"
+                                  args:
+                                    - op: "*"
+                                      args:
+                                        - op: "-"
+                                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                        - { var: "base_rate_decay_per_epoch_bps" }
+                                    - { var: "base_rate_bps" }
+                                then: { const: 0 }
+                                else:
+                                  op: "-"
+                                  args:
+                                    - { var: "base_rate_bps" }
+                                    - op: "*"
+                                      args:
+                                        - op: "-"
+                                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                        - { var: "base_rate_decay_per_epoch_bps" }
+                          - { const: 10000 }
+                      then: { const: 10000 }
+                      else:
+                        op: "+"
+                        args:
+                          - { var: "borrow_fee_floor_bps" }
+                          - op: "ite"
+                            cond:
+                              op: ">"
+                              args:
+                                - op: "*"
+                                  args:
+                                    - op: "-"
+                                      args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                    - { var: "base_rate_decay_per_epoch_bps" }
+                                - { var: "base_rate_bps" }
+                            then: { const: 0 }
+                            else:
+                              op: "-"
+                              args:
+                                - { var: "base_rate_bps" }
+                                - op: "*"
+                                  args:
+                                    - op: "-"
+                                      args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                    - { var: "base_rate_decay_per_epoch_bps" }
+              - { const: 9999 }
+          - { const: 10000 }
+      mint_fee_bps:
+        op: "ite"
+        cond:
+          op: ">"
+          args:
+            - op: "+"
+              args:
+                - { var: "borrow_fee_floor_bps" }
+                - op: "ite"
+                  cond:
+                    op: ">"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "-"
+                            args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                          - { var: "base_rate_decay_per_epoch_bps" }
+                      - { var: "base_rate_bps" }
+                  then: { const: 0 }
+                  else:
+                    op: "-"
+                    args:
+                      - { var: "base_rate_bps" }
+                      - op: "*"
+                        args:
+                          - op: "-"
+                            args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                          - { var: "base_rate_decay_per_epoch_bps" }
+            - { var: "borrow_fee_max_bps" }
+        then: { var: "borrow_fee_max_bps" }
+        else:
+          op: "ite"
+          cond:
+            op: ">"
+            args:
+              - op: "+"
+                args:
+                  - { var: "borrow_fee_floor_bps" }
+                  - op: "ite"
+                    cond:
+                      op: ">"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                            - { var: "base_rate_decay_per_epoch_bps" }
+                        - { var: "base_rate_bps" }
+                    then: { const: 0 }
+                    else:
+                      op: "-"
+                      args:
+                        - { var: "base_rate_bps" }
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                            - { var: "base_rate_decay_per_epoch_bps" }
+              - { const: 10000 }
+          then: { const: 10000 }
+          else:
+            op: "+"
+            args:
+              - { var: "borrow_fee_floor_bps" }
+              - op: "ite"
+                cond:
+                  op: ">"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                        - { var: "base_rate_decay_per_epoch_bps" }
+                    - { var: "base_rate_bps" }
+                then: { const: 0 }
+                else:
+                  op: "-"
+                  args:
+                    - { var: "base_rate_bps" }
+                    - op: "*"
+                      args:
+                        - op: "-"
+                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                        - { var: "base_rate_decay_per_epoch_bps" }
+      debt_delta_e8:
+        op: "+"
+        args:
+          - { param: "amount_e8" }
+          - op: "div"
+            args:
+              - op: "+"
+                args:
+                  - op: "*"
+                    args:
+                      - { param: "amount_e8" }
+                      - op: "ite"
+                        cond:
+                          op: ">"
+                          args:
+                            - op: "+"
+                              args:
+                                - { var: "borrow_fee_floor_bps" }
+                                - op: "ite"
+                                  cond:
+                                    op: ">"
+                                    args:
+                                      - op: "*"
+                                        args:
+                                          - op: "-"
+                                            args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                          - { var: "base_rate_decay_per_epoch_bps" }
+                                      - { var: "base_rate_bps" }
+                                  then: { const: 0 }
+                                  else:
+                                    op: "-"
+                                    args:
+                                      - { var: "base_rate_bps" }
+                                      - op: "*"
+                                        args:
+                                          - op: "-"
+                                            args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                          - { var: "base_rate_decay_per_epoch_bps" }
+                            - { var: "borrow_fee_max_bps" }
+                        then: { var: "borrow_fee_max_bps" }
+                        else:
+                          op: "ite"
+                          cond:
+                            op: ">"
+                            args:
+                              - op: "+"
+                                args:
+                                  - { var: "borrow_fee_floor_bps" }
+                                  - op: "ite"
+                                    cond:
+                                      op: ">"
+                                      args:
+                                        - op: "*"
+                                          args:
+                                            - op: "-"
+                                              args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                            - { var: "base_rate_decay_per_epoch_bps" }
+                                        - { var: "base_rate_bps" }
+                                    then: { const: 0 }
+                                    else:
+                                      op: "-"
+                                      args:
+                                        - { var: "base_rate_bps" }
+                                        - op: "*"
+                                          args:
+                                            - op: "-"
+                                              args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                            - { var: "base_rate_decay_per_epoch_bps" }
+                              - { const: 10000 }
+                          then: { const: 10000 }
+                          else:
+                            op: "+"
+                            args:
+                              - { var: "borrow_fee_floor_bps" }
+                              - op: "ite"
+                                cond:
+                                  op: ">"
+                                  args:
+                                    - op: "*"
+                                      args:
+                                        - op: "-"
+                                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                        - { var: "base_rate_decay_per_epoch_bps" }
+                                    - { var: "base_rate_bps" }
+                                then: { const: 0 }
+                                else:
+                                  op: "-"
+                                  args:
+                                    - { var: "base_rate_bps" }
+                                    - op: "*"
+                                      args:
+                                        - op: "-"
+                                          args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                                        - { var: "base_rate_decay_per_epoch_bps" }
+                  - { const: 9999 }
+              - { const: 10000 }
+      debt_after_e8: { var: "debt_e8" }
+      free_debt_after_e8: { var: "free_debt_e8" }
+      decayed_base_rate_bps:
+        op: "ite"
+        cond:
+          op: ">"
+          args:
+            - op: "*"
+              args:
+                - op: "-"
+                  args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                - { var: "base_rate_decay_per_epoch_bps" }
+            - { var: "base_rate_bps" }
+        then: { const: 0 }
+        else:
+          op: "-"
+          args:
+            - { var: "base_rate_bps" }
+            - op: "*"
+              args:
+                - op: "-"
+                  args: [{ var: "now_epoch" }, { var: "base_rate_last_epoch" }]
+                - { var: "base_rate_decay_per_epoch_bps" }
+      base_rate_after_bps: { var: "base_rate_bps" }
+      base_rate_last_epoch_after: { var: "base_rate_last_epoch" }
+      mcr_post_ok:
+        op: ">="
+        args:
+          - op: "*"
+            args:
+              - { var: "collateral_e8" }
+              - op: "*"
+                args: [{ var: "price_e8" }, { const: 10000 }]
+          - op: "*"
+            args:
+              - { var: "debt_e8" }
+              - op: "*"
+                args: [{ var: "mcr_bps" }, { const: 100000000 }]

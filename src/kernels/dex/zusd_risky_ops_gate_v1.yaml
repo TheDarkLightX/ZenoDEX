@@ -1,0 +1,258 @@
+# [FORGE] zUSD Risky Ops Gate v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_risky_ops_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: risky-operation freeze gate for zUSD.
+
+    Purpose:
+      - Make the freeze condition for mint / collateral-withdraw / stability-pool
+        withdraw explicit and replayable.
+      - Cover the boolean-heavy shell logic around oracle initialization, oracle
+        freshness, pending-price mismatch, and recovery mode.
+      - Keep this gate topology-agnostic so the same witness can be fed from either
+        single-vault or multi-vault totals.
+
+    Assume/guarantee split:
+      - Assumes the caller has already projected the live state into system totals:
+        total vault collateral, total debt, stability-pool collateral, and protocol
+        collateral.
+      - Assumes per-action local checks (per-vault MCR, auth, caps, nonce, fee math)
+        are handled elsewhere.
+      - Guarantees only the derived risky-op gate verdict and its constituent boolean
+        witnesses for the observed state snapshot.
+
+    Non-goals:
+      - mint fee math
+      - oracle_commit safety
+      - redemption or liquidation semantics
+      - per-vault headroom selection
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "oracle_seen",
+      "oracle_last_update_epoch",
+      "price_e8",
+      "price_pending_e8",
+      "max_oracle_staleness_epochs",
+      "total_collateral_e8",
+      "total_debt_e8",
+      "sp_coll_e8",
+      "protocol_collateral_e8",
+      "ccr_bps",
+    ]
+  effects:
+    [
+      "oracle_initialized",
+      "oracle_fresh",
+      "pending_matches_active",
+      "tcr_ok",
+      "recovery_mode",
+      "risky_ops_allowed",
+    ]
+
+types: []
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "oracle_seen"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "price_pending_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_oracle_staleness_epochs"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000 }
+  - id: "total_collateral_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "total_debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "sp_coll_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "protocol_collateral_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "ccr_bps"
+    role: "data"
+    type: { kind: "int", min: 1, max: 20000 }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "oracle_seen"
+    expr: { const: 0 }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+  - var: "price_e8"
+    expr: { const: 0 }
+  - var: "price_pending_e8"
+    expr: { const: 0 }
+  - var: "max_oracle_staleness_epochs"
+    expr: { const: 100 }
+  - var: "total_collateral_e8"
+    expr: { const: 0 }
+  - var: "total_debt_e8"
+    expr: { const: 0 }
+  - var: "sp_coll_e8"
+    expr: { const: 0 }
+  - var: "protocol_collateral_e8"
+    expr: { const: 0 }
+  - var: "ccr_bps"
+    expr: { const: 15000 }
+
+invariants:
+  - id: "inv_oracle_last_update_not_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_oracle_unseen_zeroed"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "price_e8" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "price_pending_e8" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "oracle_last_update_epoch" }, { const: 0 }] }
+
+  - id: "inv_oracle_seen_positive_prices"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "oracle_seen" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: ">", args: [{ var: "price_e8" }, { const: 0 }] }
+            - { op: ">", args: [{ var: "price_pending_e8" }, { const: 0 }] }
+            - { op: "<=", args: [{ var: "price_pending_e8" }, { var: "price_e8" }] }
+
+actions:
+  - id: "check_risky_ops_gate"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "total_collateral_e8" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "total_debt_e8" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "sp_coll_e8" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "protocol_collateral_e8" }, { const: 0 }] }
+    updates: []
+    effects:
+      oracle_initialized:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+          - { op: ">", args: [{ var: "price_e8" }, { const: 0 }] }
+          - { op: ">", args: [{ var: "price_pending_e8" }, { const: 0 }] }
+      oracle_fresh:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      pending_matches_active:
+        op: "="
+        args: [{ var: "price_pending_e8" }, { var: "price_e8" }]
+      tcr_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "total_debt_e8" }, { const: 0 }] }
+          - op: ">="
+            args:
+              - op: "*"
+                args:
+                  - op: "+"
+                    args:
+                      - op: "+"
+                        args: [{ var: "total_collateral_e8" }, { var: "sp_coll_e8" }]
+                      - { var: "protocol_collateral_e8" }
+                  - op: "*"
+                    args: [{ var: "price_e8" }, { const: 10000 }]
+              - op: "*"
+                args:
+                  - { var: "total_debt_e8" }
+                  - op: "*"
+                    args: [{ var: "ccr_bps" }, { const: 100000000 }]
+      recovery_mode:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "oracle_seen" }, { const: 0 }] }
+          - { op: "<=", args: [{ var: "price_e8" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - { op: ">", args: [{ var: "total_debt_e8" }, { const: 0 }] }
+              - op: "<"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args: [{ var: "total_collateral_e8" }, { var: "sp_coll_e8" }]
+                          - { var: "protocol_collateral_e8" }
+                      - op: "*"
+                        args: [{ var: "price_e8" }, { const: 10000 }]
+                  - op: "*"
+                    args:
+                      - { var: "total_debt_e8" }
+                      - op: "*"
+                        args: [{ var: "ccr_bps" }, { const: 100000000 }]
+      risky_ops_allowed:
+        op: "and"
+        args:
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+              - { op: ">", args: [{ var: "price_e8" }, { const: 0 }] }
+              - { op: ">", args: [{ var: "price_pending_e8" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - op: "="
+                args: [{ var: "price_pending_e8" }, { var: "price_e8" }]
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                  - { var: "max_oracle_staleness_epochs" }
+          - op: "or"
+            args:
+              - { op: "=", args: [{ var: "total_debt_e8" }, { const: 0 }] }
+              - op: ">="
+                args:
+                  - op: "*"
+                    args:
+                      - op: "+"
+                        args:
+                          - op: "+"
+                            args: [{ var: "total_collateral_e8" }, { var: "sp_coll_e8" }]
+                          - { var: "protocol_collateral_e8" }
+                      - op: "*"
+                        args: [{ var: "price_e8" }, { const: 10000 }]
+                  - op: "*"
+                    args:
+                      - { var: "total_debt_e8" }
+                      - op: "*"
+                        args: [{ var: "ccr_bps" }, { const: 100000000 }]

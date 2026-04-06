@@ -87,6 +87,12 @@ ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1 = TauSpecRef(
     gate_output="o2",
 )
 
+ZUSD_TRANSFER_GUARD_V1 = TauSpecRef(
+    spec_id="zusd_transfer_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_transfer_guard_v1.tau",
+    gate_output="o4",
+)
+
 ZUSD_LIQUIDATION_GUARD_V2 = TauSpecRef(
     spec_id="zusd_liquidation_guard_v2",
     path=RECOMMENDED_SPECS_DIR / "zusd_liquidation_guard_v2.tau",
@@ -417,6 +423,12 @@ BURN_RECEIPT_REPLAY_GUARD_V1 = TauSpecRef(
     gate_output="o1",
 )
 
+CONFIDENTIAL_EXTENSION_LIVE_ADMISSION_V1 = TauSpecRef(
+    spec_id="confidential_extension_live_admission_v1",
+    path=RECOMMENDED_SPECS_DIR / "confidential_extension_live_admission_v1.tau",
+    gate_output="o1",
+)
+
 BURN_RECEIPT_AMOUNT_GUARD_V1 = TauSpecRef(
     spec_id="burn_receipt_amount_guard_v1",
     path=RECOMMENDED_SPECS_DIR / "burn_receipt_amount_guard_v1.tau",
@@ -438,6 +450,120 @@ BURN_RECEIPT_BATCH_SUM_GUARD_V1 = TauSpecRef(
 PROTOCOL_TOKEN_V1 = TauSpecRef(
     spec_id="protocol_token_v1",
     path=RECOMMENDED_SPECS_DIR / "protocol_token_v1.tau",
+    gate_output="o1",
+)
+
+AUTOTRADER_BUDGET_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_budget_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_budget_guard_v1.tau",
+    gate_output="o1",
+)
+
+AUTOTRADER_COMPILE_CONTRACT_V1 = TauSpecRef(
+    spec_id="autotrader_compile_contract_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_compile_contract_v1.tau",
+    gate_output="o1",
+)
+
+AUTOTRADER_COMPILATION_WITNESS_V1 = TauSpecRef(
+    spec_id="autotrader_compilation_witness_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_compilation_witness_v1.tau",
+    gate_output="o1",
+)
+
+AUTOTRADER_EXECUTION_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_execution_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_execution_guard_v1.tau",
+    gate_output="o1",
+)
+
+AUTOTRADER_ORACLE_FRESHNESS_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_oracle_freshness_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_oracle_freshness_guard_v1.tau",
+    gate_output="o1",
+)
+
+AUTOTRADER_ROUTE_ECONOMIC_SANITY_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_route_economic_sanity_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_route_economic_sanity_guard_v1.tau",
+    gate_output="o5",
+)
+
+AUTOTRADER_EXTERNAL_SIGNAL_SOURCE_REGISTRY_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_external_signal_source_registry_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_external_signal_source_registry_guard_v1.tau",
+    gate_output="o8",
+)
+
+AUTOTRADER_SIGNAL_PROVENANCE_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_signal_provenance_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_signal_provenance_guard_v1.tau",
+    gate_output="o4",
+)
+
+AUTOTRADER_OBSERVATION_PACKET_CONTRACT_V1 = TauSpecRef(
+    spec_id="autotrader_observation_packet_contract_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_observation_packet_contract_v1.tau",
+    gate_output="o5",
+)
+
+AUTOTRADER_WALLET_CAPABILITY_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_wallet_capability_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_wallet_capability_guard_v1.tau",
+    gate_output="o5",
+)
+
+AUTOTRADER_WALLET_OUTBOUND_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_wallet_outbound_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_wallet_outbound_guard_v1.tau",
+    gate_output="o5",
+)
+
+AUTOTRADER_SESSION_STATE_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_session_state_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_session_state_guard_v1.tau",
+    gate_output="o6",
+)
+
+AUTOTRADER_SESSION_CAPABILITY_BINDING_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_session_capability_binding_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_session_capability_binding_guard_v1.tau",
+    gate_output="o7",
+)
+
+AUTOTRADER_NONCE_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_nonce_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_nonce_guard_v1.tau",
+    gate_output="o4",
+)
+
+AUTOTRADER_TX_ENVELOPE_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_tx_envelope_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_tx_envelope_guard_v1.tau",
+    gate_output="o4",
+)
+
+AUTOTRADER_SUBMIT_BUNDLE_GUARD_V1 = TauSpecRef(
+    spec_id="autotrader_submit_bundle_guard_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_submit_bundle_guard_v1.tau",
+    gate_output="o5",
+)
+
+AUTOTRADER_LIVE_ADMISSION_BUNDLE_V1 = TauSpecRef(
+    spec_id="autotrader_live_admission_bundle_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_live_admission_bundle_v1.tau",
+    gate_output="o12",
+)
+
+AUTOTRADER_SYSTEM_COMPOSE_V1 = TauSpecRef(
+    spec_id="autotrader_system_compose_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_system_compose_v1.tau",
+    gate_output="o3",
+)
+
+AUTOTRADER_EMIT_FINALIZE_V1 = TauSpecRef(
+    spec_id="autotrader_emit_finalize_v1",
+    path=RECOMMENDED_SPECS_DIR / "autotrader_emit_finalize_v1.tau",
     gate_output="o1",
 )
 
@@ -522,12 +648,6 @@ PARAMETER_REGISTRY_V1 = TauSpecRef(
 PARAMETER_REGISTRY_V2 = TauSpecRef(
     spec_id="parameter_registry_v2",
     path=RECOMMENDED_SPECS_DIR / "parameter_registry_v2.tau",
-    gate_output="o1",
-)
-
-SETTLEMENT_SIGNER_REGISTRY_ANCHOR_GATE_V1 = TauSpecRef(
-    spec_id="settlement_signer_registry_anchor_gate_v1",
-    path=RECOMMENDED_SPECS_DIR / "settlement_signer_registry_anchor_gate_v1.tau",
     gate_output="o1",
 )
 
@@ -784,7 +904,7 @@ def build_settlement_v1_proof_gate_step(
     b: int,
     c: int,
     d: int,
-    # price series for no_sandwich + stability
+    # price series for local monotonicity + latest-step stability
     price_pp: int,
     price_prev: int,
     price_curr: int,
@@ -821,11 +941,11 @@ def build_settlement_v2_buyback_proof_gate_step(
     b: int,
     c: int,
     d: int,
-    # price series for no_sandwich + stability
+    # price series for local monotonicity + latest-step stability
     price_pp: int,
     price_prev: int,
     price_curr: int,
-    # externally verified component flags
+    # externally verified component flags, including buyback arithmetic + budget/policy sufficiency
     cpmm_ok: int = 1,
     balance_ok: int = 1,
     token_ok: int = 1,
@@ -860,15 +980,15 @@ def build_settlement_v3_buyback_floor_proof_gate_step(
     b: int,
     c: int,
     d: int,
-    # price series for no_sandwich + stability
+    # price series for local monotonicity + latest-step stability
     price_pp: int,
     price_prev: int,
     price_curr: int,
-    # externally verified component flags
+    # externally verified component flags, including buyback arithmetic + fee-budget + floor sufficiency
     cpmm_ok: int = 1,
     balance_ok: int = 1,
     token_ok: int = 1,
-    buyback_ok: int = 1,
+    buyback_floor_ok: int = 1,
     proof_ok: int = 1,
     binding_ok: int = 1,
 ) -> Dict[str, int]:
@@ -886,7 +1006,7 @@ def build_settlement_v3_buyback_floor_proof_gate_step(
         "i8": _sbf("cpmm_ok", cpmm_ok),
         "i9": _sbf("balance_ok", balance_ok),
         "i10": _sbf("token_ok", token_ok),
-        "i11": _sbf("buyback_ok", buyback_ok),
+        "i11": _sbf("buyback_floor_ok", buyback_floor_ok),
         "i12": _sbf("proof_ok", proof_ok),
         "i13": _sbf("binding_ok", binding_ok),
     }
@@ -984,26 +1104,14 @@ def build_settlement_price_rails_aligned_v1_step(
 
 def build_settlement_module_flag_bundle_v1_step(
     *,
-    cpmm_ok: int = 1,
-    balance_ok: int = 1,
-    token_ok: int = 1,
-    buyback_floor_ok: int = 1,
-    buyback_floor_fixedpoint_ok: int = 1,
-    rebate_ok: int = 1,
-    lock_weight_ok: int = 1,
-    proof_ok: int = 1,
-    binding_ok: int = 1,
+    core_module_ok: int = 1,
+    feature_extension_ok: int = 1,
+    proof_binding_ok: int = 1,
 ) -> Dict[str, int]:
     return {
-        "i1": _sbf("cpmm_ok", cpmm_ok),
-        "i2": _sbf("balance_ok", balance_ok),
-        "i3": _sbf("token_ok", token_ok),
-        "i4": _sbf("buyback_floor_ok", buyback_floor_ok),
-        "i5": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
-        "i6": _sbf("rebate_ok", rebate_ok),
-        "i7": _sbf("lock_weight_ok", lock_weight_ok),
-        "i8": _sbf("proof_ok", proof_ok),
-        "i9": _sbf("binding_ok", binding_ok),
+        "i1": _sbf("core_module_ok", core_module_ok),
+        "i2": _sbf("feature_extension_ok", feature_extension_ok),
+        "i3": _sbf("proof_binding_ok", proof_binding_ok),
     }
 
 
@@ -1166,6 +1274,28 @@ def build_zusd_cross_module_oracle_sync_gate_v1_step(
         "i1": _sbf("sync_snapshot_available", sync_snapshot_available),
         "i2": _sbf("divergence_bounded", divergence_bounded),
         "i3": _sbf("epoch_lag_bounded", epoch_lag_bounded),
+    }
+
+
+def build_zusd_transfer_guard_v1_step(
+    *,
+    amount_positive: int,
+    sender_has_balance: int,
+    transfer_deltas_match: int,
+    sender_auth_ok: int,
+    recipient_valid: int,
+    paused: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_transfer_guard_v1.tau`.
+    """
+    return {
+        "i1": _sbf("amount_positive", amount_positive),
+        "i2": _sbf("sender_has_balance", sender_has_balance),
+        "i3": _sbf("transfer_deltas_match", transfer_deltas_match),
+        "i4": _sbf("sender_auth_ok", sender_auth_ok),
+        "i5": _sbf("recipient_valid", recipient_valid),
+        "i6": _sbf("paused", paused),
     }
 
 
@@ -1737,6 +1867,503 @@ def build_protocol_token_v1_step(
     }
 
 
+def build_autotrader_budget_guard_v1_step(
+    *,
+    spent_before: int,
+    order_amount: int,
+    per_order_limit: int,
+    window_budget: int,
+    spent_after: int,
+    kill_switch_active: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("spent_before", spent_before),
+        "i2": _bv32("order_amount", order_amount),
+        "i3": _bv32("per_order_limit", per_order_limit),
+        "i4": _bv32("window_budget", window_budget),
+        "i5": _bv32("spent_after", spent_after),
+        "i6": _sbf("kill_switch_active", kill_switch_active),
+    }
+
+
+def build_autotrader_compile_contract_v1_step(
+    *,
+    backend_ok: int,
+    template_ok: int,
+    strategy_id_ok: int,
+    owner_binding_ok: int,
+    asset_scope_ok: int,
+    required_params_ok: int,
+    action_scope_ok: int,
+    notional_chain_ok: int,
+    slippage_ok: int,
+    oracle_window_ok: int,
+    strategy_window_ok: int,
+    controls_ok: int,
+    tau_bundle_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("backend_ok", backend_ok),
+        "i2": _sbf("template_ok", template_ok),
+        "i3": _sbf("strategy_id_ok", strategy_id_ok),
+        "i4": _sbf("owner_binding_ok", owner_binding_ok),
+        "i5": _sbf("asset_scope_ok", asset_scope_ok),
+        "i6": _sbf("required_params_ok", required_params_ok),
+        "i7": _sbf("action_scope_ok", action_scope_ok),
+        "i8": _sbf("notional_chain_ok", notional_chain_ok),
+        "i9": _sbf("slippage_ok", slippage_ok),
+        "i10": _sbf("oracle_window_ok", oracle_window_ok),
+        "i11": _sbf("strategy_window_ok", strategy_window_ok),
+        "i12": _sbf("controls_ok", controls_ok),
+        "i13": _sbf("tau_bundle_ok", tau_bundle_ok),
+    }
+
+
+def build_autotrader_compilation_witness_v1_step(
+    *,
+    source_form_ok: int,
+    strategy_hash_match: int,
+    owner_match: int,
+    backend_match: int,
+    template_match: int,
+    asset_universe_match: int,
+    allowed_actions_match: int,
+    notional_caps_match: int,
+    risk_limits_match: int,
+    strategy_window_match: int,
+    controls_match: int,
+    template_params_match: int,
+    tau_policy_specs_match: int,
+    compile_contract_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("source_form_ok", source_form_ok),
+        "i2": _sbf("strategy_hash_match", strategy_hash_match),
+        "i3": _sbf("owner_match", owner_match),
+        "i4": _sbf("backend_match", backend_match),
+        "i5": _sbf("template_match", template_match),
+        "i6": _sbf("asset_universe_match", asset_universe_match),
+        "i7": _sbf("allowed_actions_match", allowed_actions_match),
+        "i8": _sbf("notional_caps_match", notional_caps_match),
+        "i9": _sbf("risk_limits_match", risk_limits_match),
+        "i10": _sbf("strategy_window_match", strategy_window_match),
+        "i11": _sbf("controls_match", controls_match),
+        "i12": _sbf("template_params_match", template_params_match),
+        "i13": _sbf("tau_policy_specs_match", tau_policy_specs_match),
+        "i14": _sbf("compile_contract_ok", compile_contract_ok),
+    }
+
+
+def build_autotrader_execution_guard_v1_step(
+    *,
+    current_epoch: int,
+    valid_from_epoch: int,
+    valid_until_epoch: int,
+    last_action_known: int,
+    last_action_epoch: int,
+    cadence_epochs: int,
+    min_order_spacing_epochs: int,
+    projected_live_orders: int,
+    max_live_orders: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("current_epoch", current_epoch),
+        "i2": _bv32("valid_from_epoch", valid_from_epoch),
+        "i3": _bv32("valid_until_epoch", valid_until_epoch),
+        "i4": _sbf("last_action_known", last_action_known),
+        "i5": _bv32("last_action_epoch", last_action_epoch),
+        "i6": _bv32("cadence_epochs", cadence_epochs),
+        "i7": _bv32("min_order_spacing_epochs", min_order_spacing_epochs),
+        "i8": _bv32("projected_live_orders", projected_live_orders),
+        "i9": _bv32("max_live_orders", max_live_orders),
+    }
+
+
+def build_autotrader_oracle_freshness_guard_v1_step(
+    *,
+    current_epoch: int,
+    quote_epoch: int,
+    max_oracle_staleness_epochs: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("current_epoch", current_epoch),
+        "i2": _bv32("quote_epoch", quote_epoch),
+        "i3": _bv32("max_oracle_staleness_epochs", max_oracle_staleness_epochs),
+    }
+
+
+def build_autotrader_route_economic_sanity_guard_v1_step(
+    *,
+    receipt_verified: int,
+    route_kind_supported: int,
+    body_pair_valid: int,
+    legs_present: int,
+    all_legs_single_hop: int,
+    all_legs_match_body_pair: int,
+    multi_hop_present: int,
+    max_hop_input_vs_reserve_bps: int,
+    max_hop_output_vs_reserve_bps: int,
+    max_hop_price_impact_bps: int,
+    input_stress_extreme_bps: int,
+    output_depletion_extreme_bps: int,
+    price_impact_extreme_bps: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("receipt_verified", receipt_verified),
+        "i2": _sbf("route_kind_supported", route_kind_supported),
+        "i3": _sbf("body_pair_valid", body_pair_valid),
+        "i4": _sbf("legs_present", legs_present),
+        "i5": _sbf("all_legs_single_hop", all_legs_single_hop),
+        "i6": _sbf("all_legs_match_body_pair", all_legs_match_body_pair),
+        "i7": _sbf("multi_hop_present", multi_hop_present),
+        "i8": _bv32("max_hop_input_vs_reserve_bps", max_hop_input_vs_reserve_bps),
+        "i9": _bv32("max_hop_output_vs_reserve_bps", max_hop_output_vs_reserve_bps),
+        "i10": _bv32("max_hop_price_impact_bps", max_hop_price_impact_bps),
+        "i11": _bv32("input_stress_extreme_bps", input_stress_extreme_bps),
+        "i12": _bv32("output_depletion_extreme_bps", output_depletion_extreme_bps),
+        "i13": _bv32("price_impact_extreme_bps", price_impact_extreme_bps),
+    }
+
+
+def build_autotrader_external_signal_source_registry_guard_v1_step(
+    *,
+    registry_entry_present: int,
+    registry_entry_enabled: int,
+    observed_source_kind_code: int,
+    observed_trust_tier_code: int,
+    advisory_only: int,
+    auth_ok: int,
+    freshness_ok: int,
+    registered_source_kind_code: int,
+    allow_advisory: int,
+    allow_attested: int,
+    allow_verified: int,
+    allow_protocol: int,
+    require_advisory_only: int,
+    require_auth: int,
+    require_freshness: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("registry_entry_present", registry_entry_present),
+        "i2": _sbf("registry_entry_enabled", registry_entry_enabled),
+        "i3": _bv32("observed_source_kind_code", observed_source_kind_code),
+        "i4": _bv32("observed_trust_tier_code", observed_trust_tier_code),
+        "i5": _sbf("advisory_only", advisory_only),
+        "i6": _sbf("auth_ok", auth_ok),
+        "i7": _sbf("freshness_ok", freshness_ok),
+        "i8": _bv32("registered_source_kind_code", registered_source_kind_code),
+        "i9": _sbf("allow_advisory", allow_advisory),
+        "i10": _sbf("allow_attested", allow_attested),
+        "i11": _sbf("allow_verified", allow_verified),
+        "i12": _sbf("allow_protocol", allow_protocol),
+        "i13": _sbf("require_advisory_only", require_advisory_only),
+        "i14": _sbf("require_auth", require_auth),
+        "i15": _sbf("require_freshness", require_freshness),
+    }
+
+
+def build_autotrader_signal_provenance_guard_v1_step(
+    *,
+    source_kind_code: int,
+    trust_tier_code: int,
+    quote_receipt_present: int,
+    quote_receipt_verified: int,
+    quote_epoch_present: int,
+    binding_ok: int,
+    auth_ok: int,
+    source_available: int,
+    require_quote_receipts: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("source_kind_code", source_kind_code),
+        "i2": _bv32("trust_tier_code", trust_tier_code),
+        "i3": _sbf("quote_receipt_present", quote_receipt_present),
+        "i4": _sbf("quote_receipt_verified", quote_receipt_verified),
+        "i5": _sbf("quote_epoch_present", quote_epoch_present),
+        "i6": _sbf("binding_ok", binding_ok),
+        "i7": _sbf("auth_ok", auth_ok),
+        "i8": _sbf("source_available", source_available),
+        "i9": _sbf("require_quote_receipts", require_quote_receipts),
+    }
+
+
+def build_autotrader_observation_packet_contract_v1_step(
+    *,
+    primary_source_kind_code: int,
+    primary_trust_tier_code: int,
+    primary_quote_receipt_present: int,
+    primary_quote_receipt_verified: int,
+    primary_quote_epoch_present: int,
+    primary_source_available: int,
+    primary_auth_ok: int,
+    primary_binding_ok: int,
+    external_signal_count: int,
+    advisory_external_count: int,
+    trusted_external_count: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("primary_source_kind_code", primary_source_kind_code),
+        "i2": _bv32("primary_trust_tier_code", primary_trust_tier_code),
+        "i3": _sbf("primary_quote_receipt_present", primary_quote_receipt_present),
+        "i4": _sbf("primary_quote_receipt_verified", primary_quote_receipt_verified),
+        "i5": _sbf("primary_quote_epoch_present", primary_quote_epoch_present),
+        "i6": _sbf("primary_source_available", primary_source_available),
+        "i7": _sbf("primary_auth_ok", primary_auth_ok),
+        "i8": _sbf("primary_binding_ok", primary_binding_ok),
+        "i9": _bv32("external_signal_count", external_signal_count),
+        "i10": _bv32("advisory_external_count", advisory_external_count),
+        "i11": _bv32("trusted_external_count", trusted_external_count),
+    }
+
+
+def build_autotrader_wallet_capability_guard_v1_step(
+    *,
+    enabled: int,
+    signer_ok: int,
+    asset_in_allowed: int,
+    asset_out_allowed: int,
+    action_allowed: int,
+    chain_id_ok: int,
+    current_epoch: int,
+    valid_from_epoch: int,
+    valid_until_epoch: int,
+    order_amount: int,
+    notional_remaining: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("enabled", enabled),
+        "i2": _sbf("signer_ok", signer_ok),
+        "i3": _sbf("asset_in_allowed", asset_in_allowed),
+        "i4": _sbf("asset_out_allowed", asset_out_allowed),
+        "i5": _sbf("action_allowed", action_allowed),
+        "i6": _sbf("chain_id_ok", chain_id_ok),
+        "i7": _bv32("current_epoch", current_epoch),
+        "i8": _bv32("valid_from_epoch", valid_from_epoch),
+        "i9": _bv32("valid_until_epoch", valid_until_epoch),
+        "i10": _bv32("order_amount", order_amount),
+        "i11": _bv32("notional_remaining", notional_remaining),
+    }
+
+
+def build_autotrader_wallet_outbound_guard_v1_step(
+    *,
+    amount: int,
+    max_outbound_amount: int,
+    sender_id: int,
+    scoped_sender_id: int,
+    destination_allowed: int,
+    session_active: int,
+    policy_hash_ok: int,
+    enabled: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("amount", amount),
+        "i2": _bv32("max_outbound_amount", max_outbound_amount),
+        "i3": _bv32("sender_id", sender_id),
+        "i4": _bv32("scoped_sender_id", scoped_sender_id),
+        "i5": _sbf("destination_allowed", destination_allowed),
+        "i6": _sbf("session_active", session_active),
+        "i7": _sbf("policy_hash_ok", policy_hash_ok),
+        "i8": _sbf("enabled", enabled),
+    }
+
+
+def build_autotrader_session_state_guard_v1_step(
+    *,
+    enabled: int,
+    session_binding_ok: int,
+    owner_binding_ok: int,
+    chain_binding_ok: int,
+    revocation_epoch_present: int,
+    current_epoch: int,
+    revoked_at_epoch: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("enabled", enabled),
+        "i2": _sbf("session_binding_ok", session_binding_ok),
+        "i3": _sbf("owner_binding_ok", owner_binding_ok),
+        "i4": _sbf("chain_binding_ok", chain_binding_ok),
+        "i5": _sbf("revocation_epoch_present", revocation_epoch_present),
+        "i6": _bv32("current_epoch", current_epoch),
+        "i7": _bv32("revoked_at_epoch", revoked_at_epoch),
+    }
+
+
+def build_autotrader_session_capability_binding_guard_v1_step(
+    *,
+    session_present: int,
+    owner_binding_ok: int,
+    chain_binding_ok: int,
+    asset_scope_ok: int,
+    action_scope_ok: int,
+    capability_valid_from_epoch: int,
+    capability_valid_until_epoch: int,
+    strategy_valid_from_epoch: int,
+    strategy_valid_until_epoch: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("session_present", session_present),
+        "i2": _sbf("owner_binding_ok", owner_binding_ok),
+        "i3": _sbf("chain_binding_ok", chain_binding_ok),
+        "i4": _sbf("asset_scope_ok", asset_scope_ok),
+        "i5": _sbf("action_scope_ok", action_scope_ok),
+        "i6": _bv32("capability_valid_from_epoch", capability_valid_from_epoch),
+        "i7": _bv32("capability_valid_until_epoch", capability_valid_until_epoch),
+        "i8": _bv32("strategy_valid_from_epoch", strategy_valid_from_epoch),
+        "i9": _bv32("strategy_valid_until_epoch", strategy_valid_until_epoch),
+    }
+
+
+def build_autotrader_nonce_guard_v1_step(
+    *,
+    intent_nonce: int,
+    last_used_nonce: int,
+    expected_nonce: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _bv32("intent_nonce", intent_nonce),
+        "i2": _bv32("last_used_nonce", last_used_nonce),
+        "i3": _bv32("expected_nonce", expected_nonce),
+    }
+
+
+def build_autotrader_tx_envelope_guard_v1_step(
+    *,
+    tx_requested: int,
+    sequence_present: int,
+    expiration_present: int,
+    sequence_valid: int,
+    expiration_valid: int,
+    fee_limit_valid: int,
+    intent_stream_present: int,
+    settlement_stream_absent: int,
+    extra_custom_streams_absent: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("tx_requested", tx_requested),
+        "i2": _sbf("sequence_present", sequence_present),
+        "i3": _sbf("expiration_present", expiration_present),
+        "i4": _sbf("sequence_valid", sequence_valid),
+        "i5": _sbf("expiration_valid", expiration_valid),
+        "i6": _sbf("fee_limit_valid", fee_limit_valid),
+        "i7": _sbf("intent_stream_present", intent_stream_present),
+        "i8": _sbf("settlement_stream_absent", settlement_stream_absent),
+        "i9": _sbf("extra_custom_streams_absent", extra_custom_streams_absent),
+    }
+
+
+def build_autotrader_submit_bundle_guard_v1_step(
+    *,
+    emit_requested: int,
+    signed_intents_present: int,
+    signatures_present: int,
+    signatures_verify: int,
+    sender_binding_ok: int,
+    quote_receipts_present: int,
+    operations_roundtrip_ok: int,
+    tx_requested: int,
+    tx_payload_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("emit_requested", emit_requested),
+        "i2": _sbf("signed_intents_present", signed_intents_present),
+        "i3": _sbf("signatures_present", signatures_present),
+        "i4": _sbf("signatures_verify", signatures_verify),
+        "i5": _sbf("sender_binding_ok", sender_binding_ok),
+        "i6": _sbf("quote_receipts_present", quote_receipts_present),
+        "i7": _sbf("operations_roundtrip_ok", operations_roundtrip_ok),
+        "i8": _sbf("tx_requested", tx_requested),
+        "i9": _sbf("tx_payload_ok", tx_payload_ok),
+    }
+
+
+def build_autotrader_live_admission_bundle_v1_step(
+    *,
+    source_registry_ok: int,
+    signal_provenance_ok: int,
+    route_economic_sanity_ok: int,
+    execution_ok: int,
+    oracle_freshness_ok: int,
+    budget_ok: int,
+    tx_envelope_ok: int,
+    session_state_ok: int,
+    session_capability_binding_ok: int,
+    wallet_capability_ok: int,
+    nonce_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("source_registry_ok", source_registry_ok),
+        "i2": _sbf("signal_provenance_ok", signal_provenance_ok),
+        "i3": _sbf("route_economic_sanity_ok", route_economic_sanity_ok),
+        "i4": _sbf("execution_ok", execution_ok),
+        "i5": _sbf("oracle_freshness_ok", oracle_freshness_ok),
+        "i6": _sbf("budget_ok", budget_ok),
+        "i7": _sbf("tx_envelope_ok", tx_envelope_ok),
+        "i8": _sbf("session_state_ok", session_state_ok),
+        "i9": _sbf("session_capability_binding_ok", session_capability_binding_ok),
+        "i10": _sbf("wallet_capability_ok", wallet_capability_ok),
+        "i11": _sbf("nonce_ok", nonce_ok),
+    }
+
+
+def build_autotrader_system_compose_v1_step(
+    *,
+    emit_requested: int,
+    policy_artifact_ok: int,
+    tau_policy_bundle_ok: int,
+    signer_binding_ok: int,
+    compile_ok: int,
+    source_registry_ok: int,
+    signal_provenance_ok: int,
+    route_economic_sanity_ok: int,
+    execution_ok: int,
+    oracle_freshness_ok: int,
+    budget_ok: int,
+    candidate_set_ok: int,
+    decision_ok: int,
+    kill_switch_ok: int,
+    tx_envelope_ok: int,
+    session_state_ok: int,
+    session_capability_binding_ok: int,
+    wallet_capability_ok: int,
+    nonce_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("emit_requested", emit_requested),
+        "i2": _sbf("policy_artifact_ok", policy_artifact_ok),
+        "i3": _sbf("tau_policy_bundle_ok", tau_policy_bundle_ok),
+        "i4": _sbf("signer_binding_ok", signer_binding_ok),
+        "i5": _sbf("compile_ok", compile_ok),
+        "i6": _sbf("source_registry_ok", source_registry_ok),
+        "i7": _sbf("signal_provenance_ok", signal_provenance_ok),
+        "i8": _sbf("route_economic_sanity_ok", route_economic_sanity_ok),
+        "i9": _sbf("execution_ok", execution_ok),
+        "i10": _sbf("oracle_freshness_ok", oracle_freshness_ok),
+        "i11": _sbf("budget_ok", budget_ok),
+        "i12": _sbf("candidate_set_ok", candidate_set_ok),
+        "i13": _sbf("decision_ok", decision_ok),
+        "i14": _sbf("kill_switch_ok", kill_switch_ok),
+        "i15": _sbf("tx_envelope_ok", tx_envelope_ok),
+        "i16": _sbf("session_state_ok", session_state_ok),
+        "i17": _sbf("session_capability_binding_ok", session_capability_binding_ok),
+        "i18": _sbf("wallet_capability_ok", wallet_capability_ok),
+        "i19": _sbf("nonce_ok", nonce_ok),
+    }
+
+
+def build_autotrader_emit_finalize_v1_step(
+    *,
+    emit_requested: int,
+    system_compose_ok: int,
+    submit_bundle_ok: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("emit_requested", emit_requested),
+        "i2": _sbf("system_compose_ok", system_compose_ok),
+        "i3": _sbf("submit_bundle_ok", submit_bundle_ok),
+    }
+
+
 def build_protocol_token_v2_step(
     *,
     from_before: int,
@@ -1911,6 +2538,21 @@ def build_burn_receipt_replay_guard_v1_step(
         "i2": _sbf("receipt_bound", receipt_bound),
         "i3": _sbf("nullifier_unused", nullifier_unused),
         "i4": _sbf("policy_ok", policy_ok),
+    }
+
+
+def build_confidential_extension_live_admission_v1_step(
+    *,
+    do_execute: int,
+    receipt_verified: int,
+    policy_digest_match: int,
+    request_unused: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("do_execute", do_execute),
+        "i2": _sbf("receipt_verified", receipt_verified),
+        "i3": _sbf("policy_digest_match", policy_digest_match),
+        "i4": _sbf("request_unused", request_unused),
     }
 
 
@@ -2247,38 +2889,6 @@ def build_parameter_registry_v2_step(
         "i13": _u16("weight3_applied", weight3_applied),
         "i14": _sbf("proof_ok", proof_ok),
         "i15": _sbf("binding_ok", binding_ok),
-    }
-
-
-def build_settlement_signer_registry_anchor_gate_v1_step(
-    *,
-    exec_req: int,
-    snapshot_present: int,
-    anchor_present: int,
-    request_binding_ok: int,
-    anchor_binding_ok: int,
-    policy_binding_ok: int,
-    proof_ok: int,
-    policy_epoch: int,
-    anchor_block_number: int,
-) -> Dict[str, int]:
-    """
-    Build inputs for `src/tau_specs/recommended/settlement_signer_registry_anchor_gate_v1.tau`.
-    """
-    policy_epoch_hi, policy_epoch_lo = _u32("policy_epoch", policy_epoch)
-    anchor_block_hi, anchor_block_lo = _u32("anchor_block_number", anchor_block_number)
-    return {
-        "i1": _sbf("exec_req", exec_req),
-        "i2": _sbf("snapshot_present", snapshot_present),
-        "i3": _sbf("anchor_present", anchor_present),
-        "i4": _sbf("request_binding_ok", request_binding_ok),
-        "i5": _sbf("anchor_binding_ok", anchor_binding_ok),
-        "i6": _sbf("policy_binding_ok", policy_binding_ok),
-        "i7": _sbf("proof_ok", proof_ok),
-        "i8": policy_epoch_hi,
-        "i9": policy_epoch_lo,
-        "i10": anchor_block_hi,
-        "i11": anchor_block_lo,
     }
 
 

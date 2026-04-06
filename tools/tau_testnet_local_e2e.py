@@ -8,6 +8,7 @@ import shlex
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,6 +49,7 @@ class _E2EArgs:
     enable_faucet: bool
     enable_state_proof_debug: bool
     enable_state_proof_risc0: bool
+    reuse_db: bool
     ready_timeout_s: float
 
 
@@ -66,7 +68,12 @@ def _parse_args(argv: Optional[list[str]]) -> _E2EArgs:
     )
     parser.add_argument("--no-smoke", action="store_true", help="Start the node only (do not run the smoke test)")
     parser.add_argument("--force-test", action="store_true", help="Run Tau in test mode (no Docker / no tau binary)")
-    parser.add_argument("--enable-faucet", action="store_true", help="Enable DEX faucet op '4' (test-only)")
+    parser.add_argument("--enable-faucet", action="store_true", help="Enable DEX faucet op '7' (test-only)")
+    parser.add_argument(
+        "--reuse-db",
+        action="store_true",
+        help="Reuse existing tau-testnet DB (default uses isolated temp DB per run)",
+    )
     parser.add_argument(
         "--enable-state-proof-debug",
         action="store_true",
@@ -91,6 +98,7 @@ def _parse_args(argv: Optional[list[str]]) -> _E2EArgs:
         enable_faucet=bool(args.enable_faucet),
         enable_state_proof_debug=bool(args.enable_state_proof_debug),
         enable_state_proof_risc0=bool(args.enable_state_proof_risc0),
+        reuse_db=bool(args.reuse_db),
         ready_timeout_s=float(args.ready_timeout_s),
     )
 
@@ -115,6 +123,15 @@ def _configure_tau_server_env(env: dict[str, str], *, args: _E2EArgs, root: Path
     env["TAU_APP_BRIDGE_SYS_PATH"] = str(root)
     env["TAU_APP_BRIDGE_MODULE"] = "src.integration.tau_testnet_dex_plugin"
     env["TAU_DEX_CHAIN_ID"] = str(args.chain_id)
+
+
+def _prepare_isolated_db_env(env: dict[str, str], *, args: _E2EArgs) -> Optional[str]:
+    if args.reuse_db:
+        return None
+    fd, path = tempfile.mkstemp(prefix="tau_testnet_e2e_", suffix=".sqlite")
+    os.close(fd)
+    env["TAU_DB_PATH"] = path
+    return path
 
 
 def _ensure_miner_keys(env: dict[str, str], *, miner_privkey: str) -> None:
@@ -182,7 +199,15 @@ def _enable_state_proof_risc0(env: dict[str, str], *, root: Path) -> None:
 
 def _spawn_tau_node(*, tau_testnet_dir: Path, env: dict[str, str]) -> subprocess.Popen[bytes]:
     # Run with tau-testnet as CWD so relative paths (e.g. genesis.tau) resolve correctly.
-    cmd = [sys.executable, "server.py", "--ephemeral-identity"]
+    python_exe = sys.executable
+    for candidate in (
+        tau_testnet_dir / ".venv" / "bin" / "python",
+        tau_testnet_dir / "venv" / "bin" / "python",
+    ):
+        if candidate.is_file():
+            python_exe = str(candidate)
+            break
+    cmd = [python_exe, "server.py", "--ephemeral-identity"]
     return subprocess.Popen(cmd, cwd=str(tau_testnet_dir), env=env)
 
 
@@ -224,6 +249,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     env = os.environ.copy()
     _configure_tau_server_env(env, args=args, root=root)
+    temp_db_path = _prepare_isolated_db_env(env, args=args)
 
     smoke_default_privkey_hex = "11cebd90117355080b392cb7ef2fbdeff1150a124d29058ae48b19bebecd4f09"
     miner_privkey = args.miner_privkey or args.privkey or smoke_default_privkey_hex
@@ -252,6 +278,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         return _run_smoke_test(root=root, env=env, args=args)
     finally:
         _terminate_process(proc)
+        if temp_db_path and os.path.exists(temp_db_path):
+            try:
+                os.remove(temp_db_path)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

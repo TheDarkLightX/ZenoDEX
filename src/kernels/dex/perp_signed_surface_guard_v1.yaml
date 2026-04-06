@@ -1,0 +1,254 @@
+# [FORGE] Perp Signed Surface Guard v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_signed_surface_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: perps signed-action structural ingress guard.
+
+    Purpose:
+      - Make the signed-action parse/admission surface in `perp_engine` explicit
+        and replayable before BLS verification runs.
+      - Cover the shell decision around action family, action-specific version
+        posture, unknown-field rejection, account distinctness, market-account
+        matching, zero-sum position shape, and positive clearing prices.
+
+    Assume/guarantee split:
+      - Assumes the host already parsed/typed the concrete scalar fields and
+        projected action-specific structural facts into booleans.
+      - Assumes hex decoding and required-field extraction remain in the outer
+        imperative shell.
+      - Guarantees only deterministic signed-surface admission and reject
+        classification.
+
+    Non-goals:
+      - BLS signature verification
+      - nonce consumption
+      - market state transitions
+      - sender-bound account auth
+
+observables:
+  state_vars:
+    [
+      "action_kind",
+      "version_ok",
+      "unknown_fields_ok",
+      "distinct_accounts_ok",
+      "market_accounts_match_ok",
+      "net_zero_ok",
+      "idle_leg_ok",
+      "positive_price_ok",
+    ]
+  effects:
+    [
+      "action_known",
+      "version_ok",
+      "unknown_fields_ok",
+      "distinct_accounts_ok",
+      "market_accounts_match_ok",
+      "net_zero_ok",
+      "idle_leg_ok",
+      "positive_price_ok",
+      "signed_surface_ok",
+      "reject_code",
+    ]
+
+types:
+  - id: "t_reject_code"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "Ok",
+          "InvalidAction",
+          "InvalidVersion",
+          "UnknownFields",
+          "DistinctAccountsInvalid",
+          "MarketAccountsMismatch",
+          "NetPositionInvalid",
+          "IdleLegInvalid",
+          "PriceInvalid",
+        ]
+
+state_vars:
+  - id: "action_kind"
+    role: "control"
+    type: { kind: "int", min: 0, max: 5 }
+  - id: "version_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "unknown_fields_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "distinct_accounts_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "market_accounts_match_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "net_zero_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "idle_leg_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "positive_price_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "action_kind"
+    expr: { const: 0 }
+  - var: "version_ok"
+    expr: { const: 0 }
+  - var: "unknown_fields_ok"
+    expr: { const: 0 }
+  - var: "distinct_accounts_ok"
+    expr: { const: 0 }
+  - var: "market_accounts_match_ok"
+    expr: { const: 0 }
+  - var: "net_zero_ok"
+    expr: { const: 0 }
+  - var: "idle_leg_ok"
+    expr: { const: 0 }
+  - var: "positive_price_ok"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "version_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "version_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "unknown_fields_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "unknown_fields_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "distinct_accounts_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "distinct_accounts_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "market_accounts_match_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "market_accounts_match_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "net_zero_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "net_zero_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "idle_leg_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "idle_leg_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "positive_price_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "positive_price_ok" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_signed_surface_guard"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      action_known:
+        op: "and"
+        args:
+          - op: ">="
+            args: [{ var: "action_kind" }, { const: 1 }]
+          - op: "<="
+            args: [{ var: "action_kind" }, { const: 5 }]
+      version_ok:
+        op: "="
+        args: [{ var: "version_ok" }, { const: 1 }]
+      unknown_fields_ok:
+        op: "="
+        args: [{ var: "unknown_fields_ok" }, { const: 1 }]
+      distinct_accounts_ok:
+        op: "="
+        args: [{ var: "distinct_accounts_ok" }, { const: 1 }]
+      market_accounts_match_ok:
+        op: "="
+        args: [{ var: "market_accounts_match_ok" }, { const: 1 }]
+      net_zero_ok:
+        op: "="
+        args: [{ var: "net_zero_ok" }, { const: 1 }]
+      idle_leg_ok:
+        op: "="
+        args: [{ var: "idle_leg_ok" }, { const: 1 }]
+      positive_price_ok:
+        op: "="
+        args: [{ var: "positive_price_ok" }, { const: 1 }]
+      signed_surface_ok:
+        op: "and"
+        args:
+          - op: "and"
+            args:
+              - op: ">="
+                args: [{ var: "action_kind" }, { const: 1 }]
+              - op: "<="
+                args: [{ var: "action_kind" }, { const: 5 }]
+          - { op: "=", args: [{ var: "version_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "unknown_fields_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "distinct_accounts_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "market_accounts_match_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "net_zero_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "idle_leg_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "positive_price_ok" }, { const: 1 }] }
+      reject_code:
+        op: "ite"
+        cond:
+          op: "or"
+          args:
+            - op: "<"
+              args: [{ var: "action_kind" }, { const: 1 }]
+            - op: ">"
+              args: [{ var: "action_kind" }, { const: 5 }]
+        then: { enum: "InvalidAction" }
+        else:
+          op: "ite"
+          cond:
+            op: "="
+            args: [{ var: "version_ok" }, { const: 0 }]
+          then: { enum: "InvalidVersion" }
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ var: "unknown_fields_ok" }, { const: 0 }]
+            then: { enum: "UnknownFields" }
+            else:
+              op: "ite"
+              cond:
+                op: "="
+                args: [{ var: "distinct_accounts_ok" }, { const: 0 }]
+              then: { enum: "DistinctAccountsInvalid" }
+              else:
+                op: "ite"
+                cond:
+                  op: "="
+                  args: [{ var: "market_accounts_match_ok" }, { const: 0 }]
+                then: { enum: "MarketAccountsMismatch" }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "="
+                    args: [{ var: "net_zero_ok" }, { const: 0 }]
+                  then: { enum: "NetPositionInvalid" }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "="
+                      args: [{ var: "idle_leg_ok" }, { const: 0 }]
+                    then: { enum: "IdleLegInvalid" }
+                    else:
+                      op: "ite"
+                      cond:
+                        op: "="
+                        args: [{ var: "positive_price_ok" }, { const: 0 }]
+                      then: { enum: "PriceInvalid" }
+                      else: { enum: "Ok" }

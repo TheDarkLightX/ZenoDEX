@@ -20,6 +20,8 @@ set -euo pipefail
 #   1  fail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUNTIME_REQUIREMENTS=""
+AGENTS_REQUIREMENTS=""
 
 SKIP_DOCKER=0
 SKIP_UI=0
@@ -51,15 +53,36 @@ cd "$ROOT"
 echo "[gate] repo: $ROOT"
 echo "[gate] image: $IMAGE_TAG"
 
+pick_requirements_file() {
+  local label="$1"
+  shift
+  local candidate
+  for candidate in "$@"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  echo "[gate] missing ${label} requirements file; tried: $*" >&2
+  return 1
+}
+
+RUNTIME_REQUIREMENTS="$(pick_requirements_file runtime "$ROOT/requirements-core.lock.txt" "$ROOT/requirements-core.txt")" || {
+  exit 2
+}
+AGENTS_REQUIREMENTS="$(pick_requirements_file agents "$ROOT/requirements-agents.lock.txt" "$ROOT/requirements-agents.txt")" || {
+  exit 2
+}
+
 if [[ ! -d .venv ]]; then
   echo "[gate] creating venv .venv"
   python3 -m venv .venv
 fi
 
-echo "[gate] installing python requirements"
+echo "[gate] installing locked runtime + agent requirements"
 . .venv/bin/activate
 python -m pip install --upgrade --quiet pip
-pip install --quiet -r requirements.txt
+pip install --quiet -r "$RUNTIME_REQUIREMENTS" -r "$AGENTS_REQUIREMENTS" pytest pytest-cov
 
 KERNEL_JSON="$(mktemp)"
 echo "[gate] running kernel assurance (manifest-backed)"

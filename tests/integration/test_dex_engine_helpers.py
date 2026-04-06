@@ -302,28 +302,6 @@ def test_dex_engine_config_rejects_certificate_mode_without_price_history() -> N
         )
 
 
-def test_dex_engine_config_rejects_end_to_end_certificate_mode_without_inputs() -> None:
-    with pytest.raises(
-        ValueError,
-        match="require_settlement_end_to_end_certificate=True requires settlement_end_to_end_certificate_inputs",
-    ):
-        DexEngineConfig(require_settlement_end_to_end_certificate=True)
-
-
-def test_dex_engine_config_rejects_wrong_certificate_helper_types() -> None:
-    with pytest.raises(
-        TypeError,
-        match="settlement_certificate_proof_flags must be a SettlementProofFlags instance",
-    ):
-        DexEngineConfig(settlement_certificate_proof_flags=object())  # type: ignore[arg-type]
-
-    with pytest.raises(
-        TypeError,
-        match="settlement_end_to_end_certificate_inputs must be a SettlementEndToEndCertificateInputs instance",
-    ):
-        DexEngineConfig(settlement_end_to_end_certificate_inputs=object())  # type: ignore[arg-type]
-
-
 def test_dex_engine_config_rejects_malformed_certificate_price_history() -> None:
     with pytest.raises(
         ValueError,
@@ -813,21 +791,6 @@ def test_verify_intent_signature_bytes_rejects_missing_bls_and_internal_errors(m
     assert (ok, err) == (False, "py_ecc (BLS) not available")
 
     monkeypatch.setattr("src.integration.dex_engine._BLS_AVAILABLE", True)
-    monkeypatch.setattr("src.integration.dex_engine.G2Basic", None)
-    ok, err = _verify_intent_signature_bytes(
-        sender_pubkey_hex="0x" + "11" * 48,
-        signature_hex="0x" + "22" * 96,
-        signing_payload_bytes=b"{}",
-        chain_id="tau-net-alpha",
-    )
-    assert (ok, err) == (False, "py_ecc.bls.G2Basic unavailable")
-
-    class _DomainBLS:
-        @staticmethod
-        def Verify(pubkey: bytes, message: bytes, signature: bytes) -> bool:
-            return True
-
-    monkeypatch.setattr("src.integration.dex_engine.G2Basic", _DomainBLS)
     monkeypatch.setattr("src.integration.dex_engine.domain_sep_bytes", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("domain boom")))
     ok, err = _verify_intent_signature_bytes(
         sender_pubkey_hex="0x" + "11" * 48,

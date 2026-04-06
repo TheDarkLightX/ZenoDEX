@@ -57,6 +57,31 @@ class ZUSDOraclePendingGateContract:
             "action_allowed": bool(self.action_allowed),
         }
 
+    @classmethod
+    def from_dict(cls, payload: object) -> "ZUSDOraclePendingGateContract":
+        if not isinstance(payload, dict):
+            raise ValueError("oracle pending gate contract must be an object")
+        if payload.get("schema") != ZUSD_ORACLE_PENDING_GATE_CONTRACT_SCHEMA:
+            raise ValueError("unsupported oracle pending gate schema")
+        return cls(
+            state_mode=str(payload.get("state_mode", "")),
+            oracle_seen=bool(payload.get("oracle_seen", False)),
+            price_e8=int(payload.get("price_e8", 0)),
+            price_pending_e8=int(payload.get("price_pending_e8", 0)),
+            oracle_last_update_epoch=int(payload.get("oracle_last_update_epoch", 0)),
+            now_epoch=int(payload.get("now_epoch", 0)),
+            max_staleness_epochs=int(payload.get("max_staleness_epochs", 0)),
+            tcr_ok=bool(payload.get("tcr_ok", False)),
+            risky_requested=bool(payload.get("risky_requested", False)),
+            pending_eq=bool(payload.get("pending_eq", False)),
+            price_pos=bool(payload.get("price_pos", False)),
+            fresh=bool(payload.get("fresh", False)),
+            env_ok=bool(payload.get("env_ok", False)),
+            risky_ops_allowed=bool(payload.get("risky_ops_allowed", False)),
+            blocked_by_recovery=bool(payload.get("blocked_by_recovery", False)),
+            action_allowed=bool(payload.get("action_allowed", False)),
+        )
+
 
 @dataclass(frozen=True)
 class ZUSDCrossModuleOracleSyncContract:
@@ -95,6 +120,33 @@ class ZUSDCrossModuleOracleSyncContract:
             "tau_spec_id": str(self.tau_spec_id),
             "tau_step": dict(self.tau_step),
         }
+
+    @classmethod
+    def from_dict(cls, payload: object) -> "ZUSDCrossModuleOracleSyncContract":
+        if not isinstance(payload, dict):
+            raise ValueError("cross-module oracle sync contract must be an object")
+        if payload.get("schema") != ZUSD_CROSS_MODULE_ORACLE_SYNC_CONTRACT_SCHEMA:
+            raise ValueError("unsupported cross-module oracle sync schema")
+        tau_step = payload.get("tau_step")
+        if not isinstance(tau_step, dict):
+            raise ValueError("tau_step must be an object")
+        return cls(
+            market_id=str(payload.get("market_id", "")),
+            zusd_price_e8=int(payload.get("zusd_price_e8", 0)),
+            zusd_epoch=int(payload.get("zusd_epoch", 0)),
+            perp_price_e8=int(payload.get("perp_price_e8", 0)),
+            perp_oracle_epoch=int(payload.get("perp_oracle_epoch", 0)),
+            max_divergence_bps=int(payload.get("max_divergence_bps", 0)),
+            max_epoch_lag=int(payload.get("max_epoch_lag", 0)),
+            divergence_bps=int(payload.get("divergence_bps", 0)),
+            epoch_lag=int(payload.get("epoch_lag", 0)),
+            sync_snapshot_available=bool(payload.get("sync_snapshot_available", False)),
+            divergence_bounded=bool(payload.get("divergence_bounded", False)),
+            epoch_lag_bounded=bool(payload.get("epoch_lag_bounded", False)),
+            sync_gate_ok=bool(payload.get("sync_gate_ok", False)),
+            tau_spec_id=str(payload.get("tau_spec_id", ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1.spec_id)),
+            tau_step={str(k): int(v) for k, v in tau_step.items()},
+        )
 
 
 def _is_oracle_fresh(*, now_epoch: int, last_update_epoch: int, max_staleness_epochs: int, oracle_seen: bool) -> bool:

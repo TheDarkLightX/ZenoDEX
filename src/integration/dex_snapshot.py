@@ -64,6 +64,22 @@ def _require_bool(value: Any, *, name: str) -> bool:
     return bool(value)
 
 
+def _validate_clearinghouse_snapshot_risk_bounds(state: Mapping[str, Any], *, name: str) -> None:
+    max_oracle_move_bps = _require_int(state.get("max_oracle_move_bps"), name=f"{name}.max_oracle_move_bps")
+    maintenance_margin_bps = _require_int(state.get("maintenance_margin_bps"), name=f"{name}.maintenance_margin_bps")
+    initial_margin_bps = _require_int(state.get("initial_margin_bps"), name=f"{name}.initial_margin_bps")
+    liquidation_penalty_bps = _require_int(
+        state.get("liquidation_penalty_bps"),
+        name=f"{name}.liquidation_penalty_bps",
+    )
+    if max_oracle_move_bps > maintenance_margin_bps:
+        raise ValueError(f"{name}.max_oracle_move_bps must be <= {name}.maintenance_margin_bps")
+    if maintenance_margin_bps > initial_margin_bps:
+        raise ValueError(f"{name}.maintenance_margin_bps must be <= {name}.initial_margin_bps")
+    if liquidation_penalty_bps >= maintenance_margin_bps:
+        raise ValueError(f"{name}.liquidation_penalty_bps must be < {name}.maintenance_margin_bps")
+
+
 @dataclass(frozen=True)
 class DexSnapshot:
     """
@@ -571,6 +587,7 @@ def state_from_snapshot(
                     if not isinstance(state_obj, Mapping):
                         raise TypeError("perps.ch2p.state must be an object")
                     state_dict = dict(state_obj)
+                    _validate_clearinghouse_snapshot_risk_bounds(state_dict, name="perps.ch2p.state")
                     markets[market_id] = PerpClearinghouse2pMarketState(
                         kind=PERP_MARKET_KIND_CLEARINGHOUSE_2P_V1,
                         quote_asset=quote_asset,
@@ -604,6 +621,7 @@ def state_from_snapshot(
                     if not isinstance(state_obj, Mapping):
                         raise TypeError("perps.ch3p.state must be an object")
                     state_dict = dict(state_obj)
+                    _validate_clearinghouse_snapshot_risk_bounds(state_dict, name="perps.ch3p.state")
                     markets[market_id] = PerpClearinghouse3pTransferMarketState(
                         kind=PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1,
                         quote_asset=quote_asset,

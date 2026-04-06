@@ -11,7 +11,6 @@ This script is intentionally *non-consensus-critical* and must not be imported b
 
 from __future__ import annotations
 
-import argparse
 import os
 import platform
 import subprocess
@@ -115,17 +114,7 @@ def _cupy_info() -> Optional[CupyInfo]:
     return CupyInfo(version=str(getattr(cupy, "__version__", "unknown")), device_count=int(n), device0=dev0)
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        description="Inspect local GPU backend availability for ZenoDEX helper tooling."
-    )
-    ap.add_argument(
-        "--strict-exit",
-        action="store_true",
-        help="Return nonzero when no supported GPU backend is available.",
-    )
-    args = ap.parse_args(argv)
-
+def main() -> int:
     sys.stdout.write("=== GPU Env Check (ZenoDEX) ===\n")
     sys.stdout.write(f"python={sys.version.split()[0]} platform={platform.system()} arch={platform.machine()}\n")
     sys.stdout.write(f"cwd={os.getcwd()}\n")
@@ -184,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Treat torch/cupy as the primary backends for our GPU tools.
     sys.stdout.write(f"\nstatus={'OK' if ok else 'MISSING_GPU_BACKEND'}\n")
-    return 0 if (ok or not args.strict_exit) else 2
+    return 0 if ok else 2
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1844 @@
+from __future__ import annotations
+
+import sys
+from types import SimpleNamespace
+
+import pytest
+
+import src.integration.autotrader_live as autotrader_live
+from src.agents.intent_signer import (
+    _create_canonical_message,
+    create_swap_intent,
+    verify_intent_signature,
+)
+from src.agents.policy_compiler import compile_policy_candidate
+from src.agents.strategy_ir import AUTOTRADER_TAU_POLICY_SPECS, StrategyIR
+from src.core.quote_receipts import make_route_quote_receipt
+from src.core.routing import best_route_exact_in_2hop
+from src.integration.autotrader_controller import (
+    AutoTraderControllerState,
+    AutoTraderDecisionTag,
+    AutoTraderGuardState,
+    AutoTraderTauConfig,
+)
+from src.integration.autotrader_decision import DecisionCandidateKind
+from src.integration.autotrader_live import prepare_autotrader_live_quote_receipt
+from src.integration.autotrader_signal_registry import (
+    ExternalSignalSourceRegistry,
+    ExternalSignalSourceRegistryEntry,
+)
+from src.integration.autotrader_signals import (
+    AutoTraderSessionState,
+    AutoTraderWalletCapability,
+    ExternalSignalObservation,
+    SignalSourceKind,
+    SignalTrustTier,
+)
+from src.integration.dex_engine import _verify_intent_signature_bytes
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+from src.state.intents import SignedIntent
+from src.state.pools import PoolState, PoolStatus
+
+
+def _pool(pid: str, a0: str, a1: str, r0: int, r1: int, fee_bps: int = 0) -> PoolState:
+    return PoolState(
+        pool_id=pid,
+        asset0=min(a0, a1),
+        asset1=max(a0, a1),
+        reserve0=r0 if a0 < a1 else r1,
+        reserve1=r1 if a0 < a1 else r0,
+        fee_bps=fee_bps,
+        lp_supply=1,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+
+
+def _single_hop_receipt(*, amount_in: int = 100, quote_epoch: int = 5) -> tuple[dict[str, PoolState], dict[str, object]]:
+    pools = {"p_ab": _pool("p_ab", "A", "B", 1_000, 2_000, 10)}
+    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=amount_in)
+    assert quote is not None
+    assert len(quote.legs) == 1
+    assert len(quote.legs[0].hops) == 1
+    receipt = make_route_quote_receipt(
+        kind="exact_in",
+        quote=quote,
+        pools_by_id=pools,
+        quote_epoch=quote_epoch,
+    )
+    return pools, receipt
+
+
+def _split_receipt(*, amount_in: int = 600, quote_epoch: int = 5) -> tuple[dict[str, PoolState], dict[str, object]]:
+    pools = {
+        "p1": _pool("p1", "A", "B", 1_000, 1_000, 0),
+        "p2": _pool("p2", "A", "B", 1_000, 1_000, 0),
+    }
+    quote = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=amount_in)
+    assert quote is not None
+    assert len(quote.legs) >= 2
+    receipt = make_route_quote_receipt(
+        kind="exact_in",
+        quote=quote,
+        pools_by_id=pools,
+        quote_epoch=quote_epoch,
+    )
+    return pools, receipt
+
+
+def _compiled_strategy(
+    *,
+    owner_pubkey: str,
+    backend: str = "local",
+    fixed_order_size: int = 100,
+    max_live_orders: int = 3,
+) -> StrategyIR:
+    return compile_policy_candidate(
+        {
+            "strategy_id": f"dca.{backend}.live",
+            "owner_pubkey": owner_pubkey,
+            "policy_backend": backend,
+            "template": "dca",
+            "asset_universe": ["A", "B"],
+            "notional_caps": {
+                "per_order_max": fixed_order_size,
+                "per_window_max": 1_000,
+                "lifetime_max": 10_000,
+            },
+            "risk_limits": {
+                "max_slippage_bps": 50,
+                "max_oracle_staleness_epochs": 3,
+            },
+            "strategy_window": {
+                "valid_from_epoch": 1,
+                "valid_until_epoch": 100,
+                "min_order_spacing_epochs": 0,
+            },
+            "controls": {
+                "kill_switch_enabled": True,
+                "max_live_orders": max_live_orders,
+            },
+            "template_params": {
+                "fixed_order_size": fixed_order_size,
+                "cadence_epochs": 4,
+                "asset_in": "A",
+                "asset_out": "B",
+            },
+            "tau_policy_specs": list(AUTOTRADER_TAU_POLICY_SPECS) if backend == "tau" else [],
+        }
+    ).strategy
+
+
+def test_prepare_autotrader_live_submit_builds_signed_ops_and_tau_tx_payload() -> None:
+    privkey = 7
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        chain_id="tau-local",
+        krr_backend="python",
+        tx_sequence_number=9,
+        tx_expiration_time=999,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.live_admission_ok is True
+    assert report.live_admission_error is None
+    assert report.system_compose_ok is True
+    assert report.system_compose_error is None
+    assert report.submit_bundle_ok is True
+    assert report.submit_bundle_error is None
+    assert report.emit_finalize_ok is True
+    assert report.emit_finalize_error is None
+    assert report.krr_advice is not None
+    assert "live::nonce_guard" in report.krr_advice["preferred_checks"]
+    assert report.last_used_nonce_after == 1
+    assert len(report.signed_intents) == 1
+    assert report.operations["2"][0]["signature"].startswith("0x")
+    assert report.tau_tx_payload is not None
+    assert report.tau_tx_payload["sequence_number"] == 9
+    assert report.tau_tx_payload["expiration_time"] == 999
+    assert report.tx_envelope_tau_receipt is None
+
+    env = report.signed_intents[0]
+    ok, err = _verify_intent_signature_bytes(
+        sender_pubkey_hex=env.intent.sender_pubkey,
+        signature_hex=str(env.signature),
+        signing_payload_bytes=_create_canonical_message(env.intent),
+        chain_id="tau-local",
+    )
+    assert ok, err
+    assert verify_intent_signature(
+        SignedIntent(intent=env.intent, signature=str(env.signature)),
+        chain_id="tau-local",
+    ) is True
+
+
+def test_prepare_autotrader_live_submit_with_tau_nonce_checks_on_split_receipt(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 8
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau", fixed_order_size=600, max_live_orders=5)
+    pools, receipt = _split_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_boolean_tau_receipt", lambda **kwargs: None)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=11,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.live_admission_ok is True
+    assert report.system_compose_ok is True
+    assert report.system_compose_error is None
+    assert report.submit_bundle_ok is True
+    assert report.emit_finalize_ok is True
+    assert report.wallet_capability is not None
+    assert report.session_state is not None
+    assert report.session_state_tau_receipt is not None
+    assert report.session_capability_tau_receipt is not None
+    assert report.wallet_capability_tau_receipt is not None
+    assert report.tx_envelope_tau_receipt is None
+    assert len(report.signed_intents) >= 2
+    assert [r.expected_nonce for r in report.nonce_tau_receipts] == list(range(12, 12 + len(report.signed_intents)))
+    assert report.last_used_nonce_after == 11 + len(report.signed_intents)
+
+
+def test_prepare_autotrader_live_accepts_supplied_policy_bundle_and_artifact() -> None:
+    privkey = 80
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    compile_receipt = autotrader_live.build_compile_contract_tau_policy_receipt(strategy=strategy)
+    bundle = autotrader_live.build_tau_policy_bundle(
+        strategy=strategy,
+        compile_contract_tau_receipt=compile_receipt.to_dict(),
+    )
+    artifact = autotrader_live.sign_strategy_policy_artifact(
+        autotrader_live.build_strategy_policy_artifact(strategy=strategy, tau_policy_bundle=bundle),
+        privkey=privkey,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_policy_bundle=bundle,
+        policy_artifact=artifact,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.tau_policy_bundle == bundle
+    assert report.policy_artifact == artifact
+
+
+def test_prepare_autotrader_live_rejects_invalid_policy_artifact() -> None:
+    privkey = 81
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    bundle = autotrader_live.build_tau_policy_bundle(
+        strategy=strategy,
+        compile_contract_tau_receipt=autotrader_live.build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict(),
+    )
+    unsigned_artifact = autotrader_live.build_strategy_policy_artifact(strategy=strategy, tau_policy_bundle=bundle)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_policy_bundle=bundle,
+        policy_artifact=unsigned_artifact,
+    )
+
+    assert report.decision.reason == "policy_artifact_rejected:signature_missing"
+    assert report.policy_artifact_ok is False
+
+
+def test_prepare_autotrader_live_rejects_on_candidate_set_contract_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 82
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    monkeypatch.setattr(
+        autotrader_live,
+        "check_strategy_candidate_set_contract",
+        lambda candidate_set: SimpleNamespace(ok=False, error="candidate_shape_invalid"),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.reason == "candidate_set_rejected:candidate_shape_invalid"
+    assert report.live_admission_ok is False
+
+
+def test_prepare_autotrader_live_rejects_when_decision_prefers_noop(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 83
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    monkeypatch.setattr(
+        autotrader_live,
+        "build_strategy_decision_certificate",
+        lambda **kwargs: autotrader_live.StrategyDecisionCertificate(
+            policy_artifact_hash="artifact.hash",
+            tau_policy_bundle_hash="bundle.hash",
+            observation_hash="obs.hash",
+            candidate_set_hash="candidate.hash",
+            decision_model_version="autotrader-binary-v1",
+            winner_index=0,
+            winner_kind=DecisionCandidateKind.NO_OP,
+            winner_key=0,
+            argmax_steps=({"winner_index": 0, "winner_key": 0, "cand_index": 0, "cand_key": 0, "binding_ok": 1},),
+            kill_switch_active=False,
+        ),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.live_admission_error == "decision_prefers_noop"
+    assert report.live_admission_ok is False
+
+
+def test_prepare_autotrader_live_rejects_when_decision_prefers_emit(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 830
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    monkeypatch.setattr(
+        autotrader_live,
+        "build_strategy_decision_certificate",
+        lambda **kwargs: autotrader_live.StrategyDecisionCertificate(
+            policy_artifact_hash="artifact.hash",
+            tau_policy_bundle_hash="bundle.hash",
+            observation_hash="obs.hash",
+            candidate_set_hash="candidate.hash",
+            decision_model_version="autotrader-binary-v1",
+            winner_index=1,
+            winner_kind=DecisionCandidateKind.EMIT_COMPILED_INTENT,
+            winner_key=1,
+            argmax_steps=({"winner_index": 1, "winner_key": 1, "cand_index": 1, "cand_key": 1, "binding_ok": 1},),
+            kill_switch_active=False,
+        ),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(last_action_epoch=5),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.tag is not AutoTraderDecisionTag.SUBMIT
+    assert report.live_admission_error == "decision_prefers_emit"
+    assert report.live_admission_ok is False
+
+
+def test_prepare_autotrader_live_rejects_on_nonce_validation_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 84
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    monkeypatch.setattr(
+        autotrader_live,
+        "validate_and_apply_intent_nonce_batch",
+        lambda **kwargs: (False, "nonce_gap", None),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.reason == "live_nonce_validation_failed:nonce_gap"
+    assert report.live_admission_ok is False
+
+
+def test_prepare_autotrader_live_rejects_on_system_compose_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 85
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    monkeypatch.setattr(
+        autotrader_live,
+        "check_strategy_system_compose",
+        lambda **kwargs: SimpleNamespace(ok=False, error="compose_bad"),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.reason == "system_compose_rejected:compose_bad"
+    assert report.live_admission_ok is False
+
+
+def test_prepare_autotrader_live_rejects_wallet_capability_violation() -> None:
+    privkey = 81
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    wallet_capability = AutoTraderWalletCapability(
+        session_id="session.low",
+        owner_pubkey=owner_pubkey,
+        chain_id="tau-net-alpha",
+        valid_from_epoch=1,
+        valid_until_epoch=100,
+        notional_remaining=50,
+        allowed_assets=("A", "B"),
+        allowed_actions=(autotrader_live.StrategyAction.PLACE_SWAP_EXACT_IN,),
+        enabled=True,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        wallet_capability=wallet_capability,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "wallet_capability_notional_exceeded:100>50"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "wallet_capability_notional_exceeded:100>50"
+    assert report.system_compose_ok is None
+    assert report.system_compose_error is None
+    assert report.wallet_capability is not None
+    assert report.wallet_capability.notional_remaining == 50
+
+
+def test_prepare_autotrader_live_rejects_session_capability_binding_violation() -> None:
+    privkey = 181
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    wallet_capability = AutoTraderWalletCapability(
+        session_id="session.wide",
+        owner_pubkey=owner_pubkey,
+        chain_id="tau-net-alpha",
+        valid_from_epoch=1,
+        valid_until_epoch=100,
+        notional_remaining=500,
+        allowed_assets=("A", "B", "C"),
+        allowed_actions=(autotrader_live.StrategyAction.PLACE_SWAP_EXACT_IN,),
+        enabled=True,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        wallet_capability=wallet_capability,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "session_capability_asset_scope_exceeds_strategy"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "session_capability_asset_scope_exceeds_strategy"
+    assert report.session_capability_tau_receipt is None
+    assert report.wallet_capability_tau_receipt is None
+
+
+def test_prepare_autotrader_live_rejects_revoked_session_state() -> None:
+    privkey = 281
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    session_state = AutoTraderSessionState(
+        session_id="session.revoked",
+        owner_pubkey=owner_pubkey,
+        chain_id="tau-net-alpha",
+        enabled=True,
+        revoked_at_epoch=5,
+    )
+    wallet_capability = AutoTraderWalletCapability(
+        session_id="session.revoked",
+        owner_pubkey=owner_pubkey,
+        chain_id="tau-net-alpha",
+        valid_from_epoch=1,
+        valid_until_epoch=100,
+        notional_remaining=500,
+        allowed_assets=("A", "B"),
+        allowed_actions=(autotrader_live.StrategyAction.PLACE_SWAP_EXACT_IN,),
+        enabled=True,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        wallet_capability=wallet_capability,
+        session_state=session_state,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "session_state_revoked:5>=5"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "session_state_revoked:5>=5"
+    assert report.session_state is not None
+    assert report.session_state.session_id == "session.revoked"
+    assert report.session_state_tau_receipt is None
+    assert report.signed_intents == ()
+
+
+def test_prepare_autotrader_live_rejects_signer_mismatch() -> None:
+    strategy = _compiled_strategy(owner_pubkey="0x" + bls_pubkey_hex_from_privkey(9))
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=10,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "signer_pubkey_mismatch"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "signer_pubkey_mismatch"
+    assert report.system_compose_ok is False
+    assert report.system_compose_error == "signer_binding_rejected"
+    assert report.krr_advice is None
+    assert report.signed_intents == ()
+    assert report.operations == {}
+
+
+def test_prepare_autotrader_live_returns_skip_without_signing() -> None:
+    privkey = 11
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt(quote_epoch=1)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=3,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SKIP
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == report.decision.reason
+    assert report.system_compose_ok is True
+    assert report.system_compose_error is None
+    assert report.last_used_nonce_after == 3
+    assert report.signed_intents == ()
+    assert report.nonce_tau_receipts == ()
+
+
+def test_prepare_autotrader_live_rejects_missing_template_asset_params() -> None:
+    privkey = 111
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    object.__setattr__(strategy, "template_params", {"fixed_order_size": 100, "asset_in": "A"})
+    pools, receipt = _single_hop_receipt()
+
+    with pytest.raises(ValueError, match="strategy template params must define asset_in and asset_out"):
+        prepare_autotrader_live_quote_receipt(
+            strategy=strategy,
+            controller_state=AutoTraderControllerState(),
+            receipt=receipt,
+            pools_by_id=pools,
+            current_epoch=5,
+            intent_deadline=99,
+            signer_privkey=privkey,
+            last_used_nonce=0,
+        )
+
+
+def test_prepare_autotrader_live_rejects_invalid_nonce_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 12
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    bad_intent = create_swap_intent(
+        pool_id="p_ab",
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        min_amount_out=50,
+        deadline=99,
+        sender_pubkey=owner_pubkey,
+    )
+    decision = autotrader_live.AutoTraderDecision(
+        tag=AutoTraderDecisionTag.SUBMIT,
+        reason="policy_guard_passed",
+        explain=("ok",),
+        state=AutoTraderControllerState(),
+        intents=(bad_intent,),
+    )
+    monkeypatch.setattr(autotrader_live, "evaluate_autotrader_quote_receipt", lambda **kwargs: decision)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt={"body": {}},
+        pools_by_id={},
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason.startswith("observation_packet_build_failed:TypeError:")
+    assert report.live_admission_ok is False
+    assert report.live_admission_error.startswith("observation_packet_build_failed:TypeError:")
+    assert report.system_compose_ok is False
+    assert report.system_compose_error == "observation_packet_rejected"
+
+
+def test_prepare_autotrader_live_rejects_unavailable_tau_nonce_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 13
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (False, None, "missing tau"),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "tau_tool_unavailable:missing tau"
+    assert report.live_admission_ok is False
+    assert report.system_compose_ok is None
+    assert report.system_compose_error is None
+    assert len(report.nonce_tau_receipts) == 1
+
+
+def test_prepare_autotrader_live_rejects_unavailable_tau_wallet_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 113
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (False, None, "missing tau wallet guard"),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "tau_tool_unavailable:missing tau wallet guard"
+    assert report.wallet_capability is not None
+    assert report.system_compose_ok is None
+    assert report.system_compose_error is None
+    assert report.last_used_nonce_after == 0
+
+
+def test_prepare_autotrader_live_rejects_tau_nonce_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 14
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_nonce_tau_receipt",
+        lambda **kwargs: "nonce_tau_mismatch:intent_id=bad,local=1,tau=0",
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "nonce_tau_mismatch:intent_id=bad,local=1,tau=0"
+    assert report.live_admission_ok is False
+    assert report.system_compose_ok is False
+    assert report.system_compose_error == "nonce_rejected"
+
+
+def test_prepare_autotrader_live_system_compose_rejects_post_compile_invalid_strategy() -> None:
+    privkey = 44
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    object.__setattr__(strategy, "strategy_id", "")
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "tau_policy_bundle_rejected:compile_contract_tau_receipt_invalid"
+    assert report.live_admission_ok is None
+    assert report.live_admission_error is None
+    assert report.system_compose_ok is None
+    assert report.system_compose_error is None
+    assert report.tau_policy_bundle_ok is False
+    assert report.tau_policy_bundle_error == "compile_contract_tau_receipt_invalid"
+
+
+def test_prepare_autotrader_live_rejects_unpaired_tx_arguments() -> None:
+    strategy = _compiled_strategy(owner_pubkey="0x" + bls_pubkey_hex_from_privkey(15))
+    pools, receipt = _single_hop_receipt()
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=15,
+        last_used_nonce=0,
+        tx_sequence_number=1,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "live_admission_bundle_rejected:tx_envelope_rejected"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "tx_envelope_rejected"
+    assert report.system_compose_ok is False
+    assert report.system_compose_error == "tx_envelope_rejected"
+    assert report.tx_envelope_tau_receipt is None
+
+
+def test_prepare_autotrader_live_rejects_submit_bundle_tx_payload_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy = _compiled_strategy(owner_pubkey="0x" + bls_pubkey_hex_from_privkey(115))
+    pools, receipt = _single_hop_receipt()
+    original_builder = autotrader_live.build_signed_tau_transaction
+
+    def _bad_tau_tx(**kwargs: object) -> dict[str, object]:
+        payload = original_builder(**kwargs)
+        payload["operations"] = {"2": "bad"}
+        return payload
+
+    monkeypatch.setattr(autotrader_live, "build_signed_tau_transaction", _bad_tau_tx)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=115,
+        last_used_nonce=0,
+        tx_sequence_number=7,
+        tx_expiration_time=700,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "submit_bundle_rejected:submit_bundle_tx_payload_rejected"
+    assert report.live_admission_ok is False
+    assert report.submit_bundle_ok is False
+    assert report.submit_bundle_error == "submit_bundle_tx_payload_rejected"
+    assert report.emit_finalize_ok is None
+
+
+def test_prepare_autotrader_live_rejects_submit_bundle_tau_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 189
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(autotrader_live, "_verify_tx_envelope_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_boolean_tau_receipt",
+        lambda **kwargs: (
+            "submit_bundle_tau_mismatch:local=1,tau=0"
+            if kwargs["error_prefix"] == "submit_bundle_tau"
+            else None
+        ),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tx_sequence_number=9,
+        tx_expiration_time=999,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "submit_bundle_tau_mismatch:local=1,tau=0"
+    assert report.submit_bundle_ok is False
+    assert report.submit_bundle_error == "submit_bundle_tau_rejected"
+    assert report.submit_bundle_tau_receipt is not None
+    assert report.emit_finalize_ok is None
+
+
+def test_prepare_autotrader_live_rejects_emit_finalize_tau_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 190
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(autotrader_live, "_verify_tx_envelope_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_boolean_tau_receipt",
+        lambda **kwargs: (
+            "emit_finalize_tau_mismatch:local=1,tau=0"
+            if kwargs["error_prefix"] == "emit_finalize_tau"
+            else None
+        ),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tx_sequence_number=9,
+        tx_expiration_time=999,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "emit_finalize_tau_mismatch:local=1,tau=0"
+    assert report.emit_finalize_ok is False
+    assert report.emit_finalize_error == "emit_finalize_tau_rejected"
+    assert report.emit_finalize_tau_receipt is not None
+    assert report.submit_bundle_ok is True
+
+
+def test_prepare_autotrader_live_rejects_emit_finalize_guard_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 191
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live,
+        "check_strategy_emit_finalize",
+        lambda **kwargs: SimpleNamespace(
+            ok=False,
+            emit_requested=True,
+            system_compose_ok=True,
+            submit_bundle_ok=True,
+            error="emit_finalize_guard_failed",
+        ),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "emit_finalize_rejected:emit_finalize_guard_failed"
+    assert report.emit_finalize_ok is False
+    assert report.emit_finalize_error == "emit_finalize_guard_failed"
+
+
+def test_autotrader_live_require_u32_and_nonce_tau_helper_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(TypeError):
+        autotrader_live._require_u32("nonce", "bad")
+    with pytest.raises(ValueError):
+        autotrader_live._require_u32("nonce", -1)
+
+    receipt = autotrader_live.AutoTraderNonceTauReceipt(
+        spec_id="autotrader_nonce_guard_v1",
+        gate_output="o4",
+        intent_id="iid.1",
+        intent_nonce=1,
+        last_used_nonce=0,
+        expected_nonce=1,
+        steps=({"i1": 1, "i2": 0, "i3": 1},),
+        expected_ok=True,
+    )
+
+    monkeypatch.setattr(
+        autotrader_live,
+        "run_tau_spec_steps",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("tau boom")),
+    )
+    assert (
+        autotrader_live._verify_nonce_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+        )
+        == "nonce_tau_runner_error:RuntimeError:tau boom"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {}})
+    assert (
+        autotrader_live._verify_nonce_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+        )
+        == "nonce_tau_missing_output:o4"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {"o4": 0}})
+    assert (
+        autotrader_live._verify_nonce_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+        )
+        == "nonce_tau_mismatch:intent_id=iid.1,local=1,tau=0"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {"o4": 1}})
+    assert (
+        autotrader_live._verify_nonce_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+        )
+        is None
+    )
+
+    tx_receipt = autotrader_live.TauPolicyReceipt(
+        strategy_id="strat.live.1",
+        strategy_hash="0x1234",
+        spec_id="autotrader_tx_envelope_guard_v1",
+        gate_output="o4",
+        steps=({"i1": 1, "i2": 1, "i3": 1, "i4": 1, "i5": 1, "i6": 1, "i7": 1, "i8": 1, "i9": 1},),
+        expected_ok=True,
+    )
+
+    monkeypatch.setattr(
+        autotrader_live,
+        "run_tau_spec_steps",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("tau envelope boom")),
+    )
+    assert (
+        autotrader_live._verify_tx_envelope_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=tx_receipt,
+        )
+        == "tx_envelope_tau_runner_error:RuntimeError:tau envelope boom"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {}})
+    assert (
+        autotrader_live._verify_tx_envelope_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=tx_receipt,
+        )
+        == "tx_envelope_tau_missing_output:o4"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {"o4": 0}})
+    assert (
+        autotrader_live._verify_tx_envelope_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=tx_receipt,
+        )
+        == "tx_envelope_tau_mismatch:local=1,tau=0"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {"o4": 1}})
+    assert (
+        autotrader_live._verify_tx_envelope_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=tx_receipt,
+        )
+        is None
+    )
+
+
+def test_prepare_autotrader_live_rejects_wallet_capability_tau_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 82
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    verify_calls = {"count": 0}
+
+    def _verify_tau_policy_receipt(**kwargs: object) -> str | None:
+        verify_calls["count"] += 1
+        if verify_calls["count"] < 3:
+            return None
+        return "tau_policy_mismatch:local=1,tau=0,expected=1"
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        _verify_tau_policy_receipt,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "tau_policy_mismatch:local=1,tau=0,expected=1"
+    assert report.live_admission_ok is False
+    assert report.session_capability_tau_receipt is not None
+    assert report.session_state_tau_receipt is not None
+    assert report.wallet_capability_tau_receipt is not None
+    assert report.signed_intents == ()
+    assert verify_calls["count"] == 3
+
+
+def test_prepare_autotrader_live_rejects_session_capability_tau_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 183
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        lambda **kwargs: "tau_policy_mismatch:local=1,tau=0,expected=1",
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "tau_policy_mismatch:local=1,tau=0,expected=1"
+    assert report.live_admission_ok is False
+    assert report.session_capability_tau_receipt is not None
+    assert report.wallet_capability_tau_receipt is None
+    assert report.signed_intents == ()
+
+
+def test_prepare_autotrader_live_rejects_session_state_tau_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 283
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    verify_calls = {"count": 0}
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+
+    def _verify_tau_policy_receipt(**kwargs: object) -> str | None:
+        verify_calls["count"] += 1
+        if verify_calls["count"] == 2:
+            return "tau_policy_mismatch:local=1,tau=0,expected=1"
+        return None
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        _verify_tau_policy_receipt,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "tau_policy_mismatch:local=1,tau=0,expected=1"
+    assert report.live_admission_ok is False
+    assert report.session_capability_tau_receipt is not None
+    assert report.session_state_tau_receipt is not None
+    assert report.wallet_capability_tau_receipt is None
+    assert report.signed_intents == ()
+    assert verify_calls["count"] == 2
+
+
+def test_prepare_autotrader_live_rejects_tx_envelope_tau_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 184
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_tx_envelope_tau_receipt",
+        lambda **kwargs: "tx_envelope_tau_mismatch:local=1,tau=0",
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+        tx_sequence_number=1,
+        tx_expiration_time=99,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "tx_envelope_tau_mismatch:local=1,tau=0"
+    assert report.live_admission_ok is False
+    assert report.system_compose_ok is False
+    assert report.system_compose_error == "tx_envelope_rejected"
+    assert report.tx_envelope_tau_receipt is not None
+
+
+def test_prepare_autotrader_live_accepts_tau_tx_envelope_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 185
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_tx_envelope_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(autotrader_live, "_verify_boolean_tau_receipt", lambda **kwargs: None)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+        tx_sequence_number=5,
+        tx_expiration_time=99,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.live_admission_ok is True
+    assert report.system_compose_ok is True
+    assert report.tx_envelope_tau_receipt is not None
+
+
+def test_verify_boolean_tau_receipt_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+    receipt = autotrader_live.TauPolicyReceipt(
+        strategy_id="strat.live.1",
+        strategy_hash="0x5678",
+        spec_id="autotrader_system_compose_v1",
+        gate_output="o3",
+        steps=({"i1": 1},),
+        expected_ok=True,
+    )
+
+    monkeypatch.setattr(
+        autotrader_live,
+        "run_tau_spec_steps",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("tau compose boom")),
+    )
+    assert (
+        autotrader_live._verify_boolean_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+            spec_path="spec.tau",
+            error_prefix="system_compose_tau",
+        )
+        == "system_compose_tau_runner_error:RuntimeError:tau compose boom"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {}})
+    assert (
+        autotrader_live._verify_boolean_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+            spec_path="spec.tau",
+            error_prefix="system_compose_tau",
+        )
+        == "system_compose_tau_missing_output:o3"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {"o3": 0}})
+    assert (
+        autotrader_live._verify_boolean_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+            spec_path="spec.tau",
+            error_prefix="system_compose_tau",
+        )
+        == "system_compose_tau_mismatch:local=1,tau=0"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {"o3": 1}})
+    assert (
+        autotrader_live._verify_boolean_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+            spec_path="spec.tau",
+            error_prefix="system_compose_tau",
+        )
+        is None
+    )
+
+
+def test_autotrader_live_source_registry_helper_type_guards() -> None:
+    with pytest.raises(TypeError, match="packet must be an AutoTraderObservationPacket"):
+        autotrader_live._observation_source_registry_ok(object())  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="signal must be an ExternalSignalObservation"):
+        autotrader_live._trusted_external_signal_requires_registry(object())  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="signal must be an ExternalSignalObservation"):
+        autotrader_live._registry_guard_relevant(object(), None)  # type: ignore[arg-type]
+    assert (
+        autotrader_live._trusted_external_signal_requires_registry(
+            ExternalSignalObservation(
+                signal_id="sig.oracle.1",
+                source_id="oracle.alpha",
+                source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+                trust_tier=SignalTrustTier.VERIFIED,
+                auth_ok=True,
+                freshness_ok=True,
+                advisory_only=False,
+            )
+        )
+        is True
+    )
+    assert (
+        autotrader_live._trusted_external_signal_requires_registry(
+            ExternalSignalObservation(
+                signal_id="sig.news.1",
+                source_id="news.alpha",
+                source_kind=SignalSourceKind.ADVISORY_EXTERNAL,
+                trust_tier=SignalTrustTier.ADVISORY,
+                auth_ok=True,
+                freshness_ok=True,
+                advisory_only=True,
+            )
+        )
+        is False
+    )
+    with pytest.raises(TypeError, match="registry must be an ExternalSignalSourceRegistry or None"):
+        autotrader_live._registry_guard_relevant(  # type: ignore[arg-type]
+            ExternalSignalObservation(
+                signal_id="sig.news.1",
+                source_id="news.alpha",
+                source_kind=SignalSourceKind.ADVISORY_EXTERNAL,
+                trust_tier=SignalTrustTier.ADVISORY,
+                auth_ok=True,
+                freshness_ok=True,
+                advisory_only=True,
+            ),
+            object(),
+        )
+
+
+def test_build_external_signal_source_registry_tau_receipts_skips_irrelevant_advisory_signal() -> None:
+    strategy = _compiled_strategy(owner_pubkey="0xowner", backend="tau")
+    signal = ExternalSignalObservation(
+        signal_id="sig.news.1",
+        source_id="news.alpha",
+        source_kind=SignalSourceKind.ADVISORY_EXTERNAL,
+        trust_tier=SignalTrustTier.ADVISORY,
+        freshness_ok=True,
+        auth_ok=True,
+        advisory_only=True,
+    )
+    receipts = autotrader_live._build_external_signal_source_registry_tau_receipts(
+        strategy=strategy,
+        external_signals=(signal,),
+        signal_source_registry=None,
+    )
+    assert receipts == ()
+
+
+def test_verify_external_signal_source_registry_tau_receipt_branches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt = autotrader_live.AutoTraderExternalSignalSourceRegistryTauReceipt(
+        spec_id="autotrader_external_signal_source_registry_guard_v1",
+        gate_output="o8",
+        signal_id="sig.oracle.1",
+        source_id="oracle.alpha",
+        steps=({"i1": 1},),
+        expected_ok=True,
+    )
+
+    def _boom(**kwargs: object) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", _boom)
+    assert (
+        autotrader_live._verify_external_signal_source_registry_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+        )
+        == "external_signal_source_registry_tau_runner_error:"
+        "signal_id=sig.oracle.1,source_id=oracle.alpha,RuntimeError:boom"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {}})
+    assert (
+        autotrader_live._verify_external_signal_source_registry_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+        )
+        == "external_signal_source_registry_tau_missing_output:"
+        "signal_id=sig.oracle.1,source_id=oracle.alpha,o8"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {"o8": 0}})
+    assert (
+        autotrader_live._verify_external_signal_source_registry_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+        )
+        == "external_signal_source_registry_tau_mismatch:"
+        "signal_id=sig.oracle.1,source_id=oracle.alpha,local=1,tau=0"
+    )
+
+    monkeypatch.setattr(autotrader_live, "run_tau_spec_steps", lambda **kwargs: {0: {"o8": 1}})
+    assert (
+        autotrader_live._verify_external_signal_source_registry_tau_receipt(
+            tau_bin=sys.executable,
+            config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+            receipt=receipt,
+        )
+        is None
+    )
+
+
+def test_prepare_autotrader_live_accepts_external_signal_source_registry_tau_receipts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 286
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    signal = ExternalSignalObservation(
+        signal_id="sig.oracle.1",
+        source_id="oracle.alpha",
+        source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+        trust_tier=SignalTrustTier.VERIFIED,
+        freshness_ok=True,
+        auth_ok=True,
+        advisory_only=False,
+    )
+    registry = ExternalSignalSourceRegistry(
+        entries=(
+            ExternalSignalSourceRegistryEntry(
+                source_id="oracle.alpha",
+                source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+                allowed_trust_tiers=(SignalTrustTier.ATTESTED, SignalTrustTier.VERIFIED),
+                require_auth=True,
+                require_freshness=True,
+            ),
+        )
+    )
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_verify_tau_policy_receipt",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_external_signal_source_registry_tau_receipt",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(autotrader_live, "_verify_boolean_tau_receipt", lambda **kwargs: None)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        external_signals=(signal,),
+        signal_source_registry=registry,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.external_signal_source_registry_tau_receipts
+    assert report.external_signal_source_registry_tau_receipts[0].signal_id == "sig.oracle.1"
+    assert report.external_signal_source_registry_tau_receipts[0].source_id == "oracle.alpha"
+
+
+def test_prepare_autotrader_live_rejects_external_signal_source_registry_tau_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 287
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey, backend="tau")
+    pools, receipt = _single_hop_receipt()
+    signal = ExternalSignalObservation(
+        signal_id="sig.oracle.1",
+        source_id="oracle.alpha",
+        source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+        trust_tier=SignalTrustTier.VERIFIED,
+        freshness_ok=True,
+        auth_ok=True,
+        advisory_only=False,
+    )
+    registry = ExternalSignalSourceRegistry(
+        entries=(
+            ExternalSignalSourceRegistryEntry(
+                source_id="oracle.alpha",
+                source_kind=SignalSourceKind.ATTESTED_EXTERNAL,
+                allowed_trust_tiers=(SignalTrustTier.ATTESTED, SignalTrustTier.VERIFIED),
+                require_auth=True,
+                require_freshness=True,
+            ),
+        )
+    )
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_external_signal_source_registry_tau_receipt",
+        lambda **kwargs: (
+            "external_signal_source_registry_tau_mismatch:"
+            "signal_id=sig.oracle.1,source_id=oracle.alpha,local=1,tau=0"
+        ),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        external_signals=(signal,),
+        signal_source_registry=registry,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.live_admission_ok is False
+    assert report.external_signal_source_registry_tau_receipts
+    assert report.live_admission_error == (
+        "external_signal_source_registry_tau_mismatch:"
+        "signal_id=sig.oracle.1,source_id=oracle.alpha,local=1,tau=0"
+    )
+
+
+def test_prepare_autotrader_live_fail_closes_source_registry_when_observation_packet_build_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 288
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+    signal = ExternalSignalObservation(
+        signal_id="sig.news.1",
+        source_id="news.alpha",
+        source_kind=SignalSourceKind.ADVISORY_EXTERNAL,
+        trust_tier=SignalTrustTier.ADVISORY,
+        freshness_ok=True,
+        auth_ok=True,
+        advisory_only=True,
+    )
+
+    def _boom(**kwargs: object) -> None:
+        raise RuntimeError("packet boom")
+
+    monkeypatch.setattr(autotrader_live, "build_autotrader_observation_packet", _boom)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        external_signals=(signal,),
+    )
+
+    assert report.source_registry_ok is False
+    assert report.decision.reason == "observation_packet_build_failed:RuntimeError:packet boom"
+    assert report.observation_packet is None
+    assert report.observation_packet_error == "RuntimeError:packet boom"
+
+
+def test_prepare_autotrader_live_rejects_live_admission_tau_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 186
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_boolean_tau_receipt",
+        lambda **kwargs: "live_admission_tau_mismatch:local=1,tau=0"
+        if kwargs["error_prefix"] == "live_admission_tau"
+        else None,
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "live_admission_tau_mismatch:local=1,tau=0"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "live_admission_tau_mismatch:local=1,tau=0"
+    assert report.system_compose_ok is False
+    assert report.system_compose_error == "live_admission_tau_rejected"
+    assert report.live_admission_tau_receipt is not None
+    assert report.system_compose_tau_receipt is None
+
+
+def test_prepare_autotrader_live_rejects_system_compose_tau_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 187
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(
+        autotrader_live,
+        "_verify_boolean_tau_receipt",
+        lambda **kwargs: (
+            "system_compose_tau_mismatch:local=1,tau=0"
+            if kwargs["error_prefix"] == "system_compose_tau"
+            else None
+        ),
+    )
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason == "system_compose_tau_mismatch:local=1,tau=0"
+    assert report.live_admission_ok is False
+    assert report.live_admission_error == "system_compose_tau_mismatch:local=1,tau=0"
+    assert report.system_compose_ok is False
+    assert report.system_compose_error == "system_compose_tau_rejected"
+    assert report.live_admission_tau_receipt is not None
+    assert report.system_compose_tau_receipt is not None
+
+
+def test_prepare_autotrader_live_accepts_tau_live_and_system_compose_checks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    privkey = 188
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    pools, receipt = _single_hop_receipt()
+
+    monkeypatch.setattr(
+        autotrader_live.autotrader_controller,
+        "_resolve_tau_bin",
+        lambda config: (True, sys.executable, None),
+    )
+    monkeypatch.setattr(autotrader_live, "_verify_nonce_tau_receipt", lambda **kwargs: None)
+    monkeypatch.setattr(autotrader_live, "_verify_boolean_tau_receipt", lambda **kwargs: None)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt=receipt,
+        pools_by_id=pools,
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+        tau_config=AutoTraderTauConfig(enabled=True, tau_bin=sys.executable, allow_path_lookup=False),
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.SUBMIT
+    assert report.live_admission_ok is True
+    assert report.system_compose_ok is True
+    assert report.live_admission_tau_receipt is not None
+    assert report.system_compose_tau_receipt is not None
+
+
+def test_prepare_autotrader_live_rejects_controller_guard_bundle_gap(monkeypatch: pytest.MonkeyPatch) -> None:
+    privkey = 83
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _compiled_strategy(owner_pubkey=owner_pubkey)
+    intent = create_swap_intent(
+        pool_id="p_ab",
+        asset_in="A",
+        asset_out="B",
+        amount_in=100,
+        min_amount_out=50,
+        deadline=99,
+        sender_pubkey=owner_pubkey,
+        nonce=1,
+    )
+    decision = autotrader_live.AutoTraderDecision(
+        tag=AutoTraderDecisionTag.SUBMIT,
+        reason="policy_guard_passed",
+        explain=("ok",),
+        state=AutoTraderControllerState(),
+        guard_state=AutoTraderGuardState(),
+        intents=(intent,),
+    )
+    monkeypatch.setattr(autotrader_live, "evaluate_autotrader_quote_receipt", lambda **kwargs: decision)
+
+    report = prepare_autotrader_live_quote_receipt(
+        strategy=strategy,
+        controller_state=AutoTraderControllerState(),
+        receipt={"body": {"kind": "exact_in", "asset_in": "A", "asset_out": "B", "amount_in": 100, "quote_epoch": 5}},
+        pools_by_id={},
+        current_epoch=5,
+        intent_deadline=99,
+        signer_privkey=privkey,
+        last_used_nonce=0,
+    )
+
+    assert report.decision.tag is AutoTraderDecisionTag.REJECT
+    assert report.decision.reason.startswith("observation_packet_build_failed:TypeError:")
+    assert report.live_admission_ok is False
+    assert report.live_admission_error.startswith("observation_packet_build_failed:TypeError:")

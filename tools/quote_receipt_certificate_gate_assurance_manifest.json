@@ -1,0 +1,106 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the route quote receipt certificate-consistency gate. Update only alongside a successful run of tools/run_quote_receipt_certificate_gate_assurance_gate.sh and tools/check_quote_receipt_certificate_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/quote_receipts.py",
+      "sha256": "77a85bd87d9f0123b0635c90c6a200ef0096717d163d4222fc6abd76ac5eaddd"
+    },
+    {
+      "path": "src/kernels/dex/quote_receipt_certificate_gate_v1.yaml",
+      "sha256": "280e103f1b3e765337249eb2371a841b88e796089587e98fb98c5c3f709b41f6"
+    },
+    {
+      "path": "src/kernels/python/quote_receipt_certificate_gate_v1_native_adapter.py",
+      "sha256": "b56c21743a7c96790d664b85433ff7cb9feabd25c27e93a9169ebf398896c736"
+    },
+    {
+      "path": "tests/core/test_quote_receipt_certificate_gate.py",
+      "sha256": "07e62c7c14a1a54977217860e6111fefcb1eda8df22768ce2381f9c2a6c77193"
+    },
+    {
+      "path": "tests/core/test_quote_receipts.py",
+      "sha256": "c2c493084af1b7ec743cfe89881de6a7bf8beaaf63717127c259ca788a060a97"
+    },
+    {
+      "path": "tests/kernels/test_quote_receipt_certificate_gate_v1_native_adapter.py",
+      "sha256": "8b2594149acfa7c394b75b242e97abc8a2afb56c7aeb5b6b4d38a4e5243bae0f"
+    },
+    {
+      "path": "tools/run_quote_receipt_certificate_gate_assurance_gate.sh",
+      "sha256": "2431641cc95abe56329d250e89a67fc6f1629a2f5f91b2bf6ebb0045efdf6899"
+    },
+    {
+      "path": "tools/check_quote_receipt_certificate_gate_assurance_manifest.py",
+      "sha256": "e78825b0eea5db7a2f2e88131617b87b32ad7c6c74d367810d93dcbbcc1e5c1d"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/quote_receipt_certificate_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/quote_receipt_certificate_gate_v1.yaml",
+    "ir_hash": "sha256:8c0a6fff72a901c21480d895b792dbe4b6f8d3f6f72b271d42be035a33770bb9"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/quote_receipt_certificate_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.quote_receipt_certificate_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:8c0a6fff72a901c21480d895b792dbe4b6f8d3f6f72b271d42be035a33770bb9",
+    "actions": [
+      "evaluate_route_quote_receipt_certificate_gate"
+    ],
+    "effects": [
+      "certificate_ok",
+      "reject_tag"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/quote_receipt_certificate_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/quote_receipt_certificate_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.quote_receipt_certificate_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:8c0a6fff72a901c21480d895b792dbe4b6f8d3f6f72b271d42be035a33770bb9",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:a7fb524394d2d18abe77f665a387f69811dcc073ea8d45fe40026b3b12c10092"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/quote_receipt_certificate_gate_v1/verification_report.json",
+    "model_id": "quote_receipt_certificate_gate_v1",
+    "ir_hash_short": "8c0a6fff72a901c2",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_quote_receipt_certificate_gate.py",
+    "tests/core/test_quote_receipts.py",
+    "tests/kernels/test_quote_receipt_certificate_gate_v1_native_adapter.py"
+  ]
+}

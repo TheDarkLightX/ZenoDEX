@@ -3,30 +3,26 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Dict, Mapping
 
+from .perp_submission_auth_field_selector_gate import (
+    PERP_OP_AUTH_FIELD_SELECTOR_ACTION_TAGS_V1,
+    PERP_OP_AUTH_FIELD_SELECTOR_CANDIDATE_KEYS_V1,
+    select_perp_submission_auth_signed_field_keys_v1,
+)
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes
 
 
-PERP_OP_AUTH_SIGNED_FIELD_KEYS_V1: dict[str, tuple[str, ...]] = {
-    "init_market_2p": ("quote_asset", "account_a_pubkey", "account_b_pubkey", "deadline"),
-    "init_market_3p": ("quote_asset", "account_a_pubkey", "account_b_pubkey", "account_c_pubkey", "deadline"),
-    "set_position_pair": (
-        "account_a_pubkey",
-        "account_b_pubkey",
-        "new_position_base_a",
-        "new_position_base_b",
-        "deadline",
-    ),
-    "set_position_triplet": (
-        "account_a_pubkey",
-        "account_b_pubkey",
-        "account_c_pubkey",
-        "new_position_base_a",
-        "new_position_base_b",
-        "new_position_base_c",
-        "deadline",
-    ),
-    "publish_clearing_price": ("price_e8", "deadline"),
-}
+def _derive_signed_field_keys_v1() -> dict[str, tuple[str, ...]]:
+    witness_op = {key: True for key in PERP_OP_AUTH_FIELD_SELECTOR_CANDIDATE_KEYS_V1}
+    return {
+        action: select_perp_submission_auth_signed_field_keys_v1(
+            action=action,
+            op=witness_op,
+        ).signed_field_keys
+        for action in PERP_OP_AUTH_FIELD_SELECTOR_ACTION_TAGS_V1
+    }
+
+
+PERP_OP_AUTH_SIGNED_FIELD_KEYS_V1: dict[str, tuple[str, ...]] = _derive_signed_field_keys_v1()
 
 
 def build_perp_op_auth_signing_dict_v1(
@@ -49,14 +45,10 @@ def build_perp_op_auth_signing_dict_v1(
     if not isinstance(action, str) or not action:
         raise ValueError("signing dict missing action")
 
-    keys = PERP_OP_AUTH_SIGNED_FIELD_KEYS_V1.get(action)
-    if keys is None:
-        raise ValueError(f"unsupported signed action: {action}")
+    selection = select_perp_submission_auth_signed_field_keys_v1(action=action, op=op)
 
     fields: Dict[str, Any] = {}
-    for key in keys:
-        if key not in op:
-            raise ValueError(f"signing dict missing field: {key}")
+    for key in selection.signed_field_keys:
         fields[key] = op[key]
 
     return {

@@ -1,0 +1,61 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "quote_receipt_leg_summary_gate_v1"
+  notes: |
+    Bounded first-failure law for per-leg summary checks after hop replay.
+
+observables:
+  state_vars:
+    - "final_asset_out_ok"
+    - "first_hop_amount_in_ok"
+    - "last_hop_amount_out_ok"
+  effects:
+    - "leg_ok"
+    - "reject_tag"
+
+state_vars:
+  - id: "final_asset_out_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "first_hop_amount_in_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "last_hop_amount_out_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "final_asset_out_ok"
+    expr: { bool: false }
+  - var: "first_hop_amount_in_ok"
+    expr: { bool: false }
+  - var: "last_hop_amount_out_ok"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_route_quote_receipt_leg_summary_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      leg_ok:
+        op: "and"
+        args:
+          - { var: "final_asset_out_ok" }
+          - { var: "first_hop_amount_in_ok" }
+          - { var: "last_hop_amount_out_ok" }
+      reject_tag:
+        op: "ite"
+        cond: { op: "not", args: [{ var: "final_asset_out_ok" }] }
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond: { op: "not", args: [{ var: "first_hop_amount_in_ok" }] }
+          then: { const: 2 }
+          else:
+            op: "ite"
+            cond: { op: "not", args: [{ var: "last_hop_amount_out_ok" }] }
+            then: { const: 3 }
+            else: { const: 0 }
+
+invariants: []

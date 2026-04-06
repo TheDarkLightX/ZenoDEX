@@ -1,0 +1,50 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "quote_receipt_totals_gate_v1"
+  notes: |
+    Bounded first-failure law for final body-amount and total aggregation checks.
+
+observables:
+  state_vars:
+    - "body_amounts_ok"
+    - "totals_match"
+  effects:
+    - "totals_ok"
+    - "reject_tag"
+
+state_vars:
+  - id: "body_amounts_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "totals_match"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "body_amounts_ok"
+    expr: { bool: false }
+  - var: "totals_match"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_route_quote_receipt_totals_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      totals_ok:
+        op: "and"
+        args:
+          - { var: "body_amounts_ok" }
+          - { var: "totals_match" }
+      reject_tag:
+        op: "ite"
+        cond: { op: "not", args: [{ var: "body_amounts_ok" }] }
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond: { op: "not", args: [{ var: "totals_match" }] }
+          then: { const: 2 }
+          else: { const: 0 }
+
+invariants: []

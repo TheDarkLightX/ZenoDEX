@@ -1,0 +1,68 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "quote_receipt_pool_snapshot_gate_v1"
+  notes: |
+    Bounded first-failure law for route quote receipt pool-snapshot verification
+    before hop replay semantics run.
+
+observables:
+  state_vars:
+    - "pool_entries_well_formed"
+    - "all_pools_present"
+    - "all_fingerprints_match"
+  effects:
+    - "snapshot_ok"
+    - "reject_tag"
+
+state_vars:
+  - id: "pool_entries_well_formed"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "all_pools_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "all_fingerprints_match"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "pool_entries_well_formed"
+    expr: { bool: false }
+  - var: "all_pools_present"
+    expr: { bool: false }
+  - var: "all_fingerprints_match"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_route_quote_receipt_pool_snapshot_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      snapshot_ok:
+        op: "and"
+        args:
+          - { var: "pool_entries_well_formed" }
+          - { var: "all_pools_present" }
+          - { var: "all_fingerprints_match" }
+      reject_tag:
+        op: "ite"
+        cond:
+          op: "not"
+          args: [{ var: "pool_entries_well_formed" }]
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond:
+            op: "not"
+            args: [{ var: "all_pools_present" }]
+          then: { const: 2 }
+          else:
+            op: "ite"
+            cond:
+              op: "not"
+              args: [{ var: "all_fingerprints_match" }]
+            then: { const: 3 }
+            else: { const: 0 }
+
+invariants: []

@@ -1,0 +1,330 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_runtime_risk_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: shell-side isolated perps runtime admission gate.
+
+    Purpose:
+      - Replay the action-admission ordering used by isolated perps dispatch in `src/integration/perp_engine.py`.
+      - Cover only shell-side admission decisions and normalized reject codes.
+      - Do not model kernel math, settlement accumulation, or funding-auto inner gate details.
+
+    Scope:
+      - advance_epoch
+      - publish_clearing_price
+      - apply_funding_auto (operator/unknown-fields surface only)
+      - settle_epoch
+      - clear_breaker
+      - set_market_params
+      - deposit_collateral
+      - withdraw_collateral
+      - set_position
+
+observables:
+  state_vars:
+    [
+      "action_kind",
+      "operator_ok",
+      "unknown_fields_ok",
+      "sender_binding_ok",
+      "epoch_settled_ok",
+      "positive_price_ok",
+      "positions_flat_ok",
+      "params_object_ok",
+    ]
+  effects:
+    [
+      "action_known",
+      "operator_required",
+      "operator_ok",
+      "unknown_fields_ok",
+      "sender_binding_required",
+      "sender_binding_ok",
+      "epoch_settled_required",
+      "epoch_settled_ok",
+      "positive_price_required",
+      "positive_price_ok",
+      "positions_flat_required",
+      "positions_flat_ok",
+      "params_object_required",
+      "params_object_ok",
+      "admission_ok",
+      "reject_code",
+    ]
+
+types: []
+
+state_vars:
+  - id: "action_kind"
+    role: "data"
+    type: { kind: "int", min: 0, max: 9 }
+  - id: "operator_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "unknown_fields_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "sender_binding_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "epoch_settled_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "positive_price_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "positions_flat_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "params_object_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "action_kind"
+    expr: { const: 0 }
+  - var: "operator_ok"
+    expr: { const: 1 }
+  - var: "unknown_fields_ok"
+    expr: { const: 1 }
+  - var: "sender_binding_ok"
+    expr: { const: 1 }
+  - var: "epoch_settled_ok"
+    expr: { const: 1 }
+  - var: "positive_price_ok"
+    expr: { const: 1 }
+  - var: "positions_flat_ok"
+    expr: { const: 1 }
+  - var: "params_object_ok"
+    expr: { const: 1 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "operator_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "operator_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "unknown_fields_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "unknown_fields_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "sender_binding_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "sender_binding_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "positive_price_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "positive_price_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "positions_flat_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "positions_flat_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "params_object_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "params_object_ok" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_runtime_risk_gate"
+    params: []
+    guard:
+      op: "="
+      args: [{ const: 0 }, { const: 0 }]
+    updates: []
+    effects:
+      action_known:
+        op: "not"
+        args:
+          - op: "="
+            args: [{ var: "action_kind" }, { const: 0 }]
+      operator_required:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_kind" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "action_kind" }, { const: 2 }] }
+          - { op: "=", args: [{ var: "action_kind" }, { const: 3 }] }
+          - { op: "=", args: [{ var: "action_kind" }, { const: 4 }] }
+          - { op: "=", args: [{ var: "action_kind" }, { const: 5 }] }
+          - { op: "=", args: [{ var: "action_kind" }, { const: 6 }] }
+      operator_ok:
+        op: "="
+        args: [{ var: "operator_ok" }, { const: 1 }]
+      unknown_fields_ok:
+        op: "="
+        args: [{ var: "unknown_fields_ok" }, { const: 1 }]
+      sender_binding_required:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_kind" }, { const: 7 }] }
+          - { op: "=", args: [{ var: "action_kind" }, { const: 8 }] }
+          - { op: "=", args: [{ var: "action_kind" }, { const: 9 }] }
+      sender_binding_ok:
+        op: "="
+        args: [{ var: "sender_binding_ok" }, { const: 1 }]
+      epoch_settled_required:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_kind" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "action_kind" }, { const: 6 }] }
+      epoch_settled_ok:
+        op: "="
+        args: [{ var: "epoch_settled_ok" }, { const: 1 }]
+      positive_price_required:
+        op: "="
+        args: [{ var: "action_kind" }, { const: 2 }]
+      positive_price_ok:
+        op: "="
+        args: [{ var: "positive_price_ok" }, { const: 1 }]
+      positions_flat_required:
+        op: "="
+        args: [{ var: "action_kind" }, { const: 5 }]
+      positions_flat_ok:
+        op: "="
+        args: [{ var: "positions_flat_ok" }, { const: 1 }]
+      params_object_required:
+        op: "="
+        args: [{ var: "action_kind" }, { const: 6 }]
+      params_object_ok:
+        op: "="
+        args: [{ var: "params_object_ok" }, { const: 1 }]
+      admission_ok:
+        op: "and"
+        args:
+          - op: "not"
+            args:
+              - op: "="
+                args: [{ var: "action_kind" }, { const: 0 }]
+          - op: "ite"
+            cond:
+              op: "or"
+              args:
+                - { op: "=", args: [{ var: "action_kind" }, { const: 1 }] }
+                - { op: "=", args: [{ var: "action_kind" }, { const: 2 }] }
+                - { op: "=", args: [{ var: "action_kind" }, { const: 3 }] }
+                - { op: "=", args: [{ var: "action_kind" }, { const: 4 }] }
+                - { op: "=", args: [{ var: "action_kind" }, { const: 5 }] }
+                - { op: "=", args: [{ var: "action_kind" }, { const: 6 }] }
+            then: { op: "=", args: [{ var: "operator_ok" }, { const: 1 }] }
+            else: { bool: true }
+          - { op: "=", args: [{ var: "unknown_fields_ok" }, { const: 1 }] }
+          - op: "ite"
+            cond:
+              op: "or"
+              args:
+                - { op: "=", args: [{ var: "action_kind" }, { const: 7 }] }
+                - { op: "=", args: [{ var: "action_kind" }, { const: 8 }] }
+                - { op: "=", args: [{ var: "action_kind" }, { const: 9 }] }
+            then: { op: "=", args: [{ var: "sender_binding_ok" }, { const: 1 }] }
+            else: { bool: true }
+          - op: "ite"
+            cond: { op: "=", args: [{ var: "action_kind" }, { const: 1 }] }
+            then: { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 1 }] }
+            else: { bool: true }
+          - op: "ite"
+            cond: { op: "=", args: [{ var: "action_kind" }, { const: 2 }] }
+            then: { op: "=", args: [{ var: "positive_price_ok" }, { const: 1 }] }
+            else: { bool: true }
+          - op: "ite"
+            cond: { op: "=", args: [{ var: "action_kind" }, { const: 5 }] }
+            then: { op: "=", args: [{ var: "positions_flat_ok" }, { const: 1 }] }
+            else: { bool: true }
+          - op: "ite"
+            cond: { op: "=", args: [{ var: "action_kind" }, { const: 6 }] }
+            then:
+              op: "and"
+              args:
+                - { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 1 }] }
+                - { op: "=", args: [{ var: "params_object_ok" }, { const: 1 }] }
+            else: { bool: true }
+      reject_code:
+        op: "ite"
+        cond:
+          op: "="
+          args: [{ var: "action_kind" }, { const: 0 }]
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - op: "or"
+                args:
+                  - { op: "=", args: [{ var: "action_kind" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "action_kind" }, { const: 2 }] }
+                  - { op: "=", args: [{ var: "action_kind" }, { const: 3 }] }
+                  - { op: "=", args: [{ var: "action_kind" }, { const: 4 }] }
+                  - { op: "=", args: [{ var: "action_kind" }, { const: 5 }] }
+                  - { op: "=", args: [{ var: "action_kind" }, { const: 6 }] }
+              - op: "="
+                args: [{ var: "operator_ok" }, { const: 0 }]
+          then: { const: 2 }
+          else:
+            op: "ite"
+            cond:
+              op: "="
+              args: [{ var: "unknown_fields_ok" }, { const: 0 }]
+            then: { const: 3 }
+            else:
+              op: "ite"
+              cond:
+                op: "and"
+                args:
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_kind" }, { const: 7 }] }
+                      - { op: "=", args: [{ var: "action_kind" }, { const: 8 }] }
+                      - { op: "=", args: [{ var: "action_kind" }, { const: 9 }] }
+                  - op: "="
+                    args: [{ var: "sender_binding_ok" }, { const: 0 }]
+              then: { const: 9 }
+              else:
+                op: "ite"
+                cond:
+                  op: "and"
+                  args:
+                    - { op: "=", args: [{ var: "action_kind" }, { const: 1 }] }
+                    - { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 0 }] }
+                then: { const: 4 }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "and"
+                    args:
+                      - { op: "=", args: [{ var: "action_kind" }, { const: 2 }] }
+                      - { op: "=", args: [{ var: "positive_price_ok" }, { const: 0 }] }
+                  then: { const: 5 }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "and"
+                      args:
+                        - { op: "=", args: [{ var: "action_kind" }, { const: 5 }] }
+                        - { op: "=", args: [{ var: "positions_flat_ok" }, { const: 0 }] }
+                    then: { const: 6 }
+                    else:
+                      op: "ite"
+                      cond:
+                        op: "and"
+                        args:
+                          - { op: "=", args: [{ var: "action_kind" }, { const: 6 }] }
+                          - { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 0 }] }
+                      then: { const: 7 }
+                      else:
+                        op: "ite"
+                        cond:
+                          op: "and"
+                          args:
+                            - { op: "=", args: [{ var: "action_kind" }, { const: 6 }] }
+                            - { op: "=", args: [{ var: "params_object_ok" }, { const: 0 }] }
+                        then: { const: 8 }
+                        else: { const: 0 }

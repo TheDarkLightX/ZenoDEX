@@ -4,8 +4,6 @@ from dataclasses import replace
 
 import pytest
 
-from tests.integration._attestation_policy_helper import build_policy_bound_attestation, make_attestation_policy
-
 from src.core.batch_clearing import compute_settlement
 from src.core.liquidity import create_pool
 from src.core.settlement import LPDelta
@@ -16,6 +14,7 @@ from src.integration.settlement_value_contract import (
     build_settlement_spot_value_contract_from_price_packet,
     verify_settlement_spot_value_contract,
 )
+from src.integration.settlement_price_attestation import build_settlement_spot_price_attestation
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
@@ -157,14 +156,17 @@ def test_settlement_spot_value_contract_builds_from_attested_price_packet() -> N
         now_epoch=100,
         max_staleness_epochs=10,
     )
-    price_attestation, _policy = build_policy_bound_attestation(packet=price_packet, signer_privkey=7)
+    price_attestation = build_settlement_spot_price_attestation(
+        packet=price_packet,
+        signer_privkey=7,
+    )
 
     contract = build_settlement_spot_value_contract_from_price_attestation(
         settlement=settlement,
         price_attestation=price_attestation,
         consumer_now_epoch=103,
         max_attestation_age_epochs=5,
-        attestation_policy=make_attestation_policy(price_attestation),
+        allowed_signers={price_attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
     )
     assert contract.schema == SETTLEMENT_SPOT_VALUE_CONTRACT_SCHEMA
     assert contract.value_conservation_ok is True

@@ -76,8 +76,8 @@ _SWAP_ORDERING_CHOICES = frozenset({
 })
 
 # Bounded brute-force safety cap for AB-optimal ordering.
-# For N > this limit, fall back to limit-price ordering.
-_MAX_SWAP_ORDERING_BRUTE_FORCE_N = 7
+# For N > this limit, greedy_ab should be used instead.
+_MAX_SWAP_ORDERING_BRUTE_FORCE_N = 12
 # Global pair-swap refinement can be expensive; cap intent count for this mode.
 _MAX_SWAP_ORDERING_GLOBAL_REFINE_N = 24
 # MCI insertion is heavier than greedy seeding; keep it opt-in and bounded.

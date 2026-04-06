@@ -1,0 +1,94 @@
+{
+  "manifest_version": 1,
+  "notes": [
+    "Pinned batch-auction IFQL/VMO assurance bundle.",
+    "Covers an observation-fiber preservation edge from the compiled Compass v5 batch-settler model to the compiled Compass v7 model."
+  ],
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit"
+    }
+  },
+  "source_files": [
+    {
+      "path": "runs/batch_auction_compass_contract_v7.json",
+      "sha256": "738ddad3791b46d8fd05d7ab98070cb16afc3ac75853896bf73087ef897924ec"
+    },
+    {
+      "path": "runs/compass_build_v5/compiled/modules/batch_settler/model.yaml",
+      "sha256": "cc9a56d36e06fdd46657dcc1c1f44e4964e961ba24a39f73078ef6f53e372a85"
+    },
+    {
+      "path": "runs/compass_build_v7/compiled/modules/batch_settler/model.yaml",
+      "sha256": "b1cb737f9119377404de0b5318e7b28ea2ef9e5e44bce8e826f5f304958720bf"
+    },
+    {
+      "path": "tools/intent_lattices/batch_auction_v7_observation_intent.json",
+      "sha256": "57068f566d7a965fc42daf595cb04ee01642d71eb7d2b83f81cc934a2418c21f"
+    }
+  ],
+  "intent_lint": {
+    "report_path": "internal/esso_verify/batch_auction_ifql_vmo/intent_lint.json",
+    "intent_hash": "sha256:033afd3de6a073a227402dcda016e700e8ab4da020e9aa61367569e266a49a1f",
+    "intent_source": "tools/intent_lattices/batch_auction_v7_observation_intent.json",
+    "nodes": 2,
+    "leaf_nodes": 1,
+    "leaf_nodes_mapped": 1,
+    "required_ok": false
+  },
+  "reference_ifql": {
+    "report_path": "internal/esso_verify/batch_auction_ifql_vmo/ifql_reference.json",
+    "report_hash": "sha256:659e0d14a3af6871d3040e6368aef563fafcf74bd54c2f63dcb1678525a9cc90",
+    "model_ir_hash": "sha256:a802059516d3edf28921edee8380a487e0462c005bb5f76096cc095a813da54e",
+    "model_id": "dex.batch_auction_settler.batch_settler",
+    "node_ids": [
+      "I0_root",
+      "I_observations_batch_settler_public"
+    ]
+  },
+  "candidate_ifql": {
+    "report_path": "internal/esso_verify/batch_auction_ifql_vmo/ifql_candidate.json",
+    "report_hash": "sha256:15f6371eae1bbdc263ff718eaad8c573520ce482e2fb2e55c1d831ac2db9a03e",
+    "model_ir_hash": "sha256:36b9bcbe3c28d07cc9e48758693e4adb4a7d2d5715defb006c35388d977e0124",
+    "model_id": "dex.batch_auction_settler.batch_settler",
+    "node_ids": [
+      "I0_root",
+      "I_observations_batch_settler_public"
+    ]
+  },
+  "vmo_full": {
+    "report_path": "internal/esso_verify/batch_auction_ifql_vmo/ifql_vmo_full.json",
+    "fiber": "effective",
+    "intent_id": "I_observations_batch_settler_public",
+    "observed_state_vars": [
+      "intent_count",
+      "phase",
+      "settled_count"
+    ],
+    "mode": "full",
+    "preserves": [
+      "invariant_inductive",
+      "no_extra_behavior",
+      "observational_equivalence"
+    ],
+    "vmo_hash": "sha256:9f4d8f3de63275ce301b79150b3627b319b6b677879263d47fd87d4b3215a32d"
+  },
+  "vmo_no_extra": {
+    "report_path": "internal/esso_verify/batch_auction_ifql_vmo/ifql_vmo_no_extra.json",
+    "fiber": "effective",
+    "intent_id": "I_observations_batch_settler_public",
+    "observed_state_vars": [
+      "intent_count",
+      "phase",
+      "settled_count"
+    ],
+    "mode": "no_extra",
+    "preserves": [
+      "invariant_inductive",
+      "no_extra_behavior"
+    ],
+    "vmo_hash": "sha256:3c2cdc667d883ff4680ae92e306927d089ef29847c57875e50657306233486bf"
+  }
+}
