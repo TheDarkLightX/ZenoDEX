@@ -37,6 +37,14 @@ echo "== perps: claims registry format check =="
 
 echo "== perps: pytest =="
 "$PY" -m pytest -q \
+  "$ROOT_DIR/tests/core/test_perp_market_version_prefix_guard.py" \
+  "$ROOT_DIR/tests/core/test_perp_tau_ingress_stream.py" \
+  "$ROOT_DIR/tests/core/test_perp_submission_auth_field_selector_gate.py" \
+  "$ROOT_DIR/tests/core/test_perp_clearinghouse_market_params_guard.py" \
+  "$ROOT_DIR/tests/core/test_perp_signed_surface_guard.py" \
+  "$ROOT_DIR/tests/core/test_perp_submission_auth_message.py" \
+  "$ROOT_DIR/tests/core/test_perp_submission_auth_gate.py" \
+  "$ROOT_DIR/tests/core/test_perp_apply_funding_auto_gate.py" \
   "$ROOT_DIR/tests/core/test_perp_v2" \
   "$ROOT_DIR/tests/core/test_perp_math_hazards.py" \
   "$ROOT_DIR/tests/core/test_perp_incentive_hazards.py" \
@@ -44,9 +52,14 @@ echo "== perps: pytest =="
   "$ROOT_DIR/tests/core/test_perp_clearinghouse_3p_transfer" \
   "$ROOT_DIR/tests/formal/test_perp_epoch_scheduler_ltlf.py::test_ltlf_scheduler_can_reach_epoch_2_settled" \
   "$ROOT_DIR/tests/integration/test_perp_engine.py" \
+  "$ROOT_DIR/tests/integration/test_perp_engine_auth_guards.py" \
+  "$ROOT_DIR/tests/integration/test_perp_engine_signed_surface_guards.py" \
+  "$ROOT_DIR/tests/integration/test_perp_op_auth_message_parity.py" \
+  "$ROOT_DIR/tests/integration/test_perp_engine_parse_guards.py" \
   "$ROOT_DIR/tests/integration/test_perp_engine_market_params_clearinghouse.py" \
   "$ROOT_DIR/tests/integration/test_perp_engine_clearinghouse_2p.py" \
-  "$ROOT_DIR/tests/integration/test_perp_engine_clearinghouse_3p_transfer.py"
+  "$ROOT_DIR/tests/integration/test_perp_engine_clearinghouse_3p_transfer.py" \
+  "$ROOT_DIR/tests/kernels/test_perp_submission_auth_field_selector_gate_v1_native_adapter.py"
 
 echo "== perps: kernel inductiveness (verify-multi) =="
 "$PY" -m ESSO verify-multi \
@@ -72,6 +85,39 @@ echo "== perps: kernel inductiveness (verify-multi) =="
   --solvers z3,cvc5 \
   --timeout-ms 60000 \
   --determinism-trials 2
+
+echo "== perps: funding-auto admission assurance =="
+bash "$ROOT_DIR/tools/run_perp_apply_funding_auto_assurance_gate.sh"
+
+echo "== perps: funding apply assurance =="
+bash "$ROOT_DIR/tools/run_perp_funding_apply_assurance_gate.sh"
+
+echo "== perps: clearinghouse market params assurance =="
+bash "$ROOT_DIR/tools/run_perp_clearinghouse_market_params_assurance_gate.sh"
+
+echo "== perps: liquidation eligibility assurance =="
+bash "$ROOT_DIR/tools/run_perp_liquidation_eligibility_assurance_gate.sh"
+
+echo "== perps: submission auth assurance =="
+bash "$ROOT_DIR/tools/run_perp_submission_auth_assurance_gate.sh"
+
+echo "== perps: submission auth field selector assurance =="
+bash "$ROOT_DIR/tools/run_perp_submission_auth_field_selector_assurance_gate.sh"
+
+echo "== perps: signed surface assurance =="
+bash "$ROOT_DIR/tools/run_perp_signed_surface_assurance_gate.sh"
+
+echo "== perps: runtime risk assurance =="
+bash "$ROOT_DIR/tools/run_perp_runtime_risk_gate_assurance_gate.sh"
+
+echo "== perps: Tau ingress stream assurance =="
+bash "$ROOT_DIR/tools/run_perp_tau_ingress_stream_assurance_gate.sh"
+
+echo "== perps: Tau ingress schema =="
+bash "$ROOT_DIR/tools/run_perp_tau_ingress_schema_tau_gate.sh"
+
+echo "== perps: market version/prefix assurance =="
+bash "$ROOT_DIR/tools/run_perp_market_version_prefix_assurance_gate.sh"
 
 if [[ ! -d "$ROOT_DIR/lean-mathlib" ]]; then
   echo "error: missing Lean workspace at $ROOT_DIR/lean-mathlib" >&2

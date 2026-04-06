@@ -6,13 +6,14 @@ import hashlib
 
 import pytest
 
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.integration.dex_engine import _verify_intent_signature_bytes
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes
 
 
 def _signing_dict(*, intent_id: str, sender_pubkey: str) -> dict:
-    # Matches src/integration/dex_engine.py::_intent_signing_dict for CREATE_POOL.
-    return {
+    return build_dex_intent_signing_dict_v1(
+        {
         "module": "TauSwap",
         "version": "0.1",
         "kind": "CREATE_POOL",
@@ -27,7 +28,8 @@ def _signing_dict(*, intent_id: str, sender_pubkey: str) -> dict:
             "amount1": 2000,
             "created_at": 1,
         },
-    }
+        }
+    )
 
 
 def test_intent_signature_roundtrip_bls_g2basic() -> None:

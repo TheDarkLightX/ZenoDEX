@@ -20,6 +20,8 @@ set -euo pipefail
 #   1  fail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUNTIME_LOCK="$ROOT/requirements-core.lock.txt"
+AGENTS_LOCK="$ROOT/requirements-agents.lock.txt"
 
 SKIP_DOCKER=0
 SKIP_UI=0
@@ -51,15 +53,24 @@ cd "$ROOT"
 echo "[gate] repo: $ROOT"
 echo "[gate] image: $IMAGE_TAG"
 
+if [[ ! -f "$RUNTIME_LOCK" ]]; then
+  echo "[gate] missing runtime lock file: $RUNTIME_LOCK" >&2
+  exit 2
+fi
+if [[ ! -f "$AGENTS_LOCK" ]]; then
+  echo "[gate] missing agents lock file: $AGENTS_LOCK" >&2
+  exit 2
+fi
+
 if [[ ! -d .venv ]]; then
   echo "[gate] creating venv .venv"
   python3 -m venv .venv
 fi
 
-echo "[gate] installing python requirements"
+echo "[gate] installing locked runtime + agent requirements"
 . .venv/bin/activate
 python -m pip install --upgrade --quiet pip
-pip install --quiet -r requirements.txt
+pip install --quiet -r "$RUNTIME_LOCK" -r "$AGENTS_LOCK" pytest pytest-cov
 
 KERNEL_JSON="$(mktemp)"
 echo "[gate] running kernel assurance (manifest-backed)"

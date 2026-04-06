@@ -57,6 +57,7 @@ echo "== spot: claims registry format check =="
 
 echo "== spot: pytest =="
 "$PY" -m pytest -q \
+  "$ROOT_DIR/tests/core/test_dex_intent_auth_message.py" \
   "$ROOT_DIR/tests/core/test_cpmm.py" \
   "$ROOT_DIR/tests/core/test_cpmm_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_cpmm_u256_safety.py" \
@@ -76,7 +77,8 @@ echo "== spot: pytest =="
   "$ROOT_DIR/tests/core/test_dex_step_candidate_settlement.py" \
   "$ROOT_DIR/tests/core/test_dex_step_core_v2_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_dex_step_core_v2_ml_bva_parity.py" \
-  "$ROOT_DIR/tests/core/test_vault_ref_parity.py"
+  "$ROOT_DIR/tests/core/test_vault_ref_parity.py" \
+  "$ROOT_DIR/tests/integration/test_intent_signatures.py"
 
 echo "== spot: kernel inductiveness (verify-multi) =="
 "$PY" -m ESSO verify-multi \
@@ -103,12 +105,46 @@ echo "== spot: kernel inductiveness (verify-multi) =="
   --timeout-ms 60000 \
   --determinism-trials 2
 
-"$PY" -m ESSO verify-multi \
-  "$ROOT_DIR/src/kernels/dex/batch_auction_settler_v1.yaml" \
-  --solvers z3,cvc5 \
-  --timeout-ms 60000 \
-  --determinism-trials 2 \
-  --output "$ROOT_DIR/internal/esso_verify/batch_auction_settler_v1" \
-  --write-report
+echo "== spot: core shell assurance =="
+bash "$ROOT_DIR/tools/run_spot_core_shell_assurance_gate.sh"
+
+echo "== spot: intent auth shape assurance =="
+bash "$ROOT_DIR/tools/run_dex_intent_auth_shape_assurance_gate.sh"
+
+echo "== spot: intent nonce sequence assurance =="
+bash "$ROOT_DIR/tools/run_intent_nonce_sequence_gate_assurance_gate.sh"
+
+echo "== spot: intent nonce batch policy assurance =="
+bash "$ROOT_DIR/tools/run_intent_nonce_batch_policy_gate_assurance_gate.sh"
+
+echo "== spot: intent nonce sender resolution assurance =="
+bash "$ROOT_DIR/tools/run_intent_nonce_sender_resolution_gate_assurance_gate.sh"
+
+echo "== spot: quote receipt precheck assurance =="
+bash "$ROOT_DIR/tools/run_quote_receipt_precheck_gate_assurance_gate.sh"
+
+echo "== spot: quote receipt certificate assurance =="
+bash "$ROOT_DIR/tools/run_quote_receipt_certificate_gate_assurance_gate.sh"
+
+echo "== spot: quote receipt pool snapshot assurance =="
+bash "$ROOT_DIR/tools/run_quote_receipt_pool_snapshot_gate_assurance_gate.sh"
+
+echo "== spot: quote receipt hop structure assurance =="
+bash "$ROOT_DIR/tools/run_quote_receipt_hop_structure_gate_assurance_gate.sh"
+
+echo "== spot: quote receipt leg summary assurance =="
+bash "$ROOT_DIR/tools/run_quote_receipt_leg_summary_gate_assurance_gate.sh"
+
+echo "== spot: quote receipt totals assurance =="
+bash "$ROOT_DIR/tools/run_quote_receipt_totals_gate_assurance_gate.sh"
+
+echo "== spot: quote receipt hop replay assurance =="
+bash "$ROOT_DIR/tools/run_quote_receipt_hop_replay_gate_assurance_gate.sh"
+
+echo "== spot: batch-auction shell assurance =="
+bash "$ROOT_DIR/tools/run_batch_auction_shell_assurance_gate.sh"
+
+echo "== spot: batch-auction IFQL/VMO assurance =="
+bash "$ROOT_DIR/tools/run_batch_auction_ifql_vmo_gate.sh"
 
 echo "ok"

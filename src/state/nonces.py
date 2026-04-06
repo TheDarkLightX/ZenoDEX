@@ -13,7 +13,16 @@ from typing import Dict, Mapping, Sequence
 
 from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
+from .intent_nonce_batch_policy_gate import (
+    evaluate_intent_nonce_batch_policy_gate,
+    intent_nonce_batch_policy_error,
+)
+from .intent_nonce_sender_resolution_gate import (
+    evaluate_intent_nonce_sender_resolution_gate,
+    intent_nonce_sender_resolution_error,
+)
 from .intents import Intent
+from .intent_nonce_sequence_gate import evaluate_intent_nonce_sequence
 
 
 _U32_MAX = 0xFFFFFFFF
@@ -92,6 +101,14 @@ def validate_and_apply_intent_nonce_batch(
       nonce-free batches are accepted as a no-op, but mixed nonce presence rejects.
     """
     if not intents:
+        batch_policy = evaluate_intent_nonce_batch_policy_gate(
+            empty_batch=True,
+            require_all_nonces=require_all_nonces,
+            saw_nonce=False,
+            saw_missing=False,
+        )
+        if not batch_policy.return_copy:
+            raise AssertionError("empty nonce batch must resolve to copy")
         return True, None, copy_nonce_table(nonces)
 
     per_sender: dict[str, list[int]] = {}
@@ -103,8 +120,6 @@ def validate_and_apply_intent_nonce_batch(
         nonce_raw = fields.get("nonce") if isinstance(fields, dict) else None
         if nonce_raw is None:
             saw_missing = True
-            if require_all_nonces:
-                return False, "Missing/invalid nonce", None
             continue
         try:
             nonce = _require_int_u32_pos(nonce_raw, name="nonce")
@@ -117,19 +132,31 @@ def validate_and_apply_intent_nonce_batch(
         per_sender.setdefault(sender, []).append(int(nonce))
         saw_nonce = True
 
-    if saw_nonce and saw_missing:
-        return False, "nonce presence must be consistent across batch", None
-    if not saw_nonce:
+    batch_policy = evaluate_intent_nonce_batch_policy_gate(
+        empty_batch=False,
+        require_all_nonces=require_all_nonces,
+        saw_nonce=saw_nonce,
+        saw_missing=saw_missing,
+    )
+    if not batch_policy.batch_ok:
+        return False, intent_nonce_batch_policy_error(batch_policy), None
+    if batch_policy.return_copy:
         return True, None, copy_nonce_table(nonces)
 
     updated = copy_nonce_table(nonces)
     for sender, nonce_list in per_sender.items():
-        if len(nonce_list) != len(set(nonce_list)):
-            return False, "duplicate nonce in batch", None
-        nonce_list_sorted = sorted(nonce_list)
-        last = int(updated.get_last(sender))
-        expected = list(range(last + 1, last + 1 + len(nonce_list_sorted)))
-        if nonce_list_sorted != expected:
-            return False, "nonce sequence invalid", None
-        updated.set_last(sender, expected[-1])
+        last_used_nonce = updated.get_last(sender)
+        outcome = evaluate_intent_nonce_sequence(
+            last_used_nonce=last_used_nonce,
+            nonce_values=nonce_list,
+        )
+        resolution = evaluate_intent_nonce_sender_resolution_gate(
+            strict_increasing=outcome.strict_increasing,
+            contiguous_from_last=outcome.contiguous_from_last,
+            last_used_nonce=last_used_nonce,
+            next_last_nonce=outcome.next_last_nonce,
+        )
+        if not resolution.sender_ok:
+            return False, intent_nonce_sender_resolution_error(resolution), None
+        updated.set_last(sender, resolution.resolved_last_nonce)
     return True, None, updated
