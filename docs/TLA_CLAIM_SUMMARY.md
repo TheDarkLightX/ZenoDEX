@@ -2,8 +2,8 @@
 
 <!-- Generated from docs/claims_registry.yaml and formal/tla/*.cfg. -->
 
-- Supported TLA claims: `32`
-- Discovered TLC models: `32`
+- Supported TLA claims: `36`
+- Discovered TLC models: `36`
 - Batch checker: `python3 tools/run_tla_models.py --json`
 - Inventory guard: `pytest -q tests/formal/test_tla_claim_inventory.py tests/test_claims_registry.py`
 
@@ -227,6 +227,24 @@
 - Properties: `FairImpliesSingleReorgEventuallyResolves`, `FairImpliesAdmissibleHeadEventuallyAccepts`, `FairImpliesAcceptedPendingEventuallyFinalizesOrRollsBack`, `FairImpliesInadmissibleHeadEventuallyRejects`
 - Statement: In the bounded TLA+ perps submission single-reorg queue model (`MAX_QUEUE = 5`, `ARRIVAL_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of non-target dequeue and weak fairness of accept/finalize/reject-at-head actions, a target submission with at most one post-accept rollback is eventually resolved; admissible head targets eventually accept, accepted submissions eventually either finalize or roll back for bounded re-resolution, and inadmissible head targets reject with reason.
 
+### `SettlementAttestationGovernance`
+
+- Claim: `tla:settlement_attestation_governance:active_policy_and_fair_activation`
+- Module: `formal/tla/SettlementAttestationGovernance.tla`
+- Config: `formal/tla/SettlementAttestationGovernance.cfg`
+- Invariants: `TypeOK`, `AcceptedSettlementRequiresActiveGovernedPolicy`, `RevokedPolicyRejectsFutureSettlement`, `NoRetroactiveEpochDriftOnAcceptedSettlement`
+- Properties: `FairImpliesApprovedPolicyEventuallyActivates`
+- Statement: In the bounded TLA+ settlement-attestation governance model (`SIGNERS = {0,1}`, `SOURCES = {0,1}`), accepted settlements require the currently active governed policy, revoked policies block future settlement acceptance, accepted settlements never retroactively drift to a different policy epoch, and under weak fairness of the modeled governance progression an approved pending policy eventually activates.
+
+### `SettlementSignerRegistryTauBridge`
+
+- Claim: `tla:settlement_signer_registry_tau_bridge:bound_snapshot_or_reject`
+- Module: `formal/tla/SettlementSignerRegistryTauBridge.tla`
+- Config: `formal/tla/SettlementSignerRegistryTauBridge.cfg`
+- Invariants: `TypeOK`, `AcceptedRequiresBoundSnapshot`, `DriftedSnapshotBlocksAcceptance`, `DriftedAnchorBlocksAcceptance`
+- Properties: `FairReadyRequestEventuallyAccepts`, `FairBindingMismatchEventuallyRejects`, `FairBridgeReadyEventuallyChecksPolicyBinding`, `FairPolicyBoundArtifactsEventuallyCheckProofPath`, `FairCleanArtifactsEventuallyCheckPolicyBinding`, `FairProofPathEventuallyResolves`
+- Statement: In the bounded TLA+ settlement signer-registry Tau bridge model, accepted requests require a bound snapshot, drifted snapshots or drifted anchors block acceptance, and under weak fairness of the modeled bridge-resolution steps a ready request eventually resolves by acceptance or explicit rejection along the policy-binding or proof path.
+
 ### `SettlementWitnessBoundedOpenIngress`
 
 - Claim: `tla:settlement_witness_bounded_open_ingress:fair_resolution`
@@ -298,6 +316,24 @@
 - Invariants: `TypeOK`, `QueueCoherent`
 - Properties: `FairImpliesSingleReorgEventuallyResolves`, `FairImpliesAdmissibleHeadEventuallyIncludes`, `FairImpliesIncludedPendingEventuallyFinalizesOrRollsBack`, `FairImpliesInadmissibleHeadEventuallyRejects`
 - Statement: In the bounded TLA+ settlement witness single-reorg queue model (`MAX_QUEUE = 5`, `ARRIVAL_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of non-target dequeue and weak fairness of include/finalize/reject-at-head actions, a target witness with at most one post-inclusion rollback is eventually resolved; admissible head targets eventually include, included targets eventually either finalize or roll back for bounded re-resolution, and inadmissible head targets reject with reason.
+
+### `TauStateAppHashProvenanceBridge`
+
+- Claim: `tla:tau_state_app_hash_provenance_bridge:loader_binding_or_reject`
+- Module: `formal/tla/TauStateAppHashProvenanceBridge.tla`
+- Config: `formal/tla/TauStateAppHashProvenanceBridge.cfg`
+- Invariants: `TypeOK`, `AcceptedStateRequiresLoaderOK`, `StrongBindingMismatchStateBlocksAcceptance`, `MissingTauTransportStateBlocksAcceptance`
+- Properties: `AcceptedRequiresLoaderOK`, `StrongBindingMismatchBlocksAcceptance`, `MissingTauTransportBlocksAcceptance`, `FairCleanReadyStateEventuallyAccepts`, `FairVisibleStrongBindingFailureEventuallyRejects`, `FairMissingTauTransportEventuallyRejects`
+- Statement: In the bounded TLA+ Tau state app-hash provenance bridge model, accepted state requires the loader relation to hold, strong-binding mismatches or missing Tau transport block acceptance, and under weak fairness of the modeled provenance-resolution steps a clean ready state eventually accepts while visible binding or transport failures eventually reject.
+
+### `TauStateAppHashStableWindow`
+
+- Claim: `tla:tau_state_app_hash_stable_window:stable_window_or_reject`
+- Module: `formal/tla/TauStateAppHashStableWindow.tla`
+- Config: `formal/tla/TauStateAppHashStableWindow.cfg`
+- Invariants: `TypeOK`, `ReturnedRequiresStableWindow`, `StableWindowFoundRequiresReturned`, `StrongBindingWithoutTauStabilityBlocksReturn`
+- Properties: `FairUnstabilizableWindowEventuallyRejects`
+- Statement: In the bounded TLA+ Tau state app-hash stable-window model, any returned Tau state requires a stable observation window, finding a stable window implies a returned value, strong binding without Tau-state stability blocks return, and under weak fairness an unstabilizable window eventually rejects.
 
 ## Notes
 
