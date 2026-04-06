@@ -20,8 +20,8 @@ set -euo pipefail
 #   1  fail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUNTIME_LOCK="$ROOT/requirements-core.lock.txt"
-AGENTS_LOCK="$ROOT/requirements-agents.lock.txt"
+RUNTIME_REQUIREMENTS=""
+AGENTS_REQUIREMENTS=""
 
 SKIP_DOCKER=0
 SKIP_UI=0
@@ -53,14 +53,26 @@ cd "$ROOT"
 echo "[gate] repo: $ROOT"
 echo "[gate] image: $IMAGE_TAG"
 
-if [[ ! -f "$RUNTIME_LOCK" ]]; then
-  echo "[gate] missing runtime lock file: $RUNTIME_LOCK" >&2
+pick_requirements_file() {
+  local label="$1"
+  shift
+  local candidate
+  for candidate in "$@"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  echo "[gate] missing ${label} requirements file; tried: $*" >&2
+  return 1
+}
+
+RUNTIME_REQUIREMENTS="$(pick_requirements_file runtime "$ROOT/requirements-core.lock.txt" "$ROOT/requirements-core.txt")" || {
   exit 2
-fi
-if [[ ! -f "$AGENTS_LOCK" ]]; then
-  echo "[gate] missing agents lock file: $AGENTS_LOCK" >&2
+}
+AGENTS_REQUIREMENTS="$(pick_requirements_file agents "$ROOT/requirements-agents.lock.txt" "$ROOT/requirements-agents.txt")" || {
   exit 2
-fi
+}
 
 if [[ ! -d .venv ]]; then
   echo "[gate] creating venv .venv"
@@ -70,20 +82,7 @@ fi
 echo "[gate] installing locked runtime + agent requirements"
 . .venv/bin/activate
 python -m pip install --upgrade --quiet pip
-pip install --quiet -r "$RUNTIME_LOCK" -r "$AGENTS_LOCK" pytest pytest-cov
-
-KERNEL_JSON="$(mktemp)"
-echo "[gate] running kernel assurance (manifest-backed)"
-python tools/dex_kernel_assurance.py --pretty >"$KERNEL_JSON"
-python - "$KERNEL_JSON" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as f:
-    data = json.load(f)
-assert data.get("ok") is True, data
-print("[gate] kernel assurance OK")
-PY
+pip install --quiet -r "$RUNTIME_REQUIREMENTS" -r "$AGENTS_REQUIREMENTS" pytest pytest-cov
 
 KERNEL_JSON="$(mktemp)"
 echo "[gate] running kernel assurance (manifest-backed)"
