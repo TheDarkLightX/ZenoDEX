@@ -32,7 +32,7 @@
     },
     {
       "path": "tests/core/test_perp_v2/test_engine.py",
-      "sha256": "bbbf0bfe81af6c8c0cf3aa637bfb5fed4ab376a2fb599e24e8758fb321835da5"
+      "sha256": "839311c5432c70f84bdde19306c1a11e9f39dbfbb41f33ffb742b15730850a4f"
     },
     {
       "path": "tests/core/test_perp_v2/test_engine_boundary_bva.py",
