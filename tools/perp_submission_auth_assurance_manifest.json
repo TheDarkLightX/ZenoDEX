@@ -1,0 +1,117 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the perps submission auth/replay admission micro-kernel. Update only alongside a successful run of tools/run_perp_submission_auth_assurance_gate.sh and tools/check_perp_submission_auth_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/perp_submission_auth_gate.py",
+      "sha256": "f0e415186ebc76aed73429397f92cf763116692985da0b11b48cf31f2898c08b"
+    },
+    {
+      "path": "src/integration/perp_engine.py",
+      "sha256": "b4c359df86578b20102df79fe75beee660efdf289346b581e9689f2a0ffacab2"
+    },
+    {
+      "path": "src/kernels/dex/perp_submission_auth_gate_v1.yaml",
+      "sha256": "8490683979b7e0328683efa1df2e47721dd38890d3cbbbac2f89c4bd6bd304af"
+    },
+    {
+      "path": "src/kernels/python/perp_submission_auth_gate_v1_native_adapter.py",
+      "sha256": "8bd19596f8db5b332b35cc7bfcb6bf7e3c55690e7f9e3eaea95f617bdb61de3b"
+    },
+    {
+      "path": "tests/core/test_perp_submission_auth_gate.py",
+      "sha256": "87eb5fc1feb893bab154c71613ab4f473952746bb318dc37ac6799e6528cd6e3"
+    },
+    {
+      "path": "tests/kernels/test_perp_submission_auth_gate_v1_native_adapter.py",
+      "sha256": "b23ed1729edd66bfe17786c14666e69ef2c437251579f279fa34ed8d414680ac"
+    },
+    {
+      "path": "tests/integration/test_perp_engine_auth_guards.py",
+      "sha256": "b37e4306cc1f4452ae61af1b4adc3d6368cfb569dfe13b1f227a517f1074ca5e"
+    },
+    {
+      "path": "tools/run_perp_submission_auth_assurance_gate.sh",
+      "sha256": "227caece28424183980a231cc7d6bcb4bccbd276dd300661b4752efa0f3e7b8e"
+    },
+    {
+      "path": "tools/check_perp_submission_auth_assurance_manifest.py",
+      "sha256": "3a72772f6668e5f88490783a250d97cefa0d389d789b50c2afe47b1907de2441"
+    },
+    {
+      "path": "tools/run_perps_evidence.sh",
+      "sha256": "bffb15124660bbf320a17361c3a6e389083b1301c5db9e91f34388d3beccd858"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/perp_submission_auth_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/perp_submission_auth_gate_v1.yaml",
+    "ir_hash": "sha256:25564f2b665b70c50d646cd74ef7b6f82ab7d692044f149b3a09e10d2a2347e8"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/perp_submission_auth_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.perp_submission_auth_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:25564f2b665b70c50d646cd74ef7b6f82ab7d692044f149b3a09e10d2a2347e8",
+    "actions": [
+      "evaluate_submission_auth_gate"
+    ],
+    "effects": [
+      "admission_ok",
+      "consume_nonce",
+      "mode_ok",
+      "reject_code",
+      "relay_allowed"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/perp_submission_auth_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/perp_submission_auth_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.perp_submission_auth_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:25564f2b665b70c50d646cd74ef7b6f82ab7d692044f149b3a09e10d2a2347e8",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:a7a14d6cf90c01a235f8b40e6c50c7311839d3ef0a28d15670bc141cf1c2c7dd"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/perp_submission_auth_gate_v1/verification_report.json",
+    "model_id": "perp_submission_auth_gate_v1",
+    "ir_hash_short": "25564f2b665b70c5",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_perp_submission_auth_gate.py",
+    "tests/kernels/test_perp_submission_auth_gate_v1_native_adapter.py",
+    "tests/integration/test_perp_engine_auth_guards.py"
+  ]
+}
