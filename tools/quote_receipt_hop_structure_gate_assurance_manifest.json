@@ -12,7 +12,7 @@
   "source_files": [
     {
       "path": "src/core/quote_receipts.py",
-      "sha256": "77a85bd87d9f0123b0635c90c6a200ef0096717d163d4222fc6abd76ac5eaddd"
+      "sha256": "fe15d8e3d8306e836f8535b1a828e1c6587612187af7c92fdc6c8f6333f3ceb9"
     },
     {
       "path": "src/kernels/dex/quote_receipt_hop_structure_gate_v1.yaml",
@@ -28,7 +28,7 @@
     },
     {
       "path": "tests/core/test_quote_receipts.py",
-      "sha256": "c2c493084af1b7ec743cfe89881de6a7bf8beaaf63717127c259ca788a060a97"
+      "sha256": "2c35383218b1483fd3a72e33523fcf18f6d18127b5c5e9c250084c07992c2186"
     },
     {
       "path": "tests/kernels/test_quote_receipt_hop_structure_gate_v1_native_adapter.py",

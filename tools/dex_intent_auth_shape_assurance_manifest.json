@@ -20,7 +20,7 @@
     },
     {
       "path": "src/integration/dex_engine.py",
-      "sha256": "fc2141f05d85ba86eb4a71d300da92cb56963604901e299e3071bac1287bf54f"
+      "sha256": "24fef89d1e637057c7b43669895abe5ddb435e5790cca9f2193098d383bb52a9"
     },
     {
       "path": "src/kernels/dex/dex_intent_auth_shape_gate_v1.yaml",

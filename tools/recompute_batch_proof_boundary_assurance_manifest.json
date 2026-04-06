@@ -1,0 +1,135 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the recompute-batch proof boundary. Covers batch-proof verifier subprocess handling, projected witness binding, normalized v4 batch commitments, and malformed embedded witness rejection across recompute_batch_v2/v3/v4.",
+  "source_files": [
+    {
+      "path": "src/core/batch_clearing.py",
+      "sha256": "d4ee1a9b5f4eff76bce7ba4ebbb49ab31aa097e0f58fa51609086a593ee78f1e"
+    },
+    {
+      "path": "src/core/intent_normal_form.py",
+      "sha256": "314bbb0b83d8d65987d2adea8d5fef1bd1184b9dac5ee67d38d8461e6c2dfda8"
+    },
+    {
+      "path": "src/core/settlement_normal_form.py",
+      "sha256": "57e720f4c3e3872b016da60d31f74d6ff3c523c021b2583bd4a4119b37f9d6b1"
+    },
+    {
+      "path": "src/core/settlement_strong_validator.py",
+      "sha256": "eb3b57a378041dc6c598213959412951de5cfecf17e6b9b78bf02c1ffe400dd1"
+    },
+    {
+      "path": "src/integration/dex_engine.py",
+      "sha256": "24fef89d1e637057c7b43669895abe5ddb435e5790cca9f2193098d383bb52a9"
+    },
+    {
+      "path": "src/integration/dex_snapshot.py",
+      "sha256": "7512583348992691ae11eff7746fc0242efc1752892f1bbf0c8c8371103689b1"
+    },
+    {
+      "path": "src/integration/operations.py",
+      "sha256": "cd4c5bbd8f0a31e55527113fe932e627ef85d87bdecf773673410d72ebc9f1d2"
+    },
+    {
+      "path": "src/integration/proof_verifier.py",
+      "sha256": "7a865a64097d8d5db42016cdba2bbe6c7a030ea79557c23b25d9f5f35b4a52cc"
+    },
+    {
+      "path": "src/state/canonical.py",
+      "sha256": "af40310cb4d437aed1e71982839ac5ebcf04f5fe3f96bd5f322e98425afa94b4"
+    },
+    {
+      "path": "src/state/state_root.py",
+      "sha256": "12bdbbfc812300efde7453e0a07f23eb990a0b328fd8b8d1ccae3409274f9188"
+    },
+    {
+      "path": "src/state/support_root.py",
+      "sha256": "768dc0a09a2b04d8684899ec430fdfefbc72b20e9e360fbcab60bd706d60b175"
+    },
+    {
+      "path": "tools/proof_verifiers/recompute_batch_prover_v1.py",
+      "sha256": "a589c77680aff6f49155b7bd8d031427b0aa691213ce08da3ce028e5efc9fef5"
+    },
+    {
+      "path": "tools/proof_verifiers/recompute_batch_v1.py",
+      "sha256": "b0b069be167e9d7673975f570c098b716e1d5b6228ed86d890b7a45db791e775"
+    },
+    {
+      "path": "tools/proof_verifiers/recompute_batch_prover_v2.py",
+      "sha256": "1d4132a2df89f6e63f286dc9869ba34e29579e4d28f505d73ac7dfc0e38c9016"
+    },
+    {
+      "path": "tools/proof_verifiers/recompute_batch_v2.py",
+      "sha256": "0aa5981aa3159c58ceeddddb156d59ed5cc01ee31fcc2b1f927c2aab22931d35"
+    },
+    {
+      "path": "tools/proof_verifiers/recompute_batch_prover_v3.py",
+      "sha256": "36aad5f6261a0f0dde6d3f8e8e18b2c029cac0187ec1ecce9c91adeb177a6625"
+    },
+    {
+      "path": "tools/proof_verifiers/recompute_batch_v3.py",
+      "sha256": "b3ca798ab9b875a4b64a9b937cf9f110fcba288ed8f730453be3c04114f9576f"
+    },
+    {
+      "path": "tools/proof_verifiers/recompute_batch_prover_v4.py",
+      "sha256": "7db2bafac1ceeda7a4ae9f7c23f7f712f7f097204dffac46803e57f5058646e7"
+    },
+    {
+      "path": "tools/proof_verifiers/recompute_batch_v4.py",
+      "sha256": "2167ac69b1a733d27f920c8e341a421c77677f5c971ba34adaf0d3e5169bd2b6"
+    },
+    {
+      "path": "tests/core/test_settlement_normal_form.py",
+      "sha256": "80ff86b4ccba192a08259881596d79232b37afd181f8c9f9232289d0970184b7"
+    },
+    {
+      "path": "tests/core/test_support_root.py",
+      "sha256": "3beb4fda9129f51ce9695ae07246626595864f0b712d1fdde2cff00e8d8a6202"
+    },
+    {
+      "path": "tests/integration/test_proof_verifier.py",
+      "sha256": "e107286fbaf15abc0edb7523fb5cef0dbe4bb64630ad5ee9e84e92e7a5dfc659"
+    },
+    {
+      "path": "tests/integration/test_recompute_batch_proof_verifier.py",
+      "sha256": "732559b4f50e6294ea7abc679a5d3ea384478f420a1cd62c01e2a8992474d1d2"
+    },
+    {
+      "path": "tools/check_recompute_batch_proof_boundary_assurance_manifest.py",
+      "sha256": "d9dfd40c0d35ab0cdaba6406d603d376ea4ddcda25ee6b86d99a9f0f93158f0e"
+    },
+    {
+      "path": "tools/run_recompute_batch_proof_boundary_assurance_gate.sh",
+      "sha256": "7c836a6abd375ad1a92fe4ef59142722f8365fac1af49974664412fb2330d557"
+    }
+  ],
+  "regression_report": {
+    "report_path": "internal/assurance/recompute_batch_proof_boundary/regression_report.json",
+    "schema": "zenodex/recompute_batch_proof_boundary_regression_report/v1",
+    "command": [
+      "PYTHON",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/integration/test_recompute_batch_proof_verifier.py",
+      "tests/integration/test_proof_verifier.py",
+      "tests/core/test_settlement_normal_form.py",
+      "tests/core/test_support_root.py"
+    ],
+    "tests": [
+      "tests/integration/test_recompute_batch_proof_verifier.py",
+      "tests/integration/test_proof_verifier.py",
+      "tests/core/test_settlement_normal_form.py",
+      "tests/core/test_support_root.py"
+    ],
+    "passed": 38,
+    "failed": 0,
+    "errors": 0
+  },
+  "regression_tests": [
+    "tests/integration/test_recompute_batch_proof_verifier.py",
+    "tests/integration/test_proof_verifier.py",
+    "tests/core/test_settlement_normal_form.py",
+    "tests/core/test_support_root.py"
+  ]
+}
