@@ -6,7 +6,6 @@ Implements BalanceTable[PubKey, AssetId] -> Amount
 
 from typing import Dict, Tuple
 
-
 # Type aliases
 PubKey = str  # BLS12-381 public key as hex string
 AssetId = str  # 32-byte hex string (0x...)

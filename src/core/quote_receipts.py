@@ -14,8 +14,7 @@ This supports:
 
 from __future__ import annotations
 
-from dataclasses import replace
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Dict, Tuple
 
 from ..core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
@@ -770,10 +769,10 @@ def verify_route_quote_receipt(
     if "quote_epoch" in body:
         quote_epoch = _require_receipt_int(body.get("quote_epoch"))
         quote_epoch_ok = quote_epoch is not None and quote_epoch >= 0
-    pools = body.get("pools")
-    pools_object_ok = isinstance(pools, dict)
-    legs = body.get("legs")
-    legs_list_ok = isinstance(legs, list) and bool(legs)
+    pools_obj = body.get("pools")
+    pools_object_ok = isinstance(pools_obj, dict)
+    legs_obj = body.get("legs")
+    legs_list_ok = isinstance(legs_obj, list) and bool(legs_obj)
     precheck = evaluate_route_quote_receipt_precheck_gate(
         schema_ok=schema_ok,
         receipt_hash_present=receipt_hash_present,
@@ -787,6 +786,10 @@ def verify_route_quote_receipt(
     )
     if not precheck.precheck_ok:
         return False, route_quote_receipt_precheck_error(precheck)
+    if not isinstance(pools_obj, dict) or not isinstance(legs_obj, list):
+        return False, "bad_receipt_shape"
+    pools = pools_obj
+    legs = legs_obj
 
     if canonical_route_certificate is not None:
         from ..integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
@@ -887,6 +890,15 @@ def verify_route_quote_receipt(
             )
             if not hop_gate.hop_ok:
                 return False, route_quote_receipt_hop_structure_error(hop_gate)
+            if (
+                not isinstance(pid, str)
+                or pool is None
+                or not isinstance(asset_in, str)
+                or not isinstance(asset_out, str)
+                or amt_in is None
+                or amt_out is None
+            ):
+                return False, "bad_hop"
 
             ok, err, next_pool = _replay_and_apply_hop(
                 pool=pool,
