@@ -332,6 +332,20 @@ def _settlement_rewrite_normal_form_dict(settlement: Settlement) -> Dict[str, An
     return normalize_settlement_op_for_commitment(op)
 
 
+def _batch_commitment_signing_dict(signing_dict: Mapping[str, Any]) -> Dict[str, Any]:
+    """Normalize signing dict fields for legacy batch-proof commitments.
+
+    Batch proof schemes v1-v4 historically commit to a lowercase intent kind,
+    while auth-message signing preserves the transport enum spelling. Keep the
+    auth-message contract unchanged and normalize only the batch commitment path.
+    """
+    out = dict(signing_dict)
+    kind = out.get("kind")
+    if isinstance(kind, str):
+        out["kind"] = kind.lower()
+    return out
+
+
 def _verify_intent_signature_bytes(
     *, sender_pubkey_hex: str, signature_hex: str, signing_payload_bytes: bytes, chain_id: str
 ) -> Tuple[bool, Optional[str]]:
@@ -1032,7 +1046,7 @@ def apply_ops(
                 "schema": "zenodex_batch",
                 "schema_version": 1,
                 "canonical_encoding_version": CANONICAL_ENCODING_VERSION,
-                "intents": signing_dicts,
+                "intents": [_batch_commitment_signing_dict(d) for d in signing_dicts],
                 "settlement": settlement_obj_for_commit,
             }
             try:
