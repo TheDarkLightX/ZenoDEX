@@ -185,11 +185,11 @@ def _render_readme(snapshot: dict[str, Any], disputed: list[dict[str, str]]) -> 
     published, reference = _render_story(snapshot)
     return "\n".join(
         [
-            "The current pinned release replay is green on this tree:",
+            f"The pinned release replay for the release tree dated `{snapshot['as_of_date']}` was green:",
             "",
             _render_metrics(snapshot),
             "",
-            f"This is a pinned release snapshot as of `{snapshot['as_of_date']}`, not a live 'today' counter.",
+            f"This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.",
             "For live status on the current checkout, run `python3 tools/permissionless_assurance.py status`.",
             "",
             "Important derivatives note:",
@@ -220,7 +220,7 @@ def _render_public_replay(snapshot: dict[str, Any], disputed: list[dict[str, str
             "",
             _render_metrics(snapshot),
             "",
-            "This is a pinned release snapshot, not a live status board.",
+            "This is historical release evidence for the pinned release tree, not a live status board for the current checkout.",
             "For live checkout status, use `python3 tools/permissionless_assurance.py status`.",
             "",
             "Current derivatives note:",
@@ -248,6 +248,9 @@ def _render_snapshot_doc(snapshot: dict[str, Any], disputed: list[dict[str, str]
             f"{snapshot['snapshot_label']} (as of {snapshot['as_of_date']}):",
             "",
             _render_metrics(snapshot),
+            "",
+            "This is historical release evidence for the pinned release tree. It is not a live status board for the current checkout.",
+            "For live checkout status, use `python3 tools/permissionless_assurance.py status`.",
             "",
             "### Derivatives Formal Note",
             "",

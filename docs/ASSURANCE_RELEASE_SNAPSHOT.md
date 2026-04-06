@@ -2,16 +2,19 @@
 
 <!-- Generated from docs/assurance_release_snapshot.json and docs/claims_registry.yaml. -->
 
-Pinned release snapshot for this tree (as of 2026-03-22):
+Pinned release snapshot for this tree (as of 2026-04-06):
 
-- acceptance TCB: `341 passed`, `100%` branch coverage
-- critical gate: `1311 passed`, `100%` branch coverage
+- acceptance TCB: `385 passed`, `98.8%` branch coverage
+- critical gate: `1424 passed`, `99%` branch coverage
 - release gate: `passed end to end`
-- mutation gate: `7/7 killed`
-- fuzz gate: `11 passed`
-- snapshot recovery: `16 passed`
-- Tau syntax: `58/58`
+- mutation gate: `5 killed, 2 inconclusive`
+- fuzz gate: `58 passed`
+- snapshot recovery: `17 passed`
+- Tau syntax: `60/60`
 - Tau traces: `1/1`
+
+This is historical release evidence for the pinned release tree. It is not a live status board for the current checkout.
+For live checkout status, use `python3 tools/permissionless_assurance.py status`.
 
 ### Derivatives Formal Note
 

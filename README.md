@@ -8,21 +8,21 @@ permalink: autonomous-tau-dex-review/readme
 
 ZenoDex is a decentralized exchange (DEX) and token-economics stack for Tau Network. It uses a **hybrid model**: Python computes operational state, while **Tau Language specs validate invariants** and settlement rules.
 
-## Current Assurance Snapshot
+## Pinned Release Snapshot
 
 <!-- BEGIN GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
-The current pinned release replay is green on this tree:
+The pinned release replay for the release tree dated `2026-04-06` was green:
 
-- acceptance TCB: `341 passed`, `100%` branch coverage
-- critical gate: `1311 passed`, `100%` branch coverage
+- acceptance TCB: `385 passed`, `98.8%` branch coverage
+- critical gate: `1424 passed`, `99%` branch coverage
 - release gate: `passed end to end`
-- mutation gate: `7/7 killed`
-- fuzz gate: `11 passed`
-- snapshot recovery: `16 passed`
-- Tau syntax: `58/58`
+- mutation gate: `5 killed, 2 inconclusive`
+- fuzz gate: `58 passed`
+- snapshot recovery: `17 passed`
+- Tau syntax: `60/60`
 - Tau traces: `1/1`
 
-This is a pinned release snapshot as of `2026-03-22`, not a live 'today' counter.
+This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.
 For live status on the current checkout, run `python3 tools/permissionless_assurance.py status`.
 
 Important derivatives note:
@@ -367,9 +367,11 @@ The UI provides a full perpetuals trading interface with market selection, order
 - **Sealed-bid private-state lane**: bounded commit/reveal auction with deterministic uniform-price settlement.
   - Experiment core: `src/core/sealed_bid_auction.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
+  - MetaMuse lane: `tools/metamuse_sealed_bid_lane.py`
 - **Non-reveal bond kernel**: closes the free-griefing path for non-reveal bidders.
   - Accounting core: `src/core/sealed_bid_bonds.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
+  - MetaMuse lane: `tools/metamuse_sealed_bid_bond_lane.py`
 - **Experimental FHE sealed-bid alpha**: bounded 8-bid planning surface for encrypted comparison / hidden-bid auction pilots.
   - Alpha planner: `src/core/fhe_sealed_bid_alpha.py`
   - ESSO gate: `src/kernels/dex/fhe_sealed_bid_alpha_gate_v1.yaml`
@@ -426,6 +428,8 @@ Who this is not for:
 Useful commands:
 ```bash
 python3 tools/sealed_bid_disaster_catalog.py
+python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_private_state_v1 --out-dir runs/metamuse/sealed_bid_private_state_v1 --run-checks
+python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_non_reveal_bond_v1 --out-dir runs/metamuse/sealed_bid_non_reveal_bond_v1 --run-checks
 ```
 
 ## Experimental Curves (Research)
