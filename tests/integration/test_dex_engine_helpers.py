@@ -40,9 +40,14 @@ from src.integration.proof_verifier import (
     ProofVerifier,
     ProofVerifierConfig,
 )
+from src.integration.settlement_end_to_end_certificate_packet import (
+    SettlementEndToEndCertificateInputs,
+)
 from src.integration.settlement_feature_extension_packet import SettlementFeatureExtensionInputs
-from src.integration.settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
-from src.integration.settlement_price_provenance import SettlementSpotPriceEntry, build_settlement_spot_price_packet
+from src.integration.settlement_price_provenance import (
+    SettlementSpotPriceEntry,
+    build_settlement_spot_price_packet,
+)
 from src.integration.settlement_strong_certificate import SettlementProofFlags
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
