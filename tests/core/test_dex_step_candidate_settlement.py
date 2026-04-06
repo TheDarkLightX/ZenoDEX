@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
+import src.core.dex as dex_mod
 from src.agents.intent_signer import create_swap_intent_from_quote_receipt
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexConfig, DexState, step, step_with_candidate_settlement
@@ -201,6 +204,30 @@ def test_step_with_candidate_settlement_accepts_valid_candidate() -> None:
     assert r_internal.state.nonces.get_last(pk) == 1
 
 
+def test_step_with_candidate_settlement_accepts_legacy_empty_candidate() -> None:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+    )
+
+    result = step_with_candidate_settlement(
+        DexConfig(settlement_validation="legacy"),
+        state,
+        [],
+        candidate_settlement=settlement,
+    )
+
+    assert result.ok, result.error
+    assert result.state is not None
+
+
 def test_step_advances_nonce_state_for_valid_out_of_order_batch() -> None:
     state, intents, pk = _make_two_create_pool_setup(nonce_a=2, nonce_b=1)
 
@@ -229,6 +256,67 @@ def test_step_with_candidate_settlement_rejects_mixed_nonce_presence() -> None:
     assert not result.ok
     assert result.error is not None
     assert "nonce" in result.error
+
+
+def test_step_returns_nonce_policy_rejection(monkeypatch: pytest.MonkeyPatch) -> None:
+    state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
+
+    def reject_nonce_batch(**_: object) -> tuple[bool, str, None]:
+        return False, "nonce rejected", None
+
+    monkeypatch.setattr(dex_mod, "validate_and_apply_intent_nonce_batch", reject_nonce_batch)
+
+    result = step(DexConfig(settlement_validation="strong_replay"), state, intents)
+
+    assert not result.ok
+    assert result.error == "nonce rejected"
+
+
+def test_step_with_candidate_settlement_returns_exception_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+    )
+
+    def explode_nonce_batch(**_: object) -> tuple[bool, str | None, object]:
+        raise RuntimeError("nonce explode")
+
+    monkeypatch.setattr(dex_mod, "validate_and_apply_intent_nonce_batch", explode_nonce_batch)
+
+    result = step_with_candidate_settlement(
+        DexConfig(settlement_validation="strong_replay"),
+        state,
+        intents,
+        candidate_settlement=settlement,
+    )
+
+    assert not result.ok
+    assert result.error == "nonce explode"
+
+
+def test_step_returns_exception_text_when_compute_settlement_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
+
+    def allow_nonce_batch(**_: object) -> tuple[bool, None, object]:
+        return True, None, state.nonces
+
+    def explode_compute(**_: object) -> Settlement:
+        raise RuntimeError("compute explode")
+
+    monkeypatch.setattr(dex_mod, "validate_and_apply_intent_nonce_batch", allow_nonce_batch)
+    monkeypatch.setattr(dex_mod, "compute_settlement", explode_compute)
+
+    result = step(DexConfig(settlement_validation="strong_replay"), state, intents)
+
+    assert not result.ok
+    assert result.error == "compute explode"
 
 
 def test_step_rejects_snapshot_bound_quote_binding_without_explicit_opt_in() -> None:

@@ -81,6 +81,22 @@ class SettlementProofFlags:
             binding_ok=1,
         )
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementProofFlags":
+        if not isinstance(payload, Mapping):
+            raise ValueError("proof_flags must be an object")
+        return cls(
+            cpmm_ok=int(payload.get("cpmm_ok", -1)),
+            balance_ok=int(payload.get("balance_ok", -1)),
+            token_ok=int(payload.get("token_ok", -1)),
+            buyback_floor_ok=int(payload.get("buyback_floor_ok", -1)),
+            buyback_floor_fixedpoint_ok=int(payload.get("buyback_floor_fixedpoint_ok", -1)),
+            rebate_ok=int(payload.get("rebate_ok", -1)),
+            lock_weight_ok=int(payload.get("lock_weight_ok", -1)),
+            proof_ok=int(payload.get("proof_ok", -1)),
+            binding_ok=int(payload.get("binding_ok", -1)),
+        )
+
 
 @dataclass(frozen=True)
 class SettlementSemanticSummary:
@@ -109,6 +125,20 @@ class SettlementSemanticSummary:
             "price_curr": int(self.price_curr),
         }
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementSemanticSummary":
+        if not isinstance(payload, Mapping):
+            raise ValueError("semantic_summary must be an object")
+        return cls(
+            a=int(payload.get("a", -1)),
+            b=int(payload.get("b", -1)),
+            c=int(payload.get("c", -1)),
+            d=int(payload.get("d", -1)),
+            price_pp=int(payload.get("price_pp", -1)),
+            price_prev=int(payload.get("price_prev", -1)),
+            price_curr=int(payload.get("price_curr", -1)),
+        )
+
 
 @dataclass(frozen=True)
 class SettlementPriceHistoryCertificate:
@@ -131,6 +161,18 @@ class SettlementPriceHistoryCertificate:
             "price_curr": int(self.price_curr),
             "price_trace_sha256": self.price_trace_sha256,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementPriceHistoryCertificate":
+        if not isinstance(payload, Mapping):
+            raise ValueError("price_history_certificate must be an object")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            price_pp=int(payload.get("price_pp", -1)),
+            price_prev=int(payload.get("price_prev", -1)),
+            price_curr=int(payload.get("price_curr", -1)),
+            price_trace_sha256=str(payload.get("price_trace_sha256", "")),
+        )
 
 
 @dataclass(frozen=True)
@@ -218,6 +260,55 @@ class SettlementStrongCertificate:
             out["full_price_rails_step"] = dict(self.full_price_rails_step or {})
             out["full_price_rails_ok"] = int(self.full_price_rails_ok or 0)
         return out
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementStrongCertificate":
+        if not isinstance(payload, Mapping):
+            raise ValueError("settlement strong certificate must be an object")
+        semantic_summary_payload = payload.get("semantic_summary")
+        price_history_certificate_payload = payload.get("price_history_certificate")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            settlement_commitment_sha256=str(payload.get("settlement_commitment_sha256", "")),
+            delta_commitment_sha256=str(payload.get("delta_commitment_sha256", "")),
+            proof_flags=SettlementProofFlags.from_dict(payload.get("proof_flags", {})),
+            core_module_ok=int(payload.get("core_module_ok", -1)),
+            feature_extension_ok=int(payload.get("feature_extension_ok", -1)),
+            proof_binding_ok=int(payload.get("proof_binding_ok", -1)),
+            module_bundle_ok=int(payload.get("module_bundle_ok", -1)),
+            core_module_step=dict(payload.get("core_module_step", {})),
+            feature_extension_step=dict(payload.get("feature_extension_step", {})),
+            proof_binding_step=dict(payload.get("proof_binding_step", {})),
+            module_bundle_step=dict(payload.get("module_bundle_step", {})),
+            semantic_summary=(
+                None
+                if semantic_summary_payload is None
+                else SettlementSemanticSummary.from_dict(semantic_summary_payload)
+            ),
+            price_history_certificate=(
+                None
+                if price_history_certificate_payload is None
+                else SettlementPriceHistoryCertificate.from_dict(price_history_certificate_payload)
+            ),
+            compact_bundle_step=(
+                None if payload.get("compact_bundle_step") is None else dict(payload.get("compact_bundle_step", {}))
+            ),
+            compact_bundle_ok=(
+                None if payload.get("compact_bundle_ok") is None else int(payload.get("compact_bundle_ok", -1))
+            ),
+            full_price_rails_step=(
+                None
+                if payload.get("full_price_rails_step") is None
+                else dict(payload.get("full_price_rails_step", {}))
+            ),
+            full_price_rails_ok=(
+                None if payload.get("full_price_rails_ok") is None else int(payload.get("full_price_rails_ok", -1))
+            ),
+            module_bundle_spec_id=str(payload.get("module_bundle_spec_id", SETTLEMENT_MODULE_FLAG_BUNDLE_V1.spec_id)),
+            proof_binding_spec_id=str(payload.get("proof_binding_spec_id", "settlement_proof_binding_bundle_v1")),
+            compact_bundle_spec_id=str(payload.get("compact_bundle_spec_id", SETTLEMENT_V5_ALIGNED_COMPACT_BUNDLE.spec_id)),
+            full_price_rails_spec_id=str(payload.get("full_price_rails_spec_id", SETTLEMENT_PRICE_RAILS_ALIGNED_V1.spec_id)),
+        )
 
 
 def build_settlement_price_history_certificate(

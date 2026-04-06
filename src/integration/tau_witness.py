@@ -81,6 +81,12 @@ ZUSD_ORACLE_COMMIT_GUARD_V2 = TauSpecRef(
     gate_output="o4",
 )
 
+ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1 = TauSpecRef(
+    spec_id="zusd_cross_module_oracle_sync_gate_v1",
+    path=RECOMMENDED_SPECS_DIR / "zusd_cross_module_oracle_sync_gate_v1.tau",
+    gate_output="o2",
+)
+
 ZUSD_TRANSFER_GUARD_V1 = TauSpecRef(
     spec_id="zusd_transfer_guard_v1",
     path=RECOMMENDED_SPECS_DIR / "zusd_transfer_guard_v1.tau",
@@ -414,6 +420,12 @@ TOKENOMICS_BUYBACK_BURN_V2 = TauSpecRef(
 BURN_RECEIPT_REPLAY_GUARD_V1 = TauSpecRef(
     spec_id="burn_receipt_replay_guard_v1",
     path=RECOMMENDED_SPECS_DIR / "burn_receipt_replay_guard_v1.tau",
+    gate_output="o1",
+)
+
+CONFIDENTIAL_EXTENSION_LIVE_ADMISSION_V1 = TauSpecRef(
+    spec_id="confidential_extension_live_admission_v1",
+    path=RECOMMENDED_SPECS_DIR / "confidential_extension_live_admission_v1.tau",
     gate_output="o1",
 )
 
@@ -892,7 +904,7 @@ def build_settlement_v1_proof_gate_step(
     b: int,
     c: int,
     d: int,
-    # price series for no_sandwich + stability
+    # price series for local monotonicity + latest-step stability
     price_pp: int,
     price_prev: int,
     price_curr: int,
@@ -929,11 +941,11 @@ def build_settlement_v2_buyback_proof_gate_step(
     b: int,
     c: int,
     d: int,
-    # price series for no_sandwich + stability
+    # price series for local monotonicity + latest-step stability
     price_pp: int,
     price_prev: int,
     price_curr: int,
-    # externally verified component flags
+    # externally verified component flags, including buyback arithmetic + budget/policy sufficiency
     cpmm_ok: int = 1,
     balance_ok: int = 1,
     token_ok: int = 1,
@@ -968,15 +980,15 @@ def build_settlement_v3_buyback_floor_proof_gate_step(
     b: int,
     c: int,
     d: int,
-    # price series for no_sandwich + stability
+    # price series for local monotonicity + latest-step stability
     price_pp: int,
     price_prev: int,
     price_curr: int,
-    # externally verified component flags
+    # externally verified component flags, including buyback arithmetic + fee-budget + floor sufficiency
     cpmm_ok: int = 1,
     balance_ok: int = 1,
     token_ok: int = 1,
-    buyback_ok: int = 1,
+    buyback_floor_ok: int = 1,
     proof_ok: int = 1,
     binding_ok: int = 1,
 ) -> Dict[str, int]:
@@ -994,7 +1006,7 @@ def build_settlement_v3_buyback_floor_proof_gate_step(
         "i8": _sbf("cpmm_ok", cpmm_ok),
         "i9": _sbf("balance_ok", balance_ok),
         "i10": _sbf("token_ok", token_ok),
-        "i11": _sbf("buyback_ok", buyback_ok),
+        "i11": _sbf("buyback_floor_ok", buyback_floor_ok),
         "i12": _sbf("proof_ok", proof_ok),
         "i13": _sbf("binding_ok", binding_ok),
     }
@@ -1092,26 +1104,53 @@ def build_settlement_price_rails_aligned_v1_step(
 
 def build_settlement_module_flag_bundle_v1_step(
     *,
+    core_module_ok: int = 1,
+    feature_extension_ok: int = 1,
+    proof_binding_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("core_module_ok", core_module_ok),
+        "i2": _sbf("feature_extension_ok", feature_extension_ok),
+        "i3": _sbf("proof_binding_ok", proof_binding_ok),
+    }
+
+
+def build_settlement_core_module_bundle_v1_step(
+    *,
     cpmm_ok: int = 1,
     balance_ok: int = 1,
     token_ok: int = 1,
-    buyback_floor_ok: int = 1,
-    buyback_floor_fixedpoint_ok: int = 1,
-    rebate_ok: int = 1,
-    lock_weight_ok: int = 1,
-    proof_ok: int = 1,
-    binding_ok: int = 1,
 ) -> Dict[str, int]:
     return {
         "i1": _sbf("cpmm_ok", cpmm_ok),
         "i2": _sbf("balance_ok", balance_ok),
         "i3": _sbf("token_ok", token_ok),
-        "i4": _sbf("buyback_floor_ok", buyback_floor_ok),
-        "i5": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
-        "i6": _sbf("rebate_ok", rebate_ok),
-        "i7": _sbf("lock_weight_ok", lock_weight_ok),
-        "i8": _sbf("proof_ok", proof_ok),
-        "i9": _sbf("binding_ok", binding_ok),
+    }
+
+
+def build_settlement_feature_extension_bundle_v1_step(
+    *,
+    buyback_floor_ok: int = 1,
+    buyback_floor_fixedpoint_ok: int = 1,
+    rebate_ok: int = 1,
+    lock_weight_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("buyback_floor_ok", buyback_floor_ok),
+        "i2": _sbf("buyback_floor_fixedpoint_ok", buyback_floor_fixedpoint_ok),
+        "i3": _sbf("rebate_ok", rebate_ok),
+        "i4": _sbf("lock_weight_ok", lock_weight_ok),
+    }
+
+
+def build_settlement_proof_binding_bundle_v1_step(
+    *,
+    proof_ok: int = 1,
+    binding_ok: int = 1,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("proof_ok", proof_ok),
+        "i2": _sbf("binding_ok", binding_ok),
     }
 
 
@@ -1219,6 +1258,22 @@ def build_zusd_oracle_commit_guard_v2_step(
         "i3": _sbf("fresh_ok", fresh_ok),
         "i4": _sbf("auth_ok", auth_ok),
         "i5": _sbf("mcr_ok_at_pending", mcr_ok_at_pending),
+    }
+
+
+def build_zusd_cross_module_oracle_sync_gate_v1_step(
+    *,
+    sync_snapshot_available: int,
+    divergence_bounded: int,
+    epoch_lag_bounded: int,
+) -> Dict[str, int]:
+    """
+    Build inputs for `src/tau_specs/recommended/zusd_cross_module_oracle_sync_gate_v1.tau`.
+    """
+    return {
+        "i1": _sbf("sync_snapshot_available", sync_snapshot_available),
+        "i2": _sbf("divergence_bounded", divergence_bounded),
+        "i3": _sbf("epoch_lag_bounded", epoch_lag_bounded),
     }
 
 
@@ -2483,6 +2538,21 @@ def build_burn_receipt_replay_guard_v1_step(
         "i2": _sbf("receipt_bound", receipt_bound),
         "i3": _sbf("nullifier_unused", nullifier_unused),
         "i4": _sbf("policy_ok", policy_ok),
+    }
+
+
+def build_confidential_extension_live_admission_v1_step(
+    *,
+    do_execute: int,
+    receipt_verified: int,
+    policy_digest_match: int,
+    request_unused: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("do_execute", do_execute),
+        "i2": _sbf("receipt_verified", receipt_verified),
+        "i3": _sbf("policy_digest_match", policy_digest_match),
+        "i4": _sbf("request_unused", request_unused),
     }
 
 
