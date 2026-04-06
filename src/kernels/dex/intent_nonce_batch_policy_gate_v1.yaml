@@ -1,0 +1,92 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "intent_nonce_batch_policy_gate_v1"
+  notes: |
+    Bounded first-failure law for batch-level nonce presence policy.
+
+observables:
+  state_vars:
+    - "empty_batch"
+    - "require_all_nonces"
+    - "saw_nonce"
+    - "saw_missing"
+  effects:
+    - "batch_ok"
+    - "return_copy"
+    - "reject_tag"
+
+state_vars:
+  - id: "empty_batch"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "require_all_nonces"
+    role: "control"
+    type: { kind: "bool" }
+  - id: "saw_nonce"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "saw_missing"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "empty_batch"
+    expr: { bool: false }
+  - var: "require_all_nonces"
+    expr: { bool: false }
+  - var: "saw_nonce"
+    expr: { bool: false }
+  - var: "saw_missing"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_batch_policy"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      batch_ok:
+        op: "or"
+        args:
+          - { var: "empty_batch" }
+          - op: "and"
+            args:
+              - op: "not"
+                args: [{ op: "and", args: [{ var: "require_all_nonces" }, { var: "saw_missing" }] }]
+              - op: "not"
+                args: [{ op: "and", args: [{ var: "saw_nonce" }, { var: "saw_missing" }] }]
+      return_copy:
+        op: "or"
+        args:
+          - { var: "empty_batch" }
+          - op: "and"
+            args:
+              - { op: "not", args: [{ var: "saw_nonce" }] }
+              - { op: "not", args: [{ op: "and", args: [{ var: "require_all_nonces" }, { var: "saw_missing" }] }] }
+      reject_tag:
+        op: "ite"
+        cond: { var: "empty_batch" }
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - { var: "require_all_nonces" }
+              - { var: "saw_missing" }
+          then: { const: 2 }
+          else:
+            op: "ite"
+            cond:
+              op: "and"
+              args:
+                - { var: "saw_nonce" }
+                - { var: "saw_missing" }
+            then: { const: 3 }
+            else:
+              op: "ite"
+              cond: { op: "not", args: [{ var: "saw_nonce" }] }
+              then: { const: 1 }
+              else: { const: 0 }
+
+invariants: []

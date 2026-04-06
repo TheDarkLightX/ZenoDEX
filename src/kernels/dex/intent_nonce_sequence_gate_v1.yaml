@@ -1,0 +1,306 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "intent_nonce_sequence_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: bounded sorted per-sender nonce sequence law.
+
+    Purpose:
+      - Make the local replay batch law explicit and replayable.
+      - Cover the sorted-stream relation used by state.nonces after sender grouping.
+
+    Scope:
+      - Models only a sorted nonce prefix of length <= 8.
+      - Sender canonicalization, mixed-presence policy, and raw per-sender grouping remain outside this kernel.
+
+observables:
+  state_vars:
+    [
+      "last_used_nonce",
+      "nonce_count",
+      "nonce_0",
+      "nonce_1",
+      "nonce_2",
+      "nonce_3",
+      "nonce_4",
+      "nonce_5",
+      "nonce_6",
+      "nonce_7",
+    ]
+  effects:
+    [
+      "strict_increasing",
+      "contiguous_from_last",
+      "sequence_ok",
+      "next_last_nonce",
+    ]
+
+types: []
+
+state_vars:
+  - id: "last_used_nonce"
+    role: "control"
+    type: { kind: "int", min: 0, max: 4294967295 }
+  - id: "nonce_count"
+    role: "control"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "nonce_0"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4294967295 }
+  - id: "nonce_1"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4294967295 }
+  - id: "nonce_2"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4294967295 }
+  - id: "nonce_3"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4294967295 }
+  - id: "nonce_4"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4294967295 }
+  - id: "nonce_5"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4294967295 }
+  - id: "nonce_6"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4294967295 }
+  - id: "nonce_7"
+    role: "data"
+    type: { kind: "int", min: 1, max: 4294967295 }
+
+init:
+  - var: "last_used_nonce"
+    expr: { const: 0 }
+  - var: "nonce_count"
+    expr: { const: 0 }
+  - var: "nonce_0"
+    expr: { const: 1 }
+  - var: "nonce_1"
+    expr: { const: 1 }
+  - var: "nonce_2"
+    expr: { const: 1 }
+  - var: "nonce_3"
+    expr: { const: 1 }
+  - var: "nonce_4"
+    expr: { const: 1 }
+  - var: "nonce_5"
+    expr: { const: 1 }
+  - var: "nonce_6"
+    expr: { const: 1 }
+  - var: "nonce_7"
+    expr: { const: 1 }
+
+actions:
+  - id: "evaluate_nonce_sequence"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      strict_increasing:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 1 }] }
+              - { op: "<", args: [{ var: "nonce_0" }, { var: "nonce_1" }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 2 }] }
+              - { op: "<", args: [{ var: "nonce_1" }, { var: "nonce_2" }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 3 }] }
+              - { op: "<", args: [{ var: "nonce_2" }, { var: "nonce_3" }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 4 }] }
+              - { op: "<", args: [{ var: "nonce_3" }, { var: "nonce_4" }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 5 }] }
+              - { op: "<", args: [{ var: "nonce_4" }, { var: "nonce_5" }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 6 }] }
+              - { op: "<", args: [{ var: "nonce_5" }, { var: "nonce_6" }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 7 }] }
+              - { op: "<", args: [{ var: "nonce_6" }, { var: "nonce_7" }] }
+      contiguous_from_last:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "nonce_0" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 1 }] }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "nonce_1" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 2 }] }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 2 }] }
+              - { op: "=", args: [{ var: "nonce_2" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 3 }] }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 3 }] }
+              - { op: "=", args: [{ var: "nonce_3" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 4 }] }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 4 }] }
+              - { op: "=", args: [{ var: "nonce_4" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 5 }] }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 5 }] }
+              - { op: "=", args: [{ var: "nonce_5" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 6 }] }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 6 }] }
+              - { op: "=", args: [{ var: "nonce_6" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 7 }] }] }
+          - op: "or"
+            args:
+              - { op: "<=", args: [{ var: "nonce_count" }, { const: 7 }] }
+              - { op: "=", args: [{ var: "nonce_7" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 8 }] }] }
+      sequence_ok:
+        op: "and"
+        args:
+          - op: "and"
+            args:
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 1 }] }
+                  - { op: "<", args: [{ var: "nonce_0" }, { var: "nonce_1" }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 2 }] }
+                  - { op: "<", args: [{ var: "nonce_1" }, { var: "nonce_2" }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 3 }] }
+                  - { op: "<", args: [{ var: "nonce_2" }, { var: "nonce_3" }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 4 }] }
+                  - { op: "<", args: [{ var: "nonce_3" }, { var: "nonce_4" }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 5 }] }
+                  - { op: "<", args: [{ var: "nonce_4" }, { var: "nonce_5" }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 6 }] }
+                  - { op: "<", args: [{ var: "nonce_5" }, { var: "nonce_6" }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 7 }] }
+                  - { op: "<", args: [{ var: "nonce_6" }, { var: "nonce_7" }] }
+          - op: "and"
+            args:
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 0 }] }
+                  - { op: "=", args: [{ var: "nonce_0" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 1 }] }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "nonce_1" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 2 }] }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 2 }] }
+                  - { op: "=", args: [{ var: "nonce_2" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 3 }] }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 3 }] }
+                  - { op: "=", args: [{ var: "nonce_3" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 4 }] }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 4 }] }
+                  - { op: "=", args: [{ var: "nonce_4" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 5 }] }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 5 }] }
+                  - { op: "=", args: [{ var: "nonce_5" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 6 }] }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 6 }] }
+                  - { op: "=", args: [{ var: "nonce_6" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 7 }] }] }
+              - op: "or"
+                args:
+                  - { op: "<=", args: [{ var: "nonce_count" }, { const: 7 }] }
+                  - { op: "=", args: [{ var: "nonce_7" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 8 }] }] }
+      next_last_nonce:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - op: "and"
+              args:
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 1 }] }
+                    - { op: "<", args: [{ var: "nonce_0" }, { var: "nonce_1" }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 2 }] }
+                    - { op: "<", args: [{ var: "nonce_1" }, { var: "nonce_2" }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 3 }] }
+                    - { op: "<", args: [{ var: "nonce_2" }, { var: "nonce_3" }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 4 }] }
+                    - { op: "<", args: [{ var: "nonce_3" }, { var: "nonce_4" }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 5 }] }
+                    - { op: "<", args: [{ var: "nonce_4" }, { var: "nonce_5" }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 6 }] }
+                    - { op: "<", args: [{ var: "nonce_5" }, { var: "nonce_6" }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 7 }] }
+                    - { op: "<", args: [{ var: "nonce_6" }, { var: "nonce_7" }] }
+            - op: "and"
+              args:
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 0 }] }
+                    - { op: "=", args: [{ var: "nonce_0" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 1 }] }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 1 }] }
+                    - { op: "=", args: [{ var: "nonce_1" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 2 }] }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 2 }] }
+                    - { op: "=", args: [{ var: "nonce_2" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 3 }] }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 3 }] }
+                    - { op: "=", args: [{ var: "nonce_3" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 4 }] }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 4 }] }
+                    - { op: "=", args: [{ var: "nonce_4" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 5 }] }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 5 }] }
+                    - { op: "=", args: [{ var: "nonce_5" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 6 }] }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 6 }] }
+                    - { op: "=", args: [{ var: "nonce_6" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 7 }] }] }
+                - op: "or"
+                  args:
+                    - { op: "<=", args: [{ var: "nonce_count" }, { const: 7 }] }
+                    - { op: "=", args: [{ var: "nonce_7" }, { op: "+", args: [{ var: "last_used_nonce" }, { const: 8 }] }] }
+        then:
+          op: "+"
+          args: [{ var: "last_used_nonce" }, { var: "nonce_count" }]
+        else:
+          { var: "last_used_nonce" }
