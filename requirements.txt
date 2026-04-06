@@ -6,3 +6,4 @@
 # Test tooling commonly needed in local checkouts.
 pytest>=7.4.0
 pytest-cov>=4.1.0
+z3-solver==4.15.4.0
