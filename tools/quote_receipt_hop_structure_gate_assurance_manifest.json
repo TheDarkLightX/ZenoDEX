@@ -1,0 +1,106 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the route quote receipt hop-structure gate. Update only alongside a successful run of tools/run_quote_receipt_hop_structure_gate_assurance_gate.sh and tools/check_quote_receipt_hop_structure_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/quote_receipts.py",
+      "sha256": "fe15d8e3d8306e836f8535b1a828e1c6587612187af7c92fdc6c8f6333f3ceb9"
+    },
+    {
+      "path": "src/kernels/dex/quote_receipt_hop_structure_gate_v1.yaml",
+      "sha256": "ce161c87dd19354d6d6241123d02687ba61b809871e54cd75ba3178e096ffbf7"
+    },
+    {
+      "path": "src/kernels/python/quote_receipt_hop_structure_gate_v1_native_adapter.py",
+      "sha256": "12c3bfcf7d705534c4388329dcacdd3fccabc170c57b58b287da378c2467f984"
+    },
+    {
+      "path": "tests/core/test_quote_receipt_hop_structure_gate.py",
+      "sha256": "994d3c857a68492c8918e9054572ff7deeb4cd9cf14e22d1f5a2db053cebc11e"
+    },
+    {
+      "path": "tests/core/test_quote_receipts.py",
+      "sha256": "2c35383218b1483fd3a72e33523fcf18f6d18127b5c5e9c250084c07992c2186"
+    },
+    {
+      "path": "tests/kernels/test_quote_receipt_hop_structure_gate_v1_native_adapter.py",
+      "sha256": "db59ad99aabd014d5dd09c8901e76e113cf1454fbcc3249fbba3d1e35f7428b4"
+    },
+    {
+      "path": "tools/run_quote_receipt_hop_structure_gate_assurance_gate.sh",
+      "sha256": "31ec1cc1b01038859974eac4e37b8b370dd03f617b255ded344609b090e6d760"
+    },
+    {
+      "path": "tools/check_quote_receipt_hop_structure_gate_assurance_manifest.py",
+      "sha256": "e5fa9d19cdcdbdb82846723dc9688cd59b4acc8800950420f108d2926a9aadf8"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/quote_receipt_hop_structure_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/quote_receipt_hop_structure_gate_v1.yaml",
+    "ir_hash": "sha256:69dcf2a10f37b80f79146475864703c4afc12133e4b2a48472a05162ebacf5ec"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/quote_receipt_hop_structure_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.quote_receipt_hop_structure_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:69dcf2a10f37b80f79146475864703c4afc12133e4b2a48472a05162ebacf5ec",
+    "actions": [
+      "evaluate_route_quote_receipt_hop_structure_gate"
+    ],
+    "effects": [
+      "hop_ok",
+      "reject_tag"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/quote_receipt_hop_structure_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/quote_receipt_hop_structure_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.quote_receipt_hop_structure_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:69dcf2a10f37b80f79146475864703c4afc12133e4b2a48472a05162ebacf5ec",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:a7dc198ac2d6c835deab421f36156fa8cdfbefefa6dbaf385232014f8fed952b"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/quote_receipt_hop_structure_gate_v1/verification_report.json",
+    "model_id": "quote_receipt_hop_structure_gate_v1",
+    "ir_hash_short": "69dcf2a10f37b80f",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_quote_receipt_hop_structure_gate.py",
+    "tests/core/test_quote_receipts.py",
+    "tests/kernels/test_quote_receipt_hop_structure_gate_v1_native_adapter.py"
+  ]
+}
