@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, Mapping
 
 from ..agents.intent_signer import sign_intent
@@ -33,9 +33,6 @@ from ..kernels.python.strategy_emit_finalize_v1_adapter import check_strategy_em
 from ..kernels.python.strategy_kill_switch_guard_v1_adapter import check_strategy_kill_switch_guard
 from ..kernels.python.strategy_live_admission_bundle_v1_adapter import (
     check_strategy_live_admission_bundle,
-)
-from ..kernels.python.strategy_multi_action_candidate_set_contract_v1_adapter import (
-    check_strategy_multi_action_candidate_set_contract,
 )
 from ..kernels.python.strategy_nonce_guard_v1_adapter import check_strategy_nonce
 from ..kernels.python.strategy_policy_artifact_contract_v1_adapter import (
@@ -71,20 +68,6 @@ from .autotrader_decision import (
     StrategyDecisionCertificate,
     build_strategy_candidate_set,
     build_strategy_decision_certificate,
-    verify_strategy_decision_certificate,
-)
-from .autotrader_live_release_certificate import (
-    AutoTraderLiveReleaseCertificate,
-    build_autotrader_live_release_certificate,
-)
-from .autotrader_multiaction_decision import (
-    BoundedMultiActionCandidateSet,
-    BoundedMultiActionDecisionCertificate,
-    BoundedMultiActionTauArgmaxContractResult,
-    build_bounded_multi_action_candidate_set,
-    build_bounded_multi_action_decision_certificate,
-    check_bounded_multi_action_decision_tau_argmax_contract,
-    verify_bounded_multi_action_decision_certificate,
 )
 from .autotrader_signal_registry import ExternalSignalSourceRegistry
 from .autotrader_signals import (
@@ -98,15 +81,6 @@ from .autotrader_signals import (
     build_quote_receipt_signal_packet,
     build_session_state_from_capability,
     build_wallet_capability_from_strategy,
-)
-from .autotrader_stage_certificate import (
-    AutoTraderStageCertificate,
-    build_autotrader_stage_certificate,
-)
-from .decision_witness import (
-    DecisionWitness,
-    build_decision_witness_from_autotrader_multiaction_decision,
-    verify_decision_witness_against_autotrader_multiaction_decision,
 )
 from .operations import (
     SignedIntentEnvelope,
@@ -191,13 +165,6 @@ class AutoTraderLiveReport:
     decision_certificate: StrategyDecisionCertificate | None = None
     decision_ok: bool | None = None
     decision_error: str | None = None
-    bounded_multiaction_candidate_set: BoundedMultiActionCandidateSet | None = None
-    bounded_multiaction_candidate_set_contract: dict[str, Any] | None = None
-    bounded_multiaction_decision_certificate: BoundedMultiActionDecisionCertificate | None = None
-    bounded_multiaction_decision_witness: DecisionWitness | None = None
-    bounded_multiaction_decision_contract: dict[str, Any] | None = None
-    bounded_multiaction_decision_witness_contract: dict[str, Any] | None = None
-    bounded_multiaction_tau_argmax_contract: dict[str, Any] | None = None
     kill_switch_ok: bool | None = None
     kill_switch_error: str | None = None
     krr_advice: dict[str, Any] | None = None
@@ -214,41 +181,6 @@ class AutoTraderLiveReport:
     emit_finalize_error: str | None = None
     emit_finalize_tau_receipt: TauPolicyReceipt | None = None
     tau_tx_payload: dict[str, Any] | None = None
-    stage_certificate: AutoTraderStageCertificate | None = None
-    stage_certificate_error: str | None = None
-    live_release_certificate: AutoTraderLiveReleaseCertificate | None = None
-    live_release_certificate_error: str | None = None
-
-
-def _finalize_live_report(**kwargs: Any) -> AutoTraderLiveReport:
-    report = AutoTraderLiveReport(**kwargs)
-    try:
-        stage_certificate = build_autotrader_stage_certificate(report)
-    except Exception as exc:
-        report = replace(
-            report,
-            stage_certificate_error=f"{type(exc).__name__}:{exc}",
-        )
-    else:
-        report = replace(
-            report,
-            stage_certificate=stage_certificate,
-            stage_certificate_error=None,
-        )
-    try:
-        certificate = build_autotrader_live_release_certificate(report)
-    except ValueError:
-        return report
-    except Exception as exc:
-        return replace(
-            report,
-            live_release_certificate_error=f"{type(exc).__name__}:{exc}",
-        )
-    return replace(
-        report,
-        live_release_certificate=certificate,
-        live_release_certificate_error=None,
-    )
 
 
 def _require_u32(name: str, value: object, *, minimum: int = 0) -> int:
@@ -420,177 +352,6 @@ def _verify_boolean_tau_receipt(
     if tau_ok != receipt.expected_ok:
         return f"{error_prefix}_mismatch:local={int(receipt.expected_ok)},tau={int(tau_ok)}"
     return None
-
-
-def _build_bounded_multiaction_live_sidecar(
-    *,
-    strategy: StrategyIR,
-    tau_policy_bundle: TauPolicyBundle,
-    policy_artifact: StrategyPolicyArtifact,
-    observation_packet: AutoTraderObservationPacket,
-    decision_tag: AutoTraderDecisionTag,
-    kill_switch_ok: bool,
-    tau_config: AutoTraderTauConfig | None,
-) -> dict[str, Any]:
-    result: dict[str, Any] = {
-        "candidate_set": None,
-        "candidate_set_contract": {
-            "ok": None,
-            "error": None,
-            "frontier_unambiguous": None,
-        },
-        "decision_certificate": None,
-        "decision_witness": None,
-        "decision_contract": {
-            "ok": None,
-            "error": None,
-            "frontier_unambiguous": None,
-        },
-        "decision_witness_contract": {
-            "ok": None,
-            "error": None,
-            "frontier_unambiguous": None,
-        },
-        "tau_argmax_contract": {
-            "ok": None,
-            "error": None,
-            "tau_enabled": bool(tau_config.enabled) if tau_config is not None else False,
-            "tau_used": False,
-            "frontier_unambiguous": None,
-        },
-    }
-    if len(strategy.allowed_actions) != 1:
-        result["candidate_set_contract"] = {
-            "ok": None,
-            "error": "multi_action_frontier_ambiguous",
-            "frontier_unambiguous": False,
-        }
-        result["decision_contract"] = {
-            "ok": None,
-            "error": "multi_action_frontier_ambiguous",
-            "frontier_unambiguous": False,
-        }
-        result["decision_witness_contract"] = {
-            "ok": None,
-            "error": "multi_action_frontier_ambiguous",
-            "frontier_unambiguous": False,
-        }
-        result["tau_argmax_contract"] = {
-            "ok": None,
-            "error": "multi_action_frontier_ambiguous",
-            "tau_enabled": bool(tau_config.enabled) if tau_config is not None else False,
-            "tau_used": False,
-            "frontier_unambiguous": False,
-        }
-        return result
-
-    candidate_set = build_bounded_multi_action_candidate_set(
-        policy_artifact=policy_artifact,
-        tau_policy_bundle=tau_policy_bundle,
-        observation_packet=observation_packet,
-        action_frontier={
-            strategy.allowed_actions[0]: (
-                decision_tag is AutoTraderDecisionTag.SUBMIT,
-                (decision_tag is AutoTraderDecisionTag.SUBMIT) and bool(kill_switch_ok),
-                1,
-            )
-        },
-    )
-    candidate_set_contract = check_strategy_multi_action_candidate_set_contract(candidate_set)
-    certificate = build_bounded_multi_action_decision_certificate(candidate_set=candidate_set)
-    cert_ok, cert_error = verify_bounded_multi_action_decision_certificate(
-        candidate_set=candidate_set,
-        certificate=certificate,
-    )
-    result["candidate_set"] = candidate_set
-    result["candidate_set_contract"] = {
-        "ok": bool(candidate_set_contract.ok),
-        "error": candidate_set_contract.error,
-        "frontier_unambiguous": True,
-    }
-    if not candidate_set_contract.ok:
-        result["decision_contract"] = {
-            "ok": False,
-            "error": f"candidate_set_rejected:{candidate_set_contract.error}",
-            "frontier_unambiguous": True,
-        }
-        result["decision_witness_contract"] = {
-            "ok": None,
-            "error": "candidate_set_rejected",
-            "frontier_unambiguous": True,
-        }
-        result["tau_argmax_contract"] = {
-            "ok": None,
-            "error": "candidate_set_rejected",
-            "tau_enabled": bool(tau_config.enabled) if tau_config is not None else False,
-            "tau_used": False,
-            "frontier_unambiguous": True,
-        }
-        return result
-    result["decision_certificate"] = certificate
-    result["decision_contract"] = {
-        "ok": cert_ok,
-        "error": cert_error,
-        "frontier_unambiguous": True,
-    }
-    try:
-        witness = build_decision_witness_from_autotrader_multiaction_decision(
-            strategy=strategy,
-            observation_packet=observation_packet,
-            candidate_set=candidate_set,
-            certificate=certificate,
-        )
-        witness_ok, witness_error = verify_decision_witness_against_autotrader_multiaction_decision(
-            strategy=strategy,
-            observation_packet=observation_packet,
-            candidate_set=candidate_set,
-            certificate=certificate,
-            witness_payload=witness.to_dict(),
-        )
-        result["decision_witness"] = witness
-        result["decision_witness_contract"] = {
-            "ok": witness_ok,
-            "error": witness_error,
-            "frontier_unambiguous": True,
-        }
-    except Exception as exc:
-        result["decision_witness_contract"] = {
-            "ok": False,
-            "error": f"{type(exc).__name__}:{exc}",
-            "frontier_unambiguous": True,
-        }
-    if tau_config is not None and tau_config.enabled:
-        tau_ok, tau_bin, tau_error = autotrader_controller._resolve_tau_bin(tau_config)
-        if tau_ok and tau_bin is not None:
-            tau_contract: BoundedMultiActionTauArgmaxContractResult = (
-                check_bounded_multi_action_decision_tau_argmax_contract(
-                    candidate_set=candidate_set,
-                    certificate=certificate,
-                    tau_bin=tau_bin,
-                    timeout_s=tau_config.timeout_s,
-                )
-            )
-            result["tau_argmax_contract"] = {
-                **tau_contract.to_dict(),
-                "frontier_unambiguous": True,
-            }
-        else:
-            result["tau_argmax_contract"] = {
-                "ok": False,
-                "error": tau_error or "tau_not_available",
-                "tau_enabled": True,
-                "tau_used": False,
-                "frontier_unambiguous": True,
-            }
-    else:
-        result["tau_argmax_contract"] = {
-            "ok": None,
-            "error": "tau_disabled",
-            "tau_enabled": False,
-            "tau_used": False,
-            "frontier_unambiguous": True,
-        }
-    return result
 
 
 def _build_submit_bundle_tau_receipt(
@@ -856,7 +617,7 @@ def _build_signer_mismatch_report(
             f"signer_pubkey={signer_pubkey}",
         ),
     )
-    return _finalize_live_report(
+    return AutoTraderLiveReport(
         decision=decision,
         signer_pubkey=signer_pubkey,
         chain_id=chain_id,
@@ -951,7 +712,7 @@ def prepare_autotrader_live_quote_receipt(
                 f"chain_id={chain_id}",
             ),
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -987,7 +748,7 @@ def prepare_autotrader_live_quote_receipt(
                 f"chain_id={chain_id}",
             ),
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1065,7 +826,7 @@ def prepare_autotrader_live_quote_receipt(
                     f"chain_id={chain_id}",
                 ),
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1102,7 +863,7 @@ def prepare_autotrader_live_quote_receipt(
                         f"chain_id={chain_id}",
                     ),
                 )
-                return _finalize_live_report(
+                return AutoTraderLiveReport(
                     decision=reject,
                     signer_pubkey=signer_pubkey,
                     chain_id=chain_id,
@@ -1140,7 +901,7 @@ def prepare_autotrader_live_quote_receipt(
                 ),
                 tau_policy_receipt=session_capability_tau_receipt,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1180,7 +941,7 @@ def prepare_autotrader_live_quote_receipt(
                 ),
                 tau_policy_receipt=session_state_tau_receipt,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1225,7 +986,7 @@ def prepare_autotrader_live_quote_receipt(
                 ),
                 tau_policy_receipt=wallet_capability_tau_receipt,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1256,7 +1017,7 @@ def prepare_autotrader_live_quote_receipt(
             ),
             tau_policy_receipt=session_state_tau_receipt,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1287,7 +1048,7 @@ def prepare_autotrader_live_quote_receipt(
             ),
             tau_policy_receipt=session_capability_tau_receipt,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1319,7 +1080,7 @@ def prepare_autotrader_live_quote_receipt(
             ),
             tau_policy_receipt=wallet_capability_tau_receipt,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1390,7 +1151,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_policy_receipt=decision.tau_policy_receipt,
                 guard_state=decision.guard_state,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1439,22 +1200,11 @@ def prepare_autotrader_live_quote_receipt(
         emit_requested=decision.tag is AutoTraderDecisionTag.SUBMIT,
         emit_admissible=(decision.tag is AutoTraderDecisionTag.SUBMIT) and kill_switch.ok,
     )
-    decision_certificate_ok, decision_certificate_error = verify_strategy_decision_certificate(
-        candidate_set=candidate_set,
-        certificate=decision_certificate,
-        expected_kill_switch_active=controller_state.budget_state.kill_switch_on,
-    )
     expected_winner_index = 1 if decision.tag is AutoTraderDecisionTag.SUBMIT else 0
-    decision_contract_ok = (
-        decision_runtime.ok
-        and decision_certificate_ok
-        and decision_certificate.winner_index == expected_winner_index
-    )
+    decision_contract_ok = decision_runtime.ok and decision_certificate.winner_index == expected_winner_index
     decision_contract_error = None
     if not candidate_set_result.ok:
         decision_contract_error = f"candidate_set_rejected:{candidate_set_result.error}"
-    elif not decision_certificate_ok:
-        decision_contract_error = f"decision_certificate_rejected:{decision_certificate_error}"
     elif not decision_contract_ok:
         decision_contract_error = (
             "decision_prefers_noop"
@@ -1469,7 +1219,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1504,15 +1254,6 @@ def prepare_autotrader_live_quote_receipt(
             kill_switch_error=kill_switch.error,
             krr_advice=krr_advice,
         )
-    bounded_multiaction_sidecar = _build_bounded_multiaction_live_sidecar(
-        strategy=strategy,
-        tau_policy_bundle=effective_tau_policy_bundle,
-        policy_artifact=effective_policy_artifact,
-        observation_packet=effective_observation_packet,
-        decision_tag=decision.tag,
-        kill_switch_ok=kill_switch.ok,
-        tau_config=resolved_tau_config,
-    )
     if decision.tag is not AutoTraderDecisionTag.SUBMIT:
         system_compose = check_strategy_system_compose(
             emit_requested=False,
@@ -1535,7 +1276,7 @@ def prepare_autotrader_live_quote_receipt(
             wallet_capability_ok=wallet_capability_result.ok,
             nonce_ok=True,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=decision,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1565,13 +1306,6 @@ def prepare_autotrader_live_quote_receipt(
             decision_certificate=decision_certificate,
             decision_ok=decision_contract_ok,
             decision_error=None if decision_contract_ok else decision_contract_error,
-            bounded_multiaction_candidate_set=bounded_multiaction_sidecar["candidate_set"],
-            bounded_multiaction_candidate_set_contract=bounded_multiaction_sidecar["candidate_set_contract"],
-            bounded_multiaction_decision_certificate=bounded_multiaction_sidecar["decision_certificate"],
-            bounded_multiaction_decision_witness=bounded_multiaction_sidecar["decision_witness"],
-            bounded_multiaction_decision_contract=bounded_multiaction_sidecar["decision_contract"],
-            bounded_multiaction_decision_witness_contract=bounded_multiaction_sidecar["decision_witness_contract"],
-            bounded_multiaction_tau_argmax_contract=bounded_multiaction_sidecar["tau_argmax_contract"],
             kill_switch_ok=kill_switch.ok,
             kill_switch_error=kill_switch.error,
             krr_advice=krr_advice,
@@ -1592,7 +1326,7 @@ def prepare_autotrader_live_quote_receipt(
             explain=decision.explain,
             tau_policy_receipt=decision.tau_policy_receipt,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1643,7 +1377,7 @@ def prepare_autotrader_live_quote_receipt(
                 explain=decision.explain,
                 tau_policy_receipt=decision.tau_policy_receipt,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1685,7 +1419,7 @@ def prepare_autotrader_live_quote_receipt(
                     explain=decision.explain,
                     tau_policy_receipt=decision.tau_policy_receipt,
                 )
-                return _finalize_live_report(
+                return AutoTraderLiveReport(
                     decision=reject,
                     signer_pubkey=signer_pubkey,
                     chain_id=chain_id,
@@ -1723,7 +1457,7 @@ def prepare_autotrader_live_quote_receipt(
                     explain=decision.explain,
                     tau_policy_receipt=decision.tau_policy_receipt,
                 )
-                return _finalize_live_report(
+                return AutoTraderLiveReport(
                     decision=reject,
                     signer_pubkey=signer_pubkey,
                     chain_id=chain_id,
@@ -1791,7 +1525,7 @@ def prepare_autotrader_live_quote_receipt(
                 explain=decision.explain,
                 tau_policy_receipt=decision.tau_policy_receipt,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1824,7 +1558,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -1909,7 +1643,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_policy_receipt=decision.tau_policy_receipt,
                 guard_state=decision.guard_state,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -1943,7 +1677,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -2030,7 +1764,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_policy_receipt=decision.tau_policy_receipt,
                 guard_state=decision.guard_state,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -2070,7 +1804,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -2131,7 +1865,7 @@ def prepare_autotrader_live_quote_receipt(
                 tau_policy_receipt=decision.tau_policy_receipt,
                 guard_state=decision.guard_state,
             )
-            return _finalize_live_report(
+            return AutoTraderLiveReport(
                 decision=reject,
                 signer_pubkey=signer_pubkey,
                 chain_id=chain_id,
@@ -2174,7 +1908,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_policy_receipt=decision.tau_policy_receipt,
             guard_state=decision.guard_state,
         )
-        return _finalize_live_report(
+        return AutoTraderLiveReport(
             decision=reject,
             signer_pubkey=signer_pubkey,
             chain_id=chain_id,
@@ -2210,7 +1944,7 @@ def prepare_autotrader_live_quote_receipt(
             tau_tx_payload=tau_tx_payload,
         )
 
-    return _finalize_live_report(
+    return AutoTraderLiveReport(
         decision=decision,
         signer_pubkey=signer_pubkey,
         chain_id=chain_id,
@@ -2240,13 +1974,6 @@ def prepare_autotrader_live_quote_receipt(
         decision_certificate=decision_certificate,
         decision_ok=decision_contract_ok,
         decision_error=decision_contract_error,
-        bounded_multiaction_candidate_set=bounded_multiaction_sidecar["candidate_set"],
-        bounded_multiaction_candidate_set_contract=bounded_multiaction_sidecar["candidate_set_contract"],
-        bounded_multiaction_decision_certificate=bounded_multiaction_sidecar["decision_certificate"],
-        bounded_multiaction_decision_witness=bounded_multiaction_sidecar["decision_witness"],
-        bounded_multiaction_decision_contract=bounded_multiaction_sidecar["decision_contract"],
-        bounded_multiaction_decision_witness_contract=bounded_multiaction_sidecar["decision_witness_contract"],
-        bounded_multiaction_tau_argmax_contract=bounded_multiaction_sidecar["tau_argmax_contract"],
         kill_switch_ok=kill_switch.ok,
         kill_switch_error=kill_switch.error,
         krr_advice=krr_advice,

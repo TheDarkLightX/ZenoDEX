@@ -21,21 +21,8 @@ from ..core.zusd import (
     ZUSDMultiCommand,
     ZUSDMultiState,
     ZUSDState,
-    ZUSDVault,
     init_multi_state,
     init_state,
-)
-from .zusd_oracle_contracts import (
-    ZUSDCrossModuleOracleSyncContract,
-    ZUSDOraclePendingGateContract,
-    build_zusd_cross_module_oracle_sync_contract,
-    build_zusd_oracle_pending_gate_contract,
-    verify_zusd_cross_module_oracle_sync_contract_payload,
-    verify_zusd_oracle_pending_gate_contract_payload,
-)
-from .zusd_oracle_recovery_lifecycle import (
-    build_zusd_oracle_recovery_lifecycle_packet,
-    verify_zusd_oracle_recovery_lifecycle_packet_payload,
 )
 from .zusd_tau_gate import ZUSDTauGateConfig, step_multi_with_tau, step_with_tau
 
@@ -258,29 +245,6 @@ def _cmd_from_body(body: Dict[str, Any]) -> Tuple[Optional[str], Optional[Dict[s
     return tag, args, None
 
 
-def _parse_zusd_state_payload(payload: object) -> ZUSDState | ZUSDMultiState:
-    if not isinstance(payload, Mapping):
-        raise ValueError("state must be an object")
-    if "vault_a" in payload or "vault_b" in payload:
-        vault_a_raw = payload.get("vault_a")
-        vault_b_raw = payload.get("vault_b")
-        if not isinstance(vault_a_raw, Mapping) or not isinstance(vault_b_raw, Mapping):
-            raise ValueError("multi-state requires vault_a and vault_b objects")
-        vault_a = ZUSDVault(
-            collateral_e8=int(vault_a_raw.get("collateral_e8", 0)),
-            debt_e8=int(vault_a_raw.get("debt_e8", 0)),
-        )
-        vault_b = ZUSDVault(
-            collateral_e8=int(vault_b_raw.get("collateral_e8", 0)),
-            debt_e8=int(vault_b_raw.get("debt_e8", 0)),
-        )
-        kwargs = dict(payload)
-        kwargs["vault_a"] = vault_a
-        kwargs["vault_b"] = vault_b
-        return ZUSDMultiState(**kwargs)
-    return ZUSDState(**dict(payload))
-
-
 def _handle_get(single: ZUSDState, multi: ZUSDMultiState, history: List[Dict[str, Any]], rest: List[str]) -> ResponseT:
     if rest == ["state"]:
         return 200, {"ok": True, "mode": "single", "state": _single_state_payload(single)}
@@ -298,99 +262,6 @@ def _handle_post(
     rest: List[str],
     body: Optional[bytes],
 ) -> PostStateResultT:
-    if rest == ["build_oracle_pending_gate_contract"]:
-        parsed, err = _parse_json_body(body)
-        if err is not None:
-            return single, multi, history, (400, {"ok": False, "error": err})
-        if parsed is None:
-            return single, multi, history, (400, {"ok": False, "error": "bad_json"})
-        try:
-            state = _parse_zusd_state_payload(parsed.get("state"))
-            contract = build_zusd_oracle_pending_gate_contract(
-                state,
-                risky_requested=bool(parsed.get("risky_requested", False)),
-                max_staleness_epochs=int(parsed.get("max_staleness_epochs", 100)),
-                tcr_ok=bool(parsed.get("tcr_ok", True)),
-            )
-            return single, multi, history, (200, {"ok": True, "contract": contract.to_dict()})
-        except Exception as exc:
-            return single, multi, history, (
-                400,
-                {"ok": False, "error": "build_oracle_pending_gate_contract_error", "detail": str(exc)},
-            )
-
-    if rest == ["verify_oracle_pending_gate_contract"]:
-        parsed, err = _parse_json_body(body)
-        if err is not None:
-            return single, multi, history, (400, {"ok": False, "error": err})
-        if parsed is None or not isinstance(parsed.get("contract"), dict):
-            return single, multi, history, (400, {"ok": False, "error": "bad_contract"})
-        ok, verify_err = verify_zusd_oracle_pending_gate_contract_payload(parsed["contract"])
-        return single, multi, history, (200, {"ok": bool(ok), "error": verify_err})
-
-    if rest == ["build_cross_module_oracle_sync_contract"]:
-        parsed, err = _parse_json_body(body)
-        if err is not None:
-            return single, multi, history, (400, {"ok": False, "error": err})
-        if parsed is None:
-            return single, multi, history, (400, {"ok": False, "error": "bad_json"})
-        try:
-            contract = build_zusd_cross_module_oracle_sync_contract(
-                market_id=str(parsed.get("market_id", "")),
-                zusd_price_e8=int(parsed.get("zusd_price_e8", 0)),
-                zusd_epoch=int(parsed.get("zusd_epoch", 0)),
-                perp_price_e8=int(parsed.get("perp_price_e8", 0)),
-                perp_oracle_epoch=int(parsed.get("perp_oracle_epoch", 0)),
-                max_divergence_bps=int(parsed.get("max_divergence_bps", 0)),
-                max_epoch_lag=int(parsed.get("max_epoch_lag", 0)),
-            )
-            return single, multi, history, (200, {"ok": True, "contract": contract.to_dict()})
-        except Exception as exc:
-            return single, multi, history, (
-                400,
-                {"ok": False, "error": "build_cross_module_oracle_sync_contract_error", "detail": str(exc)},
-            )
-
-    if rest == ["verify_cross_module_oracle_sync_contract"]:
-        parsed, err = _parse_json_body(body)
-        if err is not None:
-            return single, multi, history, (400, {"ok": False, "error": err})
-        if parsed is None or not isinstance(parsed.get("contract"), dict):
-            return single, multi, history, (400, {"ok": False, "error": "bad_contract"})
-        ok, verify_err = verify_zusd_cross_module_oracle_sync_contract_payload(parsed["contract"])
-        return single, multi, history, (200, {"ok": bool(ok), "error": verify_err})
-
-    if rest == ["build_oracle_recovery_lifecycle_packet"]:
-        parsed, err = _parse_json_body(body)
-        if err is not None:
-            return single, multi, history, (400, {"ok": False, "error": err})
-        if parsed is None:
-            return single, multi, history, (400, {"ok": False, "error": "bad_json"})
-        try:
-            previous_pending = ZUSDOraclePendingGateContract.from_dict(parsed.get("previous_pending_gate_contract"))
-            current_pending = ZUSDOraclePendingGateContract.from_dict(parsed.get("current_pending_gate_contract"))
-            current_sync = ZUSDCrossModuleOracleSyncContract.from_dict(parsed.get("current_sync_contract"))
-            packet = build_zusd_oracle_recovery_lifecycle_packet(
-                previous_pending_gate_contract=previous_pending,
-                current_pending_gate_contract=current_pending,
-                current_sync_contract=current_sync,
-            )
-            return single, multi, history, (200, {"ok": True, "packet": packet.to_dict()})
-        except Exception as exc:
-            return single, multi, history, (
-                400,
-                {"ok": False, "error": "build_oracle_recovery_lifecycle_packet_error", "detail": str(exc)},
-            )
-
-    if rest == ["verify_oracle_recovery_lifecycle_packet"]:
-        parsed, err = _parse_json_body(body)
-        if err is not None:
-            return single, multi, history, (400, {"ok": False, "error": err})
-        if parsed is None or not isinstance(parsed.get("packet"), dict):
-            return single, multi, history, (400, {"ok": False, "error": "bad_packet"})
-        ok, verify_err = verify_zusd_oracle_recovery_lifecycle_packet_payload(parsed["packet"])
-        return single, multi, history, (200, {"ok": bool(ok), "error": verify_err})
-
     known = (["step"], ["multi", "step"], ["reset"])
     if rest not in known:
         return single, multi, history, (404, {"ok": False, "error": "not_found"})

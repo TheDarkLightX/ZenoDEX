@@ -366,11 +366,11 @@ The UI provides a full perpetuals trading interface with market selection, order
 - **Sealed-bid private-state lane**: bounded commit/reveal auction with deterministic uniform-price settlement.
   - Experiment core: `src/core/sealed_bid_auction.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
-  - MetaMuse lane: `tools/metamuse_sealed_bid_lane.py`
+  - Internal evaluation workflow used during development; not part of the public release surface.
 - **Non-reveal bond kernel**: closes the free-griefing path for non-reveal bidders.
   - Accounting core: `src/core/sealed_bid_bonds.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
-  - MetaMuse lane: `tools/metamuse_sealed_bid_bond_lane.py`
+  - Internal evaluation workflow used during development; not part of the public release surface.
 - **Experimental FHE sealed-bid alpha**: bounded 8-bid planning surface for encrypted comparison / hidden-bid auction pilots.
   - Alpha planner: `src/core/fhe_sealed_bid_alpha.py`
   - ESSO gate: `src/kernels/dex/fhe_sealed_bid_alpha_gate_v1.yaml`
@@ -427,9 +427,9 @@ Who this is not for:
 Useful commands:
 ```bash
 python3 tools/sealed_bid_disaster_catalog.py
-python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_private_state_v1 --out-dir runs/metamuse/sealed_bid_private_state_v1 --run-checks
-python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_non_reveal_bond_v1 --out-dir runs/metamuse/sealed_bid_non_reveal_bond_v1 --run-checks
 ```
+
+Internal research workflows for sealed-bid evaluation are intentionally not documented in the public README.
 
 ## Experimental Curves (Research)
 ZenoDex is designed to support multiple **integer-auditable AMM curves** (CFMM invariants). The production path is CPMM;

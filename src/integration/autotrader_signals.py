@@ -187,12 +187,6 @@ def _require_u32(name: str, value: object, *, minimum: int = 0) -> int:
     return out
 
 
-def _require_bool(name: str, value: object) -> bool:
-    if not isinstance(value, bool):
-        raise TypeError(f"{name} must be a bool")
-    return value
-
-
 @dataclass(frozen=True)
 class QuoteReceiptSignalPacket:
     current_epoch: int
@@ -264,47 +258,6 @@ class QuoteReceiptSignalPacket:
         }
 
 
-def quote_receipt_signal_packet_from_dict(data: Mapping[str, Any]) -> QuoteReceiptSignalPacket:
-    if not isinstance(data, Mapping):
-        raise TypeError("quote receipt signal packet must be an object")
-    current_epoch = _require_u32("current_epoch", data.get("current_epoch"))
-    quote_epoch = _require_u32("quote_epoch", data.get("quote_epoch"))
-    asset_in = _require_safe_token("asset_in", data.get("asset_in"))
-    asset_out = _require_safe_token("asset_out", data.get("asset_out"))
-    amount_in = _require_u32("amount_in", data.get("amount_in"), minimum=1)
-    amount_out = _require_u32("amount_out", data.get("amount_out"), minimum=1)
-    receipt_hash = _require_safe_token("receipt_hash", data.get("receipt_hash"))
-    source_id = _require_safe_token("source_id", data.get("source_id", "route_quote_receipt"))
-    quote_receipt_present = _require_bool("quote_receipt_present", data.get("quote_receipt_present", False))
-    quote_receipt_verified = _require_bool("quote_receipt_verified", data.get("quote_receipt_verified", False))
-    quote_epoch_present = _require_bool("quote_epoch_present", data.get("quote_epoch_present", False))
-    source_available = _require_bool("source_available", data.get("source_available", False))
-    auth_ok = _require_bool("auth_ok", data.get("auth_ok", False))
-    binding_ok = _require_bool("binding_ok", data.get("binding_ok", False))
-    verify_error = data.get("verify_error")
-    if verify_error is not None and not isinstance(verify_error, str):
-        raise TypeError("verify_error must be a string or None")
-    return QuoteReceiptSignalPacket(
-        current_epoch=current_epoch,
-        quote_epoch=quote_epoch,
-        asset_in=asset_in,
-        asset_out=asset_out,
-        amount_in=amount_in,
-        amount_out=amount_out,
-        receipt_hash=receipt_hash,
-        source_id=source_id,
-        source_kind=SignalSourceKind(str(data.get("source_kind", ""))),
-        trust_tier=SignalTrustTier(str(data.get("trust_tier", ""))),
-        quote_receipt_present=quote_receipt_present,
-        quote_receipt_verified=quote_receipt_verified,
-        quote_epoch_present=quote_epoch_present,
-        source_available=source_available,
-        auth_ok=auth_ok,
-        binding_ok=binding_ok,
-        verify_error=verify_error,
-    )
-
-
 @dataclass(frozen=True)
 class AutoTraderWalletCapability:
     session_id: str
@@ -368,35 +321,6 @@ class AutoTraderWalletCapability:
             "allowed_actions": [action.value for action in self.allowed_actions],
             "enabled": bool(self.enabled),
         }
-
-
-def wallet_capability_from_dict(data: Mapping[str, Any]) -> AutoTraderWalletCapability:
-    if not isinstance(data, Mapping):
-        raise TypeError("wallet capability must be an object")
-    allowed_assets_raw = data.get("allowed_assets")
-    allowed_actions_raw = data.get("allowed_actions")
-    if not isinstance(allowed_assets_raw, (list, tuple)):
-        raise TypeError("wallet capability allowed_assets must be a list")
-    if not isinstance(allowed_actions_raw, (list, tuple)):
-        raise TypeError("wallet capability allowed_actions must be a list")
-    session_id = _require_safe_token("session_id", data.get("session_id"))
-    owner_pubkey = _require_safe_token("owner_pubkey", data.get("owner_pubkey"))
-    chain_id = _require_safe_token("chain_id", data.get("chain_id"))
-    valid_from_epoch = _require_u32("valid_from_epoch", data.get("valid_from_epoch"))
-    valid_until_epoch = _require_u32("valid_until_epoch", data.get("valid_until_epoch"))
-    notional_remaining = _require_u32("notional_remaining", data.get("notional_remaining"))
-    enabled = _require_bool("enabled", data.get("enabled", True))
-    return AutoTraderWalletCapability(
-        session_id=session_id,
-        owner_pubkey=owner_pubkey,
-        chain_id=chain_id,
-        valid_from_epoch=valid_from_epoch,
-        valid_until_epoch=valid_until_epoch,
-        notional_remaining=notional_remaining,
-        allowed_assets=tuple(str(item) for item in allowed_assets_raw),
-        allowed_actions=tuple(StrategyAction(str(item)) for item in allowed_actions_raw),
-        enabled=enabled,
-    )
 
 
 @dataclass(frozen=True)
@@ -531,9 +455,6 @@ class AutoTraderObservationPacket:
             "wallet_capability": (
                 None if self.wallet_capability is None else self.wallet_capability.to_dict()
             ),
-            "signal_source_registry": (
-                None if self.signal_source_registry is None else self.signal_source_registry.to_dict()
-            ),
             "signal_source_registry_present": bool(self.signal_source_registry is not None),
             "registered_external_count": (
                 len(self.external_signals) if self.signal_source_registry is not None else 0
@@ -545,56 +466,6 @@ class AutoTraderObservationPacket:
             "observation_packet_ok": True,
             "tau_enabled": bool(self.tau_enabled),
         }
-
-
-def autotrader_observation_packet_from_dict(data: Mapping[str, Any]) -> AutoTraderObservationPacket:
-    if not isinstance(data, Mapping):
-        raise TypeError("observation packet must be an object")
-    if data.get("schema") != OBSERVATION_PACKET_SCHEMA:
-        raise ValueError("unsupported observation packet schema")
-    primary_signal_raw = data.get("primary_signal")
-    if not isinstance(primary_signal_raw, Mapping):
-        raise TypeError("observation packet primary_signal must be an object")
-    external_signals_raw = data.get("external_signals", ())
-    if not isinstance(external_signals_raw, (list, tuple)):
-        raise TypeError("observation packet external_signals must be a list")
-    wallet_capability_raw = data.get("wallet_capability")
-    signal_source_registry_raw = data.get("signal_source_registry")
-    wallet_capability = (
-        None
-        if wallet_capability_raw is None
-        else wallet_capability_from_dict(wallet_capability_raw)
-    )
-    signal_source_registry = None
-    if signal_source_registry_raw is not None:
-        from .autotrader_signal_registry import external_signal_source_registry_from_object
-
-        signal_source_registry = external_signal_source_registry_from_object(signal_source_registry_raw)
-    current_epoch = _require_u32("current_epoch", data.get("current_epoch"))
-    tau_enabled = _require_bool("tau_enabled", data.get("tau_enabled", False))
-    return AutoTraderObservationPacket(
-        current_epoch=current_epoch,
-        primary_signal=quote_receipt_signal_packet_from_dict(primary_signal_raw),
-        external_signals=tuple(
-            external_signal_observation_from_dict(signal)
-            for signal in external_signals_raw
-        ),
-        wallet_capability=wallet_capability,
-        signal_source_registry=signal_source_registry,
-        tau_enabled=tau_enabled,
-    )
-
-
-def verify_autotrader_observation_packet_payload(payload: object) -> tuple[bool, str | None]:
-    if not isinstance(payload, Mapping):
-        return False, "observation packet payload must be an object"
-    try:
-        packet = autotrader_observation_packet_from_dict(payload)
-    except Exception as exc:
-        return False, str(exc)
-    if dict(payload) != packet.to_dict():
-        return False, "observation packet payload mismatch"
-    return True, None
 
 
 def build_quote_receipt_signal_packet(
@@ -623,9 +494,13 @@ def build_quote_receipt_signal_packet(
     amount_out = _require_u32("receipt.body.amount_out", body_raw.get("amount_out"), minimum=1)
     receipt_hash = _require_safe_token("receipt.receipt_hash", receipt.get("receipt_hash"))
     quote_epoch_present = "quote_epoch" in body_raw
-    quote_epoch = 0
     if quote_epoch_present:
         quote_epoch = _require_u32("receipt.body.quote_epoch", body_raw.get("quote_epoch"))
+    else:
+        # Legacy route receipts may omit quote_epoch. Use the observation epoch so the
+        # packet remains consumable until all callers emit receipt freshness explicitly.
+        quote_epoch = current_epoch
+        quote_epoch_present = True
 
     verify_ok, verify_error = verify_route_quote_receipt(dict(receipt), pools_by_id=dict(pools_by_id))
     return QuoteReceiptSignalPacket(
