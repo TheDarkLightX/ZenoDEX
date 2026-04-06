@@ -37,7 +37,7 @@ Important derivatives note:
 
 Release vocabulary:
 - `release-backed`: included in the current published formal/public assurance claim
-- `public replay`: reproducible from a fresh clone via the shipped replay/checker surface
+- `public replay`: reproducible from a clean checkout plus the documented external toolchains via the shipped replay/checker surface
 - `authorization-complete`: safe to treat as a public settlement-authorizing guarantee without extra trusted environment inputs
 - `disputed`: intentionally excluded from stronger public authorization claims until the witness/auth lane is trust-complete
 

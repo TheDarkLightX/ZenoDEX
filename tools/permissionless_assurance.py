@@ -7,6 +7,7 @@ import argparse
 import fnmatch
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -14,12 +15,29 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
+try:
+    from tools.render_assurance_release_snapshot import RenderError, _load_snapshot, render_targets
+except ModuleNotFoundError:  # pragma: no cover - script execution path
+    from render_assurance_release_snapshot import RenderError, _load_snapshot, render_targets
+
+try:
+    from tools.render_tla_claim_summary import OUTPUT_PATH as TLA_SUMMARY_PATH, RenderError as TlaRenderError, render_summary_text
+except ModuleNotFoundError:  # pragma: no cover - script execution path
+    from render_tla_claim_summary import OUTPUT_PATH as TLA_SUMMARY_PATH, RenderError as TlaRenderError, render_summary_text
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     ".gitignore",
+    "docs/ASSURANCE_GLOSSARY.md",
+    "docs/ASSURANCE_RELEASE_SNAPSHOT.md",
     "docs/PUBLIC_ASSURANCE_REPLAY.md",
+    "docs/RC1_SUPPORTED_RUNTIME_PATH.md",
+    "docs/RC1_VERIFIED_SURFACE_MATRIX.md",
+    "docs/TLA_CLAIM_SUMMARY.md",
+    "docs/ZUSD_TAU_WALLET.md",
+    "docs/assurance_release_snapshot.json",
     "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
     "src/core/amm_dispatch.py",
     "src/core/batch_clearing.py",
@@ -36,11 +54,18 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tools/derivatives_evidence_manifest.json",
     "tools/kernel_assurance_manifest.json",
     "tools/permissionless_assurance.py",
+    "tools/render_rc1_supported_runtime_path.py",
+    "tools/render_rc1_verified_surface_matrix.py",
+    "tools/render_assurance_release_snapshot.py",
+    "tools/render_tla_claim_summary.py",
     "tools/run_critical_quality_gate.sh",
     "tools/run_release_gate.sh",
+    "tools/run_perps_evidence.sh",
+    "tools/run_zusd_evidence.sh",
     "tools/run_spot_evidence.sh",
     "tools/run_spot_proof_assurance_gate.sh",
     "tools/spot_proof_assurance_manifest.json",
+    "tools/zusd_tau_wallet.py",
 )
 
 FORBIDDEN_PATH_GLOBS: tuple[str, ...] = (
@@ -82,6 +107,7 @@ class Lane:
     description: str
     commands: tuple[tuple[str, ...], ...]
     required_files: tuple[str, ...]
+    required_environment: tuple[str, ...]
     stars: int
 
 
@@ -99,12 +125,18 @@ def _python_bin() -> str:
 
 PY = _python_bin()
 
+ENVIRONMENT_REQUIREMENT_HINTS: dict[str, str] = {
+    "external/ESSO": "clone or update external/ESSO",
+    "tau-binary": "set TAU_BIN, put tau on PATH, or build external/tau-lang/build-*/tau",
+}
+
 LANES: dict[str, Lane] = {
     "kernel-assurance": Lane(
         name="kernel-assurance",
         description="Re-run the manifest-backed kernel assurance corpus and solver checks.",
         commands=((PY, "tools/dex_kernel_assurance.py", "--pretty"),),
         required_files=("tools/dex_kernel_assurance.py", "tools/kernel_assurance_manifest.json"),
+        required_environment=("external/ESSO",),
         stars=3,
     ),
     "spot-proof": Lane(
@@ -119,6 +151,7 @@ LANES: dict[str, Lane] = {
             "tools/check_spot_proof_assurance_manifest.py",
             "tools/spot_proof_assurance_manifest.json",
         ),
+        required_environment=("external/ESSO",),
         stars=3,
     ),
     "spot-evidence": Lane(
@@ -129,6 +162,7 @@ LANES: dict[str, Lane] = {
             "tools/run_spot_evidence.sh",
             "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
         ),
+        required_environment=("external/ESSO",),
         stars=2,
     ),
     "derivatives": Lane(
@@ -143,6 +177,29 @@ LANES: dict[str, Lane] = {
             "tools/check_derivatives_evidence_manifest.py",
             "tools/derivatives_evidence_manifest.json",
         ),
+        required_environment=("external/ESSO",),
+        stars=3,
+    ),
+    "perps": Lane(
+        name="perps",
+        description="Replay the perps functional-core tests, micro-gate assurances, kernel verify-multi checks, and Lean safety proofs.",
+        commands=(("bash", "tools/run_perps_evidence.sh"),),
+        required_files=("tools/run_perps_evidence.sh",),
+        required_environment=("external/ESSO",),
+        stars=3,
+    ),
+    "zusd": Lane(
+        name="zusd",
+        description="Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.",
+        commands=(("bash", "tools/run_zusd_evidence.sh"),),
+        required_files=(
+            "tools/run_zusd_evidence.sh",
+            "tools/zusd_tau_wallet.py",
+            "src/integration/zusd_tau_token.py",
+            "src/tau_specs/recommended/protocol_token_v1.tau",
+            "src/tau_specs/recommended/zusd_transfer_guard_v1.tau",
+        ),
+        required_environment=("external/ESSO", "tau-binary"),
         stars=3,
     ),
     "critical": Lane(
@@ -150,6 +207,7 @@ LANES: dict[str, Lane] = {
         description="Run the publishable critical quality gate with branch coverage and static checks.",
         commands=(("bash", "tools/run_critical_quality_gate.sh"),),
         required_files=("tools/run_critical_quality_gate.sh",),
+        required_environment=(),
         stars=2,
     ),
     "release": Lane(
@@ -157,12 +215,13 @@ LANES: dict[str, Lane] = {
         description="Run the full release gate, including Tau, proof, evidence, and audit lanes.",
         commands=(("bash", "tools/run_release_gate.sh"),),
         required_files=("tools/run_release_gate.sh",),
+        required_environment=("external/ESSO", "tau-binary"),
         stars=4,
     ),
 }
 
 LANE_GROUPS: dict[str, tuple[str, ...]] = {
-    "public": ("kernel-assurance", "spot-proof", "spot-evidence", "derivatives"),
+    "public": ("kernel-assurance", "spot-proof", "spot-evidence", "derivatives", "perps", "zusd"),
     "critical": ("critical",),
     "full": ("release",),
 }
@@ -247,21 +306,95 @@ def _bar(completed: int, total: int, *, width: int = 20) -> str:
     return "[" + ("#" * filled) + ("." * (width - filled)) + "]"
 
 
+def _tau_binary_ready() -> bool:
+    tau_bin = os.environ.get("TAU_BIN", "").strip()
+    if tau_bin:
+        return Path(tau_bin).is_file() and os.access(tau_bin, os.X_OK)
+    if shutil.which("tau"):
+        return True
+    for candidate in REPO_ROOT.glob("external/tau-lang/build-*/tau"):
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return True
+    return False
+
+
+def _environment_requirement_ready(name: str) -> bool:
+    if name == "external/ESSO":
+        return (REPO_ROOT / "external" / "ESSO").exists()
+    if name == "tau-binary":
+        return _tau_binary_ready()
+    raise RuntimeError(f"unknown environment requirement: {name}")
+
+
+def _environment_requirement_hint(name: str) -> str:
+    try:
+        return ENVIRONMENT_REQUIREMENT_HINTS[name]
+    except KeyError as exc:  # pragma: no cover - defensive
+        raise RuntimeError(f"unknown environment requirement: {name}") from exc
+
+
 def _lane_summary() -> list[dict[str, object]]:
     out: list[dict[str, object]] = []
     for lane in LANES.values():
         missing = [path for path in lane.required_files if not (REPO_ROOT / path).exists()]
+        missing_environment = [name for name in lane.required_environment if not _environment_requirement_ready(name)]
         out.append(
             {
                 "name": lane.name,
                 "description": lane.description,
                 "stars": lane.stars,
                 "required_files": list(lane.required_files),
+                "required_environment": list(lane.required_environment),
                 "missing_files": missing,
-                "ready": not missing,
+                "missing_environment": missing_environment,
+                "environment_hints": {name: _environment_requirement_hint(name) for name in lane.required_environment},
+                "ready": not missing and not missing_environment,
             }
         )
     return out
+
+
+def _snapshot_status() -> dict[str, object]:
+    try:
+        snapshot = _load_snapshot()
+        rendered = render_targets()
+        stale_paths: list[str] = []
+        for path, expected in rendered.items():
+            current = path.read_text(encoding="utf-8") if path.exists() else ""
+            if current != expected:
+                stale_paths.append(str(path.relative_to(REPO_ROOT)))
+        return {
+            "ok": not stale_paths,
+            "as_of_date": snapshot["as_of_date"],
+            "snapshot_label": snapshot["snapshot_label"],
+            "stale_paths": stale_paths,
+            "error": None,
+        }
+    except RenderError as exc:
+        return {
+            "ok": False,
+            "as_of_date": None,
+            "snapshot_label": None,
+            "stale_paths": [],
+            "error": str(exc),
+        }
+
+
+def _tla_summary_status() -> dict[str, object]:
+    try:
+        expected = render_summary_text()
+        current = TLA_SUMMARY_PATH.read_text(encoding="utf-8") if TLA_SUMMARY_PATH.exists() else ""
+        return {
+            "ok": current == expected,
+            "path": str(TLA_SUMMARY_PATH.relative_to(REPO_ROOT)),
+            "error": None,
+        }
+    except TlaRenderError as exc:
+        return {
+            "ok": False,
+            "path": str(TLA_SUMMARY_PATH.relative_to(REPO_ROOT)),
+            "error": str(exc),
+        }
 
 
 def _status_payload() -> dict[str, object]:
@@ -284,6 +417,8 @@ def _status_payload() -> dict[str, object]:
     lanes_ready = sum(1 for lane in lanes if bool(lane["ready"]))
     payload: dict[str, object] = {
         "branch": branch,
+        "assurance_snapshot": _snapshot_status(),
+        "tla_claim_summary": _tla_summary_status(),
         "dirty_paths": dirty_paths,
         "dirty_count": len(dirty_paths),
         "public_scope_paths": public_scope,
@@ -299,6 +434,7 @@ def _status_payload() -> dict[str, object]:
         "notes": [
             "internal/ artifacts are intentionally not shipped; replay commands regenerate them locally",
             "public assurance claims should be backed by pinned manifests, tracked exported refs, and replayable gate scripts",
+            "public replay lanes may require external toolchains such as external/ESSO or a tau binary; status and replay should fail closed when those prerequisites are absent",
         ],
     }
     return payload
@@ -311,6 +447,18 @@ def _print_status(payload: dict[str, object]) -> None:
     refs_total = int(payload["public_refs_total"])
     print("ZenoDex Permissionless Assurance")
     print(f"branch: {payload['branch']}")
+    snapshot = payload["assurance_snapshot"]
+    tla_summary = payload["tla_claim_summary"]
+    if snapshot["error"]:
+        print(f"assurance snapshot: ERROR ({snapshot['error']})")
+    else:
+        state = "OK" if snapshot["ok"] else "STALE"
+        print(f"assurance snapshot: {state} (as of {snapshot['as_of_date']})")
+    if tla_summary["error"]:
+        print(f"tla claim summary: ERROR ({tla_summary['error']})")
+    else:
+        tla_state = "OK" if tla_summary["ok"] else "STALE"
+        print(f"tla claim summary: {tla_state} ({tla_summary['path']})")
     print(f"dirty tree: {payload['dirty_count']} paths")
     print(f"public merge scope: {payload['public_scope_count']} paths")
     print(f"lane readiness: {lanes_ready}/{lanes_total} {_bar(lanes_ready, lanes_total)}")
@@ -324,6 +472,9 @@ def _print_status(payload: dict[str, object]) -> None:
         missing = list(lane["missing_files"])
         for rel in missing:
             print(f"    missing: {rel}")
+        missing_environment = list(lane["missing_environment"])
+        for env_name in missing_environment:
+            print(f"    missing env: {env_name}")
     print()
     print("Tracked exported refs")
     for ref in payload["public_refs"]:
@@ -340,6 +491,11 @@ def _print_status(payload: dict[str, object]) -> None:
         print()
         print("Leak warnings")
         print("  [OK] no blocked paths or forbidden internal markers in the scoped public merge set")
+    if snapshot["stale_paths"]:
+        print()
+        print("Snapshot drift")
+        for rel in snapshot["stale_paths"]:
+            print(f"  [STALE] {rel}")
 
 
 def _expand_lane_names(items: Sequence[str]) -> list[str]:
@@ -363,14 +519,37 @@ def _expand_lane_names(items: Sequence[str]) -> list[str]:
     return out
 
 
-def _require_files(paths: Sequence[str]) -> None:
-    missing = [rel for rel in paths if not (REPO_ROOT / rel).exists()]
-    if missing:
-        raise SystemExit("missing required files:\n" + "\n".join(f"  - {rel}" for rel in missing))
+def _missing_files(paths: Sequence[str]) -> list[str]:
+    return [rel for rel in paths if not (REPO_ROOT / rel).exists()]
+
+
+def _missing_environment(names: Sequence[str]) -> list[dict[str, str]]:
+    return [
+        {"name": name, "hint": _environment_requirement_hint(name)}
+        for name in names
+        if not _environment_requirement_ready(name)
+    ]
 
 
 def _run_lane(lane: Lane) -> dict[str, object]:
-    _require_files(lane.required_files)
+    missing_files = _missing_files(lane.required_files)
+    if missing_files:
+        return {
+            "name": lane.name,
+            "ok": False,
+            "duration_s": 0.0,
+            "missing_files": missing_files,
+            "error": "missing required files",
+        }
+    missing_environment = _missing_environment(lane.required_environment)
+    if missing_environment:
+        return {
+            "name": lane.name,
+            "ok": False,
+            "duration_s": 0.0,
+            "missing_environment": missing_environment,
+            "error": "missing required environment",
+        }
     started = time.monotonic()
     for command in lane.commands:
         proc = subprocess.run(command, cwd=REPO_ROOT)
@@ -381,6 +560,7 @@ def _run_lane(lane: Lane) -> dict[str, object]:
                 "ok": False,
                 "duration_s": round(duration, 3),
                 "failed_command": list(command),
+                "error": "command failed",
             }
     duration = time.monotonic() - started
     return {"name": lane.name, "ok": True, "duration_s": round(duration, 3)}
@@ -449,6 +629,7 @@ def cmd_replay(args: argparse.Namespace) -> int:
                 "description": lane.description,
                 "commands": [list(command) for command in lane.commands],
                 "required_files": list(lane.required_files),
+                "required_environment": list(lane.required_environment),
             }
         )
     if args.plan:
@@ -459,6 +640,8 @@ def cmd_replay(args: argparse.Namespace) -> int:
             print("Replay plan")
             for lane in plan:
                 print(f"{lane['name']}: {lane['description']}")
+                for env_name in lane["required_environment"]:
+                    print(f"  requires: {env_name}")
                 for command in lane["commands"]:
                     print("  " + " ".join(command))
         return 0
@@ -475,6 +658,12 @@ def cmd_replay(args: argparse.Namespace) -> int:
         if args.format != "json":
             status = "OK" if result["ok"] else "FAIL"
             print(f"[{status}] {lane.name} ({result['duration_s']}s)")
+            for rel in result.get("missing_files", []):
+                print(f"  missing: {rel}")
+            for env_item in result.get("missing_environment", []):
+                print(f"  missing env: {env_item['name']} ({env_item['hint']})")
+            if result.get("error") == "command failed":
+                print("  failed command: " + " ".join(result["failed_command"]))
         if not result["ok"] and not args.keep_going:
             break
 
