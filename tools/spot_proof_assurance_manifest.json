@@ -39,12 +39,44 @@
       "sha256": "994e2ce3096917dcc9dbabd89a06691f97965a10d0ce6e2f907dd89ba5793ea8"
     },
     {
+      "path": "src/kernels/dex/settlement_create_pool_apply_witness_v1.yaml",
+      "sha256": "cc9cbe6fc315e9ecb4921ded28adfb294b26b4efcf75ac083c7fc857e3028db9"
+    },
+    {
+      "path": "src/kernels/dex/settlement_add_liquidity_ratio_witness_v1.yaml",
+      "sha256": "24fd943cd2892ecfb335c15bf43fe3e49d2cc09d1078db77aebb68c10cab1205"
+    },
+    {
+      "path": "src/kernels/dex/settlement_add_liquidity_apply_witness_v1.yaml",
+      "sha256": "aeaf9fc9a0515ff74dd261a8a9bd0b8a267cf2241db50db8a3cdafeb211d465b"
+    },
+    {
+      "path": "src/kernels/dex/settlement_remove_liquidity_apply_witness_v1.yaml",
+      "sha256": "f59974f5f7d5954a4360fe485b6a3c915eb2a9b3284a4580cce733c7a00a9cb9"
+    },
+    {
       "path": "src/kernels/dex/settlement_swap_apply_witness_v1.yaml",
       "sha256": "4641b77b8a5374aecc0ae28d3c08eb5427d7c04320f85dc675237b547819e2cd"
     },
     {
       "path": "src/kernels/dex/settlement_swap_exact_out_apply_witness_v1.yaml",
       "sha256": "ba70dead95466fb659114bcac48aecea0773d84ddaeeaa5e43c9bb01484ba5ed"
+    },
+    {
+      "path": "src/kernels/python/settlement_create_pool_apply_witness_v1_native_adapter.py",
+      "sha256": "6ce24d5d6d83bdd0d98dd61ccafb3d102fd60dc07eb94ddd2be4fab2aee725ee"
+    },
+    {
+      "path": "src/kernels/python/settlement_add_liquidity_ratio_witness_v1_native_adapter.py",
+      "sha256": "4bba494d974fca4aea8bf402627a65264544460cd050752b8621a6d7d2202f0d"
+    },
+    {
+      "path": "src/kernels/python/settlement_add_liquidity_apply_witness_v1_native_adapter.py",
+      "sha256": "8acc0ecc39fd4db2f3e4c542f981a07a11e6659013b7ad201dfc02e8fbeacfad"
+    },
+    {
+      "path": "src/kernels/python/settlement_remove_liquidity_apply_witness_v1_native_adapter.py",
+      "sha256": "e6c6e1ae6277b0fc3b94e80e19f2f8b253ee598a0eabd608a45c44b7eda55605"
     },
     {
       "path": "src/kernels/python/settlement_swap_apply_witness_v1_native_adapter.py",
@@ -56,6 +88,70 @@
     }
   ],
   "verify_multi": [
+    {
+      "report_path": "internal/esso_verify/settlement_create_pool_apply_witness_v1/verification_report.json",
+      "model_id": "settlement_create_pool_apply_witness_v1",
+      "ir_hash": "5f3f7b9a42f6bd64",
+      "scope_kind": "inductive",
+      "k": 1,
+      "solver_timeout_ms": 60000,
+      "passed_queries": 2,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_add_liquidity_ratio_witness_v1/verification_report.json",
+      "model_id": "settlement_add_liquidity_ratio_witness_v1",
+      "ir_hash": "a683169f39cf57ed",
+      "scope_kind": "inductive",
+      "k": 1,
+      "solver_timeout_ms": 60000,
+      "passed_queries": 2,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_add_liquidity_apply_witness_v1/verification_report.json",
+      "model_id": "settlement_add_liquidity_apply_witness_v1",
+      "ir_hash": "e0c9586b99fbdfcf",
+      "scope_kind": "inductive",
+      "k": 1,
+      "solver_timeout_ms": 60000,
+      "passed_queries": 2,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_remove_liquidity_apply_witness_v1/verification_report.json",
+      "model_id": "settlement_remove_liquidity_apply_witness_v1",
+      "ir_hash": "779d27ade779c391",
+      "scope_kind": "inductive",
+      "k": 1,
+      "solver_timeout_ms": 60000,
+      "passed_queries": 2,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
     {
       "report_path": "internal/esso_verify/settlement_swap_apply_witness_v1/verification_report.json",
       "model_id": "settlement_swap_apply_witness_v1",
@@ -90,6 +186,81 @@
     }
   ],
   "shell_lint": [
+    {
+      "report_path": "internal/esso_verify/settlement_create_pool_apply_witness_v1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.settlement_create_pool_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:5f3f7b9a42f6bd646305a5020807f0bddefe1049430b6bf9033657e77a2a069e",
+      "actions": [
+        "create_pool_apply"
+      ],
+      "effects": [
+        "amount0_used",
+        "amount1_used",
+        "balance_delta_ok",
+        "lp_delta_ok",
+        "lp_minted",
+        "lp_supply_after",
+        "reserve0_after",
+        "reserve1_after",
+        "reserve_delta_ok",
+        "witness_ok"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_add_liquidity_ratio_witness_v1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.settlement_add_liquidity_ratio_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:a683169f39cf57ed0dad10cecd4f7d415e2dbd121e4f3fe32ab5bb8e6a9f6604",
+      "actions": [
+        "bind_add_liquidity_ratio"
+      ],
+      "effects": [
+        "amount0_refund",
+        "amount0_used",
+        "amount1_refund",
+        "amount1_used",
+        "binding_ok",
+        "left_branch"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_add_liquidity_apply_witness_v1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.settlement_add_liquidity_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:e0c9586b99fbdfcf0b11993e7860e1be7fa73ac75c2965f9a8d8d46096b42940",
+      "actions": [
+        "add_liquidity_apply"
+      ],
+      "effects": [
+        "amount0_used",
+        "amount1_used",
+        "balance_delta_ok",
+        "lp_delta_ok",
+        "lp_math_ok",
+        "lp_minted",
+        "lp_supply_after",
+        "reserve0_after",
+        "reserve1_after",
+        "reserve_delta_ok"
+      ]
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_remove_liquidity_apply_witness_v1/shell_lint.json",
+      "adapter_spec": "src.kernels.python.settlement_remove_liquidity_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:779d27ade779c391eb365017165d3ece440e24623cb9f8aaa8390442c9c582ee",
+      "actions": [
+        "remove_liquidity_apply"
+      ],
+      "effects": [
+        "amount0_out",
+        "amount1_out",
+        "balance_delta_ok",
+        "lp_burned",
+        "lp_delta_ok",
+        "lp_supply_after",
+        "reserve0_after",
+        "reserve1_after",
+        "reserve_delta_ok"
+      ]
+    },
     {
       "report_path": "internal/esso_verify/settlement_swap_apply_witness_v1/shell_lint.json",
       "adapter_spec": "src.kernels.python.settlement_swap_apply_witness_v1_native_adapter:make_adapter",
@@ -131,6 +302,54 @@
   ],
   "verify_shell": [
     {
+      "report_path": "internal/esso_verify/settlement_create_pool_apply_witness_v1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/settlement_create_pool_apply_witness_v1.yaml",
+      "adapter_spec": "src.kernels.python.settlement_create_pool_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:5f3f7b9a42f6bd646305a5020807f0bddefe1049430b6bf9033657e77a2a069e",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:75c5913069ed7b9f3c74e01273953a23ace3f3c1949377015fdb080b89b126d4"
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_add_liquidity_ratio_witness_v1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/settlement_add_liquidity_ratio_witness_v1.yaml",
+      "adapter_spec": "src.kernels.python.settlement_add_liquidity_ratio_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:a683169f39cf57ed0dad10cecd4f7d415e2dbd121e4f3fe32ab5bb8e6a9f6604",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:840cfc0a5babb2066b98124199aef209dcbed37529bfd67d5c375bd35909c682"
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_add_liquidity_apply_witness_v1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/settlement_add_liquidity_apply_witness_v1.yaml",
+      "adapter_spec": "src.kernels.python.settlement_add_liquidity_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:e0c9586b99fbdfcf0b11993e7860e1be7fa73ac75c2965f9a8d8d46096b42940",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:e4b723fd298c0b6d4eb7aff7e85f6b773955dd7aeba008d3e895cbac05402cc3"
+    },
+    {
+      "report_path": "internal/esso_verify/settlement_remove_liquidity_apply_witness_v1/verify_shell.json",
+      "kernel_path": "src/kernels/dex/settlement_remove_liquidity_apply_witness_v1.yaml",
+      "adapter_spec": "src.kernels.python.settlement_remove_liquidity_apply_witness_v1_native_adapter:make_adapter",
+      "ir_hash": "sha256:779d27ade779c391eb365017165d3ece440e24623cb9f8aaa8390442c9c582ee",
+      "mode": "full",
+      "seed": 0,
+      "traces": 32,
+      "max_steps": 16,
+      "determinism_trials": 2,
+      "fingerprint": "sha256:ba8a8992e6459d353ad40312dbee5d5d6676e0f43e826672ba24fbfd54a99ef7"
+    },
+    {
       "report_path": "internal/esso_verify/settlement_swap_apply_witness_v1/verify_shell.json",
       "kernel_path": "src/kernels/dex/settlement_swap_apply_witness_v1.yaml",
       "adapter_spec": "src.kernels.python.settlement_swap_apply_witness_v1_native_adapter:make_adapter",
@@ -156,6 +375,10 @@
     }
   ],
   "adapter_regression_tests": [
+    "tests/kernels/test_settlement_create_pool_apply_witness_v1_native_adapter.py",
+    "tests/kernels/test_settlement_add_liquidity_ratio_witness_v1_native_adapter.py",
+    "tests/kernels/test_settlement_add_liquidity_apply_witness_v1_native_adapter.py",
+    "tests/kernels/test_settlement_remove_liquidity_apply_witness_v1_native_adapter.py",
     "tests/kernels/test_settlement_witness_native_adapter_edges.py",
     "tests/kernels/test_settlement_swap_apply_witness_v1_ml_bva_cases.py",
     "tests/kernels/test_settlement_swap_exact_out_apply_witness_v1_ml_bva_cases.py"

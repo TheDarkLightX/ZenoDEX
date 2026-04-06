@@ -12,11 +12,11 @@
   "source_files": [
     {
       "path": "src/kernels/dex/funding_rate_market_v1.yaml",
-      "sha256": "8e2869a4cd6e81b60479d02a3dad48a26d3be0adcf4dc9dc7c2737dae09f0065"
+      "sha256": "515321680b577f55810dbf84919b27a2dcc3957e5c4905865864620228100f3e"
     },
     {
       "path": "src/kernels/dex/funding_rate_market_v1_1.yaml",
-      "sha256": "ce9d2bd4776629b1efdf64fdf14f4dceff3c96fe0bba39a5047fcda4939e05a1"
+      "sha256": "2bd2ff64d94545a8831e2a2c544edcf803ac9b7d377df58128e796c014086d71"
     },
     {
       "path": "src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml",
@@ -28,7 +28,7 @@
     },
     {
       "path": "src/kernels/dex/curve_selection_market_v1.yaml",
-      "sha256": "25d7a5804719bd028c2d317b4b72b51c3a375f349bc76a26deec23a4d29364f9"
+      "sha256": "55f3a1526579b58f4f0988d85a35f95da41595789ab42e2bd83ad067ee9d7515"
     },
     {
       "path": "src/kernels/dex/volatility_tier_controller_v1.yaml",
@@ -40,11 +40,11 @@
     },
     {
       "path": "tests/core/test_funding_rate_market.py",
-      "sha256": "41fe0c8dc61476a3ef1988ca9556edc24cbb9ecb7f69b28d339421ca4322fb75"
+      "sha256": "b9a5542c630b9a4fd31b7571a390e78d93584291b676e693d1ee06b7581010e1"
     },
     {
       "path": "tests/core/test_funding_rate_market_ref_parity.py",
-      "sha256": "f020d40b76846e22f4e95623489c86cdabb843aa1fa9498c6bc4c23e72df803f"
+      "sha256": "de2ed28c5453148278e4d146da4594d5cd639bd332015abc43392d9f6ba2e523"
     },
     {
       "path": "tests/core/test_funding_rate_settlement_runtime_v1_1.py",
@@ -60,7 +60,7 @@
     },
     {
       "path": "tests/core/test_curve_selection.py",
-      "sha256": "85290c2495e8f84d31209b8e73e16b04c47a90367a21e10c28f9abf729013022"
+      "sha256": "4076867e434b997492bf5408837e547c165d6c357018aa6269f4877b840cdd02"
     },
     {
       "path": "tests/core/test_volatility_tier.py",
@@ -75,7 +75,7 @@
     {
       "report_path": "internal/esso_verify/derivatives/funding_rate_market_v1/verification_report.json",
       "model_id": "funding_rate_market_v1",
-      "ir_hash": "480d2b1ac1b090c9",
+      "ir_hash": "bba394cce8280473",
       "solvers": [
         "z3",
         "cvc5"
@@ -129,7 +129,7 @@
     {
       "report_path": "internal/esso_verify/derivatives/curve_selection_market_v1/verification_report.json",
       "model_id": "curve_selection_market_v1",
-      "ir_hash": "be93044dc15dfdaf",
+      "ir_hash": "2057d531bf0059b9",
       "solvers": [
         "z3",
         "cvc5"
