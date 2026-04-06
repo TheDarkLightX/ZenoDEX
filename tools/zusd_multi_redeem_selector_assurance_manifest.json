@@ -1,0 +1,102 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the zUSD multi-redeem selector micro-kernel. Update only alongside a successful run of tools/run_zusd_multi_redeem_selector_assurance_gate.sh and tools/check_zusd_multi_redeem_selector_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/zusd_multi_redeem_selector.py",
+      "sha256": "311dd40eae34f6f3f59b6ac6a653aa631d2aeb77785fd28cde421394373fc773"
+    },
+    {
+      "path": "src/kernels/dex/zusd_multi_redeem_selector_v1.yaml",
+      "sha256": "3b5b0c52acf89bdd434166df71f1a96ca390729cf2df124f4bad591a416ec221"
+    },
+    {
+      "path": "src/kernels/python/zusd_multi_redeem_selector_v1_native_adapter.py",
+      "sha256": "9aece8d087dc161fbd0502d6a2a81ee981e5f963c0e800888d1b11de474e7d67"
+    },
+    {
+      "path": "tests/kernels/test_zusd_multi_redeem_selector_v1_native_adapter.py",
+      "sha256": "e92f562ce6caed279c5d8866a399e2c1b5d4160f7ffe3f7454986d041b198bb7"
+    },
+    {
+      "path": "tests/core/test_zusd_multi_redeem_selector.py",
+      "sha256": "ee20c1c85be26d4b2c877b3298cf7261b6179fe9aafb969fe88353c576226fd3"
+    },
+    {
+      "path": "tools/run_zusd_multi_redeem_selector_assurance_gate.sh",
+      "sha256": "2e6264f0adb0dcfabb6f49d1870dc7771dcc64a496d4998a3a60555ee796d6ce"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/zusd_multi_redeem_selector_v1/validate.json",
+    "model_path": "src/kernels/dex/zusd_multi_redeem_selector_v1.yaml",
+    "ir_hash": "sha256:2fbcdf5c42eb0f14b84f6c481c812ff2d5012472546e8c32a7efe4992f6abae8"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/zusd_multi_redeem_selector_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.zusd_multi_redeem_selector_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:2fbcdf5c42eb0f14b84f6c481c812ff2d5012472546e8c32a7efe4992f6abae8",
+    "actions": [
+      "select_redeem_vault"
+    ],
+    "effects": [
+      "candidate_a_ok",
+      "candidate_b_ok",
+      "gross_collateral_e8",
+      "headroom_a_before_e8",
+      "headroom_b_before_e8",
+      "selected_vault",
+      "selection_ok"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/zusd_multi_redeem_selector_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/zusd_multi_redeem_selector_v1.yaml",
+    "adapter_spec": "src.kernels.python.zusd_multi_redeem_selector_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:2fbcdf5c42eb0f14b84f6c481c812ff2d5012472546e8c32a7efe4992f6abae8",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:6fb320e490ed433536f37f0e8d68b9e24c19a2bd83ca23d37e46cd43d8e1fba5"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/zusd_multi_redeem_selector_v1/verification_report.json",
+    "model_id": "zusd_multi_redeem_selector_v1",
+    "ir_hash_short": "2fbcdf5c42eb0f14",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_zusd_multi_redeem_selector.py",
+    "tests/kernels/test_zusd_multi_redeem_selector_v1_native_adapter.py"
+  ]
+}

@@ -1,0 +1,172 @@
+# [FORGE] zUSD Liquidation SP Absorb v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_liquidation_sp_absorb_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: single-vault liquidation apply witness into the stability pool.
+
+    Purpose:
+      - Make the "under MCR at pending price -> zero vault -> move debt/collateral
+        into SP buckets" rule explicit and replayable.
+      - Keep the witness small enough to reuse from the multi-vault model after a
+        separate selector names the vault to liquidate.
+
+    Assume/guarantee split:
+      - Assumes oracle initialization/auth is handled elsewhere; this kernel only
+        requires a positive pending price.
+      - Assumes the liquidation target is already selected in multi-vault flows.
+      - Guarantees only under-MCR-at-pending, SP absorption/cap checks, and the
+        resulting debt/collateral transfer.
+
+    Non-goals:
+      - oracle_report / oracle_commit policy
+      - multi-vault target selection
+      - broader system-debt conservation outside the selected vault + SP buckets
+
+observables:
+  state_vars:
+    [
+      "price_pending_e8",
+      "collateral_e8",
+      "debt_e8",
+      "sp_debt_e8",
+      "sp_coll_e8",
+      "max_sp_coll_e8",
+      "mcr_bps",
+    ]
+  effects:
+    [
+      "liquidated_debt_e8",
+      "liquidated_collateral_e8",
+      "sp_debt_after",
+      "sp_coll_after",
+      "under_mcr",
+    ]
+
+types: []
+
+state_vars:
+  - id: "price_pending_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000000000 }
+  - id: "collateral_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "sp_debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "sp_coll_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_sp_coll_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "mcr_bps"
+    role: "data"
+    type: { kind: "int", min: 1, max: 20000 }
+  - id: "debt_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "collateral_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+init:
+  - var: "price_pending_e8"
+    expr: { const: 100000000 }
+  - var: "collateral_e8"
+    expr: { const: 0 }
+  - var: "debt_e8"
+    expr: { const: 0 }
+  - var: "sp_debt_e8"
+    expr: { const: 0 }
+  - var: "sp_coll_e8"
+    expr: { const: 0 }
+  - var: "max_sp_coll_e8"
+    expr: { const: 1000000000000 }
+  - var: "mcr_bps"
+    expr: { const: 11000 }
+  - var: "debt_before"
+    expr: { const: 0 }
+  - var: "collateral_before"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_sp_coll_le_cap"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "sp_coll_e8" }, { var: "max_sp_coll_e8" }]
+
+  - id: "inv_before_bounds"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "debt_before" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "collateral_before" }, { const: 0 }] }
+
+actions:
+  - id: "apply_liquidation_sp_absorb"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "debt_e8" }, { const: 0 }] }
+        - op: "<"
+          args:
+            - op: "*"
+              args:
+                - { var: "collateral_e8" }
+                - op: "*"
+                  args: [{ var: "price_pending_e8" }, { const: 10000 }]
+            - op: "*"
+              args:
+                - { var: "debt_e8" }
+                - op: "*"
+                  args: [{ var: "mcr_bps" }, { const: 100000000 }]
+        - { op: "<=", args: [{ var: "debt_e8" }, { var: "sp_debt_e8" }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "sp_coll_e8" }, { var: "collateral_e8" }]
+            - { var: "max_sp_coll_e8" }
+    updates:
+      - var: "debt_before"
+        expr: { var: "debt_e8" }
+      - var: "collateral_before"
+        expr: { var: "collateral_e8" }
+      - var: "debt_e8"
+        expr: { const: 0 }
+      - var: "collateral_e8"
+        expr: { const: 0 }
+      - var: "sp_debt_e8"
+        expr:
+          op: "-"
+          args: [{ var: "sp_debt_e8" }, { var: "debt_e8" }]
+      - var: "sp_coll_e8"
+        expr:
+          op: "+"
+          args: [{ var: "sp_coll_e8" }, { var: "collateral_e8" }]
+    effects:
+      liquidated_debt_e8: { var: "debt_before" }
+      liquidated_collateral_e8: { var: "collateral_before" }
+      sp_debt_after: { var: "sp_debt_e8" }
+      sp_coll_after: { var: "sp_coll_e8" }
+      under_mcr:
+        op: "<"
+        args:
+          - op: "*"
+            args:
+              - { var: "collateral_before" }
+              - op: "*"
+                args: [{ var: "price_pending_e8" }, { const: 10000 }]
+          - op: "*"
+            args:
+              - { var: "debt_before" }
+              - op: "*"
+                args: [{ var: "mcr_bps" }, { const: 100000000 }]

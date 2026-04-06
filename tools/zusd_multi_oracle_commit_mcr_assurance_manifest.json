@@ -1,0 +1,98 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the zUSD multi-oracle-commit MCR witness micro-kernel. Update only alongside a successful run of tools/run_zusd_multi_oracle_commit_mcr_assurance_gate.sh and tools/check_zusd_multi_oracle_commit_mcr_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/zusd_multi_oracle_commit_mcr.py",
+      "sha256": "d275868358826278c13d5450abd22e155449fb1cfc9fb154bec6381d6fb78ff0"
+    },
+    {
+      "path": "src/kernels/dex/zusd_multi_oracle_commit_mcr_v1.yaml",
+      "sha256": "4bc091cd8ff28fde36b03e927b7755fb5761f791531ae627632c3a830da989c4"
+    },
+    {
+      "path": "src/kernels/python/zusd_multi_oracle_commit_mcr_v1_native_adapter.py",
+      "sha256": "35d51dd0242d6e3a4790bf5670e281abd3bbf53a31f0a76ac30f371702084e5a"
+    },
+    {
+      "path": "tests/kernels/test_zusd_multi_oracle_commit_mcr_v1_native_adapter.py",
+      "sha256": "d74779bf9e7058f77bdf4fc692b07f0bb486e57854a9795e4fd03479c25042ce"
+    },
+    {
+      "path": "tests/core/test_zusd_multi_oracle_commit_mcr.py",
+      "sha256": "002da383432e596ce5537a3badd8fb7dbd77ccda36665b8ce9757b299354b4e1"
+    },
+    {
+      "path": "tools/run_zusd_multi_oracle_commit_mcr_assurance_gate.sh",
+      "sha256": "46608b740c6d08aff10ad9a2e2f8dabe33b942823c3a4a7ea8b66278648d24df"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/zusd_multi_oracle_commit_mcr_v1/validate.json",
+    "model_path": "src/kernels/dex/zusd_multi_oracle_commit_mcr_v1.yaml",
+    "ir_hash": "sha256:0327770ad890782df3d346a9ad138e3018befe7892993a5090a6c9c818c86e5c"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/zusd_multi_oracle_commit_mcr_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.zusd_multi_oracle_commit_mcr_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:0327770ad890782df3d346a9ad138e3018befe7892993a5090a6c9c818c86e5c",
+    "actions": [
+      "evaluate_multi_oracle_commit_mcr"
+    ],
+    "effects": [
+      "mcr_ok_at_pending",
+      "vault_a_mcr_ok",
+      "vault_b_mcr_ok"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/zusd_multi_oracle_commit_mcr_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/zusd_multi_oracle_commit_mcr_v1.yaml",
+    "adapter_spec": "src.kernels.python.zusd_multi_oracle_commit_mcr_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:0327770ad890782df3d346a9ad138e3018befe7892993a5090a6c9c818c86e5c",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:6d909bf5a11a3e5ee5182ac5a94ab4b8820447e576edc1dd63f47ac3cecd2e19"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/zusd_multi_oracle_commit_mcr_v1/verification_report.json",
+    "model_id": "zusd_multi_oracle_commit_mcr_v1",
+    "ir_hash_short": "0327770ad890782d",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_zusd_multi_oracle_commit_mcr.py",
+    "tests/kernels/test_zusd_multi_oracle_commit_mcr_v1_native_adapter.py"
+  ]
+}

@@ -1,0 +1,184 @@
+# [FORGE] zUSD Oracle Commit Apply v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_oracle_commit_apply_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: guarded oracle-commit state transition.
+
+    Purpose:
+      - Make the pending-price commit boundary explicit and replayable.
+      - Bind the control-plane transition that copies `price_pending_e8` into
+        `price_e8` and refreshes `oracle_last_update_epoch` only when the
+        environment and policy flags match the Tau acceptance path.
+
+    Assume/guarantee split:
+      - Assumes the caller projected the topology-specific MCR-at-pending verdict
+        into `mcr_ok_at_pending`.
+      - Guarantees the raw oracle environment checks (pending <= active and freshness),
+        policy checks (auth + MCR-at-pending), and the resulting state update.
+
+    Non-goals:
+      - per-vault MCR arithmetic
+      - oracle_report monotonicity beyond the observed pending/active snapshot
+      - nonce / auth identity semantics
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "oracle_seen",
+      "oracle_last_update_epoch",
+      "price_e8",
+      "price_pending_e8",
+      "max_oracle_staleness_epochs",
+      "auth_ok",
+      "mcr_ok_at_pending",
+    ]
+  effects:
+    [
+      "env_ok",
+      "fresh_ok",
+      "oracle_commit_allowed",
+      "oracle_last_update_after",
+      "pending_le_active",
+      "policy_ok",
+      "price_after_e8",
+    ]
+
+types: []
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "oracle_seen"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "price_pending_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "max_oracle_staleness_epochs"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000 }
+  - id: "auth_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "mcr_ok_at_pending"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "oracle_seen"
+    expr: { const: 0 }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+  - var: "price_e8"
+    expr: { const: 0 }
+  - var: "price_pending_e8"
+    expr: { const: 0 }
+  - var: "max_oracle_staleness_epochs"
+    expr: { const: 100 }
+  - var: "auth_ok"
+    expr: { const: 0 }
+  - var: "mcr_ok_at_pending"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_last_update_not_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "oracle_last_update_epoch" }, { var: "now_epoch" }]
+
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "oracle_seen" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "auth_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "mcr_ok_at_pending" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "mcr_ok_at_pending" }, { const: 1 }] }
+
+actions:
+  - id: "apply_oracle_commit"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+        - { op: "<=", args: [{ var: "price_pending_e8" }, { var: "price_e8" }] }
+        - op: "<="
+          args:
+            - op: "-"
+              args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+            - { var: "max_oracle_staleness_epochs" }
+        - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "mcr_ok_at_pending" }, { const: 1 }] }
+    updates:
+      - var: "price_e8"
+        expr: { var: "price_pending_e8" }
+      - var: "oracle_last_update_epoch"
+        expr: { var: "now_epoch" }
+    effects:
+      pending_le_active:
+        op: "<="
+        args: [{ var: "price_pending_e8" }, { var: "price_e8" }]
+      fresh_ok:
+        op: "<="
+        args:
+          - op: "-"
+            args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+          - { var: "max_oracle_staleness_epochs" }
+      env_ok:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+          - op: "<="
+            args: [{ var: "price_pending_e8" }, { var: "price_e8" }]
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      policy_ok:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "mcr_ok_at_pending" }, { const: 1 }] }
+      oracle_commit_allowed:
+        op: "and"
+        args:
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+              - op: "<="
+                args: [{ var: "price_pending_e8" }, { var: "price_e8" }]
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                  - { var: "max_oracle_staleness_epochs" }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "mcr_ok_at_pending" }, { const: 1 }] }
+      price_after_e8: { var: "price_e8" }
+      oracle_last_update_after: { var: "oracle_last_update_epoch" }

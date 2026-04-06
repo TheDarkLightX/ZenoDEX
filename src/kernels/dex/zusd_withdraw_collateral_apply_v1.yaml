@@ -1,0 +1,137 @@
+# [FORGE] zUSD Withdraw Collateral Apply v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_withdraw_collateral_apply_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: selected-vault collateral withdraw apply witness.
+
+    Purpose:
+      - Make the value-moving collateral withdraw path explicit and replayable.
+      - Bind the exact collateral delta, conditional risky-op gate, and post-MCR
+        check for a selected vault.
+      - Keep the kernel reusable from the multi-vault wrapper after a separate
+        selector chooses the target vault and projects the risky-op gate result.
+
+    Assume/guarantee split:
+      - Assumes authorization / nonce checks already passed.
+      - Assumes `risky_ops_allowed` was projected by a separate oracle/recovery
+        gate witness.
+      - Assumes the target vault has already been selected in multi-vault flows.
+      - Guarantees only the local withdraw delta, risk-gate admissibility, and
+        post-state MCR-safe collateral transition.
+
+    Non-goals:
+      - oracle freshness / pending-match evaluation
+      - multi-vault target selection
+      - debt/free-debt transitions
+
+observables:
+  state_vars:
+    [
+      "collateral_e8",
+      "debt_e8",
+      "price_e8",
+      "mcr_bps",
+      "risky_ops_allowed",
+    ]
+  effects:
+    [
+      "collateral_after_e8",
+      "mcr_post_ok",
+      "risk_gate_ok",
+      "withdrawn_collateral_e8",
+    ]
+
+types: []
+
+state_vars:
+  - id: "collateral_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "debt_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "price_e8"
+    role: "data"
+    type: { kind: "int", min: 1, max: 1000000000000 }
+  - id: "mcr_bps"
+    role: "data"
+    type: { kind: "int", min: 1, max: 20000 }
+  - id: "risky_ops_allowed"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "collateral_e8"
+    expr: { const: 0 }
+  - var: "debt_e8"
+    expr: { const: 0 }
+  - var: "price_e8"
+    expr: { const: 100000000 }
+  - var: "mcr_bps"
+    expr: { const: 11000 }
+  - var: "risky_ops_allowed"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_risky_ops_bool"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "risky_ops_allowed" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "risky_ops_allowed" }, { const: 1 }] }
+
+actions:
+  - id: "apply_withdraw_collateral"
+    params:
+      - id: "amount_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "amount_e8" }, { var: "collateral_e8" }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "debt_e8" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "risky_ops_allowed" }, { const: 1 }] }
+        - op: ">="
+          args:
+            - op: "*"
+              args:
+                - op: "-"
+                  args: [{ var: "collateral_e8" }, { param: "amount_e8" }]
+                - op: "*"
+                  args: [{ var: "price_e8" }, { const: 10000 }]
+            - op: "*"
+              args:
+                - { var: "debt_e8" }
+                - op: "*"
+                  args: [{ var: "mcr_bps" }, { const: 100000000 }]
+    updates:
+      - var: "collateral_e8"
+        expr:
+          op: "-"
+          args: [{ var: "collateral_e8" }, { param: "amount_e8" }]
+    effects:
+      withdrawn_collateral_e8: { param: "amount_e8" }
+      collateral_after_e8: { var: "collateral_e8" }
+      risk_gate_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "debt_e8" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "risky_ops_allowed" }, { const: 1 }] }
+      mcr_post_ok:
+        op: ">="
+        args:
+          - op: "*"
+            args:
+              - { var: "collateral_e8" }
+              - op: "*"
+                args: [{ var: "price_e8" }, { const: 10000 }]
+          - op: "*"
+            args:
+              - { var: "debt_e8" }
+              - op: "*"
+                args: [{ var: "mcr_bps" }, { const: 100000000 }]
