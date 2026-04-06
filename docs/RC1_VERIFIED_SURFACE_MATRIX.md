@@ -23,11 +23,9 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
 | Surface | Authority | Backing lanes | Primary check |
 | --- | --- | --- | --- |
 | Core spot DEX path | `consensus/runtime` | `kernel-assurance` (READY)<br>`spot-proof` (READY)<br>`spot-evidence` (READY)<br>`critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay public` |
-| Public assurance and release replay surface | `release/replay` | `kernel-assurance` (READY)<br>`spot-proof` (READY)<br>`spot-evidence` (READY)<br>`derivatives` (READY)<br>`perps` (READY)<br>`zusd` (READY)<br>`critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py status` |
+| Public assurance and release replay surface | `release/replay` | `kernel-assurance` (READY)<br>`spot-proof` (READY)<br>`spot-evidence` (READY)<br>`derivatives` (READY)<br>`perps` (READY)<br>`critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py status` |
 | Bounded TLA claim surface | `public formal claim` | `release` (READY) | `python3 tools/run_tla_models.py --json` |
-| Supported HTTP boundary | `runtime ingress` | `critical` (READY)<br>`release` (READY) | `python3 tools/rc1_readiness.py` |
-| zUSD Tau wallet and transport replay lane | `wallet/transport` | `zusd` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay zusd` |
-| Tau wallet veto / O5 policy guard | `bounded control-plane guard` | `zusd` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay zusd` |
+| Supported HTTP boundary | `runtime ingress` | `critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay critical` |
 
 ## Surface Details
 
@@ -77,7 +75,6 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `tools/run_spot_proof_assurance_gate.sh`
   - `tools/run_derivatives_evidence.sh`
   - `tools/run_perps_evidence.sh`
-  - `tools/run_zusd_evidence.sh`
 - Backing lanes:
   - `kernel-assurance`: READY
     Re-run the manifest-backed kernel assurance corpus and solver checks.
@@ -89,8 +86,6 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
     Rebuild the derivatives evidence lane, then pin-check the manifest.
   - `perps`: READY
     Replay the perps functional-core tests, micro-gate assurances, kernel verify-multi checks, and Lean safety proofs.
-  - `zusd`: READY
-    Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.
   - `critical`: READY
     Run the publishable critical quality gate with branch coverage and static checks.
   - `release`: READY
@@ -101,7 +96,7 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `python3 tools/permissionless_assurance.py replay critical`
   - `python3 tools/permissionless_assurance.py replay full`
 - Notes:
-  - This is the repo-visible replay contract for a fresh clone.
+  - This is the repo-visible replay contract for a clean checkout plus the documented external toolchains.
   - The release claim is only as strong as these tracked replay lanes.
 
 ### Bounded TLA claim surface
@@ -146,56 +141,19 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `release`: READY
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
-  - `python3 tools/rc1_readiness.py`
-  - `python3 tools/rc1_readiness.py --check`
+  - `python3 tools/permissionless_assurance.py replay critical`
+  - `python3 tools/permissionless_assurance.py replay full`
 - Notes:
   - Only the listed quote and settlement-certificate routes are RC1-backed.
   - The broader API server remains out of scope unless separately promoted.
 
-### zUSD Tau wallet and transport replay lane
-
-- Authority: `wallet/transport`
-- Claim class: narrow wallet-facing transfer and mint/burn contract
-- Docs:
-  - `docs/ZUSD_TAU_WALLET.md`
-  - `docs/RC1_SCOPE.md`
-- Runtime and artifact paths:
-  - `tools/zusd_tau_wallet.py`
-  - `src/integration/zusd_tau_token.py`
-  - `src/tau_specs/recommended/protocol_token_v1.tau`
-  - `src/tau_specs/recommended/zusd_transfer_guard_v1.tau`
-- Backing lanes:
-  - `zusd`: READY
-    Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.
-  - `release`: READY
-    Run the full release gate, including Tau, proof, evidence, and audit lanes.
-- Primary commands:
-  - `python3 tools/permissionless_assurance.py replay zusd`
-  - `python3 tools/zusd_tau_wallet.py transfer ...`
-  - `python3 tools/zusd_tau_wallet.py mint ...`
-  - `python3 tools/zusd_tau_wallet.py burn ...`
-- Notes:
-  - This is intentionally narrower than a claim of generic wallet support.
-
 ### Tau wallet veto / O5 policy guard
 
-- Authority: `bounded control-plane guard`
-- Claim class: sender-scoped veto and policy guard
-- Docs:
-  - `docs/TAU_WALLET_O5_GUARD.md`
-  - `docs/RC1_SCOPE.md`
-- Runtime and artifact paths:
-  - `docs/TAU_WALLET_O5_GUARD.md`
-- Backing lanes:
-  - `zusd`: READY
-    Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.
-  - `release`: READY
-    Run the full release gate, including Tau, proof, evidence, and audit lanes.
-- Primary commands:
-  - `python3 tools/permissionless_assurance.py replay zusd`
+- Status: not part of the current public RC1 replay contract.
 - Notes:
-  - This is in scope only as a bounded operator and control-plane feature.
-  - It is not a broad end-user wallet product claim.
+  - related wallet/policy materials may exist in the repo
+  - the runnable lane and its full gate family are not published as part of the conservative RC1 surface
+  - do not describe this as RC1-backed until the full transport slice is published coherently
 
 ## Excluded Claims That Must Stay Out Of RC1
 
@@ -216,9 +174,10 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
 
 ## Release Hooks
 
-- `python3 tools/rc1_readiness.py`
-- `python3 tools/rc1_readiness.py --check`
-- `python3 tools/render_rc1_verified_surface_matrix.py --check`
+- `python3 tools/permissionless_assurance.py status`
+- `python3 tools/permissionless_assurance.py replay critical`
+- `python3 tools/permissionless_assurance.py replay full`
+- `python3 tools/render_tla_claim_summary.py --check`
 
 These checks are intentionally narrower than the full repo. They exist to keep the RC1 claim specific and auditable.
 

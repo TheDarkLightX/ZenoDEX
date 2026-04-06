@@ -20,7 +20,7 @@ For the proposed include/exclude release surface, see [RC1_SCOPE.md](RC1_SCOPE.m
 
 - core spot DEX functional path
 - supported API/runtime path
-- wallet/sign/transport path for the supported operations
+- pinned spot signing and nonce path for the supported operations
 - public assurance replay surface
 - pinned proof/evidence/release gates
 
@@ -39,12 +39,12 @@ Reason:
 
 ## Current RC1 Posture
 
-As of 2026-04-05:
+As of 2026-04-06:
 
 - `python3 tools/permissionless_assurance.py status` reports:
-  - `assurance snapshot: OK (as of 2026-03-22)`
+  - `assurance snapshot: OK (as of 2026-04-06)`
   - `tla claim summary: OK`
-  - `lane readiness: 8/8`
+  - `lane readiness: 7/7`
   - `release: READY`
 - the tree is still heavily dirty, so this is **not** yet an RC1 cut candidate by itself
 
@@ -66,11 +66,11 @@ RC1 must name the exact supported surface:
 
 Without this, “RC1” is ambiguous and will overclaim.
 
-The checked artifact for this scope freeze is:
+The checked artifact for this scope freeze is the committed RC1 documentation plus the replay proofboard:
 
 ```bash
-python3 tools/render_rc1_supported_runtime_path.py --check
-python3 tools/render_rc1_verified_surface_matrix.py --check
+python3 tools/permissionless_assurance.py status
+python3 tools/render_tla_claim_summary.py --check
 ```
 
 ### 2. Cut from a clean release tree

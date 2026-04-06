@@ -18,29 +18,15 @@ The seL4-style verified-configuration view for the same conservative boundary is
 - [RC1_VERIFIED_SURFACE_MATRIX.md](RC1_VERIFIED_SURFACE_MATRIX.md)
 - [RC1_SUPPORTED_RUNTIME_PATH.md](RC1_SUPPORTED_RUNTIME_PATH.md)
 
-The machine-readable form of this boundary lives in:
-
-- `tools/rc1_scope_manifest.json`
-
-And the executable status/check surface is:
+The repo-visible boundary is captured by the committed RC1 docs and the replay proofboard:
 
 ```bash
-python3 tools/rc1_readiness.py
-python3 tools/rc1_readiness.py --check
-python3 tools/render_rc1_supported_runtime_path.py --check
-python3 tools/render_rc1_verified_surface_matrix.py --check
-```
-
-The candidate runner for the same conservative surface is:
-
-```bash
-python3 tools/rc1_candidate.py --plan
-python3 tools/rc1_candidate.py
-python3 tools/rc1_candidate.py --plan --report-out rc1_candidate_report.json
-python3 tools/rc1_candidate.py --plan --campaign-root rc1_candidates --run-id rc1-smoke
-python3 tools/rc1_candidate_index.py
-python3 tools/rc1_candidate_index.py --format markdown
-python3 tools/rc1_candidate_report.py --html-out rc1_candidates.html
+python3 tools/permissionless_assurance.py status
+python3 tools/permissionless_assurance.py replay public
+python3 tools/permissionless_assurance.py replay critical
+python3 tools/permissionless_assurance.py replay full
+python3 tools/render_tla_claim_summary.py --check
+python3 tools/run_tla_models.py --json
 ```
 
 ## RC1 Principle
@@ -112,14 +98,9 @@ python3 tools/run_tla_models.py --json
 
 ### Verified surface matrix
 
-The checked RC1 matrix is also part of the release boundary:
+The committed RC1 runtime-path and verified-surface docs are part of the release boundary.
 
-```bash
-python3 tools/render_rc1_supported_runtime_path.py --check
-python3 tools/render_rc1_verified_surface_matrix.py --check
-```
-
-These checked artifacts exist to keep the RC1 claim configuration-specific and path-specific rather than prose-only.
+These artifacts exist to keep the RC1 claim configuration-specific and path-specific rather than prose-only.
 
 ### 4. Supported HTTP boundary
 
@@ -143,26 +124,11 @@ certificate families should remain outside RC1 unless separately promoted.
 
 ### 5. Tau wallet / transport replay lane for zUSD
 
-The public replay lane already exposes a narrow wallet-facing transport surface:
+This path is not part of the current public RC1 replay contract.
 
-- [ZUSD_TAU_WALLET.md](ZUSD_TAU_WALLET.md)
-
-Recommended RC1-supported wallet CLI:
-
-```bash
-python3 tools/zusd_tau_wallet.py transfer ...
-python3 tools/zusd_tau_wallet.py mint ...
-python3 tools/zusd_tau_wallet.py burn ...
-```
-
-Replay lane:
-
-```bash
-bash tools/run_zusd_evidence.sh
-python3 tools/permissionless_assurance.py replay zusd
-```
-
-This is a much cleaner RC1 claim than “generic wallet support.”
+- [ZUSD_TAU_WALLET.md](ZUSD_TAU_WALLET.md) remains design/review material only
+- the runnable wallet CLI and its full assurance gate family are not yet published in the committed public slice
+- do not describe this as RC1-backed until that slice is published coherently
 
 ### 6. Tau wallet veto / policy guard as a bounded control-plane feature
 
@@ -241,15 +207,9 @@ python3 tools/permissionless_assurance.py status
 python3 tools/permissionless_assurance.py replay public
 python3 tools/permissionless_assurance.py replay critical
 python3 tools/permissionless_assurance.py replay full
-python3 tools/permissionless_assurance.py replay zusd
 bash tools/prod_gate.sh
-python3 tools/render_rc1_supported_runtime_path.py --check
-python3 tools/render_rc1_verified_surface_matrix.py --check
 python3 tools/render_tla_claim_summary.py --check
 python3 tools/run_tla_models.py --json
-python3 tools/zusd_tau_wallet.py transfer ...
-python3 tools/zusd_tau_wallet.py mint ...
-python3 tools/zusd_tau_wallet.py burn ...
 ```
 
 Anything beyond this list should not be described as RC1-backed unless it is
@@ -264,7 +224,6 @@ Safe release language:
 - fail-closed
 - supported spot DEX path
 - public assurance surface
-- zUSD wallet/transport replay lane
 
 Unsafe release language:
 

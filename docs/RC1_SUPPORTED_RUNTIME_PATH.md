@@ -6,15 +6,15 @@ permalink: autonomous-tau-dex-review/docs/rc1-supported-runtime-path
 
 # RC1 Supported Runtime And Signing Path
 
-<!-- Generated from tools/rc1_scope_manifest.json. -->
+<!-- Conservative RC1 runtime-path note. -->
 
 ```text
-RuntimePathOK := ReadOnlyHTTPBounded ∧ SpotAdmissionPinned ∧ WalletTransportPinned
+RuntimePathOK := ReadOnlyHTTPBounded ∧ SpotAdmissionPinned
 ```
 
-Standard reading: the conservative RC1 runtime claim is only about a narrow HTTP subset, one pinned spot admission/signing path, and the narrow zUSD wallet transport path.
+Standard reading: the conservative RC1 runtime claim is only about a narrow HTTP subset and one pinned spot admission/signing path.
 
-Practical consequence: this document does not promote the entire integration shell into RC1 authority.
+Practical consequence: this document does not promote the entire integration shell into RC1 authority, and it does not advertise unpublished wallet transport lanes as RC1-backed.
 
 ## 1. Read-only HTTP subset
 
@@ -58,19 +58,15 @@ Practical consequence: RC1 should describe one exact signing and nonce path, not
 
 ## 3. zUSD Tau wallet transport
 
-- Doc: `docs/ZUSD_TAU_WALLET.md`
-- CLI: `tools/zusd_tau_wallet.py`
-- Replay command:
-  - `python3 tools/permissionless_assurance.py replay zusd`
-- Coverage tests:
-  - `tests/integration/test_zusd_tau_wallet_cli.py`
+- Status: not part of the current public RC1 replay contract
 - Notes:
-  - This path covers Tau-native token transport for transfer, mint, and burn.
-  - It is narrower than a generic wallet or broad HTTP product claim.
+  - the repo still contains design and review material for a zUSD Tau wallet transport lane
+  - the runnable wallet CLI and its full assurance gate family are not yet published in the committed public slice
+  - until that slice is published coherently, this path must not be described as RC1-backed or as a public replay lane
 
 ## Release Hooks
 
-- `python3 tools/render_rc1_supported_runtime_path.py --check`
-- `python3 tools/rc1_readiness.py --check`
-- `python3 tools/rc1_candidate.py --plan`
+- `python3 tools/permissionless_assurance.py status`
+- `python3 tools/permissionless_assurance.py replay critical`
+- `python3 tools/permissionless_assurance.py replay full`
 

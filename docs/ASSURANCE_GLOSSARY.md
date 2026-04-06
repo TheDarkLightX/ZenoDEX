@@ -13,7 +13,7 @@ of the scoped release statement.
 
 ## `public replay`
 
-Reproducible from a fresh clone via the shipped replay and checker surface.
+Reproducible from a clean checkout plus the documented external toolchains via the shipped replay and checker surface.
 
 Public replay means the repo ships enough manifests, refs, and scripts for an
 independent operator to rerun the bounded assurance lane. It does not mean the
