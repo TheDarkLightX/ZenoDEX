@@ -36,11 +36,11 @@ The candidate runner for the same conservative surface is:
 ```bash
 python3 tools/rc1_candidate.py --plan
 python3 tools/rc1_candidate.py
-python3 tools/rc1_candidate.py --plan --report-out /tmp/rc1_candidate_report.json
-python3 tools/rc1_candidate.py --plan --campaign-root internal/rc1_candidates --run-id rc1-smoke
+python3 tools/rc1_candidate.py --plan --report-out rc1_candidate_report.json
+python3 tools/rc1_candidate.py --plan --campaign-root rc1_candidates --run-id rc1-smoke
 python3 tools/rc1_candidate_index.py
 python3 tools/rc1_candidate_index.py --format markdown
-python3 tools/rc1_candidate_report.py --html-out /tmp/rc1_candidates.html
+python3 tools/rc1_candidate_report.py --html-out rc1_candidates.html
 ```
 
 ## RC1 Principle
