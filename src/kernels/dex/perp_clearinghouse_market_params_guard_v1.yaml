@@ -1,0 +1,281 @@
+# [FORGE] Perp Clearinghouse Market Params Guard v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_clearinghouse_market_params_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: clearinghouse set_market_params admission guard.
+
+    Purpose:
+      - Make the handwritten clearinghouse market-parameter policy in
+        `src/integration/perp_engine.py` explicit and replayable.
+      - Cover the operator-only / settled-epoch / liquidation-penalty posture
+        seam shared by both 2-party and 3-party clearinghouse markets before
+        post-update ref-model validation runs.
+
+    Assume/guarantee split:
+      - Assumes the host already validated `params` as an object and already
+        applied per-key bounds filtering to compute the candidate post-update
+        penalty and maintenance values.
+      - Assumes the host still runs the underlying clearinghouse ref-model
+        invariant check after this admission guard passes.
+      - Guarantees only deterministic admission classification for market kind,
+        operator auth, settled-epoch posture, open-position penalty increases,
+        and the policy rule `liquidation_penalty_bps < maintenance_margin_bps`.
+
+    Non-goals:
+      - arbitrary params schema validation
+      - ref-model invariant checking
+      - value-moving state transitions
+
+observables:
+  state_vars:
+    [
+      "market_kind",
+      "operator_ok",
+      "epoch_settled_ok",
+      "position_base_a",
+      "position_base_b",
+      "position_base_c",
+      "old_liquidation_penalty_bps",
+      "new_liquidation_penalty_bps",
+      "new_maintenance_margin_bps",
+    ]
+  effects:
+    [
+      "market_kind_ok",
+      "positions_open",
+      "penalty_increase_ok",
+      "penalty_below_maintenance_ok",
+      "admission_ok",
+      "reject_code",
+    ]
+
+types:
+  - id: "t_reject_code"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "Ok",
+          "InvalidMarketKind",
+          "OperatorOnly",
+          "MidEpoch",
+          "PenaltyIncreaseWhileOpen",
+          "PenaltyAboveMaintenance",
+        ]
+
+state_vars:
+  - id: "market_kind"
+    role: "control"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "operator_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "epoch_settled_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "position_base_a"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+  - id: "position_base_b"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+  - id: "position_base_c"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+  - id: "old_liquidation_penalty_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "new_liquidation_penalty_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "new_maintenance_margin_bps"
+    role: "data"
+    type: { kind: "int", min: 0, max: 10000 }
+
+init:
+  - var: "market_kind"
+    expr: { const: 0 }
+  - var: "operator_ok"
+    expr: { const: 0 }
+  - var: "epoch_settled_ok"
+    expr: { const: 0 }
+  - var: "position_base_a"
+    expr: { const: 0 }
+  - var: "position_base_b"
+    expr: { const: 0 }
+  - var: "position_base_c"
+    expr: { const: 0 }
+  - var: "old_liquidation_penalty_bps"
+    expr: { const: 0 }
+  - var: "new_liquidation_penalty_bps"
+    expr: { const: 0 }
+  - var: "new_maintenance_margin_bps"
+    expr: { const: 1 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "operator_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "operator_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_clearinghouse_market_params_guard"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      market_kind_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "market_kind" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "market_kind" }, { const: 2 }] }
+      positions_open:
+        op: "ite"
+        cond: { op: "=", args: [{ var: "market_kind" }, { const: 1 }] }
+        then:
+          op: "or"
+          args:
+            - { op: "!=", args: [{ var: "position_base_a" }, { const: 0 }] }
+            - { op: "!=", args: [{ var: "position_base_b" }, { const: 0 }] }
+        else:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "market_kind" }, { const: 2 }] }
+          then:
+            op: "or"
+            args:
+              - { op: "!=", args: [{ var: "position_base_a" }, { const: 0 }] }
+              - { op: "!=", args: [{ var: "position_base_b" }, { const: 0 }] }
+              - { op: "!=", args: [{ var: "position_base_c" }, { const: 0 }] }
+          else: { bool: false }
+      penalty_increase_ok:
+        op: "or"
+        args:
+          - op: "not"
+            args:
+              - op: "ite"
+                cond: { op: "=", args: [{ var: "market_kind" }, { const: 1 }] }
+                then:
+                  op: "or"
+                  args:
+                    - { op: "!=", args: [{ var: "position_base_a" }, { const: 0 }] }
+                    - { op: "!=", args: [{ var: "position_base_b" }, { const: 0 }] }
+                else:
+                  op: "ite"
+                  cond: { op: "=", args: [{ var: "market_kind" }, { const: 2 }] }
+                  then:
+                    op: "or"
+                    args:
+                      - { op: "!=", args: [{ var: "position_base_a" }, { const: 0 }] }
+                      - { op: "!=", args: [{ var: "position_base_b" }, { const: 0 }] }
+                      - { op: "!=", args: [{ var: "position_base_c" }, { const: 0 }] }
+                  else: { bool: false }
+          - op: "<="
+            args:
+              - { var: "new_liquidation_penalty_bps" }
+              - { var: "old_liquidation_penalty_bps" }
+      penalty_below_maintenance_ok:
+        op: "<"
+        args:
+          - { var: "new_liquidation_penalty_bps" }
+          - { var: "new_maintenance_margin_bps" }
+      admission_ok:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - { op: "=", args: [{ var: "market_kind" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "market_kind" }, { const: 2 }] }
+          - { op: "=", args: [{ var: "operator_ok" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 1 }] }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "ite"
+                    cond: { op: "=", args: [{ var: "market_kind" }, { const: 1 }] }
+                    then:
+                      op: "or"
+                      args:
+                        - { op: "!=", args: [{ var: "position_base_a" }, { const: 0 }] }
+                        - { op: "!=", args: [{ var: "position_base_b" }, { const: 0 }] }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ var: "market_kind" }, { const: 2 }] }
+                      then:
+                        op: "or"
+                        args:
+                          - { op: "!=", args: [{ var: "position_base_a" }, { const: 0 }] }
+                          - { op: "!=", args: [{ var: "position_base_b" }, { const: 0 }] }
+                          - { op: "!=", args: [{ var: "position_base_c" }, { const: 0 }] }
+                      else: { bool: false }
+              - op: "<="
+                args:
+                  - { var: "new_liquidation_penalty_bps" }
+                  - { var: "old_liquidation_penalty_bps" }
+          - op: "<"
+            args:
+              - { var: "new_liquidation_penalty_bps" }
+              - { var: "new_maintenance_margin_bps" }
+      reject_code:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { op: "!=", args: [{ var: "market_kind" }, { const: 1 }] }
+            - { op: "!=", args: [{ var: "market_kind" }, { const: 2 }] }
+        then: { enum: "InvalidMarketKind" }
+        else:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "operator_ok" }, { const: 0 }] }
+          then: { enum: "OperatorOnly" }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "epoch_settled_ok" }, { const: 0 }] }
+            then: { enum: "MidEpoch" }
+            else:
+              op: "ite"
+              cond:
+                op: "and"
+                args:
+                  - op: "ite"
+                    cond: { op: "=", args: [{ var: "market_kind" }, { const: 1 }] }
+                    then:
+                      op: "or"
+                      args:
+                        - { op: "!=", args: [{ var: "position_base_a" }, { const: 0 }] }
+                        - { op: "!=", args: [{ var: "position_base_b" }, { const: 0 }] }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ var: "market_kind" }, { const: 2 }] }
+                      then:
+                        op: "or"
+                        args:
+                          - { op: "!=", args: [{ var: "position_base_a" }, { const: 0 }] }
+                          - { op: "!=", args: [{ var: "position_base_b" }, { const: 0 }] }
+                          - { op: "!=", args: [{ var: "position_base_c" }, { const: 0 }] }
+                      else: { bool: false }
+                  - op: ">"
+                    args:
+                      - { var: "new_liquidation_penalty_bps" }
+                      - { var: "old_liquidation_penalty_bps" }
+              then: { enum: "PenaltyIncreaseWhileOpen" }
+              else:
+                op: "ite"
+                cond:
+                  op: ">="
+                  args:
+                    - { var: "new_liquidation_penalty_bps" }
+                    - { var: "new_maintenance_margin_bps" }
+                then: { enum: "PenaltyAboveMaintenance" }
+                else: { enum: "Ok" }

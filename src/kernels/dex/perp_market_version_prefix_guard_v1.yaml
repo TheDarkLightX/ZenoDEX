@@ -1,0 +1,220 @@
+# [FORGE] Perp Market Version Prefix Guard v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_market_version_prefix_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: perps parse-level version/prefix compatibility guard.
+
+    Purpose:
+      - Make the ingress routing policy in `parse_perp_ops(...)` explicit and
+        replayable.
+      - Cover the shell decision that binds perps version families to their
+        allowed market-id namespaces before any market action is applied.
+
+    Assume/guarantee split:
+      - Assumes the host already normalized the version string into boolean
+        family flags and already checked ASCII-token syntax.
+      - Guarantees only deterministic compatibility between the version family
+        and the market-id prefix posture.
+
+    Non-goals:
+      - op list sizing / byte limits
+      - action-specific required fields
+      - signatures / deadlines / nonces
+
+observables:
+  state_vars:
+    [
+      "version_is_v0_1",
+      "version_is_ch2p",
+      "version_is_ch3p",
+      "market_has_ch2p_prefix",
+      "market_has_ch3p_prefix",
+    ]
+  effects:
+    [
+      "version_ok",
+      "isolated_version",
+      "clearinghouse_2p_version",
+      "clearinghouse_3p_version",
+      "market_prefix_ok",
+      "admission_ok",
+      "reject_code",
+    ]
+
+types:
+  - id: "t_reject_code"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "Ok",
+          "InvalidVersion",
+          "Ch2pPrefixMismatch",
+          "Ch3pPrefixMismatch",
+          "IsolatedPrefixConflict",
+        ]
+
+state_vars:
+  - id: "version_is_v0_1"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "version_is_ch2p"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "version_is_ch3p"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "market_has_ch2p_prefix"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "market_has_ch3p_prefix"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "version_is_v0_1"
+    expr: { const: 0 }
+  - var: "version_is_ch2p"
+    expr: { const: 0 }
+  - var: "version_is_ch3p"
+    expr: { const: 0 }
+  - var: "market_has_ch2p_prefix"
+    expr: { const: 0 }
+  - var: "market_has_ch3p_prefix"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "market_has_ch2p_prefix" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "market_has_ch2p_prefix" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "market_has_ch3p_prefix" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "market_has_ch3p_prefix" }, { const: 1 }] }
+
+actions:
+  - id: "check_market_version_prefix_guard"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      version_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 1 }] }
+      isolated_version:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 0 }] }
+      clearinghouse_2p_version:
+        op: "="
+        args: [{ var: "version_is_ch2p" }, { const: 1 }]
+      clearinghouse_3p_version:
+        op: "="
+        args: [{ var: "version_is_ch3p" }, { const: 1 }]
+      market_prefix_ok:
+        op: "or"
+        args:
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "market_has_ch2p_prefix" }, { const: 1 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "market_has_ch3p_prefix" }, { const: 1 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "market_has_ch2p_prefix" }, { const: 0 }] }
+              - { op: "=", args: [{ var: "market_has_ch3p_prefix" }, { const: 0 }] }
+      admission_ok:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 1 }] }
+          - op: "or"
+            args:
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "market_has_ch2p_prefix" }, { const: 1 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "market_has_ch3p_prefix" }, { const: 1 }] }
+              - op: "and"
+                args:
+                  - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 0 }] }
+                  - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 0 }] }
+                  - { op: "=", args: [{ var: "market_has_ch2p_prefix" }, { const: 0 }] }
+                  - { op: "=", args: [{ var: "market_has_ch3p_prefix" }, { const: 0 }] }
+      reject_code:
+        op: "ite"
+        cond:
+          op: "and"
+          args:
+            - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 0 }] }
+        then: { enum: "InvalidVersion" }
+        else:
+          op: "ite"
+          cond:
+            op: "and"
+            args:
+              - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "market_has_ch2p_prefix" }, { const: 0 }] }
+          then: { enum: "Ch2pPrefixMismatch" }
+          else:
+            op: "ite"
+            cond:
+              op: "and"
+              args:
+                - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 1 }] }
+                - { op: "=", args: [{ var: "market_has_ch3p_prefix" }, { const: 0 }] }
+            then: { enum: "Ch3pPrefixMismatch" }
+            else:
+              op: "ite"
+              cond:
+                op: "and"
+                args:
+                  - { op: "=", args: [{ var: "version_is_v0_1" }, { const: 1 }] }
+                  - { op: "=", args: [{ var: "version_is_ch2p" }, { const: 0 }] }
+                  - { op: "=", args: [{ var: "version_is_ch3p" }, { const: 0 }] }
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "market_has_ch2p_prefix" }, { const: 1 }] }
+                      - { op: "=", args: [{ var: "market_has_ch3p_prefix" }, { const: 1 }] }
+              then: { enum: "IsolatedPrefixConflict" }
+              else: { enum: "Ok" }
