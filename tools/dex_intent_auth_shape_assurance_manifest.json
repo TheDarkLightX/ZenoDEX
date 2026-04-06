@@ -56,7 +56,7 @@
     },
     {
       "path": "tools/run_spot_evidence.sh",
-      "sha256": "107e17b71bfe9c508e6ae7d4dcc9a2f48ff1ba60fd143629ae51619cbb4189f4"
+      "sha256": "85d0685aebb24704e9ecd02ddcfd06709ca588febc909fe0c81e588e442434cb"
     }
   ],
   "validate": {

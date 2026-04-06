@@ -1,0 +1,112 @@
+{
+  "manifest_version": 1,
+  "notes": [
+    "Pinned batch-auction shell assurance bundle.",
+    "Covers the ESSO shell adapter seam for batch_auction_settler_v1 in addition to the existing ref parity and witness replay tests."
+  ],
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/batch_auction_settler_v1.yaml",
+      "sha256": "50e00049be3cc0fd47a417f31b489a83a51039545077577f4089e7ac089159a2"
+    },
+    {
+      "path": "src/kernels/python/batch_auction_settler_v1_adapter.py",
+      "sha256": "4e8e3d1482a84c74a0aa1ea570d239825cb2922c438140a7999e284fa23551b9"
+    },
+    {
+      "path": "tests/core/test_batch_auction_settler_v1_ref_parity.py",
+      "sha256": "7fb5c2b7463be48ac05516a4dc51dc43d8352734c1279377985c210ad74e2119"
+    },
+    {
+      "path": "tests/core/test_batch_auction_settler_v1_witness.py",
+      "sha256": "81796269b086f263bb8e9e31c1e455b58840869a041323e375921d106a3f8a7d"
+    },
+    {
+      "path": "tests/kernels/test_batch_auction_settler_v1_adapter.py",
+      "sha256": "4246e581999635033f840eb70d41de299f6a5367d7d4bb626ad1c39d47e58996"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/batch_auction_settler_v1_shell/validate.json",
+    "model_path": "src/kernels/dex/batch_auction_settler_v1.yaml",
+    "ir_hash": "sha256:b4a7eca7617c99cb1be88d57517f4f46c19fd161e7cf2e512cb9fc969680bedc"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/batch_auction_settler_v1_shell/shell_lint.json",
+    "adapter_spec": "src.kernels.python.batch_auction_settler_v1_adapter:make_adapter",
+    "ir_hash": "sha256:b4a7eca7617c99cb1be88d57517f4f46c19fd161e7cf2e512cb9fc969680bedc",
+    "actions": [
+      "add_intent",
+      "advance_epoch",
+      "close_collection",
+      "complete_batch",
+      "execute_fill",
+      "finalize_winner",
+      "revert_batch",
+      "start_new_batch",
+      "submit_solution"
+    ],
+    "effects": [
+      "batch_id_out",
+      "batch_reverted",
+      "clearing_price_out",
+      "event",
+      "fill_amount",
+      "fill_output",
+      "mev_captured",
+      "phase_out",
+      "settlement_complete"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/batch_auction_settler_v1_shell/verify_shell.json",
+    "kernel_path": "src/kernels/dex/batch_auction_settler_v1.yaml",
+    "adapter_spec": "src.kernels.python.batch_auction_settler_v1_adapter:make_adapter",
+    "ir_hash": "sha256:b4a7eca7617c99cb1be88d57517f4f46c19fd161e7cf2e512cb9fc969680bedc",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:32f6c91681211dcc78cf020ac7a4d6c503ffd950024f753f489f9123bb8c4f83"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/batch_auction_settler_v1_shell/verification_report.json",
+    "model_id": "batch_auction_settler_v1",
+    "ir_hash_short": "b4a7eca7617c99cb",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 10,
+    "passed_queries": 10,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_batch_auction_settler_v1_ref_parity.py",
+    "tests/core/test_batch_auction_settler_v1_witness.py",
+    "tests/kernels/test_batch_auction_settler_v1_adapter.py"
+  ]
+}
