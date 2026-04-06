@@ -68,10 +68,9 @@ def test_replay_plan_group_expansion() -> None:
     assert "spot-evidence" in lane_names
     assert "derivatives" in lane_names
     assert "perps" in lane_names
-    assert "zusd" in lane_names
     plan_lanes = {lane["name"]: lane for lane in payload["lanes"]}
     assert plan_lanes["kernel-assurance"]["required_environment"] == ["external/ESSO"]
-    assert plan_lanes["zusd"]["required_environment"] == ["external/ESSO", "tau-binary"]
+    assert "zusd" not in plan_lanes
 
 
 def test_replay_missing_environment_fails_closed(monkeypatch) -> None:

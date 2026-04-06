@@ -36,7 +36,6 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "docs/RC1_SUPPORTED_RUNTIME_PATH.md",
     "docs/RC1_VERIFIED_SURFACE_MATRIX.md",
     "docs/TLA_CLAIM_SUMMARY.md",
-    "docs/ZUSD_TAU_WALLET.md",
     "docs/assurance_release_snapshot.json",
     "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
     "src/core/amm_dispatch.py",
@@ -61,11 +60,9 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tools/run_critical_quality_gate.sh",
     "tools/run_release_gate.sh",
     "tools/run_perps_evidence.sh",
-    "tools/run_zusd_evidence.sh",
     "tools/run_spot_evidence.sh",
     "tools/run_spot_proof_assurance_gate.sh",
     "tools/spot_proof_assurance_manifest.json",
-    "tools/zusd_tau_wallet.py",
 )
 
 FORBIDDEN_PATH_GLOBS: tuple[str, ...] = (
@@ -188,20 +185,6 @@ LANES: dict[str, Lane] = {
         required_environment=("external/ESSO",),
         stars=3,
     ),
-    "zusd": Lane(
-        name="zusd",
-        description="Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.",
-        commands=(("bash", "tools/run_zusd_evidence.sh"),),
-        required_files=(
-            "tools/run_zusd_evidence.sh",
-            "tools/zusd_tau_wallet.py",
-            "src/integration/zusd_tau_token.py",
-            "src/tau_specs/recommended/protocol_token_v1.tau",
-            "src/tau_specs/recommended/zusd_transfer_guard_v1.tau",
-        ),
-        required_environment=("external/ESSO", "tau-binary"),
-        stars=3,
-    ),
     "critical": Lane(
         name="critical",
         description="Run the publishable critical quality gate with branch coverage and static checks.",
@@ -221,7 +204,7 @@ LANES: dict[str, Lane] = {
 }
 
 LANE_GROUPS: dict[str, tuple[str, ...]] = {
-    "public": ("kernel-assurance", "spot-proof", "spot-evidence", "derivatives", "perps", "zusd"),
+    "public": ("kernel-assurance", "spot-proof", "spot-evidence", "derivatives", "perps"),
     "critical": ("critical",),
     "full": ("release",),
 }

@@ -34,7 +34,6 @@ Current derivatives note:
   `funding_rate_settlement_witness_v1_1` for settlement arithmetic.
 - The monolithic `funding_rate_market_v1_1` kernel remains useful as a parity/reference artifact, but it is not part of the published formal release claim.
 - `funding_rate_market_v1` and `curve_selection_market_v1` remain `disputed` in the claims registry for settlement authorization semantics and should not be treated as authorization-complete public settlement guarantees.
-- `replay zusd` is a public replay lane for the zUSD monetary core, Tau gating, Tau transfer transport, wallet CLI, and `protocol_token_v1` formal lane. It does not promote disputed derivatives settlement kernels into authorization-complete public guarantees.
 - The bounded TLC/TLA+ claim surface is summarized in [docs/TLA_CLAIM_SUMMARY.md](TLA_CLAIM_SUMMARY.md) and release-checked via `python3 tools/render_tla_claim_summary.py --check`.
 
 Release vocabulary is defined in [docs/ASSURANCE_GLOSSARY.md](ASSURANCE_GLOSSARY.md).
@@ -60,7 +59,6 @@ Clean checkout workflow (with documented external toolchains available):
 ```bash
 python3 tools/permissionless_assurance.py status
 python3 tools/permissionless_assurance.py replay public
-python3 tools/permissionless_assurance.py replay zusd
 python3 tools/permissionless_assurance.py replay critical
 python3 tools/permissionless_assurance.py replay full
 ```
@@ -81,7 +79,6 @@ Notes:
 
 - `status` is the fast proofboard. It reports whether the publishable lanes and exported refs are present and tracked.
 - `replay public` is the public proof surface: manifest-backed kernel assurance plus the spot/derivatives proof lanes.
-- `replay zusd` reruns the zUSD monetary core, Tau gating, Tau transfer transport, wallet CLI, and `protocol_token_v1` formal lane.
 - `replay critical` reruns the publishable critical quality gate.
 - `replay full` runs the full release gate.
 - `internal/` artifacts are regenerated locally during replay. They are not part of the repo payload.
