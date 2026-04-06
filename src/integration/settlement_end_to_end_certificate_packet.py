@@ -170,6 +170,40 @@ class SettlementEndToEndCertificatePacket:
             "packet_ok": bool(self.packet_ok),
         }
 
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "SettlementEndToEndCertificatePacket":
+        if not isinstance(payload, Mapping):
+            raise ValueError("packet must be an object")
+        value_packet_payload = payload.get("value_packet")
+        endogenous_lp_value_packet_payload = payload.get("endogenous_lp_value_packet")
+        return cls(
+            schema=str(payload.get("schema", "")),
+            price_input_kind=str(payload.get("price_input_kind", "")),
+            value_packet_kind=str(payload.get("value_packet_kind", "")),
+            strong_certificate=SettlementStrongCertificate.from_dict(payload.get("strong_certificate", {})),
+            feature_extension_packet=SettlementFeatureExtensionPacket.from_dict(
+                payload.get("feature_extension_packet", {})
+            ),
+            value_packet=(
+                None if value_packet_payload is None else SettlementValuePacket.from_dict(value_packet_payload)
+            ),
+            endogenous_lp_value_packet=(
+                None
+                if endogenous_lp_value_packet_payload is None
+                else SettlementEndogenousLPValuePacket.from_dict(endogenous_lp_value_packet_payload)
+            ),
+            strong_certificate_ok=bool(payload.get("strong_certificate_ok", False)),
+            feature_extension_packet_ok=bool(payload.get("feature_extension_packet_ok", False)),
+            module_bundle_ok=bool(payload.get("module_bundle_ok", False)),
+            full_price_rails_ok=bool(payload.get("full_price_rails_ok", False)),
+            price_provenance_ok=bool(payload.get("price_provenance_ok", False)),
+            attestation_ok=bool(payload.get("attestation_ok", False)),
+            asset_conservation_ok=bool(payload.get("asset_conservation_ok", False)),
+            lp_liability_balanced_ok=bool(payload.get("lp_liability_balanced_ok", False)),
+            value_conservation_ok=bool(payload.get("value_conservation_ok", False)),
+            packet_ok=bool(payload.get("packet_ok", False)),
+        )
+
 
 def build_settlement_end_to_end_certificate_packet_from_price_packet(
     *,
