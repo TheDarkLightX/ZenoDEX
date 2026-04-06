@@ -1,0 +1,108 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the route quote receipt hop-replay gate. Update only alongside a successful run of tools/run_quote_receipt_hop_replay_gate_assurance_gate.sh and tools/check_quote_receipt_hop_replay_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/quote_receipts.py",
+      "sha256": "a67261e8ce8b52045a4f0ff13b6f232514a0f3d7e5d0e55f1b3bce3f79b28445"
+    },
+    {
+      "path": "src/kernels/dex/quote_receipt_hop_replay_gate_v1.yaml",
+      "sha256": "f133c9de00e65c0e786ef4a5945b2e19e1ea59f65f2d288e53e88e2642b2ace4"
+    },
+    {
+      "path": "src/kernels/python/quote_receipt_hop_replay_gate_v1_native_adapter.py",
+      "sha256": "6e7cbe3bf3cc5db8037e95af3028c22ce989ba81049160e98201a10b1b633b5f"
+    },
+    {
+      "path": "tests/core/test_quote_receipt_hop_replay_gate.py",
+      "sha256": "d0002c40970f5e7e058da26b68560d995911021d45cdb56f79af164c344618a7"
+    },
+    {
+      "path": "tests/core/test_quote_receipts.py",
+      "sha256": "2291a0e90bad6c45a97a9af70069c0f315a87a27546dfea6a19e81629423f58a"
+    },
+    {
+      "path": "tests/kernels/test_quote_receipt_hop_replay_gate_v1_native_adapter.py",
+      "sha256": "0e55a69a38c6b86b019cb764af07a188f23f0315e01940b6ac75c8572883afae"
+    },
+    {
+      "path": "tools/run_quote_receipt_hop_replay_gate_assurance_gate.sh",
+      "sha256": "608cbfd17188d1554fe0ba05d6cc62ab8b13b62f5340f088446c54a2bdced786"
+    },
+    {
+      "path": "tools/check_quote_receipt_hop_replay_gate_assurance_manifest.py",
+      "sha256": "1cc6ecd4a2c446f07923f56be3ac3ade245ede0840398b5f414c0917d85b4da4"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/quote_receipt_hop_replay_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/quote_receipt_hop_replay_gate_v1.yaml",
+    "ir_hash": "sha256:910cd2914e39ec51ee4b7b95cf72c3ba634629601e36d77e8c924a4fea5d8176"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/quote_receipt_hop_replay_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.quote_receipt_hop_replay_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:910cd2914e39ec51ee4b7b95cf72c3ba634629601e36d77e8c924a4fea5d8176",
+    "actions": [
+      "evaluate_route_quote_receipt_hop_replay_gate"
+    ],
+    "effects": [
+      "next_reserve0",
+      "next_reserve1",
+      "reject_tag",
+      "replay_ok"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/quote_receipt_hop_replay_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/quote_receipt_hop_replay_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.quote_receipt_hop_replay_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:910cd2914e39ec51ee4b7b95cf72c3ba634629601e36d77e8c924a4fea5d8176",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:8c76e8a9c870c336e24b8b6f226fdfa50b1e548128992533d860ce04bf62cd35"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/quote_receipt_hop_replay_gate_v1/verification_report.json",
+    "model_id": "quote_receipt_hop_replay_gate_v1",
+    "ir_hash_short": "910cd2914e39ec51",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_quote_receipt_hop_replay_gate.py",
+    "tests/core/test_quote_receipts.py",
+    "tests/kernels/test_quote_receipt_hop_replay_gate_v1_native_adapter.py"
+  ]
+}

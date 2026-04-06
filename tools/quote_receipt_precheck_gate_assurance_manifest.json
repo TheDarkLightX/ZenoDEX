@@ -1,0 +1,111 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the route quote receipt structural precheck gate. Update only alongside a successful run of tools/run_quote_receipt_precheck_gate_assurance_gate.sh and tools/check_quote_receipt_precheck_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/core/quote_receipts.py",
+      "sha256": "a67261e8ce8b52045a4f0ff13b6f232514a0f3d7e5d0e55f1b3bce3f79b28445"
+    },
+    {
+      "path": "src/kernels/dex/quote_receipt_precheck_gate_v1.yaml",
+      "sha256": "a022f350b9863eb6f4e4c7d56452b992edb3c50b6d6d6ea98e6d573bac6b4854"
+    },
+    {
+      "path": "src/kernels/python/quote_receipt_precheck_gate_v1_native_adapter.py",
+      "sha256": "c6e8d9007c646e51da2f56a5b3e4021b4231a54b011ebed61e63664842695e98"
+    },
+    {
+      "path": "tests/core/test_quote_receipt_precheck_gate.py",
+      "sha256": "e6a96e02ff19df968cdff23711473d4e6cf3146b34c36d66c54a7a2e3b73dff9"
+    },
+    {
+      "path": "tests/core/test_quote_receipts.py",
+      "sha256": "2291a0e90bad6c45a97a9af70069c0f315a87a27546dfea6a19e81629423f58a"
+    },
+    {
+      "path": "tests/core/test_quote_receipts_fuzz.py",
+      "sha256": "b867b4ee18f69c0f8892150a194fef82cf9381221799a285d9c54447f217aa26"
+    },
+    {
+      "path": "tests/kernels/test_quote_receipt_precheck_gate_v1_native_adapter.py",
+      "sha256": "2428cea62a91f95cc96fe0f22806238fe5592478c0a3e55c0d77ff2f4be7666f"
+    },
+    {
+      "path": "tools/run_quote_receipt_precheck_gate_assurance_gate.sh",
+      "sha256": "0dd3a63779da29f5ca6d2966d3158d2a22a6f377cbbc6a113594e3a3f33a5d7e"
+    },
+    {
+      "path": "tools/check_quote_receipt_precheck_gate_assurance_manifest.py",
+      "sha256": "c195514af0ca10e7f80905f5e16c26d94bb7021fbbd771490e509f3227e302c0"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/quote_receipt_precheck_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/quote_receipt_precheck_gate_v1.yaml",
+    "ir_hash": "sha256:639709334ce470302809abab96702899c1f6895931a69c55304a640f6399eb90"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/quote_receipt_precheck_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.quote_receipt_precheck_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:639709334ce470302809abab96702899c1f6895931a69c55304a640f6399eb90",
+    "actions": [
+      "evaluate_route_quote_receipt_precheck_gate"
+    ],
+    "effects": [
+      "precheck_ok",
+      "reject_tag"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/quote_receipt_precheck_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/quote_receipt_precheck_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.quote_receipt_precheck_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:639709334ce470302809abab96702899c1f6895931a69c55304a640f6399eb90",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:7dc45df50c2332c076d30f582abd3db35406c6a0acefa7e20f7d6ffee256d16f"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/quote_receipt_precheck_gate_v1/verification_report.json",
+    "model_id": "quote_receipt_precheck_gate_v1",
+    "ir_hash_short": "639709334ce47030",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/core/test_quote_receipt_precheck_gate.py",
+    "tests/core/test_quote_receipts.py",
+    "tests/core/test_quote_receipts_fuzz.py",
+    "tests/kernels/test_quote_receipt_precheck_gate_v1_native_adapter.py"
+  ]
+}

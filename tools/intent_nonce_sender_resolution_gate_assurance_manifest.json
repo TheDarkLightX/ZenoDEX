@@ -1,0 +1,116 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the intent nonce sender resolution gate. Update only alongside a successful run of tools/run_intent_nonce_sender_resolution_gate_assurance_gate.sh and tools/check_intent_nonce_sender_resolution_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/state/intent_nonce_sender_resolution_gate.py",
+      "sha256": "774986a334b4378dc929b36146c45c1ac5001ca988227be97507c831a3a8d3fc"
+    },
+    {
+      "path": "src/state/nonces.py",
+      "sha256": "3dac5b4182a6df2c77e0197d58eaa2e3722dfacd1a817a7a3fb596e8d5e4fbb5"
+    },
+    {
+      "path": "src/kernels/dex/intent_nonce_sender_resolution_gate_v1.yaml",
+      "sha256": "13637c8d2ea6e7476c8281fa2fdda18041da6ce212b5a3c054ae9947bec39de6"
+    },
+    {
+      "path": "src/kernels/python/intent_nonce_sender_resolution_gate_v1_native_adapter.py",
+      "sha256": "71a75b8c45a52ea9424d91ab2a1f3e60a5852c0e010cd3660e6c9bcf14e74f2b"
+    },
+    {
+      "path": "tests/state/test_intent_nonce_sender_resolution_gate.py",
+      "sha256": "333def33c3d4f8ee20e3d5dca71f87076505b418567f8541658725c2b719c141"
+    },
+    {
+      "path": "tests/state/test_nonces.py",
+      "sha256": "fc2eb358627966b388102bb6d5e8a292387ae5b1c4849e39b7881066e532f970"
+    },
+    {
+      "path": "tests/tau/test_replay_semantic_lane.py",
+      "sha256": "44ee50d38ff574a90a82ae08e77c398ec9d240c08fd983aada701aca796825e4"
+    },
+    {
+      "path": "tests/kernels/test_intent_nonce_sender_resolution_gate_v1_native_adapter.py",
+      "sha256": "074a7fabf0d27f0e3cfc2458218f2fbe5af33a1dc8553925d9b54acf99e447df"
+    },
+    {
+      "path": "tools/run_intent_nonce_sender_resolution_gate_assurance_gate.sh",
+      "sha256": "52a167c51f3d7bcf03ab2dae6603fe4966118b16bb8b512856de2940f26b0f84"
+    },
+    {
+      "path": "tools/check_intent_nonce_sender_resolution_gate_assurance_manifest.py",
+      "sha256": "1be4092d37d541e2f26eeeca56f4d4babb04a5ea81cd478ecb1f0f49e8f5d3a3"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/intent_nonce_sender_resolution_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/intent_nonce_sender_resolution_gate_v1.yaml",
+    "ir_hash": "sha256:8266ce97d73f5b49b51241b9c82de2d22bec7d39f405008d3ca197858bc0ca3b"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/intent_nonce_sender_resolution_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.intent_nonce_sender_resolution_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:8266ce97d73f5b49b51241b9c82de2d22bec7d39f405008d3ca197858bc0ca3b",
+    "actions": [
+      "evaluate_sender_resolution"
+    ],
+    "effects": [
+      "reject_tag",
+      "resolved_last_nonce",
+      "sender_ok"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/intent_nonce_sender_resolution_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/intent_nonce_sender_resolution_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.intent_nonce_sender_resolution_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:8266ce97d73f5b49b51241b9c82de2d22bec7d39f405008d3ca197858bc0ca3b",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:81ed5b71862b89bdf2aebed3966a92d7d91f4ecf526f51b3e46f2e0970486ad9"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/intent_nonce_sender_resolution_gate_v1/verification_report.json",
+    "model_id": "intent_nonce_sender_resolution_gate_v1",
+    "ir_hash_short": "8266ce97d73f5b49",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/state/test_intent_nonce_sender_resolution_gate.py",
+    "tests/state/test_nonces.py",
+    "tests/tau/test_replay_semantic_lane.py",
+    "tests/kernels/test_intent_nonce_sender_resolution_gate_v1_native_adapter.py"
+  ]
+}
