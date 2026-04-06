@@ -6,16 +6,22 @@ from types import ModuleType, SimpleNamespace
 
 
 PLAIN_ADAPTER_MODULES = [
+    "src.kernels.python.batch_auction_settler_v1_adapter",
+    "src.kernels.python.cpmm_swap_v8_adapter",
     "src.kernels.python.dex_global_conservation_v1_adapter",
+    "src.kernels.python.dex_step_core_v2_adapter",
+    "src.kernels.python.lp_mint_v8_adapter",
     "src.kernels.python.proof_mining_manager_v1_adapter",
     "src.kernels.python.perp_epoch_isolated_v1_adapter",
     "src.kernels.python.perp_epoch_isolated_v1_1_adapter",
+    "src.kernels.python.vault_manager_adapter",
 ]
 
 CTX_ADAPTER_MODULES = [
     "src.kernels.python.perp_epoch_isolated_v2_adapter",
     "src.kernels.python.perp_epoch_isolated_v3_adapter",
     "src.kernels.python.perp_epoch_clearinghouse_2p_v0_1_adapter",
+    "src.kernels.python.perp_epoch_clearinghouse_3p_transfer_v0_1_adapter",
 ]
 
 
