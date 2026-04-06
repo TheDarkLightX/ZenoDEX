@@ -1,0 +1,146 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "quote_receipt_precheck_gate_v1"
+  notes: |
+    Bounded structural reject-order law for route quote receipt verification
+    before pool fingerprint and hop replay semantics run.
+
+observables:
+  state_vars:
+    - "schema_ok"
+    - "receipt_hash_present"
+    - "hash_matches"
+    - "kind_ok"
+    - "canonical_certificate_allowed"
+    - "body_assets_ok"
+    - "quote_epoch_ok"
+    - "pools_object_ok"
+    - "legs_list_ok"
+  effects:
+    - "precheck_ok"
+    - "reject_tag"
+
+state_vars:
+  - id: "schema_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "receipt_hash_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "hash_matches"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "kind_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "canonical_certificate_allowed"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "body_assets_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "quote_epoch_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "pools_object_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "legs_list_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "schema_ok"
+    expr: { bool: false }
+  - var: "receipt_hash_present"
+    expr: { bool: false }
+  - var: "hash_matches"
+    expr: { bool: false }
+  - var: "kind_ok"
+    expr: { bool: false }
+  - var: "canonical_certificate_allowed"
+    expr: { bool: false }
+  - var: "body_assets_ok"
+    expr: { bool: false }
+  - var: "quote_epoch_ok"
+    expr: { bool: false }
+  - var: "pools_object_ok"
+    expr: { bool: false }
+  - var: "legs_list_ok"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_route_quote_receipt_precheck_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      precheck_ok:
+        op: "and"
+        args:
+          - { var: "schema_ok" }
+          - { var: "receipt_hash_present" }
+          - { var: "hash_matches" }
+          - { var: "kind_ok" }
+          - { var: "canonical_certificate_allowed" }
+          - { var: "body_assets_ok" }
+          - { var: "quote_epoch_ok" }
+          - { var: "pools_object_ok" }
+          - { var: "legs_list_ok" }
+      reject_tag:
+        op: "ite"
+        cond:
+          op: "not"
+          args: [{ var: "schema_ok" }]
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond:
+            op: "not"
+            args: [{ var: "receipt_hash_present" }]
+          then: { const: 2 }
+          else:
+            op: "ite"
+            cond:
+              op: "not"
+              args: [{ var: "hash_matches" }]
+            then: { const: 3 }
+            else:
+              op: "ite"
+              cond:
+                op: "not"
+                args: [{ var: "kind_ok" }]
+              then: { const: 4 }
+              else:
+                op: "ite"
+                cond:
+                  op: "not"
+                  args: [{ var: "canonical_certificate_allowed" }]
+                then: { const: 5 }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "not"
+                    args: [{ var: "body_assets_ok" }]
+                  then: { const: 6 }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "not"
+                      args: [{ var: "quote_epoch_ok" }]
+                    then: { const: 7 }
+                    else:
+                      op: "ite"
+                      cond:
+                        op: "not"
+                        args: [{ var: "pools_object_ok" }]
+                      then: { const: 8 }
+                      else:
+                        op: "ite"
+                        cond:
+                          op: "not"
+                          args: [{ var: "legs_list_ok" }]
+                        then: { const: 9 }
+                        else: { const: 0 }
+
+invariants: []

@@ -1,0 +1,144 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "quote_receipt_hop_structure_gate_v1"
+  notes: |
+    Bounded first-failure law for per-hop structural verification in route quote
+    receipts before AMM replay runs.
+
+observables:
+  state_vars:
+    - "hop_dict_ok"
+    - "pool_id_ok"
+    - "snapshotted_pool_present"
+    - "working_pool_present"
+    - "assets_shaped_ok"
+    - "is_first_hop"
+    - "first_hop_asset_in_ok"
+    - "hop_asset_chain_ok"
+    - "hop_amounts_ok"
+    - "hop_amount_chain_ok"
+  effects:
+    - "hop_ok"
+    - "reject_tag"
+
+state_vars:
+  - id: "hop_dict_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "pool_id_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "snapshotted_pool_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "working_pool_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "assets_shaped_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "is_first_hop"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "first_hop_asset_in_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "hop_asset_chain_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "hop_amounts_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "hop_amount_chain_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "hop_dict_ok"
+    expr: { bool: false }
+  - var: "pool_id_ok"
+    expr: { bool: false }
+  - var: "snapshotted_pool_present"
+    expr: { bool: false }
+  - var: "working_pool_present"
+    expr: { bool: false }
+  - var: "assets_shaped_ok"
+    expr: { bool: false }
+  - var: "is_first_hop"
+    expr: { bool: false }
+  - var: "first_hop_asset_in_ok"
+    expr: { bool: false }
+  - var: "hop_asset_chain_ok"
+    expr: { bool: false }
+  - var: "hop_amounts_ok"
+    expr: { bool: false }
+  - var: "hop_amount_chain_ok"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_route_quote_receipt_hop_structure_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      hop_ok:
+        op: "and"
+        args:
+          - { var: "hop_dict_ok" }
+          - { var: "pool_id_ok" }
+          - { var: "snapshotted_pool_present" }
+          - { var: "working_pool_present" }
+          - { var: "assets_shaped_ok" }
+          - op: "ite"
+            cond: { var: "is_first_hop" }
+            then: { var: "first_hop_asset_in_ok" }
+            else: { var: "hop_asset_chain_ok" }
+          - { var: "hop_amounts_ok" }
+          - { var: "hop_amount_chain_ok" }
+      reject_tag:
+        op: "ite"
+        cond: { op: "not", args: [{ var: "hop_dict_ok" }] }
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond: { op: "not", args: [{ var: "pool_id_ok" }] }
+          then: { const: 2 }
+          else:
+            op: "ite"
+            cond: { op: "not", args: [{ var: "snapshotted_pool_present" }] }
+            then: { const: 3 }
+            else:
+              op: "ite"
+              cond: { op: "not", args: [{ var: "working_pool_present" }] }
+              then: { const: 4 }
+              else:
+                op: "ite"
+                cond: { op: "not", args: [{ var: "assets_shaped_ok" }] }
+                then: { const: 5 }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "and"
+                    args:
+                      - { var: "is_first_hop" }
+                      - { op: "not", args: [{ var: "first_hop_asset_in_ok" }] }
+                  then: { const: 6 }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "and"
+                      args:
+                        - { op: "not", args: [{ var: "is_first_hop" }] }
+                        - { op: "not", args: [{ var: "hop_asset_chain_ok" }] }
+                    then: { const: 7 }
+                    else:
+                      op: "ite"
+                      cond: { op: "not", args: [{ var: "hop_amounts_ok" }] }
+                      then: { const: 8 }
+                      else:
+                        op: "ite"
+                        cond: { op: "not", args: [{ var: "hop_amount_chain_ok" }] }
+                        then: { const: 9 }
+                        else: { const: 0 }
+
+invariants: []
