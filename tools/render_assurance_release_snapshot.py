@@ -164,7 +164,7 @@ def _glossary_lines() -> str:
         [
             "Release vocabulary:",
             "- `release-backed`: included in the current published formal/public assurance claim",
-            "- `public replay`: reproducible from a fresh clone via the shipped replay/checker surface",
+            "- `public replay`: reproducible from a clean checkout plus the documented external toolchains via the shipped replay/checker surface",
             "- `authorization-complete`: safe to treat as a public settlement-authorizing guarantee without extra trusted environment inputs",
             "- `disputed`: intentionally excluded from stronger public authorization claims until the witness/auth lane is trust-complete",
         ]
@@ -262,7 +262,7 @@ def _render_snapshot_doc(snapshot: dict[str, Any], disputed: list[dict[str, str]
             "### Vocabulary",
             "",
             "- `release-backed` means included in the current published formal/public assurance claim.",
-            "- `public replay` means reproducible from a fresh clone via the shipped replay/checker surface.",
+            "- `public replay` means reproducible from a clean checkout plus the documented external toolchains via the shipped replay/checker surface.",
             "- `authorization-complete` means safe to treat as a public settlement-authorizing guarantee without extra trusted environment inputs.",
             "- `disputed` means intentionally excluded from stronger public authorization claims until the witness/auth lane is trust-complete.",
             "",
