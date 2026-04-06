@@ -119,24 +119,43 @@ def _refresh_verify_multi(entry: dict[str, Any]) -> None:
     scope = report.get("scope") or {}
     tool_versions = report.get("tool_versions") or {}
     solvers = tool_versions.get("solvers") or {}
+
+    if "ir_hash_short" in entry or "report_solver_versions" in entry:
+        entry["model_id"] = str(report["model_id"])
+        entry["ir_hash_short"] = str(report["ir_hash"])
+        entry["verdict"] = str(report["verdict"])
+        entry["z3_passed"] = bool(report["z3_passed"])
+        entry["cvc5_available"] = bool(report["cvc5_available"])
+        entry["cvc5_passed"] = bool(report["cvc5_passed"])
+        entry["solvers_agreed"] = bool(report["solvers_agreed"])
+        entry["total_queries"] = int(report["total_queries"])
+        entry["passed_queries"] = int(report["passed_queries"])
+        entry["failed_queries"] = int(report["failed_queries"])
+        entry["inconclusive_queries"] = int(report["inconclusive_queries"])
+        entry["disagreements"] = list(report.get("disagreements") or [])
+        entry["notes"] = list(report.get("notes") or [])
+        entry["scope_kind"] = str(scope["kind"])
+        entry["k"] = int(scope["k"])
+        entry["solver_timeout_ms"] = int(scope["solver_timeout_ms"])
+        entry["fail_closed"] = bool(scope["fail_closed"])
+        entry["report_solver_versions"] = {str(k): str(v) for k, v in solvers.items()}
+        return
+
+    active_solvers: list[str] = []
+    if bool(report.get("z3_passed")):
+        active_solvers.append("z3")
+    if bool(report.get("cvc5_available")):
+        active_solvers.append("cvc5")
+
     entry["model_id"] = str(report["model_id"])
-    entry["ir_hash_short"] = str(report["ir_hash"])
-    entry["verdict"] = str(report["verdict"])
-    entry["z3_passed"] = bool(report["z3_passed"])
-    entry["cvc5_available"] = bool(report["cvc5_available"])
-    entry["cvc5_passed"] = bool(report["cvc5_passed"])
-    entry["solvers_agreed"] = bool(report["solvers_agreed"])
-    entry["total_queries"] = int(report["total_queries"])
-    entry["passed_queries"] = int(report["passed_queries"])
-    entry["failed_queries"] = int(report["failed_queries"])
-    entry["inconclusive_queries"] = int(report["inconclusive_queries"])
-    entry["disagreements"] = list(report.get("disagreements") or [])
-    entry["notes"] = list(report.get("notes") or [])
-    entry["scope_kind"] = str(scope["kind"])
-    entry["k"] = int(scope["k"])
+    entry["ir_hash"] = str(report["ir_hash"])
+    entry["solvers"] = active_solvers
     entry["solver_timeout_ms"] = int(scope["solver_timeout_ms"])
-    entry["fail_closed"] = bool(scope["fail_closed"])
-    entry["report_solver_versions"] = {str(k): str(v) for k, v in solvers.items()}
+    entry["passed_queries"] = int(report["passed_queries"])
+    entry["toolchain"] = {
+        "esso_code_hash": str(tool_versions["esso_code_hash"]),
+        "solvers": {name: str(solvers[name]) for name in active_solvers if name in solvers},
+    }
 
 
 def _refresh_section(manifest: dict[str, Any], key: str, fn) -> None:
