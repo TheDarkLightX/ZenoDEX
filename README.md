@@ -32,7 +32,6 @@ Important derivatives note:
   `funding_rate_settlement_witness_v1_1` for settlement arithmetic, both in the release-backed assurance lane.
 - The monolithic `funding_rate_market_v1_1` kernel remains useful as a parity/reference artifact, but it is not part of the published formal release claim.
 - `funding_rate_market_v1` and `curve_selection_market_v1` remain `disputed` in the claims registry for settlement authorization semantics and should not be treated as authorization-complete public settlement guarantees.
-- `python3 tools/permissionless_assurance.py replay zusd` is a public replay lane for zUSD monetary and transport surfaces; it does not upgrade disputed derivatives settlement kernels into release-backed guarantees.
 - The bounded TLC/TLA+ claim surface is summarized in [docs/TLA_CLAIM_SUMMARY.md](docs/TLA_CLAIM_SUMMARY.md) and release-checked via `python3 tools/render_tla_claim_summary.py --check`.
 
 Release vocabulary:
