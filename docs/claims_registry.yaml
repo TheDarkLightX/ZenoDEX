@@ -646,6 +646,90 @@ claims:
         - formal/tla/OrderIntentCancelExpiryShadow.cfg
         - tools/run_tla_models.py
 
+
+  - id: tla:settlement_attestation_governance:active_policy_controls_acceptance
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ settlement-attestation governance model, accepted settlement requires an
+      active approved timelocked multisig-backed policy snapshot, revoked policies block future
+      settlement acceptance, accepted settlement never binds retroactively to a different policy
+      epoch, and under weak fairness an approved pending policy eventually activates.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the governed signer/source policy control surface for settlement
+        attestation admission. This is a semantic alignment claim for policy activation and revocation,
+        not a theorem about signer independence, cryptographic attestations, or capture resistance.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementAttestationGovernance.tla
+        - formal/tla/SettlementAttestationGovernance.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_signer_registry_tau_bridge:bound_snapshot_anchor_and_proof_path_required
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ settlement signer-registry Tau bridge model, accepted requests require a
+      registry snapshot and chain anchor bound to the request epoch, drifted snapshot or anchor blocks
+      acceptance, and under fairness clean bound artifacts eventually check policy binding, resolve
+      proof-path availability, and terminate by accept or reject.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the Tau-native signer-registry bridge control flow. This is a
+        semantic alignment claim for bound snapshot/anchor admission, not a theorem about proof
+        transport, live chain execution, or signer quality.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementSignerRegistryTauBridge.tla
+        - formal/tla/SettlementSignerRegistryTauBridge.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:tau_state_app_hash_provenance_bridge:strong_binding_controls_acceptance
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ Tau-state/app-hash provenance bridge model, accepted loader state requires a
+      clean bridge payload and baseline provenance, strong-binding mismatch or missing Tau transport
+      blocks acceptance when strong binding is required, and under fairness clean ready states accept
+      while visible strong-binding failures reject.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the Tau-state/app-hash provenance control shell. This is a semantic
+        alignment claim for strong-binding admission and rejection behavior, not a theorem about state
+        proof generation, transport availability, or chain-level provenance guarantees.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/TauStateAppHashProvenanceBridge.tla
+        - formal/tla/TauStateAppHashProvenanceBridge.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:tau_state_app_hash_stable_window:stable_window_or_reject
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ stable-window model for Tau-state/app-hash reads, any returned result must
+      come from an observed stable window, strong binding without Tau stability blocks return, and under
+      fairness a request that cannot reach a stable window is eventually rejected.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the stable-read retry controller used by the Tau-state/app-hash
+        provenance loader. This is a temporal claim about bounded retry behavior, not a theorem about
+        eventual network stability or transport-layer correctness.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/TauStateAppHashStableWindow.tla
+        - formal/tla/TauStateAppHashStableWindow.cfg
+        - tools/run_tla_models.py
+
   - id: tla:zenograph_host_local_acceptance:accepted_only_execution_visibility
     status: supported
     layer: safety

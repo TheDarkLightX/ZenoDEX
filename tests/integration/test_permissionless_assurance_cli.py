@@ -41,11 +41,13 @@ def test_status_json_shape() -> None:
     assert isinstance(payload["public_scope_paths"], list)
 
 
-def test_stage_scope_includes_cli_when_modified() -> None:
-    proc = _run("stage-scope", "--format", "json")
-    assert proc.returncode == 0, proc.stderr
-    payload = json.loads(proc.stdout)
-    assert "tools/permissionless_assurance.py" in payload["paths"]
+def test_public_scope_filters_include_cli_path() -> None:
+    paths = assurance_cli._public_scope_paths([
+        "tools/permissionless_assurance.py",
+        "internal/example.json",
+    ])
+    assert "tools/permissionless_assurance.py" in paths
+    assert "internal/example.json" not in paths
 
 
 def test_leak_check_blocks_internal_markers() -> None:
