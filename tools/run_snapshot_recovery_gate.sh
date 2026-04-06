@@ -12,6 +12,10 @@ else
   PY="python3"
 fi
 
+if [[ -d "$ROOT_DIR/external/ESSO" ]]; then
+  export PYTHONPATH="$ROOT_DIR/external/ESSO${PYTHONPATH:+:$PYTHONPATH}"
+fi
+
 require_module() {
   local module="$1"
   local package_hint="$2"
