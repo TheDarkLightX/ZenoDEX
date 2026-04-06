@@ -1,3 +1,9 @@
+---
+title: RISK_TIERS
+type: note
+permalink: autonomous-tau-dex-review/src/tau-specs/risk-tiers
+---
+
 # ZenoDex Spec Tiers (Risk-Based Profiles)
 
 This repo organizes Tau specs by **risk tier** so the community can decide which profile to deploy. The tiers are **not legal advice**; they are pragmatic groupings based on complexity, discretion, and external perception risk.

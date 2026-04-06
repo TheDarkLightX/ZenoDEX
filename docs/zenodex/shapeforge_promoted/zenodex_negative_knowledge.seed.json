@@ -1,0 +1,601 @@
+{
+  "context_key": "zenodex_shape_negative_frontier_v1",
+  "description": "Typed negative knowledge for the current ZenoDEX ShapeForge world model: falsifiers, blocked promotions, scope boundaries, implementation accidents, missing guards, and disputed assurance surfaces.",
+  "records": [
+    {
+      "axis": "guard",
+      "claim": "Allocations that undershoot target_out can still be treated as exact-out winners.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "implemented",
+      "evidence_or_falsifier": "The world-model scenario shows that partial allocations stop denoting exact-out satisfaction, so canonical minimization over them is semantically invalid.",
+      "hypothesis_id": "exact_out_partial_fill_is_still_exact_out_v1",
+      "improvement_target": "contract strengthening",
+      "negative_kind": "falsified",
+      "preconditions": [
+        "target_out > 0",
+        "leg budget remains within the admitted search profile"
+      ],
+      "related_invariants": [
+        "exact_out_minimizers_require_total_key_and_complete_allocations"
+      ],
+      "replacement_claim": "Exact-out winner selection only ranges over allocations that satisfy allocation_complete.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=allow_partial_exact_out_allocation",
+      "scenario_id": "allow_partial_exact_out_allocation",
+      "slice_id": "split_routing_exact_out",
+      "source_surfaces": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "status": "falsified",
+      "target_evidence_class": "proved",
+      "trigger": "The allow_partial_exact_out_allocation scenario destroys exact-out semantics and leaves winner comparison underspecified.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "canonical_key",
+      "claim": "Stable runtime enumeration order is enough to justify exact-out canonicality.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The previous symmetric counterexample has been repaired by switching the two-pool exact-out runtime tie-break to the explicit route_key_out. The remaining lesson still stands: runtime determinism is useful, but canonicality comes from the explicit total key plus candidate completeness, not from stable enumeration folklore.",
+      "hypothesis_id": "exact_out_runtime_order_is_semantic_canonicality_v1",
+      "improvement_target": "canonicalization",
+      "negative_kind": "implementation_accident",
+      "preconditions": [
+        "feasible exact-out allocations exist",
+        "one implementation happens to enumerate plateau candidates stably"
+      ],
+      "related_invariants": [
+        "exact_out_minimizers_require_total_key_and_complete_allocations",
+        "canonical_winner_requires_total_key"
+      ],
+      "replacement_claim": "Canonicality comes from minimizing route_key_out = (input_total, leg_count, legs_lex) over complete candidates; the repaired two-pool runtime now reflects that key on the bounded emitted candidate set.",
+      "remaining_excluded_domain": "Candidate domains outside the repaired bounded emitted set remain excluded: stable runtime enumeration is still not a semantic canonicality argument without explicit total-key minimization plus candidate completeness.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break",
+      "scenario_id": "drop_exact_out_canonical_minimizer_tie_break",
+      "slice_id": "exact_out_canonical_minimizer",
+      "source_surfaces": [
+        "src/core/split_routing_dispatch.py",
+        "src/integration/exact_out_route_certificate.py",
+        "src/integration/api_server.py",
+        "src/tau_specs/recommended/argmin_stream_certificate_v1.tau",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_exact_out_route_certificate_fuzz.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/ZenoDEXExactOutCanonicalMinimizer.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutRouteCertificate.lean"
+      ],
+      "status": "narrowed",
+      "target_evidence_class": "contract",
+      "trigger": "Dropping leg_count and legs_lex leaves equal-input winners semantically ambiguous even if one implementation returns the leftmost minimizer.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "operator",
+      "claim": "The current bounded exact-out generator proves global optimality over all feasible allocations.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "tested_discovery",
+      "evidence_or_falsifier": "The world model now records a Lean proof for finite-interval exact-out brute-force completeness, replayable many-pool emitted-domain quote minimality and certified-packet quote binding over audited emitted candidates, and a selected-domain CPMM projection-cover surface whose remaining local gap is only concrete emitted-path coverage on bounded audited domains. The remaining open work is now isolated as a generator soundness/completeness frontier rather than a canonicality frontier.",
+      "hypothesis_id": "exact_out_generator_is_globally_complete_v1",
+      "improvement_target": "proof promotion",
+      "negative_kind": "scope_boundary",
+      "preconditions": [
+        "candidate search is bounded by max_legs and the active search profile",
+        "the world model only reasons over emitted candidates"
+      ],
+      "related_invariants": [
+        "exact_out_minimizers_require_total_key_and_complete_allocations"
+      ],
+      "replacement_claim": "Current support covers canonical minimization, finite-interval completeness over the emitted split search set, replayable emitted-domain quote minimality over audited many-pool candidates, a bounded selected-domain projection-cover certificate lane, and a replayable bounded workaround packet that compares the current runtime against the repaired broader bounded advisory surface; global generator completeness remains open.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=exact_out_canonical_minimizer",
+      "scenario_id": null,
+      "slice_id": "exact_out_canonical_minimizer",
+      "source_surfaces": [
+        "src/core/split_routing_dispatch.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/ZenoDEXExactOutBruteforceCompleteness.lean",
+        "formal/exact_out_many_pool_generator_completeness_plan.md"
+      ],
+      "status": "blocked",
+      "target_evidence_class": "proved",
+      "trigger": "The exact_out_canonical_minimizer slice now proves finite-interval completeness for the emitted split search set, but it still does not prove completeness across the full allocation space.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "operator",
+      "claim": "Repairing the many-pool exact-out runtime over the selected bounded domain is enough to treat the full many-pool runtime as globally canonical.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The previous bounded-domain runtime mismatch is repaired: on the old witness pools={(40,20),(40,63),(40,20)}, amount_out_total=3, the functional core now returns the canonical winner pool_b:3 with total input 2, matching the bounded certificate lane. There is now also a selected-domain support theorem, a selected-domain certified bridge theorem, a bounded projection-cover certificate carried by the route certificate on selected audited domains for the currently supported exact-out curve families, and a bounded advisory packet that consumes the repaired-bounded workaround by policy in the integration/API layer. The surviving negative knowledge is narrower: selected-domain canonicality still does not prove that the heuristic candidate-pool prefilter or the overall many-pool generator is globally complete.",
+      "hypothesis_id": "many_pool_exact_out_runtime_is_already_canonical_v1",
+      "improvement_target": "canonicalization",
+      "negative_kind": "scope_boundary",
+      "preconditions": [
+        "amount_out_total stays within the bounded audit budget",
+        "the audit enumerates the runtime-selected candidate-pool domain",
+        "route_key_out = (input_total, leg_count, legs_lex)"
+      ],
+      "related_invariants": [
+        "exact_out_minimizers_require_total_key_and_complete_allocations",
+        "canonical_winner_requires_total_key"
+      ],
+      "replacement_claim": "The many-pool exact-out runtime is now canonically aligned over its selected bounded domain, and the integration/API layer exposes a default many-pool quote surface that advertises and matches replayable default packet build/verify aliases using the unified certified-advisory policy while lifting selected-domain and repaired-side projection-cover summaries to the top level, so the proof-backed selected-domain certified packet and repaired bounded advisory behavior are consumed together when they differ; the remaining open frontier is candidate-pool prefilter and generator completeness beyond that selected domain.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=exact_out_canonical_minimizer",
+      "scenario_id": null,
+      "slice_id": "exact_out_canonical_minimizer",
+      "source_surfaces": [
+        "src/core/split_routing_dispatch.py",
+        "src/kernels/python/exact_out_many_pool_canonical_domain_v1.py",
+        "src/integration/exact_out_route_certificate.py",
+        "src/integration/api_server.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCertifiedBridge.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportPresentation.lean",
+        "formal/exact_out_many_pool_generator_completeness_plan.md",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_exact_out_route_certificate_fuzz.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "tests/formal/test_lean_exact_out_many_pool_selected_domain_certified_bridge.py",
+        "tests/formal/test_lean_exact_out_many_pool_support_presentation.py"
+      ],
+      "status": "falsified",
+      "target_evidence_class": "contract",
+      "trigger": "The functional core now delegates selected-domain winner selection to a bounded exact canonical-domain kernel, which repairs the old audited-domain counterexample, but the candidate-pool prefilter is still heuristic and the global generator-completeness frontier remains open.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "operator",
+      "claim": "The current many-pool exact-out runtime prefilter is support-sound for bounded audited domains: every feasible bounded allocation uses only pools selected by the prefilter.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "hypothesis",
+      "evidence_or_falsifier": "Bounded witness: four identical pools `(40,20)` with `amount_out_total=2`. The prefilter selects `p0,p1,p2`, but the full bounded feasible domain still contains valid allocations using omitted pool `p3`; the canonical bad support witness is the one-leg quote `(p3:2)` with total input `5`. So the runtime prefilter does not satisfy the explicit support-soundness hypothesis even on this small audited domain.",
+      "hypothesis_id": "many_pool_exact_out_prefilter_is_support_sound_v1",
+      "improvement_target": "proof promotion",
+      "negative_kind": "falsified",
+      "preconditions": [
+        "amount_out_total stays within the bounded audit budget",
+        "feasible pools are taken from the active exact-out direction",
+        "max_legs = 3",
+        "max_candidate_pools = 3"
+      ],
+      "related_invariants": [
+        "exact_out_minimizers_require_total_key_and_complete_allocations",
+        "canonical_winner_requires_total_key"
+      ],
+      "replacement_claim": "The current runtime prefilter is not support-sound in general. The next honest frontier is either prefilter redesign or a stronger audited-domain condition, then generator completeness over the repaired boundary.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=exact_out_canonical_minimizer",
+      "scenario_id": null,
+      "slice_id": "exact_out_canonical_minimizer",
+      "source_surfaces": [
+        "src/kernels/python/exact_out_many_pool_prefilter_support_audit_v1.py",
+        "src/kernels/python/exact_out_many_pool_canonical_domain_v1.py",
+        "tests/core/test_exact_out_many_pool_prefilter_support_audit_v1.py",
+        "formal/exact_out_many_pool_generator_completeness_plan.md",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterSupportBridge.lean"
+      ],
+      "status": "falsified",
+      "target_evidence_class": "proved",
+      "trigger": "A bounded kernel audit enumerated the full feasible domain over all feasible pools and found a feasible allocation whose positive-leg support lies outside the selected prefilter set.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "evidence",
+      "claim": "The current settlement validator already gives one end-to-end certificate for every semantic lane.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The repo now has one replayable end-to-end settlement certificate object for the settlement-certificate posture. validate_operations routes require_settlement_certificate through that packet, the packet nests a replayable feature-extension packet instead of trusting raw buyback/rebate/lock booleans, and Lean plus ESSO pin the deterministic rebuild and packet_ok shell for both the feature-extension packet and the end-to-end packet. The remaining limits are narrower: proof_ok and binding_ok are only locally derived when proof verification is enabled, and broader oracle-governance and endogenous-LP claims still live outside this packet shell.",
+      "hypothesis_id": "settlement_strong_validator_is_single_end_to_end_certificate_v1",
+      "improvement_target": "runtime guard alignment",
+      "negative_kind": "blocked_promotion",
+      "preconditions": [
+        "proof_flags are bound to a settlement witness",
+        "component proof lanes exist for cpmm, balance, token, proof, and binding checks"
+      ],
+      "related_invariants": [
+        "settlement_contracts_require_canonical_deltas_and_bound_quotes"
+      ],
+      "replacement_claim": "Within settlement-certificate posture, the repo now uses one replayable end-to-end settlement certificate as the live acceptance object, with nested feature-extension and value lanes. The remaining frontier is deeper proof/internalization of proof-verification and oracle/LP semantics, not absence of a single certificate object.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=settlement_strong_validation",
+      "scenario_id": "allow_noncanonical_settlement_deltas",
+      "slice_id": "settlement_strong_validation",
+      "source_surfaces": [
+        "src/core/settlement_strong_validator.py",
+        "src/integration/validation.py",
+        "src/integration/dex_engine.py",
+        "src/integration/settlement_strong_certificate.py",
+        "src/integration/settlement_end_to_end_certificate_packet.py",
+        "lean-mathlib/Proofs/ZenoDEXSettlementPriceHistoryCertificate.lean",
+        "lean-mathlib/Proofs/ZenoDEXSettlementEndToEndCertificatePacket.lean",
+        "src/tau_specs/recommended/settlement_v4_buyback_floor_rebate_lock_proof_gate.tau",
+        "tests/integration/test_settlement_strong_certificate.py",
+        "tests/integration/test_settlement_certificate_runtime_gate.py",
+        "tests/integration/test_settlement_end_to_end_certificate_packet.py",
+        "tests/formal/test_lean_settlement_price_history_certificate.py",
+        "tests/formal/test_lean_settlement_end_to_end_certificate_packet.py",
+        "tests/tau/test_settlement_certificate_replay_compact_bundle.py",
+        "tests/tau/test_settlement_accounting_semantic_lane.py",
+        "src/integration/settlement_feature_extension_packet.py",
+        "src/kernels/dex/settlement_feature_extension_packet_v1.yaml",
+        "lean-mathlib/Proofs/ZenoDEXSettlementFeatureExtensionPacket.lean",
+        "tests/integration/test_settlement_feature_extension_packet.py",
+        "tests/formal/test_lean_settlement_feature_extension_packet.py",
+        "tests/formal/test_esso_settlement_feature_extension_packet.py",
+        "tests/integration/test_proof_verifier.py"
+      ],
+      "status": "supported",
+      "target_evidence_class": "proved",
+      "trigger": "The settlement-certificate runtime posture now routes through the unified settlement end-to-end certificate packet, the packet internalizes the feature-extension booleans through a nested replayable feature-extension packet, and Lean plus ESSO now pin the packetized acceptance shell.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "evidence",
+      "claim": "The compact settlement bundle is equivalent to the full two-step price rails surface.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The compact settlement bundle only requires monotonicity plus |price_curr - price_prev| < 50, while the full price-rails contract also bounds the earlier |price_prev - price_pp| step. The repo now has both a Lean witness and a bounded Tau witness for that asymmetry.",
+      "hypothesis_id": "settlement_compact_bundle_equals_full_price_rails_v1",
+      "improvement_target": "contract strengthening",
+      "negative_kind": "scope_boundary",
+      "preconditions": [
+        "canonical replay ids are supplied to the settlement compact bundle",
+        "all component proof flags on the compact certificate are asserted true"
+      ],
+      "related_invariants": [
+        "full_price_rails_refine_compact_settlement_bundle"
+      ],
+      "replacement_claim": "Full two-step price rails refine the compact settlement bundle surface, but the compact bundle remains a deliberately weaker certificate surface.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=treat_compact_bundle_as_full_price_rails",
+      "scenario_id": "treat_compact_bundle_as_full_price_rails",
+      "slice_id": "settlement_strong_validation",
+      "source_surfaces": [
+        "src/tau_specs/recommended/settlement_price_rails_aligned_v1.tau",
+        "src/tau_specs/recommended/settlement_v5_aligned_compact_bundle.tau",
+        "src/integration/settlement_strong_certificate.py",
+        "lean-mathlib/Proofs/ZenoDEXSettlementCompactBundle.lean",
+        "tests/tau/test_settlement_compact_bundle_refinement.py"
+      ],
+      "status": "blocked",
+      "target_evidence_class": "proved",
+      "trigger": "Lean and Tau evidence now exhibit the witness a=1, b=2, c=3, d=4, price_pp=0, price_prev=60, price_curr=70, where the compact bundle accepts but full two-step price rails reject.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "evidence",
+      "claim": "The new settlement spot-price packet already cryptographically authenticates the upstream price source.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The packet remains a deterministic provenance surface: it binds price entries, source ids, freshness, and optional verified sync metadata, and ESSO cross-verifies that bounded gate. A separate optional BLS-signed attestation envelope now authenticates one normalized packet against a signer/source policy and a consumer-time age bound, but the packet itself still does not perform signature verification or certificate-path validation.",
+      "hypothesis_id": "settlement_spot_price_packet_is_cryptographic_attestation_v1",
+      "improvement_target": "contract strengthening",
+      "negative_kind": "scope_boundary",
+      "preconditions": [
+        "a two-asset spot-price packet is built with positive prices and bounded freshness",
+        "any required cross-module sync contract verifies and remains green"
+      ],
+      "related_invariants": [
+        "admissible_spot_price_packets_require_positive_fresh_prices_and_optional_sync_gate",
+        "attested_spot_price_packets_require_signature_binding_source_policy_and_consumer_time_age_bound"
+      ],
+      "replacement_claim": "The settlement spot-price packet internalizes positivity, freshness, and optional sync semantics in a fail-closed packet, and an optional signed attestation can authenticate that packet against an allowlisted signer/source policy, but packet normalization alone is not cryptographic source authenticity.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=settlement_strong_validation",
+      "scenario_id": "treat_spot_price_packet_as_cryptographic_attestation",
+      "slice_id": "settlement_strong_validation",
+      "source_surfaces": [
+        "src/integration/settlement_price_provenance.py",
+        "src/kernels/dex/settlement_spot_price_packet_v1.yaml",
+        "src/integration/confidential_attestation.py",
+        "tests/integration/test_settlement_price_provenance.py",
+        "tests/formal/test_esso_settlement_spot_price_packet.py",
+        "src/integration/settlement_price_attestation.py",
+        "src/kernels/dex/settlement_spot_price_attestation_v1.yaml",
+        "tests/integration/test_settlement_price_attestation.py",
+        "tests/formal/test_esso_settlement_spot_price_attestation.py"
+      ],
+      "status": "blocked",
+      "target_evidence_class": "proved",
+      "trigger": "The packet itself still only verifies deterministic normalization, freshness, and optional sync gating. There is now a separate signed attestation envelope for packet authenticity, but the packet alone is still not a cryptographic attestation.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "evidence",
+      "claim": "The LP-aware settlement value contract already proves endogenous LP valuation for settlement safety.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The LP-aware contract makes LP rows explicit and mechanically checks that user LP value plus protocol LP liability cancels under the same unit value, and ESSO verifies that bounded law. A new endogenous LP settlement value packet now derives a reserve-marked LP unit value from pool reserves, LP supply, and attested or verified spot prices, but that still is not a full endogenous liquidation or unwind theorem.",
+      "hypothesis_id": "declared_lp_unit_values_close_settlement_lp_valuation_v1",
+      "improvement_target": "contract strengthening",
+      "negative_kind": "scope_boundary",
+      "preconditions": [
+        "settlement carries lp_deltas",
+        "explicit asset prices are supplied through the raw map, price packet, or signed attestation path",
+        "explicit LP unit values are supplied for every pool referenced by lp_deltas"
+      ],
+      "related_invariants": [
+        "asset_and_lp_liability_balanced_settlement_implies_zero_value_under_declared_asset_and_lp_unit_prices",
+        "attested_spot_price_packets_require_signature_binding_source_policy_and_consumer_time_age_bound"
+      ],
+      "replacement_claim": "The LP-aware settlement value contract now exposes LP rows and proves zero net value under declared asset prices and LP unit values when asset conservation and LP-liability balance hold, and the new endogenous LP settlement value packet packages a reserve-and-supply-derived LP reference value into one replayable contract object, but full endogenous LP pricing remains outside the proved settlement slice.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=treat_declared_lp_unit_values_as_endogenous_lp_pricing",
+      "scenario_id": "treat_declared_lp_unit_values_as_endogenous_lp_pricing",
+      "slice_id": "settlement_strong_validation",
+      "source_surfaces": [
+        "src/integration/settlement_lp_value_contract.py",
+        "src/kernels/dex/settlement_lp_value_contract_v1.yaml",
+        "tests/integration/test_settlement_lp_value_contract.py",
+        "tests/formal/test_esso_settlement_lp_value_contract.py",
+        "src/integration/api_server.py",
+        "tests/integration/test_api_server_dex_api.py"
+      ],
+      "status": "blocked",
+      "target_evidence_class": "proved",
+      "trigger": "The LP-aware value sidecar proves internal LP user/liability cancellation only under the same declared LP unit values; it does not derive those unit values from pool state, market structure, or an endogenous oracle policy.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "guard",
+      "claim": "ABI-compatible wrappers remain system-safe even if reserve and stake mirror synchronization is only a convention.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The world model only treats composition as admissible when reserve and stake mirror invariants remain explicit and replayable.",
+      "hypothesis_id": "wrapper_equivalence_implies_composed_safety_v1",
+      "improvement_target": "runtime guard alignment",
+      "negative_kind": "missing_guard",
+      "preconditions": [
+        "wrapper kernels preserve the public observables ABI",
+        "the composed system shares reserve or stake state across modules"
+      ],
+      "related_invariants": [
+        "composition_invariants_require_explicit_mirror_sync"
+      ],
+      "replacement_claim": "Wrapper equivalence is insufficient without explicit mirror-sync guards and system-spec replay.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=break_kernel_mirror_sync",
+      "scenario_id": "break_kernel_mirror_sync",
+      "slice_id": "kernel_abi_composition",
+      "source_surfaces": [
+        "docs/KERNEL_ABI_AND_COMPOSITION.md",
+        "src/kernels/dex/zenodex_system_compose_v2.yaml",
+        "src/kernels/dex/cpmm_swap_compose_v2.yaml"
+      ],
+      "status": "blocked",
+      "target_evidence_class": "proved",
+      "trigger": "Removing reserve_mirror_consistency or stake_mirror_consistency allows stale shared state to satisfy wrapper-local expectations while violating system safety.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "evidence",
+      "claim": "The public funding story is fully captured by funding_rate_market_v1 alone.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "Funding freshness, bounded-move gates, and witness conservation only compose cleanly when the witness lane remains part of the assurance surface.",
+      "hypothesis_id": "public_funding_market_alone_is_the_assurance_surface_v1",
+      "improvement_target": "contract strengthening",
+      "negative_kind": "disputed_source",
+      "preconditions": [
+        "public assurance docs are treated as the source surface",
+        "epoch funding authorization is expected to compose with settlement semantics"
+      ],
+      "related_invariants": [
+        "perps_funding_requires_fresh_oracle_and_witness_lane"
+      ],
+      "replacement_claim": "Perps funding admissibility requires the fresh-oracle gate and the decomposed witness settlement lane, not the market kernel in isolation.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=allow_funding_with_stale_oracle",
+      "scenario_id": "allow_funding_with_stale_oracle",
+      "slice_id": "perp_funding_epoch_gate",
+      "source_surfaces": [
+        "docs/PUBLIC_ASSURANCE_REPLAY.md",
+        "docs/derivatives/PERP_EPOCH_SAFETY_V1.md",
+        "src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml"
+      ],
+      "status": "blocked",
+      "target_evidence_class": "proved",
+      "trigger": "The world model treats funding_rate_market_v1 plus funding_rate_settlement_witness_v1_1 as the decomposed public story, and settlement authorization remains sensitive to the witness lane.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "guard",
+      "claim": "zUSD dual conservation is already promoted end to end into the executable assurance surface.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "proved",
+      "evidence_or_falsifier": "The proof lane is stronger than the runtime assurance surface, so promotion is blocked until executable guards or certificates consume both conservation laws.",
+      "hypothesis_id": "dual_conservation_is_already_runtime_promoted_v1",
+      "improvement_target": "runtime guard alignment",
+      "negative_kind": "blocked_promotion",
+      "preconditions": [
+        "debt and collateral homomorphism proofs compile",
+        "runtime transitions still need explicit conservation-facing acceptance gates"
+      ],
+      "related_invariants": [
+        "debt_only_checks_are_insufficient_for_zusd"
+      ],
+      "replacement_claim": "The current posture proves dual conservation mathematically but has not yet promoted both laws into the executable assurance surface.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=drop_collateral_conservation_from_zusd",
+      "scenario_id": "drop_collateral_conservation_from_zusd",
+      "slice_id": "zusd_dual_conservation",
+      "source_surfaces": [
+        "experimental/zusd_research/lean/ZUSDDualConservation.lean",
+        "experimental/zusd_research/lean/ZUSDCollateralFlowAlgebra.lean",
+        "experimental/zusd_research/lean/ZUSDDebtHomomorphism.lean"
+      ],
+      "status": "blocked",
+      "target_evidence_class": "contract",
+      "trigger": "The world model records that removing collateral conservation weakens admissibility beneath the proof surface the slice describes.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "guard",
+      "claim": "Local zUSD oracle validity is enough even when the composed perps oracle view materially diverges or lags.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The repo now has both an explicit cross-module oracle sync contract packet and a fail-closed Tau replay surface that reject activation when divergence or epoch lag exceed configured bounds, which falsifies the stronger claim that module-local oracle validity alone is enough for composed safety.",
+      "hypothesis_id": "local_oracle_alignment_alone_is_cross_module_oracle_safety_v1",
+      "improvement_target": "public assurance alignment",
+      "negative_kind": "falsified",
+      "preconditions": [
+        "cross-module oracle composition is relevant to the deployment",
+        "the perps oracle snapshot is available for the synchronized market"
+      ],
+      "related_invariants": [
+        "cross_module_oracle_sync_requires_shared_bounds"
+      ],
+      "replacement_claim": "When deployments depend on a shared oracle world across zUSD and perps, oracle activation should be bound to the explicit divergence-and-lag sync contract; current support is contract-level and fail closed, but still opt-in and not yet kernel-backed.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=allow_cross_module_oracle_activation_under_divergence",
+      "scenario_id": "allow_cross_module_oracle_activation_under_divergence",
+      "slice_id": "cross_module_oracle_sync_gate",
+      "source_surfaces": [
+        "docs/ALGORITHM_PROMOTIONS_2026Q1.md",
+        "src/integration/zusd_api.py",
+        "src/integration/zusd_oracle_contracts.py",
+        "src/integration/tau_witness.py",
+        "src/tau_specs/recommended/zusd_cross_module_oracle_sync_gate_v1.tau",
+        "tests/integration/test_zusd_api.py",
+        "tests/integration/test_zusd_oracle_contracts.py",
+        "tests/tau/test_zusd_tau_specs.py"
+      ],
+      "status": "supported",
+      "target_evidence_class": "contract",
+      "trigger": "The repo now exposes a deterministic divergence-and-lag sync gate for zUSD oracle activation against the perps oracle view, so local oracle validity alone is no longer the strongest composed shape.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "guard",
+      "claim": "Review-packet coverage alone is enough to claim semantic replay parity for all runtime-active Tau specs.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The new parity contract packet makes the distinction explicit: review-packet level passes across the whole active inventory, while semantic-contract level still records a bounded failing-spec set and inventory digest. That directly falsifies the idea that review coverage and semantic replay parity are interchangeable assurance surfaces.",
+      "hypothesis_id": "review_packet_parity_is_semantic_parity_v1",
+      "improvement_target": "semantic contract coverage",
+      "negative_kind": "blocked_promotion",
+      "preconditions": [
+        "the active Tau inventory is generated from the current review manifest",
+        "the repo is making a semantic replay-parity claim rather than only a review-coverage claim"
+      ],
+      "related_invariants": [
+        "runtime_active_tau_specs_require_semantic_source_rank"
+      ],
+      "replacement_claim": "Review-packet coverage is complete for active Tau specs, and the repo now has a dedicated parity contract that records the stronger semantic-contract posture and its current gaps without overclaiming equivalence.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=downgrade_active_tau_semantic_parity_to_review_packets_only",
+      "scenario_id": "downgrade_active_tau_semantic_parity_to_review_packets_only",
+      "slice_id": "active_tau_semantic_parity",
+      "source_surfaces": [
+        "tools/check_tau_active_semantic_parity.py",
+        "tools/build_tau_active_semantic_parity_contract.py",
+        "tests/tau/test_check_tau_active_semantic_parity.py",
+        "tests/tools/test_tau_active_semantic_parity_contract.py"
+      ],
+      "status": "supported",
+      "target_evidence_class": "contract",
+      "trigger": "The active inventory passes at review-packet level but still fails at semantic-contract level, so review coverage is not the same assurance surface as semantic replay parity.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "evidence",
+      "claim": "A verified signed spot-price attestation is already a complete oracle trust policy for settlement value safety.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "contract",
+      "evidence_or_falsifier": "The new signed envelope improves the settlement boundary materially: it authenticates one canonical packet, enforces packet.now == signed_at, checks consumer-time freshness, and binds packet source ids to an allowlisted signer policy. That is still narrower than a complete oracle trust policy, because signer governance, source quorum, and disagreement policy remain external.",
+      "hypothesis_id": "signed_spot_price_attestation_is_complete_oracle_trust_policy_v1",
+      "improvement_target": "contract strengthening",
+      "negative_kind": "scope_boundary",
+      "preconditions": [
+        "a settlement spot-price packet is provenance-admissible",
+        "a BLS signer authenticates the packet and the signer/source allowlist accepts the packet source ids",
+        "consumer_now_epoch stays within the declared attestation age bound"
+      ],
+      "related_invariants": [
+        "attested_spot_price_packets_require_signature_binding_source_policy_and_consumer_time_age_bound"
+      ],
+      "replacement_claim": "An optional signed spot-price attestation now gives packet authenticity plus signer/source-policy and age-bound enforcement at the normalized packet boundary, but complete oracle trust policy remains an external system concern.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=settlement_strong_validation",
+      "scenario_id": "treat_signed_spot_price_attestation_as_complete_oracle_trust_policy",
+      "slice_id": "settlement_strong_validation",
+      "source_surfaces": [
+        "src/integration/settlement_price_attestation.py",
+        "src/kernels/dex/settlement_spot_price_attestation_v1.yaml",
+        "tests/integration/test_settlement_price_attestation.py",
+        "tests/formal/test_esso_settlement_spot_price_attestation.py",
+        "tests/integration/test_settlement_value_contract.py"
+      ],
+      "status": "blocked",
+      "target_evidence_class": "proved",
+      "trigger": "The signed envelope authenticates one normalized packet against one local signer/source policy and one bounded age window, but it does not by itself internalize signer governance, key rotation, multi-source quorum, or broader oracle trust policy.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "operator",
+      "claim": "The current many-pool exact-out runtime prefilter safely contracts bounded audited domains: every full bounded feasible candidate is key-dominated by some selected-domain candidate under route_key_out.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "hypothesis",
+      "evidence_or_falsifier": "Bounded witness: pools `(20,10)`, `(20,10)`, `(30,15)`, `(30,15)` with `amount_out_total=4`. The prefilter selects `p0,p2,p3`, but the full bounded canonical winner is `(p0:2,p1:2)` with total input `10`, and no selected-domain candidate has route_key_out less than or equal to that winner. So the runtime prefilter does not satisfy even the weaker safe-contraction condition on this small audited domain.",
+      "hypothesis_id": "many_pool_exact_out_prefilter_is_safe_contraction_v1",
+      "improvement_target": "proof promotion",
+      "negative_kind": "falsified",
+      "preconditions": [
+        "amount_out_total stays within the bounded audit budget",
+        "feasible pools are taken from the active exact-out direction",
+        "max_legs = 3",
+        "max_candidate_pools = 3"
+      ],
+      "related_invariants": [
+        "exact_out_minimizers_require_total_key_and_complete_allocations",
+        "canonical_winner_requires_total_key"
+      ],
+      "replacement_claim": "The current runtime prefilter is not safely contracting in general. A bounded cover-search selector already finds a repaired subset within the same candidate budget on the mixed-pool falsifier (`p0,p1`), and the generalized contraction audit confirms that repaired subset satisfies safe contraction on that witness. That repair principle is now packaged as a dedicated repaired-prefilter kernel, a replayable repaired-prefilter contract surface, and a replayable repaired advisory-quote packet surface with Lean- and ESSO-backed shell checks. On the deterministic 64-case bounded corpus over ordered four-pool products of `(20,10)` and `(30,15)` with `amount_out_total` in `{1,2,3,4}`, the current runtime prefilter matches the full bounded canonical winner in `61/64` cases, while the bounded repair matches in `64/64`, is never worse, and satisfies contraction in `64/64` cases. On the broader deterministic 405-case corpus over ordered four-pool products of `(20,10)`, `(30,15)`, and `(40,20)` with `amount_out_total` in `{1,2,3,4,5}`, the current runtime prefilter matches the full bounded canonical winner in `393/405` cases, while the repaired-prefilter kernel matches in `405/405`, is never worse, and satisfies contraction in `405/405` cases. The next honest frontier is to redesign the runtime prefilter around this repaired kernel or add a stronger audited-domain condition before attempting a global or bounded completeness bridge.",
+      "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=exact_out_canonical_minimizer",
+      "scenario_id": null,
+      "slice_id": "exact_out_canonical_minimizer",
+      "source_surfaces": [
+        "src/kernels/python/exact_out_many_pool_prefilter_contraction_audit_v1.py",
+        "src/kernels/python/exact_out_many_pool_canonical_domain_v1.py",
+        "tests/core/test_exact_out_many_pool_prefilter_contraction_audit_v1.py",
+        "formal/exact_out_many_pool_generator_completeness_plan.md",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterContractionBridge.lean",
+        "src/kernels/python/exact_out_many_pool_prefilter_subset_search_v1.py",
+        "tests/core/test_exact_out_many_pool_prefilter_subset_search_v1.py"
+      ],
+      "status": "falsified",
+      "target_evidence_class": "proved",
+      "trigger": "A bounded kernel audit enumerated both the full feasible domain over all feasible pools and the selected-domain candidate set, then found a full-domain candidate not dominated by any selected-domain candidate under route_key_out.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    },
+    {
+      "axis": "operator",
+      "claim": "For a fixed exact-in Pokayoke context, advisory action severity is monotone nondecreasing in amount_in.",
+      "context_key": "zenodex_shape_negative_frontier_v1",
+      "current_evidence_class": "hypothesis",
+      "evidence_or_falsifier": "Concrete witness: amount_in=20 yields typed_confirm with high_price_impact, amount_in=21 yields confirm with moderate_price_impact, and amount_in=23 yields typed_confirm with mev_conflict plus high_price_impact.",
+      "hypothesis_id": "pokayoke_exact_in_action_monotone_in_amount_v1",
+      "improvement_target": "proof promotion",
+      "negative_kind": "falsified",
+      "preconditions": [
+        "reserve_in = reserve_out = 500",
+        "fee_bps = 0",
+        "pending_volume_same_direction = 0",
+        "confidence_bps = 9000",
+        "user_slippage_bps = 10",
+        "slippage_options_bps = [10, 50, 100, 300, 500]"
+      ],
+      "related_invariants": [
+        "pokayoke_action_severity_is_explicit",
+        "exact_in_probe_schedule_must_not_assume_monotonicity"
+      ],
+      "replacement_claim": "The full advisory action surface is not monotone in amount_in. The honest runtime posture is a bounded deterministic probe schedule plus explicit regression witnesses until a smaller monotone subdomain is isolated and proved.",
+      "replay_pointer": "tests/core/test_pokayoke_swap_suggest.py#test_eval_amount_action_is_not_monotone_in_amount_witness",
+      "scenario_id": "scenario_pokayoke_exact_in_nonmonotone_amount_witness",
+      "slice_id": "pokayoke_exact_in_swap_guardrails",
+      "source_surfaces": [
+        "src/core/pokayoke_swap_guardrails.py",
+        "src/core/pokayoke_swap_suggest.py",
+        "tests/core/test_pokayoke_swap_suggest.py",
+        "docs/zenodex/SHAPEFORGE_POKAYOKE_REASONING.md"
+      ],
+      "status": "falsified",
+      "target_evidence_class": "proved",
+      "trigger": "A bounded brute-force scan over adjacent amount_in values found a severity drop and later rebound in the same fixed pool/adversary context.",
+      "world_model_id": "zenodex_shape_reference_v3"
+    }
+  ],
+  "repo_root": "github.com/TheDarkLightX/ZenoDEX",
+  "schema": "shapeforge/negative-knowledge-seed/v2",
+  "world_model_id": "zenodex_shape_reference_v3",
+  "world_model_path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json"
+}

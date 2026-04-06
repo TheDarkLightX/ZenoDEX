@@ -8,6 +8,7 @@ For current upstream commit `69deea00ac291cc28dbca319a2a3465d9a9256a9`, use:
 
 Optional follow-on patch:
 - `patches/tau-testnet-state-proof.patch` (adds `state_proof:<state_hash>` plumbing)
+- `patches/tau-testnet-gettaustate.patch` (adds `gettaustate <state_hash>` transport for committed Tau-state payloads)
 
 ## What it adds (high level)
 
@@ -75,3 +76,36 @@ bash tools/run_tau_testnet_local_smoke.sh
 Notes:
 - `balances_patch` is **disabled by default** in Tau Testnet; enable only if you intentionally want an app plugin to rewrite native balances:
   - `export TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH=1`
+
+## Follow-on transport for runtime provenance
+
+The app-bridge patch publishes the committed payload we need under `tau_state:<state_hash>`, but by itself the documented TCP surface only exposes `getappstate [full]`.
+
+The companion patch `patches/tau-testnet-gettaustate.patch` adds:
+
+```text
+gettaustate <state_hash>
+```
+
+Recommended response shape:
+
+```json
+{
+  "state_hash": "<64-hex>",
+  "present": true,
+  "rules": "<utf-8 Tau rules text>",
+  "accounts_hash": "<64-hex>",
+  "app_hash": "<64-hex or empty>"
+}
+```
+
+Why this matters:
+- `getstateproof full` gives the stable `state_hash`
+- `gettaustate <state_hash>` reveals the committed `tau_state:<state_hash>` payload
+- when the requested hash is the node's current committed snapshot, `gettaustate` can serve that payload locally without waiting for DHT propagation
+- `getappstate full` reveals the decoded app snapshot and its `app_hash`
+
+That lets the runtime reject unless the app snapshot hash matches the `app_hash` committed inside the stable Tau-state payload, instead of only trusting two separate TCP views.
+
+See also:
+- [docs/tau_testnet_gettaustate_patch.md](/home/trevormoc/Downloads/Autonomous%20Tau%20DEX/docs/tau_testnet_gettaustate_patch.md)

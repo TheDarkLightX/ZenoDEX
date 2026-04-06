@@ -85,6 +85,19 @@ assert data.get("ok") is True, data
 print("[gate] kernel assurance OK")
 PY
 
+KERNEL_JSON="$(mktemp)"
+echo "[gate] running kernel assurance (manifest-backed)"
+python tools/dex_kernel_assurance.py --pretty >"$KERNEL_JSON"
+python - "$KERNEL_JSON" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    data = json.load(f)
+assert data.get("ok") is True, data
+print("[gate] kernel assurance OK")
+PY
+
 echo "[gate] running pytest"
 pytest -q
 

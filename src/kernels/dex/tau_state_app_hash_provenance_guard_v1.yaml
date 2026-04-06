@@ -1,0 +1,341 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "tau_state_app_hash_provenance_guard_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded fail-closed guard for the Tau-state/app-hash provenance shell.
+
+    Purpose:
+    - make the settlement loader acceptance relation explicit,
+    - separate baseline proof/app-state checks from the stronger Tau-state
+      app-hash binding branch,
+    - fail closed when the stronger branch is required but unavailable or drifted.
+
+    Scope boundary:
+    - does not model cryptographic hash function internals,
+    - does not model JSON parsing or network transport byte streams,
+    - treats transport/hash results as host-computed bounded booleans.
+
+observables:
+  state_vars:
+    [
+      "exec_req",
+      "bridge_payload_present",
+      "bridge_payload_object_ok",
+      "bridge_schema_ok",
+      "bridge_snapshot_present",
+      "request_binding_ok",
+      "anchor_binding_ok",
+      "policy_binding_ok",
+      "strong_binding_required",
+      "state_proof_present",
+      "state_hash_present",
+      "state_proof_stable",
+      "state_proof_error_free",
+      "app_state_present",
+      "app_state_stable",
+      "app_state_hash_ok",
+      "tau_state_transport_available",
+      "tau_state_present",
+      "tau_state_stable",
+      "tau_state_hash_matches_proof",
+      "tau_state_app_hash_present",
+      "tau_state_app_hash_matches_app_state",
+      "bridge_payload_ready",
+      "baseline_provenance_ok",
+      "strong_tau_state_binding_ok",
+      "loader_ok",
+    ]
+  effects: ["loader_ok"]
+
+types: []
+
+state_vars:
+  - id: "exec_req"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "bridge_payload_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "bridge_payload_object_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "bridge_schema_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "bridge_snapshot_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "request_binding_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "anchor_binding_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "policy_binding_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "strong_binding_required"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "state_proof_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "state_hash_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "state_proof_stable"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "state_proof_error_free"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "app_state_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "app_state_stable"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "app_state_hash_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "tau_state_transport_available"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "tau_state_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "tau_state_stable"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "tau_state_hash_matches_proof"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "tau_state_app_hash_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "tau_state_app_hash_matches_app_state"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "bridge_payload_ready"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "baseline_provenance_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "strong_tau_state_binding_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "loader_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - { var: "exec_req", expr: { bool: false } }
+  - { var: "bridge_payload_present", expr: { bool: false } }
+  - { var: "bridge_payload_object_ok", expr: { bool: false } }
+  - { var: "bridge_schema_ok", expr: { bool: false } }
+  - { var: "bridge_snapshot_present", expr: { bool: false } }
+  - { var: "request_binding_ok", expr: { bool: false } }
+  - { var: "anchor_binding_ok", expr: { bool: false } }
+  - { var: "policy_binding_ok", expr: { bool: false } }
+  - { var: "strong_binding_required", expr: { bool: false } }
+  - { var: "state_proof_present", expr: { bool: false } }
+  - { var: "state_hash_present", expr: { bool: false } }
+  - { var: "state_proof_stable", expr: { bool: false } }
+  - { var: "state_proof_error_free", expr: { bool: false } }
+  - { var: "app_state_present", expr: { bool: false } }
+  - { var: "app_state_stable", expr: { bool: false } }
+  - { var: "app_state_hash_ok", expr: { bool: false } }
+  - { var: "tau_state_transport_available", expr: { bool: false } }
+  - { var: "tau_state_present", expr: { bool: false } }
+  - { var: "tau_state_stable", expr: { bool: false } }
+  - { var: "tau_state_hash_matches_proof", expr: { bool: false } }
+  - { var: "tau_state_app_hash_present", expr: { bool: false } }
+  - { var: "tau_state_app_hash_matches_app_state", expr: { bool: false } }
+  - { var: "bridge_payload_ready", expr: { bool: false } }
+  - { var: "baseline_provenance_ok", expr: { bool: false } }
+  - { var: "strong_tau_state_binding_ok", expr: { bool: false } }
+  - { var: "loader_ok", expr: { bool: false } }
+
+invariants:
+  - id: "inv_bridge_payload_ready_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "bridge_payload_ready" }
+        - op: "and"
+          args:
+            - { var: "exec_req" }
+            - { var: "bridge_payload_present" }
+            - { var: "bridge_payload_object_ok" }
+            - { var: "bridge_schema_ok" }
+            - { var: "bridge_snapshot_present" }
+            - { var: "request_binding_ok" }
+            - { var: "anchor_binding_ok" }
+            - { var: "policy_binding_ok" }
+  - id: "inv_baseline_provenance_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "baseline_provenance_ok" }
+        - op: "and"
+          args:
+            - { var: "state_proof_present" }
+            - { var: "state_hash_present" }
+            - { var: "state_proof_stable" }
+            - { var: "state_proof_error_free" }
+            - { var: "app_state_present" }
+            - { var: "app_state_stable" }
+            - { var: "app_state_hash_ok" }
+  - id: "inv_strong_tau_state_binding_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "strong_tau_state_binding_ok" }
+        - op: "and"
+          args:
+            - { var: "tau_state_transport_available" }
+            - { var: "tau_state_present" }
+            - { var: "tau_state_stable" }
+            - { var: "tau_state_hash_matches_proof" }
+            - { var: "tau_state_app_hash_present" }
+            - { var: "tau_state_app_hash_matches_app_state" }
+  - id: "inv_loader_ok_flag_correct"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "loader_ok" }
+        - op: "and"
+          args:
+            - { var: "bridge_payload_ready" }
+            - { var: "baseline_provenance_ok" }
+            - op: "or"
+              args:
+                - op: "not"
+                  args: [{ var: "strong_binding_required" }]
+                - { var: "strong_tau_state_binding_ok" }
+
+actions:
+  - id: "rebuild_tau_state_app_hash_provenance_guard"
+    params:
+      - { id: "exec_req_in", type: { kind: "bool" } }
+      - { id: "bridge_payload_present_in", type: { kind: "bool" } }
+      - { id: "bridge_payload_object_ok_in", type: { kind: "bool" } }
+      - { id: "bridge_schema_ok_in", type: { kind: "bool" } }
+      - { id: "bridge_snapshot_present_in", type: { kind: "bool" } }
+      - { id: "request_binding_ok_in", type: { kind: "bool" } }
+      - { id: "anchor_binding_ok_in", type: { kind: "bool" } }
+      - { id: "policy_binding_ok_in", type: { kind: "bool" } }
+      - { id: "strong_binding_required_in", type: { kind: "bool" } }
+      - { id: "state_proof_present_in", type: { kind: "bool" } }
+      - { id: "state_hash_present_in", type: { kind: "bool" } }
+      - { id: "state_proof_stable_in", type: { kind: "bool" } }
+      - { id: "state_proof_error_free_in", type: { kind: "bool" } }
+      - { id: "app_state_present_in", type: { kind: "bool" } }
+      - { id: "app_state_stable_in", type: { kind: "bool" } }
+      - { id: "app_state_hash_ok_in", type: { kind: "bool" } }
+      - { id: "tau_state_transport_available_in", type: { kind: "bool" } }
+      - { id: "tau_state_present_in", type: { kind: "bool" } }
+      - { id: "tau_state_stable_in", type: { kind: "bool" } }
+      - { id: "tau_state_hash_matches_proof_in", type: { kind: "bool" } }
+      - { id: "tau_state_app_hash_present_in", type: { kind: "bool" } }
+      - { id: "tau_state_app_hash_matches_app_state_in", type: { kind: "bool" } }
+    guard: { bool: true }
+    updates:
+      - { var: "exec_req", expr: { param: "exec_req_in" } }
+      - { var: "bridge_payload_present", expr: { param: "bridge_payload_present_in" } }
+      - { var: "bridge_payload_object_ok", expr: { param: "bridge_payload_object_ok_in" } }
+      - { var: "bridge_schema_ok", expr: { param: "bridge_schema_ok_in" } }
+      - { var: "bridge_snapshot_present", expr: { param: "bridge_snapshot_present_in" } }
+      - { var: "request_binding_ok", expr: { param: "request_binding_ok_in" } }
+      - { var: "anchor_binding_ok", expr: { param: "anchor_binding_ok_in" } }
+      - { var: "policy_binding_ok", expr: { param: "policy_binding_ok_in" } }
+      - { var: "strong_binding_required", expr: { param: "strong_binding_required_in" } }
+      - { var: "state_proof_present", expr: { param: "state_proof_present_in" } }
+      - { var: "state_hash_present", expr: { param: "state_hash_present_in" } }
+      - { var: "state_proof_stable", expr: { param: "state_proof_stable_in" } }
+      - { var: "state_proof_error_free", expr: { param: "state_proof_error_free_in" } }
+      - { var: "app_state_present", expr: { param: "app_state_present_in" } }
+      - { var: "app_state_stable", expr: { param: "app_state_stable_in" } }
+      - { var: "app_state_hash_ok", expr: { param: "app_state_hash_ok_in" } }
+      - { var: "tau_state_transport_available", expr: { param: "tau_state_transport_available_in" } }
+      - { var: "tau_state_present", expr: { param: "tau_state_present_in" } }
+      - { var: "tau_state_stable", expr: { param: "tau_state_stable_in" } }
+      - { var: "tau_state_hash_matches_proof", expr: { param: "tau_state_hash_matches_proof_in" } }
+      - { var: "tau_state_app_hash_present", expr: { param: "tau_state_app_hash_present_in" } }
+      - { var: "tau_state_app_hash_matches_app_state", expr: { param: "tau_state_app_hash_matches_app_state_in" } }
+      - var: "bridge_payload_ready"
+        expr:
+          op: "and"
+          args:
+            - { param: "exec_req_in" }
+            - { param: "bridge_payload_present_in" }
+            - { param: "bridge_payload_object_ok_in" }
+            - { param: "bridge_schema_ok_in" }
+            - { param: "bridge_snapshot_present_in" }
+            - { param: "request_binding_ok_in" }
+            - { param: "anchor_binding_ok_in" }
+            - { param: "policy_binding_ok_in" }
+      - var: "baseline_provenance_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "state_proof_present_in" }
+            - { param: "state_hash_present_in" }
+            - { param: "state_proof_stable_in" }
+            - { param: "state_proof_error_free_in" }
+            - { param: "app_state_present_in" }
+            - { param: "app_state_stable_in" }
+            - { param: "app_state_hash_ok_in" }
+      - var: "strong_tau_state_binding_ok"
+        expr:
+          op: "and"
+          args:
+            - { param: "tau_state_transport_available_in" }
+            - { param: "tau_state_present_in" }
+            - { param: "tau_state_stable_in" }
+            - { param: "tau_state_hash_matches_proof_in" }
+            - { param: "tau_state_app_hash_present_in" }
+            - { param: "tau_state_app_hash_matches_app_state_in" }
+      - var: "loader_ok"
+        expr:
+          op: "and"
+          args:
+            - op: "and"
+              args:
+                - { param: "exec_req_in" }
+                - { param: "bridge_payload_present_in" }
+                - { param: "bridge_payload_object_ok_in" }
+                - { param: "bridge_schema_ok_in" }
+                - { param: "bridge_snapshot_present_in" }
+                - { param: "request_binding_ok_in" }
+                - { param: "anchor_binding_ok_in" }
+                - { param: "policy_binding_ok_in" }
+            - op: "and"
+              args:
+                - { param: "state_proof_present_in" }
+                - { param: "state_hash_present_in" }
+                - { param: "state_proof_stable_in" }
+                - { param: "state_proof_error_free_in" }
+                - { param: "app_state_present_in" }
+                - { param: "app_state_stable_in" }
+                - { param: "app_state_hash_ok_in" }
+            - op: "or"
+              args:
+                - op: "not"
+                  args: [{ param: "strong_binding_required_in" }]
+                - op: "and"
+                  args:
+                    - { param: "tau_state_transport_available_in" }
+                    - { param: "tau_state_present_in" }
+                    - { param: "tau_state_stable_in" }
+                    - { param: "tau_state_hash_matches_proof_in" }
+                    - { param: "tau_state_app_hash_present_in" }
+                    - { param: "tau_state_app_hash_matches_app_state_in" }
+    effects:
+      loader_ok: { var: "loader_ok" }

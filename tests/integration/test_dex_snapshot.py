@@ -272,6 +272,99 @@ def test_state_from_snapshot_rejects_invalid_clearinghouse_conservation() -> Non
         state_from_snapshot(snap)
 
 
+def test_state_from_snapshot_rejects_invalid_isolated_perps_risk_bounds() -> None:
+    snap = {
+        "version": 2,
+        "balances": [],
+        "pools": [],
+        "lp_balances": [],
+        "nonces": [],
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
+        "perps": {
+            "version": PERPS_STATE_VERSION,
+            "markets": [
+                {
+                    "market_id": "perp:isolated:bad-bounds",
+                    "kind": "isolated_v2",
+                    "quote_asset": "0x" + "44" * 32,
+                    "global_state": {
+                        "now_epoch": 0,
+                        "epoch_phase": "Open",
+                        "breaker_active": False,
+                        "breaker_last_trigger_epoch": 0,
+                        "clearing_price_seen": False,
+                        "clearing_price_epoch": 0,
+                        "clearing_price_e8": 0,
+                        "oracle_seen": False,
+                        "oracle_last_update_epoch": 0,
+                        "index_price_e8": 0,
+                        "max_oracle_staleness_epochs": 100,
+                        "max_oracle_move_bps": 500,
+                        "initial_margin_bps": -1,
+                        "maintenance_margin_bps": 500,
+                        "depeg_buffer_bps": 100,
+                        "liquidation_penalty_bps": 50,
+                        "max_position_abs": 1_000_000,
+                        "fee_pool_quote": 0,
+                        "funding_rate_bps": 0,
+                        "funding_cap_bps": 100,
+                        "insurance_balance": 0,
+                        "initial_insurance": 0,
+                        "fee_income": 0,
+                        "claims_paid": 0,
+                        "min_notional_for_bounty": 100_000_000,
+                    },
+                    "accounts": [],
+                }
+            ],
+        },
+    }
+    with pytest.raises(ValueError, match="initial_margin_bps"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_invalid_clearinghouse_risk_bounds() -> None:
+    snap = {
+        "version": 2,
+        "balances": [],
+        "pools": [],
+        "lp_balances": [],
+        "nonces": [],
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
+        "perps": {
+            "version": PERPS_STATE_VERSION,
+            "markets": [
+                {
+                    "market_id": "perp:ch2p:bad-bounds",
+                    "kind": "clearinghouse_2p_v1",
+                    "quote_asset": "0x" + "44" * 32,
+                    "account_a_pubkey": "aa" * 48,
+                    "account_b_pubkey": "bb" * 48,
+                    "state": {
+                        **{k: 0 for k in PERP_CLEARINGHOUSE_2P_STATE_KEYS},
+                        "breaker_active": False,
+                        "clearing_price_seen": False,
+                        "oracle_seen": False,
+                        "liquidated_this_step": False,
+                        "initial_margin_bps": 1_000,
+                        "maintenance_margin_bps": 600,
+                        "liquidation_penalty_bps": 50,
+                        "max_oracle_move_bps": 11_000,
+                        "max_oracle_staleness_epochs": 100,
+                        "max_position_abs": 1_000_000,
+                    },
+                }
+            ],
+        },
+    }
+    with pytest.raises(ValueError, match="max_oracle_move_bps"):
+        state_from_snapshot(snap)
+
+
 def test_state_from_snapshot_rejects_invalid_clearinghouse_3p_conservation() -> None:
     snap = {
         "version": 2,
