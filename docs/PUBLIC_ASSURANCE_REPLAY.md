@@ -8,7 +8,7 @@ permalink: autonomous-tau-dex-review/docs/public-assurance-replay
 
 This repo exposes a narrow, replayable public assurance surface. The goal is:
 
-- ship enough material for a fresh clone to reproduce the main assurance claims
+- ship enough tracked material for a clean checkout plus the documented external toolchains to reproduce the main assurance claims
 - avoid shipping private scratch, internal solver outputs, or local agent tooling
 - keep the publishable surface fail-closed
 
@@ -55,7 +55,7 @@ What is intentionally **not** shipped:
 - `external/` vendored toolchains
 - `runs/`, local agent scratch, MCP configs, or other local workspace state
 
-Fresh clone workflow:
+Clean checkout workflow (with documented external toolchains available):
 
 ```bash
 python3 tools/permissionless_assurance.py status
@@ -99,5 +99,5 @@ python3 tools/permissionless_assurance.py leak-check
 The important distinction is that public replayability does **not** mean shipping every intermediate artifact. The public contract is:
 
 1. tracked manifests pin the expected source/toolchain posture,
-2. tracked exported refs let parity tests run on a fresh clone,
+2. tracked exported refs let parity tests run on a clean checkout,
 3. gate scripts rebuild local `internal/` evidence and fail closed on drift.
