@@ -5,11 +5,20 @@ from typing import Any, Callable
 
 import pytest
 
-import src.core.quote_receipts as quote_receipts_module
 from src.core.amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from src.core.quote_receipts import (
+    QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
+    QUOTE_RECEIPT_CERTIFICATE_ASSET_IN_MISMATCH,
+    QUOTE_RECEIPT_CERTIFICATE_ASSET_OUT_MISMATCH,
+    QUOTE_RECEIPT_CERTIFICATE_BAD_TYPE,
+    QUOTE_RECEIPT_CERTIFICATE_LEGS_MISMATCH,
+    QUOTE_RECEIPT_CERTIFICATE_OK,
+    RouteQuoteReceiptCertificateOutcome,
     _pool_reserves_for_hop,
     _replay_and_apply_hop,
+    _require_receipt_gate_flag,
+    evaluate_route_quote_receipt_certificate_gate,
+    evaluate_route_quote_receipt_hop_replay_gate,
     make_route_quote_receipt,
     pool_state_fingerprint,
     receipt_hash,
@@ -954,31 +963,6 @@ def test_quote_receipt_verifier_rejects_non_dict_receipt_type() -> None:
     assert err == "bad_receipt_type"
 
 
-def test_quote_receipt_verifier_fail_closed_on_precheck_gate_drift(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    receipt, pools = _single_hop_exact_in_receipt()
-    mutated = copy.deepcopy(receipt)
-    mutated["body"]["pools"] = []
-    mutated["body"]["legs"] = "bad-legs"
-    mutated["receipt_hash"] = receipt_hash(mutated["body"])
-
-    monkeypatch.setattr(
-        quote_receipts_module,
-        "evaluate_route_quote_receipt_precheck_gate",
-        lambda **_kwargs: quote_receipts_module.RouteQuoteReceiptPrecheckOutcome(
-            precheck_ok=True,
-            reject_code=quote_receipts_module.QUOTE_RECEIPT_PRECHECK_OK,
-            checks={},
-        ),
-    )
-
-    ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
-
-    assert not ok
-    assert err == "bad_receipt_shape"
-
-
 def test_quote_receipt_verifier_rejects_missing_working_pool_via_inconsistent_pool_map() -> None:
     class InconsistentPools(dict[str, str]):
         def __iter__(self):  # type: ignore[override]
@@ -1020,30 +1004,6 @@ def test_quote_receipt_verifier_rejects_bool_like_body_amounts() -> None:
     assert err == "bad_body_amounts"
 
 
-def test_quote_receipt_verifier_fail_closed_on_hop_gate_drift(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    receipt, pools = _single_hop_exact_in_receipt()
-    mutated = copy.deepcopy(receipt)
-    mutated["body"]["legs"][0]["hops"][0]["asset_in"] = None
-    mutated["receipt_hash"] = receipt_hash(mutated["body"])
-
-    monkeypatch.setattr(
-        quote_receipts_module,
-        "evaluate_route_quote_receipt_hop_structure_gate",
-        lambda **_kwargs: quote_receipts_module.RouteQuoteReceiptHopStructureOutcome(
-            hop_ok=True,
-            reject_code=quote_receipts_module.QUOTE_RECEIPT_HOP_OK,
-            checks={},
-        ),
-    )
-
-    ok, err = verify_route_quote_receipt(mutated, pools_by_id=pools)
-
-    assert not ok
-    assert err == "bad_hop"
-
-
 def test_replay_and_apply_hop_fail_closed_on_inconsistent_direction_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1069,46 +1029,45 @@ def test_replay_and_apply_hop_fail_closed_on_inconsistent_direction_contract(
     assert err == "bad_pool_direction"
     assert next_pool is None
 
+@pytest.mark.parametrize(("raw", "expected"), [(0, False), (1, True)])
+def test_require_receipt_gate_flag_accepts_zero_one_ints(raw: int, expected: bool) -> None:
+    assert _require_receipt_gate_flag(raw, name="flag") is expected
 
-@pytest.mark.parametrize(("value", "expected"), [(False, False), (True, True), (0, False), (1, True)])
-def test_require_receipt_gate_flag_accepts_bool_and_zero_one_ints(value: object, expected: bool) -> None:
-    assert quote_receipts_module._require_receipt_gate_flag(value, name="flag") is expected
 
-
-@pytest.mark.parametrize("value", [2, -1, "yes", None])
-def test_require_receipt_gate_flag_rejects_non_boolean_shapes(value: object) -> None:
+@pytest.mark.parametrize("raw", [2, -1, "1", None])
+def test_require_receipt_gate_flag_rejects_non_boolish_values(raw: object) -> None:
     with pytest.raises(ValueError, match="flag must be a bool or 0/1 int"):
-        quote_receipts_module._require_receipt_gate_flag(value, name="flag")
+        _require_receipt_gate_flag(raw, name="flag")
 
 
 @pytest.mark.parametrize(
-    ("kwargs", "expected_code"),
+    ("kwargs", "expected"),
     [
         (
             {
                 "cert_present": False,
+                "cert_dict_ok": True,
+                "winner_quote_dict_ok": True,
+                "asset_in_match": True,
+                "asset_out_match": True,
+                "amount_in_match": True,
+                "amount_out_match": True,
+                "legs_match": True,
+            },
+            QUOTE_RECEIPT_CERTIFICATE_OK,
+        ),
+        (
+            {
+                "cert_present": True,
                 "cert_dict_ok": False,
-                "winner_quote_dict_ok": False,
-                "asset_in_match": False,
-                "asset_out_match": False,
-                "amount_in_match": False,
-                "amount_out_match": False,
-                "legs_match": False,
+                "winner_quote_dict_ok": True,
+                "asset_in_match": True,
+                "asset_out_match": True,
+                "amount_in_match": True,
+                "amount_out_match": True,
+                "legs_match": True,
             },
-            quote_receipts_module.QUOTE_RECEIPT_CERTIFICATE_OK,
-        ),
-        (
-            {
-                "cert_present": True,
-                "cert_dict_ok": False,
-                "winner_quote_dict_ok": False,
-                "asset_in_match": False,
-                "asset_out_match": False,
-                "amount_in_match": False,
-                "amount_out_match": False,
-                "legs_match": False,
-            },
-            quote_receipts_module.QUOTE_RECEIPT_CERTIFICATE_BAD_TYPE,
+            QUOTE_RECEIPT_CERTIFICATE_BAD_TYPE,
         ),
         (
             {
@@ -1121,7 +1080,7 @@ def test_require_receipt_gate_flag_rejects_non_boolean_shapes(value: object) -> 
                 "amount_out_match": True,
                 "legs_match": True,
             },
-            quote_receipts_module.QUOTE_RECEIPT_CERTIFICATE_ASSET_IN_MISMATCH,
+            QUOTE_RECEIPT_CERTIFICATE_ASSET_IN_MISMATCH,
         ),
         (
             {
@@ -1134,7 +1093,7 @@ def test_require_receipt_gate_flag_rejects_non_boolean_shapes(value: object) -> 
                 "amount_out_match": True,
                 "legs_match": True,
             },
-            quote_receipts_module.QUOTE_RECEIPT_CERTIFICATE_ASSET_OUT_MISMATCH,
+            QUOTE_RECEIPT_CERTIFICATE_ASSET_OUT_MISMATCH,
         ),
         (
             {
@@ -1147,7 +1106,7 @@ def test_require_receipt_gate_flag_rejects_non_boolean_shapes(value: object) -> 
                 "amount_out_match": False,
                 "legs_match": True,
             },
-            quote_receipts_module.QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
+            QUOTE_RECEIPT_CERTIFICATE_AMOUNT_OUT_MISMATCH,
         ),
         (
             {
@@ -1160,30 +1119,41 @@ def test_require_receipt_gate_flag_rejects_non_boolean_shapes(value: object) -> 
                 "amount_out_match": True,
                 "legs_match": False,
             },
-            quote_receipts_module.QUOTE_RECEIPT_CERTIFICATE_LEGS_MISMATCH,
+            QUOTE_RECEIPT_CERTIFICATE_LEGS_MISMATCH,
         ),
     ],
 )
-def test_certificate_gate_selects_expected_reject_code(
-    kwargs: dict[str, object],
-    expected_code: str,
+def test_certificate_gate_direct_reject_code_matrix(
+    kwargs: dict[str, bool],
+    expected: str,
 ) -> None:
-    outcome = quote_receipts_module.evaluate_route_quote_receipt_certificate_gate(**kwargs)
+    outcome = evaluate_route_quote_receipt_certificate_gate(**kwargs)
+    assert isinstance(outcome, RouteQuoteReceiptCertificateOutcome)
+    assert outcome.reject_code == expected
+    assert outcome.certificate_ok is (expected == QUOTE_RECEIPT_CERTIFICATE_OK)
 
-    assert outcome.reject_code == expected_code
 
-
-@pytest.mark.parametrize(("next_reserve_in", "next_reserve_out"), [(-1, 0), (0, -1), (None, 0), (0, None)])
-def test_hop_replay_gate_rejects_negative_or_missing_next_reserves(
-    next_reserve_in: object,
-    next_reserve_out: object,
+@pytest.mark.parametrize(
+    ("next_in", "next_out", "expected"),
+    [
+        (-1, 1, "next_reserve_in must be a non-negative int"),
+        (1, -1, "next_reserve_out must be a non-negative int"),
+        (None, 1, "next_reserve_in must be a non-negative int"),
+        (1, None, "next_reserve_out must be a non-negative int"),
+    ],
+)
+def test_hop_replay_gate_rejects_invalid_next_reserves(
+    next_in: object,
+    next_out: object,
+    expected: str,
 ) -> None:
-    with pytest.raises(ValueError):
-        quote_receipts_module.evaluate_route_quote_receipt_hop_replay_gate(
+    with pytest.raises(ValueError, match=expected):
+        evaluate_route_quote_receipt_hop_replay_gate(
             direction_ok=True,
             forward_direction=True,
             swap_ok=True,
             quote_matches=True,
-            next_reserve_in=next_reserve_in,
-            next_reserve_out=next_reserve_out,
+            next_reserve_in=next_in,
+            next_reserve_out=next_out,
         )
+

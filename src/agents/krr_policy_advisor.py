@@ -633,9 +633,16 @@ def _observation_summary(
 
 
 def _clamp_unit_interval(value: object) -> float:
-    try:
+    if isinstance(value, bool):
+        out = float(int(value))
+    elif isinstance(value, (int, float)):
         out = float(value)
-    except (TypeError, ValueError):
+    elif isinstance(value, str):
+        try:
+            out = float(value)
+        except ValueError:
+            return 0.0
+    else:
         return 0.0
     if out < 0.0:
         return 0.0

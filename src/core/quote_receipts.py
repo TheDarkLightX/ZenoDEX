@@ -769,10 +769,10 @@ def verify_route_quote_receipt(
     if "quote_epoch" in body:
         quote_epoch = _require_receipt_int(body.get("quote_epoch"))
         quote_epoch_ok = quote_epoch is not None and quote_epoch >= 0
-    pools_obj = body.get("pools")
-    pools_object_ok = isinstance(pools_obj, dict)
-    legs_obj = body.get("legs")
-    legs_list_ok = isinstance(legs_obj, list) and bool(legs_obj)
+    pools = body.get("pools")
+    pools_object_ok = isinstance(pools, dict)
+    legs = body.get("legs")
+    legs_list_ok = isinstance(legs, list) and bool(legs)
     precheck = evaluate_route_quote_receipt_precheck_gate(
         schema_ok=schema_ok,
         receipt_hash_present=receipt_hash_present,
@@ -786,10 +786,12 @@ def verify_route_quote_receipt(
     )
     if not precheck.precheck_ok:
         return False, route_quote_receipt_precheck_error(precheck)
-    if not isinstance(pools_obj, dict) or not isinstance(legs_obj, list):
-        return False, "bad_receipt_shape"
-    pools = pools_obj
-    legs = legs_obj
+    if not isinstance(pools, dict):
+        return False, "bad_pools"
+    if not isinstance(legs, list) or not legs:
+        return False, "bad_legs"
+    if not isinstance(body_asset_in, str) or not isinstance(body_asset_out, str):
+        return False, "bad_body_assets"
 
     if canonical_route_certificate is not None:
         from ..integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
@@ -898,7 +900,7 @@ def verify_route_quote_receipt(
                 or amt_in is None
                 or amt_out is None
             ):
-                return False, "bad_hop"
+                return False, route_quote_receipt_hop_structure_error(hop_gate)
 
             ok, err, next_pool = _replay_and_apply_hop(
                 pool=pool,
