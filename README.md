@@ -1,6 +1,110 @@
+---
+title: README
+type: note
+permalink: autonomous-tau-dex-review/readme
+---
+
 # ZenoDex
 
 ZenoDex is a decentralized exchange (DEX) and token-economics stack for Tau Network. It uses a **hybrid model**: Python computes operational state, while **Tau Language specs validate invariants** and settlement rules.
+
+## Pinned Release Snapshot
+
+<!-- BEGIN GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
+The pinned release replay for the release tree dated `2026-04-06` was green:
+
+- acceptance TCB: `385 passed`, `98.8%` branch coverage
+- critical gate: `1424 passed`, `99%` branch coverage
+- release gate: `passed end to end`
+- mutation gate: `5 killed, 2 inconclusive`
+- fuzz gate: `58 passed`
+- snapshot recovery: `17 passed`
+- Tau syntax: `60/60`
+- Tau traces: `1/1`
+
+This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.
+For live status on the current checkout, run `python3 tools/permissionless_assurance.py status`.
+
+Important derivatives note:
+
+- The published v1.1 funding-rate formal claim is now the decomposed one:
+  `funding_rate_market_v1` for phase/state transitions plus
+  `funding_rate_settlement_witness_v1_1` for settlement arithmetic, both in the release-backed assurance lane.
+- The monolithic `funding_rate_market_v1_1` kernel remains useful as a parity/reference artifact, but it is not part of the published formal release claim.
+- `funding_rate_market_v1` and `curve_selection_market_v1` remain `disputed` in the claims registry for settlement authorization semantics and should not be treated as authorization-complete public settlement guarantees.
+- `python3 tools/permissionless_assurance.py replay zusd` is a public replay lane for zUSD monetary and transport surfaces; it does not upgrade disputed derivatives settlement kernels into release-backed guarantees.
+- The bounded TLC/TLA+ claim surface is summarized in [docs/TLA_CLAIM_SUMMARY.md](docs/TLA_CLAIM_SUMMARY.md) and release-checked via `python3 tools/render_tla_claim_summary.py --check`.
+
+Release vocabulary:
+- `release-backed`: included in the current published formal/public assurance claim
+- `public replay`: reproducible from a fresh clone via the shipped replay/checker surface
+- `authorization-complete`: safe to treat as a public settlement-authorizing guarantee without extra trusted environment inputs
+- `disputed`: intentionally excluded from stronger public authorization claims until the witness/auth lane is trust-complete
+
+More detail:
+- [docs/ASSURANCE_RELEASE_SNAPSHOT.md](docs/ASSURANCE_RELEASE_SNAPSHOT.md)
+- [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md)
+- [docs/TLA_CLAIM_SUMMARY.md](docs/TLA_CLAIM_SUMMARY.md)
+- [docs/ASSURANCE_GLOSSARY.md](docs/ASSURANCE_GLOSSARY.md)
+- [docs/claims_registry.yaml](docs/claims_registry.yaml)
+<!-- END GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
+
+Replay commands are documented in [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
+
+## Current Assurance Shape
+
+The public assurance case in this repo is organized as a shape, not as a single monolithic proof.
+
+The review path is:
+
+1. **Functional core**: the consensus-critical execution path stays small and deterministic.
+   - examples: `src/core/split_routing_dispatch.py`, `src/core/batch_clearing.py`
+2. **Verified kernel layer**: bounded arithmetic and contract surfaces are expressed as ESSO kernels.
+   - examples: `src/kernels/dex/exact_*`, `src/kernels/dex/settlement_*`
+3. **Replayable certificate layer**: Python build/verify packets bind runtime outputs to canonical witnesses.
+   - examples: `src/integration/exact_in_route_certificate.py`
+   - `src/integration/exact_out_route_certificate.py`
+   - `src/integration/settlement_end_to_end_certificate_packet.py`
+4. **Machine-checked proof layer**: Lean proofs justify the canonical winner and settlement packet shells.
+   - examples: `lean-mathlib/Proofs/ZenoDEXExact*.lean`
+   - `lean-mathlib/Proofs/ZenoDEXSettlement*.lean`
+   - `lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean`
+5. **Public regression layer**: focused core, integration, and formal tests keep the shipped surfaces replayable.
+
+At the promoted bounded runtime scope shipped here, the current assurance shape supports these top-level claims:
+
+- batch-clearing validity
+- unique canonical winner for the shipped exact-in / exact-out routing lanes
+- exact fee-aware accounting
+- value-aware settlement safety
+- proof-carrying optimizer certificates
+- anti-fragmentation by theorem
+- non-commutativity quarantine
+- oracle divergence safety
+- liquidation spiral containment
+- cross-layer replay parity
+
+This is the sense in which the repo argues for a **correct-by-construction** posture:
+
+- objective and tie-break relations are explicit
+- winner selection is reduced to replayable canonical witnesses
+- settlement acceptance is bound to replayable end-to-end certificates
+- functional-core edits are backed by kernels, proofs, or bounded trusted-model checks before adoption
+
+Scope limit:
+
+- this is a claim about the shipped, bounded, replayable surfaces in this tree
+- it is not a claim that every future heuristic or every unbounded search family is already universally proved
+
+If you want to review that claim directly, start with:
+
+- `src/core/split_routing_dispatch.py`
+- `src/integration/exact_in_route_certificate.py`
+- `src/integration/exact_out_route_certificate.py`
+- `src/integration/settlement_end_to_end_certificate_packet.py`
+- `tests/core/test_split_routing_dispatch.py`
+- `tests/integration/test_api_server_dex_api.py`
+- `lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean`
 
 ## Why this repo exists
 - **Formal correctness** for DEX settlement and tokenomics
@@ -221,17 +325,41 @@ Then review the full tier rationale in `src/tau_specs/RISK_TIERS.md`, and explor
 
 ## Repository Layout
 - `src/`: core implementation
-  - `src/core/` DEX math
+  - `src/core/` DEX math (CPMM, sealed-bid, confidential extensions)
   - `src/state/` state transitions
   - `src/agents/` agent workflows
-  - `src/tau_specs/` Tau specifications
+  - `src/tau_specs/` Tau specifications (recommended / risk_medium / risk_high tiers)
+  - `src/integration/` API server, testnet bridge, attestation layer
+  - `src/kernels/` ESSO-verified kernels (DEX, Python, Rust targets)
+  - `src/exotic_state_machines/` experimental ESSO state machines
+- `tools/`: operational scripts and tooling
+  - `tools/dex-ui/` Vite + React frontend SPA
 - `docs/`: protocol/spec notes and ecosystem design
+  - `docs/derivatives/` perpetuals and zUSD specifications
 - `tests/`: test scripts and spec checks
 - `external/`: Tau dependencies (git-ignored)
+
+## Perpetuals and Derivatives
+ZenoDEX includes an epoch-based perpetual futures system with the following components:
+
+- **Epoch-based funding**: funding rates settle per epoch, not continuously
+- **Insurance fund**: bounded drawdown with deterministic rebalancing
+- **Circuit breaker**: halts trading on extreme price moves
+- **zUSD**: synthetic stablecoin used as margin collateral
+- **Poka-yoke order confirmation**: typed-confirm interlocks for large positions
+
+Specifications:
+- Epoch safety: `docs/derivatives/PERP_EPOCH_SAFETY_V1.md`
+- Incentive design: `docs/derivatives/PERP_INCENTIVES_V1.md`
+- SotA roadmap: `docs/derivatives/PERP_SOTA_ROADMAP.md`
+- zUSD design: `docs/derivatives/ZUSD_V1.md`
+
+The UI provides a full perpetuals trading interface with market selection, order form, position management, collateral controls, and trade history.
 
 ## Confidential Extensions and Sealed-Bid Auctions
 - Plain-language explainer: `docs/CONFIDENTIAL_FEATURES_USE_CASES.md`
 - Operator beta runbook: `docs/CONFIDENTIAL_FEATURES_BETA_RUNBOOK.md`
+- Experimental FHE alpha: `docs/FHE_SEALED_BID_ALPHA.md`
 - **TEE-first confidential extensions**: attested sidecars can meter private routing / risk logic without exposing source code.
   - Runtime receipts: `src/core/confidential_extension_receipts.py`
   - Attestation bridge: `src/integration/confidential_attestation.py`
@@ -244,6 +372,10 @@ Then review the full tier rationale in `src/tau_specs/RISK_TIERS.md`, and explor
   - Accounting core: `src/core/sealed_bid_bonds.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
   - MetaMuse lane: `tools/metamuse_sealed_bid_bond_lane.py`
+- **Experimental FHE sealed-bid alpha**: bounded 8-bid planning surface for encrypted comparison / hidden-bid auction pilots.
+  - Alpha planner: `src/core/fhe_sealed_bid_alpha.py`
+  - ESSO gate: `src/kernels/dex/fhe_sealed_bid_alpha_gate_v1.yaml`
+  - Tau guard: `src/tau_specs/recommended/fhe_sealed_bid_alpha_guard_v1.tau`
 - **Disaster-state catalog**: explicit terminal hazards and their discharge actions.
   - Catalog doc: `docs/SEALED_BID_DISASTER_STATE_CATALOG.md`
   - Replay tool: `python3 tools/sealed_bid_disaster_catalog.py`
@@ -253,6 +385,40 @@ Who this is for:
 - batch auctions / token sales where hidden bids improve fairness
 - private RFQ / institutional flow
 - strategy providers who want to get paid for private execution logic
+
+## Permissionless Hosting
+- Operator guide: `docs/PERMISSIONLESS_HOSTING.md`
+- Local Tau node + app bridge: `docs/tau_testnet_local_node.md`
+- Static/IPFS frontend publisher: `bash tools/publish_ui_ipfs.sh`
+
+Recommended posture:
+- run the public path with a rootless container or Podman
+- keep `TAU_NET_RPC` unset unless you intentionally want a remote fallback
+- prefer a local Tau node over a managed RPC
+- pin/mirror the static frontend independently of the API if you want globally replicable hosting
+
+Useful operator commands:
+
+```bash
+# Optional local-node-first stack
+docker compose -f docker-compose.yml -f docker-compose.permissionless.yml --profile local-node up -d
+
+# IPFS/static release artifact + manifest
+bash tools/publish_ui_ipfs.sh
+
+# Rootless Linux service file + preflight
+python3 tools/generate_operator_systemd.py --engine podman --local-node --out ~/.config/systemd/user/zenodex-operator.service
+python3 tools/permissionless_operator_preflight.py --engine podman --local-node --ipfs --json
+
+# Objective useful-work round + payout plan (prototype)
+python3 tools/gpu_jobs/improvement_bounty_round_route_v1.py --help
+
+# Proof-mining-compatible claim bridge
+python3 tools/permissionless_solver_proof_mining_claim.py --help
+
+# Public append-only ledger for round winners + reward artifacts
+python3 tools/permissionless_round_ledger.py --help
+```
 
 Who this is not for:
 - ordinary retail swaps where the public path is simpler and faster
@@ -283,7 +449,11 @@ other curves live behind “research / not-default” status until they have str
 
 ## Quick Start (Local)
 ```bash
+# Full local checkout (runtime + agent helpers + tests)
 pip install -r requirements.txt
+
+# Minimal runtime-only install
+# pip install -r requirements-core.txt
 
 # Clone Tau dependencies (git-ignored)
 mkdir -p external
@@ -317,17 +487,26 @@ bash tests/tau/test_specs_syntax.sh
 ```
 
 ## Docs (current)
-- `docs/SPECIFICATION.md`
-- `docs/ECOSYSTEM_STRATEGY.md`
-- `docs/ECOSYSTEM_GRAPH.md`
-- `docs/CONFIDENTIAL_FEATURES_USE_CASES.md`
-- `docs/TAU_LANGUAGE_CONSTRAINTS.md`
-- `docs/TAU_ARCHITECTURE.md`
-- `docs/REVISION_PIPELINE.md`
-- `docs/KERNEL_ABI_AND_COMPOSITION.md`
-- `docs/VERIFIED_COMPUTATION_MPRD_TAU_TESTNET.md`
-- `docs/PROOF_MINING.md`
-- `docs/AMM_POWER_FAMILY_LOCAL_TRADEOFF_WHITEPAPER.md`
+- `docs/SPECIFICATION.md` — Protocol specification overview
+- `docs/SECURITY_POSTURE.md` — Runtime hardening choices and operator-facing security posture
+- `docs/ZDEX_TOKEN.md` — ZDEX tokenomics and spec references
+- `docs/ECOSYSTEM_STRATEGY.md` — Deflationary DAC ecosystem design
+- `docs/ECOSYSTEM_GRAPH.md` — Ecosystem module graph
+- `docs/TOKEN_VERSIONS.md` — Token spec hierarchy (V1–V8)
+- `docs/TOKEN_GOVERNANCE.md` — Governance parameter design
+- `docs/ALGORITHMS.md` — Algorithm catalog
+- `docs/CONFIDENTIAL_FEATURES_USE_CASES.md` — Confidential extensions plain-language guide
+- `docs/TAU_LANGUAGE_CONSTRAINTS.md` — Tau Language bitvector and stream constraints
+- `docs/TAU_ARCHITECTURE.md` — Tau integration architecture
+- `docs/REVISION_PIPELINE.md` — Spec revision workflow
+- `docs/KERNEL_ABI_AND_COMPOSITION.md` — Kernel interface and composition
+- `docs/VERIFIED_COMPUTATION_MPRD_TAU_TESTNET.md` — MPRD verification on testnet
+- `docs/PROOF_MINING.md` — Proof-of-useful-work mining
+- `docs/PERMISSIONLESS_HOSTING.md` — Operator hosting guide
+- `docs/AMM_POWER_FAMILY_LOCAL_TRADEOFF_WHITEPAPER.md` — Curve tradeoff analysis
+- `docs/PRODUCTION_GATE.md` — Production readiness gate
+- `docs/DEX_READINESS_PEER_REVIEW.md` — Peer review of readiness
+- `docs/derivatives/` — Perpetuals and zUSD specifications
 
 ## Status
 Active research and implementation. Specs evolve frequently; check `docs/dex_readiness.md` for coverage status.
