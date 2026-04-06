@@ -12,7 +12,7 @@
   "source_files": [
     {
       "path": "src/core/quote_receipts.py",
-      "sha256": "a67261e8ce8b52045a4f0ff13b6f232514a0f3d7e5d0e55f1b3bce3f79b28445"
+      "sha256": "77a85bd87d9f0123b0635c90c6a200ef0096717d163d4222fc6abd76ac5eaddd"
     },
     {
       "path": "src/kernels/dex/quote_receipt_precheck_gate_v1.yaml",
@@ -28,7 +28,7 @@
     },
     {
       "path": "tests/core/test_quote_receipts.py",
-      "sha256": "2291a0e90bad6c45a97a9af70069c0f315a87a27546dfea6a19e81629423f58a"
+      "sha256": "c2c493084af1b7ec743cfe89881de6a7bf8beaaf63717127c259ca788a060a97"
     },
     {
       "path": "tests/core/test_quote_receipts_fuzz.py",
