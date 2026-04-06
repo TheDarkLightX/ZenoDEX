@@ -321,7 +321,7 @@ def test_state_from_snapshot_rejects_invalid_isolated_perps_risk_bounds() -> Non
             ],
         },
     }
-    with pytest.raises(ValueError, match="initial_margin_bps"):
+    with pytest.raises(ValueError, match="initial_margin_bps|margin params ordering"):
         state_from_snapshot(snap)
 
 
@@ -346,6 +346,47 @@ def test_state_from_snapshot_rejects_invalid_clearinghouse_risk_bounds() -> None
                     "account_b_pubkey": "bb" * 48,
                     "state": {
                         **{k: 0 for k in PERP_CLEARINGHOUSE_2P_STATE_KEYS},
+                        "breaker_active": False,
+                        "clearing_price_seen": False,
+                        "oracle_seen": False,
+                        "liquidated_this_step": False,
+                        "initial_margin_bps": 1_000,
+                        "maintenance_margin_bps": 600,
+                        "liquidation_penalty_bps": 50,
+                        "max_oracle_move_bps": 11_000,
+                        "max_oracle_staleness_epochs": 100,
+                        "max_position_abs": 1_000_000,
+                    },
+                }
+            ],
+        },
+    }
+    with pytest.raises(ValueError, match="max_oracle_move_bps"):
+        state_from_snapshot(snap)
+
+
+def test_state_from_snapshot_rejects_invalid_clearinghouse_3p_risk_bounds() -> None:
+    snap = {
+        "version": 2,
+        "balances": [],
+        "pools": [],
+        "lp_balances": [],
+        "nonces": [],
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
+        "perps": {
+            "version": PERPS_STATE_VERSION,
+            "markets": [
+                {
+                    "market_id": "perp:ch3p:bad-bounds",
+                    "kind": "clearinghouse_3p_transfer_v1",
+                    "quote_asset": "0x" + "55" * 32,
+                    "account_a_pubkey": "aa" * 48,
+                    "account_b_pubkey": "bb" * 48,
+                    "account_c_pubkey": "cc" * 48,
+                    "state": {
+                        **{k: 0 for k in PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS},
                         "breaker_active": False,
                         "clearing_price_seen": False,
                         "oracle_seen": False,
