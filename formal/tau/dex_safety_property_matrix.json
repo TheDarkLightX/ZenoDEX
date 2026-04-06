@@ -96,7 +96,7 @@
         },
         {
           "kind": "script_gate",
-          "path": "tools/run_runtime_shell_assurance_gate.sh"
+          "path": "tools/run_spot_core_shell_assurance_gate.sh"
         },
         {
           "kind": "script_gate",
@@ -126,7 +126,7 @@
         },
         {
           "kind": "script_gate",
-          "path": "tools/run_runtime_shell_assurance_gate.sh"
+          "path": "tools/run_spot_core_shell_assurance_gate.sh"
         },
         {
           "kind": "pytest_target",
