@@ -44,6 +44,8 @@ def test_tau_spec_registry_traces() -> None:
 
         inputs = entry.get("inputs")
         expected = entry.get("expected")
+        if expected is None:
+            expected = entry.get("expected_outputs")
         if not isinstance(inputs, list) or not isinstance(expected, list):
             failures.append(f"{spec_id}: inputs/expected must be lists")
             continue
