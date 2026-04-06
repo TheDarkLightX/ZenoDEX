@@ -14,12 +14,29 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
+try:
+    from tools.render_assurance_release_snapshot import RenderError, _load_snapshot, render_targets
+except ModuleNotFoundError:  # pragma: no cover - script execution path
+    from render_assurance_release_snapshot import RenderError, _load_snapshot, render_targets
+
+try:
+    from tools.render_tla_claim_summary import OUTPUT_PATH as TLA_SUMMARY_PATH, RenderError as TlaRenderError, render_summary_text
+except ModuleNotFoundError:  # pragma: no cover - script execution path
+    from render_tla_claim_summary import OUTPUT_PATH as TLA_SUMMARY_PATH, RenderError as TlaRenderError, render_summary_text
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     ".gitignore",
+    "docs/ASSURANCE_GLOSSARY.md",
+    "docs/ASSURANCE_RELEASE_SNAPSHOT.md",
     "docs/PUBLIC_ASSURANCE_REPLAY.md",
+    "docs/RC1_SUPPORTED_RUNTIME_PATH.md",
+    "docs/RC1_VERIFIED_SURFACE_MATRIX.md",
+    "docs/TLA_CLAIM_SUMMARY.md",
+    "docs/ZUSD_TAU_WALLET.md",
+    "docs/assurance_release_snapshot.json",
     "generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py",
     "src/core/amm_dispatch.py",
     "src/core/batch_clearing.py",
@@ -36,11 +53,18 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tools/derivatives_evidence_manifest.json",
     "tools/kernel_assurance_manifest.json",
     "tools/permissionless_assurance.py",
+    "tools/render_rc1_supported_runtime_path.py",
+    "tools/render_rc1_verified_surface_matrix.py",
+    "tools/render_assurance_release_snapshot.py",
+    "tools/render_tla_claim_summary.py",
     "tools/run_critical_quality_gate.sh",
     "tools/run_release_gate.sh",
+    "tools/run_perps_evidence.sh",
+    "tools/run_zusd_evidence.sh",
     "tools/run_spot_evidence.sh",
     "tools/run_spot_proof_assurance_gate.sh",
     "tools/spot_proof_assurance_manifest.json",
+    "tools/zusd_tau_wallet.py",
 )
 
 FORBIDDEN_PATH_GLOBS: tuple[str, ...] = (
@@ -145,6 +169,26 @@ LANES: dict[str, Lane] = {
         ),
         stars=3,
     ),
+    "perps": Lane(
+        name="perps",
+        description="Replay the perps functional-core tests, micro-gate assurances, kernel verify-multi checks, and Lean safety proofs.",
+        commands=(("bash", "tools/run_perps_evidence.sh"),),
+        required_files=("tools/run_perps_evidence.sh",),
+        stars=3,
+    ),
+    "zusd": Lane(
+        name="zusd",
+        description="Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.",
+        commands=(("bash", "tools/run_zusd_evidence.sh"),),
+        required_files=(
+            "tools/run_zusd_evidence.sh",
+            "tools/zusd_tau_wallet.py",
+            "src/integration/zusd_tau_token.py",
+            "src/tau_specs/recommended/protocol_token_v1.tau",
+            "src/tau_specs/recommended/zusd_transfer_guard_v1.tau",
+        ),
+        stars=3,
+    ),
     "critical": Lane(
         name="critical",
         description="Run the publishable critical quality gate with branch coverage and static checks.",
@@ -162,7 +206,7 @@ LANES: dict[str, Lane] = {
 }
 
 LANE_GROUPS: dict[str, tuple[str, ...]] = {
-    "public": ("kernel-assurance", "spot-proof", "spot-evidence", "derivatives"),
+    "public": ("kernel-assurance", "spot-proof", "spot-evidence", "derivatives", "perps", "zusd"),
     "critical": ("critical",),
     "full": ("release",),
 }
@@ -264,6 +308,49 @@ def _lane_summary() -> list[dict[str, object]]:
     return out
 
 
+def _snapshot_status() -> dict[str, object]:
+    try:
+        snapshot = _load_snapshot()
+        rendered = render_targets()
+        stale_paths: list[str] = []
+        for path, expected in rendered.items():
+            current = path.read_text(encoding="utf-8") if path.exists() else ""
+            if current != expected:
+                stale_paths.append(str(path.relative_to(REPO_ROOT)))
+        return {
+            "ok": not stale_paths,
+            "as_of_date": snapshot["as_of_date"],
+            "snapshot_label": snapshot["snapshot_label"],
+            "stale_paths": stale_paths,
+            "error": None,
+        }
+    except RenderError as exc:
+        return {
+            "ok": False,
+            "as_of_date": None,
+            "snapshot_label": None,
+            "stale_paths": [],
+            "error": str(exc),
+        }
+
+
+def _tla_summary_status() -> dict[str, object]:
+    try:
+        expected = render_summary_text()
+        current = TLA_SUMMARY_PATH.read_text(encoding="utf-8") if TLA_SUMMARY_PATH.exists() else ""
+        return {
+            "ok": current == expected,
+            "path": str(TLA_SUMMARY_PATH.relative_to(REPO_ROOT)),
+            "error": None,
+        }
+    except TlaRenderError as exc:
+        return {
+            "ok": False,
+            "path": str(TLA_SUMMARY_PATH.relative_to(REPO_ROOT)),
+            "error": str(exc),
+        }
+
+
 def _status_payload() -> dict[str, object]:
     branch = _git_stdout("rev-parse", "--abbrev-ref", "HEAD")
     dirty_paths = _git_status_paths()
@@ -284,6 +371,8 @@ def _status_payload() -> dict[str, object]:
     lanes_ready = sum(1 for lane in lanes if bool(lane["ready"]))
     payload: dict[str, object] = {
         "branch": branch,
+        "assurance_snapshot": _snapshot_status(),
+        "tla_claim_summary": _tla_summary_status(),
         "dirty_paths": dirty_paths,
         "dirty_count": len(dirty_paths),
         "public_scope_paths": public_scope,
@@ -311,6 +400,18 @@ def _print_status(payload: dict[str, object]) -> None:
     refs_total = int(payload["public_refs_total"])
     print("ZenoDex Permissionless Assurance")
     print(f"branch: {payload['branch']}")
+    snapshot = payload["assurance_snapshot"]
+    tla_summary = payload["tla_claim_summary"]
+    if snapshot["error"]:
+        print(f"assurance snapshot: ERROR ({snapshot['error']})")
+    else:
+        state = "OK" if snapshot["ok"] else "STALE"
+        print(f"assurance snapshot: {state} (as of {snapshot['as_of_date']})")
+    if tla_summary["error"]:
+        print(f"tla claim summary: ERROR ({tla_summary['error']})")
+    else:
+        tla_state = "OK" if tla_summary["ok"] else "STALE"
+        print(f"tla claim summary: {tla_state} ({tla_summary['path']})")
     print(f"dirty tree: {payload['dirty_count']} paths")
     print(f"public merge scope: {payload['public_scope_count']} paths")
     print(f"lane readiness: {lanes_ready}/{lanes_total} {_bar(lanes_ready, lanes_total)}")
@@ -340,6 +441,11 @@ def _print_status(payload: dict[str, object]) -> None:
         print()
         print("Leak warnings")
         print("  [OK] no blocked paths or forbidden internal markers in the scoped public merge set")
+    if snapshot["stale_paths"]:
+        print()
+        print("Snapshot drift")
+        for rel in snapshot["stale_paths"]:
+            print(f"  [STALE] {rel}")
 
 
 def _expand_lane_names(items: Sequence[str]) -> list[str]:

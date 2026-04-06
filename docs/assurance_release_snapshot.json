@@ -1,0 +1,66 @@
+{
+  "schema": "zenodex/assurance-release-snapshot/v1",
+  "snapshot_label": "Pinned release snapshot for this tree",
+  "as_of_date": "2026-03-22",
+  "metrics": [
+    {
+      "label": "acceptance TCB",
+      "value": "341 passed",
+      "branch_coverage": "100%"
+    },
+    {
+      "label": "critical gate",
+      "value": "1311 passed",
+      "branch_coverage": "100%"
+    },
+    {
+      "label": "release gate",
+      "value": "passed end to end"
+    },
+    {
+      "label": "mutation gate",
+      "value": "7/7 killed"
+    },
+    {
+      "label": "fuzz gate",
+      "value": "11 passed"
+    },
+    {
+      "label": "snapshot recovery",
+      "value": "16 passed"
+    },
+    {
+      "label": "Tau syntax",
+      "value": "58/58"
+    },
+    {
+      "label": "Tau traces",
+      "value": "1/1"
+    }
+  ],
+  "derivatives": {
+    "published_story": [
+      {
+        "kernel": "funding_rate_market_v1",
+        "role": "phase/state transitions"
+      },
+      {
+        "kernel": "funding_rate_settlement_witness_v1_1",
+        "role": "settlement arithmetic"
+      }
+    ],
+    "reference_only": [
+      "funding_rate_market_v1_1"
+    ],
+    "disputed_authorization_claims": [
+      {
+        "claim_id": "smt:funding_rate_market_v1:inductive_z3_cvc5",
+        "display_name": "funding_rate_market_v1"
+      },
+      {
+        "claim_id": "smt:curve_selection_market_v1:inductive_z3_cvc5",
+        "display_name": "curve_selection_market_v1"
+      }
+    ]
+  }
+}

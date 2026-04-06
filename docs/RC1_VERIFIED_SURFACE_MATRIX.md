@@ -23,11 +23,11 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
 | Surface | Authority | Backing lanes | Primary check |
 | --- | --- | --- | --- |
 | Core spot DEX path | `consensus/runtime` | `kernel-assurance` (READY)<br>`spot-proof` (READY)<br>`spot-evidence` (READY)<br>`critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay public` |
-| Public assurance and release replay surface | `release/replay` | `kernel-assurance` (READY)<br>`spot-proof` (READY)<br>`spot-evidence` (READY)<br>`derivatives` (READY)<br>`perps`<br>`zusd`<br>`critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py status` |
+| Public assurance and release replay surface | `release/replay` | `kernel-assurance` (READY)<br>`spot-proof` (READY)<br>`spot-evidence` (READY)<br>`derivatives` (READY)<br>`perps` (READY)<br>`zusd` (READY)<br>`critical` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py status` |
 | Bounded TLA claim surface | `public formal claim` | `release` (READY) | `python3 tools/run_tla_models.py --json` |
 | Supported HTTP boundary | `runtime ingress` | `critical` (READY)<br>`release` (READY) | `python3 tools/rc1_readiness.py` |
-| zUSD Tau wallet and transport replay lane | `wallet/transport` | `zusd`<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay zusd` |
-| Tau wallet veto / O5 policy guard | `bounded control-plane guard` | `zusd`<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay zusd` |
+| zUSD Tau wallet and transport replay lane | `wallet/transport` | `zusd` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay zusd` |
+| Tau wallet veto / O5 policy guard | `bounded control-plane guard` | `zusd` (READY)<br>`release` (READY) | `python3 tools/permissionless_assurance.py replay zusd` |
 
 ## Surface Details
 
@@ -87,8 +87,10 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
     Replay the spot functional-core tests and spot-kernel verify-multi checks.
   - `derivatives`: READY
     Rebuild the derivatives evidence lane, then pin-check the manifest.
-  - `perps`
-  - `zusd`
+  - `perps`: READY
+    Replay the perps functional-core tests, micro-gate assurances, kernel verify-multi checks, and Lean safety proofs.
+  - `zusd`: READY
+    Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.
   - `critical`: READY
     Run the publishable critical quality gate with branch coverage and static checks.
   - `release`: READY
@@ -163,7 +165,8 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
   - `src/tau_specs/recommended/protocol_token_v1.tau`
   - `src/tau_specs/recommended/zusd_transfer_guard_v1.tau`
 - Backing lanes:
-  - `zusd`
+  - `zusd`: READY
+    Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.
   - `release`: READY
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
@@ -184,7 +187,8 @@ Practical consequence: this matrix is configuration-specific. It is not a claim 
 - Runtime and artifact paths:
   - `docs/TAU_WALLET_O5_GUARD.md`
 - Backing lanes:
-  - `zusd`
+  - `zusd`: READY
+    Replay the zUSD monetary core, Tau gating, Tau transfer transport, and protocol-token formal lane.
   - `release`: READY
     Run the full release gate, including Tau, proof, evidence, and audit lanes.
 - Primary commands:
