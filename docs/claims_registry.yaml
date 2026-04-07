@@ -245,17 +245,18 @@ claims:
       files:
         - src/kernels/dex/funding_rate_market_v1.yaml
 
-  - id: smt:funding_rate_market_v1_1:inductive_z3
+  - id: smt:funding_rate_settlement_witness_v1_1:inductive_z3_cvc5
     status: supported
     layer: spec
     statement: >
-      The funding-rate market kernel (v1.1) is inductive (k=1) under a fail-closed SMT verification model (Z3).
+      The funding-rate v1.1 settlement witness kernel is inductive (k=1) and cross-verified by both Z3 and CVC5
+      under a fail-closed, multi-solver SMT verification model.
     evidence:
       kind: smt
       check:
         - cmd: bash tools/run_derivatives_evidence.sh
       files:
-        - src/kernels/dex/funding_rate_market_v1_1.yaml
+        - src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml
 
   - id: py:funding_rate_market_v1_1:parity_with_generated_ref
     status: supported
@@ -565,21 +566,249 @@ claims:
       theorems:
         - Proofs.ZenoDEX.ceilDiv_mul_ge
 
-  - id: tla:perp_epoch_scheduler:terminates_each_epoch
-    status: proposed
-    layer: liveness
+  - id: tla:autotrader_nonce_guard_shadow:sequential_nonce_only
+    status: supported
+    layer: safety
     statement: >
-      Under weak fairness of operator actions, every epoch that gets a clearing-price published
-      is eventually settled (no deadlock / no stuck-between-phases scheduler behavior).
+      In the bounded TLA+ autotrader nonce-guard shadow model (`NONCES = {0,1,2,3,4}`), accepted
+      transitions require the next sequential nonce, rejected transitions do not advance the nonce,
+      and the modeled nonce never decreases.
     evidence:
       kind: tla
       note: >
-        Requires TLA+ tools (TLC). This check is optional in CI unless the toolchain is installed.
+        Bounded TLC shadow-model check over the intended strict sequential nonce semantics used by the
+        autotrader guard layer. This is a semantic alignment claim for the modeled guard, not a theorem
+        about the live transaction network or wallet execution.
       check:
-        - cmd: tlc -config formal/tla/PerpEpochScheduler.cfg formal/tla/PerpEpochScheduler.tla
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/AutoTraderNonceGuardShadow.tla
+        - formal/tla/AutoTraderNonceGuardShadow.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:autotrader_tx_envelope_shadow:requested_envelope_only
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ autotrader transaction-envelope shadow model, idle states remain accepted,
+      accepted requested transactions require a valid requested envelope, and rejected requested
+      transactions carry a specific rejection reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC shadow-model check over the intended autotrader envelope semantics. This is a
+        semantic alignment claim for the modeled envelope guard, not a theorem about external RPCs,
+        mempool behavior, or transaction inclusion.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/AutoTraderTxEnvelopeShadow.tla
+        - formal/tla/AutoTraderTxEnvelopeShadow.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:oracle_freshness_bounded_shadow:future_and_stale_quotes_reject
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ oracle-freshness shadow model, accepted quotes are never from the future and
+      always satisfy the bounded-age constraint; future or stale quotes are rejected by the modeled
+      freshness guard.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC shadow-model check over the intended oracle freshness predicate used by modeled
+        guard lanes. This is a semantic alignment claim for freshness gating, not a theorem about
+        oracle transport or real-world data quality.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/OracleFreshnessBoundedShadow.tla
+        - formal/tla/OracleFreshnessBoundedShadow.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:order_intent_cancel_expiry_shadow:cancelled_or_expired_never_executes
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ order-intent cancel/expiry shadow model (`MAX_EPOCH = 4`), cancelled orders
+      never emit intents, cancelled or expired executions reject without intent, and emitted intents
+      require a live order within the modeled validity window.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC shadow-model check over the intended cancel/expiry admission semantics used by the
+        modeled order-intent lane. This is a semantic alignment claim, not a theorem about live
+        sequencing, mempool inclusion, or matching economics.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/OrderIntentCancelExpiryShadow.tla
+        - formal/tla/OrderIntentCancelExpiryShadow.cfg
+        - tools/run_tla_models.py
+
+
+  - id: tla:settlement_attestation_governance:active_policy_controls_acceptance
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ settlement-attestation governance model, accepted settlement requires an
+      active approved timelocked multisig-backed policy snapshot, revoked policies block future
+      settlement acceptance, accepted settlement never binds retroactively to a different policy
+      epoch, and under weak fairness an approved pending policy eventually activates.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the governed signer/source policy control surface for settlement
+        attestation admission. This is a semantic alignment claim for policy activation and revocation,
+        not a theorem about signer independence, cryptographic attestations, or capture resistance.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementAttestationGovernance.tla
+        - formal/tla/SettlementAttestationGovernance.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_signer_registry_tau_bridge:bound_snapshot_anchor_and_proof_path_required
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ settlement signer-registry Tau bridge model, accepted requests require a
+      registry snapshot and chain anchor bound to the request epoch, drifted snapshot or anchor blocks
+      acceptance, and under fairness clean bound artifacts eventually check policy binding, resolve
+      proof-path availability, and terminate by accept or reject.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the Tau-native signer-registry bridge control flow. This is a
+        semantic alignment claim for bound snapshot/anchor admission, not a theorem about proof
+        transport, live chain execution, or signer quality.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementSignerRegistryTauBridge.tla
+        - formal/tla/SettlementSignerRegistryTauBridge.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:tau_state_app_hash_provenance_bridge:strong_binding_controls_acceptance
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ Tau-state/app-hash provenance bridge model, accepted loader state requires a
+      clean bridge payload and baseline provenance, strong-binding mismatch or missing Tau transport
+      blocks acceptance when strong binding is required, and under fairness clean ready states accept
+      while visible strong-binding failures reject.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the Tau-state/app-hash provenance control shell. This is a semantic
+        alignment claim for strong-binding admission and rejection behavior, not a theorem about state
+        proof generation, transport availability, or chain-level provenance guarantees.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/TauStateAppHashProvenanceBridge.tla
+        - formal/tla/TauStateAppHashProvenanceBridge.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:tau_state_app_hash_stable_window:stable_window_or_reject
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ stable-window model for Tau-state/app-hash reads, any returned result must
+      come from an observed stable window, strong binding without Tau stability blocks return, and under
+      fairness a request that cannot reach a stable window is eventually rejected.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the stable-read retry controller used by the Tau-state/app-hash
+        provenance loader. This is a temporal claim about bounded retry behavior, not a theorem about
+        eventual network stability or transport-layer correctness.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/TauStateAppHashStableWindow.tla
+        - formal/tla/TauStateAppHashStableWindow.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:zenograph_host_local_acceptance:accepted_only_execution_visibility
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ ZenoGraph host/local acceptance shadow model, accepted facts require valid
+      local validation, execution-visible facts are visible only after local acceptance, and
+      proposal/unknown/invalid/reject paths remain fail-closed.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC shadow-model check over the intended ZenoGraph fact-promotion governance boundary.
+        This is a semantic alignment claim for the modeled host/local acceptance shell, not a theorem
+        about fact quality, extraction correctness, or runtime promotion beyond the bounded model.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ZenoGraphHostLocalAcceptance.tla
+        - formal/tla/ZenoGraphHostLocalAcceptance.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_submission_auth_scope_shadow:mode_and_nonce_semantics
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ perps submission auth-scope shadow model, accepted submissions require
+      exactly one mode, signed-mode acceptance requires all signed checks, sender-bound mode never
+      consumes a nonce, nonce consumption occurs only for accepted signed mode, and sender-bound
+      admission requires binding.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC shadow-model check over the intended perps auth-scope semantics. This is a semantic
+        alignment claim for the modeled admission guard, not a theorem about live signatures, chain
+        nonces, or runtime authentication infrastructure.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpSubmissionAuthScopeShadow.tla
+        - formal/tla/PerpSubmissionAuthScopeShadow.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_ingress_schema_shadow:derived_schema_consistency
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ perps ingress-schema shadow model, the derived action selection, auth bundle,
+      and ingress preconditions all match the modeled outer schema, and accepted ingress requires a
+      single mode together with those derived preconditions.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC shadow-model check over the intended perps outer ingress schema semantics. This is a
+        semantic alignment claim for the modeled Tau-facing ingress shell, not a theorem about parser
+        implementations or live chain execution.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpIngressSchemaShadow.tla
+        - formal/tla/PerpIngressSchemaShadow.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_epoch_scheduler:terminates_each_epoch
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ scheduler model (`EPOCH_MAX = 3`), under weak fairness of publish and settle
+      actions, every advanced unsettled epoch is eventually published and eventually settled
+      (no stuck-between-phases scheduler behavior on the modeled control path).
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local scheduler model. This is stronger than the older
+        post-publication-only liveness note, but still a finite-state model check rather than a general theorem.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
       files:
         - formal/tla/PerpEpochScheduler.tla
         - formal/tla/PerpEpochScheduler.cfg
+        - tools/run_tla_models.py
 
   - id: ltlf:perp_epoch_scheduler:settle_epoch2_reachable
     status: supported
@@ -595,3 +824,563 @@ claims:
       files:
         - tests/formal/test_perp_epoch_scheduler_ltlf.py
         - formal/ltlf/perp_epoch_scheduler_ltlf_v1.yaml
+
+  - id: tla:oracle_recovery_lifecycle:fair_reenable_or_block
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ oracle-recovery model (`EPOCH_MAX = 4`, `MAX_STALE = 1`), under weak fairness
+      of oracle update, sync repair, and permanent-block actions plus strong fairness of risky-op
+      re-enable, stale unblocked oracle state eventually becomes fresh or permanently blocked, and any
+      requested risky action in a healthy oracle world is eventually resolved by re-enable or permanent block.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local oracle-recovery control model. This is a temporal
+        complement to the replayable oracle recovery lifecycle packet, not a full theorem about arbitrary
+        recovery policy, throughput, or chain inclusion.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/OracleRecoveryLifecycle.tla
+        - formal/tla/OracleRecoveryLifecycle.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_witness_lifecycle:accepted_resolves_before_expiry
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement witness lifecycle model (`TIME_MAX = 4`, `EXPIRY = 2`), under weak
+      fairness of settle, invalid-reject, and expired-reject actions, any witness accepted before expiry
+      is eventually resolved by settlement or rejection with an explicit reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local settlement lifecycle control model. This is a temporal
+        complement to the replayable settlement witness lifecycle packet, not a theorem about throughput,
+        chain inclusion, or executor economics.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementWitnessLifecycle.tla
+        - formal/tla/SettlementWitnessLifecycle.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:exact_out_adaptive_liveness:request_resolves
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ exact-out adaptive control model, under weak fairness of cheap-path and
+      fallback resolution actions, a pending request is eventually resolved either by success or by
+      explicit failure, with cheap-path attempt preceding repaired fallback.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local adaptive branch-order model. This complements the
+        runtime/Tau adaptive liveness packet by adding an infinite-trace no-stuck check for the branch
+        sequencing itself, not for exact-out arithmetic or full candidate generation.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ExactOutAdaptiveLiveness.tla
+        - formal/tla/ExactOutAdaptiveLiveness.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_liquidation_queue_drain:resolves_or_blocks
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ liquidation-queue model (`MAX_QUEUE = 3`, `MAX_PER_BLOCK = 2`), under
+      strong fairness of liquidation processing and weak fairness of block advance and breaker actions,
+      a pending closed queue eventually resolves by draining to zero or tripping the breaker; safe
+      proof-gated queues drain, unsafe queues block.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local liquidation queue control model. This complements
+        the static Tau queue guard by adding an infinite-trace drain-or-block claim, not a theorem
+        about liquidation pricing, inclusion economics, or cross-market contagion.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpLiquidationQueueDrain.tla
+        - formal/tla/PerpLiquidationQueueDrain.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_witness_inclusion_queue:fair_dequeue
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement witness inclusion-queue model (`MAX_QUEUE = 4`), under strong
+      fairness of non-target dequeue and weak fairness of include/reject-at-head actions, an accepted
+      target witness in a closed finite queue is eventually resolved; admissible head targets include,
+      inadmissible head targets reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local inclusion-queue control model. This complements the
+        local settlement witness lifecycle packet by adding a finite closed-queue fairness assumption,
+        not a theorem about open mempools, builder competition, or reorgs.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementWitnessInclusionQueue.tla
+        - formal/tla/SettlementWitnessInclusionQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_witness_bounded_open_ingress:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement witness open-ingress model (`MAX_QUEUE = 5`, `ARRIVAL_BUDGET_MAX = 2`),
+      under strong fairness of non-target dequeue and weak fairness of include/reject-at-head actions,
+      a target witness under bounded adversarial arrivals ahead is eventually resolved; admissible head
+      targets include, inadmissible head targets reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local finite-open-ingress control model. This extends the
+        closed-queue inclusion claim to a limited arrival setting, not to unbounded open mempools,
+        builder competition, or reorg-aware execution.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementWitnessBoundedOpenIngress.tla
+        - formal/tla/SettlementWitnessBoundedOpenIngress.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_submission_ingress_queue:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ perps submission-ingress queue model (`MAX_QUEUE = 5`, `ARRIVAL_BUDGET_MAX = 2`),
+      under strong fairness of non-target dequeue and weak fairness of accept/reject-at-head actions,
+      a target perps submission under bounded arrivals ahead is eventually resolved; admissible head
+      targets accept, inadmissible head targets reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local perps ingress-resolution model. This composes the
+        existing stream-selection, auth-scope, nonce, and deadline ideas into one queue-level progress
+        claim, not a theorem about open mempools, signatures, or builder competition.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpSubmissionIngressQueue.tla
+        - formal/tla/PerpSubmissionIngressQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_witness_single_reorg_queue:fair_re_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement witness single-reorg queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of non-target dequeue
+      and weak fairness of include/finalize/reject-at-head actions, a target witness with at most one
+      post-inclusion rollback is eventually resolved; admissible head targets eventually include,
+      included targets eventually either finalize or roll back for bounded re-resolution, and
+      inadmissible head targets reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local rollback-aware settlement control model. This adds
+        one explicit reorg/re-resolution step above the bounded open-ingress claim, not a theorem about
+        multi-reorg chains, builder competition, or open mempool economics.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementWitnessSingleReorgQueue.tla
+        - formal/tla/SettlementWitnessSingleReorgQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_submission_single_reorg_queue:fair_re_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ perps submission single-reorg queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of non-target dequeue
+      and weak fairness of accept/finalize/reject-at-head actions, a target submission with at most
+      one post-accept rollback is eventually resolved; admissible head targets eventually accept,
+      accepted submissions eventually either finalize or roll back for bounded re-resolution, and
+      inadmissible head targets reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local rollback-aware perps ingress model. This adds one
+        explicit reorg/re-resolution step above the bounded ingress-resolution claim, not a theorem
+        about multi-reorg chains, signatures, or builder competition.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpSubmissionSingleReorgQueue.tla
+        - formal/tla/PerpSubmissionSingleReorgQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:exact_out_adaptive_ingress_queue:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ exact-out adaptive ingress queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`), under strong fairness of non-target dequeue and weak fairness of
+      adaptive head-service actions, a target exact-out request under bounded arrivals ahead is
+      eventually resolved; cheap-success heads eventually return success, fallback-required heads with
+      fallback availability eventually return success, and heads with no available path eventually fail
+      explicitly with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local exact-out adaptive queue model. This lifts the local
+        adaptive branch-order claim to a bounded ingress setting, not to unbounded public request load,
+        fee markets, or builder competition.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ExactOutAdaptiveIngressQueue.tla
+        - formal/tla/ExactOutAdaptiveIngressQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_witness_builder_competition:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement witness builder-competition model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `BUILDER_PREEMPT_BUDGET_MAX = 2`), under strong fairness of non-target
+      dequeue and weak fairness of include/reject-at-head actions, a target witness under bounded
+      arrivals ahead and bounded head preemption is eventually resolved; once preemption budget is
+      exhausted, admissible head targets eventually include and inadmissible head targets reject with
+      reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local settlement head-preemption model. This adds one
+        bounded builder-competition layer above the queue models, not a theorem about fee markets,
+        builder bidding, or unbounded block-construction strategies.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementWitnessBuilderCompetition.tla
+        - formal/tla/SettlementWitnessBuilderCompetition.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_witness_fee_priority_queue:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement witness fee-priority queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `HIGHER_PRIORITY_BUDGET_MAX = 2`,
+      `TARGET_FEE_BUMP_BUDGET_MAX = 2`), under strong fairness of non-target dequeue and weak
+      fairness of head-service and target fee-bump actions, a target witness under bounded arrivals
+      ahead and bounded higher-priority head preemption is eventually resolved; a target with
+      remaining fee-bump budget eventually consumes that budget or resolves, admissible head targets
+      with no remaining priority pressure eventually include, and inadmissible head targets reject
+      with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local settlement fee-priority model. This adds one
+        bounded fee-pressure layer above the settlement queue claims, not a theorem about live fee
+        markets, builder bidding, unbounded mempool starvation, or economic optimality.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementWitnessFeePriorityQueue.tla
+        - formal/tla/SettlementWitnessFeePriorityQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_witness_fee_priority_reorg_queue:fair_re_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement witness fee-priority reorg queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `HIGHER_PRIORITY_BUDGET_MAX = 1`,
+      `TARGET_FEE_BUMP_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of
+      non-target dequeue and weak fairness of head-service, target fee-bump, and finalize actions,
+      a target witness under bounded arrivals ahead, bounded higher-priority head preemption, and at
+      most one post-inclusion rollback is eventually resolved; a target with remaining fee-bump
+      budget eventually consumes that budget or resolves, admissible head targets with no remaining
+      priority pressure eventually include, included-pending targets eventually finalize or roll back
+      for bounded re-resolution, and inadmissible head targets reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local settlement fee-priority-plus-rollback model.
+        This combines one bounded fee-pressure layer with one bounded rollback above the settlement
+        witness queue claims, not a theorem about live fee markets, builder bidding, signature
+        validity, or multi-reorg chains.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementWitnessFeePriorityReorgQueue.tla
+        - formal/tla/SettlementWitnessFeePriorityReorgQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_submission_fee_priority_queue:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ perps submission fee-priority queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `HIGHER_PRIORITY_BUDGET_MAX = 2`,
+      `TARGET_FEE_BUMP_BUDGET_MAX = 2`), under strong fairness of non-target dequeue and weak
+      fairness of head-service and target fee-bump actions, a target submission under bounded
+      arrivals ahead and bounded higher-priority head preemption is eventually resolved; a target
+      with remaining fee-bump budget eventually consumes that budget or resolves, admissible head
+      targets with no remaining priority pressure eventually accept, and inadmissible head targets
+      reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local perps fee-priority model. This adds one bounded
+        fee-pressure layer above the perps submission queue claims, not a theorem about live fee
+        markets, builder bidding, authentication semantics, or unbounded mempool starvation.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpSubmissionFeePriorityQueue.tla
+        - formal/tla/PerpSubmissionFeePriorityQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_submission_builder_competition:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ perps submission builder-competition model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `BUILDER_PREEMPT_BUDGET_MAX = 2`), under strong fairness of non-target
+      dequeue and weak fairness of accept/reject-at-head actions, a target submission under bounded
+      arrivals ahead and bounded head preemption is eventually resolved; once preemption budget is
+      exhausted, admissible head targets eventually accept and inadmissible head targets reject with
+      reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local perps head-preemption model. This adds one bounded
+        builder-competition layer above the queue models, not a theorem about fee markets, signature
+        semantics, or unbounded block-construction strategies.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpSubmissionBuilderCompetition.tla
+        - formal/tla/PerpSubmissionBuilderCompetition.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:exact_out_adaptive_builder_competition:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ exact-out adaptive builder-competition model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `BUILDER_PREEMPT_BUDGET_MAX = 2`), under strong fairness of non-target
+      dequeue and weak fairness of adaptive head-service actions, a target exact-out request under
+      bounded arrivals ahead and bounded head preemption is eventually resolved; once preemption budget
+      is exhausted, cheap-success heads eventually return success, fallback-required heads with fallback
+      availability eventually return success, and heads with no available path eventually fail
+      explicitly with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local exact-out adaptive head-preemption model. This adds
+        one bounded builder-competition layer above the adaptive queue model, not a theorem about fee
+        markets, builder bidding, or unbounded public request load.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ExactOutAdaptiveBuilderCompetition.tla
+        - formal/tla/ExactOutAdaptiveBuilderCompetition.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:exact_out_adaptive_fee_priority_queue:fair_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ exact-out adaptive fee-priority queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `HIGHER_PRIORITY_BUDGET_MAX = 2`,
+      `TARGET_FEE_BUMP_BUDGET_MAX = 2`), under strong fairness of non-target dequeue and weak
+      fairness of head-service and target fee-bump actions, a target exact-out request under bounded
+      arrivals ahead and bounded higher-priority head preemption is eventually resolved; a target
+      with remaining fee-bump budget eventually consumes that budget or resolves, cheap-success and
+      fallback-success heads with no remaining priority pressure eventually return success, and
+      no-path heads with no remaining priority pressure eventually fail explicitly with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local exact-out adaptive fee-priority model. This adds
+        one bounded fee-pressure layer above the adaptive queue claims, not a theorem about live fee
+        markets, builder bidding, route arithmetic, or unbounded public request load.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ExactOutAdaptiveFeePriorityQueue.tla
+        - formal/tla/ExactOutAdaptiveFeePriorityQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:exact_out_adaptive_fee_priority_reorg_queue:fair_re_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ exact-out adaptive fee-priority reorg queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `HIGHER_PRIORITY_BUDGET_MAX = 1`,
+      `TARGET_FEE_BUMP_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of
+      non-target dequeue and weak fairness of head-service, target fee-bump, and finalize actions,
+      a target exact-out request under bounded arrivals ahead, bounded higher-priority head
+      preemption, and at most one post-success rollback is eventually resolved; a target with
+      remaining fee-bump budget eventually consumes that budget or resolves, cheap-success and
+      fallback-success heads with no remaining priority pressure eventually enter success-pending,
+      pending successes eventually finalize or roll back for bounded re-resolution, and no-path
+      heads with no remaining priority pressure eventually fail explicitly with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local exact-out adaptive fee-priority-plus-rollback
+        model. This combines one bounded fee-pressure layer with one bounded rollback above the
+        adaptive queue claims, not a theorem about live fee markets, builder bidding, route
+        arithmetic, or multi-reorg public request flow.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ExactOutAdaptiveFeePriorityReorgQueue.tla
+        - formal/tla/ExactOutAdaptiveFeePriorityReorgQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_liquidation_bounded_open_ingress:resolves_or_blocks
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ liquidation bounded-open-ingress model (`MAX_QUEUE = 4`, `MAX_PER_BLOCK = 2`,
+      `ARRIVAL_BUDGET_MAX = 2`), under strong fairness of liquidation processing and weak fairness of
+      block advance and breaker actions, a pending queue with bounded arrivals eventually resolves by
+      draining to zero or tripping the breaker; once arrivals are exhausted, safe pending queues drain,
+      and unsafe pending queues block.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local liquidation open-ingress model. This extends the
+        closed-queue drain-or-block claim to a limited arrival setting, not to unbounded liquidation
+        flow, fee markets, or builder competition.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpLiquidationBoundedOpenIngress.tla
+        - formal/tla/PerpLiquidationBoundedOpenIngress.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_liquidation_builder_reorg_queue:resolves_or_blocks
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ liquidation builder-reorg model (`MAX_QUEUE = 4`, `MAX_PER_BLOCK = 2`,
+      `ARRIVAL_BUDGET_MAX = 2`, `BUILDER_PREEMPT_BUDGET_MAX = 1`, `REORG_BUDGET_MAX = 1`), under
+      strong fairness of liquidation processing and weak fairness of finalize, block-advance, and
+      breaker actions, a pending queue with bounded arrivals, bounded external capacity preemption,
+      and at most one rollback of a processed liquidation eventually resolves by draining to zero or
+      tripping the breaker; processed liquidations eventually finalize or roll back, once adversary
+      budgets are exhausted safe pending queues drain, and unsafe pending queues block.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local liquidation builder-plus-rollback model. This
+        extends the open-ingress drain-or-block claim with one bounded capacity-preemption layer and
+        one bounded rollback, not a theorem about liquidation pricing, builder bidding, or
+        multi-reorg liquidation flow.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpLiquidationBuilderReorgQueue.tla
+        - formal/tla/PerpLiquidationBuilderReorgQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:exact_out_adaptive_single_reorg_queue:fair_re_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ exact-out adaptive single-reorg queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `REORG_BUDGET_MAX = 1`), under strong fairness of non-target dequeue
+      and weak fairness of adaptive head-service/finalize actions, a target exact-out request with at
+      most one post-success rollback is eventually resolved; cheap-success and fallback-success heads
+      eventually enter success-pending, pending successes eventually finalize or roll back for bounded
+      re-resolution, and no-path heads eventually fail explicitly with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local rollback-aware exact-out adaptive model. This adds
+        one explicit reorg/re-resolution step above the adaptive ingress queue claim, not a theorem
+        about multi-reorg chains, route arithmetic, or unbounded public request flow.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ExactOutAdaptiveSingleReorgQueue.tla
+        - formal/tla/ExactOutAdaptiveSingleReorgQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:exact_out_adaptive_builder_reorg_queue:fair_re_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ exact-out adaptive builder-reorg queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `BUILDER_PREEMPT_BUDGET_MAX = 1`, `REORG_BUDGET_MAX = 1`),
+      under strong fairness of non-target dequeue and weak fairness of adaptive head-service/finalize
+      actions, a target exact-out request under bounded arrivals ahead, bounded head preemption, and
+      at most one post-success rollback is eventually resolved; once preemption budget is exhausted,
+      cheap-success and fallback-success heads eventually enter success-pending, pending successes
+      eventually finalize or roll back for bounded re-resolution, and no-path heads eventually fail
+      explicitly with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local exact-out adaptive builder-plus-rollback model.
+        This combines one bounded builder-preemption layer with one bounded rollback above the adaptive
+        queue claim, not a theorem about multi-reorg chains, fee markets, builder bidding, or
+        unbounded public request flow.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/ExactOutAdaptiveBuilderReorgQueue.tla
+        - formal/tla/ExactOutAdaptiveBuilderReorgQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:settlement_witness_builder_reorg_queue:fair_re_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ settlement witness builder-reorg queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `BUILDER_PREEMPT_BUDGET_MAX = 1`, `REORG_BUDGET_MAX = 1`),
+      under strong fairness of non-target dequeue and weak fairness of include/finalize/reject
+      actions, a target settlement witness under bounded arrivals ahead, bounded head preemption, and
+      at most one post-inclusion rollback is eventually resolved; once preemption budget is exhausted,
+      admissible head targets eventually include, included-pending targets eventually finalize or roll
+      back for bounded re-resolution, and inadmissible head targets eventually reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local settlement witness builder-plus-rollback model.
+        This combines one bounded builder-preemption layer with one bounded rollback above the
+        settlement queue claims, not a theorem about fee markets, builder bidding, signature
+        validity, or multi-reorg chains.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/SettlementWitnessBuilderReorgQueue.tla
+        - formal/tla/SettlementWitnessBuilderReorgQueue.cfg
+        - tools/run_tla_models.py
+
+  - id: tla:perp_submission_builder_reorg_queue:fair_re_resolution
+    status: supported
+    layer: liveness
+    statement: >
+      In the bounded TLA+ perps submission builder-reorg queue model (`MAX_QUEUE = 5`,
+      `ARRIVAL_BUDGET_MAX = 2`, `BUILDER_PREEMPT_BUDGET_MAX = 1`, `REORG_BUDGET_MAX = 1`), under
+      strong fairness of non-target dequeue and weak fairness of accept/finalize/reject actions, a
+      target submission under bounded arrivals ahead, bounded head preemption, and at most one
+      post-accept rollback is eventually resolved; once preemption budget is exhausted, admissible
+      head targets eventually accept, accepted-pending targets eventually finalize or roll back for
+      bounded re-resolution, and inadmissible head targets eventually reject with reason.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC model check over the repo-local perps submission builder-plus-rollback model.
+        This combines one bounded builder-preemption layer with one bounded rollback above the perps
+        submission queue claims, not a theorem about fee markets, builder bidding, auth semantics, or
+        multi-reorg chains.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/PerpSubmissionBuilderReorgQueue.tla
+        - formal/tla/PerpSubmissionBuilderReorgQueue.cfg
+        - tools/run_tla_models.py
