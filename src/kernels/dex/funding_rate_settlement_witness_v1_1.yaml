@@ -1,0 +1,219 @@
+# [FORGE] Funding Rate Settlement Witness v1.1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "funding_rate_settlement_witness_v1_1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: deterministically compute one funding-rate settlement result.
+
+    This kernel isolates the arithmetic that makes `funding_rate_market_v1_1`
+    harder for CVC5:
+      - realized rate computation from mark/index
+      - protocol fee extraction
+      - winning-side payout split
+
+    The market shell can then stay small and the proof story becomes:
+      1) `funding_rate_market_v1` handles phase/state transitions
+      2) `funding_rate_settlement_witness_v1_1` proves the settlement math
+      3) runtime uses the shared Python helper wired to both.
+
+observables:
+  state_vars:
+    [
+      "rate_long_exposure",
+      "rate_short_exposure",
+      "premium_pool",
+      "implied_rate_bps",
+      "funding_cap_bps",
+      "protocol_fee_bps",
+      "realized_rate_bps",
+      "protocol_fee",
+      "long_payout",
+      "short_payout",
+    ]
+  effects:
+    [
+      "realized_rate_bps",
+      "protocol_fee",
+      "long_payout",
+      "short_payout",
+      "winning_long",
+    ]
+
+types: []
+
+state_vars:
+  - id: "rate_long_exposure"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "rate_short_exposure"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "premium_pool"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "implied_rate_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+  - id: "funding_cap_bps"
+    role: "control"
+    type: { kind: "int", min: 1, max: 10000 }
+  - id: "protocol_fee_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "realized_rate_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+  - id: "protocol_fee"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "long_payout"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "short_payout"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+
+init:
+  - var: "rate_long_exposure"
+    expr: { const: 0 }
+  - var: "rate_short_exposure"
+    expr: { const: 0 }
+  - var: "premium_pool"
+    expr: { const: 0 }
+  - var: "implied_rate_bps"
+    expr: { const: 0 }
+  - var: "funding_cap_bps"
+    expr: { const: 100 }
+  - var: "protocol_fee_bps"
+    expr: { const: 100 }
+  - var: "realized_rate_bps"
+    expr: { const: 0 }
+  - var: "protocol_fee"
+    expr: { const: 0 }
+  - var: "long_payout"
+    expr: { const: 0 }
+  - var: "short_payout"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_exposures_nonneg"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "rate_long_exposure" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "rate_short_exposure" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "premium_pool" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "protocol_fee" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "long_payout" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "short_payout" }, { const: 0 }] }
+  - id: "inv_rate_bounded"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "realized_rate_bps" }, { op: "-", args: [{ const: 0 }, { var: "funding_cap_bps" }] }] }
+        - { op: "<=", args: [{ var: "realized_rate_bps" }, { var: "funding_cap_bps" }] }
+  - id: "inv_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: "protocol_fee" }
+            - op: "+"
+              args: [{ var: "long_payout" }, { var: "short_payout" }]
+        - { var: "premium_pool" }
+
+actions:
+  - id: "compute_settlement"
+    params:
+      - id: "mark_price_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "index_price_e8"
+        type: { kind: "int", min: 1, max: 1000000000000 }
+      - id: "witness_realized_rate_bps"
+        type: { kind: "int", min: -10000, max: 10000 }
+      - id: "witness_protocol_fee"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "witness_long_payout"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+      - id: "witness_short_payout"
+        type: { kind: "int", min: 0, max: 1000000000000 }
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ op: "+", args: [{ var: "rate_long_exposure" }, { var: "rate_short_exposure" }] }, { const: 0 }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "rate_long_exposure" }, { var: "rate_short_exposure" }] }, { const: 1000000000000 }] }
+        - op: "="
+          args:
+            - { param: "witness_realized_rate_bps" }
+            - op: "max"
+              args:
+                - op: "-"
+                  args: [{ const: 0 }, { var: "funding_cap_bps" }]
+                - op: "min"
+                  args:
+                    - { var: "funding_cap_bps" }
+                    - op: "div"
+                      args:
+                        - op: "*"
+                          args:
+                            - op: "-"
+                              args: [{ param: "mark_price_e8" }, { param: "index_price_e8" }]
+                            - { const: 10000 }
+                        - { param: "index_price_e8" }
+        - op: "="
+          args:
+            - { param: "witness_protocol_fee" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args: [{ var: "premium_pool" }, { var: "protocol_fee_bps" }]
+                - { const: 10000 }
+        - op: "="
+          args:
+            - { param: "witness_long_payout" }
+            - op: "div"
+              args:
+                - op: "*"
+                  args:
+                    - op: "-"
+                      args: [{ var: "premium_pool" }, { param: "witness_protocol_fee" }]
+                    - op: "ite"
+                      cond:
+                        op: ">="
+                        args:
+                          - { param: "witness_realized_rate_bps" }
+                          - { var: "implied_rate_bps" }
+                      then: { var: "rate_long_exposure" }
+                      else: { var: "rate_short_exposure" }
+                - op: "+"
+                  args: [{ var: "rate_long_exposure" }, { var: "rate_short_exposure" }]
+        - op: "="
+          args:
+            - { param: "witness_short_payout" }
+            - op: "-"
+              args:
+                - op: "-"
+                  args: [{ var: "premium_pool" }, { param: "witness_protocol_fee" }]
+                - { param: "witness_long_payout" }
+    updates:
+      - var: "realized_rate_bps"
+        expr: { param: "witness_realized_rate_bps" }
+      - var: "protocol_fee"
+        expr: { param: "witness_protocol_fee" }
+      - var: "long_payout"
+        expr: { param: "witness_long_payout" }
+      - var: "short_payout"
+        expr: { param: "witness_short_payout" }
+    effects:
+      realized_rate_bps: { var: "realized_rate_bps" }
+      protocol_fee: { var: "protocol_fee" }
+      long_payout: { var: "long_payout" }
+      short_payout: { var: "short_payout" }
+      winning_long:
+        op: ">="
+        args: [{ var: "realized_rate_bps" }, { var: "implied_rate_bps" }]
