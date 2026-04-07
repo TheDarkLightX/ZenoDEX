@@ -9,7 +9,7 @@ It is intentionally conservative about what is being claimed.
 WitnessedRejectState(D) := campaign_reaches(D) ∧ system_rejects(D)
 ```
 
-Standard reading: a disaster state `D` is *witnessed* when the stateful campaign can produce it and the system rejects it with a replayable receipt.
+Standard reading: a disaster state `D` is *witnessed* when the stateful campaign can produce it and the system rejects it with a minimized witness receipt in the internal assurance lane.
 
 Practical consequence: the witness proves a dangerous state exists in the search space and is blocked by the current implementation.
 
@@ -17,7 +17,7 @@ Practical consequence: the witness proves a dangerous state exists in the search
 RemovedBlindSpot(S) := previously_reached_without_witness(S) -> now_reached_with_witness(S)
 ```
 
-Standard reading: an assurance blind spot is removed when a surface that was previously reached but not captured as a first-class witness is now backed by a replayable minimized witness.
+Standard reading: an assurance blind spot is removed when a surface that was previously reached but not captured as a first-class witness is now backed by a minimized witness in the internal assurance lane.
 
 Practical consequence: this strengthens regression defense and public assurance posture.
 
@@ -35,12 +35,13 @@ Standard reading: witnessing and rejecting a dangerous state does not, by itself
 
 Practical consequence: public reporting should say "witnessed and rejected" unless there is separate evidence that a bad state used to pass.
 
-## Current State
+## Snapshot Status
 
-The deep stateful acceptance lane now covers nine declared dangerous surfaces.
-All nine are backed by replayable minimized witnesses.
+This note reflects a dated internal assurance snapshot, not a live clean-checkout public replay claim.
+The snapshot used here was captured on `2026-04-07` from the typed deep stateful receipt labeled `release-grade-stateful-v3-typed-gate`.
+In that snapshot, the deep stateful acceptance lane covered nine declared dangerous surfaces and all nine were backed by minimized witnesses.
 
-Current lane status:
+Snapshot lane status:
 - deep stateful gate: `91 passed, 1 warning`
 - stateful dangerous surfaces: `9/9 witnessed`
 - reached-but-unwitnessed surfaces: `0`
@@ -157,32 +158,23 @@ The main engineering improvements were:
 - eliminating the remaining `reached_no_witness` surfaces in the dangerous-surface manifest
 - adding a curated typechecked boundary for the stateful assurance tooling
 
-## Reproduction Commands
+## Replay Boundary
 
-Deep stateful lane:
+This note summarizes the stateful witness lane from the internal assurance environment.
+The public checkout does **not** currently ship the internal deep campaign runner or its minimized-witness artifact tree, so the witness counts above should be read as a dated assurance snapshot rather than as a clean-checkout replay recipe.
 
-```bash
-bash tools/run_acceptance_tcb_fuzz_gate_deep.sh
-```
-
-Full stateful campaign receipt:
+Public readers can replay the shipped public assurance surface with:
 
 ```bash
-python3 tools/acceptance_tcb_fuzz_campaign.py --format json --gate-lane deep --run-id local-stateful-receipt
+python3 tools/permissionless_assurance.py status
+python3 tools/permissionless_assurance.py replay public
 ```
-
-The command above writes local artifacts under the local campaign artifact directory including:
-- minimized witness receipts
-- stateful introspection
-- weird-machine atlas
-
-Those artifacts are intended as local replay receipts, not as committed public repo state.
 
 ## Public Reporting Guidance
 
 The strongest honest public claim is:
-- ZenoDEX now has replayable minimized witnesses for nine dangerous stateful protocol surfaces.
-- The deep stateful lane demonstrates fail-closed handling for replay, stale quote receipts, stale settlements, route-certificate tampering, attestation tampering, duplicate signatures, and unauthorized envelopes.
+- ZenoDEX now has minimized witnesses for nine dangerous stateful protocol surfaces in its internal deep assurance lane.
+- The dated deep stateful snapshot demonstrates fail-closed handling for replay, stale quote receipts, stale settlements, route-certificate tampering, attestation tampering, duplicate signatures, and unauthorized envelopes.
 - Previously reached-but-unwitnessed surfaces in this lane have been removed.
 
 The claim to avoid is:
