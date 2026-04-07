@@ -46,6 +46,7 @@ More detail:
 - [docs/TLA_CLAIM_SUMMARY.md](docs/TLA_CLAIM_SUMMARY.md)
 - [docs/ASSURANCE_GLOSSARY.md](docs/ASSURANCE_GLOSSARY.md)
 - [docs/claims_registry.yaml](docs/claims_registry.yaml)
+- [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](docs/STATEFUL_DISASTER_STATE_WITNESSES.md)
 <!-- END GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
 
 Replay commands are documented in [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
