@@ -69,6 +69,7 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tools/render_assurance_release_snapshot.py",
     "tools/render_tla_claim_summary.py",
     "tools/run_critical_quality_gate.sh",
+    "tools/run_derivatives_evidence.sh",
     "tools/run_release_gate.sh",
     "tools/run_perps_evidence.sh",
     "tools/run_spot_evidence.sh",

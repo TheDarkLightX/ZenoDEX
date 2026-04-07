@@ -60,6 +60,7 @@ def test_public_scope_filters_include_claim_registry_and_tla_surface() -> None:
         "tests/formal/test_tla_claim_inventory.py",
         "tests/test_claims_registry.py",
         "tools/check_claims_registry.py",
+        "tools/run_derivatives_evidence.sh",
         "internal/example.json",
     ])
     assert "docs/claims_registry.yaml" in paths
@@ -70,6 +71,7 @@ def test_public_scope_filters_include_claim_registry_and_tla_surface() -> None:
     assert "tests/formal/test_tla_claim_inventory.py" in paths
     assert "tests/test_claims_registry.py" in paths
     assert "tools/check_claims_registry.py" in paths
+    assert "tools/run_derivatives_evidence.sh" in paths
     assert "internal/example.json" not in paths
 
 
