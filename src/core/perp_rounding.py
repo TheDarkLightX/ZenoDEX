@@ -8,8 +8,7 @@ conservation under integer division:
 - Under net-zero exposure, conservation can be restored deterministically by a
   "largest remainder" dust allocator with a fixed tie-break rule.
 
-This repo keeps small counterexamples and checks in private research notes and
-replayable tests.
+This repo keeps small counterexamples and checks in replayable tests.
 """
 
 from __future__ import annotations

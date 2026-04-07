@@ -254,7 +254,7 @@
       ],
       "recursion_depth_bin": "1-2",
       "runs": [
-        "withheld/private_methods/kpool_split_note.py",
+        "withheld/method_refs/kpool_split_note.py",
         "experimental/math_discovery/galois_split_routing.py",
         "lean-mathlib/Proofs/GaloisSplitCertificate.lean",
         "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
@@ -289,7 +289,7 @@
       ],
       "recursion_depth_bin": "0",
       "runs": [
-        "withheld/private_methods/anti_fragmentation_note.py",
+        "withheld/method_refs/anti_fragmentation_note.py",
         "src/core/split_routing.py",
         "lean-mathlib/Proofs/AntiFragmentation.lean",
         "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean",
@@ -494,8 +494,8 @@
       ],
       "recursion_depth_bin": "1-2",
       "runs": [
-        "withheld/private_methods/settlement_law_note.py",
-        "withheld/private_methods/settlement_algebra_note.py",
+        "withheld/method_refs/settlement_law_note.py",
+        "withheld/method_refs/settlement_algebra_note.py",
         "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
         "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
       ],
