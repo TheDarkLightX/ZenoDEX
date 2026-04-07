@@ -238,9 +238,12 @@ def _git_stdout(*args: str) -> str:
     return proc.stdout.strip()
 
 
-def _git_status_paths() -> list[str]:
+def _git_status_paths(*, include_ignored: bool = False) -> list[str]:
+    command = ["git", "-C", str(REPO_ROOT), "status", "--porcelain=v1", "--untracked-files=all"]
+    if include_ignored:
+        command.append("--ignored=matching")
     proc = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "status", "--porcelain=v1", "--untracked-files=all"],
+        command,
         check=True,
         capture_output=True,
         text=True,
@@ -603,7 +606,10 @@ def cmd_leak_check(args: argparse.Namespace) -> int:
     if args.paths:
         paths = list(args.paths)
     else:
-        paths = _public_scope_paths(_git_status_paths())
+        # Leak-check is the broad pre-merge sanitization guard, so the default
+        # no-args mode must inspect every dirty path, including ignored internal
+        # directories that a normal git status omits.
+        paths = _git_status_paths(include_ignored=True)
     findings = _leak_findings(paths)
     payload = {"paths": paths, "findings": findings, "ok": not findings}
     if args.format == "json":
