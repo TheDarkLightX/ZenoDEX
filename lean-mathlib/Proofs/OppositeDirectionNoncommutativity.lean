@@ -51,7 +51,7 @@ second-mover advantage is generically STRICT for non-dust trades.
 | 15 | `path2_K_gap_exact` | Real | Two-swap K composition (YtoX first) |
 
 ## Evidence chain
-- Python: `experimental/math_discovery_pipeline/src/swap_commutativity.py`
+- Python: withheld internal prototype for swap commutativity exploration
 - Shape notes: section 2.1.E (opposite-direction commutativity quarantine)
 - This file: Lean proof (formal, 0 sorry)
 -/
