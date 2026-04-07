@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
 
 from src.core import split_routing as split_routing_mod
@@ -10,7 +12,25 @@ from src.core.split_routing import (
     exact_out_for_pool_exact_in,
     resolve_two_pool_split_search_params,
 )
-from tools.metamuse_split_routing_lane import DGSTR_CURATED_CASES
+
+
+@dataclass(frozen=True)
+class SplitRoutingCuratedCase:
+    pool0: PoolXY
+    pool1: PoolXY
+    amount_in: int
+    expected: tuple[int, int]
+
+
+DGSTR_CURATED_CASES: tuple[SplitRoutingCuratedCase, ...] = (
+    SplitRoutingCuratedCase(PoolXY(x=125, y=153, fee_bps=119), PoolXY(x=125, y=140, fee_bps=150), 6055, (281, 3100)),
+    SplitRoutingCuratedCase(PoolXY(x=177, y=199, fee_bps=157), PoolXY(x=176, y=50, fee_bps=159), 4622, (232, 2804)),
+    SplitRoutingCuratedCase(PoolXY(x=60, y=142, fee_bps=59), PoolXY(x=173, y=85, fee_bps=127), 4537, (217, 1654)),
+    SplitRoutingCuratedCase(PoolXY(x=124, y=140, fee_bps=48), PoolXY(x=197, y=206, fee_bps=33), 7934, (332, 2784)),
+    SplitRoutingCuratedCase(PoolXY(x=172, y=72, fee_bps=3), PoolXY(x=163, y=104, fee_bps=95), 9596, (170, 3958)),
+    SplitRoutingCuratedCase(PoolXY(x=85, y=143, fee_bps=44), PoolXY(x=194, y=27, fee_bps=32), 6371, (164, 2968)),
+    SplitRoutingCuratedCase(PoolXY(x=66, y=71, fee_bps=36), PoolXY(x=215, y=149, fee_bps=114), 5994, (210, 1502)),
+)
 
 
 def _count_profile_calls(

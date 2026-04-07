@@ -55,8 +55,9 @@ Use it to confirm:
 4. Confirm operator contact is set to a real monitored address or alias.
 5. Run:
    - `python3 tools/sealed_bid_disaster_catalog.py`
-   - `python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_private_state_v1 --out-dir runs/metamuse/sealed_bid_private_state_v1 --run-checks`
-   - `python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_non_reveal_bond_v1 --out-dir runs/metamuse/sealed_bid_non_reveal_bond_v1 --run-checks`
+   - run the unpublished internal sealed-bid evaluation workflow for:
+     - private-state execution
+     - non-reveal bond accounting
    - `bash tools/prod_gate.sh`
 
 ## Alerts
