@@ -4,6 +4,7 @@ from pathlib import Path
 
 from tools.krr_reasoner_engine import advise_candidate_krr, load_krr_kb
 from tools.krr_refine_from_evidence import _build_hypothesis_index, _collect_evidence, _refine_kb
+from tools import krr_self_improve_loop
 from tools.krr_self_improve_loop import _aggregate
 
 
@@ -165,3 +166,51 @@ def test_self_improve_aggregate_combines_successful_runs() -> None:
         "avg_selection_score_mean": 0.6,
         "frontier_size_mean": 2.0,
     }
+
+
+def test_bridge_and_eval_uses_explicit_bridge_options(tmp_path: Path, monkeypatch) -> None:
+    run_dir = tmp_path / "run"
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text("{}\n", encoding="utf-8")
+    kb_path = tmp_path / "kb.json"
+    bridge_script = tmp_path / "bridge.py"
+    bridge_script.write_text("print(1)\n", encoding="utf-8")
+
+    seen: list[list[str]] = []
+
+    def fake_run(cmd: list[str], *, timeout_s: int = 1800) -> tuple[int, str, str, float]:
+        seen.append(cmd)
+        return 0, "", "", 0.01
+
+    def fake_read_json(path: Path, default=None):
+        if path.name.startswith("pack_"):
+            return {
+                "hypotheses": [{"selection_score": 1.25}],
+                "selection_stats": {"krr_backend_counts": {"auto": 1}, "krr_fallback_reasons": {}},
+            }
+        if path.name == "summary.json":
+            return {"rows": [{"final_status": "supported"}]}
+        if path.name == "analysis.json":
+            return {"pareto_frontier": [{"id": 1}]}
+        return default
+
+    monkeypatch.setattr(krr_self_improve_loop, "_run", fake_run)
+    monkeypatch.setattr(krr_self_improve_loop, "_read_json", fake_read_json)
+
+    out = krr_self_improve_loop._bridge_and_eval(
+        run_dir=run_dir,
+        cycle=201,
+        manifest=manifest,
+        kb_path=kb_path,
+        krr_backend="auto",
+        bridge_script=bridge_script,
+        bridge_manifest_flag="--candidate-manifest",
+        bridge_extra=["--max-per-operator", "4"],
+    )
+
+    assert out["ok"] is True
+    assert seen
+    bridge_cmd = seen[0]
+    assert bridge_cmd[:5] == ["python3", str(bridge_script), "--cycle", "201", "--candidate-manifest"]
+    assert str(manifest) in bridge_cmd
+    assert str(kb_path) in bridge_cmd

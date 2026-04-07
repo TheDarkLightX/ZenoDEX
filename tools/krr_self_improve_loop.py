@@ -44,6 +44,8 @@ def _bridge_and_eval(
     manifest: Path,
     kb_path: Path,
     krr_backend: str,
+    bridge_script: Path,
+    bridge_manifest_flag: str,
     bridge_extra: list[str],
 ) -> dict[str, Any]:
     stem = manifest.parent.name
@@ -55,7 +57,7 @@ def _bridge_and_eval(
         str(bridge_script),
         "--cycle",
         str(int(cycle)),
-        str(args.bridge_manifest_flag),
+        str(bridge_manifest_flag),
         str(manifest),
         "--out-json",
         str(pack_path),
@@ -240,6 +242,8 @@ def main() -> int:
                     manifest=m,
                     kb_path=refined_kb,
                     krr_backend="auto",
+                    bridge_script=bridge_script,
+                    bridge_manifest_flag=args.bridge_manifest_flag,
                     bridge_extra=bridge_extra,
                 )
             )
@@ -250,6 +254,8 @@ def main() -> int:
                     manifest=m,
                     kb_path=refined_kb,
                     krr_backend="off",
+                    bridge_script=bridge_script,
+                    bridge_manifest_flag=args.bridge_manifest_flag,
                     bridge_extra=bridge_extra,
                 )
             )
