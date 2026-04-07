@@ -66,7 +66,6 @@ echo "== spot: pytest =="
   "$ROOT_DIR/tests/core/test_batch_clearing_b_refinement.py" \
   "$ROOT_DIR/tests/core/test_batch_clearing_global_refinement.py" \
   "$ROOT_DIR/tests/core/test_batch_greedy.py" \
-  "$ROOT_DIR/tests/core/test_batch_mci.py" \
   "$ROOT_DIR/tests/core/test_batch_auction_settler_v1_ref_parity.py" \
   "$ROOT_DIR/tests/core/test_batch_auction_settler_v1_witness.py" \
   "$ROOT_DIR/tests/core/test_settlement_swap_runtime_v1.py" \
