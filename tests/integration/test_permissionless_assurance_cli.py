@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -85,6 +86,25 @@ def test_leak_check_blocks_internal_markers() -> None:
     blocked_paths = {finding["path"] for finding in payload["findings"]}
     assert "AGENTS.md" in blocked_paths
     assert "internal/example.json" in blocked_paths
+
+
+def test_leak_check_default_scans_all_dirty_paths(monkeypatch, capsys) -> None:
+    seen: list[bool] = []
+
+    def fake_git_status_paths(*, include_ignored: bool = False) -> list[str]:
+        seen.append(include_ignored)
+        return ["internal/", "docs/TLA_CLAIM_SUMMARY.md"]
+
+    monkeypatch.setattr(assurance_cli, "_git_status_paths", fake_git_status_paths)
+    args = argparse.Namespace(paths=[], format="json")
+    rc = assurance_cli.cmd_leak_check(args)
+    assert rc == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is False
+    blocked_paths = {finding["path"] for finding in payload["findings"]}
+    assert "internal/" in blocked_paths
+    assert payload["paths"] == ["internal/", "docs/TLA_CLAIM_SUMMARY.md"]
+    assert seen == [True]
 
 
 def test_replay_plan_group_expansion() -> None:
