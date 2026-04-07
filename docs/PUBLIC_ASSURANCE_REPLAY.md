@@ -74,6 +74,7 @@ python3 tools/acceptance_tcb_fuzz_campaign.py
 - `run_acceptance_tcb_fuzz_gate.sh` is the fast default hygiene lane used by the local release gate.
 - `run_acceptance_tcb_fuzz_gate_deep.sh` is the heavier stateful discovery lane for `dex_engine` replay, quote-receipt, and settlement trajectories.
 - `acceptance_tcb_fuzz_campaign.py` defaults to the deep lane and records minimized witnesses plus a shared cross-run index under `internal/fuzz_campaigns/deep/`.
+- The public-safe explanation of the witnessed reject states is summarized in [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](STATEFUL_DISASTER_STATE_WITNESSES.md).
 
 Notes:
 
