@@ -50,6 +50,29 @@ def test_public_scope_filters_include_cli_path() -> None:
     assert "internal/example.json" not in paths
 
 
+def test_public_scope_filters_include_claim_registry_and_tla_surface() -> None:
+    paths = assurance_cli._public_scope_paths([
+        "docs/claims_registry.yaml",
+        "formal/tla/ZenoGraphHostLocalAcceptance.tla",
+        "formal/tla/ZenoGraphHostLocalAcceptance.cfg",
+        "formal/tla/README.md",
+        "src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml",
+        "tests/formal/test_tla_claim_inventory.py",
+        "tests/test_claims_registry.py",
+        "tools/check_claims_registry.py",
+        "internal/example.json",
+    ])
+    assert "docs/claims_registry.yaml" in paths
+    assert "formal/tla/ZenoGraphHostLocalAcceptance.tla" in paths
+    assert "formal/tla/ZenoGraphHostLocalAcceptance.cfg" in paths
+    assert "formal/tla/README.md" in paths
+    assert "src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml" in paths
+    assert "tests/formal/test_tla_claim_inventory.py" in paths
+    assert "tests/test_claims_registry.py" in paths
+    assert "tools/check_claims_registry.py" in paths
+    assert "internal/example.json" not in paths
+
+
 def test_leak_check_blocks_internal_markers() -> None:
     proc = _run("leak-check", "AGENTS.md", "internal/example.json", "--format", "json")
     assert proc.returncode == 1
