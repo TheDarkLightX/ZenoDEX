@@ -531,7 +531,7 @@ def _tau_probe_candidate(
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="ZAG-style Tau frontier explorer for regret-focused spec search.")
+    ap = argparse.ArgumentParser(description="Tau frontier explorer for regret-focused spec search.")
     ap.add_argument("--out-dir", type=Path, default=Path("runs/tau_frontier_explorer/latest"))
     ap.add_argument("--scenario-json", type=Path, default=None, help="Optional scenario rows JSON (list of objects).")
     ap.add_argument("--scenario-size", type=int, default=256)

@@ -1,7 +1,7 @@
 ir_version: "esso-ir/v1"
 meta:
   model_id: "esso_spec_quality_assessment_v1"
-  created_by: "orchestration-unit"
+  created_by: "internal_toolchain"
   notes: |
     Spec Quality Assessment Framework for kernel IR state machine specifications (correctness ≠ quality).
 

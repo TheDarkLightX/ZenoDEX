@@ -52,10 +52,10 @@ def _bridge_and_eval(
 
     bridge_cmd = [
         "python3",
-        "tools/zenodex_zag_bridge.py",
+        str(bridge_script),
         "--cycle",
         str(int(cycle)),
-        "--zag-manifest",
+        str(args.bridge_manifest_flag),
         str(manifest),
         "--out-json",
         str(pack_path),
@@ -154,19 +154,11 @@ def _aggregate(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Iterative KRR self-improvement loop with auto-vs-off A/B gates.")
     ap.add_argument("--loop-root", type=Path, default=Path("runs/krr_self_improve_loop"))
+    ap.add_argument("--bridge-script", type=Path, default=Path("tools/zenodex_candidate_bridge.py"), help="Path to the candidate bridge script.")
+    ap.add_argument("--bridge-manifest-flag", type=str, default="--candidate-manifest", help="Manifest flag passed to the bridge script.")
     ap.add_argument("--iterations", type=int, default=3)
     ap.add_argument("--cycle-base", type=int, default=200)
-    ap.add_argument(
-        "--manifest",
-        action="append",
-        default=[
-            "external/ZAG/runs/zenodex_zag_v10_supervised/gen_0/manifest.json",
-            "external/ZAG/runs/zenodex_zag_v10_supervised/gen_1/manifest.json",
-            "external/ZAG/runs/zenodex_zag_v10_supervised/gen_2/manifest.json",
-            "external/ZAG/runs/zenodex_zag_v10_supervised/gen_3/manifest.json",
-            "external/ZAG/runs/zenodex_zag_v10_supervised/gen_4/manifest.json",
-        ],
-    )
+    ap.add_argument("--manifest", action="append", default=[], help="Candidate manifest JSON path. Repeatable.")
     ap.add_argument("--kb-seed", type=Path, default=Path("tools/krr_knowledge_base.json"))
     ap.add_argument("--min-count", type=int, default=4)
     ap.add_argument("--max-auto-rules", type=int, default=24)
@@ -184,6 +176,15 @@ def main() -> int:
         if p.exists():
             manifests.append(p)
     manifests = sorted(set(manifests))
+
+    if not manifests:
+        print("error: provide at least one --manifest path", flush=True)
+        return 2
+
+    bridge_script = (ROOT / args.bridge_script).resolve() if not args.bridge_script.is_absolute() else args.bridge_script
+    if not bridge_script.exists():
+        print(f"error: bridge script not found: {bridge_script}", flush=True)
+        return 2
 
     kb_seed = (ROOT / args.kb_seed).resolve() if not args.kb_seed.is_absolute() else args.kb_seed
     current_kb = kb_seed

@@ -62,7 +62,7 @@ python3 tools/tau_bv_solve_bench.py \
   --steps 32 --timeout-s 10 --verify-witness
 ```
 
-## Tau Frontier Explorer (ZAG-style, Internal)
+## Tau Frontier Explorer (Structured Frontier Search)
 
 Searches a regret-focused Tau policy space, emits candidate `.tau` specs, and
 computes a Pareto frontier over safety/regret/fill/speed/simplicity.

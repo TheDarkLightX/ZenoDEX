@@ -4,8 +4,7 @@ from src.core.perp_rounding import largest_remainder_adjust_net_zero
 
 
 def test_rounding_leak_witness_under_euclidean_division() -> None:
-    # Mirrors the minimal witness preserved in the private research notebook and
-    # replayable regression suite.
+    # Mirrors the minimal witness preserved in the replayable regression suite.
     #
     # With net-zero exposures, per-account Euclidean division can leak value:
     # xs = [1, -1], d = 1e8  =>  [0, -1], sum = -1

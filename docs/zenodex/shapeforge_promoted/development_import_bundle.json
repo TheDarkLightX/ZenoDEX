@@ -301,7 +301,7 @@
       ],
       "recursion_depth_bin": "1-2",
       "runs": [
-        "withheld/private_methods/kpool_split_note.py",
+        "withheld/method_refs/kpool_split_note.py",
         "experimental/math_discovery/galois_split_routing.py",
         "lean-mathlib/Proofs/GaloisSplitCertificate.lean",
         "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
@@ -336,7 +336,7 @@
       ],
       "recursion_depth_bin": "0",
       "runs": [
-        "withheld/private_methods/anti_fragmentation_note.py",
+        "withheld/method_refs/anti_fragmentation_note.py",
         "src/core/split_routing.py",
         "lean-mathlib/Proofs/AntiFragmentation.lean",
         "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean",
@@ -541,8 +541,8 @@
       ],
       "recursion_depth_bin": "1-2",
       "runs": [
-        "withheld/private_methods/settlement_law_note.py",
-        "withheld/private_methods/settlement_algebra_note.py",
+        "withheld/method_refs/settlement_law_note.py",
+        "withheld/method_refs/settlement_algebra_note.py",
         "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
         "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
       ],
@@ -1107,7 +1107,7 @@
     {
       "examples": [
         "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
-        "withheld/private_methods/settlement_algebra_note.py"
+        "withheld/method_refs/settlement_algebra_note.py"
       ],
       "failure_modes": [
         "Multiple winners remain semantically equivalent but unspecified.",
@@ -1125,7 +1125,7 @@
       ],
       "portal_hints": [
         "lean",
-        "zag"
+        "frontier_search"
       ],
       "promotion_targets": [
         "tactic_bank",
@@ -1146,7 +1146,7 @@
     },
     {
       "examples": [
-        "withheld/private_methods/kpool_split_note.py",
+        "withheld/method_refs/kpool_split_note.py",
         "experimental/math_discovery/galois_split_routing.py",
         "lean-mathlib/Proofs/GaloisSplitCertificate.lean"
       ],
@@ -1167,7 +1167,7 @@
         "Check that the integer optimum lies in the bounded candidate envelope."
       ],
       "portal_hints": [
-        "private_search",
+        "withheld_search",
         "lean"
       ],
       "promotion_targets": [
@@ -1175,7 +1175,7 @@
         "scenario_corpus"
       ],
       "source_kind": "experimental_math",
-      "source_query": "withheld/private_methods/kpool_split_note.py#continuous optimum",
+      "source_query": "withheld/method_refs/kpool_split_note.py#continuous optimum",
       "summary": "Seed split routing with the equal-marginal law and search only a bounded neighborhood.",
       "tactic_id": "equal_marginal_dualization",
       "tags": [
@@ -1207,7 +1207,7 @@
         "Match the pool fee semantics to the zero-fee or fee-aware proof lane before pruning."
       ],
       "portal_hints": [
-        "private_search",
+        "withheld_search",
         "lean"
       ],
       "promotion_targets": [
@@ -1325,7 +1325,7 @@
       ],
       "portal_hints": [
         "lean",
-        "zag"
+        "frontier_search"
       ],
       "promotion_targets": [
         "tactic_bank",
@@ -1442,8 +1442,8 @@
         "Use the same canonical key in every implementation path."
       ],
       "portal_hints": [
-        "private_search",
-        "zag"
+        "withheld_search",
+        "frontier_search"
       ],
       "promotion_targets": [
         "tactic_bank",
@@ -1485,7 +1485,7 @@
       "portal_hints": [
         "lean",
         "esso",
-        "private_search"
+        "withheld_search"
       ],
       "promotion_targets": [
         "tactic_bank",
@@ -1507,8 +1507,8 @@
     {
       "examples": [
         "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
-        "withheld/private_methods/settlement_law_note.py",
-        "withheld/private_methods/settlement_algebra_note.py"
+        "withheld/method_refs/settlement_law_note.py",
+        "withheld/method_refs/settlement_algebra_note.py"
       ],
       "failure_modes": [
         "A mixed-direction batch is simplified as if it were commutative.",
@@ -1524,7 +1524,7 @@
         "Reject commutative rewrites when the precondition fails."
       ],
       "portal_hints": [
-        "private_search",
+        "withheld_search",
         "lean"
       ],
       "promotion_targets": [

@@ -78,13 +78,13 @@ def test_refine_kb_learns_operator_priors_and_semantic_rules(tmp_path: Path) -> 
         """
 {
   "hypotheses": [
-    {"hypothesis_id": "h1", "operator_id": "op_x", "support_recipe": "alpha::one", "zag_semantic_signature": "route canonical", "zag_schema": "schema_v1"},
-    {"hypothesis_id": "h2", "operator_id": "op_x", "support_recipe": "alpha::one", "zag_semantic_signature": "route canonical", "zag_schema": "schema_v1"},
-    {"hypothesis_id": "h3", "operator_id": "op_x", "support_recipe": "alpha::one", "zag_semantic_signature": "route canonical", "zag_schema": "schema_v1"},
-    {"hypothesis_id": "h4", "operator_id": "op_x", "support_recipe": "alpha::one", "zag_semantic_signature": "route canonical", "zag_schema": "schema_v1"},
-    {"hypothesis_id": "h5", "operator_id": "op_x", "support_recipe": "beta::two", "zag_semantic_signature": "route canonical", "zag_schema": "schema_v1"},
-    {"hypothesis_id": "h6", "operator_id": "op_x", "support_recipe": "beta::two", "zag_semantic_signature": "route canonical", "zag_schema": "schema_v1"},
-    {"hypothesis_id": "h7", "operator_id": "op_x", "support_recipe": "beta::two", "zag_semantic_signature": "route canonical", "zag_schema": "schema_v1"}
+    {"hypothesis_id": "h1", "operator_id": "op_x", "support_recipe": "alpha::one", "semantic_signature": "route canonical", "source_schema": "schema_v1"},
+    {"hypothesis_id": "h2", "operator_id": "op_x", "support_recipe": "alpha::one", "semantic_signature": "route canonical", "source_schema": "schema_v1"},
+    {"hypothesis_id": "h3", "operator_id": "op_x", "support_recipe": "alpha::one", "semantic_signature": "route canonical", "source_schema": "schema_v1"},
+    {"hypothesis_id": "h4", "operator_id": "op_x", "support_recipe": "alpha::one", "semantic_signature": "route canonical", "source_schema": "schema_v1"},
+    {"hypothesis_id": "h5", "operator_id": "op_x", "support_recipe": "beta::two", "semantic_signature": "route canonical", "source_schema": "schema_v1"},
+    {"hypothesis_id": "h6", "operator_id": "op_x", "support_recipe": "beta::two", "semantic_signature": "route canonical", "source_schema": "schema_v1"},
+    {"hypothesis_id": "h7", "operator_id": "op_x", "support_recipe": "beta::two", "semantic_signature": "route canonical", "source_schema": "schema_v1"}
   ]
 }
 """.strip()

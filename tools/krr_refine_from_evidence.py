@@ -237,8 +237,8 @@ def _build_hypothesis_index(bridge_paths: list[Path]) -> dict[str, dict[str, Any
             out[hid] = {
                 "operator_id": str(h.get("operator_id", "")).strip(),
                 "support_recipe": str(h.get("support_recipe", "")).strip(),
-                "semantic_signature": str(h.get("zag_semantic_signature", "")).strip(),
-                "zag_schema": str(h.get("zag_schema", "")).strip(),
+                "semantic_signature": str(h.get("semantic_signature", "")).strip(),
+                "source_schema": str(h.get("source_schema", "")).strip(),
             }
     return out
 
