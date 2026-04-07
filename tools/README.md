@@ -173,7 +173,6 @@ bash tools/run_perps_gpu_liftoff.sh
 ```
 
 Defaults:
-- profile config: `docs/derivatives/mechanical_scientist_perps_config_m3max.yaml`
 - CE model: `src/kernels/dex/perp_epoch_isolated_v3.yaml`
 - hazard batch: `262144`
 - CE batch: `262144`
@@ -181,13 +180,17 @@ Defaults:
 - ML-BVA max states: `128`
 - ML-BVA UCB alpha: `1.25`
 
+The high-resource profile used during internal evaluation is not published in
+this repo. Provide a local profile path through `PERPS_LIFTOFF_CONFIG` when you
+use this runner.
+
 Override any default with env vars, for example:
 ```
 GPU_BATCH_CE=1048576 GPU_STEPS_CE=1000 bash tools/run_perps_gpu_liftoff.sh
 ```
 or:
 ```
-PERPS_LIFTOFF_CONFIG=docs/derivatives/mechanical_scientist_perps_config_m3max_hires.yaml \
+PERPS_LIFTOFF_CONFIG=/path/to/local-perps-liftoff-profile.yaml \
 ML_BVA_CASES_PER_ACTION=16 ML_BVA_ITERS_PER_ACTION=320 \
 ML_BVA_MAX_CANDIDATES=600 ML_BVA_MAX_STATES=192 \
 GPU_STEPS_CE=6000 bash tools/run_perps_gpu_liftoff.sh

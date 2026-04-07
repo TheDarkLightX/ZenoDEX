@@ -301,7 +301,7 @@
       ],
       "recursion_depth_bin": "1-2",
       "runs": [
-        "experimental/math_discovery_pipeline/src/kpool_split.py",
+        "withheld/private_methods/kpool_split_note.py",
         "experimental/math_discovery/galois_split_routing.py",
         "lean-mathlib/Proofs/GaloisSplitCertificate.lean",
         "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
@@ -336,7 +336,7 @@
       ],
       "recursion_depth_bin": "0",
       "runs": [
-        "experimental/math_discovery_pipeline/src/anti_fragmentation.py",
+        "withheld/private_methods/anti_fragmentation_note.py",
         "src/core/split_routing.py",
         "lean-mathlib/Proofs/AntiFragmentation.lean",
         "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean",
@@ -541,8 +541,8 @@
       ],
       "recursion_depth_bin": "1-2",
       "runs": [
-        "experimental/math_discovery_pipeline/src/settlement_law_miner.py",
-        "experimental/math_discovery_pipeline/src/settlement_algebra.py",
+        "withheld/private_methods/settlement_law_note.py",
+        "withheld/private_methods/settlement_algebra_note.py",
         "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
         "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
       ],
@@ -1074,7 +1074,7 @@
         "Fee semantics diverge from the proof model and K can drop.",
         "Batch accounting keeps only monotonicity and loses the exact K-gap explanation."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "monotonicity_strengthening",
         "exact_accounting"
       ],
@@ -1107,13 +1107,13 @@
     {
       "examples": [
         "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
-        "experimental/math_discovery_pipeline/src/settlement_algebra.py"
+        "withheld/private_methods/settlement_algebra_note.py"
       ],
       "failure_modes": [
         "Multiple winners remain semantically equivalent but unspecified.",
         "Enumeration order leaks into consensus-critical winner selection."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "canonicalization",
         "symmetry_breaking",
         "deterministic_tiebreak"
@@ -1146,7 +1146,7 @@
     },
     {
       "examples": [
-        "experimental/math_discovery_pipeline/src/kpool_split.py",
+        "withheld/private_methods/kpool_split_note.py",
         "experimental/math_discovery/galois_split_routing.py",
         "lean-mathlib/Proofs/GaloisSplitCertificate.lean"
       ],
@@ -1155,7 +1155,7 @@
         "A continuous seed is treated as proof-backed without a discrete certificate bridge.",
         "Integer rounding moves the optimum outside the searched envelope."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "lagrangian_dualization",
         "concavity_seed",
         "candidate_pruning"
@@ -1167,7 +1167,7 @@
         "Check that the integer optimum lies in the bounded candidate envelope."
       ],
       "portal_hints": [
-        "morph",
+        "private_search",
         "lean"
       ],
       "promotion_targets": [
@@ -1175,7 +1175,7 @@
         "scenario_corpus"
       ],
       "source_kind": "experimental_math",
-      "source_query": "experimental/math_discovery_pipeline/src/kpool_split.py#continuous optimum",
+      "source_query": "withheld/private_methods/kpool_split_note.py#continuous optimum",
       "summary": "Seed split routing with the equal-marginal law and search only a bounded neighborhood.",
       "tactic_id": "equal_marginal_dualization",
       "tags": [
@@ -1197,7 +1197,7 @@
         "Cross-pool fragmentation is pruned as if it were the same-pool case.",
         "The router keeps dominated same-pool fragments in the candidate set."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "anti_fragmentation",
         "same_pool_split_pruning"
       ],
@@ -1207,7 +1207,7 @@
         "Match the pool fee semantics to the zero-fee or fee-aware proof lane before pruning."
       ],
       "portal_hints": [
-        "morph",
+        "private_search",
         "lean"
       ],
       "promotion_targets": [
@@ -1236,7 +1236,7 @@
         "Fee-aware fragmentation is labeled proof-backed even though only the zero-fee slice is proved.",
         "Multi-fragment same-pool pruning is treated as if the two-way carry theorem applied directly without the batch bound."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "anti_fragmentation",
         "exact_accounting",
         "same_pool_split_pruning"
@@ -1276,7 +1276,7 @@
         "Runtime layers can represent filled below min_out as an ordinary state.",
         "Surplus goes negative only because validation was deferred too late."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "cbc_outcome_typing",
         "invalid_state_elimination"
       ],
@@ -1314,7 +1314,7 @@
         "Code is deterministic but the winning object is not uniquely specified.",
         "Different implementations pick different equal-objective winners."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "unique_winner_selection",
         "total_order_selection"
       ],
@@ -1353,7 +1353,7 @@
         "Batch audit can say K grew but cannot say by how much or why.",
         "A mismatch appears between step order and the remainder decomposition."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "exact_accounting",
         "remainder_ledger"
       ],
@@ -1392,7 +1392,7 @@
         "LP round-trips leak value due to mint or burn asymmetry.",
         "A reserve update changes LP accounting but no round-trip barrier is checked."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "lp_no_profit_barrier",
         "roundtrip_safety"
       ],
@@ -1432,7 +1432,7 @@
         "Equal-quality routes oscillate across implementations or refactors.",
         "A tie-break differs between exact-in and exact-out dispatch layers."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "total_tie_break",
         "candidate_order_canonicalization"
       ],
@@ -1442,7 +1442,7 @@
         "Use the same canonical key in every implementation path."
       ],
       "portal_hints": [
-        "morph",
+        "private_search",
         "zag"
       ],
       "promotion_targets": [
@@ -1473,7 +1473,7 @@
         "Search explores impossible exact-out requests under the leg budget.",
         "Routing fails without a canonical feasibility explanation."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "capacity_feasibility_pruning",
         "max_legs_guard"
       ],
@@ -1485,7 +1485,7 @@
       "portal_hints": [
         "lean",
         "esso",
-        "morph"
+        "private_search"
       ],
       "promotion_targets": [
         "tactic_bank",
@@ -1507,14 +1507,14 @@
     {
       "examples": [
         "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
-        "experimental/math_discovery_pipeline/src/settlement_law_miner.py",
-        "experimental/math_discovery_pipeline/src/settlement_algebra.py"
+        "withheld/private_methods/settlement_law_note.py",
+        "withheld/private_methods/settlement_algebra_note.py"
       ],
       "failure_modes": [
         "A mixed-direction batch is simplified as if it were commutative.",
         "An optimizer prunes the wrong branch after an unsound reorder."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "noncommutativity_quarantine",
         "precondition_refinement"
       ],
@@ -1524,7 +1524,7 @@
         "Reject commutative rewrites when the precondition fails."
       ],
       "portal_hints": [
-        "morph",
+        "private_search",
         "lean"
       ],
       "promotion_targets": [
@@ -1555,7 +1555,7 @@
         "Collateral or debt mutates while the pending oracle price disagrees with the active price.",
         "Runtime and Tau layers disagree on when recovery mode or stale data should block risky operations."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "boundary_freezing",
         "oracle_alignment_gate",
         "recovery_mode_block"
@@ -1602,7 +1602,7 @@
         "A returned route leaves part of the requested volume unallocated.",
         "A combined routing claim treats non-modeled runtime admissibility details as already unified into one theorem when only the decomposed proof lane has been discharged."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "allocation_totality",
         "leg_admissibility",
         "invalid_leg_elimination"
@@ -1650,7 +1650,7 @@
         "The public quote surface succeeds without an explicit replayable success branch or an explicit fail-closed rejection branch.",
         "A bounded audited-bounds contract is overclaimed as an actual liveness or completeness proof."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "budget_binding",
         "public_outcome_explicit",
         "fail_closed_contract"
@@ -1696,7 +1696,7 @@
         "A strict-replacement case reappears on the claimed supported corpus.",
         "Supported-corpus shadow alignment is mistaken for a global completeness theorem."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "supported_corpus_receipt",
         "shadow_alignment",
         "adoption_gap_tracking"
@@ -1738,7 +1738,7 @@
         "Local emitted-domain canonicality is overclaimed as global generator completeness.",
         "Proof search thrashes because failed plans, counterexamples, and scope boundaries are not preserved."
       ],
-      "morph_moves": [
+      "discovery_moves": [
         "hierarchical_outline",
         "subgoal_partition",
         "counterexample_first",

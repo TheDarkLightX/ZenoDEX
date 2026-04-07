@@ -412,9 +412,9 @@
       "scenario_id": "drop_collateral_conservation_from_zusd",
       "slice_id": "zusd_dual_conservation",
       "source_surfaces": [
-        "experimental/zusd_research/lean/ZUSDDualConservation.lean",
-        "experimental/zusd_research/lean/ZUSDCollateralFlowAlgebra.lean",
-        "experimental/zusd_research/lean/ZUSDDebtHomomorphism.lean"
+        "withheld/private_formal/ZUSDDualConservation.note",
+        "withheld/private_formal/ZUSDCollateralFlowAlgebra.note",
+        "withheld/private_formal/ZUSDDebtHomomorphism.note"
       ],
       "status": "blocked",
       "target_evidence_class": "contract",

@@ -83,11 +83,11 @@ Current highest-leverage improvements:
 4. Add an exact-out Pokayoke boundary only if it has an equally explicit claim
    surface and deterministic evidence.
 
-## Morph And Lean Promotion Targets
+## Counterexample Mining And Lean Promotion Targets
 
-### Morph
+### Counterexample Mining
 
-Use Morph as a falsifier miner for the advisory surface, not as a proof label.
+Use bounded counterexample mining for the advisory surface, not as a proof label.
 Best next campaigns:
 
 1. mine adjacent-amount action flips near price-impact and MEV thresholds
@@ -103,7 +103,7 @@ Current preserved witness family in the fixed `500/500` zero-fee pool:
 - `20 -> 21` drops from `typed_confirm` to `confirm`
 - `22 -> 23` rises from `confirm` to `typed_confirm`
 
-That is the right Morph posture for Pokayoke today: mine and preserve small
+That is the right posture for Pokayoke today: mine and preserve small
 falsifiers first, then decide which sub-surface is stable enough for Lean.
 
 ### Lean

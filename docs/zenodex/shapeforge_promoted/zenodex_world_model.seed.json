@@ -47,14 +47,14 @@
       "formula": "A zUSD action is world-model admissible only if both debt conservation and collateral conservation hold.",
       "id": "debt_only_checks_are_insufficient_for_zusd",
       "sources": [
-        "experimental/zusd_research/lean/ZUSDDualConservation.lean"
+        "withheld/private_formal/ZUSDDualConservation.note"
       ]
     },
     {
       "formula": "If price_pending_e8 != price_e8, risky zUSD transitions are inadmissible.",
       "id": "stale_oracle_states_block_risky_transitions",
       "sources": [
-        "experimental/zusd_research/miners/morph_zusd_oracle_frontrun_miner.py",
+        "withheld/private_methods/zusd_oracle_frontrun_note.py",
         "src/core/zusd.py"
       ]
     },
@@ -1693,17 +1693,17 @@
         {
           "claim": "debtHom and collHom are independent conservation homomorphisms over FullAction.",
           "class": "proved",
-          "source": "experimental/zusd_research/lean/ZUSDDualConservation.lean#laws_independent"
+          "source": "withheld/private_formal/ZUSDDualConservation.note#laws_independent"
         },
         {
           "claim": "Two jointly conserving actions that agree on five free coordinates are equal.",
           "class": "proved",
-          "source": "experimental/zusd_research/lean/ZUSDDualConservation.lean#action_uniqueness"
+          "source": "withheld/private_formal/ZUSDDualConservation.note#action_uniqueness"
         },
         {
           "claim": "Collateral-flow conservation is itself modeled as totalFlowHom over the four-bucket collateral graph.",
           "class": "proved",
-          "source": "experimental/zusd_research/lean/ZUSDCollateralFlowAlgebra.lean#totalFlowHom"
+          "source": "withheld/private_formal/ZUSDCollateralFlowAlgebra.note#totalFlowHom"
         }
       ],
       "guards": [
@@ -1752,9 +1752,9 @@
       ],
       "slice_id": "zusd_dual_conservation",
       "sources": [
-        "experimental/zusd_research/lean/ZUSDDualConservation.lean",
-        "experimental/zusd_research/lean/ZUSDCollateralFlowAlgebra.lean",
-        "experimental/zusd_research/lean/ZUSDDebtHomomorphism.lean"
+        "withheld/private_formal/ZUSDDualConservation.note",
+        "withheld/private_formal/ZUSDCollateralFlowAlgebra.note",
+        "withheld/private_formal/ZUSDDebtHomomorphism.note"
       ],
       "state_vars": [
         {
@@ -1818,7 +1818,7 @@
         {
           "claim": "Bounded miner search found no risky-op violations during pending mismatch.",
           "class": "tested_discovery",
-          "source": "experimental/zusd_research/miners/morph_zusd_oracle_frontrun_miner.py"
+          "source": "withheld/private_methods/zusd_oracle_frontrun_note.py"
         },
         {
           "claim": "LTLf synthesis proves G(stale -> F(fresh OR blocked)) and G(stale -> !risky_op) on a bounded oracle recovery model with explicit end action.",
@@ -1885,7 +1885,7 @@
         "src/core/zusd.py",
         "src/integration/zusd_oracle_contracts.py",
         "tests/integration/test_zusd_oracle_contracts.py",
-        "experimental/zusd_research/miners/morph_zusd_oracle_frontrun_miner.py",
+        "withheld/private_methods/zusd_oracle_frontrun_note.py",
         "docs/zenodex/SHAPING_FORMULAS_FULL_STACK.md",
         "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
         "tests/formal/test_oracle_recovery_ltlf.py"
