@@ -25,6 +25,11 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - script execution path
     from render_tla_claim_summary import OUTPUT_PATH as TLA_SUMMARY_PATH, RenderError as TlaRenderError, render_summary_text
 
+try:
+    from tools.run_tla_models import TlaModelError
+except ModuleNotFoundError:  # pragma: no cover - script execution path
+    from run_tla_models import TlaModelError
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,6 +73,7 @@ PUBLIC_SCOPE_GLOBS: tuple[str, ...] = (
     "tools/render_rc1_verified_surface_matrix.py",
     "tools/render_assurance_release_snapshot.py",
     "tools/render_tla_claim_summary.py",
+    "tools/run_tla_models.py",
     "tools/run_critical_quality_gate.sh",
     "tools/run_derivatives_evidence.sh",
     "tools/run_release_gate.sh",
@@ -384,7 +390,7 @@ def _tla_summary_status() -> dict[str, object]:
             "path": str(TLA_SUMMARY_PATH.relative_to(REPO_ROOT)),
             "error": None,
         }
-    except TlaRenderError as exc:
+    except (TlaRenderError, TlaModelError) as exc:
         return {
             "ok": False,
             "path": str(TLA_SUMMARY_PATH.relative_to(REPO_ROOT)),

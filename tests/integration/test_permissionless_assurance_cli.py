@@ -61,6 +61,7 @@ def test_public_scope_filters_include_claim_registry_and_tla_surface() -> None:
         "tests/test_claims_registry.py",
         "tools/check_claims_registry.py",
         "tools/run_derivatives_evidence.sh",
+        "tools/run_tla_models.py",
         "internal/example.json",
     ])
     assert "docs/claims_registry.yaml" in paths
@@ -72,6 +73,7 @@ def test_public_scope_filters_include_claim_registry_and_tla_surface() -> None:
     assert "tests/test_claims_registry.py" in paths
     assert "tools/check_claims_registry.py" in paths
     assert "tools/run_derivatives_evidence.sh" in paths
+    assert "tools/run_tla_models.py" in paths
     assert "internal/example.json" not in paths
 
 
@@ -109,3 +111,15 @@ def test_replay_missing_environment_fails_closed(monkeypatch) -> None:
     assert result["missing_environment"] == [
         {"name": "external/ESSO", "hint": "clone or update external/ESSO"}
     ]
+
+
+def test_tla_summary_status_catches_model_errors(monkeypatch) -> None:
+    monkeypatch.setattr(
+        assurance_cli,
+        "render_summary_text",
+        lambda: (_ for _ in ()).throw(assurance_cli.TlaModelError("boom")),
+    )
+    payload = assurance_cli._tla_summary_status()
+    assert payload["ok"] is False
+    assert payload["path"] == "docs/TLA_CLAIM_SUMMARY.md"
+    assert payload["error"] == "boom"
