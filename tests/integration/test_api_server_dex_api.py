@@ -287,6 +287,104 @@ def _feature_extension_inputs_payload() -> dict[str, int]:
     }
 
 
+def _settlement_witness_lifecycle_request(
+    *,
+    block_timestamp: int = 0,
+    deadline: int = 9_999_999_999,
+    price_history: list[int] | None = None,
+) -> tuple[dict, str]:
+    from src.core.batch_clearing import compute_settlement
+    from src.core.liquidity import create_pool
+    from src.integration.operations import create_intent_operation, create_settlement_operation
+    from src.integration.settlement_price_provenance import (
+        SettlementSpotPriceEntry,
+        build_settlement_spot_price_packet,
+    )
+    from src.state import BalanceTable, LPTable
+    from src.state.intents import Intent, IntentKind
+
+    pk = "0x" + "22" * 48
+    asset0 = "0x" + "03" * 32
+    asset1 = "0x" + "04" * 32
+    pool_id, pool, _ = create_pool(
+        asset0=asset0,
+        asset1=asset1,
+        amount0=2_000_000,
+        amount1=2_000_000,
+        fee_bps=30,
+        creator_pubkey=pk,
+    )
+    balances = BalanceTable()
+    balances.set(pk, asset0, 100_000)
+    balances.set(pk, asset1, 0)
+    intents = [
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id="0x" + f"{idx + 1:064x}",
+            sender_pubkey=pk,
+            deadline=deadline,
+            fields={
+                "pool_id": pool_id,
+                "asset_in": asset0,
+                "asset_out": asset1,
+                "amount_in": 100,
+                "min_amount_out": 1,
+            },
+        )
+        for idx in range(4)
+    ]
+    settlement = compute_settlement(intents, {pool_id: pool}, balances, LPTable())
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    request = {
+        "intents": create_intent_operation(intents)["2"],
+        "balances": [
+            {"pubkey": pk, "asset": asset0, "amount": 100_000},
+        ],
+        "pools": [
+            {
+                "pool_id": pool.pool_id,
+                "asset0": pool.asset0,
+                "asset1": pool.asset1,
+                "reserve0": pool.reserve0,
+                "reserve1": pool.reserve1,
+                "fee_bps": pool.fee_bps,
+                "lp_supply": pool.lp_supply,
+                "status": pool.status.name,
+                "created_at": pool.created_at,
+                "curve_tag": pool.curve_tag,
+                "curve_params": str(pool.curve_params),
+            }
+        ],
+        "lp_balances": [],
+        "block_timestamp": int(block_timestamp),
+        "settlement": create_settlement_operation(settlement)["3"],
+        "proof_flags": {
+            "cpmm_ok": 1,
+            "balance_ok": 1,
+            "token_ok": 1,
+            "buyback_floor_ok": 1,
+            "buyback_floor_fixedpoint_ok": 1,
+            "rebate_ok": 1,
+            "lock_weight_ok": 1,
+            "proof_ok": 1,
+            "binding_ok": 1,
+        },
+        "price_history": list(price_history or [100, 110, 120]),
+        "feature_extension_inputs": _feature_extension_inputs_payload(),
+        "price_packet": price_packet.to_dict(),
+    }
+    return request, intents[0].intent_id
+
+
 def test_api_server_dex_quote_and_verify_receipt_roundtrip() -> None:
     httpd, t, host, port = _start_test_server()
     try:
@@ -1836,6 +1934,113 @@ def test_api_server_build_and_verify_settlement_feature_extension_packet() -> No
         assert resp2.status == 200
         assert body2["ok"] is True
         assert body2["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_and_verify_settlement_witness_lifecycle_packet() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        req, _ = _settlement_witness_lifecycle_request()
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        assert body1["ok"] is True
+        packet = body1["packet"]
+        assert packet["packet_built"] is True
+        assert packet["end_to_end_packet_ok"] is True
+        assert packet["witness_present"] is True
+        assert packet["witness_valid"] is True
+        assert packet["settled"] is True
+        assert packet["rejected_with_reason"] is False
+        assert packet["lifecycle_ok"] is True
+
+        verify_req = dict(req)
+        verify_req["packet"] = packet
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_settlement_witness_lifecycle_packet",
+            body=json.dumps(verify_req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        assert body2["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_settlement_witness_lifecycle_packet_rejected_with_reason() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        req, _ = _settlement_witness_lifecycle_request(price_history=[0, 60, 70])
+
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        packet = body["packet"]
+        assert packet["packet_built"] is True
+        assert packet["end_to_end_packet_ok"] is False
+        assert packet["witness_present"] is False
+        assert packet["settled"] is False
+        assert packet["rejected_with_reason"] is True
+        assert packet["rejection_reason"] == "settlement end-to-end certificate full price rails rejected"
+        assert packet["lifecycle_ok"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_settlement_witness_lifecycle_packet_rejects_tampering() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        req, _ = _settlement_witness_lifecycle_request()
+
+        conn1 = HTTPConnection(host, port, timeout=2.0)
+        conn1.request(
+            "POST",
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp1 = conn1.getresponse()
+        body1 = json.loads(resp1.read().decode("utf-8"))
+        assert resp1.status == 200
+        packet = body1["packet"]
+        packet["settled"] = False
+
+        verify_req = dict(req)
+        verify_req["packet"] = packet
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_settlement_witness_lifecycle_packet",
+            body=json.dumps(verify_req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is False
+        assert body2["error"] == "settlement witness lifecycle packet payload mismatch"
     finally:
         _stop_test_server(httpd, t)
 
