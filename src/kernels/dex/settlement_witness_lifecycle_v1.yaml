@@ -1,0 +1,114 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "settlement_witness_lifecycle_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless bounded liveness shell for the replayable settlement witness boundary.
+
+    This shell checks:
+    - outcome totality: settled xor rejected_with_reason
+    - witness coherence: witness_valid implies witness_present
+    - settled requires a valid witness and an end-to-end packet_ok boundary
+    - rejected branches must carry an explicit reason
+    - valid witness plus before_expiry implies a total outcome
+observables:
+  state_vars: []
+  effects:
+    [
+      "outcome_total",
+      "witness_coherent",
+      "settled_requires_witness",
+      "rejection_total",
+      "lifecycle_progress",
+      "lifecycle_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "compose_settlement_witness_lifecycle"
+    params:
+      - id: "witness_present"
+        type: { kind: "bool" }
+      - id: "witness_valid"
+        type: { kind: "bool" }
+      - id: "before_expiry"
+        type: { kind: "bool" }
+      - id: "end_to_end_packet_ok"
+        type: { kind: "bool" }
+      - id: "settled"
+        type: { kind: "bool" }
+      - id: "rejected_with_reason"
+        type: { kind: "bool" }
+      - id: "rejection_reason_present"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      outcome_total:
+        op: "xor"
+        args:
+          - { param: "settled" }
+          - { param: "rejected_with_reason" }
+      witness_coherent:
+        op: "=>"
+        args:
+          - { param: "witness_valid" }
+          - { param: "witness_present" }
+      settled_requires_witness:
+        op: "=>"
+        args:
+          - { param: "settled" }
+          - op: "and"
+            args:
+              - { param: "witness_valid" }
+              - { param: "end_to_end_packet_ok" }
+      rejection_total:
+        op: "=>"
+        args:
+          - { param: "rejected_with_reason" }
+          - { param: "rejection_reason_present" }
+      lifecycle_progress:
+        op: "or"
+        args:
+          - op: "not"
+            args:
+              - op: "and"
+                args:
+                  - { param: "witness_valid" }
+                  - { param: "before_expiry" }
+          - { param: "settled" }
+          - { param: "rejected_with_reason" }
+      lifecycle_ok:
+        op: "and"
+        args:
+          - op: "xor"
+            args:
+              - { param: "settled" }
+              - { param: "rejected_with_reason" }
+          - op: "=>"
+            args:
+              - { param: "witness_valid" }
+              - { param: "witness_present" }
+          - op: "=>"
+            args:
+              - { param: "settled" }
+              - op: "and"
+                args:
+                  - { param: "witness_valid" }
+                  - { param: "end_to_end_packet_ok" }
+          - op: "=>"
+            args:
+              - { param: "rejected_with_reason" }
+              - { param: "rejection_reason_present" }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "and"
+                    args:
+                      - { param: "witness_valid" }
+                      - { param: "before_expiry" }
+              - { param: "settled" }
+              - { param: "rejected_with_reason" }
