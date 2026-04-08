@@ -77,6 +77,43 @@ python3 tools/acceptance_tcb_fuzz_campaign.py
 
 Notes:
 
+## What The Stateful Lane Means
+
+```text
+WitnessCoverage := dangerous_states_reached ∧ rejected ∧ replayable
+```
+
+Standard reading: the stateful lane records whether named dangerous semantic states can be produced and whether the system rejects them with replayable minimized witnesses.
+
+Practical consequence: this is stronger than ordinary branch or line coverage. It is a negative-evidence corpus for multi-step protocol failure modes.
+
+Examples of the kinds of states covered by the deep lane:
+- stale settlement replay after valid state movement
+- tamper then rehash against route-certificate binding
+- repaired receipt reuse against drifted pool snapshots
+- candidate-set drift against canonical route certificates
+- future-dated or stale settlement attestations
+
+Current deep-lane snapshot as of `2026-04-08`:
+- dangerous surfaces: `10/10 witnessed`
+- reached-but-unwitnessed surfaces: `0`
+- unique ranked witnesses: `18`
+- hotspot count: `10`
+
+The important distinction is:
+
+```text
+WitnessedRejectState(D) ≠ PreviouslyAcceptedBug(D)
+```
+
+Standard reading: a witnessed reject state proves that a dangerous state can be constructed and is currently rejected. It does not by itself prove the state was previously accepted in production.
+
+Practical consequence: public reporting should say these receipts strengthen fail-closed assurance, not that they prove a past live exploit.
+
+More detail:
+- [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](STATEFUL_DISASTER_STATE_WITNESSES.md)
+- [docs/STATEFUL_RELEASE_GUARDRAILS.md](STATEFUL_RELEASE_GUARDRAILS.md)
+
 - `status` is the fast proofboard. It reports whether the publishable lanes and exported refs are present and tracked.
 - `replay public` is the public proof surface: manifest-backed kernel assurance plus the spot/derivatives proof lanes.
 - `replay critical` reruns the publishable critical quality gate.

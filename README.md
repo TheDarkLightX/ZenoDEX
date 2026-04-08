@@ -50,6 +50,41 @@ More detail:
 
 Replay commands are documented in [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
 
+## Stateful Witness Coverage
+
+The stateful assurance lane is stronger than ordinary code-coverage reporting.
+
+```text
+OrdinaryCoverage := code_paths_executed
+WitnessCoverage := dangerous_states_reached ∧ rejected ∧ replayable
+```
+
+Standard reading: ordinary coverage tells you which code ran, while witness coverage shows that specific dangerous semantic states were actually constructed, rejected, and preserved as replayable receipts.
+
+Practical consequence: this repo does not only ask whether a branch executed. It asks whether attack-shaped multi-step states such as stale settlement replay, repaired quote drift, route canonicalization drift, and attestation time drift are still fail-closed.
+
+Current stateful snapshot for the deep lane as of `2026-04-08`:
+- deep gate: `108 passed, 1 warning in 1135.88s`
+- dangerous surfaces: `10/10 witnessed`
+- reached-but-unwitnessed surfaces: `0`
+- unique ranked witnesses: `18`
+- hotspot count: `10`
+
+The key distinction is:
+
+```text
+StatefulWitnessCoverage ≠ line_coverage
+```
+
+Standard reading: this is not just a measurement of execution breadth. It is a replayable corpus of dangerous reject states.
+
+Practical consequence: if line coverage stayed high but one of the critical witnesses disappeared, that would still be a serious regression.
+
+More detail:
+- [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md)
+- [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](docs/STATEFUL_DISASTER_STATE_WITNESSES.md)
+- [docs/STATEFUL_RELEASE_GUARDRAILS.md](docs/STATEFUL_RELEASE_GUARDRAILS.md)
+
 ## Current Assurance Shape
 
 The public assurance case in this repo is organized as a shape, not as a single monolithic proof.
