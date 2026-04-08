@@ -216,6 +216,127 @@ class TestHistoryAndReset:
         assert rb["state"]["debt_e8"] == 0
 
 
+class TestOracleRecoveryLifecycleApi:
+    def test_build_and_verify_oracle_recovery_lifecycle_packet(self):
+        s1, b1 = _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        assert s1 == 200
+        s2, b2 = _post("/api/zusd/step", {"tag": "advance_epoch", "args": {"delta": 150}})
+        assert s2 == 200
+
+        stale_state = b2["state"]
+        s3, b3 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": stale_state, "risky_requested": True, "tcr_ok": True},
+        )
+        assert s3 == 200
+        assert b3["ok"] is True
+        previous_pending = b3["contract"]
+        assert previous_pending["action_allowed"] is False
+
+        s4, _b4 = _post("/api/zusd/step", {"tag": "oracle_report", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        assert s4 == 200
+        s5, b5 = _post("/api/zusd/step", {"tag": "oracle_commit", "args": {"auth_ok": True}})
+        assert s5 == 200
+        current_state = b5["state"]
+
+        s6, b6 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": current_state, "risky_requested": True, "tcr_ok": True},
+        )
+        assert s6 == 200
+        assert b6["ok"] is True
+        current_pending = b6["contract"]
+        assert current_pending["action_allowed"] is True
+
+        s7, b7 = _post(
+            "/api/zusd/build_cross_module_oracle_sync_contract",
+            {
+                "market_id": "TAU-USD",
+                "zusd_price_e8": current_state["price_e8"],
+                "zusd_epoch": current_state["oracle_last_update_epoch"],
+                "perp_price_e8": current_state["price_e8"],
+                "perp_oracle_epoch": current_state["oracle_last_update_epoch"],
+                "max_divergence_bps": 0,
+                "max_epoch_lag": 0,
+            },
+        )
+        assert s7 == 200
+        assert b7["ok"] is True
+        current_sync = b7["contract"]
+        assert current_sync["sync_gate_ok"] is True
+
+        s8, b8 = _post(
+            "/api/zusd/build_oracle_recovery_lifecycle_packet",
+            {
+                "previous_pending_gate_contract": previous_pending,
+                "current_pending_gate_contract": current_pending,
+                "current_sync_contract": current_sync,
+            },
+        )
+        assert s8 == 200
+        assert b8["ok"] is True
+        packet = b8["packet"]
+        assert packet["risky_ops_reenabled"] is True
+        assert packet["rejected_with_reason"] is False
+        assert packet["lifecycle_ok"] is True
+
+        s9, b9 = _post("/api/zusd/verify_oracle_pending_gate_contract", {"contract": previous_pending})
+        assert s9 == 200
+        assert b9["ok"] is True
+        s10, b10 = _post("/api/zusd/verify_cross_module_oracle_sync_contract", {"contract": current_sync})
+        assert s10 == 200
+        assert b10["ok"] is True
+        s11, b11 = _post("/api/zusd/verify_oracle_recovery_lifecycle_packet", {"packet": packet})
+        assert s11 == 200
+        assert b11["ok"] is True
+        assert b11["error"] is None
+
+    def test_verify_oracle_recovery_lifecycle_packet_rejects_tampering(self):
+        s1, _b1 = _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        assert s1 == 200
+        s2, b2 = _post("/api/zusd/step", {"tag": "advance_epoch", "args": {"delta": 150}})
+        assert s2 == 200
+        stale_state = b2["state"]
+        _, b3 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": stale_state, "risky_requested": True, "tcr_ok": True},
+        )
+        _post("/api/zusd/step", {"tag": "oracle_report", "args": {"price_e8": 100 * E8, "auth_ok": True}})
+        _, b5 = _post("/api/zusd/step", {"tag": "oracle_commit", "args": {"auth_ok": True}})
+        current_state = b5["state"]
+        _, b6 = _post(
+            "/api/zusd/build_oracle_pending_gate_contract",
+            {"state": current_state, "risky_requested": True, "tcr_ok": True},
+        )
+        _, b7 = _post(
+            "/api/zusd/build_cross_module_oracle_sync_contract",
+            {
+                "market_id": "TAU-USD",
+                "zusd_price_e8": current_state["price_e8"],
+                "zusd_epoch": current_state["oracle_last_update_epoch"],
+                "perp_price_e8": current_state["price_e8"],
+                "perp_oracle_epoch": current_state["oracle_last_update_epoch"],
+                "max_divergence_bps": 0,
+                "max_epoch_lag": 0,
+            },
+        )
+        _, b8 = _post(
+            "/api/zusd/build_oracle_recovery_lifecycle_packet",
+            {
+                "previous_pending_gate_contract": b3["contract"],
+                "current_pending_gate_contract": b6["contract"],
+                "current_sync_contract": b7["contract"],
+            },
+        )
+        packet = b8["packet"]
+        packet["rejected_with_reason"] = True
+
+        status, body = _post("/api/zusd/verify_oracle_recovery_lifecycle_packet", {"packet": packet})
+        assert status == 200
+        assert body["ok"] is False
+        assert body["error"] == "rejected_with_reason mismatch"
+
+
 class TestApiServerZusdGate:
     def test_zusd_api_gated_off_returns_404(self):
         from src.integration.api_server import _Handler
