@@ -90,52 +90,11 @@ def _parse_cors_origins(value: str) -> Set[str]:
     return out
 
 
-def _parse_settlement_proof_flags_payload(payload: object) -> Any:
-    from src.integration.settlement_strong_certificate import (  # pylint: disable=import-outside-toplevel
-        SettlementProofFlags,
-    )
-
-    if not isinstance(payload, dict):
-        raise ValueError("proof_flags must be an object")
-    names = (
-        "cpmm_ok",
-        "balance_ok",
-        "token_ok",
-        "buyback_floor_ok",
-        "buyback_floor_fixedpoint_ok",
-        "rebate_ok",
-        "lock_weight_ok",
-        "proof_ok",
-        "binding_ok",
-    )
-    values: dict[str, int] = {}
-    for name in names:
-        raw = payload.get(name)
-        if not isinstance(raw, int) or isinstance(raw, bool) or raw not in (0, 1):
-            raise ValueError(f"proof_flags.{name} must be 0 or 1")
-        values[name] = int(raw)
-    return SettlementProofFlags(**values)
-
-
-def _parse_price_history_payload(payload: object) -> tuple[int, int, int]:
-    if not isinstance(payload, (list, tuple)) or len(payload) != 3:
-        raise ValueError("price_history must be a 3-item array: [price_pp, price_prev, price_curr]")
-    values: list[int] = []
-    for idx, raw in enumerate(payload):
-        if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
-            raise ValueError(f"price_history[{idx}] must be a non-negative int")
-        values.append(int(raw))
-    return (values[0], values[1], values[2])
-
-
-def _parse_settlement_feature_extension_inputs_payload(payload: object) -> Any:
-    from src.integration.settlement_feature_extension_packet import (  # pylint: disable=import-outside-toplevel
-        SettlementFeatureExtensionInputs,
-    )
-
-    if not isinstance(payload, dict):
-        raise ValueError("feature_extension_inputs must be an object")
-    return SettlementFeatureExtensionInputs.from_dict(payload)
+from src.integration.api_server_settlement_parsers import (
+    _parse_price_history_payload,
+    _parse_settlement_feature_extension_inputs_payload,
+    _parse_settlement_proof_flags_payload,
+)
 
 
 def _is_loopback_host(host: str) -> bool:
