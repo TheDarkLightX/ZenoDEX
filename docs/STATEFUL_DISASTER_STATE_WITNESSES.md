@@ -43,15 +43,16 @@ Practical consequence: public reporting should say "witnessed and rejected" unle
 
 ## Current State
 
-The deep stateful acceptance lane now covers nine declared dangerous surfaces.
-All nine are backed by replayable minimized witnesses.
+The deep stateful acceptance lane now covers ten declared dangerous surfaces.
+All ten are backed by replayable minimized witnesses.
 
 Current lane status:
-- deep stateful gate: `91 passed, 1 warning`
-- stateful dangerous surfaces: `9/9 witnessed`
+- deep stateful gate: `109 passed, 1 warning in 683.63s (0:11:23)`
+- stateful dangerous surfaces: `10/10 witnessed`
 - reached-but-unwitnessed surfaces: `0`
 - atlas status: `complete`
-- curated stateful tooling typecheck: `20 source files`, green
+- unique ranked witnesses: `18`
+- curated stateful tooling typecheck: `25 source files`, green
 
 ## Witness Families
 
@@ -121,7 +122,14 @@ Standard reading: a settlement computed against an old state cannot be applied a
 
 Practical consequence: stale settlement packets do not survive state drift.
 
-### 7. Route-certificate candidate-set tampering
+### 7. Quote-receipt pool-envelope drift
+- Witness ID: `quote_receipt_missing_pool_fingerprint`
+- Representative outcome: `reject:step=3:missing_pool_fingerprint`
+- Bad state: a quote receipt is rebuilt around a changed winner body while omitting the required pool fingerprint coverage for the referenced pool set.
+- Current behavior: rejected at the pool-envelope boundary instead of silently accepting an underbound receipt envelope.
+- Why it matters: blocks pool-envelope drift where the body and certificate are partially repaired but pool binding is no longer complete.
+
+### 8. Route-certificate candidate-set tampering
 - Witness ID: `route_certificate_candidate_set_hash_mismatch`
 - Representative outcome: `reject:step=1:candidate_set_hash mismatch`
 - Bad state: a route certificate is replayed against a changed candidate set.
@@ -136,14 +144,14 @@ Standard reading: a certificate built for one candidate set cannot be replayed o
 
 Practical consequence: route certificates stay bound to the candidate universe they were issued for.
 
-### 8. Route canonicalization drift
+### 9. Route canonicalization drift
 - Witness ID: `route_canonicalization_candidate_set_hash_mismatch`
 - Representative outcome: `reject:step=1:candidate_set_hash mismatch`
 - Bad state: canonical winner selection is asked to survive a changed candidate set.
 - Current behavior: rejected instead of silently reinterpreting the certificate.
 - Why it matters: protects canonical winner binding and tie-break stability.
 
-### 9. Settlement attestation tampering and policy drift
+### 10. Settlement attestation tampering and policy drift
 - Witness ID: `settlement_attestation_signature_invalid`
 - Representative outcome: `reject:step=1:settlement spot price attestation signature invalid`
 - Other witnessed reject states in the same family:
@@ -187,11 +195,11 @@ Those artifacts are intended as local replay receipts, not as committed public r
 ## Public Reporting Guidance
 
 The strongest honest public claim is:
-- ZenoDEX now has replayable minimized witnesses for nine dangerous stateful protocol surfaces.
+- ZenoDEX now has replayable minimized witnesses for ten dangerous stateful protocol surfaces.
 - The deep stateful lane demonstrates fail-closed handling for replay, stale quote receipts, stale settlements, route-certificate tampering, attestation tampering, duplicate signatures, and unauthorized envelopes.
 - Previously reached-but-unwitnessed surfaces in this lane have been removed.
 
 The claim to avoid is:
-- "we found nine previously exploitable critical bugs"
+- "we found ten previously exploitable critical bugs"
 
 That stronger claim would require separate evidence that these states were previously admitted rather than currently rejected.

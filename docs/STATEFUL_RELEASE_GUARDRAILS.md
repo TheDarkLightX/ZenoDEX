@@ -13,7 +13,7 @@ Standard reading: the release guardrails are based on a clean deep stateful camp
 Practical consequence: this note is only valid as long as the deep lane continues to produce the same class of receipts.
 
 Current basis snapshot:
-- deep gate: `108 passed, 1 warning in 1135.88s`
+- deep gate: `109 passed, 1 warning in 683.63s (0:11:23)`
 - witnessed surfaces: `10`
 - reached but unwitnessed surfaces: `0`
 - unique ranked witnesses: `18`
