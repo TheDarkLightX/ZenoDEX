@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from src.integration.cantor_bdd_region import build_cantor_bdd_region_ba
 from src.integration.cantor_prefix_algebra import CantorPrefixRegion
 from src.integration.region_ba import RegionElement, build_cantor_region_ba
 from src.integration.resource_load_shedding_regret_guard_regions import build_resource_load_shedding_regret_guard_regions
 from src.integration.zusd_recovery_mode_gate_regions import build_zusd_recovery_mode_gate_regions
-
 
 def test_cantor_region_ba_exposes_expected_zero_one_and_boolean_ops() -> None:
     ba = build_cantor_region_ba()
@@ -14,11 +14,11 @@ def test_cantor_region_ba_exposes_expected_zero_one_and_boolean_ops() -> None:
     assert isinstance(ba.zero(), RegionElement)
     assert ba.zero().is_empty()
     assert ba.one().is_top()
+    assert ba.from_strings(["0*"]).to_strings() == ("0*",)
     assert ba.join(left, right) == CantorPrefixRegion.from_strings(["0*", "11*"])
     assert ba.meet(left, right).is_empty()
     assert ba.disjoint(left, right) is True
     assert ba.leq(left, ba.one()) is True
-
 
 def test_cantor_region_ba_partition_and_cube_count_match_backend() -> None:
     ba = build_cantor_region_ba()
@@ -27,6 +27,12 @@ def test_cantor_region_ba_partition_and_cube_count_match_backend() -> None:
     assert ba.partition_ok(parts) is True
     assert ba.cube_count(CantorPrefixRegion.from_strings(["0*", "11*"]), depth=3) == 6
 
+def test_cantor_bdd_region_ba_loads_regions_from_prefix_strings() -> None:
+    ba = build_cantor_bdd_region_ba()
+    region = ba.from_strings(["01*", "11*"])
+
+    assert region.to_strings() == ("01*", "11*")
+    assert ba.cube_count(region, depth=2) == 2
 
 def test_cantor_region_ba_product_projection_and_pullback_match_real_surfaces() -> None:
     ba = build_cantor_region_ba()

@@ -9,6 +9,7 @@ from .cantor_region_morphism_receipts import (
 )
 from .cantor_region_report import CantorRegionRelation, CantorRegionReport, CantorRegionStats, build_cantor_region_report
 from .exact_out_many_pool_adaptive_liveness_regions import build_exact_out_many_pool_adaptive_liveness_regions
+from .region_ba import RegionBA, build_cantor_region_ba
 from .resource_load_shedding_regret_guard_regions import build_resource_load_shedding_regret_guard_regions
 from .settlement_witness_lifecycle_regions import build_settlement_witness_lifecycle_regions
 from .zusd_recovery_mode_gate_regions import build_zusd_recovery_mode_gate_regions
@@ -83,7 +84,12 @@ def _report_payload(report: CantorRegionReport) -> dict[str, object]:
     }
 
 
-def build_default_cantor_region_assurance_bundle() -> CantorRegionAssuranceBundle:
+def _lift(region: Any, *, ba: RegionBA[Any]) -> Any:
+    return ba.from_strings(region.to_strings())
+
+
+def build_default_cantor_region_assurance_bundle(*, ba: RegionBA[Any] | None = None) -> CantorRegionAssuranceBundle:
+    algebra = ba or build_cantor_region_ba()
     settlement = build_settlement_witness_lifecycle_regions()
     exact_out = build_exact_out_many_pool_adaptive_liveness_regions()
     resource = build_resource_load_shedding_regret_guard_regions()
@@ -96,15 +102,16 @@ def build_default_cantor_region_assurance_bundle() -> CantorRegionAssuranceBundl
             report=build_cantor_region_report(
                 depth=7,
                 regions={
-                    "accepted": settlement.accepted,
-                    "rejected": settlement.rejected,
-                    "invalid": settlement.invalid,
-                    "lifecycle_ok": settlement.lifecycle_ok,
-                    "witness_coherent": settlement.witness_coherent,
+                    "accepted": _lift(settlement.accepted, ba=algebra),
+                    "rejected": _lift(settlement.rejected, ba=algebra),
+                    "invalid": _lift(settlement.invalid, ba=algebra),
+                    "lifecycle_ok": _lift(settlement.lifecycle_ok, ba=algebra),
+                    "witness_coherent": _lift(settlement.witness_coherent, ba=algebra),
                 },
                 partition=("accepted", "rejected", "invalid"),
                 refinements=(("accepted", "lifecycle_ok"), ("rejected", "lifecycle_ok")),
                 disjoint_pairs=(("accepted", "rejected"), ("accepted", "invalid"), ("rejected", "invalid")),
+                ba=algebra,
             ),
         ),
         CantorRegionAssuranceSurface(
@@ -113,16 +120,17 @@ def build_default_cantor_region_assurance_bundle() -> CantorRegionAssuranceBundl
             report=build_cantor_region_report(
                 depth=14,
                 regions={
-                    "liveness_ok": exact_out.liveness_ok,
-                    "budget_blocked": exact_out.budget_blocked,
-                    "invalid": exact_out.invalid,
-                    "coherent_surface": exact_out.coherent_surface,
-                    "returned_success": exact_out.returned_success,
-                    "explicit_failure": exact_out.explicit_failure,
+                    "liveness_ok": _lift(exact_out.liveness_ok, ba=algebra),
+                    "budget_blocked": _lift(exact_out.budget_blocked, ba=algebra),
+                    "invalid": _lift(exact_out.invalid, ba=algebra),
+                    "coherent_surface": _lift(exact_out.coherent_surface, ba=algebra),
+                    "returned_success": _lift(exact_out.returned_success, ba=algebra),
+                    "explicit_failure": _lift(exact_out.explicit_failure, ba=algebra),
                 },
                 partition=("liveness_ok", "budget_blocked", "invalid"),
                 refinements=(("liveness_ok", "coherent_surface"), ("budget_blocked", "coherent_surface")),
                 disjoint_pairs=(("liveness_ok", "budget_blocked"),),
+                ba=algebra,
             ),
         ),
         CantorRegionAssuranceSurface(
@@ -131,16 +139,17 @@ def build_default_cantor_region_assurance_bundle() -> CantorRegionAssuranceBundl
             report=build_cantor_region_report(
                 depth=12,
                 regions={
-                    "proof_gated": resource.proof_gated_final_admission_ok,
-                    "admitted_without_proof": resource.admitted_without_proof,
-                    "denied": resource.denied,
-                    "final": resource.final_admission_ok,
-                    "normal_only": resource.normal_only,
-                    "shed_only": resource.shed_only,
+                    "proof_gated": _lift(resource.proof_gated_final_admission_ok, ba=algebra),
+                    "admitted_without_proof": _lift(resource.admitted_without_proof, ba=algebra),
+                    "denied": _lift(resource.denied, ba=algebra),
+                    "final": _lift(resource.final_admission_ok, ba=algebra),
+                    "normal_only": _lift(resource.normal_only, ba=algebra),
+                    "shed_only": _lift(resource.shed_only, ba=algebra),
                 },
                 partition=("proof_gated", "admitted_without_proof", "denied"),
                 refinements=(("proof_gated", "final"),),
                 disjoint_pairs=(("normal_only", "shed_only"),),
+                ba=algebra,
             ),
         ),
         CantorRegionAssuranceSurface(
@@ -149,15 +158,16 @@ def build_default_cantor_region_assurance_bundle() -> CantorRegionAssuranceBundl
             report=build_cantor_region_report(
                 depth=6,
                 regions={
-                    "risky_action_allowed": zusd.risky_action_allowed,
-                    "safe_non_risky_action_allowed": zusd.safe_non_risky_action_allowed,
-                    "denied": zusd.denied,
-                    "action_allowed": zusd.action_allowed,
-                    "recovery_blocked_request": zusd.recovery_blocked_request,
+                    "risky_action_allowed": _lift(zusd.risky_action_allowed, ba=algebra),
+                    "safe_non_risky_action_allowed": _lift(zusd.safe_non_risky_action_allowed, ba=algebra),
+                    "denied": _lift(zusd.denied, ba=algebra),
+                    "action_allowed": _lift(zusd.action_allowed, ba=algebra),
+                    "recovery_blocked_request": _lift(zusd.recovery_blocked_request, ba=algebra),
                 },
                 partition=("risky_action_allowed", "safe_non_risky_action_allowed", "denied"),
                 refinements=(("risky_action_allowed", "action_allowed"), ("recovery_blocked_request", "denied")),
                 disjoint_pairs=(("risky_action_allowed", "denied"), ("safe_non_risky_action_allowed", "denied")),
+                ba=algebra,
             ),
         ),
     )
@@ -166,11 +176,12 @@ def build_default_cantor_region_assurance_bundle() -> CantorRegionAssuranceBundl
         build_cantor_region_product_projection_receipt(
             product_name="zusd_action_allowed_x_resource_final_admission",
             left_name="zusd_action_allowed",
-            left_region=zusd.action_allowed,
+            left_region=_lift(zusd.action_allowed, ba=algebra),
             left_depth=6,
             right_name="resource_final_admission",
-            right_region=resource.final_admission_ok,
+            right_region=_lift(resource.final_admission_ok, ba=algebra),
             right_depth=12,
+            ba=algebra,
         ),
     )
 

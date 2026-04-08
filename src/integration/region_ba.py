@@ -36,6 +36,7 @@ R = TypeVar("R", bound=RegionElement)
 class RegionBA(Generic[R]):
     name: str
     region_type: type[R]
+    prefix_loader: Callable[[Sequence[str]], R]
     partition_predicate: Callable[[Sequence[R]], bool]
     cube_counter: Callable[[R, int], int]
     region_describer: Callable[[R], tuple[str, ...]]
@@ -48,6 +49,9 @@ class RegionBA(Generic[R]):
 
     def one(self) -> R:
         return self.region_type.top()
+
+    def from_strings(self, prefixes: Sequence[str]) -> R:
+        return self.prefix_loader(tuple(str(prefix) for prefix in prefixes))
 
     def join(self, left: R, right: R) -> R:
         return left | right
@@ -112,6 +116,7 @@ def build_cantor_region_ba() -> CantorRegionBA:
     return CantorRegionBA(
         name="cantor_prefix_antichain",
         region_type=CantorPrefixRegion,
+        prefix_loader=lambda prefixes: CantorPrefixRegion.from_strings(prefixes),
         partition_predicate=partition_ok,
         cube_counter=_cantor_depth_cube_count,
         region_describer=_cantor_describe,

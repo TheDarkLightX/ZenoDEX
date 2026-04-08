@@ -218,6 +218,7 @@ def build_cantor_bdd_region_ba() -> CantorBDDRegionBA:
     return CantorBDDRegionBA(
         name="cantor_reduced_decision_diagram",
         region_type=CantorBDDRegion,
+        prefix_loader=lambda prefixes: CantorBDDRegion.from_strings(prefixes),
         partition_predicate=_bdd_partition_ok,
         cube_counter=_bdd_cube_count,
         region_describer=_bdd_describe,
