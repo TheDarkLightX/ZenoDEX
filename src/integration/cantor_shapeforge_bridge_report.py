@@ -159,40 +159,25 @@ def _candidate_evidence_for_surface(surface_name: str) -> tuple[CantorShapeForge
     if surface_name == "settlement_witness_lifecycle":
         return (
             CantorShapeForgeCandidateEvidence(
-                claim="A replayable Cantor-region assurance bundle shows that the bounded settlement witness lifecycle shell partitions exactly into accepted, rejected, and invalid regions.",
+                claim="A replayable Cantor-region assurance bundle shows that the bounded settlement witness lifecycle shell partitions exactly into accepted, rejected, and invalid regions, and that accepted and rejected each refine lifecycle_ok.",
                 evidence_class="contract",
                 source="src/integration/cantor_region_assurance_bundle.py",
-            ),
-            CantorShapeForgeCandidateEvidence(
-                claim="Within the same bounded shell, the accepted and rejected lifecycle regions each refine lifecycle_ok, separating valid rejections from structurally invalid states.",
-                evidence_class="contract",
-                source="src/integration/settlement_witness_lifecycle_regions.py",
             ),
         )
     if surface_name == "exact_out_adaptive_liveness":
         return (
             CantorShapeForgeCandidateEvidence(
-                claim="A replayable Cantor-region assurance bundle shows that the bounded exact-out adaptive-liveness shell partitions exactly into liveness_ok, budget_blocked, and invalid regions.",
+                claim="A replayable Cantor-region assurance bundle shows that the bounded exact-out adaptive-liveness shell partitions exactly into liveness_ok, budget_blocked, and invalid regions, and that the first two regions each refine coherent_surface.",
                 evidence_class="contract",
                 source="src/integration/cantor_region_assurance_bundle.py",
-            ),
-            CantorShapeForgeCandidateEvidence(
-                claim="Within the same bounded shell, liveness_ok and budget_blocked each refine coherent_surface, separating budget failure from structural incoherence.",
-                evidence_class="contract",
-                source="src/integration/exact_out_many_pool_adaptive_liveness_regions.py",
             ),
         )
     if surface_name == "zusd_recovery_mode_gate":
         return (
             CantorShapeForgeCandidateEvidence(
-                claim="A replayable Cantor-region assurance bundle shows that the bounded zUSD recovery-mode gate shell partitions exactly into risky_action_allowed, safe_non_risky_action_allowed, and denied regions.",
+                claim="A replayable Cantor-region assurance bundle shows that the bounded zUSD recovery-mode gate shell partitions exactly into risky_action_allowed, safe_non_risky_action_allowed, and denied regions, with risky_action_allowed refining action_allowed and recovery_blocked_request refining denied.",
                 evidence_class="contract",
                 source="src/integration/cantor_region_assurance_bundle.py",
-            ),
-            CantorShapeForgeCandidateEvidence(
-                claim="Within the same bounded shell, risky_action_allowed refines action_allowed and recovery_blocked_request refines denied.",
-                evidence_class="contract",
-                source="src/integration/zusd_recovery_mode_gate_regions.py",
             ),
         )
     if surface_name == "resource_load_shedding_regret_guard":
