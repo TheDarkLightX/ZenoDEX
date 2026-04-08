@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Sequence, TypeVar
 
 from .cantor_prefix_algebra import CantorPrefixRegion
-from .cantor_region_morphisms import project_coordinates, pullback_coordinates
-from .cantor_region_products import product_region
-from .cantor_region_report import CantorRegionStats, depth_cube_count, region_stats
+from .cantor_region_report import CantorRegionStats, region_stats
+from .region_ba import RegionBA, RegionElement, build_cantor_region_ba
+
+
+R = TypeVar("R", bound=RegionElement)
 
 
 def _stats_payload(stats: CantorRegionStats) -> dict[str, object]:
@@ -72,37 +74,39 @@ class CantorRegionProductProjectionReceipt:
 def build_cantor_region_projection_receipt(
     *,
     name: str,
-    source_region: CantorPrefixRegion,
+    source_region: R,
     source_depth: int,
     coordinates: Sequence[int],
+    ba: RegionBA[R] | None = None,
 ) -> CantorRegionProjectionReceipt:
-    projected = project_coordinates(source_region, source_depth=source_depth, coordinates=coordinates)
+    algebra = ba or build_cantor_region_ba()
+    projected = algebra.project(source_region, source_depth=source_depth, coordinates=coordinates)
     target_depth = len(tuple(int(coord) for coord in coordinates))
-    lifted_projection = pullback_coordinates(
+    lifted_projection = algebra.pullback(
         projected,
         target_depth=target_depth,
         source_depth=source_depth,
         coordinates=coordinates,
     )
     lift_cube_factor = 1 << (source_depth - target_depth)
-    projected_count = depth_cube_count(projected, target_depth)
+    projected_count = algebra.cube_count(projected, depth=target_depth)
 
     return CantorRegionProjectionReceipt(
         name=str(name),
         source_depth=int(source_depth),
         target_depth=target_depth,
         coordinates=tuple(int(coord) for coord in coordinates),
-        source=region_stats(f"{name}_source", source_region, depth=source_depth),
-        projected=region_stats(f"{name}_projected", projected, depth=target_depth),
-        lifted_projection=region_stats(f"{name}_lifted_projection", lifted_projection, depth=source_depth),
-        source_refines_lifted_projection=source_region <= lifted_projection,
+        source=region_stats(f"{name}_source", source_region, depth=source_depth, ba=algebra),
+        projected=region_stats(f"{name}_projected", projected, depth=target_depth, ba=algebra),
+        lifted_projection=region_stats(f"{name}_lifted_projection", lifted_projection, depth=source_depth, ba=algebra),
+        source_refines_lifted_projection=algebra.leq(source_region, lifted_projection),
         project_after_lift_recovers_projection=(
-            project_coordinates(lifted_projection, source_depth=source_depth, coordinates=coordinates) == projected
+            algebra.project(lifted_projection, source_depth=source_depth, coordinates=coordinates) == projected
         ),
-        projected_cube_bound_holds=projected_count <= depth_cube_count(source_region, source_depth),
+        projected_cube_bound_holds=projected_count <= algebra.cube_count(source_region, depth=source_depth),
         lift_cube_factor=lift_cube_factor,
         lift_cube_count_matches_factor=(
-            depth_cube_count(lifted_projection, source_depth) == projected_count * lift_cube_factor
+            algebra.cube_count(lifted_projection, depth=source_depth) == projected_count * lift_cube_factor
         ),
     )
 
@@ -111,27 +115,31 @@ def build_cantor_region_product_projection_receipt(
     *,
     product_name: str,
     left_name: str,
-    left_region: CantorPrefixRegion,
+    left_region: R,
     left_depth: int,
     right_name: str,
-    right_region: CantorPrefixRegion,
+    right_region: R,
     right_depth: int,
+    ba: RegionBA[R] | None = None,
 ) -> CantorRegionProductProjectionReceipt:
-    product = product_region(left_region, left_depth=left_depth, right=right_region, right_depth=right_depth)
+    algebra = ba or build_cantor_region_ba()
+    product = algebra.product(left_region, left_depth=left_depth, right=right_region, right_depth=right_depth)
     product_depth = left_depth + right_depth
     left_projection = build_cantor_region_projection_receipt(
         name=left_name,
         source_region=product,
         source_depth=product_depth,
         coordinates=tuple(range(left_depth)),
+        ba=algebra,
     )
     right_projection = build_cantor_region_projection_receipt(
         name=right_name,
         source_region=product,
         source_depth=product_depth,
         coordinates=tuple(range(left_depth, product_depth)),
+        ba=algebra,
     )
-    product_stats = region_stats(str(product_name), product, depth=product_depth)
+    product_stats = region_stats(str(product_name), product, depth=product_depth, ba=algebra)
 
     return CantorRegionProductProjectionReceipt(
         product_name=str(product_name),
