@@ -957,7 +957,7 @@ def production_tau_trace_cases() -> List[TauTraceCase]:
             case_id="settlement_v3_buyback_floor_proof_gate_pass",
             spec=SETTLEMENT_V3_BUYBACK_FLOOR_PROOF_GATE,
             steps=[
-                build_settlement_v3_buyback_floor_proof_gate_step(a=1, b=2, c=3, d=4, price_pp=1000, price_prev=1001, price_curr=1002, buyback_ok=1)
+                build_settlement_v3_buyback_floor_proof_gate_step(a=1, b=2, c=3, d=4, price_pp=1000, price_prev=1001, price_curr=1002, buyback_floor_ok=1)
             ],
             expected=[{"o8": 1}],
             mode="spec",
@@ -970,7 +970,7 @@ def production_tau_trace_cases() -> List[TauTraceCase]:
             case_id="settlement_v3_buyback_floor_proof_gate_fail_floor",
             spec=SETTLEMENT_V3_BUYBACK_FLOOR_PROOF_GATE,
             steps=[
-                build_settlement_v3_buyback_floor_proof_gate_step(a=1, b=2, c=3, d=4, price_pp=1000, price_prev=1001, price_curr=1002, buyback_ok=0)
+                build_settlement_v3_buyback_floor_proof_gate_step(a=1, b=2, c=3, d=4, price_pp=1000, price_prev=1001, price_curr=1002, buyback_floor_ok=0)
             ],
             expected=[{"o8": 0}],
             mode="spec",

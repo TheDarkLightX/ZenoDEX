@@ -988,7 +988,7 @@ def build_settlement_v3_buyback_floor_proof_gate_step(
     cpmm_ok: int = 1,
     balance_ok: int = 1,
     token_ok: int = 1,
-    buyback_ok: int = 1,
+    buyback_floor_ok: int = 1,
     proof_ok: int = 1,
     binding_ok: int = 1,
 ) -> Dict[str, int]:
@@ -1006,7 +1006,7 @@ def build_settlement_v3_buyback_floor_proof_gate_step(
         "i8": _sbf("cpmm_ok", cpmm_ok),
         "i9": _sbf("balance_ok", balance_ok),
         "i10": _sbf("token_ok", token_ok),
-        "i11": _sbf("buyback_ok", buyback_ok),
+        "i11": _sbf("buyback_floor_ok", buyback_floor_ok),
         "i12": _sbf("proof_ok", proof_ok),
         "i13": _sbf("binding_ok", binding_ok),
     }
