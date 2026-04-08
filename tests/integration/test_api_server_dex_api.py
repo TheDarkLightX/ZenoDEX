@@ -2277,6 +2277,7 @@ def test_api_server_exact_out_many_pool_canonicality_audit_matches_small_domain(
                     "max_iters": 512,
                     "window": 8,
                     "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
                     "max_enumerated_candidates": 2000,
                     "pools": pools,
                 }
@@ -2392,6 +2393,7 @@ def test_api_server_build_and_verify_exact_out_many_pool_oracle_contract() -> No
                     "max_iters": 512,
                     "window": 8,
                     "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
                     "max_enumerated_candidates": 2000,
                     "pools": pools,
                 }
@@ -4827,6 +4829,7 @@ def test_api_server_build_and_verify_exact_out_many_pool_certified_winner_packet
                     "max_iters": 512,
                     "window": 8,
                     "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
                     "max_enumerated_candidates": 2000,
                     "pools": pools,
                 }
@@ -4843,6 +4846,7 @@ def test_api_server_build_and_verify_exact_out_many_pool_certified_winner_packet
         assert packet["packet_ok"] is True
         assert packet["domain_contract"]["contract_ok"] is True
         assert packet["guarded_packet"]["guard_ok"] is True
+        assert packet["guarded_packet"]["contract"]["max_full_domain_pools"] == 9
 
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
@@ -4855,6 +4859,273 @@ def test_api_server_build_and_verify_exact_out_many_pool_certified_winner_packet
         body2 = json.loads(resp2.read().decode("utf-8"))
         assert resp2.status == 200
         assert body2["ok"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_and_verify_exact_out_many_pool_audited_bounds_contract() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_exact_out_many_pool_audited_bounds_contract",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 6,
+                    "max_legs": 3,
+                    "max_candidate_pools": 3,
+                    "max_candidates": 6,
+                    "max_iters": 512,
+                    "window": 8,
+                    "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
+                    "max_enumerated_candidates": 2000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        contract = body["contract"]
+        assert body["contract_schema"] == contract["schema"]
+        assert body["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_audited_bounds_contract"
+        assert contract["contract_ok"] is True
+        assert contract["max_full_domain_pools"] == 9
+        assert contract["certified_advisory_packet"]["certified_packet"]["guarded_packet"]["contract"]["max_full_domain_pools"] == 9
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
+            body=json.dumps({"contract": contract}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_exact_out_many_pool_audited_bounds_contract_rejects_tampering() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_exact_out_many_pool_audited_bounds_contract",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 6,
+                    "max_legs": 3,
+                    "max_candidate_pools": 3,
+                    "max_candidates": 6,
+                    "max_iters": 512,
+                    "window": 8,
+                    "brute_force_max": 12,
+                    "max_full_domain_pools": 9,
+                    "max_enumerated_candidates": 2000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        contract = body["contract"]
+
+        contract["budget_parameters_bound"] = False
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_exact_out_many_pool_audited_bounds_contract",
+            body=json.dumps({"contract": contract}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is False
+        assert body2["error"] == "audited bounds contract payload mismatch"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_quote_exact_out_many_pool_adaptive() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p0", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p1", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+            _pool_dict(pid="p3", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/quote_exact_out_many_pool_adaptive",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 4,
+                    "max_legs": 3,
+                    "max_candidate_pools": 3,
+                    "max_candidates": 12,
+                    "max_iters": 4096,
+                    "window": 64,
+                    "brute_force_max": 512,
+                    "max_full_domain_pools": 6,
+                    "max_enumerated_candidates": 50000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        assert body["quote_policy"] == "adaptive_liveness_v1"
+        assert body["build_packet_endpoint"] == "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet"
+        assert body["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet"
+        assert body["cheap_path_success"] is True
+        assert body["fallback_success"] is False
+        assert body["liveness_ok"] is True
+        assert body["quote_source"] == "default_certified_advisory"
+        assert body["quote"] == body["packet"]["effective_quote"]
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_build_and_verify_exact_out_many_pool_adaptive_liveness_packet() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p0", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p1", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+            _pool_dict(pid="p3", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 4,
+                    "max_legs": 3,
+                    "max_candidate_pools": 1,
+                    "max_candidates": 2,
+                    "max_iters": 1,
+                    "window": 0,
+                    "brute_force_max": 0,
+                    "max_full_domain_pools": 6,
+                    "max_enumerated_candidates": 50000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        assert body["quote_policy"] == "adaptive_liveness_v1"
+        assert body["liveness_ok"] is True
+        packet = body["packet"]
+        assert body["packet_schema"] == packet["schema"]
+        assert body["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet"
+        assert packet["explicit_failure"] is True
+        assert packet["failure_reason"] == "default_packet_not_ok"
+
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+            body=json.dumps({"packet": packet}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is True
+        assert body2["quote_policy"] == "adaptive_liveness_v1"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_exact_out_many_pool_adaptive_liveness_packet_rejects_tampering() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p0", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p1", a0="A", a1="B", r0=20, r1=10, fee_bps=0),
+            _pool_dict(pid="p2", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+            _pool_dict(pid="p3", a0="A", a1="B", r0=30, r1=15, fee_bps=0),
+        ]
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/build_exact_out_many_pool_adaptive_liveness_packet",
+            body=json.dumps(
+                {
+                    "asset_in": "A",
+                    "asset_out": "B",
+                    "amount_out_total": 4,
+                    "max_legs": 3,
+                    "max_candidate_pools": 3,
+                    "max_candidates": 12,
+                    "max_iters": 4096,
+                    "window": 64,
+                    "brute_force_max": 512,
+                    "max_full_domain_pools": 6,
+                    "max_enumerated_candidates": 50000,
+                    "pools": pools,
+                }
+            ).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        packet = body["packet"]
+
+        packet["fallback_attempted"] = True
+        conn2 = HTTPConnection(host, port, timeout=2.0)
+        conn2.request(
+            "POST",
+            "/api/dex/verify_exact_out_many_pool_adaptive_liveness_packet",
+            body=json.dumps({"packet": packet}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp2 = conn2.getresponse()
+        body2 = json.loads(resp2.read().decode("utf-8"))
+        assert resp2.status == 200
+        assert body2["ok"] is False
+        assert body2["error"] == "adaptive liveness packet payload mismatch"
     finally:
         _stop_test_server(httpd, t)
 

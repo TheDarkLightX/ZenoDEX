@@ -19,6 +19,8 @@ from src.integration.exact_out_route_certificate import (
     EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_ORACLE_CONTRACT_SCHEMA,
     EXACT_OUT_MANY_POOL_CANDIDATE_DOMAIN_CONTRACT_SCHEMA,
     EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA,
+    EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA,
+    EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
     EXACT_OUT_ROUTE_CERTIFICATE_SCHEMA,
@@ -27,10 +29,13 @@ from src.integration.exact_out_route_certificate import (
     build_exact_out_many_pool_bounded_advisory_quote_packet,
     build_exact_out_many_pool_bounded_workaround_packet,
     build_exact_out_many_pool_certified_advisory_packet,
+    build_exact_out_many_pool_audited_bounds_contract,
+    build_exact_out_many_pool_adaptive_liveness_packet,
     build_exact_out_many_pool_repaired_replacement_shadow_packet,
     build_exact_out_many_pool_default_packet,
     quote_exact_out_many_pool_bounded_advisory,
     quote_exact_out_many_pool_certified_advisory,
+    quote_exact_out_many_pool_adaptive,
     quote_exact_out_many_pool_default,
     build_exact_out_many_pool_prefilter_contract,
     build_exact_out_many_pool_repaired_prefilter_contract,
@@ -62,6 +67,8 @@ from src.integration.exact_out_route_certificate import (
     verify_exact_out_many_pool_repaired_key_cover_packet_payload,
     verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_payload,
     verify_exact_out_many_pool_certified_winner_packet_payload,
+    verify_exact_out_many_pool_audited_bounds_contract_payload,
+    verify_exact_out_many_pool_adaptive_liveness_packet_payload,
     verify_exact_out_many_pool_guarded_quote_packet_payload,
     verify_exact_out_route_canonical_certificate,
     verify_exact_out_many_pool_oracle_contract_payload,
@@ -1842,3 +1849,220 @@ def test_enumerate_exact_out_many_pool_candidates_fails_closed_on_budget_overflo
             max_candidate_pools=3,
             max_enumerated_candidates=1,
         )
+
+
+def test_exact_out_many_pool_certified_winner_packet_propagates_max_full_domain_pools() -> None:
+    pools = (
+        _pool(pool_id="pool_b", reserve0=100, reserve1=34),
+        _pool(pool_id="pool_a", reserve0=120, reserve1=40),
+        _pool(pool_id="pool_c", reserve0=160, reserve1=60),
+    )
+    payload = build_exact_out_many_pool_certified_winner_packet(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=6,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_candidates=6,
+        max_iters=512,
+        window=8,
+        brute_force_max=12,
+        max_full_domain_pools=9,
+        max_enumerated_candidates=2_000,
+    ).to_dict()
+
+    assert payload["guarded_packet"]["contract"]["max_full_domain_pools"] == 9
+
+    ok, err = verify_exact_out_many_pool_certified_winner_packet_payload(payload)
+    assert ok, err
+
+
+def test_exact_out_many_pool_audited_bounds_contract_builds_and_verifies() -> None:
+    pools = (
+        _pool(pool_id="pool_b", reserve0=100, reserve1=34),
+        _pool(pool_id="pool_a", reserve0=120, reserve1=40),
+        _pool(pool_id="pool_c", reserve0=160, reserve1=60),
+    )
+    payload = build_exact_out_many_pool_audited_bounds_contract(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=6,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_candidates=6,
+        max_iters=512,
+        window=8,
+        brute_force_max=12,
+        max_full_domain_pools=9,
+        max_enumerated_candidates=2_000,
+    ).to_dict()
+
+    assert payload["schema"] == EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA
+    assert payload["contract_ok"] is True
+    assert payload["selected_domain_budget_respected"] is True
+    assert payload["repaired_selection_budget_respected"] is True
+    assert payload["full_domain_pool_budget_respected"] is True
+    assert payload["full_domain_candidate_budget_respected"] is True
+    assert payload["budget_parameters_bound"] is True
+    assert payload["failure_path_explicit"] is True
+    assert payload["success_path_replayable"] is True
+    assert payload["certified_advisory_packet"]["certified_packet"]["guarded_packet"]["contract"]["max_full_domain_pools"] == 9
+
+    ok, err = verify_exact_out_many_pool_audited_bounds_contract_payload(payload)
+    assert ok, err
+
+
+def test_exact_out_many_pool_audited_bounds_contract_rejects_tampering() -> None:
+    pools = (
+        _pool(pool_id="pool_b", reserve0=100, reserve1=34),
+        _pool(pool_id="pool_a", reserve0=120, reserve1=40),
+        _pool(pool_id="pool_c", reserve0=160, reserve1=60),
+    )
+    payload = build_exact_out_many_pool_audited_bounds_contract(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=6,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_candidates=6,
+        max_iters=512,
+        window=8,
+        brute_force_max=12,
+        max_full_domain_pools=9,
+        max_enumerated_candidates=2_000,
+    ).to_dict()
+
+    payload["budget_parameters_bound"] = False
+    ok, err = verify_exact_out_many_pool_audited_bounds_contract_payload(payload)
+    assert not ok
+    assert err == "audited bounds contract payload mismatch"
+
+
+def test_exact_out_many_pool_adaptive_liveness_packet_builds_and_verifies() -> None:
+    pools = (
+        _pool(pool_id="p0", reserve0=20, reserve1=10),
+        _pool(pool_id="p1", reserve0=20, reserve1=10),
+        _pool(pool_id="p2", reserve0=30, reserve1=15),
+        _pool(pool_id="p3", reserve0=30, reserve1=15),
+    )
+
+    quote, err, packet = quote_exact_out_many_pool_adaptive(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=4,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_candidates=12,
+        max_iters=4096,
+        window=64,
+        brute_force_max=512,
+        max_full_domain_pools=6,
+        max_enumerated_candidates=50_000,
+    )
+    payload = packet.to_dict()
+
+    assert err is None
+    assert quote is not None
+    assert payload["schema"] == EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA
+    assert payload["packet_ok"] is True
+    assert payload["liveness_ok"] is True
+    assert payload["audited_bounds_contract_ok"] is True
+    assert payload["cheap_path_attempted"] is True
+    assert payload["cheap_path_success"] is True
+    assert payload["fallback_required"] is False
+    assert payload["fallback_attempted"] is False
+    assert payload["fallback_available"] is True
+    assert payload["fallback_success"] is False
+    assert payload["returned_success"] is True
+    assert payload["explicit_failure"] is False
+    assert payload["no_spurious_failure"] is True
+    assert payload["effective_quote_source"] == "default_certified_advisory"
+    assert payload["effective_quote"] == payload["default_effective_quote"]
+    assert payload["effective_quote_matches_full_domain_canonical"] is True
+    assert payload["failure_reason"] is None
+    assert payload["nested_error"] is None
+
+    ok, verify_err = verify_exact_out_many_pool_adaptive_liveness_packet_payload(payload)
+    assert ok, verify_err
+
+
+def test_exact_out_many_pool_adaptive_liveness_packet_explicit_failure_is_replayable() -> None:
+    pools = (
+        _pool(pool_id="p0", reserve0=20, reserve1=10),
+        _pool(pool_id="p1", reserve0=20, reserve1=10),
+        _pool(pool_id="p2", reserve0=30, reserve1=15),
+        _pool(pool_id="p3", reserve0=30, reserve1=15),
+    )
+
+    quote, err, packet = quote_exact_out_many_pool_adaptive(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=4,
+        max_legs=3,
+        max_candidate_pools=1,
+        max_candidates=2,
+        max_iters=1,
+        window=0,
+        brute_force_max=0,
+        max_full_domain_pools=6,
+        max_enumerated_candidates=50_000,
+    )
+    payload = packet.to_dict()
+
+    assert quote is None
+    assert err == "default_packet_not_ok"
+    assert payload["schema"] == EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA
+    assert payload["packet_ok"] is True
+    assert payload["liveness_ok"] is True
+    assert payload["audited_bounds_contract_ok"] is True
+    assert payload["cheap_path_attempted"] is True
+    assert payload["cheap_path_success"] is False
+    assert payload["fallback_required"] is True
+    assert payload["fallback_attempted"] is True
+    assert payload["fallback_available"] is False
+    assert payload["fallback_success"] is False
+    assert payload["returned_success"] is False
+    assert payload["explicit_failure"] is True
+    assert payload["failure_reason_present"] is True
+    assert payload["failure_reason"] == "default_packet_not_ok"
+    assert payload["nested_error"] == "many_pool_repaired_prefilter_contract_not_ok"
+    assert payload["no_spurious_failure"] is True
+    assert payload["effective_quote_source"] is None
+    assert payload["effective_quote"] is None
+
+    ok, verify_err = verify_exact_out_many_pool_adaptive_liveness_packet_payload(payload)
+    assert ok, verify_err
+
+
+def test_exact_out_many_pool_adaptive_liveness_packet_rejects_tampering() -> None:
+    pools = (
+        _pool(pool_id="p0", reserve0=20, reserve1=10),
+        _pool(pool_id="p1", reserve0=20, reserve1=10),
+        _pool(pool_id="p2", reserve0=30, reserve1=15),
+        _pool(pool_id="p3", reserve0=30, reserve1=15),
+    )
+
+    payload = build_exact_out_many_pool_adaptive_liveness_packet(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=4,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_candidates=12,
+        max_iters=4096,
+        window=64,
+        brute_force_max=512,
+        max_full_domain_pools=6,
+        max_enumerated_candidates=50_000,
+    ).to_dict()
+    payload["fallback_attempted"] = True
+
+    ok, err = verify_exact_out_many_pool_adaptive_liveness_packet_payload(payload)
+    assert not ok
+    assert err == "adaptive liveness packet payload mismatch"
