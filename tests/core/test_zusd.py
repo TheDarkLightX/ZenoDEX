@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from src.core.zusd import E8, ZUSDCommand, ZUSDState, check_invariants, in_recovery_mode, init_state, step
+from src.core.zusd import (
+    E8,
+    ZUSDCommand,
+    ZUSDState,
+    check_invariants,
+    in_recovery_mode,
+    init_state,
+    step,
+)
 
 
 def _ok(s: ZUSDState, tag: str, **kwargs) -> ZUSDState:

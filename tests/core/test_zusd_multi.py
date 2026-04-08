@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
+
 from src.core.zusd import (
     E8,
     ZUSDMultiCommand,
@@ -172,6 +176,48 @@ def test_multi_redemption_auto_selects_closest_to_mcr() -> None:
     assert ns.vault_b.debt_e8 == 250 * E8
 
 
+def test_multi_redemption_allows_amount_equal_to_free_debt() -> None:
+    s = init_multi_state()
+    s = _bootstrap(s)
+    s = _ok(s, "deposit_collateral", vault="a", amount_e8=5 * E8)
+    s = _ok(s, "deposit_collateral", vault="b", amount_e8=5 * E8)
+    s = _ok(s, "mint_zusd", vault="a", amount_e8=200 * E8)
+    s = _ok(s, "mint_zusd", vault="b", amount_e8=300 * E8)
+    s = _ok(s, "deposit_sp", amount_e8=450 * E8)
+
+    assert s.free_debt_e8 == 50 * E8
+    r = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"amount_e8": 50 * E8}))
+    assert r.ok, r.error
+    assert r.state is not None
+    assert r.state.free_debt_e8 == 0
+
+
+def test_multi_redemption_exceeding_free_debt_fails_before_auto_selection(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.core.zusd as zusd_mod
+
+    s = init_multi_state()
+    s = _bootstrap(s)
+    s = _ok(s, "deposit_collateral", vault="a", amount_e8=5 * E8)
+    s = _ok(s, "deposit_collateral", vault="b", amount_e8=5 * E8)
+    s = _ok(s, "mint_zusd", vault="a", amount_e8=200 * E8)
+    s = _ok(s, "mint_zusd", vault="b", amount_e8=300 * E8)
+    s = _ok(s, "deposit_sp", amount_e8=450 * E8)
+
+    called = False
+
+    def _selector(**_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("selector should not be called")
+
+    monkeypatch.setattr(zusd_mod, "select_multi_redeem_vault", _selector)
+
+    r = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"amount_e8": 51 * E8}))
+    assert not r.ok
+    assert r.error == "redemption exceeds free debt"
+    assert called is False
+
+
 def test_multi_redemption_auto_tie_breaks_to_vault_a() -> None:
     s = init_multi_state()
     s = _bootstrap(s)
@@ -189,6 +235,28 @@ def test_multi_redemption_auto_tie_breaks_to_vault_a() -> None:
     assert r.effects["selection_policy"] == "closest_to_mcr"
     assert r.state.vault_a.debt_e8 == 150 * E8
     assert r.state.vault_b.debt_e8 == 200 * E8
+
+
+def test_multi_redemption_auto_fails_closed_when_selector_omits_post_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    import src.core.zusd as zusd_mod
+
+    s = init_multi_state()
+    s = _bootstrap(s)
+    s = _ok(s, "deposit_collateral", vault="a", amount_e8=5 * E8)
+    s = _ok(s, "mint_zusd", vault="a", amount_e8=200 * E8)
+
+    monkeypatch.setattr(
+        zusd_mod,
+        "select_multi_redeem_vault",
+        lambda **_kwargs: SimpleNamespace(
+            selected_vault="a",
+            selected_post_collateral_e8=None,
+            selected_post_debt_e8=None,
+        ),
+    )
+    r = step_multi(s, ZUSDMultiCommand(tag="redeem_zusd", args={"amount_e8": 50 * E8}))
+    assert not r.ok
+    assert r.error == "redeem selection missing post-state"
 
 
 def test_multi_redemption_auto_policy_matches_bounded_oracle() -> None:
