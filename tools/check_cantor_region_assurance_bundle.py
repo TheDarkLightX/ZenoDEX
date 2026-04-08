@@ -10,7 +10,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.integration.cantor_region_assurance_bundle import build_default_cantor_region_assurance_bundle
 from src.integration.cantor_region_assurance_verify import verify_cantor_region_assurance_bundle_payload
+from src.integration.region_ba_backends import resolve_region_ba_backend, supported_region_ba_backends
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -20,6 +22,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--require-current-default",
         action="store_true",
         help="Require the payload to match the current deterministic default bundle exactly",
+    )
+    parser.add_argument(
+        "--require-current-backend",
+        choices=supported_region_ba_backends(),
+        help="Require the payload to match the current deterministic bundle emitted by the selected RegionBA backend",
     )
     args = parser.parse_args(argv)
 
@@ -31,6 +38,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not ok:
         print(err or "bundle verification failed", file=sys.stderr)
         return 1
+
+    if args.require_current_backend is not None:
+        expected = build_default_cantor_region_assurance_bundle(
+            ba=resolve_region_ba_backend(args.require_current_backend)
+        ).to_dict()
+        if payload != expected:
+            print("bundle payload differs from current backend construction", file=sys.stderr)
+            return 1
     return 0
 
 
