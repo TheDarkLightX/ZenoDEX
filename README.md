@@ -49,7 +49,41 @@ More detail:
 <!-- END GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
 
 Replay commands are documented in [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
-Stateful disaster-state witnesses are summarized in [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](docs/STATEFUL_DISASTER_STATE_WITNESSES.md).
+
+## Stateful Witness Coverage
+
+The stateful assurance lane is stronger than ordinary code-coverage reporting.
+
+```text
+OrdinaryCoverage := code_paths_executed
+WitnessCoverage := dangerous_states_reached ∧ rejected ∧ replayable
+```
+
+Standard reading: ordinary coverage tells you which code ran, while witness coverage shows that specific dangerous semantic states were actually constructed, rejected, and preserved as replayable receipts.
+
+Practical consequence: this repo does not only ask whether a branch executed. It asks whether attack-shaped multi-step states such as stale settlement replay, repaired quote drift, route canonicalization drift, and attestation time drift are still fail-closed.
+
+Current stateful snapshot for the deep lane as of `2026-04-08`:
+- deep gate: `108 passed, 1 warning in 1135.88s`
+- dangerous surfaces: `10/10 witnessed`
+- reached-but-unwitnessed surfaces: `0`
+- unique ranked witnesses: `18`
+- hotspot count: `10`
+
+The key distinction is:
+
+```text
+StatefulWitnessCoverage ≠ line_coverage
+```
+
+Standard reading: this is not just a measurement of execution breadth. It is a replayable corpus of dangerous reject states.
+
+Practical consequence: if line coverage stayed high but one of the critical witnesses disappeared, that would still be a serious regression.
+
+More detail:
+- [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md)
+- [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](docs/STATEFUL_DISASTER_STATE_WITNESSES.md)
+- [docs/STATEFUL_RELEASE_GUARDRAILS.md](docs/STATEFUL_RELEASE_GUARDRAILS.md)
 
 ## Current Assurance Shape
 
@@ -367,11 +401,11 @@ The UI provides a full perpetuals trading interface with market selection, order
 - **Sealed-bid private-state lane**: bounded commit/reveal auction with deterministic uniform-price settlement.
   - Experiment core: `src/core/sealed_bid_auction.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
-  - Internal evaluation workflow used during development; not part of the public release surface.
+  - MetaMuse lane: `tools/metamuse_sealed_bid_lane.py`
 - **Non-reveal bond kernel**: closes the free-griefing path for non-reveal bidders.
   - Accounting core: `src/core/sealed_bid_bonds.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
-  - Internal evaluation workflow used during development; not part of the public release surface.
+  - MetaMuse lane: `tools/metamuse_sealed_bid_bond_lane.py`
 - **Experimental FHE sealed-bid alpha**: bounded 8-bid planning surface for encrypted comparison / hidden-bid auction pilots.
   - Alpha planner: `src/core/fhe_sealed_bid_alpha.py`
   - ESSO gate: `src/kernels/dex/fhe_sealed_bid_alpha_gate_v1.yaml`
@@ -428,9 +462,9 @@ Who this is not for:
 Useful commands:
 ```bash
 python3 tools/sealed_bid_disaster_catalog.py
+python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_private_state_v1 --out-dir runs/metamuse/sealed_bid_private_state_v1 --run-checks
+python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_non_reveal_bond_v1 --out-dir runs/metamuse/sealed_bid_non_reveal_bond_v1 --run-checks
 ```
-
-Internal research workflows for sealed-bid evaluation are intentionally not documented in the public README.
 
 ## Experimental Curves (Research)
 ZenoDex is designed to support multiple **integer-auditable AMM curves** (CFMM invariants). The production path is CPMM;
