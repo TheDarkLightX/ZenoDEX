@@ -423,6 +423,12 @@ BURN_RECEIPT_REPLAY_GUARD_V1 = TauSpecRef(
     gate_output="o1",
 )
 
+CONFIDENTIAL_EXTENSION_LIVE_ADMISSION_V1 = TauSpecRef(
+    spec_id="confidential_extension_live_admission_v1",
+    path=RECOMMENDED_SPECS_DIR / "confidential_extension_live_admission_v1.tau",
+    gate_output="o1",
+)
+
 BURN_RECEIPT_AMOUNT_GUARD_V1 = TauSpecRef(
     spec_id="burn_receipt_amount_guard_v1",
     path=RECOMMENDED_SPECS_DIR / "burn_receipt_amount_guard_v1.tau",
@@ -2532,6 +2538,21 @@ def build_burn_receipt_replay_guard_v1_step(
         "i2": _sbf("receipt_bound", receipt_bound),
         "i3": _sbf("nullifier_unused", nullifier_unused),
         "i4": _sbf("policy_ok", policy_ok),
+    }
+
+
+def build_confidential_extension_live_admission_v1_step(
+    *,
+    do_execute: int,
+    receipt_verified: int,
+    policy_digest_match: int,
+    request_unused: int,
+) -> Dict[str, int]:
+    return {
+        "i1": _sbf("do_execute", do_execute),
+        "i2": _sbf("receipt_verified", receipt_verified),
+        "i3": _sbf("policy_digest_match", policy_digest_match),
+        "i4": _sbf("request_unused", request_unused),
     }
 
 
