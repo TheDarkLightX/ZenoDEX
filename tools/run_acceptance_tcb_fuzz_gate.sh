@@ -26,9 +26,18 @@ require_module() {
 require_module "pytest" "pytest"
 require_module "hypothesis" "hypothesis"
 
-echo "== acceptance-tcb: structure-aware fuzz =="
+echo "== acceptance-tcb: structure-aware fuzz (fast) =="
 "$PY" -m pytest -q \
   "$ROOT_DIR/tests/integration/test_operations_fuzz.py" \
+  "$ROOT_DIR/tests/integration/test_operations_grammar_fuzz.py" \
+  "$ROOT_DIR/tests/integration/test_api_server_request_grammar_fuzz.py" \
+  "$ROOT_DIR/tests/integration/test_quote_receipt_transport_grammar_fuzz.py" \
+  "$ROOT_DIR/tests/integration/test_nonce_replay_sequence_grammar_fuzz.py" \
+  "$ROOT_DIR/tests/integration/test_dex_engine_sequence_grammar_fuzz.py" \
+  "$ROOT_DIR/tests/integration/test_boundary_concolic_determinism.py" \
+  "$ROOT_DIR/tests/integration/test_api_server_boundary_concolic.py" \
+  "$ROOT_DIR/tests/integration/test_receipt_boundary_concolic.py" \
+  "$ROOT_DIR/tests/integration/test_state_boundary_concolic.py" \
   "$ROOT_DIR/tests/core/test_quote_receipts_fuzz.py" \
   "$ROOT_DIR/tests/integration/test_proof_verifier_fuzz.py"
 
