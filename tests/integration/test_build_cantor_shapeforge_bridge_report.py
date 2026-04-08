@@ -13,5 +13,5 @@ def test_build_cantor_shapeforge_bridge_report_cli(tmp_path: Path) -> None:
     payload = json.loads(out_path.read_text(encoding="utf-8"))
 
     assert payload["world_model_id"] == "zenodex_shape_reference_v3"
-    assert payload["mapped_surface_count"] == 3
+    assert payload["mapped_surface_count"] == 4
     assert payload["backend_invariance"]["payload_equal"] is True

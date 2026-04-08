@@ -38,6 +38,14 @@ _SURFACE_BRIDGE_CONFIG: dict[str, dict[str, object]] = {
             "src/integration/cantor_region_assurance_bundle.py",
         ),
     },
+    "resource_load_shedding_regret_guard": {
+        "primary_slice_id": "resource_load_shedding_regret_guard",
+        "related_slice_ids": (),
+        "sources": (
+            "src/integration/resource_load_shedding_regret_guard_regions.py",
+            "src/integration/cantor_region_assurance_bundle.py",
+        ),
+    },
 }
 
 
@@ -185,6 +193,19 @@ def _candidate_evidence_for_surface(surface_name: str) -> tuple[CantorShapeForge
                 claim="Within the same bounded shell, risky_action_allowed refines action_allowed and recovery_blocked_request refines denied.",
                 evidence_class="contract",
                 source="src/integration/zusd_recovery_mode_gate_regions.py",
+            ),
+        )
+    if surface_name == "resource_load_shedding_regret_guard":
+        return (
+            CantorShapeForgeCandidateEvidence(
+                claim="A replayable Cantor-region assurance bundle shows that the bounded resource load-shedding shell partitions exactly into proof_gated, admitted_without_proof, and denied regions.",
+                evidence_class="contract",
+                source="src/integration/cantor_region_assurance_bundle.py",
+            ),
+            CantorShapeForgeCandidateEvidence(
+                claim="Within the same bounded shell, proof_gated admission refines final admission, and the normal-only and shed-only path regions are disjoint while their union recovers final admission.",
+                evidence_class="contract",
+                source="src/integration/resource_load_shedding_regret_guard_regions.py",
             ),
         )
     return ()
