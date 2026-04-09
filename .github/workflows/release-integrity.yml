@@ -1,0 +1,67 @@
+name: release-integrity
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  release-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install build and SBOM tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt cyclonedx-bom
+          if [ -f tools/dex-ui/package-lock.json ]; then
+            (cd tools/dex-ui && npm ci)
+          fi
+
+      - name: Run production gate
+        run: |
+          bash tools/prod_gate.sh --image-tag zenodex:release-integrity
+
+      - name: Run SHAPE_V1 ratchet
+        run: |
+          python3 tools/check_shape_v1_ratchet.py
+
+      - name: Generate SBOMs
+        run: |
+          mkdir -p internal/release_artifacts/sbom
+          cyclonedx-py requirements -i requirements-core.lock.txt -o internal/release_artifacts/sbom/requirements-core.cdx.json
+          cyclonedx-py requirements -i requirements-agents.lock.txt -o internal/release_artifacts/sbom/requirements-agents.cdx.json
+          if [ -f tools/dex-ui/package-lock.json ]; then
+            npx --yes @cyclonedx/cyclonedx-npm --output-file internal/release_artifacts/sbom/dex-ui.cdx.json
+          fi
+
+      - name: Upload release-integrity artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-integrity-artifacts
+          path: internal/release_artifacts/
+
+      - name: Attest SBOM provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "internal/release_artifacts/sbom/*.json"
