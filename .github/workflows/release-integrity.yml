@@ -44,7 +44,9 @@ jobs:
 
       - name: Run SHAPE_V1 ratchet
         run: |
-          python3 tools/check_shape_v1_ratchet.py
+          mkdir -p internal/release_artifacts/shapeforge
+          python3 tools/check_shape_v1_ratchet.py \
+            --output-cantor-bridge-report internal/release_artifacts/shapeforge/cantor-shapeforge-bridge.json
 
       - name: Generate SBOMs
         run: |

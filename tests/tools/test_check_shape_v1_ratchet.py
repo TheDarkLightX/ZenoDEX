@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from tools.check_shape_v1_ratchet import (
@@ -35,6 +36,15 @@ def test_shape_v1_ratchet_requires_manifest_entries(tmp_path: Path) -> None:
         assert "missing clause manifest entry" in str(exc)
     else:
         raise AssertionError("expected manifest check to fail")
+
+
+def test_shape_v1_ratchet_writes_cantor_bridge_report(tmp_path: Path) -> None:
+    report_path = tmp_path / 'cantor-bridge.json'
+    report = check_shape_v1_ratchet(cantor_bridge_report_path=report_path)
+    assert report['cantor_bridge_report_path'] == str(report_path)
+    payload = json.loads(report_path.read_text(encoding='utf-8'))
+    assert payload['mapped_surface_count'] == 4
+    assert payload['backend_invariance']['payload_equal'] is True
 
 
 def test_shape_v1_manifest_exists() -> None:

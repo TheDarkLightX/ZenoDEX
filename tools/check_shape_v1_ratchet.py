@@ -60,6 +60,7 @@ def check_shape_v1_ratchet(
     target_shapes_path: Path = DEFAULT_TARGET_SHAPES,
     world_model_path: Path = DEFAULT_WORLD_MODEL,
     manifest_path: Path = DEFAULT_MANIFEST,
+    cantor_bridge_report_path: Path | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
 
@@ -68,7 +69,10 @@ def check_shape_v1_ratchet(
     if errors:
         raise ValueError("\n".join(errors))
 
-    promotion_report = check_cantor_shapeforge_promotion(world_model_path=world_model_path)
+    promotion_report = check_cantor_shapeforge_promotion(
+        world_model_path=world_model_path,
+        output_report=cantor_bridge_report_path,
+    )
 
     report = evaluate_target_shapes(target_shapes_path)
     result_by_id = {result["target_shape_id"]: result for result in report["results"]}
@@ -95,6 +99,7 @@ def check_shape_v1_ratchet(
         "target_shapes_path": str(target_shapes_path),
         "world_model_path": str(world_model_path),
         "manifest_path": str(manifest_path),
+        "cantor_bridge_report_path": None if cantor_bridge_report_path is None else str(cantor_bridge_report_path),
         "expected_counts": EXPECTED_COUNTS,
         "cantor_shape_promotion": promotion_report,
         "results": report["results"],
@@ -121,12 +126,18 @@ def main() -> int:
         default=DEFAULT_MANIFEST,
         help="Path to the SHAPE_V1 manifest",
     )
+    parser.add_argument(
+        "--output-cantor-bridge-report",
+        type=Path,
+        help="Optional path to write the current deterministic Cantor-to-ShapeForge bridge report JSON",
+    )
     args = parser.parse_args()
 
     report = check_shape_v1_ratchet(
         target_shapes_path=args.target_shapes_path.resolve(),
         world_model_path=args.world_model_path.resolve(),
         manifest_path=args.manifest_path.resolve(),
+        cantor_bridge_report_path=None if args.output_cantor_bridge_report is None else args.output_cantor_bridge_report.resolve(),
     )
     print(
         "OK SHAPE_V1 "
