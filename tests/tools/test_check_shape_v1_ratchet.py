@@ -47,5 +47,15 @@ def test_shape_v1_ratchet_writes_cantor_bridge_report(tmp_path: Path) -> None:
     assert payload['backend_invariance']['payload_equal'] is True
 
 
+def test_shape_v1_ratchet_writes_report_json(tmp_path: Path) -> None:
+    report_path = tmp_path / 'shape-v1-ratchet.json'
+    report = check_shape_v1_ratchet(output_report_path=report_path)
+    assert report_path.exists()
+    payload = json.loads(report_path.read_text(encoding='utf-8'))
+    assert payload['ok'] is True
+    assert payload['cantor_shape_promotion']['mapped_surface_count'] == 4
+    assert payload['cantor_bridge_report_path'] is None
+
+
 def test_shape_v1_manifest_exists() -> None:
     assert DEFAULT_MANIFEST.exists()

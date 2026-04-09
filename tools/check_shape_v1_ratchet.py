@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 from typing import Any
@@ -61,6 +62,7 @@ def check_shape_v1_ratchet(
     world_model_path: Path = DEFAULT_WORLD_MODEL,
     manifest_path: Path = DEFAULT_MANIFEST,
     cantor_bridge_report_path: Path | None = None,
+    output_report_path: Path | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
 
@@ -94,7 +96,7 @@ def check_shape_v1_ratchet(
         if gap_count != 0:
             raise ValueError(f"{target_shape_id}: gap_count {gap_count} != 0")
 
-    return {
+    result = {
         "ok": True,
         "target_shapes_path": str(target_shapes_path),
         "world_model_path": str(world_model_path),
@@ -104,6 +106,12 @@ def check_shape_v1_ratchet(
         "cantor_shape_promotion": promotion_report,
         "results": report["results"],
     }
+
+    if output_report_path is not None:
+        output_report_path.parent.mkdir(parents=True, exist_ok=True)
+        output_report_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    return result
 
 
 def main() -> int:
@@ -131,6 +139,11 @@ def main() -> int:
         type=Path,
         help="Optional path to write the current deterministic Cantor-to-ShapeForge bridge report JSON",
     )
+    parser.add_argument(
+        "--output-report",
+        type=Path,
+        help="Optional path to write the SHAPE_V1 ratchet report JSON",
+    )
     args = parser.parse_args()
 
     report = check_shape_v1_ratchet(
@@ -138,6 +151,7 @@ def main() -> int:
         world_model_path=args.world_model_path.resolve(),
         manifest_path=args.manifest_path.resolve(),
         cantor_bridge_report_path=None if args.output_cantor_bridge_report is None else args.output_cantor_bridge_report.resolve(),
+        output_report_path=None if args.output_report is None else args.output_report.resolve(),
     )
     print(
         "OK SHAPE_V1 "
