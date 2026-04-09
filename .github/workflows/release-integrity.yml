@@ -49,6 +49,13 @@ jobs:
             --output-cantor-bridge-report internal/release_artifacts/shapeforge/cantor-shapeforge-bridge.json \
             --output-report internal/release_artifacts/shapeforge/shape-v1-ratchet.json
 
+      - name: Build SHAPE_V1 release bundle
+        run: |
+          python3 tools/build_shape_v1_release_bundle.py \
+            --ratchet-report internal/release_artifacts/shapeforge/shape-v1-ratchet.json \
+            --cantor-bridge-report internal/release_artifacts/shapeforge/cantor-shapeforge-bridge.json \
+            --output internal/release_artifacts/shapeforge/shape-v1-release-bundle.json
+
       - name: Generate SBOMs
         run: |
           mkdir -p internal/release_artifacts/sbom

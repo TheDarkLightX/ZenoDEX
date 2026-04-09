@@ -19,6 +19,8 @@ from tools.shapeforge_target_shape_eval import evaluate_target_shapes
 from tools.shapeforge_validate import validate_artifact
 
 
+SHAPE_V1_RATCHET_REPORT_SCHEMA = "zenodex/shape-v1-ratchet-report/v1"
+
 DEFAULT_TARGET_SHAPES = ROOT / "docs" / "zenodex" / "shapeforge_promoted" / "zenodex_target_shapes.seed.json"
 DEFAULT_WORLD_MODEL = DEFAULT_SHAPEFORGE_WORLD_MODEL_PATH
 DEFAULT_MANIFEST = ROOT / "docs" / "zenodex" / "SHAPE_V1.md"
@@ -97,6 +99,7 @@ def check_shape_v1_ratchet(
             raise ValueError(f"{target_shape_id}: gap_count {gap_count} != 0")
 
     result = {
+        "schema": SHAPE_V1_RATCHET_REPORT_SCHEMA,
         "ok": True,
         "target_shapes_path": str(target_shapes_path),
         "world_model_path": str(world_model_path),

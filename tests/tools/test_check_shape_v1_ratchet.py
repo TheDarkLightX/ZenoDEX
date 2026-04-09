@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from tools.check_shape_v1_ratchet import (
+    SHAPE_V1_RATCHET_REPORT_SCHEMA,
     DEFAULT_MANIFEST,
     DEFAULT_TARGET_SHAPES,
     DEFAULT_WORLD_MODEL,
@@ -13,6 +14,7 @@ from tools.check_shape_v1_ratchet import (
 
 def test_shape_v1_ratchet_matches_current_baseline() -> None:
     report = check_shape_v1_ratchet()
+    assert report["schema"] == SHAPE_V1_RATCHET_REPORT_SCHEMA
     assert report["ok"] is True
     by_id = {result["target_shape_id"]: result for result in report["results"]}
     assert by_id["shape_pp_candidate_v1"]["support_count"] == 10
