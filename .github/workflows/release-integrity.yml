@@ -56,6 +56,12 @@ jobs:
             --cantor-bridge-report internal/release_artifacts/shapeforge/cantor-shapeforge-bridge.json \
             --output internal/release_artifacts/shapeforge/shape-v1-release-bundle.json
 
+      - name: Check SHAPE_V1 release bundle
+        run: |
+          python3 tools/check_shape_v1_release_bundle.py \
+            internal/release_artifacts/shapeforge/shape-v1-release-bundle.json \
+            --require-current
+
       - name: Generate SBOMs
         run: |
           mkdir -p internal/release_artifacts/sbom
