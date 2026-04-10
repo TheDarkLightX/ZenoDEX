@@ -13,15 +13,15 @@ This repo exposes a narrow, replayable public assurance surface. The goal is:
 - keep the publishable surface fail-closed
 
 <!-- BEGIN GENERATED:PUBLIC_ASSURANCE_RELEASE_SNAPSHOT -->
-Pinned release snapshot for this tree (as of 2026-04-06):
+Pinned release snapshot for this tree (as of 2026-04-10):
 
-- acceptance TCB: `385 passed`, `98.8%` branch coverage
-- critical gate: `1424 passed`, `99%` branch coverage
+- acceptance TCB: `361 passed`, `99.4%` branch coverage
+- critical gate: `735 passed, 1 skipped`, `99%` branch coverage
 - release gate: `passed end to end`
-- mutation gate: `5 killed, 2 inconclusive`
-- fuzz gate: `58 passed`
-- snapshot recovery: `17 passed`
-- Tau syntax: `60/60`
+- mutation gate: `7 killed, 0 survived, 0 inconclusive`
+- fuzz gate: `11 passed`
+- snapshot recovery: `19 passed`
+- Tau syntax: `62/62`
 - Tau traces: `1/1`
 
 This is historical release evidence for the pinned release tree, not a live status board for the current checkout.

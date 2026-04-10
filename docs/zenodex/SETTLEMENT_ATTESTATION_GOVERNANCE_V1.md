@@ -7,7 +7,7 @@ This slice formalizes the settlement price-attestation trust boundary.
 It does not claim that a signed spot-price attestation is a complete oracle-trust solution.
 It narrows the local safety claim to a replayable policy-admission relation.
 
-## ShapeForge State
+## World-Model State
 
 ```text
 Φ := ⟨

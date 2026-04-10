@@ -12,11 +12,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.shapeforge_target_shape_eval import evaluate_target_shapes
-from tools.shapeforge_validate import validate_artifact
+from tools.world_model_target_eval import evaluate_target_shapes
+from tools.world_model_validate import validate_artifact
 
 
-DEFAULT_TARGET_SHAPES = ROOT / "docs" / "zenodex" / "shapeforge_promoted" / "zenodex_target_shapes.seed.json"
+DEFAULT_TARGET_SHAPES = ROOT / "docs" / "zenodex" / "world_model_promoted" / "zenodex_target_shapes.seed.json"
 DEFAULT_MANIFEST = ROOT / "docs" / "zenodex" / "SHAPE_V1.md"
 
 EXPECTED_COUNTS = {

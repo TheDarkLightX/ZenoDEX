@@ -5,7 +5,7 @@ import Mathlib.Tactic
 /-!
 # CPMM Output Monotonicity and Reserve Sensitivity
 
-**ShapeForge promotion**: `cpmm_reserve_sensitivity` (NEW → PROVED)
+**world-model promotion**: `cpmm_reserve_sensitivity` (NEW → PROVED)
 
 **THEOREM**: The CPMM swap output function `swapOut(x, y, a) = y * a / (x + a)` is:
 1. **Monotone increasing in y** (output reserve): more Y reserve → more Y output

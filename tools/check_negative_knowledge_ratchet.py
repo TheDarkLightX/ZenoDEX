@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed ratchet check for promoted ShapeForge negative knowledge."""
+"""Fail-closed ratchet check for promoted negative knowledge."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.shapeforge_validate import validate_artifact
+from tools.world_model_validate import validate_artifact
 
 
 DEFAULT_NEGATIVE_KNOWLEDGE = (
-    ROOT / "docs" / "zenodex" / "shapeforge_promoted" / "zenodex_negative_knowledge.seed.json"
+    ROOT / "docs" / "zenodex" / "world_model_promoted" / "zenodex_negative_knowledge.seed.json"
 )
-EXPECTED_NEGATIVE_KNOWLEDGE_SCHEMA = "shapeforge/negative-knowledge-seed/v2"
+EXPECTED_NEGATIVE_KNOWLEDGE_SCHEMA = "zenodex/negative-knowledge-seed/v2"
 
 REQUIRES_SCOPED_REPLACEMENT_STATUSES = {
     "narrowed",
@@ -34,7 +34,7 @@ EXPECTED_NARROWED_BASELINES = {
         "claim": "Stable runtime enumeration order is enough to justify exact-out canonicality.",
         "evidence_or_falsifier": "The previous symmetric counterexample has been repaired by switching the two-pool exact-out runtime tie-break to the explicit route_key_out. The remaining lesson still stands: runtime determinism is useful, but canonicality comes from the explicit total key plus candidate completeness, not from stable enumeration folklore.",
         "replacement_claim": "Canonicality comes from minimizing route_key_out = (input_total, leg_count, legs_lex) over complete candidates; the repaired two-pool runtime now reflects that key on the bounded emitted candidate set.",
-        "replay_pointer": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break",
+        "replay_pointer": "docs/zenodex/world_model_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break",
         "remaining_excluded_domain": "Candidate domains outside the repaired bounded emitted set remain excluded: stable runtime enumeration is still not a semantic canonicality argument without explicit total-key minimization plus candidate completeness.",
     }
 }

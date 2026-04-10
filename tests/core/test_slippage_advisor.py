@@ -55,7 +55,7 @@ def test_slippage_advice_returns_no_revert_safe_option_if_all_min_out_too_high()
 @pytest.mark.parametrize(
     "confidence_bps,expected_out_conf,expected_required_slip,reason",
     [
-        # Boundary mined by tools/bva (label flip around confidence_bps=8000):
+        # Boundary witness around confidence_bps=8000:
         # out_conf steps from 47 -> 46, which changes required_slippage_bps from 0 -> 213.
         (7999, 47, 0, "just-below the quantized output step boundary"),
         (8000, 46, 213, "exactly at the boundary (first value with lower out_conf)"),

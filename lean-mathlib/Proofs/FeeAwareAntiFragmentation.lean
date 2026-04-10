@@ -5,7 +5,7 @@ import Mathlib.Tactic
 /-!
 # Fee-Aware Anti-Fragmentation for CPMM
 
-**ShapeForge promotion**: `fee_aware_fragmentation_elimination` (TESTED_ONLY → PROVED)
+**world-model promotion**: `fee_aware_fragmentation_elimination` (TESTED_ONLY → PROVED)
 
 **THEOREM**: For a CPMM pool (x, y) with ceiling-based fee rate `fee_bps ≤ 10000`,
 executing a single swap of gross amount (a₁ + a₂) always produces output ≥ the

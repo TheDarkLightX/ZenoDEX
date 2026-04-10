@@ -1144,7 +1144,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_bounty_floor.ok is False
     assert res_bounty_floor.error is not None and "cannot decrease min_notional_for_bounty while positions are open" in res_bounty_floor.error
 
-    # Scientist hardening: liquidation penalty must stay positive.
+    # Hardening: liquidation penalty must stay positive.
     res_zero_penalty = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -1154,7 +1154,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_zero_penalty.ok is False
     assert res_zero_penalty.error is not None and "liquidation_penalty_bps > 0" in res_zero_penalty.error
 
-    # Scientist hardening: depeg buffer must remain positive (fail-closed against disabling buffer).
+    # Hardening: depeg buffer must remain positive (fail-closed against disabling buffer).
     res_zero_depeg = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -1164,7 +1164,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_zero_depeg.ok is False
     assert res_zero_depeg.error is not None and "depeg_buffer_bps > 0" in res_zero_depeg.error
 
-    # Scientist hardening: while positions are open, do not allow increasing liquidation penalty.
+    # Hardening: while positions are open, do not allow increasing liquidation penalty.
     res_penalty_up = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -1174,7 +1174,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
     assert res_penalty_up.ok is False
     assert res_penalty_up.error is not None and "cannot increase liquidation_penalty_bps while positions are open" in res_penalty_up.error
 
-    # Scientist hardening: while positions are open, do not allow lowering bounty threshold.
+    # Hardening: while positions are open, do not allow lowering bounty threshold.
     res_bounty_down = _apply_result(
         state=state,
         tx_sender_pubkey=operator,

@@ -14,7 +14,7 @@ External-control boundary:
 - `docs/zenodex/EXTERNAL_ASSUMPTION_BOUNDARY_V1.md`
   states the strongest honest claim when the Tau Testnet node surface is controlled outside this repository.
 
-## ShapeForge State
+## World-Model State
 
 ```text
 Φ := ⟨

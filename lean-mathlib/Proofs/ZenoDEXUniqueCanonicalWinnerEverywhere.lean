@@ -7,7 +7,7 @@ import Proofs.BatchAuctionCanonical
 /-!
 # ZenoDEX Unique Canonical Winner Everywhere
 
-Composing proof for the ShapeForge `unique_canonical_winner_everywhere` clause.
+Composing proof for the promoted-world-model `unique_canonical_winner_everywhere` clause.
 Closes Gap 1 in target shapes `shape_pp_candidate_v1` and `dex_kernel_candidate_v1`.
 
 ## The Canonical Winner Principle
@@ -245,7 +245,7 @@ satisfies all four axioms of a total order:
   3. Antisymmetric: keyLe a b → keyLe b a → a = b
   4. Total: keyLe a b ∨ keyLe b a
 
-This certifies the ShapeForge cross-invariant `canonical_winner_requires_total_key`:
+This certifies the world-model cross-invariant `canonical_winner_requires_total_key`:
 the exact-in routing key is total on every admitted nonempty candidate set.
 
 Batch and exact-out keys inherit this property from Mathlib's `LinearOrder`
@@ -281,7 +281,7 @@ theorem batch_unique_canonical_winner
 /-- **UNIFIED THREE-WAY CANONICALITY**: All three DEX optimizer subsystems
 produce unique canonical winners from the same abstract principle.
 
-This is the composing theorem for ShapeForge `unique_canonical_winner_everywhere`.
+This is the composing theorem for promoted-world-model `unique_canonical_winner_everywhere`.
 It packages:
 - Batch: `∃!` winner under `(Volume^od ×_lex Surplus^od) ×_lex Order`
 - Exact-in: `∃!` winner under `keyLe = lex(routeKeyRank, candidateIndex)`

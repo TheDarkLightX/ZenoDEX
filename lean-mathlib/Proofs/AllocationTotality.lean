@@ -4,7 +4,7 @@ import Mathlib.Data.List.Basic
 import Proofs.AntiFragmentation
 
 /-!
-# Routing Allocation Totality (ShapeForge: split_routing_allocation_contract)
+# Routing Allocation Totality (world-model: split_routing_allocation_contract)
 
 For an exact-in split-route with demand D, the production solver searches over
 split vectors that may include zero-sized endpoint legs, e.g. `[D, 0]` or `[0, D]`.

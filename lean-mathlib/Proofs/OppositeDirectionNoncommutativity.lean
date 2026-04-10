@@ -4,7 +4,7 @@ import Mathlib.Tactic
 /-!
 # Opposite-Direction Noncommutativity
 
-**ShapeForge promotion**: `noncommutative_ordering` (TESTED_ONLY → PROVED)
+**world-model promotion**: `noncommutative_ordering` (TESTED_ONLY → PROVED)
 
 ## What this file proves
 
@@ -588,7 +588,7 @@ theorem witness_K_gap_both_signs :
     (path_YX_XY ⟨100, 10000⟩ 5 500).2.2.K > (path_XY_YX ⟨100, 10000⟩ 5 500).2.2.K := by
   native_decide
 
-/-! ## Part 7: ShapeForge Quarantine Rule
+/-! ## Part 7: World-model quarantine rule
 
 The results above formally justify the shape quarantine from
 SHAPE_OPTIMIZATION_NOTES section 2.1.E:

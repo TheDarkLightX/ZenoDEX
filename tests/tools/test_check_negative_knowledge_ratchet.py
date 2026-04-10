@@ -16,7 +16,7 @@ def _load_negative_knowledge() -> dict:
 def test_negative_knowledge_ratchet_matches_current_baseline() -> None:
     report = check_negative_knowledge_ratchet()
     assert report["ok"] is True
-    assert report["expected_schema"] == "shapeforge/negative-knowledge-seed/v2"
+    assert report["expected_schema"] == "zenodex/negative-knowledge-seed/v2"
     assert report["narrowed_count"] == 1
     assert report["narrowed_hypothesis_ids"] == [
         "exact_out_runtime_order_is_semantic_canonicality_v1"
@@ -28,7 +28,7 @@ def test_negative_knowledge_ratchet_matches_current_baseline() -> None:
         report["expected_narrowed_baselines"]["exact_out_runtime_order_is_semantic_canonicality_v1"][
             "replay_pointer"
         ]
-        == "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break"
+        == "docs/zenodex/world_model_promoted/zenodex_world_model.seed.json#scenario_id=drop_exact_out_canonical_minimizer_tie_break"
     )
 
 
@@ -154,13 +154,13 @@ def test_negative_knowledge_ratchet_requires_expected_evidence_or_falsifier(tmp_
 
 def test_negative_knowledge_ratchet_requires_v2_schema(tmp_path: Path) -> None:
     data = _load_negative_knowledge()
-    data["schema"] = "shapeforge/negative-knowledge-seed/v1"
+    data["schema"] = "zenodex/negative-knowledge-seed/v1"
     broken = tmp_path / "negative_knowledge_wrong_schema.json"
     broken.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
     try:
         check_negative_knowledge_ratchet(negative_knowledge_path=broken)
     except ValueError as exc:
-        assert "schema 'shapeforge/negative-knowledge-seed/v1' !=" in str(exc)
+        assert "schema 'zenodex/negative-knowledge-seed/v1' !=" in str(exc)
     else:
         raise AssertionError("expected downgraded schema to fail")

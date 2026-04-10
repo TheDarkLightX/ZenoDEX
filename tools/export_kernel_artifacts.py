@@ -108,7 +108,7 @@ def _format_rust(crate_dirs: Iterable[Path]) -> None:
 
 
 def _patch_toolchain_header(python_out_dir: Path) -> None:
-    generated_by_new = "Generated from the YAML kernel spec by the repo's optional private toolchain."
+    generated_by_new = "Generated from the YAML kernel spec by the repo's optional kernel export toolchain."
     standalone_new = "This file is standalone and has no runtime dependency on the generator/toolchain."
     for p in sorted(python_out_dir.glob("*.py")):
         try:

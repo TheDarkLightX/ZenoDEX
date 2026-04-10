@@ -1,0 +1,542 @@
+{
+  "schema": "zenodex/target-shapes-seed/v1",
+  "repo_root": ".",
+  "world_model_id": "zenodex_shape_reference_v3",
+  "world_model_path": "docs/zenodex/world_model_promoted/zenodex_world_model.seed.json",
+  "negative_knowledge_path": "docs/zenodex/world_model_promoted/zenodex_negative_knowledge.seed.json",
+  "description": "Candidate target shapes for ZenoDEX. These are aspirational comparison points for the promoted world-model baseline, not required baseline truths.",
+  "evidence_classes": [
+    "proved",
+    "contract",
+    "implemented",
+    "tested_discovery",
+    "hypothesis"
+  ],
+  "target_shapes": [
+    {
+      "target_shape_id": "shape_pp_candidate_v1",
+      "name": "Shape++",
+      "description": "Aspirational target shape for ZenoDEX that compresses CBC validity, canonicality, exact accounting, settlement assurance, oracle boundaries, liquidation containment, and replay parity into one candidate attractor.",
+      "required": false,
+      "sources": [
+        "docs/zenodex/SHAPE_V1.md",
+        "docs/ASSURANCE_GLOSSARY.md",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "clauses": [
+        {
+          "clause_id": "cbc_validity",
+          "label": "CBCValidity",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "batch_ab_objective",
+              "min_status": "proved"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "batch_ab_requires_valid_outcomes"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "Currently instantiated strongly on the batch ValidOutcome surface rather than as a system-wide CBC theorem."
+        },
+        {
+          "clause_id": "unique_canonical_winner_everywhere",
+          "label": "UniqueCanonicalWinnerEverywhere",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "batch_canonicalization",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "routing_exact_in_argmin",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "exact_out_canonical_minimizer",
+              "min_status": "proved"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "canonical_winner_requires_total_key"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "This asks for optimizer canonicality as a proof-level property, not merely deterministic iteration order or contract-level surfaces. The promoted exact-out slice is now explicitly scoped to the repaired bounded audited lane; broader global generator-completeness negatives remain tracked separately in negative knowledge rather than blocking this bounded promoted target."
+        },
+        {
+          "clause_id": "exact_fee_aware_accounting",
+          "label": "ExactFeeAwareAccounting",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "fee_dust_carry",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "cpmm_swap_safety",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "fee_aware_batch_k_gap_accounting",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "fee_aware_same_pool_fragmentation",
+              "min_status": "proved"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "fee_conservation_requires_explicit_dust_state"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "This target now has separate proved support from fee dust carry, fee-aware same-pool dominance, fee-aware batch K-gap telescoping, and core CPMM safety, but it is still not one universal fee-aware theorem for every execution layer."
+        },
+        {
+          "clause_id": "value_aware_settlement_safety",
+          "label": "ValueAwareSettlementSafety",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "settlement_strong_validation",
+              "min_status": "proved"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "settlement_contracts_require_canonical_deltas_and_bound_quotes"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "full_price_rails_refine_compact_settlement_bundle"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "The target now has a proved settlement-certificate boundary: the live settlement-certificate posture routes through one replayable end-to-end packet that unifies the replay-bound strong certificate, a replayable feature-extension packet, full-price-rails enforcement, and the explicit value lane, with Lean- and ESSO-backed shell checks for the feature-extension and end-to-end packet gates. The LP-free explicit-price spot-value sublane, LP-aware sidecars, endogenous LP packet, bounded provenance packet, and optional signed attestation still matter for scope, but the missing blocker is no longer absence of a single end-to-end certificate object."
+        },
+        {
+          "clause_id": "proof_carrying_optimizer_certificates",
+          "label": "ProofCarryingOptimizerCertificates",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "routing_exact_in_argmin",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "exact_out_canonical_minimizer",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "settlement_strong_validation",
+              "min_status": "proved"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "This asks for promoted optimizer and settlement surfaces to remain proof-carrying at the public runtime boundary. Exact-in now has an explicit rank-projection packet, true-key-interpretation packet, oracle-contract packet, and guarded quote surface with Lean- and ESSO-backed shell checks across those public boundary artifacts. Exact-out many-pool now has a core-aligned selected-domain canonical winner, a replayable prefilter contract with Lean- and ESSO-backed shell checks, a repaired-prefilter contract plus repaired advisory-quote packet with Lean- and ESSO-backed shell checks, a repaired full-domain certified packet that preserves the full bounded feasible-domain canonical certificate at the advisory boundary, repaired key-cover and interpretation packets, selected-domain support/bridge theorems, and a unified certified-winner packet above its bounded candidate-domain and guarded-quote layers. The weaker prefilter-contraction bridge remains negative knowledge for the old heuristic, and broader global generator-completeness negatives remain tracked separately outside this bounded promoted target. Settlement now has a proved packetized boundary for the settlement-certificate posture: a replayable feature-extension packet, a unified end-to-end certificate packet with Lean- and ESSO-backed shell checks, and a live runtime path that routes require_settlement_certificate through that packet."
+        },
+        {
+          "clause_id": "anti_fragmentation_by_theorem",
+          "label": "AntiFragmentationByTheorem",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "zero_fee_same_pool_fragmentation",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "fee_aware_same_pool_fragmentation",
+              "min_status": "proved"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "Current support is explicit on both zero-fee and fee-aware same-pool same-direction proved domains; broader cross-pool or heterogeneous-rate fragmentation claims remain outside this clause."
+        },
+        {
+          "clause_id": "non_commutativity_quarantine",
+          "label": "NonCommutativityQuarantine",
+          "target_evidence_class": "contract",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "opposite_direction_noncommutativity_requires_order_quarantine"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "This is a negative guardrail clause: opposite-direction shared-reserve steps must preserve explicit order."
+        },
+        {
+          "clause_id": "oracle_divergence_safety",
+          "label": "OracleDivergenceSafety",
+          "target_evidence_class": "contract",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "zusd_oracle_pending_gate",
+              "min_status": "contract"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "cross_module_oracle_sync_gate",
+              "min_status": "contract"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "stale_oracle_states_block_risky_transitions"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "cross_module_oracle_sync_requires_shared_bounds"
+            }
+          ],
+          "blocked_by_hypotheses": [
+            "local_oracle_alignment_alone_is_cross_module_oracle_safety_v1"
+          ],
+          "notes": "This clause combines module-local pending-mismatch safety with cross-module divergence bounds when deployments share economic assumptions."
+        },
+        {
+          "clause_id": "liquidation_spiral_containment",
+          "label": "LiquidationSpiralContainment",
+          "target_evidence_class": "contract",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "perp_funding_epoch_gate",
+              "min_status": "contract"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "bounded_move_perp_solvency_contains_liquidation_spiral_risk"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "This target is presently best read through bounded-move solvency and deterministic liquidation posture rather than a fully general spiral theorem."
+        },
+        {
+          "clause_id": "cross_layer_replay_parity",
+          "label": "CrossLayerReplayParity",
+          "target_evidence_class": "contract",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "active_tau_semantic_parity",
+              "min_status": "contract"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "runtime_active_tau_specs_require_semantic_source_rank"
+            }
+          ],
+          "blocked_by_hypotheses": [
+            "review_packet_parity_is_semantic_parity_v1"
+          ],
+          "notes": "This is an assurance-shape clause: replay parity must match the declared semantic source rank of active Tau specs."
+        }
+      ]
+    },
+    {
+      "target_shape_id": "dex_kernel_candidate_v1",
+      "name": "DEX Kernel Assurance",
+      "description": "Focused target shape for DEX optimizer canonicality, exact accounting, theorem-scoped anti-fragmentation, and proof-carrying optimizer boundaries.",
+      "required": false,
+      "sources": [
+        "docs/zenodex/SHAPE_V1.md",
+        "docs/ASSURANCE_GLOSSARY.md"
+      ],
+      "clauses": [
+        {
+          "clause_id": "cbc_validity",
+          "label": "CBCValidity",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "batch_ab_objective",
+              "min_status": "proved"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "batch_ab_requires_valid_outcomes"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "Kernel posture wants the batch validity surface as a proved baseline."
+        },
+        {
+          "clause_id": "unique_canonical_winner_everywhere",
+          "label": "UniqueCanonicalWinnerEverywhere",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "batch_canonicalization",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "routing_exact_in_argmin",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "exact_out_canonical_minimizer",
+              "min_status": "proved"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "canonical_winner_requires_total_key"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "The DEX kernel ideal wants all promoted optimizer winners to be proved canonical under one explicit total key. The exact-out side is now satisfied on the repaired bounded audited lane; broader generator-completeness negatives remain tracked separately rather than blocking this bounded promoted target."
+        },
+        {
+          "clause_id": "exact_fee_aware_accounting",
+          "label": "ExactFeeAwareAccounting",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "fee_dust_carry",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "cpmm_swap_safety",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "fee_aware_batch_k_gap_accounting",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "fee_aware_same_pool_fragmentation",
+              "min_status": "proved"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "fee_conservation_requires_explicit_dust_state"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "Kernel posture now uses fee dust carry plus dedicated fee-aware same-pool and fee-aware batch K-gap proofs as the baseline exactness law, rather than only the older partial carry theorem."
+        },
+        {
+          "clause_id": "proof_carrying_optimizer_certificates",
+          "label": "ProofCarryingOptimizerCertificates",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "routing_exact_in_argmin",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "exact_out_canonical_minimizer",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "settlement_strong_validation",
+              "min_status": "proved"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "The DEX kernel target wants optimizer and settlement outputs to remain proof-carrying at the public boundary. The exact-out side is now satisfied on the repaired bounded audited lane; broader generator-completeness negatives remain tracked separately rather than blocking this bounded promoted target."
+        },
+        {
+          "clause_id": "anti_fragmentation_by_theorem",
+          "label": "AntiFragmentationByTheorem",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "zero_fee_same_pool_fragmentation",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "fee_aware_same_pool_fragmentation",
+              "min_status": "proved"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "This remains explicitly scoped to the proved same-pool same-direction domains, now including both zero-fee and fee-aware CPMM execution."
+        },
+        {
+          "clause_id": "non_commutativity_quarantine",
+          "label": "NonCommutativityQuarantine",
+          "target_evidence_class": "contract",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "opposite_direction_noncommutativity_requires_order_quarantine"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "The kernel target keeps opposite-direction shared-reserve steps behind an explicit order quarantine."
+        }
+      ]
+    },
+    {
+      "target_shape_id": "runtime_boundary_candidate_v1",
+      "name": "Runtime Boundary Assurance",
+      "description": "Focused target shape for settlement, oracle synchronization, replay parity, and public certificate surfaces at the runtime boundary.",
+      "required": false,
+      "sources": [
+        "docs/zenodex/SHAPE_V1.md",
+        "docs/ASSURANCE_GLOSSARY.md"
+      ],
+      "clauses": [
+        {
+          "clause_id": "value_aware_settlement_safety",
+          "label": "ValueAwareSettlementSafety",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "settlement_strong_validation",
+              "min_status": "proved"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "settlement_contracts_require_canonical_deltas_and_bound_quotes"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "full_price_rails_refine_compact_settlement_bundle"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "The target now has a proved settlement-certificate boundary: the live settlement-certificate posture routes through one replayable end-to-end packet that unifies the replay-bound strong certificate, a replayable feature-extension packet, full-price-rails enforcement, and the explicit value lane, with Lean- and ESSO-backed shell checks for the feature-extension and end-to-end packet gates. The LP-free explicit-price spot-value sublane, LP-aware sidecars, endogenous LP packet, bounded provenance packet, and optional signed attestation still matter for scope, but the missing blocker is no longer absence of a single end-to-end certificate object."
+        },
+        {
+          "clause_id": "proof_carrying_optimizer_certificates",
+          "label": "ProofCarryingOptimizerCertificates",
+          "target_evidence_class": "proved",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "routing_exact_in_argmin",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "exact_out_canonical_minimizer",
+              "min_status": "proved"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "settlement_strong_validation",
+              "min_status": "proved"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "Runtime posture wants optimizer/settlement certificates to be first-class public packets, not only local internals. Exact-out many-pool now has a default-facing certified-advisory boundary, guarded and certified packet stacks, repaired full-domain and key-cover certificate layers, and replayable mismatch contracts on failure. Broader generator-completeness negatives remain tracked separately outside this bounded promoted runtime target."
+        },
+        {
+          "clause_id": "oracle_divergence_safety",
+          "label": "OracleDivergenceSafety",
+          "target_evidence_class": "contract",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "zusd_oracle_pending_gate",
+              "min_status": "contract"
+            },
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "cross_module_oracle_sync_gate",
+              "min_status": "contract"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "stale_oracle_states_block_risky_transitions"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "cross_module_oracle_sync_requires_shared_bounds"
+            }
+          ],
+          "blocked_by_hypotheses": [
+            "local_oracle_alignment_alone_is_cross_module_oracle_safety_v1"
+          ],
+          "notes": "Boundary posture treats module-local and cross-module oracle mismatch as one fail-closed sync law."
+        },
+        {
+          "clause_id": "cross_layer_replay_parity",
+          "label": "CrossLayerReplayParity",
+          "target_evidence_class": "contract",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "slice_status_at_least",
+              "slice_id": "active_tau_semantic_parity",
+              "min_status": "contract"
+            },
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "runtime_active_tau_specs_require_semantic_source_rank"
+            }
+          ],
+          "blocked_by_hypotheses": [
+            "review_packet_parity_is_semantic_parity_v1"
+          ],
+          "notes": "Runtime parity means the active Tau surface tracks its declared semantic source rank, not only review-packet parity."
+        },
+        {
+          "clause_id": "non_commutativity_quarantine",
+          "label": "NonCommutativityQuarantine",
+          "target_evidence_class": "contract",
+          "support_mode": "all_of",
+          "requirements": [
+            {
+              "kind": "cross_invariant_present",
+              "invariant_id": "opposite_direction_noncommutativity_requires_order_quarantine"
+            }
+          ],
+          "blocked_by_hypotheses": [],
+          "notes": "Boundary posture still depends on explicit order quarantine where shared-reserve steps are not commutative."
+        }
+      ]
+    }
+  ]
+}

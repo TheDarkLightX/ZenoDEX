@@ -20,7 +20,7 @@ then bounded-domain canonical minimality follows.
 What it does **not** prove:
 
 - that the repaired booleans already carry those semantics,
-- or that the repaired prefilter closes the ShapeForge blocker by itself.
+- or that the repaired prefilter closes the world-model blocker by itself.
 
 That remaining interpretation layer is still the real blocker.
 -/
@@ -108,7 +108,7 @@ theorem contractOk_and_interpretation_implies_bounded_global_minimality
   exact ⟨witness.allocStar, witness.selectedFeasible, witness.minimalSelected, hGlobal.1, hGlobal.2⟩
 
 /-- The same honest packaging theorem lifted to the unique bounded-domain
-canonical minimum statement used by ShapeForge. -/
+canonical minimum statement used by the promoted world-model. -/
 theorem contractOk_and_interpretation_implies_bounded_canonical_exists
     {n Q : ℕ} {PoolId : Type} [LinearOrder PoolId]
     {cap : Fin n → ℕ} {maxLegs : ℕ} {selected : Finset (Fin n)}

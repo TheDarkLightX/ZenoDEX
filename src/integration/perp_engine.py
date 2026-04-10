@@ -219,7 +219,7 @@ def _apply_isolated_market_params(
     new_min_notional_for_bounty = int(new_global["min_notional_for_bounty"])
     has_open_positions = any(int(acct.position_base) != 0 for acct in market.accounts.values())
 
-    # Scientist hardening (bounty-farming lane):
+    # Anti-farming hardening:
     # while positions are open, reject parameter shocks that increase liquidation keeper payoff
     # by raising penalty bps or lowering the bounty-eligible notional threshold.
     if has_open_positions:
@@ -257,7 +257,7 @@ def _apply_isolated_market_params(
     if liquidation_penalty_bps <= 0:
         raise ValueError("invalid params: require liquidation_penalty_bps > 0")
 
-    # Scientist-driven anti-farming guard:
+    # Anti-farming guard:
     # if a liquidation is eligible for bounty accounting, the notional threshold must be
     # high enough to guarantee a non-zero collectible penalty under integer rounding.
     min_notional_for_bounty = int(new_global["min_notional_for_bounty"])
@@ -487,12 +487,12 @@ class PerpEngineConfig:
     # Hard cap for untrusted integer widths in ops (DoS resistance).
     # All current kernels fit comfortably within 128 bits; keep headroom.
     max_int_bits: int = 256
-    # Scientist-derived oracle-manipulation posture guard:
+    # Oracle-manipulation posture guard:
     # require reward subsidy + safety margin to stay below fee friction.
     oracle_spot_fee_bps: int = 30
     oracle_spot_reward_bps: int = 0
     oracle_spot_reward_safety_margin_bps: int = 1
-    # Scientist-derived anti-bounty-farming posture guard:
+    # Anti-bounty-farming posture guard:
     # require a non-trivial minimum collectible liquidation penalty for bounty-eligible notional.
     min_collectible_liquidation_penalty_quote: int = 1_000
 
@@ -1660,7 +1660,7 @@ def _apply_isolated_apply_funding_auto(
     sorted_accounts = tuple(sorted(market.accounts.items()))
     open_accounts = tuple((pk, acct) for pk, acct in sorted_accounts if int(acct.position_base) != 0)
 
-    # Scientist-driven anti-gaming guard:
+    # Anti-gaming guard:
     # funding updates must remain budget-balanced across all open positions.
     projected_net_funding = 0
     for _, acct in open_accounts:

@@ -55,7 +55,7 @@ Use it to confirm:
 4. Confirm operator contact is set to a real monitored address or alias.
 5. Run:
    - `python3 tools/sealed_bid_disaster_catalog.py`
-   - run the unpublished internal sealed-bid evaluation workflow for:
+   - run the non-public sealed-bid evaluation workflow for:
      - private-state execution
      - non-reveal bond accounting
    - `bash tools/prod_gate.sh`

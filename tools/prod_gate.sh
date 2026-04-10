@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Runs:
 # - python tests
-# - private-toolchain kernel assurance (cpmm_swap + liquidity_pool)
+# - kernel assurance (cpmm_swap + liquidity_pool)
 # - npm audit for UI
 # - docker build of production image
 # - trivy scan of the built artifact

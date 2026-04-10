@@ -5,15 +5,15 @@ ZenoDex is a decentralized exchange (DEX) and token-economics stack for Tau Netw
 ## Pinned Release Snapshot
 
 <!-- BEGIN GENERATED:ASSURANCE_RELEASE_SNAPSHOT -->
-The pinned release replay for the release tree dated `2026-04-06` was green:
+The pinned release replay for the release tree dated `2026-04-10` was green:
 
-- acceptance TCB: `385 passed`, `98.8%` branch coverage
-- critical gate: `1424 passed`, `99%` branch coverage
+- acceptance TCB: `361 passed`, `99.4%` branch coverage
+- critical gate: `735 passed, 1 skipped`, `99%` branch coverage
 - release gate: `passed end to end`
-- mutation gate: `5 killed, 2 inconclusive`
-- fuzz gate: `58 passed`
-- snapshot recovery: `17 passed`
-- Tau syntax: `60/60`
+- mutation gate: `7 killed, 0 survived, 0 inconclusive`
+- fuzz gate: `11 passed`
+- snapshot recovery: `19 passed`
+- Tau syntax: `62/62`
 - Tau traces: `1/1`
 
 This is historical release evidence for the pinned release tree. It is not a live statement about the current checkout.
@@ -395,11 +395,11 @@ The UI provides a full perpetuals trading interface with market selection, order
 - **Sealed-bid private-state lane**: bounded commit/reveal auction with deterministic uniform-price settlement.
   - Experiment core: `src/core/sealed_bid_auction.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_commit_reveal_gate_v1.yaml`
-  - MetaMuse lane: `tools/metamuse_sealed_bid_lane.py`
+  - Additional non-public evaluation methods were used during development; they are not part of the public release surface.
 - **Non-reveal bond kernel**: closes the free-griefing path for non-reveal bidders.
   - Accounting core: `src/core/sealed_bid_bonds.py`
   - ESSO gate: `src/kernels/dex/sealed_bid_non_reveal_bond_v1.yaml`
-  - MetaMuse lane: `tools/metamuse_sealed_bid_bond_lane.py`
+  - Additional non-public evaluation methods were used during development; they are not part of the public release surface.
 - **Experimental FHE sealed-bid alpha**: bounded 8-bid planning surface for encrypted comparison / hidden-bid auction pilots.
   - Alpha planner: `src/core/fhe_sealed_bid_alpha.py`
   - ESSO gate: `src/kernels/dex/fhe_sealed_bid_alpha_gate_v1.yaml`
@@ -456,10 +456,9 @@ Who this is not for:
 Useful commands:
 ```bash
 python3 tools/sealed_bid_disaster_catalog.py
-python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_private_state_v1 --out-dir runs/metamuse/sealed_bid_private_state_v1 --run-checks
-python3 tools/zenodex_metamuse_workflow.py --lane sealed_bid_non_reveal_bond_v1 --out-dir runs/metamuse/sealed_bid_non_reveal_bond_v1 --run-checks
 ```
 
+Additional non-public evaluation methods for sealed-bid flows are intentionally not documented in the public README.
 ## Experimental Curves (Research)
 ZenoDex is designed to support multiple **integer-auditable AMM curves** (CFMM invariants). The production path is CPMM;
 other curves live behind “research / not-default” status until they have strong evidence (tests + specs + proofs).
@@ -472,7 +471,7 @@ other curves live behind “research / not-default” status until they have str
   - Like CPMM, integer exact-out may **overdeliver** due to rounding granularity; specs must treat “≥ requested out” as success.
   - Research result (continuous, fee-free): cubic-sum improves near-balance slippage but has higher IL than CPMM for all tested price moves; see `docs/CUBIC_SUM_CURVE_ANALYSIS.md`.
   - Formal result (local, continuous): for the power-family `K=x*y*(x+y)^α` (includes cubic-sum as `α=1`), a Lean-verified local tradeoff holds:
-    improving near-balance “slippage coefficient” worsens local IL curvature vs CPMM; see `docs/AMM_POWER_FAMILY_LOCAL_TRADEOFF_WHITEPAPER.md`.
+    improving near-balance “slippage coefficient” worsens local IL curvature vs CPMM; see `docs/CUBIC_SUM_CURVE_ANALYSIS.md` and `lean-mathlib/Proofs/ImpossibilityTheorem.lean`.
   - Research result (discrete, integer rounding): deterministic sweeps suggest smaller exact-out overdelivery gaps vs CPMM in small-reserve regimes; see `tools/curve_comparison_sweep.py`.
 
 ## Quick Start (Local)
@@ -531,7 +530,8 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/VERIFIED_COMPUTATION_MPRD_TAU_TESTNET.md` — MPRD verification on testnet
 - `docs/PROOF_MINING.md` — Proof-of-useful-work mining
 - `docs/PERMISSIONLESS_HOSTING.md` — Operator hosting guide
-- `docs/AMM_POWER_FAMILY_LOCAL_TRADEOFF_WHITEPAPER.md` — Curve tradeoff analysis
+- `docs/CUBIC_SUM_CURVE_ANALYSIS.md` — Curve tradeoff analysis
+- `docs/papers/zenodex-full-system/README.md` — Full-system paper package
 - `docs/PRODUCTION_GATE.md` — Production readiness gate
 - `docs/DEX_READINESS_PEER_REVIEW.md` — Peer review of readiness
 - `docs/derivatives/` — Perpetuals and zUSD specifications

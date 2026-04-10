@@ -22,7 +22,7 @@ python3 tools/tau_spec_runner_gui.py
 
 Note: Specs with long runs may take time; the GUI uses a 30s timeout.
 
-## Tau Lang Update / Bitblasting (Internal)
+## Tau Lang Update / Bitblasting
 
 Update/build Tau (default `main` into `external/tau-lang/build-Release/tau`):
 ```bash
@@ -54,7 +54,7 @@ Most Tau tooling in this repo supports an explicit binary override via `TAU_BIN`
 TAU_BIN=external/tau-lang-bitblasting/build-Release-bitblasting/tau bash tests/tau/test_specs_syntax.sh
 ```
 
-BV microbench / regression probe (internal):
+Optional BV microbench / regression probe:
 ```bash
 python3 tools/tau_bv_solve_bench.py \
   --a-tau-bin external/tau-lang/build-Release/tau \
@@ -62,47 +62,7 @@ python3 tools/tau_bv_solve_bench.py \
   --steps 32 --timeout-s 10 --verify-witness
 ```
 
-## Tau Frontier Explorer (Structured Frontier Search)
-
-Searches a regret-focused Tau policy space, emits candidate `.tau` specs, and
-computes a Pareto frontier over safety/regret/fill/speed/simplicity.
-
-Run:
-```bash
-python3 tools/tau_frontier_explorer.py \
-  --out-dir runs/tau_frontier_explorer/latest \
-  --scenario-size 256 \
-  --max-candidates 48
-```
-
-Optional deep Tau probe on top frontier candidates (slow/inconclusive-friendly):
-```bash
-python3 tools/tau_frontier_explorer.py \
-  --out-dir runs/tau_frontier_explorer/probe \
-  --tau-probe-top-k 3 \
-  --tau-probe-steps 1 \
-  --tau-probe-timeout-s 45
-```
-
-Artifacts:
-- `.../candidates/*.tau` generated candidate specs
-- `.../tau_frontier_report.json` full results + frontier
-- `.../tau_frontier_frontier.json` frontier-only rows
-
-## Boundary Value Analysis (BVA) Helpers (Internal)
-
-Static BVA suggestions + optional dynamic "boundary mining":
-```bash
-python3 tools/bva/mine_bva.py --scenario tools/bva/scenarios/slippage_advisor_status.py --print-bva
-python3 tools/bva/mine_bva.py --scenario tools/bva/scenarios/slippage_advisor_status.py --mine-boundaries
-```
-
-Global, cross-field boundary mining via pair-density MCMC:
-```bash
-python3 tools/bva/mine_bva.py --scenario tools/bva/scenarios/slippage_advisor_status.py --mine-mcmc
-```
-
-## GPU-Assisted Certificates (Internal)
+## GPU-Assisted Certificates (Optional)
 
 These helpers compute winners off-chain (optionally on GPU via Torch/CuPy) and emit
 Tau steps for cheap, deterministic certificate checks.
@@ -111,11 +71,6 @@ GPU backend note:
 - Linux/NVIDIA uses Torch CUDA or CuPy CUDA (when installed) and `--prefer-gpu` is set.
 - macOS uses Torch MPS when available.
 - All results are *untrusted* until verified by deterministic replay / Tau steps.
-
-Quick check:
-```bash
-python3 tools/gpu_env_check.py
-```
 
 - Argmin (key asc, index asc):
 ```bash
@@ -126,7 +81,7 @@ python3 tools/gpu_argmin_certificate.py --input /tmp/cands.json --output /tmp/ar
 python3 tools/gpu_argmax_certificate.py --input /tmp/cands.json --output /tmp/argmax_steps.json --prefer-gpu
 ```
 
-## GPU Useful-Work Prototype: Route Improvement Witness (Internal)
+## GPU Useful-Work Prototype: Route Improvement Witness
 
 Prototype "expensive search, cheap verification" for routing:
 - Search is optionally GPU-accelerated (approx ranking with Torch/CuPy float64).
@@ -156,69 +111,4 @@ python3 tools/gpu_jobs/improvement_bounty_round_route_v1.py \\
   --output /tmp/round.json \\
   --emit-argmax-steps /tmp/argmax_cert.json \\
   --require-positive-improvement
-```
-
-## Perps GPU Liftoff Runner
-
-Runs a full high-resource loop:
-- GPU hazard mining (funding + pnl)
-- GPU CE mining for perps kernel
-- ML-driven boundary-value test generation
-- mechanical-scientist campaign (M3 Max profile by default, high-resource profile optional)
-- strict replay + summary metrics
-
-Run:
-```
-bash tools/run_perps_gpu_liftoff.sh
-```
-
-Defaults:
-- CE model: `src/kernels/dex/perp_epoch_isolated_v3.yaml`
-- hazard batch: `262144`
-- CE batch: `262144`
-- ML-BVA max candidates/action: `400`
-- ML-BVA max states: `128`
-- ML-BVA UCB alpha: `1.25`
-
-The high-resource profile used during internal evaluation is not published in
-this repo. Provide a local profile path through `PERPS_LIFTOFF_CONFIG` when you
-use this runner.
-
-Override any default with env vars, for example:
-```
-GPU_BATCH_CE=1048576 GPU_STEPS_CE=1000 bash tools/run_perps_gpu_liftoff.sh
-```
-or:
-```
-PERPS_LIFTOFF_CONFIG=/path/to/local-perps-liftoff-profile.yaml \
-ML_BVA_CASES_PER_ACTION=16 ML_BVA_ITERS_PER_ACTION=320 \
-ML_BVA_MAX_CANDIDATES=600 ML_BVA_MAX_STATES=192 \
-GPU_STEPS_CE=6000 bash tools/run_perps_gpu_liftoff.sh
-```
-
-## ML-Driven Boundary Test Generation
-
-Generates replayable boundary-value tests using an adaptive UCB policy over boundary candidates
-(machine-learning-driven BVA).
-
-Portability:
-- Generated test artifacts are replayable on CPU-only machines.
-- `model_path` is emitted in a repo-relative form when possible, so artifacts are not tied to one developer's absolute filesystem path.
-
-Run:
-```
-python3.11 tools/ml_boundary_bva.py \
-  --model src/kernels/dex/perp_epoch_isolated_v3.yaml \
-  --out-json tests/kernels/data/perp_epoch_isolated_v3_ml_bva_cases.json \
-  --cases-per-action 12 \
-  --iterations-per-action 220 \
-  --max-candidates-per-action 400 \
-  --max-states 128 \
-  --alpha 1.25 \
-  --pretty
-```
-
-Replay test:
-```
-python3.11 -m pytest -q tests/kernels/test_perp_epoch_isolated_v3_ml_bva_cases.py
 ```

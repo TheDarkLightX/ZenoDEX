@@ -1,13 +1,13 @@
 # ZenoDEX `SHAPE_V1`
 
 `SHAPE_V1` is the release contract for the currently achieved audited-domain
-ShapeForge candidate targets.
+world-model candidate targets.
 
 It is intentionally narrower than a universal “the DEX is solved” claim.
 
 ## Scope
 
-`D_v1` means the currently promoted audited domain in the ShapeForge world model:
+`D_v1` means the currently promoted audited domain in the world-model baseline:
 
 - `shape_pp_candidate_v1 = 10/10`, `blocked = 0`
 - `dex_kernel_candidate_v1 = 6/6`, `blocked = 0`
@@ -21,9 +21,9 @@ Important scope limits:
 
 Authoritative machine-readable sources:
 
-- `docs/zenodex/shapeforge_promoted/zenodex_target_shapes.seed.json`
-- `docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json`
-- `docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json`
+- `docs/zenodex/world_model_promoted/zenodex_target_shapes.seed.json`
+- `docs/zenodex/world_model_promoted/zenodex_world_model.seed.json`
+- `docs/zenodex/world_model_promoted/zenodex_negative_knowledge.seed.json`
 
 ## Release Gate
 

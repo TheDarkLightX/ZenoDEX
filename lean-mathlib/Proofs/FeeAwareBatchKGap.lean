@@ -4,7 +4,7 @@ import Mathlib.Tactic
 /-!
 # Fee-Aware Batch K-Gap Telescoping
 
-**ShapeForge promotion**: `fee_aware_batch_k_gap_accounting` (PROPOSED → PROVED)
+**world-model promotion**: `fee_aware_batch_k_gap_accounting` (PROPOSED → PROVED)
 
 **THEOREM**: For a CPMM pool executing a batch of fee-in-pool swaps at rate
 `fee_bps ≤ 10000`, the final product invariant K equals the initial K plus the
