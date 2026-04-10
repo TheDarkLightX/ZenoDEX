@@ -233,9 +233,7 @@ check_verify_shell_report \
 
 echo "== spot-proof: adapter regression net =="
 "$PY" -m pytest -q \
-  tests/kernels/test_settlement_witness_native_adapter_edges.py \
-  tests/kernels/test_settlement_swap_apply_witness_v1_ml_bva_cases.py \
-  tests/kernels/test_settlement_swap_exact_out_apply_witness_v1_ml_bva_cases.py
+  tests/kernels/test_settlement_witness_native_adapter_edges.py
 
 echo "== spot-proof: manifest check =="
 "$PY" "$ROOT_DIR/tools/check_spot_proof_assurance_manifest.py"

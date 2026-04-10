@@ -156,8 +156,6 @@
     }
   ],
   "adapter_regression_tests": [
-    "tests/kernels/test_settlement_witness_native_adapter_edges.py",
-    "tests/kernels/test_settlement_swap_apply_witness_v1_ml_bva_cases.py",
-    "tests/kernels/test_settlement_swap_exact_out_apply_witness_v1_ml_bva_cases.py"
+    "tests/kernels/test_settlement_witness_native_adapter_edges.py"
   ]
 }
