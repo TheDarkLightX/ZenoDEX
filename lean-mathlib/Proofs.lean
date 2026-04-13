@@ -24,6 +24,7 @@ import Proofs.VolatilityTierSafety
 import Proofs.CurveSelectionSafety
 import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
+import Proofs.ZenoDEXExactOutManyPoolPathWitnessCanonicalCandidateMinimum
 import Proofs.ZenoDEXRounding
 import Proofs.BatchApproximation
 import Proofs.ExactOutAdaptiveGate
