@@ -222,6 +222,34 @@ perp settlement, and future DEX mechanisms do not need to reprove the canonical
 settlement theorem from scratch; they must prove that they instantiate this
 interface.
 
+The conclusion is not a vague safety label. In the current Lean theorem it
+expands to:
+\[
+\begin{gathered}
+S_M:=\mathsf{feasibleKeys}(M),\quad
+A_M:=\pi_1(\mathsf{batchAB}(M.\mathsf{trace})),\quad
+B_M:=\pi_2(\mathsf{batchAB}(M.\mathsf{trace})).
+\end{gathered}
+\]
+\[
+\begin{aligned}
+\mathsf{CanonicalSafeSettlement}(M)
+:\!\!\Longleftrightarrow\;&
+\mathsf{batchToSettlement}(M.\mathsf{trace})
+  =\mathsf{batchToSettlement}(M.\mathsf{selected.batch})\\
+&\wedge\ M.\mathsf{selected.key}\in S_M\\
+&\wedge\ \forall x\in S_M,\; A_M\ge \mathsf{vol}(x)\\
+&\wedge\ \forall x\in S_M,\;
+  A_M=\mathsf{vol}(x)\to B_M\ge \mathsf{sur}(x)\\
+&\wedge\ \forall x\in S_M,\;
+  A_M=\mathsf{vol}(x)\to B_M=\mathsf{sur}(x)\\
+&\hspace{35mm}\to M.\mathsf{selected.order}\le \mathsf{ord}(x).
+\end{aligned}
+\]
+Standard reading: the executed trace has the selected settlement, the selected
+key is feasible, and the trace is lexicographically maximal by volume, then
+surplus, with minimum order among exact ties over the feasible key image.
+
 The proof-carrying bridge has the concrete certificate shape
 \[
 \mathsf{ListCertificateOK}(L,w)
@@ -294,20 +322,37 @@ Practical consequence: the system can include advisory intelligence without coll
 The mistake-proofing layer is formalized as a fail-closed submit predicate. For
 a risk status $r$ and interlock state $i$,
 \[
-\mathsf{submitAllowed}(r,i)
-:= \neg\mathsf{dangerous}(r)\vee \mathsf{interlockSatisfied}(i),
+\mathsf{submitAllowed}(r,i)=\mathsf{true}
+\Longleftrightarrow
+(\mathsf{dangerous}(r)=\mathsf{false})
+\vee(\mathsf{interlockSatisfied}(i)=\mathsf{true}),
 \]
 where
 \[
-\mathsf{interlockSatisfied}(i)
-:= \mathsf{interlockPresent}(i)
-\wedge(\mathsf{typedConfirmAccepted}(i)\vee \mathsf{advancedOverrideLogged}(i)).
+\begin{aligned}
+\mathsf{interlockSatisfied}(i)=\mathsf{true}
+\Longleftrightarrow\;&
+\mathsf{interlockPresent}(i)=\mathsf{true}\\
+&\wedge\bigl(\mathsf{typedConfirmAccepted}(i)=\mathsf{true}\\
+&\qquad\vee\ \mathsf{advancedOverrideLogged}(i)=\mathsf{true}\bigr).
+\end{aligned}
 \]
 The Lean theorem is
 \[
 \mathsf{submitAllowed}(r,i)=\mathsf{true}
 \to
 \mathsf{Shielded}(r,i).
+\]
+The shielded predicate expands to
+\[
+\begin{aligned}
+\mathsf{Shielded}(r,i)
+:\!\!\Longleftrightarrow\;&
+\mathsf{dangerous}(r)=\mathsf{false}\\
+&\vee\ \mathsf{interlockPresent}(i)=\mathsf{true}
+\wedge\bigl(\mathsf{typedConfirmAccepted}(i)=\mathsf{true}\\
+&\qquad\vee\ \mathsf{advancedOverrideLogged}(i)=\mathsf{true}\bigr).
+\end{aligned}
 \]
 Standard reading: if a submit is allowed, then either the action is not
 dangerous or an explicit interlock exists and was satisfied by typed
@@ -492,9 +537,10 @@ Primary artifacts:
 
 \paragraph{D. Poka-yoke submit gate.}
 \[
-\mathsf{dangerous}(r)\wedge \neg\mathsf{interlockSatisfied}(i)
+\mathsf{dangerous}(r)=\mathsf{true}
+\wedge \mathsf{interlockSatisfied}(i)=\mathsf{false}
 \to
-\neg\mathsf{submitAllowed}(r,i).
+\mathsf{submitAllowed}(r,i)=\mathsf{false}.
 \]
 Operational skeleton:
 \begin{enumerate}
