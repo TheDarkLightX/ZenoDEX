@@ -217,6 +217,55 @@ def _roi_score(*, rpn: int, effort: int) -> float:
     return float(rpn) / float(e)
 
 
+def _coverage_status(*, signal_present: bool, interlock_present: bool) -> str:
+    if signal_present and interlock_present:
+        return "covered"
+    if interlock_present:
+        return "partial"
+    if signal_present:
+        return "signal_only"
+    return "uncovered"
+
+
+def _contract_report(opportunities: list[dict[str, Any]], *, surface_count: int) -> dict[str, Any]:
+    """Fail-closed audit contract for the current poka-yoke catalog.
+
+    The marker scan is still heuristic, but the report now has a crisp replayable
+    contract: every catalogued failure mode must have both a user-visible signal
+    and an interlock marker.  Missing either one fails the audit contract.
+    """
+
+    coverage_counts: dict[str, int] = {}
+    obligations: list[dict[str, Any]] = []
+    for row in opportunities:
+        coverage = str(row.get("coverage_status", "uncovered"))
+        coverage_counts[coverage] = coverage_counts.get(coverage, 0) + 1
+        ok = coverage == "covered"
+        obligations.append(
+            {
+                "obligation_id": f"covered::{row.get('failure_id', '')}",
+                "failure_id": row.get("failure_id", ""),
+                "flow": row.get("flow", ""),
+                "required": "signal_present && interlock_present",
+                "signal_present": bool(row.get("signal_present", False)),
+                "interlock_present": bool(row.get("interlock_present", False)),
+                "coverage_status": coverage,
+                "status": "pass" if ok else "fail",
+            }
+        )
+    failures = [row for row in obligations if row["status"] != "pass"]
+    return {
+        "schema": "zenodex/pokayoke_audit_contract/v1",
+        "status": "pass" if not failures else "fail",
+        "surface_count": int(surface_count),
+        "failure_mode_count": int(len(opportunities)),
+        "coverage_counts": coverage_counts,
+        "obligations": obligations,
+        "failed_obligation_count": int(len(failures)),
+        "failed_obligations": failures,
+    }
+
+
 def _now_utc_compact() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -265,6 +314,10 @@ def main() -> int:
         interlock_hits = _pattern_hits(text, fm.interlock_markers)
         signal_present = any(v > 0 for v in signal_hits.values())
         interlock_present = any(v > 0 for v in interlock_hits.values())
+        coverage_status = _coverage_status(
+            signal_present=bool(signal_present),
+            interlock_present=bool(interlock_present),
+        )
         rpn = _fmea_rpn(severity=fm.severity, occurrence=fm.occurrence, detectability=fm.detectability)
         roi = _roi_score(rpn=rpn, effort=fm.effort)
         opportunities.append(
@@ -280,6 +333,7 @@ def main() -> int:
                 "roi": roi,
                 "signal_present": bool(signal_present),
                 "interlock_present": bool(interlock_present),
+                "coverage_status": coverage_status,
                 "signal_marker_hits": signal_hits,
                 "interlock_marker_hits": interlock_hits,
                 "proposed_intervention": fm.proposed_intervention,
@@ -290,26 +344,37 @@ def main() -> int:
     # Rank missing/weak interlocks first (signal present but no interlock),
     # then missing signals entirely, then already-interlocked items.
     def _rank_key(row: dict[str, Any]) -> tuple[int, float, int]:
-        if row["signal_present"] and not row["interlock_present"]:
+        if row["coverage_status"] == "signal_only":
             bucket = 0
-        elif not row["signal_present"] and not row["interlock_present"]:
+        elif row["coverage_status"] == "uncovered":
             bucket = 1
-        elif row["interlock_present"]:
+        elif row["coverage_status"] == "partial":
             bucket = 2
         else:
             bucket = 3
         return (bucket, -float(row["roi"]), -int(row["rpn"]))
 
     opportunities.sort(key=_rank_key)
+    contract = _contract_report(opportunities, surface_count=len(UI_SURFACES))
+    summary = {
+        "surface_count": len(UI_SURFACES),
+        "failure_mode_count": len(opportunities),
+        "coverage_counts": dict(contract["coverage_counts"]),
+        "contract_status": contract["status"],
+        "failed_obligation_count": contract["failed_obligation_count"],
+    }
 
     report_json = {
         "schema": "zenodex/pokayoke_audit_report/v1",
         "created_at": _now_utc_compact(),
         "inventory": inventory,
+        "summary": summary,
+        "contract": contract,
         "opportunities": opportunities,
     }
     (out_dir / "inventory.json").write_text(json.dumps(inventory, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (out_dir / "opportunities.json").write_text(json.dumps(opportunities, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (out_dir / "contract.json").write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     (out_dir / "report.json").write_text(json.dumps(report_json, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     # Human-readable markdown.
@@ -318,27 +383,40 @@ def main() -> int:
     lines.append("")
     lines.append(f"- created_at: `{report_json['created_at']}`")
     lines.append(f"- out_dir: `{out_dir}`")
+    lines.append(f"- contract_status: `{contract['status']}`")
+    lines.append(f"- failed_obligation_count: `{contract['failed_obligation_count']}`")
     lines.append("")
-    lines.append("## Top Opportunities (Missing/Weak Guardrails)")
+    lines.append("## Contract")
+    lines.append("")
+    lines.append("Every catalogued failure mode must have both a user-visible signal")
+    lines.append("and an interlock marker.  Missing either one fails the contract.")
+    lines.append("")
+    lines.append("## Top Opportunities (Signal-Only Or Uncovered)")
     lines.append("")
     for row in opportunities:
-        if row["interlock_present"]:
+        if row["coverage_status"] not in {"signal_only", "uncovered"}:
             continue
-        lines.append(f"- **{row['failure_id']}** (flow `{row['flow']}`) ROI={row['roi']:.1f} RPN={row['rpn']} effort={row['effort']}")
+        lines.append(
+            f"- **{row['failure_id']}** (flow `{row['flow']}`) ROI={row['roi']:.1f} "
+            f"RPN={row['rpn']} effort={row['effort']} coverage={row['coverage_status']}"
+        )
         lines.append(f"  - {row['description']}")
         lines.append(f"  - proposed: {row['proposed_intervention']}")
         lines.append(f"  - transform: `{row['representation_shift']}`")
         lines.append(f"  - signal_present: `{row['signal_present']}`")
-    if lines[-1] == "## Top Opportunities (Missing/Weak Guardrails)":
+    if lines[-1] == "## Top Opportunities (Signal-Only Or Uncovered)":
         lines.append("- (none detected by markers; extend catalog/markers)")
     lines.append("")
-    lines.append("## Existing Guardrails Detected (By Markers)")
+    lines.append("## Existing Or Partial Guardrails Detected (By Markers)")
     lines.append("")
     for row in opportunities:
-        if not row["interlock_present"]:
+        if row["coverage_status"] not in {"covered", "partial"}:
             continue
         markers = [p for p, n in row["interlock_marker_hits"].items() if n > 0]
-        lines.append(f"- **{row['failure_id']}** (flow `{row['flow']}`) interlock markers: {', '.join(markers)}")
+        lines.append(
+            f"- **{row['failure_id']}** (flow `{row['flow']}`) "
+            f"coverage={row['coverage_status']} interlock markers: {', '.join(markers)}"
+        )
     lines.append("")
     (out_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

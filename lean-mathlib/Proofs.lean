@@ -4,6 +4,9 @@ import Proofs.BatchOptimality
 import Proofs.CPMMInvariants
 import Proofs.CPMMSettlement
 import Proofs.BatchCPMMUnification
+import Proofs.SettlementCanonicalExecution
+import Proofs.SettlementMechanism
+import Proofs.PokayokeSafety
 import Proofs.PerpEpochSafety
 import Proofs.PerpMechanismDesign
 import Proofs.PerpGameTheory

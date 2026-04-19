@@ -32,7 +32,7 @@
 \newcommand{\abs}[1]{\left| #1 \right|}
 
 \title{Settlement Algebra and Verified Constant-Product Invariants\\for Batch DEX Execution}
-\author{(draft; authors TBD)}
+\author{Dana Edwards}
 \date{\today}
 
 \begin{document}
@@ -44,14 +44,19 @@ execution and prove key safety invariants for constant-product market makers (CP
 including a closed-form expression for the \emph{exact} per-swap increase in the product
 invariant. The development is mechanized in Lean 4/Mathlib.
 
-The paper has three main layers:
+The paper has five main layers:
 (i) an additive \emph{settlement algebra} capturing token flows as a commutative group,
 with a homomorphism $\Delta$ to a scalar ``net flow'';
 (ii) a correctness-by-construction objective for batch auctions maximizing executed
-volume and surplus in lexicographic order; and
+volume and surplus in lexicographic order;
 (iii) a CPMM state-transition model with verified $K$-monotonicity and an exact
 ``$K$-gap'' remainder theorem, lifted compositionally to batches and bridged to the
-settlement/objective layers by a refinement lemma.
+settlement/objective layers by a refinement lemma;
+(iv) a proof-carrying canonical execution bridge that turns runtime winner
+certificates and generator-coverage evidence into a Lean-checked canonical
+settlement theorem; and
+(v) a global settlement mechanism interface theorem that lets future DEX
+mechanisms inherit canonical settlement by discharging local obligations.
 \end{abstract}
 
 \section{Overview and scope}
@@ -65,7 +70,48 @@ This draft explains the mathematics and formal logic embodied by the Lean files:
   \item \texttt{lean-mathlib/Proofs/CPMMSettlement.lean}: bridge from CPMM swaps to settlements.
   \item \texttt{lean-mathlib/Proofs/BatchCPMMUnification.lean}: unification: batch settlement safety, batch optimality additivity,
         and compositional $K$ theorems for sequential swap batches.
+  \item \texttt{lean-mathlib/Proofs/SettlementCanonicalExecution.lean}: proof-carrying canonical execution bridge from runtime
+        list certificates and coverage evidence to canonical settlement execution.
+  \item \texttt{lean-mathlib/Proofs/SettlementMechanism.lean}: global settlement mechanism interface theorem.
 \end{itemize}
+
+\section{Prior art and contribution}
+\label{sec:prior-art}
+
+Settlement netting is not new.  Payment-system literature has long studied
+bilateral and multilateral netting, liquidity reduction, final settlement, and
+the legal and systemic-risk assumptions around netting arrangements
+\cite{bis1989netting}.  Double-entry bookkeeping and account balances also have
+known algebraic structure; recent accounting-language work explicitly discusses
+the algebraic structure of T-accounts and double-entry bookkeeping
+\cite{botafogo2019syntax}.  Constant-product AMMs are likewise established in
+DeFi practice, including the Uniswap V2 CPMM model \cite{uniswapv2}.
+The phrase ``settlement algebra'' is also used descriptively in electricity
+market settlement design documents to refer to settlement formulae and access
+settlement rules \cite{aemo2014ofa}.  This paper therefore does not claim first
+use of the phrase in all domains.
+
+The contribution of this paper is therefore not the claim that netting,
+double-entry conservation, or constant-product invariants were invented here.
+The contribution is the \emph{formal DEX synthesis}:
+\begin{enumerate}[leftmargin=2em]
+  \item encode DEX settlement flows as a small additive algebra with explicit
+        caveats about scalar net-flow versus economic value;
+  \item connect that algebra to correctness-by-construction batch objectives
+        and exact integer CPMM invariants;
+  \item mechanize the composition in Lean; and
+  \item expose a runtime-facing proof-carrying interface:
+        a winner certificate, a generator-coverage proof, and a trace-realization
+        proof together imply canonical settlement execution.
+  \item package that interface as a mechanism-family theorem: any accepted
+        mechanism family whose members satisfy the obligations inherits the same
+        canonical settlement conclusion.
+\end{enumerate}
+
+In short, the paper packages known mathematical ingredients into a verifier-facing
+settlement calculus for DEX execution.  The new part is the proof boundary:
+runtime search remains untrusted, while small certificates and coverage facts
+are checked against a Lean-proved theorem.
 
 \paragraph{Important semantic caveat.}
 Throughout, we distinguish:
@@ -445,6 +491,120 @@ captured by \texttt{unified\_batch\_safety}, which simultaneously establishes:
   \item reserve-in accounting: $x_{\mathrm{final}} = x_{\mathrm{initial}} + \sum_i a_i$.
 \end{enumerate}
 
+\section{Canonical execution certificates}
+\label{sec:canonical-execution}
+
+The newest layer turns the settlement algebra into a runtime-checkable
+canonical-execution theorem.  Let $S$ be a finite set of canonical keys and let
+$w$ be the selected winner.  A finite-set certificate has the form
+\[
+  \mathsf{CertificateOK}(S,w)
+  \quad\Longleftrightarrow\quad
+  w\in S \ \land\ \forall x\in S,\; w\le x.
+\]
+Standard reading: the winner is in the candidate set and is no worse than every
+candidate under the explicit total key.
+
+Runtime systems usually emit ordered lists rather than mathematical finite sets,
+so the Lean development also defines a list-facing certificate:
+\[
+  \mathsf{ListCertificateOK}(L,w)
+  \quad\Longleftrightarrow\quad
+  w\in L \ \land\ \forall x\in L,\; w\le x.
+\]
+The theorem
+\[
+  \texttt{certificateOK\_toFinset\_of\_listCertificate}
+\]
+proves that this list certificate promotes to the finite-set certificate over
+$L.\mathsf{toFinset}$.  Conversely,
+\[
+  \texttt{listCertificateOK\_of\_certificateOK\_toFinset}
+\]
+lets a verifier check the minimum after deduplicating the emitted list and then
+recover the list-facing certificate.
+
+The generator-coverage side condition is:
+\[
+  \mathsf{CoversKeyList}(L,D,\mathsf{keyOf})
+  \quad\Longleftrightarrow\quad
+  \forall d\in D,\; \mathsf{keyOf}(d)\in L.
+\]
+Standard reading: every feasible domain object has a key that appears in the
+runtime-emitted list.  The adapter theorem
+\texttt{coversKeyList\_of\_toFinset\_eq\_image} handles the common audit shape:
+\[
+  L.\mathsf{toFinset} = \mathsf{image}(\mathsf{keyOf},D)
+  \quad\Longrightarrow\quad
+  \mathsf{CoversKeyList}(L,D,\mathsf{keyOf}).
+\]
+
+Putting the pieces together, the main runtime bridge is:
+\[
+\begin{aligned}
+&\mathsf{ListCertificateOK}(L,\mathsf{candidate.key})\\
+&\land\ \mathsf{CoversKeyList}(L,D,\mathsf{keyOf})\\
+&\land\ \mathsf{candidate.key}\in \mathsf{image}(\mathsf{keyOf},D)\\
+&\land\ \mathsf{Realizes}(\mathsf{trace},\mathsf{candidate})\\
+&\Longrightarrow\ \mathsf{trace}\ \text{executes the canonical settlement over }
+  \mathsf{image}(\mathsf{keyOf},D).
+\end{aligned}
+\]
+This is mechanized as:
+\[
+  \texttt{realized\_runtime\_list\_certificate\_executes\_canonical\_image\_settlement}.
+\]
+The equality-audit variant:
+\[
+  \texttt{realized\_runtime\_list\_certificate\_executes\_canonical\_of\_toFinset\_eq\_image}
+\]
+removes the abstract coverage premise when the emitted list is proved to
+deduplicate exactly to the feasible key image.
+
+The practical consequence is important: the runtime generator does not need to
+be trusted as an optimizer.  It must emit a list, a winner certificate, coverage
+evidence, and a realization proof.  Lean then proves that the executed settlement
+is canonical over the covered feasible domain.
+
+\section{Global settlement mechanism theorem}
+\label{sec:global-mechanism}
+
+The canonical execution bridge is now packaged as a global theorem schema.  A
+mechanism exposes a finite feasible domain $D$, a runtime-emitted key list $L$,
+a key map $k:D\to \mathsf{Key}$, a selected candidate $c$, and an executed trace
+$t$.  The required obligations are:
+\[
+\begin{aligned}
+  &L.\mathsf{toFinset} = k[D] && \text{exact generator coverage},\\
+  &\mathsf{ListCertificateOK}(L,\mathsf{key}(c)) && \text{winner certificate},\\
+  &\mathsf{key}(c)\in k[D] && \text{winner feasibility},\\
+  &\mathsf{Realizes}(t,c) && \text{trace realization}.
+\end{aligned}
+\]
+Standard reading: the runtime generator emitted exactly the feasible keys, the
+winner is list-minimal under the canonical key, the winner is feasible, and the
+actual trace is the selected candidate's trace.
+
+The Lean theorem
+\[
+  \texttt{global\_settlement\_algebra}
+\]
+proves:
+\[
+\begin{aligned}
+  &\mathsf{GeneratorExact}(M)
+  \land \mathsf{WinnerCertified}(M)\\
+  &\land \mathsf{WinnerFeasible}(M)
+  \land \mathsf{TraceRealizesWinner}(M)\\
+  &\Longrightarrow \mathsf{CanonicalSafeSettlement}(M).
+\end{aligned}
+\]
+Standard reading: any concrete DEX mechanism satisfying those four obligations
+inherits canonical safe settlement over its feasible key image.  This is the
+global completion point: CPMM, orderbook, routing, perps settlement, and future
+mechanisms do not reprove canonical settlement; they prove they instantiate the
+interface.
+
 \section{Mechanization notes}
 \label{sec:mechanization}
 
@@ -462,7 +622,8 @@ This development is deliberately minimal and focuses on arithmetic correctness a
 Several important directions remain:
 \begin{itemize}[leftmargin=2em]
   \item Multi-asset generalization: settlements as $\Z^n$ vectors; richer notions of value conservation.
-  \item Full batch clearing optimality: argmax existence over finite candidate sets and deterministic tie-breaking.
+  \item Concrete generator completeness: prove that production candidate streams cover the intended feasible domain,
+        or carry a replayable equality/subset audit into \texttt{CoversKeyList}.
   \item Multi-hop routing and cross-pool execution: lifting $K$-style invariants across routing graphs.
   \item Overflow-aware models and byte-level constraints matching on-chain execution environments.
   \item Expanded fee models and protocol-specific mechanics (dynamic fees, rebates, TWAP/oracle guards, etc.).
