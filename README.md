@@ -124,6 +124,25 @@ Scope limit:
 - this is a claim about the shipped, bounded, replayable surfaces in this tree
 - it is not a claim that every future heuristic or every unbounded search family is already universally proved
 
+## Disaster-State Coverage
+
+The current checkout has a bounded disaster-state replay receipt covering `125`
+named what-if axes:
+
+```text
+selected_axis_count = 125
+unreachable_count = 125
+failed_count = 0
+inconclusive_count = 0
+```
+
+Standard reading: every selected disaster-search axis in the current plan
+replayed cleanly under the declared bounded harnesses and `--timeout-s 240`.
+
+This is a bounded replay claim, not an exhaustive proof over all possible future
+states. The detailed axis list, replay commands, interpretation, and residual
+backlog are in [docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
+
 If you want to review that claim directly, start with:
 
 - `src/core/split_routing_dispatch.py`
