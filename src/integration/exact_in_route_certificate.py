@@ -27,7 +27,20 @@ EXACT_IN_ROUTE_GUARDED_QUOTE_PACKET_SCHEMA = "zenodex/exact-in-route-guarded-quo
 EXACT_IN_ROUTE_RANK_PROJECTION_PACKET_SCHEMA = "zenodex/exact-in-route-rank-projection-packet/v1"
 EXACT_IN_ROUTE_TRUE_KEY_INTERPRETATION_PACKET_SCHEMA = "zenodex/exact-in-route-true-key-interpretation-packet/v1"
 EXACT_IN_ROUTE_GUARD_MISMATCH_ERROR = "exact_in_runtime_not_canonical_on_audit_domain"
+MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN = 5_000
 ExactInRouteCanonicalKey = tuple[int, int, int, str, str, str]
+
+
+def _require_mixed_direct_twohop_budget(
+    *,
+    amount_in: Amount,
+    enable_mixed_direct_twohop_split: bool,
+) -> None:
+    if bool(enable_mixed_direct_twohop_split) and int(amount_in) > MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN:
+        raise ValueError(
+            "enable_mixed_direct_twohop_split requires "
+            f"amount_in <= {MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN}"
+        )
 
 
 def exact_in_route_canonical_key(quote: RouteQuote) -> ExactInRouteCanonicalKey:
@@ -46,6 +59,10 @@ def enumerate_route_candidates_exact_in_2hop(
 ) -> tuple[RouteQuote, ...]:
     if int(amount_in) <= 0 or asset_in == asset_out:
         return ()
+    _require_mixed_direct_twohop_budget(
+        amount_in=amount_in,
+        enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split,
+    )
 
     pools: Tuple[PoolState, ...] = tuple(sorted(pools_by_id.values(), key=lambda pool: pool.pool_id))
     by_asset = _build_asset_pool_index(pools)
@@ -833,6 +850,10 @@ def build_exact_in_route_oracle_contract(
     enable_mixed_direct_twohop_split: bool = False,
     binding_ok: int = 1,
 ) -> ExactInRouteOracleContract:
+    _require_mixed_direct_twohop_budget(
+        amount_in=amount_in,
+        enable_mixed_direct_twohop_split=enable_mixed_direct_twohop_split,
+    )
     runtime_quote = best_route_exact_in_2hop(
         pools_by_id=pools_by_id,
         asset_in=asset_in,

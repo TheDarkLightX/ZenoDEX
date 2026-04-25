@@ -22,6 +22,7 @@ import threading
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from math import comb
 from typing import Any, Optional, Sequence, Set
 
 # Prewarm the expensive attestation / LP-aware settlement modules at server
@@ -140,6 +141,403 @@ def _parse_settlement_feature_extension_inputs_payload(payload: object) -> Any:
 def _is_loopback_host(host: str) -> bool:
     h = (host or "").strip().lower()
     return h in ("127.0.0.1", "localhost", "::1")
+
+
+DEX_API_MAX_ROUTE_AMOUNT_IN = 50_000
+DEX_API_MAX_TWO_POOL_AUDIT_AMOUNT_OUT_TOTAL = 512
+DEX_API_MAX_SANDWICH_ATTACKER_AMOUNT_IN = 50_000
+DEX_API_MAX_SLIPPAGE_OPTIONS = 64
+DEX_API_MAX_POOLS = 64
+DEX_API_MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN = 5_000
+DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET = 4_096
+DEX_API_EXACT_OUT_SEARCH_CAPS = {
+    "amount_out_total": (1, DEX_API_MAX_ROUTE_AMOUNT_IN),
+    "max_legs": (1, 3),
+    "max_candidate_pools": (1, 5),
+    "max_candidates": (1, 12),
+    "max_iters": (1, 4_096),
+    "window": (0, 64),
+    "brute_force_max": (0, 512),
+    "max_full_domain_pools": (1, 16),
+    "max_enumerated_candidates": (1, 50_000),
+}
+DEX_API_EXACT_IN_ROUTE_SEARCH_PATHS = {
+    "/api/dex/build_exact_in_route_oracle_contract",
+    "/api/dex/guard_exact_in_route_canonicality",
+    "/api/dex/quote_exact_in_route_guarded",
+    "/api/dex/build_exact_in_route_guarded_quote_packet",
+    "/api/dex/build_exact_in_route_rank_projection_packet",
+    "/api/dex/build_exact_in_route_true_key_interpretation_packet",
+}
+
+
+def _dex_api_int_limit_error(
+    obj: dict[str, Any],
+    *,
+    field: str,
+    min_value: int,
+    max_value: int,
+) -> Optional[str]:
+    if field not in obj:
+        return None
+    value = obj.get(field)
+    if not isinstance(value, int) or isinstance(value, bool):
+        return f"bad_{field}"
+    if int(value) < int(min_value) or int(value) > int(max_value):
+        return f"bad_{field}"
+    return None
+
+
+def _dex_api_list_length_error(
+    obj: dict[str, Any],
+    *,
+    field: str,
+    max_len: int,
+) -> Optional[str]:
+    if field not in obj:
+        return None
+    value = obj.get(field)
+    if isinstance(value, list) and len(value) > int(max_len):
+        return f"bad_{field}"
+    return None
+
+
+def _dex_api_nested_int_limit_error(
+    value: Any,
+    *,
+    field: str,
+    min_value: int,
+    max_value: int,
+    max_depth: int = 32,
+) -> Optional[str]:
+    if max_depth < 0:
+        return "bad_request_depth"
+    if isinstance(value, dict):
+        if field in value:
+            raw = value.get(field)
+            if not isinstance(raw, int) or isinstance(raw, bool):
+                return f"bad_{field}"
+            if int(raw) < int(min_value) or int(raw) > int(max_value):
+                return f"bad_{field}"
+        for child in value.values():
+            err = _dex_api_nested_int_limit_error(
+                child,
+                field=field,
+                min_value=min_value,
+                max_value=max_value,
+                max_depth=max_depth - 1,
+            )
+            if err is not None:
+                return err
+    elif isinstance(value, list):
+        for child in value:
+            err = _dex_api_nested_int_limit_error(
+                child,
+                field=field,
+                min_value=min_value,
+                max_value=max_value,
+                max_depth=max_depth - 1,
+            )
+            if err is not None:
+                return err
+    return None
+
+
+def _dex_api_nested_list_length_error(
+    value: Any,
+    *,
+    field: str,
+    max_len: int,
+    max_depth: int = 32,
+) -> Optional[str]:
+    if max_depth < 0:
+        return "bad_request_depth"
+    if isinstance(value, dict):
+        raw = value.get(field)
+        if isinstance(raw, list) and len(raw) > int(max_len):
+            return f"bad_{field}"
+        for child in value.values():
+            err = _dex_api_nested_list_length_error(
+                child,
+                field=field,
+                max_len=max_len,
+                max_depth=max_depth - 1,
+            )
+            if err is not None:
+                return err
+    elif isinstance(value, list):
+        for child in value:
+            err = _dex_api_nested_list_length_error(
+                child,
+                field=field,
+                max_len=max_len,
+                max_depth=max_depth - 1,
+            )
+            if err is not None:
+                return err
+    return None
+
+
+def _dex_api_mixed_exact_in_split_limit_error(params: dict[str, Any]) -> Optional[str]:
+    if params.get("enable_mixed_direct_twohop_split") is not True:
+        return None
+    amount_in = params.get("amount_in")
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool):
+        return "bad_amount_in"
+    if int(amount_in) > DEX_API_MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN:
+        return "bad_amount_in"
+    return None
+
+
+def _dex_api_nested_mixed_exact_in_split_limit_error(value: Any, *, max_depth: int = 32) -> Optional[str]:
+    if max_depth < 0:
+        return "bad_request_depth"
+    if isinstance(value, dict):
+        err = _dex_api_mixed_exact_in_split_limit_error(value)
+        if err is not None:
+            return err
+        for child in value.values():
+            err = _dex_api_nested_mixed_exact_in_split_limit_error(child, max_depth=max_depth - 1)
+            if err is not None:
+                return err
+    elif isinstance(value, list):
+        for child in value:
+            err = _dex_api_nested_mixed_exact_in_split_limit_error(child, max_depth=max_depth - 1)
+            if err is not None:
+                return err
+    return None
+
+
+def _dex_api_exact_out_candidate_space_upper_bound(
+    *,
+    amount_out_total: int,
+    max_candidate_pools: int,
+    max_legs: int,
+    stop_after: int,
+) -> int:
+    total = 0
+    amount = int(amount_out_total)
+    pools = int(max_candidate_pools)
+    legs = min(int(max_legs), pools, amount)
+    if amount <= 0 or pools <= 0 or legs <= 0:
+        return 0
+    for k in range(1, legs + 1):
+        total += int(comb(pools, k)) * int(comb(amount - 1, k - 1))
+        if total > int(stop_after):
+            return int(total)
+    return int(total)
+
+
+def _dex_api_exact_out_search_budget_error(params: dict[str, Any]) -> Optional[str]:
+    amount_out_total = params.get("amount_out_total")
+    if not isinstance(amount_out_total, int) or isinstance(amount_out_total, bool):
+        return None
+    max_candidate_pools = params.get("max_candidate_pools", 5)
+    max_legs = params.get("max_legs", 3)
+    max_enumerated_candidates = params.get("max_enumerated_candidates", 20_000)
+    for raw in (max_candidate_pools, max_legs, max_enumerated_candidates):
+        if not isinstance(raw, int) or isinstance(raw, bool):
+            return None
+    candidate_space = _dex_api_exact_out_candidate_space_upper_bound(
+        amount_out_total=int(amount_out_total),
+        max_candidate_pools=int(max_candidate_pools),
+        max_legs=int(max_legs),
+        stop_after=DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET,
+    )
+    effective_budget = min(int(max_enumerated_candidates), int(candidate_space))
+    if effective_budget > DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET:
+        return "bad_exact_out_search_budget"
+    return None
+
+
+def _dex_api_nested_exact_out_search_budget_error(value: Any, *, max_depth: int = 32) -> Optional[str]:
+    if max_depth < 0:
+        return "bad_request_depth"
+    if isinstance(value, dict):
+        has_search_shape = "amount_out_total" in value and (
+            "max_enumerated_candidates" in value or "max_candidate_pools" in value or "max_legs" in value
+        )
+        if has_search_shape:
+            err = _dex_api_exact_out_search_budget_error(value)
+            if err is not None:
+                return err
+        for child in value.values():
+            err = _dex_api_nested_exact_out_search_budget_error(child, max_depth=max_depth - 1)
+            if err is not None:
+                return err
+    elif isinstance(value, list):
+        for child in value:
+            err = _dex_api_nested_exact_out_search_budget_error(child, max_depth=max_depth - 1)
+            if err is not None:
+                return err
+    return None
+
+
+def _is_exact_out_many_pool_search_path(path: str) -> bool:
+    return (
+        path.startswith("/api/dex/quote_exact_out_many_pool")
+        or path.startswith("/api/dex/build_exact_out_many_pool")
+        or path in {
+            "/api/dex/audit_exact_out_many_pool_canonicality",
+            "/api/dex/guard_exact_out_many_pool_canonicality",
+        }
+    )
+
+
+def _is_exact_out_many_pool_verify_path(path: str) -> bool:
+    return path.startswith("/api/dex/verify_exact_out_many_pool_")
+
+
+def _is_exact_in_route_verify_path(path: str) -> bool:
+    return path.startswith("/api/dex/verify_exact_in_route_")
+
+
+def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
+    err = _dex_api_list_length_error(
+        obj,
+        field="pools",
+        max_len=DEX_API_MAX_POOLS,
+    )
+    if err is not None:
+        return err
+
+    if path in {"/api/dex/impact_preview", "/api/dex/slippage_advice"}:
+        err = _dex_api_int_limit_error(
+            obj,
+            field="amount_in",
+            min_value=0,
+            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+
+    if path in {
+        "/api/dex/slippage_advice",
+        "/api/dex/pokayoke_swap_suggest",
+        "/api/dex/pokayoke_swap_suggest_heavy",
+    }:
+        err = _dex_api_int_limit_error(
+            obj,
+            field="max_attacker_amount_in",
+            min_value=0,
+            max_value=DEX_API_MAX_SANDWICH_ATTACKER_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_list_length_error(
+            obj,
+            field="slippage_options_bps",
+            max_len=DEX_API_MAX_SLIPPAGE_OPTIONS,
+        )
+        if err is not None:
+            return err
+        if path in {"/api/dex/pokayoke_swap_suggest", "/api/dex/pokayoke_swap_suggest_heavy"}:
+            err = _dex_api_int_limit_error(
+                obj,
+                field="amount_in",
+                min_value=1,
+                max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+            )
+            if err is not None:
+                return err
+
+    if path == "/api/dex/quote" and str(obj.get("kind", "")).strip().lower() == "exact_in":
+        err = _dex_api_int_limit_error(
+            obj,
+            field="amount_in",
+            min_value=1,
+            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+
+    if path in DEX_API_EXACT_IN_ROUTE_SEARCH_PATHS:
+        err = _dex_api_int_limit_error(
+            obj,
+            field="amount_in",
+            min_value=1,
+            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_mixed_exact_in_split_limit_error(obj)
+        if err is not None:
+            return err
+
+    if path == "/api/dex/audit_exact_out_two_pool_canonicality":
+        err = _dex_api_int_limit_error(
+            obj,
+            field="amount_out_total",
+            min_value=1,
+            max_value=DEX_API_MAX_TWO_POOL_AUDIT_AMOUNT_OUT_TOTAL,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_int_limit_error(
+            obj,
+            field="brute_force_max",
+            min_value=0,
+            max_value=DEX_API_MAX_TWO_POOL_AUDIT_AMOUNT_OUT_TOTAL,
+        )
+        if err is not None:
+            return err
+
+    if _is_exact_in_route_verify_path(path):
+        err = _dex_api_nested_list_length_error(
+            obj,
+            field="pool_snapshots",
+            max_len=DEX_API_MAX_POOLS,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_nested_int_limit_error(
+            obj,
+            field="amount_in",
+            min_value=1,
+            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_nested_mixed_exact_in_split_limit_error(obj)
+        if err is not None:
+            return err
+
+    if _is_exact_out_many_pool_verify_path(path):
+        err = _dex_api_nested_list_length_error(
+            obj,
+            field="pool_snapshots",
+            max_len=DEX_API_MAX_POOLS,
+        )
+        if err is not None:
+            return err
+        for field, (min_value, max_value) in DEX_API_EXACT_OUT_SEARCH_CAPS.items():
+            err = _dex_api_nested_int_limit_error(
+                obj,
+                field=field,
+                min_value=int(min_value),
+                max_value=int(max_value),
+            )
+            if err is not None:
+                return err
+        err = _dex_api_nested_exact_out_search_budget_error(obj)
+        if err is not None:
+            return err
+
+    if _is_exact_out_many_pool_search_path(path):
+        for field, (min_value, max_value) in DEX_API_EXACT_OUT_SEARCH_CAPS.items():
+            err = _dex_api_int_limit_error(
+                obj,
+                field=field,
+                min_value=int(min_value),
+                max_value=int(max_value),
+            )
+            if err is not None:
+                return err
+        err = _dex_api_exact_out_search_budget_error(obj)
+        if err is not None:
+            return err
+
+    return None
 
 
 @dataclass
@@ -357,6 +755,10 @@ class _Handler(BaseHTTPRequestHandler):
             return True
         if not isinstance(obj, dict):
             self._write_json(400, {"ok": False, "error": "bad_body"}, cors_origin=cors_origin)
+            return True
+        resource_err = _dex_api_search_limit_error(path, obj)
+        if resource_err is not None:
+            self._write_json(400, {"ok": False, "error": resource_err}, cors_origin=cors_origin)
             return True
 
         if path == "/api/dex/impact_preview":

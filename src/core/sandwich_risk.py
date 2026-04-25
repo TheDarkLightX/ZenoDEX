@@ -27,6 +27,9 @@ from typing import Callable
 from .cpmm import swap_exact_in
 
 
+MAX_SANDWICH_SCAN_AMOUNT_IN = 50_000
+
+
 @dataclass(frozen=True)
 class SandwichRisk:
     status: str  # "ok" | "victim_reverts" | "inconclusive"
@@ -40,6 +43,15 @@ class SandwichRisk:
 def _fee_total_ceil(*, amount_in: int, fee_bps: int) -> int:
     # Keep this local to avoid importing kernel helpers into non-kernel code.
     return (int(amount_in) * int(fee_bps) + 10_000 - 1) // 10_000
+
+
+def _bounded_scan_limit(max_attacker_amount_in: int) -> int:
+    if not isinstance(max_attacker_amount_in, int) or isinstance(max_attacker_amount_in, bool):
+        raise TypeError("max_attacker_amount_in must be int")
+    requested = int(max_attacker_amount_in)
+    if requested < 0:
+        raise ValueError("max_attacker_amount_in must be non-negative")
+    return min(requested, MAX_SANDWICH_SCAN_AMOUNT_IN)
 
 
 def attacker_amount_in_cutoff_upper_bound_cpmm_exact_in(
@@ -184,8 +196,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded(
       - status="inconclusive": scan may have missed feasible attacker sizes (cap is below the cutoff).
       - status="victim_reverts": victim would not execute even with attacker_amount_in=0.
     """
-    if max_attacker_amount_in < 0:
-        raise ValueError("max_attacker_amount_in must be non-negative")
+    scan_request_max = _bounded_scan_limit(max_attacker_amount_in)
 
     # Baseline: victim output with no attack.
     base = _try_swap_exact_in(
@@ -201,7 +212,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded(
             attacker_amount_in=0,
             victim_amount_out=0,
             victim_amount_out_isolated=0,
-            scanned_max_attacker_amount_in=int(max_attacker_amount_in),
+            scanned_max_attacker_amount_in=int(scan_request_max),
         )
     victim_out_iso, _ = base
     if victim_out_iso < victim_min_out:
@@ -211,7 +222,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded(
             attacker_amount_in=0,
             victim_amount_out=int(victim_out_iso),
             victim_amount_out_isolated=int(victim_out_iso),
-            scanned_max_attacker_amount_in=int(max_attacker_amount_in),
+            scanned_max_attacker_amount_in=int(scan_request_max),
         )
 
     cutoff = attacker_amount_in_cutoff_upper_bound_cpmm_exact_in(
@@ -224,12 +235,12 @@ def max_sandwich_profit_exact_in_cpmm_bounded(
     if cutoff is None:
         # min_out <= 0: victim can execute at arbitrarily large attacker sizes in principle.
         # We keep the posture conservative (bounded scan only).
-        scan_max = int(max_attacker_amount_in)
+        scan_max = int(scan_request_max)
         covered_all_feasible = False
     else:
         feasible_a_max = max(0, int(cutoff) - 1)
-        scan_max = min(int(max_attacker_amount_in), int(feasible_a_max))
-        covered_all_feasible = bool(int(max_attacker_amount_in) >= int(feasible_a_max))
+        scan_max = min(int(scan_request_max), int(feasible_a_max))
+        covered_all_feasible = bool(int(scan_request_max) >= int(feasible_a_max))
 
     best_profit = 0
     best_a = 0
@@ -359,8 +370,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
     - Always returns status=\"inconclusive\" (no analytic cutoff implemented for dynamic fees).
     - Never treat \"inconclusive\" as \"safe\".
     """
-    if max_attacker_amount_in < 0:
-        raise ValueError("max_attacker_amount_in must be non-negative")
+    scan_request_max = _bounded_scan_limit(max_attacker_amount_in)
 
     # Victim isolated out for reporting.
     victim_iso_out = 0
@@ -385,7 +395,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
             attacker_amount_in=0,
             victim_amount_out=int(victim_iso_out),
             victim_amount_out_isolated=int(victim_iso_out),
-            scanned_max_attacker_amount_in=int(max_attacker_amount_in),
+            scanned_max_attacker_amount_in=int(scan_request_max),
         )
 
     best_profit = 0
@@ -406,7 +416,7 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
             fee_bps=int(fee_bps),
         )
 
-    for a in range(0, int(max_attacker_amount_in) + 1):
+    for a in range(0, int(scan_request_max) + 1):
         att1 = _try_dyn(int(reserve_in), int(reserve_out), int(a))
         if att1 is None:
             continue
@@ -436,5 +446,5 @@ def max_sandwich_profit_exact_in_cpmm_bounded_dynamic_fee(
         attacker_amount_in=int(best_a),
         victim_amount_out=int(best_victim_out),
         victim_amount_out_isolated=int(victim_iso_out),
-        scanned_max_attacker_amount_in=int(max_attacker_amount_in),
+        scanned_max_attacker_amount_in=int(scan_request_max),
     )

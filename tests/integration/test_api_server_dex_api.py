@@ -35,6 +35,22 @@ def _stop_test_server(httpd, thread: threading.Thread) -> None:
     thread.join(timeout=2.0)
 
 
+def _post_json(host: str, port: int, path: str, payload: dict) -> tuple[int, dict]:
+    conn = HTTPConnection(host, port, timeout=2.0)
+    try:
+        conn.request(
+            "POST",
+            path,
+            body=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        return int(resp.status), body
+    finally:
+        conn.close()
+
+
 def _pool_dict(
     *,
     pid: str,
@@ -402,6 +418,176 @@ def test_api_server_dex_quote_exact_out_fast_v1_roundtrip() -> None:
         _stop_test_server(httpd, t)
 
 
+def test_api_server_dex_quote_rejects_oversized_exact_in_amount() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote",
+            {
+                "kind": "exact_in",
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 50_001,
+                "pools": [_pool_dict(pid="p1", a0="A", a1="B", r0=1000, r1=1000, fee_bps=0)],
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_amount_in"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_dex_quote_rejects_oversized_pool_list() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid=f"p{i}", a0="A", a1="B", r0=1000 + i, r1=1000, fee_bps=0)
+            for i in range(65)
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote",
+            {
+                "kind": "exact_in",
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_pools"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_impact_preview_rejects_oversized_amount() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/impact_preview",
+            {
+                "reserve_in": 1000,
+                "reserve_out": 1000,
+                "amount_in": 50_001,
+                "fee_bps": 0,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_amount_in"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_slippage_advice_rejects_oversized_sandwich_scan() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/slippage_advice",
+            {
+                "reserve_in": 1000,
+                "reserve_out": 1000,
+                "amount_in": 50,
+                "fee_bps": 0,
+                "slippage_options_bps": [10_000],
+                "max_attacker_amount_in": 50_001,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_max_attacker_amount_in"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_slippage_advice_rejects_oversized_amount() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/slippage_advice",
+            {
+                "reserve_in": 1000,
+                "reserve_out": 1000,
+                "amount_in": 50_001,
+                "fee_bps": 0,
+                "slippage_options_bps": [10, 50, 100],
+                "max_attacker_amount_in": 5000,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_amount_in"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_slippage_advice_rejects_too_many_slippage_options() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/slippage_advice",
+            {
+                "reserve_in": 1000,
+                "reserve_out": 1000,
+                "amount_in": 50,
+                "fee_bps": 0,
+                "slippage_options_bps": list(range(65)),
+                "max_attacker_amount_in": 100,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_slippage_options_bps"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_pokayoke_rejects_unbounded_advice_inputs() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/pokayoke_swap_suggest_heavy",
+            {
+                "reserve_in": 1000,
+                "reserve_out": 1000,
+                "amount_in": 50,
+                "fee_bps": 0,
+                "user_slippage_bps": 100,
+                "slippage_options_bps": list(range(65)),
+                "max_attacker_amount_in": 100,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_slippage_options_bps"
+
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/pokayoke_swap_suggest",
+            {
+                "reserve_in": 1000,
+                "reserve_out": 1000,
+                "amount_in": 50_001,
+                "fee_bps": 0,
+                "slippage_options_bps": [10, 50, 100],
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_amount_in"
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_build_and_verify_exact_in_route_oracle_contract() -> None:
     httpd, t, host, port = _start_test_server()
     try:
@@ -448,6 +634,77 @@ def test_api_server_build_and_verify_exact_in_route_oracle_contract() -> None:
         assert resp2.status == 200
         assert body2["ok"] is True
         assert body2["error"] is None
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_exact_in_route_oracle_contract_rejects_mixed_split_above_exhaustive_budget() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/build_exact_in_route_oracle_contract",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 5_001,
+                "enable_mixed_direct_twohop_split": True,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_amount_in"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_exact_in_route_contract_rejects_nested_mixed_split_above_exhaustive_budget() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/verify_exact_in_route_oracle_contract",
+            {
+                "contract": {
+                    "amount_in": 5_001,
+                    "enable_mixed_direct_twohop_split": True,
+                    "pool_snapshots": [
+                        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+                    ],
+                },
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_amount_in"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_exact_in_route_contract_rejects_nested_oversized_amount() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/verify_exact_in_route_oracle_contract",
+            {
+                "contract": {
+                    "amount_in": 50_001,
+                    "pool_snapshots": [
+                        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+                    ],
+                },
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_amount_in"
     finally:
         _stop_test_server(httpd, t)
 
@@ -3183,6 +3440,64 @@ def test_api_server_build_and_verify_exact_out_many_pool_candidate_domain_contra
         _stop_test_server(httpd, t)
 
 
+def test_api_server_exact_out_many_pool_candidate_domain_contract_rejects_oversized_budget() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/build_exact_out_many_pool_candidate_domain_contract",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_out_total": 6,
+                "max_legs": 3,
+                "max_candidate_pools": 3,
+                "max_enumerated_candidates": 50_001,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_max_enumerated_candidates"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_exact_out_many_pool_candidate_domain_contract_rejects_excessive_search_space() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
+            _pool_dict(pid="pool_d", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
+            _pool_dict(pid="pool_e", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/build_exact_out_many_pool_candidate_domain_contract",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_out_total": 100,
+                "max_legs": 3,
+                "max_candidate_pools": 5,
+                "max_enumerated_candidates": 50_000,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_exact_out_search_budget"
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_build_and_verify_exact_out_many_pool_prefilter_contract() -> None:
     httpd, t, host, port = _start_test_server()
     try:
@@ -5391,6 +5706,110 @@ def test_api_server_build_and_verify_exact_out_many_pool_guarded_quote_packet() 
         body2 = json.loads(resp2.read().decode("utf-8"))
         assert resp2.status == 200
         assert body2["ok"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_exact_out_many_pool_guarded_packet_rejects_unbounded_search_limits() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_out_total": 6,
+                "max_legs": 4,
+                "max_candidate_pools": 3,
+                "max_candidates": 6,
+                "max_iters": 512,
+                "window": 8,
+                "brute_force_max": 12,
+                "max_enumerated_candidates": 50_000,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_max_legs"
+
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/build_exact_out_many_pool_guarded_quote_packet",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_out_total": 6,
+                "max_legs": 3,
+                "max_candidate_pools": 3,
+                "max_candidates": 6,
+                "max_iters": 512,
+                "window": 8,
+                "brute_force_max": 12,
+                "max_enumerated_candidates": 50_001,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_max_enumerated_candidates"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_exact_out_many_pool_packet_rejects_nested_unbounded_search_limits() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
+            {
+                "packet": {
+                    "contract": {
+                        "max_enumerated_candidates": 50_001,
+                        "pool_snapshots": [
+                            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+                        ],
+                    },
+                },
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_max_enumerated_candidates"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_verify_exact_out_many_pool_packet_rejects_nested_excessive_search_space() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/verify_exact_out_many_pool_guarded_quote_packet",
+            {
+                "packet": {
+                    "contract": {
+                        "amount_out_total": 100,
+                        "max_legs": 3,
+                        "max_candidate_pools": 5,
+                        "max_enumerated_candidates": 50_000,
+                        "pool_snapshots": [
+                            _pool_dict(pid="pool_a", a0="A", a1="B", r0=1000, r1=500, fee_bps=0),
+                        ],
+                    },
+                },
+            },
+        )
+        assert status == 400
+        assert body["error"] == "bad_exact_out_search_budget"
     finally:
         _stop_test_server(httpd, t)
 

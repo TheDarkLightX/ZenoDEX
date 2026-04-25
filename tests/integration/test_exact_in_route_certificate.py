@@ -7,6 +7,7 @@ import pytest
 from src.core.routing import RouteHop, RouteLeg, RouteQuote, best_route_exact_in_2hop
 from src.integration.exact_in_route_certificate import (
     EXACT_IN_ROUTE_CERTIFICATE_SCHEMA,
+    MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN,
     build_exact_in_route_canonical_certificate,
     build_exact_in_route_canonical_certificate_for_pools,
     build_exact_in_route_guarded_quote_packet,
@@ -185,6 +186,23 @@ def test_exact_in_route_oracle_contract_rebuilds_for_pool_snapshot() -> None:
 
     ok, err = verify_exact_in_route_oracle_contract_payload(payload)
     assert ok, err
+
+
+def test_exact_in_route_oracle_contract_rejects_mixed_split_above_exhaustive_budget() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1001, 0),
+        "p_ac": _pool("p_ac", "A", "C", 1000, 1000, 0),
+        "p_cb": _pool("p_cb", "C", "B", 1000, 1000, 0),
+    }
+
+    with pytest.raises(ValueError, match="enable_mixed_direct_twohop_split"):
+        build_exact_in_route_oracle_contract(
+            pools_by_id=pools,
+            asset_in="A",
+            asset_out="B",
+            amount_in=MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN + 1,
+            enable_mixed_direct_twohop_split=True,
+        )
 
 
 def test_exact_in_route_oracle_contract_rejects_tampering() -> None:

@@ -15,7 +15,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .price_impact_preview import BPS_SCALE, price_impact_preview
-from .sandwich_risk import max_sandwich_profit_exact_in_cpmm_bounded
+from .sandwich_risk import (
+    MAX_SANDWICH_SCAN_AMOUNT_IN,
+    max_sandwich_profit_exact_in_cpmm_bounded,
+)
+
+MAX_SLIPPAGE_OPTIONS = 64
 
 
 @dataclass(frozen=True)
@@ -89,11 +94,15 @@ def slippage_advice_exact_in_cpmm(
     """
     if slippage_options_bps is None:
         slippage_options_bps = [10, 50, 100, 300]
+    if len(slippage_options_bps) > MAX_SLIPPAGE_OPTIONS:
+        raise ValueError(f"slippage_options_bps must contain <= {MAX_SLIPPAGE_OPTIONS} entries")
 
     if not isinstance(max_attacker_amount_in, int) or isinstance(max_attacker_amount_in, bool):
         raise TypeError("max_attacker_amount_in must be int")
     if max_attacker_amount_in < 0:
         raise ValueError("max_attacker_amount_in must be non-negative")
+    if max_attacker_amount_in > MAX_SANDWICH_SCAN_AMOUNT_IN:
+        raise ValueError(f"max_attacker_amount_in must be <= {MAX_SANDWICH_SCAN_AMOUNT_IN}")
 
     # Normalize options deterministically.
     opts: list[int] = []
