@@ -38,6 +38,7 @@ from .proof_mining_runtime import (
     initialize_proof_mining_runtime_state,
     proof_mining_runtime_state_from_obj,
     proof_mining_runtime_state_to_obj,
+    sync_proof_mining_runtime_balance,
 )
 from .proof_verifier import ProofVerifierConfig
 
@@ -657,6 +658,13 @@ def _apply_proof_mining_op(
     if runtime_state.reward_pool_pubkey != reward_pool_pubkey:
         return False, state, proof_mining_state, "proof mining reward pool pubkey mismatch"
     try:
+        runtime_state = sync_proof_mining_runtime_balance(
+            runtime_state=runtime_state,
+            actual_reward_pool_balance=actual_pool_balance,
+        )
+    except Exception as exc:
+        return False, state, proof_mining_state, str(exc)
+    try:
         next_runtime_state, result = apply_proof_mining_claim(
             runtime_state=runtime_state,
             claim_artifact=claim_artifact,
@@ -697,8 +705,8 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
 def apply_app_tx(
     *,
     app_state_json: str,
-    chain_balances: Dict[str, int],
-    operations: Dict[str, object],
+    chain_balances: Any,
+    operations: Any,
     tx_sender_pubkey: str,
     block_timestamp: int,
 ) -> Tuple[bool, str, str, Optional[Dict[str, int]], Optional[str]]:
@@ -730,8 +738,15 @@ def apply_app_tx(
     state = _sync_native_balances(state, chain_balances=chain_balances)
     if proof_mining_state is not None:
         actual_reward_pool_balance = int(chain_balances.get(proof_mining_state.reward_pool_pubkey, 0))
-        if actual_reward_pool_balance != int(proof_mining_state.snapshot.reward_pool_balance):
-            return False, app_state_json, "", None, "proof mining reward pool balance drift"
+        if actual_reward_pool_balance < 0:
+            return False, app_state_json, "", None, "reward pool chain balance must be non-negative"
+        try:
+            proof_mining_state = sync_proof_mining_runtime_balance(
+                runtime_state=proof_mining_state,
+                actual_reward_pool_balance=actual_reward_pool_balance,
+            )
+        except Exception as exc:
+            return False, app_state_json, "", None, str(exc)
 
     faucet_op = operations.get(_DEX_FAUCET_KEY, operations.get(_LEGACY_DEX_FAUCET_KEY))
     ok, state, err = _apply_faucet(state, faucet_op, allow=allow_faucet)

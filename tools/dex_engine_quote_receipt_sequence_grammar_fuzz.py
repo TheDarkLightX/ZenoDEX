@@ -162,15 +162,16 @@ def _trace_outcome(*, runner: RunnerFn, payload: object, trace_files: Sequence[P
     lines: list[str] = []
     last_loc: str | None = None
 
-    def tracer(frame, event, arg):  # type: ignore[no-untyped-def]
+    def tracer(frame, event, arg):
         nonlocal last_loc
+        filename = str(Path(frame.f_code.co_filename).resolve())
+        if event == "call":
+            return tracer if filename in trace_names else None
         if event == "line":
-            filename = str(Path(frame.f_code.co_filename).resolve())
-            if filename in trace_names:
-                loc = f"{Path(filename).name}:{frame.f_lineno}"
-                if loc != last_loc:
-                    lines.append(loc)
-                    last_loc = loc
+            loc = f"{Path(filename).name}:{frame.f_lineno}"
+            if loc != last_loc:
+                lines.append(loc)
+                last_loc = loc
         return tracer
 
     previous = sys.gettrace()
@@ -553,11 +554,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             _print_text(report)
         return 0
 
-    payload = {
+    reports_payload: dict[str, Any] = {
         "schema": "zenodex/dex-engine-quote-receipt-sequence-grammar-fuzz/v1",
         "reports": [asdict(report) for report in reports],
     }
-    json.dump(payload, sys.stdout, indent=2, sort_keys=True)
+    json.dump(reports_payload, sys.stdout, indent=2, sort_keys=True)
     sys.stdout.write("\n")
     return 0
 
