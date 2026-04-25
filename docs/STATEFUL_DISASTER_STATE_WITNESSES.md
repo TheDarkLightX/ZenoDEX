@@ -29,6 +29,22 @@ As of `2026-04-08`, the deep stateful lane reports:
 - unique ranked witnesses: `18`
 - hotspot count: `10`
 
+The surface count is a coverage index, not a claim that the state space has only
+ten possible bad states. A surface groups a family of related failures, such as
+stale settlement replay or route-certificate drift. The witness count records
+the minimized replayable examples currently retained for those families.
+
+The useful interpretation is:
+
+```text
+WitnessFamilyCovered(F) := exists witness W such that W reaches F and replay rejects W
+```
+
+For each selected high-risk family in this release lane, there is at least one
+replayable witness that reaches the family and is rejected by the implementation.
+That materially improves assurance because a future change can be checked
+against concrete attack-shaped states instead of only against line coverage.
+
 ## What “witness coverage” means
 
 ```text

@@ -64,6 +64,13 @@ Current stateful snapshot for the deep lane as of `2026-04-08`:
 - unique ranked witnesses: `18`
 - hotspot count: `10`
 
+These are not just ten concrete examples. The count is organized around
+dangerous protocol surfaces and witness families: each witnessed surface can
+cover many concrete action sequences, payload mutations, stale-state variants,
+and boundary cases. The important assertion is that the selected high-risk
+stateful families in the current release lane were reachable by the harness and
+were rejected in replayable form.
+
 The key distinction is:
 
 ```text
