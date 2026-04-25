@@ -33,6 +33,32 @@ def _apply(*, state: DexState, tx_sender_pubkey: str, ops: list[dict[str, object
     return res.state
 
 
+def _with_oracle_snapshot(
+    state: DexState,
+    *,
+    market_id: str,
+    price_e8: int,
+    last_update_epoch: int | None = None,
+) -> DexState:
+    # Test helper: model a validated oracle snapshot already present in app state.
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    global_state = dict(market.global_state)
+    now_epoch = int(global_state.get("now_epoch", 0))
+    global_state["oracle_seen"] = True
+    global_state["oracle_last_update_epoch"] = (
+        max(0, now_epoch - 1) if last_update_epoch is None else int(last_update_epoch)
+    )
+    global_state["index_price_e8"] = int(price_e8)
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=global_state,
+        accounts=dict(market.accounts),
+    )
+    return replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+
+
 def test_publish_clearing_price_rejects_unsafe_oracle_reward_posture() -> None:
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
@@ -239,6 +265,7 @@ def test_set_market_params_enforces_collectible_penalty_floor() -> None:
     )
     # settle epoch so set_market_params is allowed.
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
@@ -309,6 +336,7 @@ def test_settle_epoch_is_order_independent() -> None:
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
@@ -385,6 +413,7 @@ def test_set_position_rejects_malformed_oracle_snapshot_zero_index() -> None:
     )
     # Establish oracle, then return to OPEN where set_position is allowed.
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(
         state=state,
         tx_sender_pubkey=operator,
@@ -444,6 +473,7 @@ def test_settle_epoch_accumulates_fee_pool_for_mixed_liquidation() -> None:
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -536,6 +566,7 @@ def test_settle_epoch_clears_liquidated_flag_for_flat_accounts() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -653,6 +684,7 @@ def test_breaker_reduce_only_and_clear() -> None:
 
     # Epoch 1: establish an oracle/index price (no accounts yet).
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -776,6 +808,31 @@ def test_operator_cannot_skip_settlement() -> None:
     assert res_pub.ok is False
 
 
+def test_settle_epoch_rejects_missing_oracle_snapshot() -> None:
+    market_id = "perp:missing-oracle"
+    quote_asset = "0x" + "57" * 32
+    operator = "00" * 48
+
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch")],
+    )
+    assert res.ok is False
+    assert res.error == "guard"
+
+
 def test_publish_clearing_price_rejects_zero_price() -> None:
     market_id = "perp:zero-price"
     quote_asset = "0x" + "56" * 32
@@ -822,6 +879,7 @@ def test_apply_funding_auto_applies_to_all_open_positions() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -895,6 +953,7 @@ def test_apply_funding_auto_allows_empty_open_interest() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -935,6 +994,7 @@ def test_apply_funding_auto_rejects_stale_oracle() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -975,6 +1035,7 @@ def test_apply_funding_auto_rejects_malformed_control_fields() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
@@ -1036,6 +1097,7 @@ def test_apply_funding_auto_rejects_unbalanced_net_flow() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 
@@ -1087,6 +1149,7 @@ def test_set_market_params_mid_epoch_guard_and_margin_safety() -> None:
         ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
     )
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "advance_epoch", delta=1)])
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)])
     state = _apply(state=state, tx_sender_pubkey=operator, operator_pubkey=operator, ops=[_op(market_id, "settle_epoch")])
 

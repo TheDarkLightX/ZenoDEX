@@ -127,24 +127,23 @@ Scope limit:
 ## Disaster-State Coverage
 
 The current checkout has a green bounded disaster-state replay receipt covering
-`21` named disaster-state families. An axis is a scenario family, not one
+`29` named disaster-state families. An axis is a scenario family, not one
 concrete state; each family is backed by one or more replay commands that
 exercise concrete inputs, sequences, boundary cases, or proof/certificate
 artifacts.
 
 ```text
-selected_axis_count = 21
-unreachable_count = 21
+selected_axis_count = 29
+unreachable_count = 29
 failed_count = 0
 inconclusive_count = 0
 ```
 
 That is the current positive claim. A broader exploratory plan now names `125`
-candidate what-if axes, but the full public-checkout replay does not justify a
-125-axis guarantee yet: `21` closed, `8` were inconclusive because they contain
-skips, and `96` remain backlog because their commands are stale, missing from
-this checkout, or failing. Those backlog axes are search inventory, not
-prevented-state claims.
+candidate what-if axes, but the public checkout does not justify a 125-axis
+guarantee yet. The remaining `96` axes are still search inventory until their
+commands are refreshed, their skipped external-tool lanes are split out, or
+their checks are promoted into replayable proof/certificate lanes.
 
 This is a bounded replay claim, not an exhaustive proof over all possible future
 states. The detailed axis list, replay commands, interpretation, and residual
