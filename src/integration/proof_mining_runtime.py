@@ -8,6 +8,7 @@ from ..core.proof_mining_manager import (
     ProofMiningManagerApplyResult,
     apply_submit_proof_packet,
     build_submit_proof_packet,
+    snapshot_to_kernel_state,
 )
 from ..core.proof_mining_claims import validate_proof_mining_claim_artifact
 from .proof_mining_context import (
@@ -66,6 +67,7 @@ def proof_mining_runtime_state_from_obj(obj: Mapping[str, Any]) -> ProofMiningRu
         total_paid=_require_int(body.get("total_paid"), name="proof_mining.total_paid"),
         claimed_slots=claimed_slots,
     )
+    snapshot_to_kernel_state(snapshot)
     return ProofMiningRuntimeState(
         reward_pool_pubkey=_require_str(body.get("reward_pool_pubkey"), name="proof_mining.reward_pool_pubkey"),
         snapshot=snapshot,
@@ -95,20 +97,48 @@ def initialize_proof_mining_runtime_state(
     reward_pool_balance: int,
     claim_artifact: Mapping[str, Any],
 ) -> ProofMiningRuntimeState:
-    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=False)
+    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
     balance = _require_int(reward_pool_balance, name="reward_pool_balance")
     if balance < 0:
         raise ValueError("reward_pool_balance must be non-negative")
+    snapshot = ProofMiningManagerSnapshot(
+        epoch=_require_int(claim.get("epoch"), name="claim.epoch"),
+        base_reward=_require_int(claim.get("base_reward"), name="claim.base_reward"),
+        initial_pool=balance,
+        reward_pool_balance=balance,
+        total_paid=0,
+        claimed_slots={},
+    )
+    snapshot_to_kernel_state(snapshot)
     return ProofMiningRuntimeState(
         reward_pool_pubkey=_require_str(reward_pool_pubkey, name="reward_pool_pubkey"),
-        snapshot=ProofMiningManagerSnapshot(
-            epoch=_require_int(claim.get("epoch"), name="claim.epoch"),
-            base_reward=_require_int(claim.get("base_reward"), name="claim.base_reward"),
-            initial_pool=balance,
-            reward_pool_balance=balance,
-            total_paid=0,
-            claimed_slots={},
-        ),
+        snapshot=snapshot,
+    )
+
+
+def sync_proof_mining_runtime_balance(
+    *,
+    runtime_state: ProofMiningRuntimeState,
+    actual_reward_pool_balance: int,
+) -> ProofMiningRuntimeState:
+    balance = _require_int(actual_reward_pool_balance, name="actual_reward_pool_balance")
+    if balance < 0:
+        raise ValueError("actual_reward_pool_balance must be non-negative")
+    if balance == int(runtime_state.snapshot.reward_pool_balance):
+        return runtime_state
+    snapshot = runtime_state.snapshot
+    synced_snapshot = ProofMiningManagerSnapshot(
+        epoch=int(snapshot.epoch),
+        base_reward=int(snapshot.base_reward),
+        initial_pool=int(snapshot.total_paid) + int(balance),
+        reward_pool_balance=int(balance),
+        total_paid=int(snapshot.total_paid),
+        claimed_slots=dict(snapshot.claimed_slots),
+    )
+    snapshot_to_kernel_state(synced_snapshot)
+    return ProofMiningRuntimeState(
+        reward_pool_pubkey=str(runtime_state.reward_pool_pubkey),
+        snapshot=synced_snapshot,
     )
 
 

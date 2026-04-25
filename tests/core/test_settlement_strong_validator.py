@@ -1160,6 +1160,249 @@ def test_strong_validator_rejects_nonconserving_cow_netted_settlement() -> None:
     assert err_strong is not None
 
 
+def test_strong_validator_accepts_exact_reciprocal_cow_netted_pair() -> None:
+    pk0 = "0x" + "11" * 48
+    pk1 = "0x" + "22" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    balances = BalanceTable()
+    balances.set(pk0, asset0, 1_000)
+    balances.set(pk0, asset1, 0)
+    balances.set(pk1, asset0, 0)
+    balances.set(pk1, asset1, 1_000)
+    intent0 = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(920),
+        sender_pubkey=pk0,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset0,
+            "asset_out": asset1,
+            "amount_in": 100,
+            "min_amount_out": 50,
+        },
+    )
+    intent1 = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(921),
+        sender_pubkey=pk1,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset1,
+            "asset_out": asset0,
+            "amount_in": 50,
+            "min_amount_out": 100,
+        },
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(intent0.intent_id, FillAction.FILL), (intent1.intent_id, FillAction.FILL)],
+        fills=[
+            Fill(
+                intent_id=intent0.intent_id,
+                action=FillAction.FILL,
+                reason="COW_NETTED",
+                amount_in_filled=100,
+                amount_out_filled=50,
+                fee_paid=0,
+            ),
+            Fill(
+                intent_id=intent1.intent_id,
+                action=FillAction.FILL,
+                reason="COW_NETTED",
+                amount_in_filled=50,
+                amount_out_filled=100,
+                fee_paid=0,
+            ),
+        ],
+        balance_deltas=[
+            BalanceDelta(pubkey=pk0, asset=asset0, delta_add=0, delta_sub=100),
+            BalanceDelta(pubkey=pk0, asset=asset1, delta_add=50, delta_sub=0),
+            BalanceDelta(pubkey=pk1, asset=asset0, delta_add=100, delta_sub=0),
+            BalanceDelta(pubkey=pk1, asset=asset1, delta_add=0, delta_sub=50),
+        ],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent0, intent1],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+
+    assert ok is True, err
+    assert err is None
+
+
+def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> None:
+    pk0 = "0x" + "11" * 48
+    pk1 = "0x" + "22" * 48
+    pk2 = "0x" + "33" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+    pool_id = compute_pool_id(asset0, asset1, 30, curve_tag="CPMM", curve_params="")
+    other_pool_id = compute_pool_id(asset0, asset1, 31, curve_tag="CPMM", curve_params="")
+    pool_state = PoolState(
+        pool_id=pool_id,
+        asset0=asset0,
+        asset1=asset1,
+        reserve0=1_000,
+        reserve1=1_000,
+        fee_bps=30,
+        curve_tag="CPMM",
+        curve_params="",
+        lp_supply=0,
+        status=PoolStatus.ACTIVE,
+        created_at=0,
+    )
+    other_pool_state = replace(pool_state, pool_id=other_pool_id, fee_bps=31)
+    balances = BalanceTable()
+    balances.set(pk0, asset0, 1_000)
+    balances.set(pk1, asset1, 1_000)
+    balances.set(pk2, asset1, 1_000)
+
+    def _intent(
+        n: int,
+        sender: str,
+        pool: str,
+        asset_in: str,
+        asset_out: str,
+        amount_in: int,
+        min_out: int,
+    ) -> Intent:
+        return Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id=_iid(n),
+            sender_pubkey=sender,
+            deadline=9999999999,
+            fields={
+                "pool_id": pool,
+                "asset_in": asset_in,
+                "asset_out": asset_out,
+                "amount_in": amount_in,
+                "min_amount_out": min_out,
+            },
+        )
+
+    def _settlement(rows: list[tuple[Intent, int, int]]) -> Settlement:
+        return Settlement(
+            module="TauSwap",
+            version="0.1",
+            batch_ref="",
+            included_intents=[(intent.intent_id, FillAction.FILL) for intent, _amount_in, _amount_out in rows],
+            fills=[
+                Fill(
+                    intent_id=intent.intent_id,
+                    action=FillAction.FILL,
+                    reason="COW_NETTED",
+                    amount_in_filled=amount_in,
+                    amount_out_filled=amount_out,
+                    fee_paid=0,
+                )
+                for intent, amount_in, amount_out in rows
+            ],
+            balance_deltas=[],
+            reserve_deltas=[],
+            lp_deltas=[],
+            events=None,
+        )
+
+    same_direction = [
+        (_intent(930, pk0, pool_id, asset0, asset1, 100, 50), 100, 50),
+        (_intent(931, pk1, pool_id, asset0, asset1, 50, 100), 50, 100),
+    ]
+    ok, err = validate_settlement_strong(
+        settlement=_settlement(same_direction),
+        intents=[row[0] for row in same_direction],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err is not None and "exactly one reciprocal counterparty" in err
+
+    cross_pool = [
+        (_intent(932, pk0, pool_id, asset0, asset1, 100, 50), 100, 50),
+        (_intent(933, pk1, other_pool_id, asset1, asset0, 50, 100), 50, 100),
+    ]
+    ok, err = validate_settlement_strong(
+        settlement=_settlement(cross_pool),
+        intents=[row[0] for row in cross_pool],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state, other_pool_id: other_pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err is not None and "exactly one reciprocal counterparty" in err
+
+    mismatched = [
+        (_intent(934, pk0, pool_id, asset0, asset1, 100, 40), 100, 49),
+        (_intent(935, pk1, pool_id, asset1, asset0, 50, 100), 50, 100),
+    ]
+    ok, err = validate_settlement_strong(
+        settlement=_settlement(mismatched),
+        intents=[row[0] for row in mismatched],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err is not None and "exactly one reciprocal counterparty" in err
+
+    ambiguous = [
+        (_intent(936, pk0, pool_id, asset0, asset1, 100, 50), 100, 50),
+        (_intent(937, pk1, pool_id, asset1, asset0, 50, 100), 50, 100),
+        (_intent(938, pk2, pool_id, asset1, asset0, 50, 100), 50, 100),
+    ]
+    ok, err = validate_settlement_strong(
+        settlement=_settlement(ambiguous),
+        intents=[row[0] for row in ambiguous],
+        pre_balances=balances,
+        pre_pools={pool_id: pool_state},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        allow_cow_netting=True,
+    )
+    assert ok is False
+    assert err is not None and "matches=[" in err
+
+
 def test_strong_validator_rejects_stale_quote_receipt_pool_fingerprint() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
@@ -2705,7 +2948,9 @@ def test_strong_validator_rejects_cow_netted_variants_and_legacy_failure() -> No
     )
     assert ok is False
     assert err is not None
-    assert err.startswith("legacy validation failed:")
+    assert err.startswith(
+        f"COW_NETTED fill requires exactly one reciprocal counterparty: intent_id={exact_in_intent.intent_id}"
+    )
 
 
 def test_strong_validator_rejects_quote_hash_and_snapshot_binding_without_engine_witness() -> None:
@@ -2946,12 +3191,56 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
     assert ok is False
     assert err == f"COW_NETTED slippage: intent_id={base_intent.intent_id}"
 
+    counterparty_intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id=_iid(919),
+        sender_pubkey=pk1,
+        deadline=9999999999,
+        fields={
+            "pool_id": pool_id,
+            "asset_in": asset1,
+            "asset_out": asset0,
+            "amount_in": 50,
+            "min_amount_out": 100,
+            "recipient": pk0,
+        },
+    )
+    low_balance_pair = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[(base_intent.intent_id, FillAction.FILL), (counterparty_intent.intent_id, FillAction.FILL)],
+        fills=[
+            Fill(
+                intent_id=base_intent.intent_id,
+                action=FillAction.FILL,
+                reason="COW_NETTED",
+                amount_in_filled=100,
+                amount_out_filled=50,
+                fee_paid=0,
+            ),
+            Fill(
+                intent_id=counterparty_intent.intent_id,
+                action=FillAction.FILL,
+                reason="COW_NETTED",
+                amount_in_filled=50,
+                amount_out_filled=100,
+                fee_paid=0,
+            ),
+        ],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
     low_balances = BalanceTable()
     low_balances.set(pk0, asset0, 1)
-    low_balances.set(pk1, asset1, 0)
+    low_balances.set(pk1, asset1, 50)
     ok, err = validate_settlement_strong(
-        settlement=_settlement_for(base_intent.intent_id),
-        intents=[base_intent],
+        settlement=low_balance_pair,
+        intents=[base_intent, counterparty_intent],
         pre_balances=low_balances,
         pre_pools={pool_id: pool_state},
         pre_lp_balances=LPTable(),

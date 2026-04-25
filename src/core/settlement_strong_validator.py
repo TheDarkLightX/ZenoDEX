@@ -14,7 +14,7 @@ recomputes canonical deltas/events and requires exact match.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Dict, List, Optional, Tuple
 
 from ..state.balances import AssetId, BalanceTable, PubKey
@@ -60,6 +60,94 @@ def _quote_binding_context(intent: Intent) -> dict[str, object]:
         "leg_index": intent.get_field("quote_receipt_leg_index"),
         "pool_id": intent.get_field("pool_id"),
     }
+
+
+@dataclass(frozen=True)
+class _CowPairEntry:
+    intent_id: str
+    pool_id: str
+    asset_in: AssetId
+    asset_out: AssetId
+    amount_in_filled: int
+    amount_out_filled: int
+
+
+def _validate_cow_pair_index(
+    *,
+    settlement: Settlement,
+    intents_by_id: Dict[str, Intent],
+    fill_by_id: Dict[str, Fill],
+    allow_cow_netting: bool,
+) -> Tuple[bool, Optional[str]]:
+    cow_ids = [fill.intent_id for fill in settlement.fills if fill.reason == "COW_NETTED"]
+    if not cow_ids:
+        return True, None
+    if not allow_cow_netting:
+        return False, f"COW_NETTED not allowed for intent_id={cow_ids[0]}"
+
+    entries: Dict[str, _CowPairEntry] = {}
+    for intent_id in cow_ids:
+        it = intents_by_id[intent_id]
+        f = fill_by_id[intent_id]
+        if f.action != FillAction.FILL:
+            return False, f"COW_NETTED requires filled action: intent_id={intent_id}"
+        if it.kind != IntentKind.SWAP_EXACT_IN:
+            return False, f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={intent_id}"
+
+        pool_id = it.get_field("pool_id")
+        if not isinstance(pool_id, str) or not pool_id:
+            return False, f"missing pool_id for intent_id={intent_id}"
+        asset_in = it.get_field("asset_in")
+        asset_out = it.get_field("asset_out")
+        if not isinstance(asset_in, str) or not isinstance(asset_out, str):
+            return False, f"invalid asset_in/out for intent_id={intent_id}"
+        amount_in = it.get_field("amount_in")
+        min_out = it.get_field("min_amount_out", 0)
+        if not isinstance(amount_in, int) or isinstance(amount_in, bool) or amount_in <= 0:
+            return False, f"invalid amount_in for intent_id={intent_id}"
+        if not isinstance(min_out, int) or isinstance(min_out, bool) or min_out < 0:
+            return False, f"invalid min_amount_out for intent_id={intent_id}"
+        if int(f.fee_paid or 0) != 0:
+            return False, f"COW_NETTED fee_paid must be 0: intent_id={intent_id}"
+        if not is_strict_int(f.amount_in_filled) or int(f.amount_in_filled or 0) != int(amount_in):
+            return False, f"COW_NETTED amount_in_filled mismatch: intent_id={intent_id}"
+        if not is_strict_int(f.amount_out_filled):
+            return False, f"COW_NETTED amount_out_filled invalid: intent_id={intent_id}"
+        out_amt = int(f.amount_out_filled or 0)
+        if out_amt < int(min_out):
+            return False, f"COW_NETTED slippage: intent_id={intent_id}"
+        entries[intent_id] = _CowPairEntry(
+            intent_id=intent_id,
+            pool_id=pool_id,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in_filled=int(f.amount_in_filled or 0),
+            amount_out_filled=out_amt,
+        )
+
+    pair_for: Dict[str, str] = {}
+    for intent_id, entry in entries.items():
+        matches = [
+            other_id
+            for other_id, other in entries.items()
+            if other_id != intent_id
+            and other.pool_id == entry.pool_id
+            and other.asset_in == entry.asset_out
+            and other.asset_out == entry.asset_in
+            and other.amount_in_filled == entry.amount_out_filled
+            and other.amount_out_filled == entry.amount_in_filled
+        ]
+        if len(matches) != 1:
+            return (
+                False,
+                f"COW_NETTED fill requires exactly one reciprocal counterparty: intent_id={intent_id} matches={matches}",
+            )
+        pair_for[intent_id] = matches[0]
+
+    for intent_id, counterparty_id in pair_for.items():
+        if pair_for.get(counterparty_id) != intent_id:
+            return False, f"COW_NETTED reciprocal pair is not symmetric: intent_id={intent_id}"
+    return True, None
 
 
 def validate_settlement_strong(
@@ -151,6 +239,15 @@ def _validate_settlement_strong_impl(
             continue
         if f.action != action:
             return False, f"Fill.action mismatch for intent_id={intent_id}: {f.action} != {action}"
+
+    ok_cow, err_cow = _validate_cow_pair_index(
+        settlement=settlement,
+        intents_by_id=intents_by_id,
+        fill_by_id=fill_by_id,
+        allow_cow_netting=allow_cow_netting,
+    )
+    if not ok_cow:
+        return False, err_cow
 
     # Replay state (pure local copies).
     balances = _copy_balance_table(pre_balances)

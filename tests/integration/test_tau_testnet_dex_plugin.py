@@ -787,15 +787,20 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
     assert synced_patch is None
     assert json.loads(synced_json)["schema"] == "zenodex/tau_app_state/v1"
 
-    ok3, _state3, _hash3, _patch3, err3 = plugin.apply_app_tx(
+    ok3, synced_drift_json, _hash3, drift_patch, err3 = plugin.apply_app_tx(
         app_state_json=app_state_json1,
         chain_balances={reward_pool: 15, sender: 127},
         operations={},
         tx_sender_pubkey="",
         block_timestamp=4,
     )
-    assert ok3 is False
-    assert err3 == "proof mining reward pool balance drift"
+    assert ok3 is True
+    assert err3 is None
+    assert drift_patch is None
+    drifted = json.loads(synced_drift_json)
+    assert drifted["proof_mining"]["reward_pool_balance"] == 15
+    assert drifted["proof_mining"]["initial_pool"] == 19
+    assert drifted["proof_mining"]["total_paid"] == 4
 
 
 def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
