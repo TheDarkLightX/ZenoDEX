@@ -929,3 +929,47 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
     )
     assert ok1 is False
     assert err1 == "proof mining claim proposal_hash mismatch"
+
+
+def test_apply_app_tx_proof_mining_rejects_malformed_claim_without_crash(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    sender = "0x" + "33" * 48
+    reward_pool = "0x" + "77" * 48
+
+    class _ProofContext:
+        proposal_hash = "proposal-hash"
+
+    class _DexResult:
+        ok = True
+        error = None
+        proof_mining_context = _ProofContext()
+
+        def __init__(self, state):
+            self.state = state
+
+    def _fake_apply_ops(*, config, state, operations, block_timestamp, tx_sender_pubkey):
+        return _DexResult(state)
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+    monkeypatch.setattr(plugin, "apply_ops", _fake_apply_ops)
+
+    ok, _state, _hash, patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={sender: 123, reward_pool: 20},
+        operations={
+            "5": [],
+            "10": {
+                "module": "ZenoProofMining",
+                "action": "submit_proof",
+                "claim": {"schema": "zenodex/proof_mining_claim/v1", "body": "not-object"},
+            },
+        },
+        tx_sender_pubkey=sender,
+        block_timestamp=2,
+    )
+
+    assert ok is False
+    assert patch is None
+    assert err == "proof mining claim.body must be an object"

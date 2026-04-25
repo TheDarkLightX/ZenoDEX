@@ -113,6 +113,22 @@ def _intent_id_to_u64(intent_id: str) -> int:
     return int(intent_id, 16) & 0xFFFFFFFFFFFFFFFF
 
 
+def _intent_id_to_int(intent_id: str) -> int:
+    if not isinstance(intent_id, str) or not intent_id.startswith("0x") or len(intent_id) != 66:
+        raise ValueError(f"invalid intent_id for Tau witness: {intent_id!r}")
+    return int(intent_id, 16)
+
+
+def _validate_aligned_settlement_intent_order_projection(intent_ids: List[str]) -> Tuple[bool, Optional[str]]:
+    full_width_ids = [_intent_id_to_int(intent_id) for intent_id in intent_ids]
+    if any(full_width_ids[idx] >= full_width_ids[idx + 1] for idx in range(len(full_width_ids) - 1)):
+        return False, "Tau settlement_profile requires strictly ascending full-width included intent_ids"
+    low16_ids = [value & 0xFFFF for value in full_width_ids]
+    if any(low16_ids[idx] >= low16_ids[idx + 1] for idx in range(len(low16_ids) - 1)):
+        return False, "Tau settlement_profile low-16 order projection must preserve full intent_id order"
+    return True, None
+
+
 def validate_settlement_swaps(
     *,
     intents: List[Intent],
@@ -454,6 +470,9 @@ def validate_settlement_swaps(
             included_intent_ids = [intent_id for intent_id, _action in settlement.included_intents]
             if len(included_intent_ids) != 4:
                 return False, f"Tau settlement_profile={config.settlement_profile} requires exactly 4 included intents, got {len(included_intent_ids)}"
+            projection_ok, projection_err = _validate_aligned_settlement_intent_order_projection(included_intent_ids)
+            if not projection_ok:
+                return False, projection_err
             a, b, c, d = (_intent_id_to_u64(intent_id) for intent_id in included_intent_ids)
             price_pp, price_prev, price_curr = config.settlement_price_history
             if config.settlement_profile == "aligned_price_rails_v1":

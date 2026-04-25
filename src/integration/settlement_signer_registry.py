@@ -25,11 +25,14 @@ from .tau_net_client import (
     TauNetTauStateView,
     compute_tau_state_commitment_hash_hex,
 )
+from .tau_state_proof_binding import validate_tau_state_proof_binding
 
 SETTLEMENT_SIGNER_REGISTRY_SNAPSHOT_SCHEMA = "zenodex/settlement-signer-registry-snapshot/v1"
 SETTLEMENT_SIGNER_REGISTRY_ANCHOR_SCHEMA = "zenodex/settlement-signer-registry-anchor/v1"
 SETTLEMENT_SIGNER_REGISTRY_INTERFACE_SCHEMA = "zenodex/settlement-signer-registry-interface/v1"
 SETTLEMENT_SIGNER_REGISTRY_TAU_BRIDGE_SCHEMA = "zenodex/settlement-signer-registry-tau-bridge/v1"
+_JSON_RPC_MAX_RESPONSE_BYTES = 1_048_576
+_JSON_RPC_ERROR_BODY_PREVIEW_BYTES = 4096
 
 
 @dataclass(frozen=True)
@@ -740,6 +743,27 @@ class TauNetSettlementSignerRegistrySnapshotLoader:
                         },
                     )
                 )
+            binding_ok, binding_error = validate_tau_state_proof_binding(
+                state_proof={
+                    "present": state_proof_view.present,
+                    "state_hash": state_proof_view.state_hash,
+                },
+                committed_state_hash=state_proof_view.state_hash,
+                committed_app_hash=app_state_view.app_hash,
+                tau_state={"app_hash": tau_state_view.app_hash},
+            )
+            if not binding_ok:
+                raise ValueError(
+                    _format_binding_error(
+                        f"Tau state proof binding invalid for settlement signer registry bridge: {binding_error}",
+                        details={
+                            **request.to_dict(),
+                            "tau_app_hash": app_state_view.app_hash,
+                            "tau_state_hash": tau_state_view.state_hash,
+                            "bridge_key": self._bridge_key,
+                        },
+                    )
+                )
         return SettlementSignerRegistrySnapshot(
             chain_id=int(anchor.chain_id),
             registry_contract=anchor.registry_contract,
@@ -1305,16 +1329,19 @@ def _json_rpc_post_json(
         req.add_header(key, value)
     try:
         with urllib_request.urlopen(req, timeout=timeout_s) as resp:
-            raw = resp.read()
+            raw = _read_json_rpc_response_body(resp, endpoint_url=endpoint_url)
     except urllib_error.HTTPError as exc:
-        raw = exc.read()
+        try:
+            raw = _read_json_rpc_response_body(exc, endpoint_url=endpoint_url)
+        except ValueError as read_exc:
+            raise read_exc from exc
         raise ValueError(
             _format_binding_error(
                 "attestation registry json-rpc endpoint returned HTTP error",
                 details={
                     "endpoint_url": endpoint_url,
                     "status": int(exc.code),
-                    "body": raw.decode("utf-8", "replace"),
+                    "body": _json_rpc_body_preview(raw),
                 },
             )
         ) from exc
@@ -1346,10 +1373,32 @@ def _json_rpc_post_json(
                 "attestation registry json-rpc response is not valid json",
                 details={
                     "endpoint_url": endpoint_url,
-                    "body": raw.decode("utf-8", "replace"),
+                    "body": _json_rpc_body_preview(raw),
                 },
             )
         ) from exc
+
+
+def _read_json_rpc_response_body(response: Any, *, endpoint_url: str) -> bytes:
+    raw = response.read(_JSON_RPC_MAX_RESPONSE_BYTES + 1)
+    if len(raw) > _JSON_RPC_MAX_RESPONSE_BYTES:
+        raise ValueError(
+            _format_binding_error(
+                "attestation registry json-rpc response exceeds size limit",
+                details={
+                    "endpoint_url": endpoint_url,
+                    "max_response_bytes": _JSON_RPC_MAX_RESPONSE_BYTES,
+                },
+            )
+        )
+    return raw
+
+
+def _json_rpc_body_preview(raw: bytes) -> str:
+    preview = raw[:_JSON_RPC_ERROR_BODY_PREVIEW_BYTES].decode("utf-8", "replace")
+    if len(raw) > _JSON_RPC_ERROR_BODY_PREVIEW_BYTES:
+        return f"{preview}...<truncated>"
+    return preview
 
 
 __all__ = [

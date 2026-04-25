@@ -631,8 +631,11 @@ def _apply_proof_mining_op(
             return False, state, proof_mining_state, str(exc)
         if recipient != sender:
             return False, state, proof_mining_state, "proof mining recipient_pubkey mismatch"
-    claim_body = _require_mapping(claim_artifact.get("body"), name="proof mining claim.body")
-    winner = _require_mapping(claim_body.get("winner"), name="proof mining claim.body.winner")
+    try:
+        claim_body = _require_mapping(claim_artifact.get("body"), name="proof mining claim.body")
+        winner = _require_mapping(claim_body.get("winner"), name="proof mining claim.body.winner")
+    except Exception as exc:
+        return False, state, proof_mining_state, str(exc)
     try:
         winner_pubkey = _canonical_pubkey(winner.get("miner_id"), name="proof mining claim winner.miner_id")
     except Exception as exc:
@@ -669,6 +672,7 @@ def _apply_proof_mining_op(
             runtime_state=runtime_state,
             claim_artifact=claim_artifact,
             actual_reward_pool_balance=actual_pool_balance,
+            proof_mining_context=proof_mining_context,
         )
     except Exception as exc:
         return False, state, proof_mining_state, str(exc)

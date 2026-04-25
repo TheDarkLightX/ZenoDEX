@@ -1,0 +1,248 @@
+{
+  "schema": "zenodex/stateful-dangerous-surface-manifest/v1",
+  "surfaces": [
+    {
+      "id": "api_request_authorization_boundary",
+      "machine_family": "api/auth-envelope",
+      "invariant_boundary": "unauthorized request envelopes must fail closed before runtime admission",
+      "action_grammar": "request envelope -> parse -> auth gate -> reject",
+      "harnesses": [
+        "test_api_server_dex_api:resource_budget_caps"
+      ],
+      "trace_tokens": [
+        "api_server.py"
+      ],
+      "outcome_tokens": [
+        "unauthorized",
+        "proof_flags"
+      ],
+      "waypoint_tags": [
+        "api",
+        "auth"
+      ],
+      "witness_ids": []
+    },
+    {
+      "id": "operations_signature_reuse_boundary",
+      "machine_family": "operations/signature-binding",
+      "invariant_boundary": "duplicate or replayed signatures must not cross the signed-operations boundary",
+      "action_grammar": "signed operations -> signature reuse -> parser/validator reject",
+      "harnesses": [
+        "operations_signature_sequence:signature_reuse_sequence"
+      ],
+      "trace_tokens": [
+        "operations.py"
+      ],
+      "outcome_tokens": [
+        "signature provided twice"
+      ],
+      "waypoint_tags": [
+        "operations",
+        "signature"
+      ],
+      "witness_ids": [
+        "operations_duplicate_signature"
+      ]
+    },
+    {
+      "id": "nonce_replay_guard",
+      "machine_family": "replay/nonce",
+      "invariant_boundary": "nonce sequences must be monotone and sender-bound across batches",
+      "action_grammar": "intent batch -> accept -> replay or gap -> reject",
+      "harnesses": [
+        "state_boundary_concolic:validate_and_apply_intent_nonce_batch"
+      ],
+      "trace_tokens": [
+        "nonces.py"
+      ],
+      "outcome_tokens": [
+        "nonce sequence invalid",
+        "duplicate nonce in batch",
+        "Missing/invalid nonce"
+      ],
+      "waypoint_tags": [
+        "nonce",
+        "replay"
+      ],
+      "witness_ids": [
+        "nonce_cross_batch_replay",
+        "dex_engine_replay_dead_tail"
+      ]
+    },
+    {
+      "id": "quote_receipt_transport_boundary",
+      "machine_family": "receipt/transport",
+      "invariant_boundary": "receipt transport hashes and envelope structure must bind before route execution",
+      "action_grammar": "receipt blob -> transport decode -> hash check -> reject",
+      "harnesses": [
+        "quote_receipt_sequence:stale_quote_receipt_sequence",
+        "dex_engine_quote_receipt_sequence:direct_quote_receipt_sequence"
+      ],
+      "trace_tokens": [
+        "quote_receipts.py"
+      ],
+      "outcome_tokens": [
+        "hash_mismatch",
+        "missing_receipt_hash",
+        "quote receipt hash mismatch",
+        "missing quote receipt witness"
+      ],
+      "waypoint_tags": [
+        "receipt",
+        "transport"
+      ],
+      "witness_ids": []
+    },
+    {
+      "id": "stale_quote_receipt_boundary",
+      "machine_family": "receipt/staleness",
+      "invariant_boundary": "quote receipts must fail once the referenced pool snapshot drifts",
+      "action_grammar": "valid quote receipt -> pool mutation -> reuse receipt -> reject",
+      "harnesses": [
+        "quote_receipt_sequence:stale_quote_receipt_sequence",
+        "dex_engine_quote_receipt_sequence:direct_quote_receipt_sequence"
+      ],
+      "trace_tokens": [
+        "quote_receipts.py"
+      ],
+      "outcome_tokens": [
+        "pool_snapshot_mismatch",
+        "totals_mismatch"
+      ],
+      "waypoint_tags": [
+        "receipt",
+        "stale"
+      ],
+      "witness_ids": [
+        "dex_engine_quote_receipt_stale_dead_tail"
+      ]
+    },
+    {
+      "id": "stale_settlement_boundary",
+      "machine_family": "settlement/staleness",
+      "invariant_boundary": "provided settlements must fail once the execution surface changes",
+      "action_grammar": "valid settlement -> state mutation -> stale settlement replay -> reject",
+      "harnesses": [
+        "settlement_sequence:stale_settlement_sequence"
+      ],
+      "trace_tokens": [
+        "dex_engine.py"
+      ],
+      "outcome_tokens": [
+        "settlement mismatch",
+        "missing settlement"
+      ],
+      "waypoint_tags": [
+        "settlement",
+        "stale"
+      ],
+      "witness_ids": [
+        "dex_engine_settlement_stale_dead_tail"
+      ]
+    },
+    {
+      "id": "quote_receipt_pool_envelope_boundary",
+      "machine_family": "receipt/pool-envelope-binding",
+      "invariant_boundary": "receipt pool fingerprint maps must cover exactly the pools referenced by the quoted winner path",
+      "action_grammar": "quote receipt -> recanonicalize winner/body -> stale pool fingerprint envelope -> reject",
+      "harnesses": [
+        "route_certificate_sequence:route_certificate_sequence"
+      ],
+      "trace_tokens": [
+        "quote_receipts.py"
+      ],
+      "outcome_tokens": [
+        "missing_pool_fingerprint",
+        "unexpected_pool_fingerprint"
+      ],
+      "waypoint_tags": [
+        "receipt",
+        "pools",
+        "envelope"
+      ],
+      "witness_ids": []
+    },
+    {
+      "id": "quote_receipt_certificate_boundary",
+      "machine_family": "route-certificate/receipt-binding",
+      "invariant_boundary": "route certificates must remain bound to the quoted candidate set and quote body",
+      "action_grammar": "quote receipt -> certificate payload -> route binding check -> reject",
+      "harnesses": [
+        "route_certificate_sequence:route_certificate_sequence",
+        "dex_engine_quote_receipt_sequence:direct_quote_receipt_sequence"
+      ],
+      "trace_tokens": [
+        "exact_in_route_certificate.py",
+        "quote_receipts.py"
+      ],
+      "outcome_tokens": [
+        "bad_canonical_route_certificate",
+        "canonical_route_certificate_amount_out_mismatch",
+        "candidate_set_hash mismatch",
+        "winner_index mismatch",
+        "candidate list mismatch"
+      ],
+      "waypoint_tags": [
+        "route",
+        "certificate"
+      ],
+      "witness_ids": [
+        "route_certificate_candidate_set_hash_mismatch"
+      ]
+    },
+    {
+      "id": "route_canonicalization_boundary",
+      "machine_family": "routing/canonicalization",
+      "invariant_boundary": "canonical winner selection must stay stable under quote-set replay and tie-break pressure",
+      "action_grammar": "candidate set -> canonical certificate -> reordered or improved candidates -> reject mismatch",
+      "harnesses": [
+        "route_certificate_sequence:route_certificate_sequence"
+      ],
+      "trace_tokens": [
+        "exact_in_route_certificate.py"
+      ],
+      "outcome_tokens": [
+        "winner_quote mismatch",
+        "candidate_set_hash mismatch",
+        "winner_index mismatch"
+      ],
+      "waypoint_tags": [
+        "routing",
+        "canonicalization"
+      ],
+      "witness_ids": [
+        "route_canonicalization_candidate_set_hash_mismatch"
+      ]
+    },
+    {
+      "id": "settlement_attestation_policy_boundary",
+      "machine_family": "settlement/attestation-policy",
+      "invariant_boundary": "settlement attestations must fail on stale epochs, source allowlist drift, or signature tampering",
+      "action_grammar": "verified price packet -> sign attestation -> policy or time drift -> reject",
+      "harnesses": [
+        "settlement_attestation_sequence:settlement_attestation_sequence"
+      ],
+      "trace_tokens": [
+        "settlement_price_attestation.py"
+      ],
+      "outcome_tokens": [
+        "settlement spot price attestation is stale",
+        "source_id not allowlisted for signer",
+        "packet_hash mismatch",
+        "signature invalid"
+      ],
+      "waypoint_tags": [
+        "settlement",
+        "attestation",
+        "policy"
+      ],
+      "witness_ids": [
+        "settlement_attestation_stale",
+        "settlement_attestation_allowlist_drift",
+        "settlement_attestation_packet_hash_mismatch",
+        "settlement_attestation_signature_invalid",
+        "settlement_attestation_future_epoch"
+      ]
+    }
+  ]
+}

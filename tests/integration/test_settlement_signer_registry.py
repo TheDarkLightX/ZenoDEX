@@ -6,6 +6,7 @@ import importlib.util
 import pytest
 
 import src.integration.tau_net_client as tau_net_client
+import src.integration.settlement_signer_registry as registry_mod
 from src.integration.settlement_price_provenance import (
     SettlementSpotPriceEntry,
     build_settlement_spot_price_packet,
@@ -332,6 +333,29 @@ def test_json_rpc_settlement_signer_registry_anchor_loader_rejects_interface_dri
                 ),
             ),
             consumer_now_epoch=103,
+        )
+
+
+def test_json_rpc_transport_rejects_oversized_response(monkeypatch) -> None:
+    class _HugeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            return False
+
+        def read(self, size: int = -1) -> bytes:
+            assert size == registry_mod._JSON_RPC_MAX_RESPONSE_BYTES + 1
+            return b"x" * (registry_mod._JSON_RPC_MAX_RESPONSE_BYTES + 1)
+
+    monkeypatch.setattr(registry_mod.urllib_request, "urlopen", lambda *_args, **_kwargs: _HugeResponse())
+
+    with pytest.raises(ValueError, match="json-rpc response exceeds size limit"):
+        registry_mod._json_rpc_post_json(
+            endpoint_url="https://rpc.example.invalid",
+            headers={},
+            payload={"jsonrpc": "2.0", "id": "test", "method": "test", "params": {}},
+            timeout_s=1.0,
         )
 
 

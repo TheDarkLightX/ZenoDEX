@@ -157,7 +157,7 @@ class TestSettleEpoch:
         assert r.effect.event == Event.EPOCH_SETTLED
         assert r.effect.oracle_fresh is True
 
-    def test_bootstrap_settle_allowed_when_oracle_not_seen_and_flat(self):
+    def test_bootstrap_settle_rejected_when_oracle_not_seen_even_if_flat(self):
         s = replace(
             initial_state(),
             now_epoch=1,
@@ -172,10 +172,8 @@ class TestSettleEpoch:
             collateral_quote=0,
         )
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
-        assert r.accepted
-        assert r.state is not None
-        assert r.state.oracle_seen is True
-        assert r.state.index_price_e8 == 100_000_000
+        assert not r.accepted
+        assert r.rejection == "guard"
 
     def test_profitable_long(self):
         # Long 100, price goes up 10% but clamped to 5% (max_oracle_move_bps=500)
@@ -573,7 +571,9 @@ class TestFullSequence:
         s = r.state
         assert s.epoch_phase == EpochPhase.PRICE_PUBLISHED
 
-        # Settle epoch (establishes oracle)
+        # Settlement requires a usable oracle snapshot before the clearing price
+        # is applied to index state.
+        s = replace(s, oracle_seen=True, oracle_last_update_epoch=0, index_price_e8=100_000_000)
         r = step(s, ActionParams(action=Action.SETTLE_EPOCH))
         assert r.accepted
         s = r.state

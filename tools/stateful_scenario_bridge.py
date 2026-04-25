@@ -82,13 +82,12 @@ SURFACE_FORMAL_LANES: dict[str, dict[str, Any]] = {
                 "name": "route_certificate_sequence_witnesses",
                 "artifacts": [
                     "tools/route_certificate_sequence_grammar_fuzz.py",
-                    "tools/quote_receipt_cross_surface_sequence_grammar_fuzz.py",
                     "tests/integration/test_route_certificate_sequence_grammar_fuzz.py",
-                    "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py",
+                    "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py",
                 ],
                 "commands": [
                     ["pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"],
-                    ["pytest", "-q", "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py"],
+                    ["pytest", "-q", "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py"],
                 ],
             },
         ],
@@ -124,10 +123,10 @@ SURFACE_FORMAL_LANES: dict[str, dict[str, Any]] = {
                 "kind": "fuzz_regression",
                 "name": "route_canonicalization_sequence_witnesses",
                 "artifacts": [
-                    "tools/quote_receipt_route_canonicalization_sequence_grammar_fuzz.py",
-                    "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py",
+                    "tools/route_certificate_sequence_grammar_fuzz.py",
+                    "tests/integration/test_route_certificate_sequence_grammar_fuzz.py",
                 ],
-                "commands": [["pytest", "-q", "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"]],
+                "commands": [["pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"]],
             },
         ],
     },
@@ -190,12 +189,12 @@ SURFACE_FORMAL_LANES: dict[str, dict[str, Any]] = {
                 "kind": "fuzz_regression",
                 "name": "quote_receipt_staleness_sequences",
                 "artifacts": [
-                    "tools/quote_receipt_cross_surface_sequence_grammar_fuzz.py",
-                    "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py",
+                    "tools/quote_receipt_sequence_grammar_fuzz.py",
+                    "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py",
                     "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py",
                 ],
                 "commands": [
-                    ["pytest", "-q", "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py"],
+                    ["pytest", "-q", "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py"],
                     ["pytest", "-q", "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py"],
                 ],
             },
@@ -224,13 +223,13 @@ SURFACE_FORMAL_LANES: dict[str, dict[str, Any]] = {
                 "commands": [["pytest", "-q", "tests/formal/test_lean_settlement_end_to_end_certificate_packet.py"]],
             },
             {
-                "kind": "tau",
-                "name": "settlement_proof_gate",
+                "kind": "lean",
+                "name": "settlement_compact_bundle",
                 "artifacts": [
-                    "src/tau_specs/recommended/settlement_v1_proof_gate.tau",
-                    "tests/tau/test_settlement_v1_proof_gate.py",
+                    "lean-mathlib/Proofs/ZenoDEXSettlementCompactBundle.lean",
+                    "tests/formal/test_lean_settlement_compact_bundle.py",
                 ],
-                "commands": [["pytest", "-q", "tests/tau/test_settlement_v1_proof_gate.py"]],
+                "commands": [["pytest", "-q", "tests/formal/test_lean_settlement_compact_bundle.py"]],
             },
             {
                 "kind": "fuzz_regression",
@@ -343,7 +342,7 @@ CROSS_SURFACE_WITNESS_PAIRS: tuple[dict[str, Any], ...] = (
         "surface_ids": ("quote_receipt_certificate_boundary", "stale_quote_receipt_boundary"),
         "bounds": {"max_depth": 3, "max_frontier": 32},
         "commands": [
-            ["pytest", "-q", "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py"],
+            ["pytest", "-q", "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py"],
             ["pytest", "-q", "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py"],
         ],
     },
@@ -360,7 +359,7 @@ CROSS_SURFACE_WITNESS_PAIRS: tuple[dict[str, Any], ...] = (
         "pair_id": "route_canonicalization_x_quote_certificate",
         "surface_ids": ("route_canonicalization_boundary", "quote_receipt_certificate_boundary"),
         "bounds": {"max_depth": 4, "max_frontier": 48},
-        "commands": [["pytest", "-q", "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"]],
+        "commands": [["pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"]],
     },
     {
         "pair_id": "stale_quote_receipt_x_stale_settlement",
@@ -376,7 +375,7 @@ CROSS_SURFACE_WITNESS_PAIRS: tuple[dict[str, Any], ...] = (
         "surface_ids": ("route_canonicalization_boundary", "stale_settlement_boundary"),
         "bounds": {"max_depth": 4, "max_frontier": 48},
         "commands": [
-            ["pytest", "-q", "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"],
+            ["pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"],
             ["pytest", "-q", "tests/integration/test_stale_settlement_sequence_grammar_fuzz.py"],
         ],
     },
@@ -452,7 +451,6 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "compare candidate-set hash, winner index, and pool-envelope mutations in one sequence",
         ),
         "commands": (
-            ("pytest", "-q", "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"),
         ),
     },
@@ -476,7 +474,6 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "promote every truncation-dependent survivor into a Tau/witness-language regression",
         ),
         "commands": (
-            ("pytest", "-q", "tests/integration/test_api_server_request_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_route_certificate_sequence_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_tau_gate.py"),
         ),
@@ -502,7 +499,6 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
         ),
         "commands": (
             ("pytest", "-q", "tests/integration/test_api_server_dex_api.py"),
-            ("pytest", "-q", "tests/integration/test_api_server_request_grammar_fuzz.py"),
         ),
     },
     {
@@ -526,7 +522,6 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "require minimizers to preserve the deepest reject token, not merely any reject",
         ),
         "commands": (
-            ("pytest", "-q", "tests/integration/test_quote_receipt_cross_surface_sequence_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py"),
             ("pytest", "-q", "tests/integration/test_stale_settlement_sequence_grammar_fuzz.py"),
         ),
@@ -1618,28 +1613,23 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "quote_receipt_transport_boundary",
             "nonce_replay_guard",
         ),
-        "what_if": "Boundary-concolic wrappers for API, receipt, and state surfaces disagree about the normalized envelope for the same malformed or replayed input.",
-        "disaster_state_template": "wrapper-valid malformed input reaches a neighboring state or receipt boundary",
+        "what_if": "State-boundary concolic wrappers disagree about the normalized envelope for the same malformed or replayed input.",
+        "disaster_state_template": "wrapper-valid malformed input reaches a neighboring state boundary",
         "mutation_families": (
-            "API stateful wrapper normalization hides malformed receipt field",
-            "receipt boundary mutation passes state boundary replay shape",
-            "state boundary concolic seed becomes valid after API envelope repair",
+            "state boundary mutation passes replay shape after normalization",
+            "nonce payload canonicalization preserves a malformed batch shape",
+            "state boundary concolic seed becomes valid after envelope repair",
         ),
         "bounded_harness_ideas": (
-            "run stateless and stateful concolic wrappers for API, receipt, and state together",
+            "run stateless and stateful concolic wrappers for state boundaries together",
             "promote cross-wrapper normalization disagreement into a minimized boundary witness",
         ),
         "commands": (
             (
                 "pytest",
                 "-q",
-                "tests/integration/test_api_server_boundary_concolic.py",
-                "tests/integration/test_api_server_boundary_concolic_stateful.py",
-                "tests/integration/test_receipt_boundary_concolic.py",
-                "tests/integration/test_receipt_boundary_concolic_stateful.py",
                 "tests/integration/test_state_boundary_concolic.py",
                 "tests/integration/test_state_boundary_concolic_stateful.py",
-                "tests/integration/test_boundary_concolic_determinism.py",
             ),
         ),
     },
@@ -1946,7 +1936,7 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
             "transport grammar accepts an equivalent-looking but noncanonical receipt body",
         ),
         "bounded_harness_ideas": (
-            "run quote receipt intents, sequence grammar, and transport grammar together",
+            "run quote receipt intents and sequence grammar together",
             "reject every transport receipt whose intent and body roots do not match the same canonical envelope",
         ),
         "commands": (
@@ -1955,7 +1945,6 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
                 "-q",
                 "tests/integration/test_quote_receipt_intents.py",
                 "tests/integration/test_quote_receipt_sequence_grammar_fuzz.py",
-                "tests/integration/test_quote_receipt_transport_grammar_fuzz.py",
             ),
         ),
     },

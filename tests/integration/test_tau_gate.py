@@ -16,6 +16,10 @@ def _mk_intent_id(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
+def _mk_intent_id_with_low16(high: int, low16: int) -> str:
+    return "0x" + f"{((int(high) << 16) | int(low16)):064x}"
+
+
 def _settlement_from_fills(intents: list[Intent], fills: list[Fill]) -> Settlement:
     action_by_intent = {fill.intent_id: fill.action for fill in fills}
     included = [
@@ -47,6 +51,41 @@ def test_tau_gate_enabled_no_swaps_does_not_require_tau() -> None:
         config=TauGateConfig(enabled=True, tau_bin=None, allow_path_lookup=False),
     )
     assert ok, err
+
+
+def test_tau_settlement_profile_rejects_full_width_intent_order_truncation_bypass() -> None:
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="",
+        included_intents=[
+            (_mk_intent_id_with_low16(4, 1), FillAction.REJECT),
+            (_mk_intent_id_with_low16(3, 2), FillAction.REJECT),
+            (_mk_intent_id_with_low16(2, 3), FillAction.REJECT),
+            (_mk_intent_id_with_low16(1, 4), FillAction.REJECT),
+        ],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+        events=None,
+    )
+
+    ok, err = validate_settlement_swaps(
+        intents=[],
+        settlement=settlement,
+        pre_pools={},
+        config=TauGateConfig(
+            enabled=True,
+            tau_bin=None,
+            allow_path_lookup=False,
+            settlement_profile="aligned_price_rails_v1",
+            settlement_price_history=(100, 101, 102),
+        ),
+    )
+
+    assert ok is False
+    assert err == "Tau settlement_profile requires strictly ascending full-width included intent_ids"
 
 
 def test_tau_gate_catches_tau_runner_exceptions(monkeypatch) -> None:
