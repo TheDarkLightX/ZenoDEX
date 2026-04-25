@@ -7,6 +7,8 @@ from pathlib import Path
 
 from tools.stateful_scenario_bridge import (
     DISASTER_REACHABILITY_RATCHET_SCHEMA,
+    DISASTER_SEARCH_EXPANSION_RECEIPT_SCHEMA,
+    DISASTER_SEARCH_EXPANSION_PLAN_SCHEMA,
     CROSS_SURFACE_WITNESS_EXPLORATION_SCHEMA,
     MINIMAL_WITNESS_LANGUAGE_AUDIT_SCHEMA,
     PROOF_OBLIGATION_PACKET_SCHEMA,
@@ -17,10 +19,12 @@ from tools.stateful_scenario_bridge import (
     SHAPEFORGE_BRIDGE_SCHEMA,
     build_cross_surface_witness_exploration_plan,
     build_disaster_reachability_ratchet_report,
+    build_disaster_search_expansion_plan,
     build_minimal_witness_language_audit,
     build_shapeforge_promotion_bridge_report,
     build_stateful_disaster_proof_obligation_packet,
     check_scenario_candidate,
+    run_disaster_search_expansion_plan,
     run_stateful_disaster_proof_obligations,
     run_scenario_candidate,
 )
@@ -511,6 +515,293 @@ def test_cross_surface_witness_exploration_plan_covers_requested_pairs() -> None
     ]
     assert all(row["commands"] for row in payload["pairs"])
     assert all(row["evidence_class_ceiling"] == "tested_discovery" for row in payload["pairs"])
+
+
+def test_disaster_search_expansion_plan_keeps_what_if_axes_open() -> None:
+    payload = build_disaster_search_expansion_plan()
+
+    assert payload["schema"] == DISASTER_SEARCH_EXPANSION_PLAN_SCHEMA
+    assert payload["ok"] is True
+    assert payload["policy"]["readme_exhaustive_claim"] == "defer"
+    by_axis = {row["axis_id"]: row for row in payload["axes"]}
+    assert set(by_axis) >= {
+        "epoch_split_brain",
+        "identity_registry_drift",
+        "canonicalization_equivocation",
+        "serialization_width_aliasing",
+        "resource_budget_abort",
+        "repair_after_tamper",
+        "external_state_drift",
+        "atomicity_partial_side_effect",
+        "restart_replay_persistence",
+        "dependency_outage_fail_closed",
+        "numeric_boundary_coupling",
+        "advisory_cache_receipt_coherence",
+        "market_namespace_version_isolation",
+        "reciprocal_netting_pair_forgery",
+        "bounded_advisory_search_envelope",
+        "exact_out_candidate_domain_explosion",
+        "tau_gate_policy_aliasing",
+        "zusd_oracle_recovery_split_brain",
+        "confidential_receipt_attestation_drift",
+        "strategy_session_capability_replay",
+        "fire_registry_proof_tree_supply_chain",
+        "batch_clearing_fragmentation_ordering",
+        "intent_auth_shape_replay",
+        "perp_funding_liquidation_oracle_window",
+        "proof_mining_packet_envelope_replay",
+        "sealed_bid_reveal_commitment_binding",
+        "curve_registry_dispatch_aliasing",
+        "vault_reward_carry_spendability",
+        "tau_net_client_transport_boundary",
+        "tau_operator_policy_supply_chain",
+        "settlement_proof_recompute_gate",
+        "operations_parser_canonical_envelope",
+        "resource_load_shedding_chaos_boundary",
+        "cantor_region_partition_invariance",
+        "autotrader_policy_artifact_replay",
+        "state_accounting_size_boundary",
+        "zusd_api_token_policy_surface",
+        "dex_engine_sequence_anomaly_surface",
+        "quote_receipt_gate_decomposition_consistency",
+        "settlement_witness_lifecycle_value_drift",
+        "dex_core_ref_parity_drift",
+        "confidential_request_admission_gate_decomposition",
+        "boundary_concolic_wrapper_consistency",
+        "runtime_shell_adapter_consistency",
+        "perp_submission_surface_gate_composition",
+        "perp_v2_ref_oracle_parity_boundary",
+        "exact_out_prefilter_winner_repair_boundary",
+        "batch_refinement_mci_parity_boundary",
+        "agent_policy_signing_artifact_boundary",
+        "tau_runner_api_lifecycle_fail_closed",
+        "fire_runtime_receipt_replay_boundary",
+        "exact_in_route_certificate_guarded_key_boundary",
+        "quote_receipt_transport_intent_boundary",
+        "oracle_funding_clock_commitment_boundary",
+        "intent_normal_form_nonce_gate_boundary",
+        "zenograph_krr_policy_state_boundary",
+        "zusd_native_accounting_gate_boundary",
+        "proof_mining_manager_slot_control_boundary",
+        "strategy_native_policy_guard_surface",
+        "autotrader_policy_toolchain_state_boundary",
+        "confidential_core_verifier_binding_boundary",
+        "cantor_shapeforge_morphism_bridge_boundary",
+        "fire_cli_supply_chain_receipt_boundary",
+        "settlement_formal_packet_contract_boundary",
+        "exact_out_formal_packet_contract_boundary",
+        "strategy_residual_guard_binding_boundary",
+        "perp_core_legacy_ref_hazard_boundary",
+        "perp_engine_integration_oracle_bootstrap_boundary",
+        "tau_witness_autotrader_binding_surface",
+        "fire_registry_deployment_sync_boundary",
+        "tla_queue_lifecycle_model_boundary",
+        "exact_out_shadow_runtime_prefilter_boundary",
+        "tau_runner_subprocess_transport_boundary",
+        "settlement_apply_witness_native_boundary",
+        "tau_operator_policy_receipt_symbolic_boundary",
+        "settlement_price_provenance_semantic_boundary",
+        "fire_kernel_release_verifier_boundary",
+        "quote_receipt_native_adapter_parity_boundary",
+        "perp_native_adapter_oracle_bva_boundary",
+        "intent_nonce_confidential_state_native_boundary",
+        "tla_perp_settlement_queue_model_boundary",
+        "exact_in_lean_rank_projection_boundary",
+        "exact_out_lean_certificate_boundary",
+        "settlement_lean_price_oracle_boundary",
+        "ltl_oracle_recovery_schedule_boundary",
+        "exact_out_lean_concrete_recursion_boundary",
+        "exact_out_lean_ordered_presentation_boundary",
+        "exact_out_lean_repaired_key_cover_boundary",
+        "permissionless_proof_mining_tooling_boundary",
+        "claims_falsifier_inventory_boundary",
+        "tau_semantic_proof_gate_split_boundary",
+        "tau_autotrader_spec_guard_boundary",
+        "fire_formal_runtime_note_boundary",
+        "numeric_kernel_ml_history_boundary",
+        "proof_mining_native_permissionless_boundary",
+        "exact_out_lean_stream_support_boundary",
+        "cross_module_tool_checker_boundary",
+        "stateful_report_bridge_ranking_boundary",
+        "tau_operator_library_artifact_boundary",
+        "tau_exact_out_resource_spec_boundary",
+        "dex_settlement_recovery_proof_unit_boundary",
+        "acceptance_tcb_minimized_witness_boundary",
+        "rc1_release_readiness_artifact_boundary",
+        "advisory_swap_sandwich_preflight_boundary",
+        "functional_core_split_parity_branch_boundary",
+        "fire_cal_package_claim_boundary",
+        "tokenomics_wash_budget_boundary",
+        "decision_tau_witness_runner_boundary",
+        "optimizer_liveness_prompt_boundary",
+        "chaos_regret_campaign_boundary",
+        "autotrader_krr_import_supply_chain_boundary",
+        "amm_curve_il_parity_boundary",
+        "lean_amm_canonical_math_boundary",
+        "lean_repair_economics_boundary",
+        "lean_autotrader_solver_policy_boundary",
+        "krr_region_ba_reasoner_boundary",
+        "tool_guard_lint_symbolic_boundary",
+        "zusd_support_native_selector_boundary",
+        "lean_cross_surface_composition_boundary",
+        "operator_environment_tooling_boundary",
+        "stateful_bounty_catalog_feedback_boundary",
+        "batch_settler_greedy_adapter_boundary",
+        "exact_out_adaptive_region_boundary",
+        "shapeforge_release_ratchet_artifact_boundary",
+        "zenograph_autotrader_ranking_artifact_boundary",
+    }
+    assert by_axis["epoch_split_brain"]["priority_score"] > by_axis["atomicity_partial_side_effect"]["priority_score"]
+    assert "settlement_attestation_policy_boundary" in by_axis["epoch_split_brain"]["surface_ids"]
+    assert "low-bit-equal identifiers with full-width disagreement" in by_axis["serialization_width_aliasing"]["mutation_families"]
+    assert "split route containing a zero-flow candidate member" in by_axis["advisory_cache_receipt_coherence"]["mutation_families"]
+    assert "same-direction COW fills" in by_axis["reciprocal_netting_pair_forgery"]["mutation_families"]
+    assert "oracle quorum boundary with one stale or missing commitment" in by_axis["zusd_oracle_recovery_split_brain"]["mutation_families"]
+    assert "curve tag changed while reserves and pool id remain stable" in by_axis["curve_registry_dispatch_aliasing"]["mutation_families"]
+    assert "current construction mismatch after count or product receipt drift" in by_axis["cantor_region_partition_invariance"]["mutation_families"]
+    assert "proof-gated region under shed-only path" in by_axis["resource_load_shedding_chaos_boundary"]["mutation_families"]
+    assert "precheck-success with certificate-body drift" in by_axis["quote_receipt_gate_decomposition_consistency"]["mutation_families"]
+    assert "adapter IR hash drift after kernel spec update" in by_axis["runtime_shell_adapter_consistency"]["mutation_families"]
+    assert "signed surface valid with stale market version prefix" in by_axis["perp_submission_surface_gate_composition"]["mutation_families"]
+    assert "prefilter support witness drops a feasible winner" in by_axis["exact_out_prefilter_winner_repair_boundary"]["mutation_families"]
+    assert "fact pack replayed after KRR policy history update" in by_axis["zenograph_krr_policy_state_boundary"]["mutation_families"]
+    assert "claimability gate passes after manager slot assignment drift" in by_axis["proof_mining_manager_slot_control_boundary"]["mutation_families"]
+    assert "signal provenance root changes after signer binding" in by_axis["strategy_native_policy_guard_surface"]["mutation_families"]
+    assert "backend invariance receipt valid after morphism product drift" in by_axis["cantor_shapeforge_morphism_bridge_boundary"]["mutation_families"]
+    assert "compile receipt valid while object package root changes" in by_axis["fire_cli_supply_chain_receipt_boundary"]["mutation_families"]
+    assert "candidate-domain contract valid but certified-winner packet uses different domain" in by_axis["exact_out_formal_packet_contract_boundary"]["mutation_families"]
+    assert "oracle freshness guard accepts a strategy observation from a stale context" in by_axis["strategy_residual_guard_binding_boundary"]["mutation_families"]
+    assert "first clearing-price publish followed by settle with no usable oracle snapshot" in by_axis["perp_engine_integration_oracle_bootstrap_boundary"]["mutation_families"]
+    assert "wallet capability guard passes while session binding belongs to a neighboring policy" in by_axis["tau_witness_autotrader_binding_surface"]["mutation_families"]
+    assert "adaptive liveness benchmark exceeds bounded disaster-runner budget and remains backlog" in by_axis["exact_out_shadow_runtime_prefilter_boundary"]["mutation_families"]
+    assert "external-binary skipped coverage is mistaken for unreachable transport states" in by_axis["tau_runner_subprocess_transport_boundary"]["mutation_families"]
+    assert "add/remove liquidity ratio witness drifts from apply witness under boundary reserves" in by_axis["settlement_apply_witness_native_boundary"]["mutation_families"]
+    assert "symbolic policy alias metadata chain points to a neighboring lowered artifact" in by_axis["tau_operator_policy_receipt_symbolic_boundary"]["mutation_families"]
+    assert "price provenance root changes after attestation but before compact-bundle replay" in by_axis["settlement_price_provenance_semantic_boundary"]["mutation_families"]
+    assert "verifier receipt binds a release root whose compiler registry changed" in by_axis["fire_kernel_release_verifier_boundary"]["mutation_families"]
+    assert "native precheck accepts while certificate gate rejects after body repair" in by_axis["quote_receipt_native_adapter_parity_boundary"]["mutation_families"]
+    assert "ML-BVA settle_epoch case expects success without oracle_seen and positive index price" in by_axis["perp_native_adapter_oracle_bva_boundary"]["mutation_families"]
+    assert "nonce batch policy accepts after confidential request root drift" in by_axis["intent_nonce_confidential_state_native_boundary"]["mutation_families"]
+    assert "settlement witness inclusion queue accepts after bounded-open ingress drift" in by_axis["tla_perp_settlement_queue_model_boundary"]["mutation_families"]
+    assert "rank projection packet proves a candidate order that the true-key winner proof rejects" in by_axis["exact_in_lean_rank_projection_boundary"]["mutation_families"]
+    assert "route certificate proof omits a brute-force-complete candidate" in by_axis["exact_out_lean_certificate_boundary"]["mutation_families"]
+    assert "oracle benefit accounting proof binds a different risk class than settlement value packet" in by_axis["settlement_lean_price_oracle_boundary"]["mutation_families"]
+    assert "oracle recovery LTL permits a schedule rejected by zUSD Tau recovery" in by_axis["ltl_oracle_recovery_schedule_boundary"]["mutation_families"]
+    assert "runtime generator checker emits a path whose structural recursion proof rejects" in by_axis["exact_out_lean_concrete_recursion_boundary"]["mutation_families"]
+    assert "ordered quoted path completeness misses a presentation-equivalent candidate" in by_axis["exact_out_lean_ordered_presentation_boundary"]["mutation_families"]
+    assert "repaired prefilter contract drops a candidate restored by full-domain certification" in by_axis["exact_out_lean_repaired_key_cover_boundary"]["mutation_families"]
+    assert "round ledger accepts a solver claim whose claimability gate rejects" in by_axis["permissionless_proof_mining_tooling_boundary"]["mutation_families"]
+    assert "falsifier output changes while claims registry status remains promoted" in by_axis["claims_falsifier_inventory_boundary"]["mutation_families"]
+    assert "oracle freshness semantic lane disagrees with proof-mining reward gate" in by_axis["tau_semantic_proof_gate_split_boundary"]["mutation_families"]
+    assert "tx envelope guard passes after live-admission or nonce root changes" in by_axis["tau_autotrader_spec_guard_boundary"]["mutation_families"]
+    assert "fee-note reference result changes after formal packet construction" in by_axis["fire_formal_runtime_note_boundary"]["mutation_families"]
+    assert "LP mint and LP ratio ML-BVA artifacts disagree on shared reserve boundaries" in by_axis["numeric_kernel_ml_history_boundary"]["mutation_families"]
+    assert "verification flags gate passes while solver proof-mining claim uses a stale status root" in by_axis["proof_mining_native_permissionless_boundary"]["mutation_families"]
+    assert "remaining capacity top-sum proof disagrees with residual allocation proof" in by_axis["exact_out_lean_stream_support_boundary"]["mutation_families"]
+    assert "oracle split-brain checker passes while oracle divergence pack flags a neighboring root" in by_axis["cross_module_tool_checker_boundary"]["mutation_families"]
+    assert "RC1 candidate index changes after stateful feedback report construction" in by_axis["stateful_report_bridge_ranking_boundary"]["mutation_families"]
+    assert "lowered operator policy artifact passes while typed operator manifest changes" in by_axis["tau_operator_library_artifact_boundary"]["mutation_families"]
+    assert "exact-out packet facts pass while audited bounds liveness rejects the runtime path" in by_axis["tau_exact_out_resource_spec_boundary"]["mutation_families"]
+    assert "proof-mining claimability passes under a recovered Tau Testnet state with stale manager root" in by_axis["dex_settlement_recovery_proof_unit_boundary"]["mutation_families"]
+    assert "acceptance campaign root changes after minimized witness publication" in by_axis["acceptance_tcb_minimized_witness_boundary"]["mutation_families"]
+    assert "verified surface matrix row points to a stale candidate artifact" in by_axis["rc1_release_readiness_artifact_boundary"]["mutation_families"]
+    assert "dynamic-fee sandwich boundary accepts a swap rejected by preflight" in by_axis["advisory_swap_sandwich_preflight_boundary"]["mutation_families"]
+    assert "split routing dispatch changes candidate order without ref-parity drift" in by_axis["functional_core_split_parity_branch_boundary"]["mutation_families"]
+    assert "FMOS file root differs from formal assurance claim root" in by_axis["fire_cal_package_claim_boundary"]["mutation_families"]
+    assert "wash sequence passes while pro-rata budget is exhausted" in by_axis["tokenomics_wash_budget_boundary"]["mutation_families"]
+    assert "decision witness adapter normalizes fields differently from Tau witness builder" in by_axis["decision_tau_witness_runner_boundary"]["mutation_families"]
+    assert "audited bounds v1 accepts a liveness trace rejected by v2" in by_axis["optimizer_liveness_prompt_boundary"]["mutation_families"]
+    assert "regret scheduler output changes after toolkit artifact capture" in by_axis["chaos_regret_campaign_boundary"]["mutation_families"]
+    assert "KRR bundle build accepts facts imported under a stale source root" in by_axis["autotrader_krr_import_supply_chain_boundary"]["mutation_families"]
+    assert "IL futures ref parity passes while route value differs across AMM family" in by_axis["amm_curve_il_parity_boundary"]["mutation_families"]
+    assert "canonical winner proof assumes a rounding envelope not shared by route certificate" in by_axis["lean_amm_canonical_math_boundary"]["mutation_families"]
+    assert "multi-incident conservation proof disagrees with treasury budget proof" in by_axis["lean_repair_economics_boundary"]["mutation_families"]
+    assert "autotrader stage certificate proof binds a different action than live release proof" in by_axis["lean_autotrader_solver_policy_boundary"]["mutation_families"]
+    assert "KRR reasoner fact changes after region BA report construction" in by_axis["krr_region_ba_reasoner_boundary"]["mutation_families"]
+    assert "Sympy Tau normalizer changes a guard accepted by system-spec lint" in by_axis["tool_guard_lint_symbolic_boundary"]["mutation_families"]
+    assert "support root changes after multi-oracle commit witness construction" in by_axis["zusd_support_native_selector_boundary"]["mutation_families"]
+    assert "two-venue governance proof permits a role-collapse state rejected by release gate" in by_axis["lean_cross_surface_composition_boundary"]["mutation_families"]
+    assert "Runpod helper captures artifacts that CHC verification wrapper cannot replay" in by_axis["operator_environment_tooling_boundary"]["mutation_families"]
+    assert "sealed-bid disaster catalog omits a candidate promoted by RC1 candidate index" in by_axis["stateful_bounty_catalog_feedback_boundary"]["mutation_families"]
+    assert "native batch-settler adapter selects an order outside greedy approximation bounds" in by_axis["batch_settler_greedy_adapter_boundary"]["mutation_families"]
+    assert "adaptive region boundary accepts a path whose benchmark lane exceeds the disaster-runner cap" in by_axis["exact_out_adaptive_region_boundary"]["mutation_families"]
+    assert "ratchet check accepts a ShapeForge artifact whose explorer extraction is stale" in by_axis["shapeforge_release_ratchet_artifact_boundary"]["mutation_families"]
+    assert "ranking review bundle verifies after shadow baseline changes" in by_axis["zenograph_autotrader_ranking_artifact_boundary"]["mutation_families"]
+    assert all(row["status"] == "not_exhausted" for row in payload["axes"])
+    assert all(row["evidence_class_ceiling"] == "tested_discovery" for row in payload["axes"])
+
+
+def test_disaster_search_expansion_plan_cli_writes_json(tmp_path: Path) -> None:
+    out = tmp_path / "search_expansion.json"
+    raw = subprocess.check_output(
+        [
+            sys.executable,
+            "tools/build_stateful_disaster_search_expansion_plan.py",
+            "--axis-id",
+            "epoch_split_brain",
+            "--output",
+            str(out),
+            "--format",
+            "json",
+        ],
+        cwd=ROOT_DIR,
+        text=True,
+    )
+    stdout_payload = json.loads(raw)
+    file_payload = json.loads(out.read_text(encoding="utf-8"))
+    assert stdout_payload == file_payload
+    assert file_payload["schema"] == DISASTER_SEARCH_EXPANSION_PLAN_SCHEMA
+    assert file_payload["axis_count"] == 1
+    assert file_payload["axes"][0]["axis_id"] == "epoch_split_brain"
+
+
+def test_run_disaster_search_expansion_plan_marks_passing_axis_unreachable() -> None:
+    plan = {
+        "schema": DISASTER_SEARCH_EXPANSION_PLAN_SCHEMA,
+        "ok": True,
+        "axes": [
+            {
+                "axis_id": "demo_axis",
+                "priority_score": 1,
+                "surface_ids": ["stale_settlement_boundary"],
+                "what_if": "demo",
+                "disaster_state_template": "demo",
+                "commands": [[sys.executable, "-c", "print('ok')"]],
+            }
+        ],
+    }
+
+    payload = run_disaster_search_expansion_plan(plan=plan, timeout_s=10)
+
+    assert payload["schema"] == DISASTER_SEARCH_EXPANSION_RECEIPT_SCHEMA
+    assert payload["ok"] is True
+    assert payload["selected_axis_count"] == 1
+    assert payload["unreachable_count"] == 1
+    assert payload["axis_results"][0]["status"] == "unreachable_under_current_bounds"
+
+
+def test_run_disaster_search_expansion_plan_cli_writes_receipt(tmp_path: Path) -> None:
+    out = tmp_path / "search_receipt.json"
+    raw = subprocess.check_output(
+        [
+            sys.executable,
+            "tools/run_stateful_disaster_search_expansion_plan.py",
+            "--axis-id",
+            "epoch_split_brain",
+            "--output",
+            str(out),
+            "--format",
+            "json",
+        ],
+        cwd=ROOT_DIR,
+        text=True,
+    )
+    stdout_payload = json.loads(raw)
+    file_payload = json.loads(out.read_text(encoding="utf-8"))
+    assert stdout_payload == file_payload
+    assert file_payload["schema"] == DISASTER_SEARCH_EXPANSION_RECEIPT_SCHEMA
+    assert file_payload["selected_axis_count"] == 1
+    assert file_payload["axis_results"][0]["axis_id"] == "epoch_split_brain"
 
 
 def _closure_packet(command: list[str]) -> dict:
