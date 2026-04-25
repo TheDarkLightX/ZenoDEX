@@ -127,7 +127,9 @@ Scope limit:
 ## Disaster-State Coverage
 
 The current checkout has a bounded disaster-state replay receipt covering `125`
-named what-if axes:
+named disaster-state families. An axis is a scenario family, not one concrete
+state; each family is backed by one or more replay commands that exercise many
+concrete inputs, sequences, boundary cases, or proof/certificate artifacts.
 
 ```text
 selected_axis_count = 125
@@ -136,8 +138,8 @@ failed_count = 0
 inconclusive_count = 0
 ```
 
-Standard reading: every selected disaster-search axis in the current plan
-replayed cleanly under the declared bounded harnesses and `--timeout-s 240`.
+In this receipt, all `125` selected families replayed cleanly under the declared
+bounded harnesses and `--timeout-s 240`.
 
 This is a bounded replay claim, not an exhaustive proof over all possible future
 states. The detailed axis list, replay commands, interpretation, and residual

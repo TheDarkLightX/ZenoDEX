@@ -6,7 +6,12 @@ checkout.
 ## Current receipt
 
 As of 2026-04-25, the current disaster-search expansion plan contains 125 named
-what-if axes. The latest full replay completed with:
+disaster-state families. An axis is a scenario family, not one concrete state:
+each axis is backed by one or more replay commands that exercise concrete
+inputs, action sequences, boundary cases, proof artifacts, certificates, or
+runtime wrappers.
+
+The latest full replay completed with:
 
 ```text
 selected_axis_count = 125
@@ -15,8 +20,8 @@ failed_count = 0
 inconclusive_count = 0
 ```
 
-Standard reading: every selected axis in the current plan replayed under the
-declared bounded harnesses, and none failed or timed out inconclusively.
+Every selected family in the current plan replayed under the declared bounded
+harnesses, and none failed or timed out inconclusively.
 
 The claim is intentionally bounded:
 
@@ -27,9 +32,9 @@ ReceiptOK(axis) := every command for axis passes under --timeout-s 240
 CurrentClaim := forall axis, Covered(axis) -> ReceiptOK(axis)
 ```
 
-Standard reading: for every named axis in the current disaster-search plan, the
-current replay evidence passes under the configured timeout. This is not a claim
-that all possible future or unbounded disaster states are formally impossible.
+For every named axis in the current disaster-search plan, the current replay
+evidence passes under the configured timeout. This is not a claim that all
+possible future or unbounded disaster states are formally impossible.
 
 ## Replay
 
@@ -75,7 +80,7 @@ git diff --check -- \
 
 ## Covered axes
 
-The current plan covers these 125 axes:
+The current plan covers these 125 disaster-state families:
 
 1. `epoch_split_brain`
 2. `identity_registry_drift`
