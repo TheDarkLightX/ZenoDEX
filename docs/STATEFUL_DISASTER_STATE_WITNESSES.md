@@ -4,21 +4,13 @@ This note explains what the stateful weird-machine lane has actually demonstrate
 
 ## Core distinction
 
-```text
-WitnessedRejectState(D) := campaign_reaches(D) ∧ system_rejects(D)
-```
+A dangerous state is witnessed when the campaign can construct it and the
+implementation rejects it with a replayable receipt. That means the state exists
+in the search space and is currently blocked.
 
-Standard reading: a dangerous state `D` is witnessed when the campaign can construct it and the implementation rejects it with a replayable receipt.
-
-Practical consequence: the state exists in the search space and is currently blocked.
-
-```text
-WitnessedRejectState(D) ≠ PreviouslyAcceptedBug(D)
-```
-
-Standard reading: a witnessed reject state is not, by itself, proof that the same state was previously accepted in production.
-
-Practical consequence: these witnesses support fail-closed assurance claims, not retrospective exploit claims.
+A witnessed reject state is not, by itself, proof that the same state was
+previously accepted in production. These witnesses support fail-closed
+assurance claims, not retrospective exploit claims.
 
 ## Current snapshot
 
@@ -47,14 +39,10 @@ against concrete attack-shaped states instead of only against line coverage.
 
 ## What “witness coverage” means
 
-```text
-OrdinaryCoverage := code_paths_executed
-WitnessCoverage := dangerous_states_reached ∧ rejected ∧ replayable
-```
-
-Standard reading: code coverage asks whether code ran. Witness coverage asks whether dangerous semantic states were actually generated, rejected, and stored as reusable receipts.
-
-Practical consequence: if branch coverage stayed high but one of these witnesses disappeared, that would still be a serious regression.
+Code coverage asks whether code ran. Witness coverage asks whether dangerous
+semantic states were actually generated, rejected, and stored as reusable
+receipts. If branch coverage stayed high but one of these witnesses disappeared,
+that would still be a serious regression.
 
 ## Highest-value witness families
 
@@ -85,13 +73,10 @@ Practical consequence: if branch coverage stayed high but one of these witnesses
 
 ## Hotspot interpretation
 
-```text
-RiskShape := canonicalization_and_staleness > replay_and_binding > transport_and_auth
-```
-
-Standard reading: the current weird-machine pressure is concentrated on canonicalization and freshness semantics, not on shallow transport parsing.
-
-Practical consequence: the most important guards to preserve are route canonicalization, route-certificate binding, settlement freshness, snapshot freshness, and attestation-time guards.
+The current weird-machine pressure is concentrated on canonicalization and
+freshness semantics, not on shallow transport parsing. The most important
+guards to preserve are route canonicalization, route-certificate binding,
+settlement freshness, snapshot freshness, and attestation-time guards.
 
 ## Public reporting guidance
 

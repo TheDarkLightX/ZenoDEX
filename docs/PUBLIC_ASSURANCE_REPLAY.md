@@ -79,13 +79,10 @@ Notes:
 
 ## What The Stateful Lane Means
 
-```text
-WitnessCoverage := dangerous_states_reached ∧ rejected ∧ replayable
-```
-
-Standard reading: the stateful lane records whether named dangerous semantic states can be produced and whether the system rejects them with replayable minimized witnesses.
-
-Practical consequence: this is stronger than ordinary branch or line coverage. It is a negative-evidence corpus for multi-step protocol failure modes.
+The stateful lane records whether named dangerous semantic states can be
+produced and whether the system rejects them with replayable minimized
+witnesses. This is stronger than ordinary branch or line coverage because it
+keeps a negative-evidence corpus for multi-step protocol failure modes.
 
 Examples of the kinds of states covered by the deep lane:
 - stale settlement replay after valid state movement
@@ -100,15 +97,10 @@ Current deep-lane snapshot as of `2026-04-08`:
 - unique ranked witnesses: `18`
 - hotspot count: `10`
 
-The important distinction is:
-
-```text
-WitnessedRejectState(D) ≠ PreviouslyAcceptedBug(D)
-```
-
-Standard reading: a witnessed reject state proves that a dangerous state can be constructed and is currently rejected. It does not by itself prove the state was previously accepted in production.
-
-Practical consequence: public reporting should say these receipts strengthen fail-closed assurance, not that they prove a past live exploit.
+A witnessed reject state proves that a dangerous state can be constructed and
+is currently rejected. It does not by itself prove that the same state was
+previously accepted in production. Public reporting should say these receipts
+strengthen fail-closed assurance, not that they prove a past live exploit.
 
 More detail:
 - [docs/STATEFUL_DISASTER_STATE_WITNESSES.md](STATEFUL_DISASTER_STATE_WITNESSES.md)

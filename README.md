@@ -47,15 +47,14 @@ Replay commands are documented in [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_
 ## Stateful Witness Coverage
 
 The stateful assurance lane is stronger than ordinary code-coverage reporting.
+Code coverage says which branches ran. Witness coverage records that specific
+dangerous semantic states were constructed, rejected, and kept as replayable
+receipts.
 
-```text
-OrdinaryCoverage := code_paths_executed
-WitnessCoverage := dangerous_states_reached ∧ rejected ∧ replayable
-```
-
-Standard reading: ordinary coverage tells you which code ran, while witness coverage shows that specific dangerous semantic states were actually constructed, rejected, and preserved as replayable receipts.
-
-Practical consequence: this repo does not only ask whether a branch executed. It asks whether attack-shaped multi-step states such as stale settlement replay, repaired quote drift, route canonicalization drift, and attestation time drift are still fail-closed.
+The important check is not only whether a branch executed. It is whether
+attack-shaped multi-step states such as stale settlement replay, repaired quote
+drift, route canonicalization drift, and attestation time drift still fail
+closed.
 
 Current stateful snapshot for the deep lane as of `2026-04-08`:
 - deep gate: `108 passed, 1 warning in 1135.88s`
@@ -71,15 +70,9 @@ and boundary cases. The important assertion is that the selected high-risk
 stateful families in the current release lane were reachable by the harness and
 were rejected in replayable form.
 
-The key distinction is:
-
-```text
-StatefulWitnessCoverage ≠ line_coverage
-```
-
-Standard reading: this is not just a measurement of execution breadth. It is a replayable corpus of dangerous reject states.
-
-Practical consequence: if line coverage stayed high but one of the critical witnesses disappeared, that would still be a serious regression.
+This is not just a measurement of execution breadth. It is a replayable corpus
+of dangerous reject states. If line coverage stayed high but one of the
+critical witnesses disappeared, that would still be a serious regression.
 
 More detail:
 - [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md)
