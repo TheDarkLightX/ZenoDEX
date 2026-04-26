@@ -27,6 +27,7 @@ CRITICAL_FORMAL_PROOF_ARTIFACTS: tuple[str, ...] = (
     "lean-mathlib/Proofs/ZenoDEXSettlementPriceHistoryCertificate.lean",
     "lean-mathlib/Proofs/SettlementNetting.lean",
     "lean-mathlib/Proofs/PerpEpochSafety.lean",
+    "lean-mathlib/Proofs/PerpOracleGuard.lean",
     "lean-mathlib/Proofs/PerpFundingAlgebra.lean",
 )
 

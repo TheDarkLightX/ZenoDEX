@@ -6,6 +6,7 @@ import Proofs.CpmmSwapV8ExactInAdmissibility
 import Proofs.CPMMSettlement
 import Proofs.BatchCPMMUnification
 import Proofs.PerpEpochSafety
+import Proofs.PerpOracleGuard
 import Proofs.PerpMechanismDesign
 import Proofs.PerpGameTheory
 import Proofs.PerpProtocolSafety
