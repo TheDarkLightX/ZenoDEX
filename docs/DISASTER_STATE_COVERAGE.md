@@ -93,6 +93,20 @@ python3 tools/run_stateful_disaster_search_expansion_plan.py \
 The `internal/` receipt path is intentionally local and git-ignored. The public
 source of the axis definitions is `tools/stateful_scenario_bridge.py`.
 
+## CI Ratchet
+
+The closed 29-axis receipt is now pinned in
+`.github/workflows/disaster-assurance-ratchet.yml`. The workflow runs
+`tools/check_disaster_search_closed_receipt.py`, which executes only the closed
+axis set and fails if any closed axis becomes failed, skipped, inconclusive, or
+missing from the current search inventory.
+
+The same workflow also runs `tools/check_formal_proof_hygiene.py` over critical
+Lean proof artifacts and keeps deployment-posture tests on the default
+API/resource-safety boundary. That does not turn the bounded receipt into an
+exhaustive proof, but it does make regression of the current claim visible on
+every main-branch push and pull request.
+
 ## Closed Axes
 
 The current green receipt closes these `29` disaster-state families:

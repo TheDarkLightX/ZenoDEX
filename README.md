@@ -149,6 +149,13 @@ This is a bounded replay claim, not an exhaustive proof over all possible future
 states. The detailed axis list, replay commands, interpretation, and residual
 backlog are in [docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
 
+The closed receipt is CI-ratcheted by
+`.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails
+if any pinned closed axis becomes failed, skipped, inconclusive, or missing from
+the current search inventory. The same workflow also checks critical Lean proof
+artifacts for active placeholders and keeps the deployment posture tests on the
+default API/resource-safety boundary.
+
 If you want to review that claim directly, start with:
 
 - `src/core/split_routing_dispatch.py`

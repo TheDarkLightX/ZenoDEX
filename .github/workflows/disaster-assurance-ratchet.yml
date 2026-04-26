@@ -1,0 +1,55 @@
+name: disaster-assurance-ratchet
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  closed-disaster-receipt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dev test tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Enforce formal proof hygiene ratchet
+        run: |
+          python tools/check_formal_proof_hygiene.py \
+            --output internal/formal_proof_hygiene.json
+
+      - name: Run ratchet and deployment posture unit tests
+        run: |
+          pytest -q \
+            tests/integration/test_disaster_assurance_ratchets.py \
+            tests/test_security_posture_files.py \
+            tests/integration/test_api_server_main.py
+
+      - name: Enforce closed disaster-state receipt
+        run: |
+          python tools/check_disaster_search_closed_receipt.py \
+            --timeout-s 240 \
+            --receipt-output internal/stateful_disaster_search_expansion_receipt.closed.json \
+            --output internal/stateful_disaster_search_expansion_ratchet.closed.json
+
+      - name: Upload disaster receipt artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: disaster-assurance-ratchet
+          path: |
+            internal/formal_proof_hygiene.json
+            internal/stateful_disaster_search_expansion_receipt.closed.json
+            internal/stateful_disaster_search_expansion_ratchet.closed.json
+          if-no-files-found: ignore

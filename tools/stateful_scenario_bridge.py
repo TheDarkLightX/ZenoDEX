@@ -4446,6 +4446,38 @@ DISASTER_SEARCH_EXPANSION_AXES: tuple[dict[str, Any], ...] = (
     },
 )
 
+CLOSED_DISASTER_SEARCH_AXIS_IDS: tuple[str, ...] = (
+    "epoch_split_brain",
+    "identity_registry_drift",
+    "canonicalization_equivocation",
+    "serialization_width_aliasing",
+    "resource_budget_abort",
+    "repair_after_tamper",
+    "external_state_drift",
+    "atomicity_partial_side_effect",
+    "restart_replay_persistence",
+    "dependency_outage_fail_closed",
+    "reciprocal_netting_pair_forgery",
+    "bounded_advisory_search_envelope",
+    "exact_out_candidate_domain_explosion",
+    "tau_gate_policy_aliasing",
+    "confidential_receipt_attestation_drift",
+    "batch_clearing_fragmentation_ordering",
+    "perp_funding_liquidation_oracle_window",
+    "proof_mining_packet_envelope_replay",
+    "tau_net_client_transport_boundary",
+    "settlement_proof_recompute_gate",
+    "operations_parser_canonical_envelope",
+    "dex_engine_sequence_anomaly_surface",
+    "dex_core_ref_parity_drift",
+    "boundary_concolic_wrapper_consistency",
+    "exact_out_prefilter_winner_repair_boundary",
+    "perp_engine_integration_oracle_bootstrap_boundary",
+    "quote_receipt_transport_intent_boundary",
+    "tau_runner_subprocess_transport_boundary",
+    "dex_settlement_recovery_proof_unit_boundary",
+)
+
 
 def _relpath(path: Path) -> str:
     try:
