@@ -11,7 +11,7 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_WORKDIR = ROOT / "zk" / "state_proof_risc0"
-DEFAULT_ALLOWED_VULNERABILITIES = frozenset({"RUSTSEC-2025-0055"})
+DEFAULT_ALLOWED_VULNERABILITIES: frozenset[str] = frozenset()
 
 
 def _advisory_id(entry: dict[str, Any]) -> str:
@@ -91,8 +91,8 @@ def _run_cargo_audit(workdir: Path, *, no_fetch: bool) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Run cargo-audit for the RISC Zero state-proof workspace while allowing only "
-            "the explicitly documented temporary RustSec finding."
+            "Run cargo-audit for the RISC Zero state-proof workspace and fail on any "
+            "RustSec vulnerability unless a caller explicitly supplies a temporary allowlist."
         )
     )
     parser.add_argument("--workdir", type=Path, default=DEFAULT_WORKDIR)
@@ -139,8 +139,8 @@ def main(argv: list[str] | None = None) -> int:
     if ok:
         return 0
     print(
-        "error: unexpected RISC Zero dependency vulnerabilities found; "
-        "do not broaden the temporary exception without a new audit note",
+        "error: RISC Zero dependency vulnerabilities found; "
+        "do not add a temporary exception without a new audit note",
         file=sys.stderr,
     )
     return 1

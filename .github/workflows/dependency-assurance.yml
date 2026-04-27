@@ -82,5 +82,5 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --version 0.22.1 --locked
 
-      - name: Enforce RISC0 dependency audit allowlist
+      - name: Enforce clean RISC0 dependency audit
         run: python3 tools/check_risc0_dependency_audit.py
