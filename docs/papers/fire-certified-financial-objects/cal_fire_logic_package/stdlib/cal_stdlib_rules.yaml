@@ -1,0 +1,392 @@
+version: CAL_RULES_v0_1
+name: Canonical Admissibility Logic Rule Catalog
+status: draft
+
+metadata:
+  purpose: >
+    Initial admitted proof-rule catalog for FIRE-Cert and FIRE-V proof checking.
+  security_boundary: >
+    These rules are checked by FIRE-V. FIRE-C and ORE/FIRE Refiner may generate
+    proof trees, but FIRE-V must independently check them.
+
+evidence_lattice:
+  order:
+    - proved
+    - contract
+    - implemented
+    - tested_discovery
+    - hypothesis
+  meet: weakest_dependency
+  rules:
+    - id: evidence_meet
+      premises:
+        - claim: P
+          evidence: E1
+        - claim: Q
+          evidence: E2
+      conclusion:
+        claim: P_AND_Q
+        evidence: meet(E1, E2)
+
+rules:
+  # ------------------------------------------------------------
+  # Artifact binding
+  # ------------------------------------------------------------
+  - id: hash_bind_object
+    kind: artifact
+    premises:
+      - canonical_serialize: object
+      - hash_domain: FIRE_OBJECT_TEMPLATE_V1
+      - cert_names_hash: object_hash
+    conclusion:
+      predicate: Box_object_hash_ClaimsHold
+    reject_if:
+      - hash_mismatch
+      - unsupported_fmos_version
+      - noncanonical_encoding
+
+  - id: hash_bind_instance
+    kind: artifact
+    premises:
+      - canonical_serialize: instance
+      - hash_domain: FIRE_INSTANCE_V1
+      - instance_names_object_hash: object_hash
+      - cert_names_instance_hash: instance_hash
+    conclusion:
+      predicate: Box_instance_hash_ClaimsHold
+    reject_if:
+      - hash_mismatch
+      - object_hash_mismatch
+      - noncanonical_encoding
+
+  - id: dependency_closed
+    kind: artifact
+    premises:
+      - dependencies_expanded_or_locked_by_hash: true
+    conclusion:
+      predicate: DependencyClosed
+    reject_if:
+      - floating_version
+      - missing_dependency_hash
+      - dependency_hash_mismatch
+
+  # ------------------------------------------------------------
+  # Unit rules
+  # ------------------------------------------------------------
+  - id: unit_add
+    kind: unit
+    premises:
+      - dim_x: D
+      - dim_y: D
+    conclusion:
+      dim: x_plus_y
+      equals: D
+
+  - id: unit_sub
+    kind: unit
+    premises:
+      - dim_x: D
+      - dim_y: D
+    conclusion:
+      dim: x_minus_y
+      equals: D
+
+  - id: unit_mul
+    kind: unit
+    premises:
+      - dim_x: Dx
+      - dim_y: Dy
+    conclusion:
+      dim: x_times_y
+      equals: Dx_plus_Dy
+
+  - id: unit_div
+    kind: unit
+    premises:
+      - dim_x: Dx
+      - dim_y: Dy
+    conclusion:
+      dim: x_div_y
+      equals: Dx_minus_Dy
+
+  - id: unit_log_dimensionless
+    kind: unit
+    premises:
+      - dim_x: zero
+    conclusion:
+      dim: log_x
+      equals: zero
+
+  - id: unit_exp_dimensionless
+    kind: unit
+    premises:
+      - dim_x: zero
+    conclusion:
+      dim: exp_x
+      equals: zero
+
+  # ------------------------------------------------------------
+  # Interval rules
+  # ------------------------------------------------------------
+  - id: interval_const
+    kind: interval
+    premises:
+      - value: c
+    conclusion:
+      expr: c
+      lower: c
+      upper: c
+
+  - id: interval_add
+    kind: interval
+    premises:
+      - expr: x
+        lower: Lx
+        upper: Ux
+      - expr: y
+        lower: Ly
+        upper: Uy
+    conclusion:
+      expr: x_plus_y
+      lower: Lx_plus_Ly
+      upper: Ux_plus_Uy
+
+  - id: interval_sub
+    kind: interval
+    premises:
+      - expr: x
+        lower: Lx
+        upper: Ux
+      - expr: y
+        lower: Ly
+        upper: Uy
+    conclusion:
+      expr: x_minus_y
+      lower: Lx_minus_Uy
+      upper: Ux_minus_Ly
+
+  - id: interval_mul
+    kind: interval
+    premises:
+      - expr: x
+        lower: Lx
+        upper: Ux
+      - expr: y
+        lower: Ly
+        upper: Uy
+    conclusion:
+      expr: x_times_y
+      lower: min(LxLy, LxUy, UxLy, UxUy)
+      upper: max(LxLy, LxUy, UxLy, UxUy)
+
+  - id: interval_nonnegative_scalar_mul
+    kind: interval
+    premises:
+      - scalar: a
+        lower_bound: 0
+      - expr: x
+        lower: L
+        upper: U
+    conclusion:
+      expr: a_times_x
+      lower: aL
+      upper: aU
+
+  - id: interval_positive_part
+    kind: interval
+    premises:
+      - expr: x
+        lower: L
+        upper: U
+    conclusion:
+      expr: max_x_0
+      lower: max(L, 0)
+      upper: max(U, 0)
+
+  - id: interval_cap
+    kind: interval
+    premises:
+      - expr: x
+      - cap: C
+        lower_bound: 0
+    conclusion:
+      expr: min(max(x,0),C)
+      lower: 0
+      upper: C
+
+  - id: interval_clamp
+    kind: interval
+    premises:
+      - expr: x
+      - lower_cap: A
+      - upper_cap: B
+      - proof: A_le_B
+    conclusion:
+      expr: clamp(x,A,B)
+      lower: A
+      upper: B
+
+  - id: interval_finite_sum
+    kind: interval
+    premises:
+      - sequence: x_t
+        lower_sequence: L_t
+        upper_sequence: U_t
+        finite_static_index_set: true
+    conclusion:
+      expr: sum_t_x_t
+      lower: sum_t_L_t
+      upper: sum_t_U_t
+
+  - id: interval_guarded_reciprocal
+    kind: interval
+    premises:
+      - expr: x
+        lower: eps
+        upper: U
+      - proof: eps_gt_0
+    conclusion:
+      expr: reciprocal_x
+      lower: reciprocal_U
+      upper: reciprocal_eps
+
+  - id: interval_guarded_log
+    kind: interval
+    premises:
+      - expr: x
+        lower: eps
+        upper: U
+      - proof: eps_gt_0
+      - proof: dim_x_is_zero
+    conclusion:
+      expr: log_x
+      lower: log_eps
+      upper: log_U
+
+  # ------------------------------------------------------------
+  # Witness and bound rules
+  # ------------------------------------------------------------
+  - id: witness_bound_intro
+    kind: bound
+    premises:
+      - predicate: ParamOK
+      - predicate: WitnessOK
+      - derivation: L_le_f_le_U_under_admissible_witness
+    conclusion:
+      predicate: BoundOK
+
+  # ------------------------------------------------------------
+  # Collateral rules
+  # ------------------------------------------------------------
+  - id: collateral_one_sided_writer
+    kind: collateral
+    premises:
+      - payoff_lower: 0
+      - payoff_upper: U
+      - collateral_writer: Cw
+      - proof: Cw_ge_U
+    conclusion:
+      predicate: WriterNoDefault
+
+  - id: collateral_two_party
+    kind: collateral
+    premises:
+      - payoff_lower: L
+      - payoff_upper: U
+      - collateral_A: CA
+      - collateral_B: CB
+      - proof: CA_ge_max_0_neg_L
+      - proof: CB_ge_max_0_U
+    conclusion:
+      predicate: TwoPartyNoDefault
+
+  # ------------------------------------------------------------
+  # Delta and replay rules
+  # ------------------------------------------------------------
+  - id: delta_conservation_cash
+    kind: delta
+    premises:
+      - for_each_asset: sum_party_deltas_equals_zero
+    conclusion:
+      predicate: DeltaConservationOK
+
+  - id: delta_conservation_with_sinks
+    kind: delta
+    premises:
+      - for_each_asset: sum_party_deltas_plus_fees_plus_burns_minus_mints_equals_zero
+    conclusion:
+      predicate: DeltaConservationOK
+
+  - id: replay_determinism
+    kind: replay
+    premises:
+      - same_object_hash: true
+      - same_instance_hash: true
+      - same_witness_bundle_hash: true
+      - deterministic_kernel: true
+    conclusion:
+      predicate: ReplayOK
+
+  # ------------------------------------------------------------
+  # Settlement rule
+  # ------------------------------------------------------------
+  - id: settlement_authority_receipt_binding
+    kind: settlement
+    premises:
+      - receipt_object_hash_matches_object: true
+      - receipt_instance_hash_matches_instance: true
+      - receipt_cert_sha256_matches_certificate: true
+      - receipt_witness_hash_matches_witness_bundle: true
+      - receipt_delta_hash_matches_delta: true
+      - verifier_receipt_hash_valid: true
+    conclusion:
+      predicate: FIREVReceiptOK
+    reject_if:
+      - object_hash_mismatch
+      - instance_hash_mismatch
+      - cert_sha256_mismatch
+      - witness_hash_mismatch
+      - delta_hash_mismatch
+      - receipt_hash_mismatch
+
+  - id: settlement_admissibility
+    kind: settlement
+    premises:
+      - CertOK
+      - BoundOK
+      - CollateralOK
+      - WitnessOK
+      - DeltaConservationOK
+      - ReplayOK
+      - IntegerEvalOK
+    conclusion:
+      predicate: SettlementSafe
+
+refinements:
+  - id: CapRefinement
+    trusted: false
+    formula: f_prime = min(max(f,0),Cap)
+    proof_obligation: Cap_ge_0_implies_0_le_f_prime_le_Cap
+    changes_economics: true
+    requires_user_approval: true
+
+  - id: ClampRefinement
+    trusted: false
+    formula: f_prime = clamp(f,L,U)
+    proof_obligation: L_le_f_prime_le_U
+    changes_economics: true
+    requires_user_approval: true
+
+  - id: CollateralRefinement
+    trusted: false
+    formula: add_collateral_requirements_from_bounds
+    proof_obligation: collateral_sufficiency
+    changes_economics: false
+    requires_user_approval: false
+
+  - id: WitnessRefinement
+    trusted: false
+    formula: add_required_witness_policy
+    proof_obligation: witness_policy_satisfaction
+    changes_economics: false
+    requires_user_approval: false

@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-ir.schema.json",
+  "title": "FIRE Object Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_name",
+    "object_version",
+    "object_family",
+    "settlement_asset",
+    "payoff_summary",
+    "artifact_bound",
+    "collateral_required",
+    "ir_hash",
+    "cert_sha256",
+    "parameters",
+    "imported_interfaces",
+    "witnesses",
+    "evidence",
+    "instance_policy",
+    "manifest_hash"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-object-manifest/v1"
+    },
+    "object_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_version": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_family": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "settlement_asset": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "payoff_summary": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "artifact_bound": {
+      "$ref": "#/$defs/intInterval"
+    },
+    "collateral_required": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "holder",
+        "writer"
+      ],
+      "properties": {
+        "holder": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "writer": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ir_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cert_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/parameter"
+      }
+    },
+    "imported_interfaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/importedInterface"
+      }
+    },
+    "witnesses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/witness"
+      }
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidenceLabels"
+    },
+    "instance_policy": {
+      "$ref": "#/$defs/instancePolicy"
+    },
+    "manifest_hash": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "evidenceLevel": {
+      "type": "string",
+      "enum": [
+        "proved",
+        "contract",
+        "implemented",
+        "tested_discovery",
+        "hypothesis"
+      ]
+    },
+    "intInterval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "properties": {
+        "lower": {
+          "type": "integer"
+        },
+        "upper": {
+          "type": "integer"
+        }
+      }
+    },
+    "contractProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "role"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "role": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "unit",
+        "minimum",
+        "maximum",
+        "description"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "unit": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "minimum": {
+          "type": "integer"
+        },
+        "maximum": {
+          "type": "integer"
+        },
+        "description": {
+          "$ref": "#/$defs/nonEmptyString"
+        }
+      }
+    },
+    "importedInterface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "interface_object_id",
+        "interface_output",
+        "unit",
+        "bound"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "interface_object_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "interface_output": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "unit": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "bound": {
+          "$ref": "#/$defs/intInterval"
+        },
+        "contract": {
+          "$ref": "#/$defs/contractProvenance"
+        }
+      }
+    },
+    "witness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "freshness",
+        "bound"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "freshness": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "bound": {
+          "$ref": "#/$defs/intInterval"
+        },
+        "contract": {
+          "$ref": "#/$defs/contractProvenance"
+        }
+      }
+    },
+    "evidenceLabels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit_safety",
+        "payoff_bound",
+        "collateral_sufficiency",
+        "witness_policy",
+        "settlement_replay",
+        "kernel_semantics"
+      ],
+      "properties": {
+        "unit_safety": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "payoff_bound": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "collateral_sufficiency": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "witness_policy": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "settlement_replay": {
+          "$ref": "#/$defs/evidenceLevel"
+        },
+        "kernel_semantics": {
+          "$ref": "#/$defs/evidenceLevel"
+        }
+      }
+    },
+    "instancePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_party_roles",
+        "authorization_mode",
+        "nonce_required",
+        "maturity_required",
+        "settlement_window_required"
+      ],
+      "properties": {
+        "required_party_roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          },
+          "uniqueItems": true
+        },
+        "authorization_mode": {
+          "type": "string",
+          "enum": [
+            "role_binding"
+          ]
+        },
+        "nonce_required": {
+          "type": "boolean"
+        },
+        "maturity_required": {
+          "type": "boolean"
+        },
+        "settlement_window_required": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

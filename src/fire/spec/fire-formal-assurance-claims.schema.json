@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.local/schemas/fire-formal-assurance-claims.schema.json",
+  "title": "FIRE formal assurance claims manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "theorem",
+    "evidence_lattice",
+    "public_runtime_requires_private_esso",
+    "settlement_authority",
+    "components",
+    "forbidden_public_claims",
+    "claim_gate"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-formal-assurance-claims/v1"
+    },
+    "theorem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "statement"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "evidence_lattice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "levels",
+        "meet_rule"
+      ],
+      "properties": {
+        "levels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "proved",
+              "contract",
+              "implemented",
+              "tested_discovery",
+              "hypothesis"
+            ]
+          },
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "meet_rule": {
+          "const": "weakest_required_claim"
+        }
+      }
+    },
+    "public_runtime_requires_private_esso": {
+      "type": "boolean"
+    },
+    "settlement_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "predicate",
+        "required_bindings",
+        "missing_or_mismatch_behavior",
+        "only_authoritative_surfaces"
+      ],
+      "properties": {
+        "predicate": {
+          "const": "FIREVReceiptOK"
+        },
+        "required_bindings": {
+          "$ref": "#/$defs/receipt_bindings"
+        },
+        "missing_or_mismatch_behavior": {
+          "const": "reject"
+        },
+        "only_authoritative_surfaces": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/component"
+      },
+      "minItems": 1
+    },
+    "forbidden_public_claims": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "claim_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fail_closed",
+        "formal_claim_requires_checked_receipt",
+        "bug_free_claim_allowed",
+        "acceptance_receipt_authorizes_settlement_allowed"
+      ],
+      "properties": {
+        "fail_closed": {
+          "const": true
+        },
+        "formal_claim_requires_checked_receipt": {
+          "const": true
+        },
+        "bug_free_claim_allowed": {
+          "const": false
+        },
+        "acceptance_receipt_authorizes_settlement_allowed": {
+          "const": false
+        }
+      }
+    }
+  },
+  "$defs": {
+    "receipt_bindings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "object_hash",
+          "instance_hash",
+          "cert_sha256",
+          "witness_hash",
+          "delta_hash"
+        ]
+      },
+      "minItems": 5,
+      "maxItems": 5
+    },
+    "formal_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimed",
+        "status",
+        "proof_receipts"
+      ],
+      "properties": {
+        "claimed": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_formally_verified",
+            "partially_verified",
+            "formally_verified"
+          ]
+        },
+        "proof_receipts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/proof_receipt"
+          }
+        }
+      }
+    },
+    "proof_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "checker",
+        "result"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checker": {
+          "type": "string",
+          "enum": [
+            "lean",
+            "esso",
+            "smt",
+            "other"
+          ]
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "proved",
+            "verified"
+          ]
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "scope": {
+          "type": "string"
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "surface",
+        "paths",
+        "can_authorize_settlement",
+        "claims_bug_free",
+        "assurance_level",
+        "formal_verification"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "surface": {
+          "type": "string",
+          "enum": [
+            "compiler",
+            "verifier",
+            "kernel",
+            "receipt",
+            "runtime_adapter",
+            "refiner",
+            "registry",
+            "ui_docs"
+          ]
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "can_authorize_settlement": {
+          "type": "boolean"
+        },
+        "authorizes_settlement": {
+          "type": "boolean"
+        },
+        "claims_bug_free": {
+          "type": "boolean"
+        },
+        "assurance_level": {
+          "type": "string",
+          "enum": [
+            "proved",
+            "contract",
+            "implemented",
+            "tested_discovery",
+            "hypothesis"
+          ]
+        },
+        "formal_verification": {
+          "$ref": "#/$defs/formal_verification"
+        },
+        "requires_firev_receipt_ok": {
+          "type": "boolean"
+        },
+        "required_receipt_bindings": {
+          "$ref": "#/$defs/receipt_bindings"
+        },
+        "fails_closed_on_missing_receipt": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

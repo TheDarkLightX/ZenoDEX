@@ -1,0 +1,192 @@
+schema: zenodex/fire-formal-assurance-claims/v1
+
+theorem:
+  name: settlement_admissibility
+  statement: "FIREVAccept(O, I, Gamma, w, C) -> SettlementSafe(O, I, w, C)"
+  status: current FIRE acceptance theorem target; runtime compiler/verifier code is still in the TCB unless backed by checked proof receipts
+
+evidence_lattice:
+  levels:
+    - proved
+    - contract
+    - implemented
+    - tested_discovery
+    - hypothesis
+  meet_rule: weakest_required_claim
+
+public_runtime_requires_private_esso: false
+
+settlement_authority:
+  predicate: FIREVReceiptOK
+  required_bindings:
+    - object_hash
+    - instance_hash
+    - cert_sha256
+    - witness_hash
+    - delta_hash
+  missing_or_mismatch_behavior: reject
+  only_authoritative_surfaces:
+    - FIRE-V
+    - FIRE-VCore
+
+components:
+  - id: fire_compiler_v1
+    surface: compiler
+    paths:
+      - src/fire/compiler
+      - tools/compile_fire_zpl.py
+      - tools/build_fire_registry_bundle.py
+    can_authorize_settlement: false
+    claims_bug_free: false
+    assurance_level: implemented
+    formal_verification:
+      claimed: false
+      status: not_formally_verified
+      proof_receipts: []
+    notes: compiler output is non-authoritative and must be accepted by FIRE-V/FIRE-VCore before any settlement path can use it
+
+  - id: fire_zpl_language_lean_v1
+    surface: compiler
+    paths:
+      - lean-mathlib/Proofs/CertifiedFinancialMathObjects.lean
+      - lean-mathlib/Proofs/CALCoreSoundness.lean
+      - lean-mathlib/Proofs/ZenoPayoffLanguage.lean
+      - lean-mathlib/proof_receipts/zeno_payoff_language_v1.json
+      - tests/formal/test_lean_cal_core_soundness.py
+      - tests/formal/test_lean_zeno_payoff_language.py
+    can_authorize_settlement: false
+    claims_bug_free: false
+    assurance_level: proved
+    formal_verification:
+      claimed: true
+      status: formally_verified
+      proof_receipts:
+        - path: lean-mathlib/proof_receipts/zeno_payoff_language_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:aa691a697e8a8d6b32250d61dc037449ff0cae99075a1142ee0db364f653a3a3
+          scope: ZPL compiler soundness, CAL core soundness, and certified payoff collateral safety theorem surface
+    notes: this component proves the payoff-language theorem surface only; it does not make the Python compiler or verifier bug-free or settlement-authoritative
+
+  - id: fire_verifier_v1
+    surface: verifier
+    paths:
+      - src/fire/verifier
+      - src/fire/spec/verifier-rules.yaml
+    can_authorize_settlement: true
+    claims_bug_free: false
+    assurance_level: implemented
+    formal_verification:
+      claimed: false
+      status: not_formally_verified
+      proof_receipts: []
+    requires_firev_receipt_ok: true
+    required_receipt_bindings:
+      - object_hash
+      - instance_hash
+      - cert_sha256
+      - witness_hash
+      - delta_hash
+    fails_closed_on_missing_receipt: true
+    notes: verifier implementation is a trusted computing base component until independently discharged by machine-checked proof receipts
+
+  - id: fire_acceptance_receipt_v1
+    surface: receipt
+    paths:
+      - src/fire/verifier/acceptance_receipt_v1.py
+      - src/fire/spec/fire-acceptance-receipt.schema.json
+      - tools/build_fire_acceptance_receipt.py
+      - tools/check_fire_acceptance_receipt.py
+    can_authorize_settlement: false
+    authorizes_settlement: false
+    claims_bug_free: false
+    assurance_level: implemented
+    formal_verification:
+      claimed: false
+      status: not_formally_verified
+      proof_receipts: []
+    notes: package acceptance strengthens provenance but deliberately does not authorize funds movement
+
+  - id: fire_settlement_receipt_v1
+    surface: receipt
+    paths:
+      - src/fire/verifier/settlement_v1.py
+      - src/fire/kernel/apply_receipt_v1.py
+      - src/fire/kernel/ledger_adapter_v1.py
+      - src/fire/runtime/common_v1.py
+      - src/fire/runtime/adapter_manifest_gate_v1.py
+      - tools/apply_fire_settlement.py
+    can_authorize_settlement: true
+    claims_bug_free: false
+    assurance_level: implemented
+    formal_verification:
+      claimed: false
+      status: not_formally_verified
+      proof_receipts: []
+    requires_firev_receipt_ok: true
+    required_receipt_bindings:
+      - object_hash
+      - instance_hash
+      - cert_sha256
+      - witness_hash
+      - delta_hash
+    fails_closed_on_missing_receipt: true
+    notes: this is the money-moving receipt boundary and must reject on any missing or mismatched authority binding
+
+  - id: fire_esso_kernel_admission_v1
+    surface: kernel
+    paths:
+      - src/fire/verifier/esso_kernels_v1.py
+      - src/kernels/dex/fire_burn_boost_call_v1.yaml
+      - src/kernels/dex/fire_fee_note_v1.yaml
+      - src/kernels/dex/fire_lp_loss_cover_v1.yaml
+    can_authorize_settlement: false
+    claims_bug_free: false
+    assurance_level: tested_discovery
+    formal_verification:
+      claimed: false
+      status: partially_verified
+      proof_receipts: []
+    notes: private ESSO admission is maintainer-only evidence and is not a public runtime dependency or settlement authority
+
+  - id: fire_refiner_ore_v1
+    surface: refiner
+    paths:
+      - src/fire/refiner
+    can_authorize_settlement: false
+    claims_bug_free: false
+    assurance_level: hypothesis
+    formal_verification:
+      claimed: false
+      status: not_formally_verified
+      proof_receipts: []
+    notes: FIRE Refiner/ORE proposals are non-authoritative and must compile and verify before use
+
+  - id: fire_registry_ui_docs_v1
+    surface: ui_docs
+    paths:
+      - src/fire/registry
+      - src/fire/registry/README.md
+      - docs/fire_registry/README.md
+    can_authorize_settlement: false
+    claims_bug_free: false
+    assurance_level: contract
+    formal_verification:
+      claimed: false
+      status: not_formally_verified
+      proof_receipts: []
+    notes: registry, product cards, UI text, and docs may explain claims but cannot strengthen settlement authority
+
+forbidden_public_claims:
+  - compiler_bug_free
+  - verifier_bug_free
+  - compiler_formally_verified_without_proof_receipt
+  - verifier_formally_verified_without_proof_receipt
+  - acceptance_receipt_authorizes_settlement
+  - private_esso_required_for_public_runtime
+
+claim_gate:
+  fail_closed: true
+  formal_claim_requires_checked_receipt: true
+  bug_free_claim_allowed: false
+  acceptance_receipt_authorizes_settlement_allowed: false

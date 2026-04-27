@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.local/schemas/fire-cert-rules-v0.1.json",
+  "title": "FIRE-Cert Proof Rule Certificate Schema v0.1",
+  "type": "object",
+  "required": ["version", "object_hash", "claims", "proof_tree"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "FIRE_CERT_v0.1"
+    },
+    "object_hash": {
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]+$"
+    },
+    "instance_hash": {
+      "type": ["string", "null"],
+      "pattern": "^0x[0-9a-fA-F]+$"
+    },
+    "dependency_hashes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "hash"],
+        "properties": {
+          "name": {"type": "string"},
+          "version": {"type": "string"},
+          "hash": {"type": "string", "pattern": "^0x[0-9a-fA-F]+$"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "evidence_floor": {
+      "type": "string",
+      "enum": ["proved", "contract", "implemented", "tested_discovery", "hypothesis"]
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["evidence", "claim"],
+        "properties": {
+          "evidence": {
+            "type": "string",
+            "enum": ["proved", "contract", "implemented", "tested_discovery", "hypothesis"]
+          },
+          "claim": {"type": "string"},
+          "root_node": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "proof_tree": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/proof_node"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "proof_node": {
+      "type": "object",
+      "required": ["id", "rule", "claim"],
+      "properties": {
+        "id": {"type": "string"},
+        "rule": {"type": "string"},
+        "inputs": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "claim": {
+          "type": "object",
+          "required": ["predicate"],
+          "properties": {
+            "predicate": {"type": "string"},
+            "expr": {"type": "string"},
+            "lower": {"type": "string"},
+            "upper": {"type": "string"},
+            "type": {"type": "string"},
+            "dimension": {"type": "string"},
+            "evidence": {"type": "string"},
+            "asset": {"type": "string"},
+            "party": {"type": "string"}
+          },
+          "additionalProperties": true
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "evidence": {
+          "type": "string",
+          "enum": ["proved", "contract", "implemented", "tested_discovery", "hypothesis"]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

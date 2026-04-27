@@ -1,0 +1,50 @@
+FIRE Object:
+  FeeNote v1
+
+Payoff:
+  N * min(FeeIndex_T, Cap)
+
+Settlement:
+  zUSD
+
+Parameters:
+  n_notional [0, 1000] unit=Amount[zUSD] :: Notional amount
+  cap_index [0, 1000] unit=Index :: Payoff cap index
+  source_upper [0, 1000] unit=Index :: Certified source upper bound
+
+Payoff bound:
+  [0, 77]
+
+Collateral required:
+  holder: 0
+  writer: 77
+
+Imported interfaces:
+  fee_final <= fee_index_v1.fee_final [0, 12] unit=Index contract=fee_contract role=import:fee_index_v1.fee_final
+
+Witnesses:
+  FeeIndexPacket [0, 12] freshness=1 epoch contract=fee_contract role=witness:FeeIndexPacket
+
+Evidence:
+  unit safety: proved
+  payoff bound: proved
+  collateral sufficiency: proved
+  witness policy: contract
+  settlement replay: implemented
+  kernel semantics: proved
+
+Instance policy:
+  authorization: role_binding
+  required parties: holder, writer
+  nonce required: True
+  maturity required: False
+  settlement window required: False
+
+Manifest hash: sha256:5dda1237873fa880e49b26cf62797f542b3cb195b434c12b35b70b8a59be023f
+
+Instance gate claim evidence:
+  ParamOK: implemented
+  AuthorizationOK: implemented
+  NonceOK: implemented
+  MaturityOK: implemented
+  WindowOK: implemented

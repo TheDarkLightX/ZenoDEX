@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-kernel-receipt.schema.json",
+  "title": "FIRE Kernel Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_id",
+    "object_name",
+    "object_version",
+    "object_family",
+    "object_hash",
+    "instance_hash",
+    "cert_sha256",
+    "ir_hash",
+    "kernel_model_id",
+    "kernel_ref_module",
+    "kernel_ref_file_sha256",
+    "kernel_ir_hash",
+    "phase_symbols",
+    "command_tags"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-kernel-receipt/v1"
+    },
+    "object_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_family": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "instance_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cert_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "ir_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_model_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kernel_ref_module": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kernel_ref_file_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "kernel_ir_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "phase_symbols": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "command_tags": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

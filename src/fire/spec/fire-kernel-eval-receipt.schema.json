@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-kernel-eval-receipt.schema.json",
+  "title": "FIRE Kernel Eval Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_id",
+    "object_name",
+    "object_version",
+    "object_family",
+    "object_hash",
+    "instance_hash",
+    "cert_sha256",
+    "ir_hash",
+    "kernel_model_id",
+    "kernel_ir_hash",
+    "kernel_receipt_sha256",
+    "compile_command_tag",
+    "compile_command_args",
+    "compiled_state",
+    "compiled_effects",
+    "compiled_artifact_lower",
+    "compiled_artifact_upper"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "zenodex/fire-kernel-eval-receipt/v1"
+    },
+    "object_id": { "$ref": "#/$defs/nonEmptyString" },
+    "object_name": { "$ref": "#/$defs/nonEmptyString" },
+    "object_version": { "$ref": "#/$defs/nonEmptyString" },
+    "object_family": { "$ref": "#/$defs/nonEmptyString" },
+    "object_hash": { "$ref": "#/$defs/sha256" },
+    "instance_hash": { "$ref": "#/$defs/sha256" },
+    "cert_sha256": { "$ref": "#/$defs/sha256" },
+    "ir_hash": { "$ref": "#/$defs/sha256" },
+    "kernel_model_id": { "$ref": "#/$defs/nonEmptyString" },
+    "kernel_ir_hash": { "$ref": "#/$defs/sha256" },
+    "kernel_receipt_sha256": { "$ref": "#/$defs/sha256" },
+    "compile_command_tag": { "$ref": "#/$defs/nonEmptyString" },
+    "compile_command_args": { "$ref": "#/$defs/scalarMap" },
+    "compiled_state": { "$ref": "#/$defs/scalarMap" },
+    "compiled_effects": { "$ref": "#/$defs/scalarMap" },
+    "compiled_artifact_lower": { "type": "integer" },
+    "compiled_artifact_upper": { "type": "integer" }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "scalarMap": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "anyOf": [
+          { "type": "integer" },
+          { "type": "boolean" },
+          { "type": "string", "minLength": 1 }
+        ]
+      }
+    }
+  }
+}
