@@ -23,7 +23,7 @@ To bind the UI to the local stdlib API server:
 PERPS_API_ENABLED=true ZUSD_API_ENABLED=true DEMO_API_TOKEN=sekret python3 -m src.integration.api_server
 ```
 
-Then run the UI (recommended: use the Vite dev-server proxy so you do not need CORS):
+Then run the UI. The Vite dev-server proxy avoids local CORS setup:
 
 ```bash
 # IMPORTANT: keep the port value on the same line as --port (no newline).

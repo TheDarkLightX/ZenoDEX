@@ -623,7 +623,7 @@ function SwapInterface({ wallet }) {
         });
     }, [amountIn, reserves, activePreview, slippage, wallet, fromBalance, fromToken.symbol]);
 
-    // Auto-calculate slippage suggestion from deterministic preview bounds when available.
+    // Auto-calculate a slippage default from deterministic preview bounds when available.
     // We map the required slippage to the nearest *available* option so the UI stays simple.
     const suggestedSlippage = useMemo(() => {
         const opts = getSlippageOptions().map((o) => Number(o.value)).filter((v) => Number.isFinite(v));
@@ -638,7 +638,7 @@ function SwapInterface({ wallet }) {
             return opts[opts.length - 1];
         };
 
-        // Prefer API slippage advice (revert-safe recommendation among discrete options).
+        // Prefer API slippage bounds among discrete options.
         const advice = advancedMode ? null : apiSlippageAdvice;
         if (advice && advice.recommendedSlippageBps !== null && advice.recommendedSlippageBps !== undefined) {
             const bps = Number(advice.recommendedSlippageBps);
@@ -897,7 +897,7 @@ function SwapInterface({ wallet }) {
             if (resp?.ok && resp?.suggestions) {
                 setPokayokeSuggestions(resp.suggestions);
             } else {
-                setPokayokeSuggestError('Suggestion unavailable');
+                setPokayokeSuggestError('Calculation unavailable');
             }
         } catch (err) {
             const msg = err && typeof err === 'object' ? String(err.message || 'suggest_error') : 'suggest_error';
@@ -944,7 +944,7 @@ function SwapInterface({ wallet }) {
             if (resp?.ok && Array.isArray(resp?.suggestions)) {
                 setPokayokeHeavySuggestions(resp.suggestions);
             } else {
-                setPokayokeHeavySuggestError('Deep suggestion unavailable');
+                setPokayokeHeavySuggestError('Deep calculation unavailable');
             }
         } catch (err) {
             const msg = err && typeof err === 'object' ? String(err.message || 'suggest_error') : 'suggest_error';
@@ -999,7 +999,7 @@ function SwapInterface({ wallet }) {
                                 className="suggested-btn"
                                 onClick={() => setSlippage(suggestedSlippage)}
                             >
-                                Use suggested ({formatPercent(suggestedSlippage)})
+                                Use calculated ({formatPercent(suggestedSlippage)})
                             </button>
                         )}
                     </div>
@@ -1354,7 +1354,7 @@ function SwapInterface({ wallet }) {
                                         if (reasons.includes('slippage_below_revert_safe') && Number.isFinite(recRevert) && recRevert >= 0 && recRevert <= 10_000) {
                                             actions.push({
                                                 key: 'use_revert_safe_slippage',
-                                                label: `Use revert-safe slippage (${(recRevert / 100).toFixed(2)}%)`,
+                                                label: `Apply revert-bound slippage (${(recRevert / 100).toFixed(2)}%)`,
                                                 onClick: () => {
                                                     setSlippage(recRevert / 10_000);
                                                     setShowConfirm(false);
@@ -1368,7 +1368,7 @@ function SwapInterface({ wallet }) {
                                         if (reasons.includes('slippage_above_mev_safe') && Number.isFinite(recMev) && recMev >= 0 && recMev <= 10_000 && userSlippageBps > recMev) {
                                             actions.push({
                                                 key: 'use_mev_safe_slippage',
-                                                label: `Use MEV-safe ceiling (${(recMev / 100).toFixed(2)}%)`,
+                                                label: `Apply MEV ceiling (${(recMev / 100).toFixed(2)}%)`,
                                                 onClick: () => {
                                                     setSlippage(recMev / 10_000);
                                                     setShowConfirm(false);
@@ -1397,7 +1397,7 @@ function SwapInterface({ wallet }) {
                                         onClick={handleFindSaferAmount}
                                         disabled={pokayokeSuggesting}
                                     >
-                                        {pokayokeSuggesting ? 'Finding...' : 'Find Safer Amount'}
+                                        {pokayokeSuggesting ? 'Calculating...' : 'Calculate Smaller Amount'}
                                     </button>
                                     {(() => {
                                         const reasons = Array.isArray(confirmConfig?.reasons) ? confirmConfig.reasons : [];
@@ -1410,7 +1410,7 @@ function SwapInterface({ wallet }) {
                                                 onClick={handleFindSaferAmountDeep}
                                                 disabled={pokayokeHeavySuggesting}
                                             >
-                                                {pokayokeHeavySuggesting ? 'Searching...' : 'Deep Search (MEV/Unknown)'}
+                                                {pokayokeHeavySuggesting ? 'Calculating...' : 'Deep Calculation (MEV/Unknown)'}
                                             </button>
                                         );
                                     })()}
@@ -1440,7 +1440,7 @@ function SwapInterface({ wallet }) {
                                         addItem('required_slippage_le_user_bps', 'Match your slippage');
                                         addItem('required_slippage_le_max_option_bps', 'Match max option slippage');
                                     }
-                                    // If we didn't match a reason, still show the primary impact suggestion as a fallback.
+                                    // If no reason-specific row matches, show the primary impact-bound amount as a fallback.
                                     if (items.length === 0) {
                                         addItem('impact_lt_500_bps', 'Reduce impact <5%');
                                     }
@@ -1550,7 +1550,7 @@ function SwapInterface({ wallet }) {
                         <p className="submitted-copy">
                             {submittedSwap.status === 'pending'
                                 ? 'Broadcasting transaction to Tau Net Alpha...'
-                                : 'Transaction finalized and ready for settlement tracking.'}
+                                : 'Wallet submission confirmed; on-chain status tracking is ready.'}
                         </p>
                         <div className="submitted-status-row">
                             <span className={`tx-status-badge ${submittedSwap.status}`}>

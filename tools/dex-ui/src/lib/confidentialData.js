@@ -46,8 +46,8 @@ export const CONFIDENTIAL_SURFACE = {
       detail: 'Bid opens only if commitment and nonce bind. Non-reveals lose their bond.',
     },
     {
-      id: 'settle',
-      title: 'Settle',
+      id: 'clearing',
+      title: 'Clearing',
       detail: 'Uniform-price fill is deterministic and only consumes revealed units.',
     },
     {

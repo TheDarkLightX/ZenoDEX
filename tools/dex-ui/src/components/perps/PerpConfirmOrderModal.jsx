@@ -100,7 +100,7 @@ function PerpConfirmOrderModal({ order, market, onConfirm, onClose }) {
                         onClick={handleConfirm}
                         disabled={!canConfirm}
                     >
-                        {isExtreme ? 'Execute Trade' : 'Confirm Trade'}
+                        {isExtreme ? 'Prepare Trade' : 'Confirm Trade'}
                     </button>
                 </div>
             </div>
