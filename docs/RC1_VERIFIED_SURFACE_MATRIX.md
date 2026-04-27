@@ -14,7 +14,7 @@ This matrix defines the exact conservative RC1 claim boundary for ZenoDEX.
 RC1ClaimOK := CleanTree ∧ ScopeFrozen ∧ ReplayGreen ∧ ExclusionsHonest
 ```
 
-Standard reading: RC1 is honest only when the tree is clean, the supported surface is explicit, the replay lanes are green, and excluded or disputed surfaces stay excluded.
+Plain English: RC1 is honest only when the tree is clean, the supported surface is explicit, the replay lanes are green, and excluded or disputed surfaces stay excluded.
 
 Practical consequence: this matrix is configuration-specific. It is not a claim about every file in the repo.
 

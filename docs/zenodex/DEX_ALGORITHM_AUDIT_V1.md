@@ -116,7 +116,7 @@ K_after := reserve_in_after * reserve_out_after
 ReserveInvariantOK := K_after >= K_before
 ```
 
-**Standard reading**
+**Plain English**
 
 - `fee` is defined as the ceiling fee charged on the input amount.
 - `amount_out` is defined as the floored constant-product output.
@@ -156,7 +156,7 @@ reads as:
 winner := argmin(key, candidates)
 ```
 
-**Standard reading**
+**Plain English**
 
 - `winner` is defined as the candidate with minimal `key`
 
@@ -168,7 +168,7 @@ The finite uniqueness law is:
     ∀ x ∈ S, key(w) <= key(x)
 ```
 
-**Standard reading**
+**Plain English**
 
 - for every finite nonempty candidate set `S`, there exists exactly one winner
   `w` in `S` such that every candidate `x` in `S` has key at least `key(w)`
@@ -221,7 +221,7 @@ packet_ok
    ∧ winner_true_key_minimal
 ```
 
-**Standard reading**
+**Plain English**
 
 - `ExactInKey` is defined as the lexicographic pair
   `(routeKeyRank, candidateIndex)`
@@ -280,7 +280,7 @@ bounded_ab_mode -> runtime_uses_optimal_ab_bounded
 ¬bounded_ab_mode -> no_blanket_ab_optimality_claim
 ```
 
-**Standard reading**
+**Plain English**
 
 - the batch key is defined as volume in descending order, then surplus in
   descending order, then order in ascending lexicographic order
@@ -323,7 +323,7 @@ honestly to the bounded mode where that statement is actually proved and wired.
 canonical_quote := argmin(canonical_key, candidate_quotes)
 ```
 
-**Standard reading**
+**Plain English**
 
 - `canonical_quote` is defined as the quote with minimal canonical key over the
   emitted audited-domain candidate set
@@ -334,7 +334,7 @@ canonical_quote := argmin(canonical_key, candidate_quotes)
 audited_domain_only -> no_global_generator_completeness_claim
 ```
 
-**Standard reading**
+**Plain English**
 
 - audited-domain-only support implies there is no claim of unrestricted global
   generator completeness
@@ -370,7 +370,7 @@ packet_ok
    ∧ value_packet_ok
 ```
 
-**Standard reading**
+**Plain English**
 
 - `packet_ok` is defined as strong certificate success and feature-extension
   packet success and module-bundle success and full-price-rails success and
@@ -413,7 +413,7 @@ rate_bps
    else -mag
 ```
 
-**Standard reading**
+**Plain English**
 
 - `basis_bps` is defined as the absolute mark/index basis in basis points
 - `rate_bps` is defined as the signed capped basis
@@ -452,7 +452,7 @@ risky_ops_allowed := env_ok ∧ tcr_ok
 action_allowed := ¬risky_requested ∨ risky_ops_allowed
 ```
 
-**Standard reading**
+**Plain English**
 
 - `env_ok` is defined as oracle seen and positive prices and pending price equal
   to committed price and freshness
@@ -514,7 +514,7 @@ LoaderOK
    ∧ (¬strong_binding_required ∨ StrongTauStateBindingOK)
 ```
 
-**Standard reading**
+**Plain English**
 
 - `LoaderOK` is defined as bridge payload ready and baseline provenance OK and
   either strong binding is not required or strong Tau-state binding is OK
@@ -578,7 +578,7 @@ ConditionalCorrectness
    -> AdmissionBehaviorMatchesPublishedContract
 ```
 
-**Standard reading**
+**Plain English**
 
 - `ConditionalCorrectness` is defined as `HostArtifactsOK` and
   `ExternalTauContractOK` imply admission behavior matches the published
@@ -593,7 +593,7 @@ Fail-closed corollary:
    ∨ narrow_public_claim
 ```
 
-**Standard reading**
+**Plain English**
 
 - not `ExternalTauContractOK` implies reject or disable the stronger path or
   narrow the public claim
