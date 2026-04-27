@@ -144,6 +144,9 @@ import Proofs.ImpossibilityTheoremV2
 import Proofs.SplitRoutingArgmaxPlateau
 import Proofs.MSTCertificateBasics
 import Proofs.PokayokeImpactGate
+import Proofs.CertifiedFinancialMathObjects
+import Proofs.CALCoreSoundness
+import Proofs.ZenoPayoffLanguage
 
 /-!
 Proofs library root.
