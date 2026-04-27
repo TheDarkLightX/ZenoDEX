@@ -7,6 +7,9 @@ on:
       - review/shape-v1-release-freeze
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   shape-v1-ratchet:
     runs-on: ubuntu-latest
