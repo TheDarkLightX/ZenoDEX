@@ -88,3 +88,48 @@ That command exits successfully but still reports:
 3. Keep `cargo audit` in the security gate, but do not treat an ignore for
    `RUSTSEC-2025-0055` as a permanent fix.
 4. Rerun state-proof build and verification checks after any RISC Zero upgrade.
+
+## Upgrade Feasibility Notes
+
+These checks were run in `/tmp` copies of `zk/state_proof_risc0`; no repo source
+files were changed for the experiment.
+
+### RISC Zero 2.3.x
+
+Patch tested:
+
+```text
+risc0-zkvm = 2.3.1 / 2.3.2
+risc0-build = 2.3.1 / 2.3.2
+```
+
+Result:
+
+- `RISC0_SKIP_BUILD=1 cargo check` passes.
+- `cargo audit` still fails on `RUSTSEC-2025-0055`.
+- The vulnerable path moves from `ark-relations 0.4.0` to `ark-relations 0.5.1`,
+  but `tracing-subscriber 0.2.25` remains.
+
+Plain English: RISC Zero 2.3.x is build-compatible with the current code shape,
+but it does not remove the audit blocker.
+
+### RISC Zero 3.0.x
+
+Patch tested:
+
+```text
+risc0-zkvm = 3.0.5
+risc0-build = 3.0.5
+```
+
+Result:
+
+- `RISC0_SKIP_BUILD=1 cargo check` fails with the current local Rust toolchain
+  (`rustc 1.87.0`), because transitive dependencies require Rust 1.88 and 1.90.
+- `cargo audit` still fails on `RUSTSEC-2025-0055`.
+- `cargo audit` also reports `RUSTSEC-2023-0071` for `rsa 0.9.10` through
+  `rzup 0.5.1`.
+
+Plain English: RISC Zero 3.0.x is not the clean migration target for this repo
+as-is. It raises the Rust MSRV and adds a second vulnerability while leaving the
+original `tracing-subscriber` issue unresolved.
