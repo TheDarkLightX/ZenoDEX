@@ -5,8 +5,7 @@ This is an engineering audit note, not a full supply-chain certification.
 ## Commands Run
 
 ```bash
-cd tools/dex-ui
-npm audit --json
+(cd tools/dex-ui && npm audit --json)
 
 python3 -m venv /tmp/zenodex-pip-audit-venv
 /tmp/zenodex-pip-audit-venv/bin/python -m pip install --upgrade pip
@@ -14,9 +13,10 @@ python3 -m venv /tmp/zenodex-pip-audit-venv
 /tmp/zenodex-pip-audit-venv/bin/python -m pip_audit -r requirements-core.lock.txt
 /tmp/zenodex-pip-audit-venv/bin/python -m pip_audit -r requirements-agents.lock.txt
 
-cd zk/state_proof_risc0
-cargo audit
-cargo audit --ignore RUSTSEC-2025-0055
+(cd zk/state_proof_risc0 && cargo audit --json --no-fetch)
+(cd zk/state_proof_risc0 && cargo audit --ignore RUSTSEC-2025-0055)
+python3 tools/check_risc0_dependency_audit.py --no-fetch
+(cd zk/state_proof_risc0 && cargo check)
 ```
 
 ## Results
@@ -26,7 +26,26 @@ cargo audit --ignore RUSTSEC-2025-0055
 | DEX UI npm lock | Clean | `npm audit` reported `total = 0` vulnerabilities across 217 dependencies. |
 | Python runtime lock | Clean | `pip-audit -r requirements-core.lock.txt` reported no known vulnerabilities. |
 | Python agent lock | Clean | `pip-audit -r requirements-agents.lock.txt` reported no known vulnerabilities. |
-| RISC Zero state-proof workspace | One vulnerability plus three allowed warnings | `cargo audit` failed on `RUSTSEC-2025-0055` in transitive `tracing-subscriber 0.2.25`. |
+| RISC Zero state-proof workspace | One vulnerability plus three allowed warnings | Compatible lock refreshes removed six patchable RustSec vulnerabilities. The remaining audit blocker is `RUSTSEC-2025-0055` in transitive `tracing-subscriber 0.2.25`. |
+
+## Rust Lockfile Refresh
+
+The RISC Zero workspace had several patchable transitive advisories in addition
+to the RISC Zero / arkworks `tracing-subscriber` blocker. These were removed
+with compatible lockfile-only updates:
+
+| Package | Old | New | Cleared advisory |
+| --- | --- | --- | --- |
+| `bytes` | `1.11.0` | `1.11.1` | `RUSTSEC-2026-0007` |
+| `quinn-proto` | `0.11.13` | `0.11.14` | `RUSTSEC-2026-0037` |
+| `rustls-webpki` | `0.103.8` | `0.103.13` | `RUSTSEC-2026-0049`, `RUSTSEC-2026-0098`, `RUSTSEC-2026-0099`, `RUSTSEC-2026-0104` |
+| `rand` | `0.8.5` | `0.8.6` | `RUSTSEC-2026-0097` warning |
+| `rand` | `0.9.2` | `0.9.3` | `RUSTSEC-2026-0097` warning |
+
+`cargo check` passes after the refresh. The local machine does not have the
+RISC Zero guest target installed, so the methods crate reports placeholder
+methods unless `riscv32im-risc0-zkvm-elf` is installed for the `risc0`
+toolchain.
 
 ## Rust Finding
 
@@ -69,15 +88,18 @@ until the RISC Zero dependency stack is upgraded or isolated.
 Temporary audit command that preserves visibility of the remaining warnings:
 
 ```bash
-cd zk/state_proof_risc0
-cargo audit --ignore RUSTSEC-2025-0055
+python3 tools/check_risc0_dependency_audit.py
 ```
 
-That command exits successfully but still reports:
+That command exits successfully only if `RUSTSEC-2025-0055` is the sole
+vulnerability. It still reports warning IDs, including:
 
 - `RUSTSEC-2025-0141`: `bincode 1.3.3` unmaintained
 - `RUSTSEC-2024-0388`: `derivative 2.2.0` unmaintained
 - `RUSTSEC-2024-0436`: `paste 1.0.15` unmaintained
+
+Plain English: this is a ratchet, not a fix. It keeps the current temporary
+exception from silently expanding while the RISC Zero migration remains open.
 
 ## Required Follow-Up
 
