@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   python-dependency-audit:
     runs-on: ubuntu-latest
@@ -31,7 +34,11 @@ jobs:
         run: |
           pytest -q \
             tests/integration/test_check_dex_ui_dependency_audit.py \
-            tests/integration/test_check_risc0_dependency_audit.py
+            tests/integration/test_check_risc0_dependency_audit.py \
+            tests/integration/test_check_github_workflow_permissions.py
+
+      - name: Enforce workflow token permissions
+        run: python3 tools/check_github_workflow_permissions.py
 
   dex-ui-dependency-audit:
     runs-on: ubuntu-latest

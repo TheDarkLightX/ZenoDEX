@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   closed-disaster-receipt:
     runs-on: ubuntu-latest
