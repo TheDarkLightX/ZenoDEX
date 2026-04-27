@@ -4,7 +4,7 @@
 # =============================================================================
 # Stage 1: Build React UI
 # =============================================================================
-FROM node:20.19.2-alpine3.21 AS ui-builder
+FROM node:20.19.5-alpine3.22 AS ui-builder
 
 WORKDIR /app/ui
 
@@ -21,7 +21,7 @@ RUN npm run build
 # =============================================================================
 # Stage 2: Python Integration Layer
 # =============================================================================
-FROM python:3.11-slim-bookworm AS python-base
+FROM python:3.11-slim-trixie AS python-base
 
 WORKDIR /app
 
@@ -40,7 +40,7 @@ COPY tests/ ./tests/
 # =============================================================================
 # Stage 3: Production Image
 # =============================================================================
-FROM python:3.11-slim-bookworm AS production
+FROM python:3.11-slim-trixie AS production
 
 # Labels for container metadata
 LABEL org.opencontainers.image.title="ZenoDEX"
