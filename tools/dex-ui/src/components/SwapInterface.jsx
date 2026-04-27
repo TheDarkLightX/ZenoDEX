@@ -47,13 +47,11 @@ function SwapInterface({ wallet }) {
     const [showSettings, setShowSettings] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [lastRefresh, setLastRefresh] = useState(Date.now());
 
     // Auto-refresh prices every 15 seconds
     useEffect(() => {
         const interval = setInterval(() => {
             setIsRefreshing(true);
-            setLastRefresh(Date.now());
             setTimeout(() => setIsRefreshing(false), 500);
         }, 15000);
         return () => clearInterval(interval);
@@ -91,7 +89,7 @@ function SwapInterface({ wallet }) {
         const minOutput = output * (1 - slippage);
 
         return { output, priceImpact, spotPrice, minOutput };
-    }, [amountIn, reserves, slippage, lastRefresh]);
+    }, [amountIn, reserves, slippage]);
 
     // Validation with helpful messages
     const validation = useMemo(() => {

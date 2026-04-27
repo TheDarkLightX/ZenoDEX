@@ -38,7 +38,7 @@ const MOCK_POOLS = [
     },
 ];
 
-function PoolDashboard({ wallet }) {
+function PoolDashboard() {
     return (
         <div className="pool-dashboard">
             <div className="pool-header">
