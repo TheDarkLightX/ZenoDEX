@@ -11,3 +11,6 @@ canonicaljson>=1.6.0
 
 # Runtime model/config loading
 pyyaml>=6.0
+
+# FIRE verifier schemas and receipt validation
+jsonschema>=4.22.0

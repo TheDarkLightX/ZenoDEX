@@ -1,0 +1,40 @@
+name: fire-assurance
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  fire-assurance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FIRE test tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run FIRE assurance gate
+        run: bash tools/run_fire_assurance_gate.sh
+
+      - name: Check devnet FIRE registry snapshot packages
+        run: |
+          python tools/check_fire_snapshot_packages.py \
+            --snapshot-dir docs/fire_registry/devnet_v1 \
+            --require-replay-input \
+            --require-compile-receipt \
+            --require-kernel-receipt \
+            --require-kernel-eval-receipt \
+            --require-kernel-replay-receipt \
+            --require-kernel-settlement-receipt \
+            --require-proof-tree-cert
