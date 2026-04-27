@@ -45,7 +45,8 @@ bash tools/prod_gate.sh --skip-ui
 - The PR-time dependency assurance workflow is stricter than the historical
   local production gate: it requires zero DEX UI npm vulnerabilities, a clean
   `pip-audit -r requirements.txt`, and no RISC0 RustSec findings except the
-  explicitly documented temporary `RUSTSEC-2025-0055` upstream blocker.
+  explicitly documented temporary `RUSTSEC-2025-0055` `tracing-subscriber`
+  blocker.
 - The local production gate still treats the final container artifact as the
   launch blocker and scans it for fixable HIGH/CRITICAL vulnerabilities.
 - If the vendored ESSO repo carries intentional local patches, update the manifest with the exact `esso_tree_sha256` after a successful assurance run instead of relying on a clean git checkout alone.
