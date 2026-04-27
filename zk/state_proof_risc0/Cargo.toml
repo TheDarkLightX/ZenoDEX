@@ -7,3 +7,8 @@ members = [
   "cli",
 ]
 
+[patch.crates-io]
+# RISC0 2.3.2 reaches ark-relations/std through its Groth16 verifier stack.
+# The published ark-relations 0.5.1 crate pins tracing-subscriber 0.2.x for
+# optional R1CS tracing, which is below the patched GHSA-xwfj-jgwm-7wp5 range.
+ark-relations = { path = "patches/ark-relations-0.5.1" }
