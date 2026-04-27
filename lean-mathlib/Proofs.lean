@@ -109,6 +109,9 @@ import Proofs.FeeAwareBatchKGap
 import Proofs.CPMMOutputMonotonicity
 import Proofs.RoundingErrorBound
 import Proofs.SettlementNetting
+import Proofs.FiniteTraceBarriers
+import Proofs.TokenomicsTraceSafety
+import Proofs.ZenoDEXSettlementGateBlockers
 import Proofs.ZUSDCeilDivAlgebra
 import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
