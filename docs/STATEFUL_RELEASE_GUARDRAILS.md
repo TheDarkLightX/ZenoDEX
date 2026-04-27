@@ -8,7 +8,7 @@ This note turns the current stateful weird-machine assurance results into a rele
 ReleaseGuardrailBasis := DeepGateGreen ∧ WitnessedSurfaces=10 ∧ ReachedNoWitness=0
 ```
 
-Standard reading: the guardrails below are based on a clean deep lane, full dangerous-surface witness coverage, and no remaining reachability gaps.
+Plain English: the guardrails below are based on a clean deep lane, full dangerous-surface witness coverage, and no remaining reachability gaps.
 
 Practical consequence: routing, settlement, quote-receipt, and attestation refactors should preserve these witnesses before release.
 
@@ -25,7 +25,7 @@ Current basis snapshot as of `2026-04-08`:
 ReleaseOK -> DeepGateGreen ∧ TopWitnessesReplay ∧ CriticalSurfaceCoverageStable
 ```
 
-Standard reading: a release is acceptable only if the deep lane stays green, the top witness set still replays to the same reject families, and no critical surface loses witness coverage.
+Plain English: a release is acceptable only if the deep lane stays green, the top witness set still replays to the same reject families, and no critical surface loses witness coverage.
 
 Practical consequence: these checks are release-blocking for the highest-value semantic boundaries.
 
@@ -50,7 +50,7 @@ These must continue to replay to the same reject-family class before release.
 PriorityOrder := preserve_canonicalization > preserve_freshness > preserve_replay > preserve_transport
 ```
 
-Standard reading: canonicalization and freshness guards carry more safety load than lower-level envelope hygiene.
+Plain English: canonicalization and freshness guards carry more safety load than lower-level envelope hygiene.
 
 Practical consequence: do not weaken or de-prioritize the top canonicalization/freshness witnesses first.
 
@@ -72,7 +72,7 @@ Current hotspot order:
 MainSafetyLoad := route_canonicalization_guard ∨ settlement_freshness_guard ∨ snapshot_freshness_guard ∨ attestation_temporal_guard
 ```
 
-Standard reading: the system currently relies most heavily on canonicalization, freshness, and attestation-time guards.
+Plain English: the system currently relies most heavily on canonicalization, freshness, and attestation-time guards.
 
 Practical consequence: any refactor touching these guard families should require explicit witness replay before merge.
 
@@ -91,6 +91,6 @@ High-priority guard families:
 ThisNote := operator_release_guardrail ∧ not_claim_of_formal_proof
 ```
 
-Standard reading: this is an operator-facing release discipline, not a formal proof artifact.
+Plain English: this is an operator-facing release discipline, not a formal proof artifact.
 
 Practical consequence: it complements proofs, kernels, and formal contracts rather than replacing them.

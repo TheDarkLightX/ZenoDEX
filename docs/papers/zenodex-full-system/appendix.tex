@@ -39,7 +39,7 @@ The governing evidence rule is
 \[
 \mathtt{proved} > \mathtt{contract} > \mathtt{implemented} > \mathtt{replay\_backed} > \mathtt{hypothesis}.
 \]
-Standard reading: the tables below are claim-to-artifact maps, not marketing
+Plain English: the tables below are claim-to-artifact maps, not marketing
 summaries.
 Practical consequence: a reviewer can audit the public package without relying
 on non-public development notes or unpublished implementation tooling details.
@@ -121,7 +121,7 @@ ZUSD oracle safety contract & contract + tests & \code{src/integration/zusd_orac
 \[
 \Winner(C) := \argmin_{c \in C} \Key(c).
 \]
-Standard reading: once a bounded candidate family is emitted, the chosen route
+Plain English: once a bounded candidate family is emitted, the chosen route
 is the unique minimum under the explicit total key.
 Practical consequence: public runtime selectors should be audited as
 certificate-carrying argmin procedures rather than loop-order heuristics.
@@ -139,7 +139,7 @@ Operational skeleton:
 \[
 \mathsf{packet\_ok} \leftrightarrow \mathsf{strong\_certificate\_ok} \wedge \mathsf{value\_lane\_ok} \wedge \mathsf{provenance\_ok}.
 \]
-Standard reading: an end-to-end settlement packet is accepted only when each
+Plain English: an end-to-end settlement packet is accepted only when each
 constituent lane verifies and the bundle remains coherent.
 Practical consequence: settlement bundling is fail-closed composition, not
 best-effort aggregation.
@@ -156,7 +156,7 @@ Operational skeleton:
 \[
 \mathsf{ReleaseClaimOK} := \mathsf{CleanTree} \wedge \mathsf{ScopeFrozen} \wedge \mathsf{ReplayGreen} \wedge \mathsf{ExclusionsHonest}.
 \]
-Standard reading: the public release claim is valid only on a clean tree with a
+Plain English: the public release claim is valid only on a clean tree with a
 frozen documented scope and green replay lanes.
 Practical consequence: the release process is itself a public artifact, not only
 a private operator habit.
@@ -174,7 +174,7 @@ The public package uses a three-level distinction:
 \[
 \mathsf{FullTargetArchitecture} \supset \mathsf{CurrentPublicEvidenceFrontier} \supset \mathsf{CurrentRC1Claim}.
 \]
-Standard reading: the complete intended architecture is broader than the public
+Plain English: the complete intended architecture is broader than the public
 evidence frontier, and the evidence frontier is broader than the current RC1
 public claim.
 Practical consequence: the appendix helps reviewers see exactly which artifacts

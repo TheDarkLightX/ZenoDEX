@@ -81,7 +81,7 @@ The intended full architecture is
 \wedge \mathsf{Oracle} \wedge \mathsf{zUSD} \wedge \mathsf{Perps}
 \wedge \Runtime \wedge \Assure.
 \]
-Standard reading: the system is the conjunction of value-moving execution,
+Plain English: the system is the conjunction of value-moving execution,
 fail-closed guards, certificate-carrying settlement and oracle lanes, monetary
 and derivatives risk layers, narrow runtime adapters, and replayable assurance
 artifacts.
@@ -92,7 +92,7 @@ The corresponding public discipline is
 \[
 \mathsf{PublicClaim} \subset \mathsf{EvidenceFrontier} \subset \mathsf{FullTargetArchitecture}.
 \]
-Standard reading: the public release claim is narrower than the strongest
+Plain English: the public release claim is narrower than the strongest
 current evidence frontier, and the evidence frontier is narrower than the full
 intended architecture.
 Practical consequence: this paper can describe the whole target system in
@@ -133,7 +133,7 @@ The governing evidence order is
 \[
 \mathtt{proved} > \mathtt{contract} > \mathtt{implemented} > \mathtt{replay\_backed} > \mathtt{hypothesis}.
 \]
-Standard reading: a claim may only be stated at the strongest replayable
+Plain English: a claim may only be stated at the strongest replayable
 support the repository actually carries.
 Practical consequence: this paper treats theorem-bearing spot slices,
 manifest-backed contract surfaces, and replayable release evidence differently
@@ -152,7 +152,7 @@ C \neq \varnothing \to \exists !\, w \in C \text{ such that } \forall c \in C,\;
 \[
 \mathsf{ReleaseClaimOK} := \mathsf{CleanTree} \wedge \mathsf{ScopeFrozen} \wedge \mathsf{ReplayGreen} \wedge \mathsf{ExclusionsHonest}.
 \]
-Standard reading: canonical winner, proof-carrying packets, bounded risk
+Plain English: canonical winner, proof-carrying packets, bounded risk
 transitions, and replay-backed release posture are the four main logical forms
 used across the system.
 Practical consequence: the assurance story is compositional. The paper does not
@@ -171,7 +171,7 @@ Its intended law is
 \wedge \mathsf{KindSupported}
 \wedge \mathsf{BoundaryContractOK}.
 \]
-Standard reading: before the execution plane is even allowed to compare route
+Plain English: before the execution plane is even allowed to compare route
 or settlement candidates, ingress must already be normalized, authenticated,
 nonce-consistent, supported by the current release contract, and within the
 documented runtime boundary.
@@ -199,7 +199,7 @@ keys. The intended winner semantics is
 \[
 \Winner(C) := \argmin_{c \in C} \Key(c).
 \]
-Standard reading: on a bounded emitted candidate family, the chosen route or
+Plain English: on a bounded emitted candidate family, the chosen route or
 batch outcome is the unique minimum under an explicit total key.
 Practical consequence: deterministic replay is upgraded from ``same loop order''
 to a semantic canonicality claim.
@@ -226,7 +226,7 @@ with fee-side accounting shaped by
 \[
 \mathsf{fee\_conserved} \wedge \mathsf{dust\_carry\_bounded}.
 \]
-Standard reading: reserve-bounded swap execution and exact fee accounting are
+Plain English: reserve-bounded swap execution and exact fee accounting are
 first-class contracts, not informal expectations.
 Practical consequence: any whole-system settlement or runtime claim inherits
 these accounting constraints as preconditions.
@@ -239,7 +239,7 @@ Batch execution adds two additional structures:
 \[
 \mathsf{LPRoundTrip} \to \mathsf{NoImmediateValueCreation}.
 \]
-Standard reading: valid batch outcomes must produce canonical winners and
+Plain English: valid batch outcomes must produce canonical winners and
 meaningful settlements, and LP mint/burn semantics should reject immediate
 value-creation folklore.
 Practical consequence: the paper treats batch execution and LP mechanics as
@@ -260,7 +260,7 @@ The role of this plane is expressed by
 \[
 \mathsf{ExecutionAuthority} \to \mathsf{GuardedByTauOrKernelOrProofBackedShell}.
 \]
-Standard reading: authority-bearing transitions should only occur when they are
+Plain English: authority-bearing transitions should only occur when they are
 filtered by an explicit public guard surface.
 Practical consequence: the architecture is not satisfied by tests alone; it
 requires a layered acceptance posture.
@@ -277,7 +277,7 @@ The guiding law is
 \wedge \mathsf{QuoteOrKernelWitnessBound}
 \wedge \mathsf{ReplayVerifiable}.
 \]
-Standard reading: accepted settlement must carry canonical deltas, bind fills to
+Plain English: accepted settlement must carry canonical deltas, bind fills to
 quote or kernel witnesses, and remain replay-checkable.
 Practical consequence: settlement is a certified boundary object, not just a
 serialized runtime decision.
@@ -297,7 +297,7 @@ The composition law across packet and kernel boundaries is
 \mathsf{SharedFactInA} = \mathsf{MirrorOfFactInB}
 \quad \text{must be preserved after every relevant transition.}
 \]
-Standard reading: any fact shared across modules must be mirrored and kept
+Plain English: any fact shared across modules must be mirrored and kept
 synchronized inductively, not repaired later by convention.
 Practical consequence: composition is part of the proof surface, not only part
 of the engineering style guide.
@@ -312,7 +312,7 @@ ambient input. The intended safety contract is
 \wedge \mathsf{PendingStateConsistent}
 \wedge \mathsf{ProvenancePacketCoherent}.
 \]
-Standard reading: accepted price material must satisfy freshness limits, source
+Plain English: accepted price material must satisfy freshness limits, source
 restrictions, pending-vs-active state consistency, and provenance coherence.
 Practical consequence: any stablecoin, settlement, or perps claim inherits a
 price-admission contract rather than merely trusting a floating external
@@ -337,7 +337,7 @@ Its public-safe reading is
 \[
 \mathsf{SupportedHTTP} \subset \mathsf{AllRuntimeEndpoints}.
 \]
-Standard reading: the supported public runtime path is a bounded subset of the
+Plain English: the supported public runtime path is a bounded subset of the
 possible API and integration surfaces.
 Practical consequence: a whole-system paper should describe the full runtime
 stack while still naming the narrower release-backed boundary.
@@ -355,7 +355,7 @@ A representative runtime invariant is
 \[
 \mathsf{SignedOrWitnessedIngress} \to \mathsf{NonceConsistent} \wedge \mathsf{ReceiptConsistent} \wedge \mathsf{CanonicalPayloadConsistent}.
 \]
-Standard reading: admitted runtime ingress must bind signer, nonce, receipt,
+Plain English: admitted runtime ingress must bind signer, nonce, receipt,
 and canonical payload views consistently.
 Practical consequence: replay safety depends as much on ingress discipline as on
 execution math.
@@ -381,7 +381,7 @@ The oracle safety side is shaped by
 \[
 \mathsf{price\_pending} \neq \mathsf{price} \to \mathsf{RiskyTransitionsBlocked}.
 \]
-Standard reading: zUSD actions are only admissible when both balance laws hold,
+Plain English: zUSD actions are only admissible when both balance laws hold,
 and stale or pending oracle posture blocks risky transitions.
 Practical consequence: debt-only reasoning is not an adequate public safety
 story for the monetary layer.
@@ -394,7 +394,7 @@ The intended zUSD substructure is:
   \item runtime token and wallet boundaries that must preserve the same
   monetary semantics.
 \end{itemize}
-Standard reading: zUSD is not one theorem or one Python module. It is a family
+Plain English: zUSD is not one theorem or one Python module. It is a family
 of balance laws, admission contracts, and oracle-state gates that must remain
 consistent across kernel, runtime, and wallet-adjacent surfaces.
 Practical consequence: a full-system paper has to describe the stablecoin plane
@@ -408,7 +408,7 @@ The intended perpetual-risk law is bounded rather than universal:
 \wedge \mathsf{BoundedMoveGate}
 \wedge \mathsf{FundingOrSettlementWitnessOK}.
 \]
-Standard reading: the perps layer relies on explicit oracle freshness, bounded
+Plain English: the perps layer relies on explicit oracle freshness, bounded
 moves, and witness-backed settlement or funding lanes.
 Practical consequence: the paper can cover the perps plane in detail without
 claiming that every derivatives surface is already release-authoritative.
@@ -420,7 +420,7 @@ The intended perps plane includes:
   \item liquidation containment contracts;
   \item public API and settlement shells that mirror the same bounded semantics.
 \end{itemize}
-Standard reading: the perps plane is a bounded risk machine, not a generic
+Plain English: the perps plane is a bounded risk machine, not a generic
 unconstrained derivatives engine.
 Practical consequence: the correct public claim is a bounded envelope posture,
 not ``all derivatives semantics are fully solved''.
@@ -435,7 +435,7 @@ The public safety law is
 \qquad
 \neg(\mathsf{AdvisoryPlane} \to \mathsf{BalanceMovingAuthority}).
 \]
-Standard reading: planning or ranking surfaces may influence what operators look
+Plain English: planning or ranking surfaces may influence what operators look
 at, but they do not gain direct value-moving authority.
 Practical consequence: the whole-system paper includes these layers because they
 shape the intended architecture, but they remain outside the core public RC1
@@ -450,7 +450,7 @@ public claim. Its operating law is
 \wedge \mathsf{ReplaySurfaceTracked}
 \wedge \mathsf{GeneratedEvidenceRebuildable}.
 \]
-Standard reading: a publishable claim requires pinned manifests, tracked replay
+Plain English: a publishable claim requires pinned manifests, tracked replay
 entry points, and the ability to rebuild local evidence from a clean checkout.
 Practical consequence: assurance is an executable surface, not just a set of
 markdown promises.
@@ -471,7 +471,7 @@ They serve distinct purposes:
   \item \emph{full} reruns the complete public release gate, including Tau,
   mutation, fuzz, and recovery checks.
 \end{itemize}
-Standard reading: the assurance plane itself is stratified.
+Plain English: the assurance plane itself is stratified.
 Practical consequence: the public branch can stay narrow without giving up
 whole-system replayability.
 
@@ -482,7 +482,7 @@ public RC1 contract is
 \[
 \mathsf{RC1ClaimOK} := \mathsf{CleanTree} \wedge \mathsf{ScopeFrozen} \wedge \mathsf{ReplayGreen} \wedge \mathsf{ExclusionsHonest}.
 \]
-Standard reading: RC1 is honest only when the tree is clean, the scope is
+Plain English: RC1 is honest only when the tree is clean, the scope is
 explicit, the replay lanes are green, and excluded/disputed surfaces stay
 excluded.
 Practical consequence: a paper claim and a release claim are related, but not
@@ -540,7 +540,7 @@ module, the practical order is:
   \item review the assurance plane last, because it explains which of the above
   surfaces are presently release-backed versus only architectural targets.
 \end{enumerate}
-Standard reading: the full system is best reviewed by dependency order rather
+Plain English: the full system is best reviewed by dependency order rather
 than by directory order.
 Practical consequence: the paper is intentionally structured as a system map,
 not just as a list of files.

@@ -68,7 +68,7 @@ The intended architecture is
 \wedge \mathsf{Oracle} \wedge \mathsf{zUSD} \wedge \mathsf{Perps}
 \wedge \Runtime \wedge \Assure.
 \]
-Standard reading: the whole system includes execution, guards, certificates,
+Plain English: the whole system includes execution, guards, certificates,
 risk layers, runtime adapters, and assurance surfaces.
 Practical consequence: the correct review object is the architecture, not one
 isolated module.
@@ -77,7 +77,7 @@ The current public discipline is
 \[
 \mathsf{PublicClaim} \subset \mathsf{EvidenceFrontier} \subset \mathsf{FullTargetArchitecture}.
 \]
-Standard reading: the current release claim is narrower than the strongest
+Plain English: the current release claim is narrower than the strongest
 public evidence, and both are narrower than the intended full system.
 Practical consequence: an honest paper may describe the full stack while still
 keeping the release claim conservative.
@@ -115,7 +115,7 @@ The governing evidence order is
 \[
 \mathtt{proved} > \mathtt{contract} > \mathtt{implemented} > \mathtt{replay\_backed} > \mathtt{hypothesis}.
 \]
-Standard reading: every claim is limited by the strongest public replayable
+Plain English: every claim is limited by the strongest public replayable
 support actually present.
 Practical consequence: theorem-bearing spot slices, packet contracts, and
 release gates are intentionally not collapsed into one generic label.
@@ -129,7 +129,7 @@ with certificate-bearing settlement shaped by
 \[
 \mathsf{SettlementOK} \to \mathsf{CanonicalDeltaTable} \wedge \mathsf{ReplayVerifiable}.
 \]
-Standard reading: bounded candidate families are resolved by explicit total
+Plain English: bounded candidate families are resolved by explicit total
 keys, and accepted settlement must carry replay-checkable canonical meaning.
 Practical consequence: determinism is treated as semantic canonicality plus
 replayable packet structure, not only as stable iteration order.
@@ -157,7 +157,7 @@ and the price-admission layer is
 \to \mathsf{FreshnessBound} \wedge \mathsf{PendingStateConsistent}
 \wedge \mathsf{ProvenancePacketCoherent}.
 \]
-Standard reading: the runtime only becomes authoritative after normalization,
+Plain English: the runtime only becomes authoritative after normalization,
 authentication, nonce discipline, and oracle/provenance checks succeed.
 Practical consequence: the public system claim must include ingress and price
 discipline, not only the inner execution kernels.
@@ -182,7 +182,7 @@ Representative public formulas are:
 \[
 \mathsf{PerpTransitionAllowed} \to \mathsf{FreshOracleWindow} \wedge \mathsf{BoundedMoveGate}.
 \]
-Standard reading: zUSD and perps are covered by explicit bounded public safety
+Plain English: zUSD and perps are covered by explicit bounded public safety
 claims, not by a blanket claim that the whole risk stack is fully proved.
 Practical consequence: the full system is covered in the architecture, but the
 public release claim remains more conservative than the target design.
@@ -194,7 +194,7 @@ The public assurance plane is executable:
 \to \mathsf{ManifestPinned} \wedge \mathsf{ReplaySurfaceTracked}
 \wedge \mathsf{GeneratedEvidenceRebuildable}.
 \]
-Standard reading: the release claim is only meaningful if the public replay
+Plain English: the release claim is only meaningful if the public replay
 lanes and manifests remain synchronized.
 Practical consequence: the repo's assurance documents are part of the system,
 not only documentation about it.
@@ -204,7 +204,7 @@ The current public RC1 contract is
 \[
 \mathsf{RC1ClaimOK} := \mathsf{CleanTree} \wedge \mathsf{ScopeFrozen} \wedge \mathsf{ReplayGreen} \wedge \mathsf{ExclusionsHonest}.
 \]
-Standard reading: the RC1 claim is configuration-specific, replay-backed, and
+Plain English: the RC1 claim is configuration-specific, replay-backed, and
 explicitly bounded.
 Practical consequence: the public release claim is narrower than the whole
 architecture described in this paper.
