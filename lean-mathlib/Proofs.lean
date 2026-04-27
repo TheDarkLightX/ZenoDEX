@@ -36,6 +36,9 @@ import Proofs.PiecewiseEnvelopeNoOverdelivery
 import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
 import Proofs.PiecewiseEnvelopeParametric
 import Proofs.FeeCeilDecomposition
+import Proofs.CertifiedFinancialMathObjects
+import Proofs.CALCoreSoundness
+import Proofs.ZenoPayoffLanguage
 
 /-!
 Proofs library root.
