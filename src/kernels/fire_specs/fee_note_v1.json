@@ -1,0 +1,117 @@
+{
+  "cli_help": "Build a FeeNote FIRE object",
+  "expression": {
+    "kind": "mul",
+    "left": {
+      "kind": "exact_param",
+      "name": "n_notional"
+    },
+    "right": {
+      "inner": {
+        "kind": "source_bound",
+        "name": "fee_final"
+      },
+      "kind": "cap",
+      "upper": {
+        "kind": "exact_param",
+        "name": "cap_index"
+      }
+    }
+  },
+  "imports": [
+    {
+      "contract": {
+        "name": "fee_contract",
+        "role": "import:fee_index_v1.fee_final"
+      },
+      "interface_object_id": "fee_index_v1",
+      "interface_output": "fee_final",
+      "lower": {
+        "kind": "const",
+        "value": 0
+      },
+      "name": "fee_final",
+      "unit": "Index",
+      "upper": {
+        "kind": "term",
+        "term": "source_upper"
+      }
+    }
+  ],
+  "ir_hash": "sha256:1d2740320070d63cc487bbc9333d10ca0d6c43e102ac1940bc4daa517a0492ba",
+  "object_family": "capped_index_note",
+  "object_id": "fee_note_v1",
+  "object_name": "FeeNote",
+  "object_version": "v1",
+  "outputs": [
+    {
+      "description": "Certified settlement payoff bound",
+      "expression": {
+        "kind": "mul",
+        "left": {
+          "kind": "exact_param",
+          "name": "n_notional"
+        },
+        "right": {
+          "inner": {
+            "kind": "source_bound",
+            "name": "fee_final"
+          },
+          "kind": "cap",
+          "upper": {
+            "kind": "exact_param",
+            "name": "cap_index"
+          }
+        }
+      },
+      "name": "settlement_payoff",
+      "unit": "Amount[zUSD]"
+    }
+  ],
+  "payoff_summary": "N * min(FeeIndex_T, Cap)",
+  "schema": "zenodex/fire-math-object-spec/v1",
+  "settlement_asset": "zUSD",
+  "source_bounds": [],
+  "term_fields": [
+    {
+      "description": "Notional amount",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "n_notional",
+      "unit": "Amount[zUSD]"
+    },
+    {
+      "description": "Payoff cap index",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "cap_index",
+      "unit": "Index"
+    },
+    {
+      "description": "Certified source upper bound",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "source_upper",
+      "unit": "Index"
+    }
+  ],
+  "witnesses": [
+    {
+      "contract": {
+        "name": "fee_contract",
+        "role": "witness:FeeIndexPacket"
+      },
+      "freshness": "1 epoch",
+      "lower": {
+        "kind": "const",
+        "value": 0
+      },
+      "name": "FeeIndexPacket",
+      "unit": "Index",
+      "upper": {
+        "kind": "term",
+        "term": "source_upper"
+      }
+    }
+  ]
+}

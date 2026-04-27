@@ -1,0 +1,55 @@
+{
+  "cli_help": "Load a FeeIndex FIRE interface object",
+  "expression": {
+    "kind": "exact_param",
+    "name": "fee_final"
+  },
+  "ir_hash": "sha256:4d9bf4a7741cc92df0185f607e6f4364fb63f9e98c55df433b579756870fb871",
+  "object_family": "index_source",
+  "object_id": "fee_index_v1",
+  "object_name": "FeeIndex",
+  "object_version": "v1",
+  "outputs": [
+    {
+      "description": "Certified fee index final value",
+      "expression": {
+        "kind": "exact_param",
+        "name": "fee_final"
+      },
+      "name": "fee_final",
+      "unit": "Index"
+    }
+  ],
+  "payoff_summary": "FeeIndex_T",
+  "schema": "zenodex/fire-math-object-spec/v1",
+  "settlement_asset": "zUSD",
+  "source_bounds": [],
+  "term_fields": [
+    {
+      "description": "Certified fee index final value",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "fee_final",
+      "unit": "Index"
+    }
+  ],
+  "witnesses": [
+    {
+      "contract": {
+        "name": "fee_contract",
+        "role": "witness:FeeIndexPacket"
+      },
+      "freshness": "1 epoch",
+      "lower": {
+        "kind": "term",
+        "term": "fee_final"
+      },
+      "name": "FeeIndexPacket",
+      "unit": "Index",
+      "upper": {
+        "kind": "term",
+        "term": "fee_final"
+      }
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+FIRE Object:
+  BurnBoostCall v1
+
+Payoff:
+  N * min(max(BurnIndex_T - K, 0), Cap)
+
+Settlement:
+  zUSD
+
+Parameters:
+  n_notional [0, 1000] unit=Amount[zUSD] :: Notional amount
+  strike_index [0, 1000] unit=Index :: Strike index
+  cap_index [0, 1000] unit=Index :: Payoff cap index
+  source_upper [0, 1000] unit=Index :: Certified source upper bound
+
+Payoff bound:
+  [0, 30]
+
+Collateral required:
+  holder: 0
+  writer: 30
+
+Imported interfaces:
+  burn_final <= burn_index_v1.burn_final [0, 9] unit=Index contract=burn_contract role=import:burn_index_v1.burn_final
+
+Witnesses:
+  BurnCertificate[TDEX] [0, 9] freshness=1 epoch contract=burn_contract role=witness:BurnCertificate[TDEX]
+
+Evidence:
+  unit safety: proved
+  payoff bound: proved
+  collateral sufficiency: proved
+  witness policy: contract
+  settlement replay: implemented
+  kernel semantics: proved
+
+Instance policy:
+  authorization: role_binding
+  required parties: holder, writer
+  nonce required: True
+  maturity required: False
+  settlement window required: False
+
+Manifest hash: sha256:747fbba072a3d520e20543a70ebc7f6f4ce2ea72397fd1d1f4d75e7e3a23cc36
+
+Instance gate claim evidence:
+  ParamOK: implemented
+  AuthorizationOK: implemented
+  NonceOK: implemented
+  MaturityOK: implemented
+  WindowOK: implemented

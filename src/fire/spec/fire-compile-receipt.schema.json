@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-compile-receipt.schema.json",
+  "title": "FIRE Compile Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_id",
+    "object_name",
+    "object_version",
+    "object_family",
+    "ir_hash",
+    "object_hash",
+    "cert_sha256",
+    "parameter_values",
+    "source_requirements",
+    "output_guarantees",
+    "witness_requirements",
+    "import_requirements",
+    "runtime_certificate_summary",
+    "formal_proof_bindings"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "zenodex/fire-compile-receipt/v1"
+    },
+    "object_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "object_family": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ir_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "object_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cert_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "parameter_values": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "value"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "value": {"type": "integer"}
+        }
+      }
+    },
+    "source_requirements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/intervalItem"}
+    },
+    "output_guarantees": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/intervalItem"}
+    },
+    "witness_requirements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/witnessItem"}
+    },
+    "import_requirements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/importItem"}
+    },
+    "runtime_certificate_summary": {
+      "$ref": "#/$defs/runtimeCertificateSummary"
+    },
+    "formal_proof_bindings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/formalProofBinding"
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "intervalItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "unit", "lower", "upper"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "unit": {"type": "string", "minLength": 1},
+        "lower": {"type": "integer"},
+        "upper": {"type": "integer"}
+      }
+    },
+    "witnessItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "freshness", "lower", "upper"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "freshness": {"type": "string", "minLength": 1},
+        "lower": {"type": "integer"},
+        "upper": {"type": "integer"},
+        "contract_name": {"type": "string", "minLength": 1},
+        "contract_role": {"type": "string", "minLength": 1}
+      }
+    },
+    "importItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "interface_object_id",
+        "interface_output",
+        "unit",
+        "lower",
+        "upper"
+      ],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "interface_object_id": {"type": "string", "minLength": 1},
+        "interface_output": {"type": "string", "minLength": 1},
+        "unit": {"type": "string", "minLength": 1},
+        "lower": {"type": "integer"},
+        "upper": {"type": "integer"},
+        "contract_name": {"type": "string", "minLength": 1},
+        "contract_role": {"type": "string", "minLength": 1}
+      }
+    },
+    "runtimeCertificateSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_rule",
+        "root_interval",
+        "node_count",
+        "exact_params",
+        "source_bounds",
+        "operator_tree"
+      ],
+      "properties": {
+        "root_rule": {"type": "string", "minLength": 1},
+        "root_interval": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lower", "upper"],
+          "properties": {
+            "lower": {"type": "integer"},
+            "upper": {"type": "integer"}
+          }
+        },
+        "node_count": {"type": "integer", "minimum": 1},
+        "exact_params": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "value"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "value": {"type": "integer"}
+            }
+          }
+        },
+        "source_bounds": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "lower", "upper"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "lower": {"type": "integer"},
+              "upper": {"type": "integer"}
+            }
+          }
+        },
+        "operator_tree": {"$ref": "#/$defs/runtimeOperatorNode"}
+      }
+    },
+    "runtimeOperatorNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "lower", "upper", "children"],
+      "properties": {
+        "rule": {"type": "string", "minLength": 1},
+        "lower": {"type": "integer"},
+        "upper": {"type": "integer"},
+        "name": {"type": "string", "minLength": 1},
+        "value": {"type": "integer"},
+        "children": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/runtimeOperatorNode"}
+        }
+      }
+    },
+    "formalProofBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding_id",
+        "proof_system",
+        "lean_toolchain",
+        "module",
+        "checker",
+        "theorems",
+        "claim",
+        "source_files"
+      ],
+      "properties": {
+        "binding_id": {"type": "string", "minLength": 1},
+        "proof_system": {"type": "string", "const": "lean4"},
+        "lean_toolchain": {"type": "string", "minLength": 1},
+        "module": {"type": "string", "minLength": 1},
+        "checker": {"type": "string", "minLength": 1},
+        "theorems": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1
+        },
+        "claim": {"type": "string", "minLength": 1},
+        "source_files": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/formalProofSourceFile"},
+          "minItems": 1
+        }
+      }
+    },
+    "formalProofSourceFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

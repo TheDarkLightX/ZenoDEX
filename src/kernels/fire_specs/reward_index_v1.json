@@ -1,0 +1,55 @@
+{
+  "cli_help": "Load a RewardIndex FIRE interface object",
+  "expression": {
+    "kind": "exact_param",
+    "name": "reward_final"
+  },
+  "ir_hash": "sha256:c52f76d084635dfb2fcbe9d01081f37a0deefbcf8a01bcf184e19a5fdf7c1d59",
+  "object_family": "index_source",
+  "object_id": "reward_index_v1",
+  "object_name": "RewardIndex",
+  "object_version": "v1",
+  "outputs": [
+    {
+      "description": "Certified reward index final value",
+      "expression": {
+        "kind": "exact_param",
+        "name": "reward_final"
+      },
+      "name": "reward_final",
+      "unit": "Index"
+    }
+  ],
+  "payoff_summary": "RewardIndex_T",
+  "schema": "zenodex/fire-math-object-spec/v1",
+  "settlement_asset": "zUSD",
+  "source_bounds": [],
+  "term_fields": [
+    {
+      "description": "Certified reward index final value",
+      "maximum": 1000,
+      "minimum": 0,
+      "name": "reward_final",
+      "unit": "Index"
+    }
+  ],
+  "witnesses": [
+    {
+      "contract": {
+        "name": "reward_contract",
+        "role": "witness:RewardIndexPacket"
+      },
+      "freshness": "1 epoch",
+      "lower": {
+        "kind": "term",
+        "term": "reward_final"
+      },
+      "name": "RewardIndexPacket",
+      "unit": "Index",
+      "upper": {
+        "kind": "term",
+        "term": "reward_final"
+      }
+    }
+  ]
+}

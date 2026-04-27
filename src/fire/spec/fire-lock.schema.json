@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenodex.dev/fire/spec/fire-lock.schema.json",
+  "title": "FIRE Object Dependency Lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "object_name",
+    "object_version",
+    "object_hash",
+    "dependencies",
+    "lock_hash"
+  ],
+  "properties": {
+    "schema": {
+      "const": "zenodex/fire-object-lock/v1"
+    },
+    "object_name": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_version": {
+      "$ref": "#/$defs/nonEmptyString"
+    },
+    "object_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      }
+    },
+    "lock_hash": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "dependency_kind",
+        "object_id",
+        "object_version",
+        "interface_output",
+        "ir_hash"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "dependency_kind": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "object_id": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "object_version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "interface_output": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
+        "ir_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    }
+  }
+}
