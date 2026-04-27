@@ -1,0 +1,114 @@
+name: container-assurance
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  production-container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build --network=host -t zenodex:ci -f Dockerfile .
+
+      - name: Smoke test production image
+        run: |
+          set -euo pipefail
+          cid="$(docker run -d --rm -p 18080:8080 zenodex:ci)"
+          cleanup() {
+            docker logs "$cid" --tail 120 || true
+            docker stop "$cid" >/dev/null || true
+          }
+          trap cleanup EXIT
+
+          python3 - <<'PY'
+          import time
+          import urllib.request
+
+          last_error = None
+          for _attempt in range(30):
+              try:
+                  body = urllib.request.urlopen("http://127.0.0.1:18080/health", timeout=3).read()
+                  text = body.decode("utf-8", "replace")
+                  if '"status":"healthy"' in text and '"service":"zenodex-ui"' in text:
+                      print(text)
+                      raise SystemExit(0)
+                  last_error = RuntimeError(f"unexpected health response: {text!r}")
+              except Exception as exc:  # noqa: BLE001
+                  last_error = exc
+              time.sleep(1)
+          raise SystemExit(f"health check failed: {last_error}")
+          PY
+
+      - name: Install pinned Trivy
+        run: |
+          set -euo pipefail
+          TRIVY_DIR="tools/_secbin"
+          TRIVY_BIN="$TRIVY_DIR/trivy"
+          TRIVY_VERSION="0.69.3"
+          TRIVY_SHA256="1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
+          TRIVY_TARBALL="$TRIVY_DIR/trivy.tar.gz"
+          TRIVY_URL="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          mkdir -p "$TRIVY_DIR"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL -o "$TRIVY_TARBALL" "$TRIVY_URL"; then
+              break
+            fi
+            if [[ "$attempt" == "5" ]]; then
+              exit 1
+            fi
+            sleep "$((attempt * 2))"
+          done
+          ACTUAL_SHA256="$(sha256sum "$TRIVY_TARBALL" | awk '{print $1}')"
+          if [[ "$ACTUAL_SHA256" != "$TRIVY_SHA256" ]]; then
+            echo "trivy checksum mismatch: expected $TRIVY_SHA256, got $ACTUAL_SHA256" >&2
+            exit 1
+          fi
+          tar -xzf "$TRIVY_TARBALL" -C "$TRIVY_DIR" trivy
+          rm -f "$TRIVY_TARBALL"
+          "$TRIVY_BIN" --version
+
+      - name: Scan production image
+        run: |
+          set -euo pipefail
+          TRIVY_BIN="tools/_secbin/trivy"
+          TRIVY_JSON="$(mktemp)"
+          "$TRIVY_BIN" clean --all >/dev/null 2>&1 || true
+          "$TRIVY_BIN" image \
+            --quiet \
+            --format json \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --timeout 20m \
+            zenodex:ci > "$TRIVY_JSON"
+          python3 - "$TRIVY_JSON" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], "r", encoding="utf-8") as f:
+              payload = json.load(f)
+          bad = []
+          for result in payload.get("Results") or []:
+              for vuln in result.get("Vulnerabilities") or []:
+                  if vuln.get("Severity") in {"CRITICAL", "HIGH"}:
+                      bad.append(
+                          (
+                              vuln.get("VulnerabilityID"),
+                              vuln.get("PkgName"),
+                              vuln.get("InstalledVersion"),
+                              vuln.get("FixedVersion"),
+                          )
+                      )
+          if bad:
+              raise SystemExit(f"trivy HIGH/CRITICAL fixable vulnerabilities found: {bad[:20]}")
+          print("trivy OK: 0 HIGH/CRITICAL fixable vulnerabilities")
+          PY
