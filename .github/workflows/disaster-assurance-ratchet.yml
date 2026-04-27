@@ -34,6 +34,7 @@ jobs:
           pytest -q \
             tests/integration/test_disaster_assurance_ratchets.py \
             tests/test_security_posture_files.py \
+            tests/test_public_text_hygiene.py \
             tests/integration/test_api_server_main.py
 
       - name: Enforce closed disaster-state receipt
