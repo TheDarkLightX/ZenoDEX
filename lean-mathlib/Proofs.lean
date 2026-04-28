@@ -114,6 +114,7 @@ import Proofs.FiniteTraceBarriers
 import Proofs.AbstractInterpretationDisasterSafety
 import Proofs.DisasterAntichainBasis
 import Proofs.CertificateGluing
+import Proofs.ForbiddenTraceMinor
 import Proofs.DisasterTraceDiscoveryChallenge
 import Proofs.FixedPointIntervalBridge
 import Proofs.FixedPointPortfolioBridge

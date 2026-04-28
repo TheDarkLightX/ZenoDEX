@@ -163,6 +163,9 @@ The proof layer has also been extended with three reusable theorem schemas:
 - [DisasterAntichainBasis.lean](lean-mathlib/Proofs/DisasterAntichainBasis.lean)
   captures the pattern where a small rejected basis of forbidden traces rules
   out a larger bad trace family.
+- [ForbiddenTraceMinor.lean](lean-mathlib/Proofs/ForbiddenTraceMinor.lean)
+  captures the pattern where every bad trace embeds a forbidden motif, and
+  motif rejection or guard blocking lifts through that embedding.
 - [CertificateGluing.lean](lean-mathlib/Proofs/CertificateGluing.lean)
   captures cross-surface consistency: if local certificates glue into one
   compatible global section, accepted bundles cannot also witness the named
@@ -172,6 +175,8 @@ Those theorems make future disaster-state promotion cheaper and more rigorous,
 but they remain schemas until instantiated against concrete quote, settlement,
 oracle, signer, reward, and routing objects. The receipt is
 [aristotle_runtime_disaster_gluing_2026-04-28.md](lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md).
+The forbidden-minor receipt is
+[forbidden_trace_minor_2026-04-28.md](lean-mathlib/proof_receipts/forbidden_trace_minor_2026-04-28.md).
 
 The closed receipt is CI-ratcheted by
 `.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails

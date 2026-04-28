@@ -37,6 +37,9 @@ way future axes can be promoted from search inventory into replayable guarantees
 - `Proofs.DisasterAntichainBasis`: if every minimal forbidden trace in a basis
   is rejected, and every bad trace contains one of those basis traces, then the
   whole bad family is rejected.
+- `Proofs.ForbiddenTraceMinor`: if every bad trace embeds a forbidden motif and
+  rejection or guard blocking lifts through that embedding, then the whole bad
+  trace family is rejected.
 - `Proofs.CertificateGluing`: locally accepted certificates that glue into one
   compatible global section exclude cross-surface disaster states.
 
@@ -47,6 +50,7 @@ has a matching instantiation and replay receipt.
 Receipt:
 
 - `lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md`
+- `lean-mathlib/proof_receipts/forbidden_trace_minor_2026-04-28.md`
 
 ## Evidence Discipline
 
