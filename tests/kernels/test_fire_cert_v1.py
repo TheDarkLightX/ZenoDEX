@@ -146,6 +146,21 @@ def test_fire_interval_certificate_from_dict_rejects_bad_children_shape() -> Non
         )
 
 
+def test_fire_interval_certificate_from_dict_rejects_non_string_schema() -> None:
+    with pytest.raises(TypeError, match="schema must be a non-empty string"):
+        FireIntervalCertificate.from_dict({"schema": 1, "root": const_node(0).to_dict()})
+
+
+def test_fire_cert_node_from_dict_rejects_non_string_rule() -> None:
+    with pytest.raises(TypeError, match="rule must be a non-empty string"):
+        FireCertNode.from_dict({"rule": 1, "lower": 0, "upper": 0, "children": []})
+
+
+def test_fire_cert_node_from_dict_rejects_non_string_name() -> None:
+    with pytest.raises(TypeError, match="name must be a non-empty string"):
+        FireCertNode.from_dict({"rule": "exact_param", "lower": 0, "upper": 0, "name": True, "children": []})
+
+
 def test_fire_cert_node_rejects_wrong_child_count() -> None:
     with pytest.raises(ValueError, match="add node requires two children"):
         FireCertNode(rule="add", lower=0, upper=1, children=(const_node(0),))
