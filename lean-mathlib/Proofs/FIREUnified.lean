@@ -213,6 +213,61 @@ theorem FIREPortfolioReceipt.aggregate_equiv_operational
       (FIREPortfolioReceipt.aggregate S (fun i => R (e i))).operationalFields := by
   simp [FIREPortfolioReceipt.aggregate, FIREPortfolioReceipt.operationalFields]
 
+/-- Singleton aggregation produces the receipt itself, operationally. -/
+theorem FIREPortfolioReceipt.aggregate_singleton_operational
+    [DecidableEq ι] (i : ι) (R : ι → FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.aggregate {i} R).operationalFields =
+      (R i).operationalFields := by
+  simp [FIREPortfolioReceipt.aggregate, FIREPortfolioReceipt.operationalFields]
+
+/-- Aggregate conservation: the aggregate receipt always conserves exactly. -/
+theorem FIREPortfolioReceipt.aggregate_conservation
+    [DecidableEq ι] (S : Finset ι) (R : ι → FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.aggregate S R).holderDelta +
+      (FIREPortfolioReceipt.aggregate S R).writerDelta = 0 :=
+  (FIREPortfolioReceipt.aggregate S R).conservation
+
+/-- Aggregate bilateral solvency: both parties are solvent in the aggregate. -/
+theorem FIREPortfolioReceipt.aggregate_bilateral_solvent
+    [DecidableEq ι] (S : Finset ι) (R : ι → FIREPortfolioReceipt) :
+    0 ≤ (FIREPortfolioReceipt.aggregate S R).holderPosted +
+         (FIREPortfolioReceipt.aggregate S R).holderDelta ∧
+    0 ≤ (FIREPortfolioReceipt.aggregate S R).writerPosted +
+         (FIREPortfolioReceipt.aggregate S R).writerDelta :=
+  ⟨(FIREPortfolioReceipt.aggregate S R).holder_solvent,
+   (FIREPortfolioReceipt.aggregate S R).writer_solvent⟩
+
+/-- Total posted collateral is invariant under aggregate settlement deltas. -/
+theorem FIREPortfolioReceipt.aggregate_net_zero
+    [DecidableEq ι] (S : Finset ι) (R : ι → FIREPortfolioReceipt) :
+    ((FIREPortfolioReceipt.aggregate S R).holderPosted +
+       (FIREPortfolioReceipt.aggregate S R).holderDelta) +
+    ((FIREPortfolioReceipt.aggregate S R).writerPosted +
+       (FIREPortfolioReceipt.aggregate S R).writerDelta) =
+    (FIREPortfolioReceipt.aggregate S R).holderPosted +
+      (FIREPortfolioReceipt.aggregate S R).writerPosted :=
+  (FIREPortfolioReceipt.aggregate S R).net_zero
+
+/-- Receipt aggregation is commutative for disjoint batches. -/
+theorem FIREPortfolioReceipt.aggregate_union_comm_operational
+    [DecidableEq ι] {S T : Finset ι}
+    (_hdisjoint : Disjoint S T) (R : ι → FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.aggregate (S ∪ T) R).operationalFields =
+      (FIREPortfolioReceipt.aggregate (T ∪ S) R).operationalFields := by
+  rw [Finset.union_comm]
+
+/-- Receipt aggregation is associative over a disjoint three-way partition. -/
+theorem FIREPortfolioReceipt.aggregate_assoc_operational
+    [DecidableEq ι] {A B C : Finset ι}
+    (hAB : Disjoint A B) (hBC : Disjoint B C) (hAC : Disjoint A C)
+    (R : ι → FIREPortfolioReceipt) :
+    ((FIREPortfolioReceipt.aggregate A R).combine
+      ((FIREPortfolioReceipt.aggregate B R).combine
+        (FIREPortfolioReceipt.aggregate C R))).operationalFields =
+    (FIREPortfolioReceipt.aggregate (A ∪ B ∪ C) R).operationalFields := by
+  simp [FIREPortfolioReceipt.aggregate, FIREPortfolioReceipt.combine,
+    FIREPortfolioReceipt.operationalFields, Finset.sum_union, hAB, hBC, hAC]
+
 /-- A compiled ZPL portfolio lifts to a generic certified payoff with the
 mode-expanded interval. -/
 theorem compiled_portfolio_to_certified_payoff

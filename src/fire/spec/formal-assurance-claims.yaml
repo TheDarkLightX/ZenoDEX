@@ -86,13 +86,13 @@ components:
         - path: lean-mathlib/proof_receipts/fire_unified_settlement_v1.json
           checker: lean
           result: proved
-          sha256: sha256:baeca76040bf115a818f4a2715c86e3bdcd5d46b7c768518602295306bbcf466
-          scope: FIRE/ZPL unified settlement receipt theorem surface, including bilateral solvency, exact conservation, neutral receipt, and grouping/order-independent operational receipt composition
+          sha256: sha256:501b9123b1bc79b86632cea205c215935503f5fffe087bc84e6bf8ab1eb8f2de
+          scope: FIRE/ZPL unified settlement receipt theorem surface, including bilateral solvency, exact conservation, net-zero aggregate accounting, neutral receipt, and grouping/order-independent operational receipt composition
         - path: lean-mathlib/proof_receipts/fire_budget_safety_v1.json
           checker: lean
           result: proved
-          sha256: sha256:13067a4cb8f0e043f15d931236b8e3e6fb5ea724d3268e8510d2fd37950c1065
-          scope: FIRE reward, rebate, buyback, bounty, and budget controller spend cannot exceed verified value plus explicit budget, and finite batching/relabeling preserves the budget certificate
+          sha256: sha256:819b3299d9d1074fc57a7485baa2a57b77fc951eb01e33463b90be516f692f1b
+          scope: FIRE reward, rebate, buyback, bounty, and budget controller spend cannot exceed verified value plus explicit budget, and finite batching/relabeling/composition/proportional-cap refinement preserve the budget certificate
         - path: lean-mathlib/proof_receipts/tokenomics_mechanism_safety_v1.json
           checker: lean
           result: proved

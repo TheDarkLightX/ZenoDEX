@@ -25,7 +25,7 @@
     {
       "module": "Proofs.FIREUnified",
       "path": "lean-mathlib/Proofs/FIREUnified.lean",
-      "sha256": "sha256:af64ad166b1df1161d1f1d6dbfd7ff5f4ba065e13830867ecc44d213f851faa6",
+      "sha256": "sha256:f36bf9fc8dc1ac9debc8e315f5675ad74724633f352204ecbb3b615c6059b359",
       "theorems": [
         "tick_pos",
         "FIREPortfolioReceipt.writerDelta_eq_neg",
@@ -46,6 +46,12 @@
         "FIREPortfolioReceipt.aggregate_insert_operational",
         "FIREPortfolioReceipt.aggregate_union_disjoint_operational",
         "FIREPortfolioReceipt.aggregate_equiv_operational",
+        "FIREPortfolioReceipt.aggregate_singleton_operational",
+        "FIREPortfolioReceipt.aggregate_conservation",
+        "FIREPortfolioReceipt.aggregate_bilateral_solvent",
+        "FIREPortfolioReceipt.aggregate_net_zero",
+        "FIREPortfolioReceipt.aggregate_union_comm_operational",
+        "FIREPortfolioReceipt.aggregate_assoc_operational",
         "compiled_portfolio_to_certified_payoff",
         "fire_single_leg_settlement",
         "floor_buffer_spec",
@@ -65,7 +71,7 @@
     "project_id": "02c5e13a-4278-4323-9a9c-7f592278a2bd",
     "local_acceptance": "selectively integrated as a new module after local Lean build and placeholder scan"
   },
-  "claim": "A compiled multi-leg FIRE/ZPL portfolio with positive fixed-point scale and posted collateral covering the per-leg rounding-mode expanded interval produces a projectable settlement receipt: holder and writer remain solvent after applying their deltas, and the deltas conserve exactly. Independent receipts compose by addition with a neutral zero receipt; finite receipt aggregation preserves bilateral solvency and exact conservation, is compatible with insert and disjoint union batching, and is invariant under pure relabeling of receipt indices. The expanded interval width is exactly the unexpanded width plus one tick per leg.",
+  "claim": "A compiled multi-leg FIRE/ZPL portfolio with positive fixed-point scale and posted collateral covering the per-leg rounding-mode expanded interval produces a projectable settlement receipt: holder and writer remain solvent after applying their deltas, and the deltas conserve exactly. Independent receipts compose by addition with a neutral zero receipt; finite receipt aggregation preserves bilateral solvency, exact conservation, and net-zero posted-collateral accounting, is compatible with empty, singleton, insert, commutative disjoint union, associative three-way disjoint batching, and pure relabeling of receipt indices. The expanded interval width is exactly the unexpanded width plus one tick per leg.",
   "result": "proved",
   "created_utc": "2026-04-28T14:49:36Z"
 }
