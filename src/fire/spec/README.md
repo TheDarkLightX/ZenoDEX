@@ -48,6 +48,8 @@ claims gate also checks proof-receipt module hashes against the current Lean
 source files and rejects Lean trust escapes such as `sorry`, `admit`, `axiom`,
 `unsafe`, or `sorryAx` outside comments, so a stale or placeholder-bearing proof
 receipt cannot keep a public formal claim alive after theorem-source drift.
+The gate also requires Lean proof receipts to name the current Lean toolchain,
+checker commands, modules, and non-empty theorem surfaces.
 
 ```text
 CompileReceiptOK ∧ FormalProofBindingHashesOK -> PayoffProofSurfaceBound
