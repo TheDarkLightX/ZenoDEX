@@ -188,6 +188,9 @@ The no-free-resource receipt is
 [no_free_resource_trace_ledger_2026-04-28.md](lean-mathlib/proof_receipts/no_free_resource_trace_ledger_2026-04-28.md).
 The adapter receipt is
 [zenodex_disaster_schema_instantiations_2026-04-28.md](lean-mathlib/proof_receipts/zenodex_disaster_schema_instantiations_2026-04-28.md).
+The closed-axis proof-schema map is checked by
+[check_disaster_proof_schema_map.py](tools/check_disaster_proof_schema_map.py)
+and currently maps all `29` closed axes to one or more proof-schema lanes.
 
 The closed receipt is CI-ratcheted by
 `.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails

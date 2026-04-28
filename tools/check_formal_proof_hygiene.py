@@ -28,6 +28,7 @@ CRITICAL_FORMAL_PROOF_ARTIFACTS: tuple[str, ...] = (
     "lean-mathlib/Proofs/SettlementNetting.lean",
     "lean-mathlib/Proofs/AMMIntegerRuntimeBridge.lean",
     "lean-mathlib/Proofs/DisasterAntichainBasis.lean",
+    "lean-mathlib/Proofs/DisasterTraceDiscoveryChallenge.lean",
     "lean-mathlib/Proofs/CertificateGluing.lean",
     "lean-mathlib/Proofs/ForbiddenTraceMinor.lean",
     "lean-mathlib/Proofs/NoFreeResourceTraceLedger.lean",
