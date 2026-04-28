@@ -107,6 +107,47 @@ theorem FIREPortfolioReceipt.combine_holderDelta (R₁ R₂ : FIREPortfolioRecei
 theorem FIREPortfolioReceipt.combine_writerDelta (R₁ R₂ : FIREPortfolioReceipt) :
     (R₁.combine R₂).writerDelta = R₁.writerDelta + R₂.writerDelta := rfl
 
+/-- The neutral FIRE settlement receipt. It carries no posted collateral and no
+delta movement, so it is solvent and conserves exactly. -/
+def FIREPortfolioReceipt.zero : FIREPortfolioReceipt where
+  holderPosted := 0
+  writerPosted := 0
+  holderDelta := 0
+  writerDelta := 0
+  holder_solvent := by norm_num
+  writer_solvent := by norm_num
+  conservation := by norm_num
+
+def FIREPortfolioReceipt.operationalFields (R : FIREPortfolioReceipt) :
+    ℝ × ℝ × ℝ × ℝ :=
+  (R.holderPosted, R.writerPosted, R.holderDelta, R.writerDelta)
+
+theorem FIREPortfolioReceipt.combine_zero_operational (R : FIREPortfolioReceipt) :
+    (R.combine FIREPortfolioReceipt.zero).operationalFields = R.operationalFields := by
+  simp [FIREPortfolioReceipt.combine, FIREPortfolioReceipt.zero,
+    FIREPortfolioReceipt.operationalFields]
+
+theorem FIREPortfolioReceipt.zero_combine_operational (R : FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.zero.combine R).operationalFields = R.operationalFields := by
+  simp [FIREPortfolioReceipt.combine, FIREPortfolioReceipt.zero,
+    FIREPortfolioReceipt.operationalFields]
+
+/-- Receipt composition is associative as an operational settlement receipt:
+grouping independent books does not change posted collateral or deltas. -/
+theorem FIREPortfolioReceipt.combine_assoc_operational
+    (R₁ R₂ R₃ : FIREPortfolioReceipt) :
+    ((R₁.combine R₂).combine R₃).operationalFields =
+      (R₁.combine (R₂.combine R₃)).operationalFields := by
+  simp [FIREPortfolioReceipt.combine, FIREPortfolioReceipt.operationalFields,
+    add_assoc]
+
+/-- Receipt composition is commutative as an operational settlement receipt:
+swapping two independent books does not change the final combined receipt. -/
+theorem FIREPortfolioReceipt.combine_comm_operational (R₁ R₂ : FIREPortfolioReceipt) :
+    (R₁.combine R₂).operationalFields = (R₂.combine R₁).operationalFields := by
+  simp [FIREPortfolioReceipt.combine, FIREPortfolioReceipt.operationalFields,
+    add_comm]
+
 /-- A compiled ZPL portfolio lifts to a generic certified payoff with the
 mode-expanded interval. -/
 theorem compiled_portfolio_to_certified_payoff

@@ -102,6 +102,9 @@ def test_check_fire_compile_receipt_cli_roundtrip(tmp_path: Path) -> None:
     assert bindings[3]["module"] == "Proofs.FIREUnified"
     assert "fire_portfolio_settlement" in bindings[3]["theorems"]
     assert "FIREPortfolioReceipt.combine" in bindings[3]["theorems"]
+    assert "FIREPortfolioReceipt.zero" in bindings[3]["theorems"]
+    assert "FIREPortfolioReceipt.combine_assoc_operational" in bindings[3]["theorems"]
+    assert "FIREPortfolioReceipt.combine_comm_operational" in bindings[3]["theorems"]
     assert "portfolio_interval_width_budget" in bindings[3]["theorems"]
 
 
