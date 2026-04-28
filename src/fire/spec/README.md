@@ -49,7 +49,9 @@ source files and rejects Lean trust escapes such as `sorry`, `admit`, `axiom`,
 `unsafe`, or `sorryAx` outside comments, so a stale or placeholder-bearing proof
 receipt cannot keep a public formal claim alive after theorem-source drift.
 The gate also requires Lean proof receipts to name the current Lean toolchain,
-checker commands, modules, and non-empty theorem surfaces.
+checker commands, modules, and non-empty theorem surfaces. Each cited Lean
+module must be targeted by a matching `lake env lean <file>` or
+`lake build <module>` command in the receipt.
 
 ```text
 CompileReceiptOK ∧ FormalProofBindingHashesOK -> PayoffProofSurfaceBound

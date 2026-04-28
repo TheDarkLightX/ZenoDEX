@@ -239,6 +239,32 @@ def _check_lean_theorem_bindings(
         )
 
 
+def _lean_source_path_for_command(rel: str) -> str:
+    prefix = "lean-mathlib/"
+    if rel.startswith(prefix):
+        return rel[len(prefix) :]
+    return rel
+
+
+def _check_lean_module_has_checker_command(
+    *,
+    commands: Sequence[str],
+    module_name: str,
+    rel: str,
+    component_id: str,
+    receipt_idx: int,
+    module_idx: int,
+) -> None:
+    source_path = _lean_source_path_for_command(rel)
+    env_lean_marker = f"lake env lean {source_path}"
+    build_marker = f"lake build {module_name}"
+    _expect(
+        any(env_lean_marker in command or build_marker in command for command in commands),
+        f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}] missing Lean checker command "
+        f"for {module_name} ({source_path})",
+    )
+
+
 def _check_lean_module_trust_hygiene(
     stripped_source: str,
     *,
@@ -261,6 +287,7 @@ def _check_proof_receipt_module_hashes(
     component_id: str,
     receipt_idx: int,
     declared_checker: str,
+    commands: Sequence[str],
 ) -> None:
     modules = _as_sequence(
         receipt_payload.get("modules"),
@@ -299,6 +326,14 @@ def _check_proof_receipt_module_hashes(
             f"{component_id}: proof receipt module hash mismatch for {rel}: {actual_sha} != {expected_sha}",
         )
         if declared_checker == "lean":
+            _check_lean_module_has_checker_command(
+                commands=commands,
+                module_name=module_name,
+                rel=rel,
+                component_id=component_id,
+                receipt_idx=receipt_idx,
+                module_idx=module_idx,
+            )
             stripped = _strip_lean_comments(module_path.read_text(encoding="utf-8"))
             _check_lean_module_trust_hygiene(stripped, component_id=component_id, rel=rel)
             _check_lean_theorem_bindings(
@@ -316,12 +351,13 @@ def _check_proof_receipt_commands(
     *,
     component_id: str,
     receipt_idx: int,
-) -> None:
+) -> tuple[str, ...]:
     commands = _as_sequence(
         receipt_payload.get("commands"),
         ctx=f"{component_id}.proof_receipts[{receipt_idx}].commands",
     )
     _expect(bool(commands), f"{component_id}.proof_receipts[{receipt_idx}].commands must be non-empty")
+    normalized_commands: list[str] = []
     for cmd_idx, command_obj in enumerate(commands):
         command = _as_mapping(
             command_obj,
@@ -335,6 +371,8 @@ def _check_proof_receipt_commands(
             command.get("cmd"),
             ctx=f"{component_id}.proof_receipts[{receipt_idx}].commands[{cmd_idx}].cmd",
         )
+        normalized_commands.append(str(command["cmd"]))
+    return tuple(normalized_commands)
 
 
 def _check_proof_receipt_integrity(
@@ -372,13 +410,14 @@ def _check_proof_receipt_integrity(
         receipt_result == declared_result,
         f"{component_id}: proof receipt result mismatch at index {receipt_idx}: {receipt_result!r} != {declared_result!r}",
     )
-    _check_proof_receipt_commands(receipt_payload, component_id=component_id, receipt_idx=receipt_idx)
+    commands = _check_proof_receipt_commands(receipt_payload, component_id=component_id, receipt_idx=receipt_idx)
     _check_proof_receipt_module_hashes(
         receipt_payload,
         repo_root=repo_root,
         component_id=component_id,
         receipt_idx=receipt_idx,
         declared_checker=declared_checker,
+        commands=commands,
     )
 
 
