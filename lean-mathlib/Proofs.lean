@@ -117,6 +117,7 @@ import Proofs.TokenomicsTraceSafety
 import Proofs.ZenoPayoffFixedPointBridge
 import Proofs.ZenoPayoffPortfolioFixedPointBridge
 import Proofs.FIREUnified
+import Proofs.ZenoShapeDiscovery
 import Proofs.ZenoDEXSettlementGateBlockers
 import Proofs.ZUSDCeilDivAlgebra
 import Proofs.ZUSDFeePipeline
