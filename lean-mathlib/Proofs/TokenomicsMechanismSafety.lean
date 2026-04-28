@@ -196,6 +196,35 @@ theorem trace_safety
       traceRewardSpend_le_verifiedGain_plus_initialTreasury
         M R V T G.rewardFunded G.treasuryNonnegative hTrace⟩
 
+/-- Guard-level no-churn theorem: a reward controller satisfying the guard
+cannot increase rewards over a trace that creates no verified value and consumes
+no treasury/resource budget. -/
+theorem no_value_no_budget_loop_reward_eq_zero
+    {M : MarketSystem σ} {R V T : σ → Rat}
+    (G : RewardControllerGuard M R V T)
+    {n : Nat} {s t : σ} (hTrace : TraceN M n s t)
+    (hValueClosed : V t = V s)
+    (hTreasuryClosed : T t = T s) :
+    traceRewardSpend R hTrace = 0 :=
+  traceRewardSpend_eq_zero_of_no_value_gain_no_treasury_drop
+    M R V T G.rewardNondecreasing G.rewardFunded hTrace
+    hValueClosed hTreasuryClosed
+
+/-- Equivalent fail-closed form: under the guard, a positive payout on a
+no-value/no-budget loop is impossible. -/
+theorem no_positive_no_value_no_budget_loop_reward
+    {M : MarketSystem σ} {R V T : σ → Rat}
+    (G : RewardControllerGuard M R V T)
+    {n : Nat} {s t : σ} (hTrace : TraceN M n s t)
+    (hValueClosed : V t = V s)
+    (hTreasuryClosed : T t = T s) :
+    ¬ 0 < traceRewardSpend R hTrace := by
+  intro hPositive
+  have hZero :=
+    no_value_no_budget_loop_reward_eq_zero
+      G hTrace hValueClosed hTreasuryClosed
+  linarith
+
 end RewardControllerGuard
 
 end TokenomicsMechanismSafety
