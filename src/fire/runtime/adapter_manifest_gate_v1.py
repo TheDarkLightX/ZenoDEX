@@ -12,6 +12,12 @@ from src.fire.verifier.settlement_v1 import (
 )
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 def validate_persisted_bundle_command_args(
     *,
     state: Mapping[str, Any],
@@ -34,8 +40,11 @@ def validate_persisted_bundle_command_args(
         expected_cert_sha256 = args.get("expected_cert_sha256")
         if expected_cert_sha256 is not None and object_manifest.cert_sha256 != expected_cert_sha256:
             return "persisted bundle cert hash mismatch"
-        artifact_lower = int(state["artifact_lower"])
-        artifact_upper = int(state["artifact_upper"])
+        try:
+            artifact_lower = _require_int("state.artifact_lower", state.get("artifact_lower"))
+            artifact_upper = _require_int("state.artifact_upper", state.get("artifact_upper"))
+        except TypeError as exc:
+            return f"state artifact bounds invalid: {exc}"
         if object_manifest.artifact_lower != artifact_lower or object_manifest.artifact_upper != artifact_upper:
             return "persisted bundle artifact bound mismatch"
         return None
@@ -77,13 +86,18 @@ def validate_persisted_bundle_settlement_receipt(
         expected_witness_hash = None if witness_inputs is None else fire_witness_binding_hash(witness_inputs)
     except (TypeError, ValueError) as exc:
         return f"witness binding invalid: {exc}"
+    try:
+        expected_holder_delta = _require_int("state_after.holder_delta", state_after.get("holder_delta"))
+        expected_writer_delta = _require_int("state_after.writer_delta", state_after.get("writer_delta"))
+    except TypeError as exc:
+        return f"state delta invalid: {exc}"
     ok, err = verify_fire_settlement_authority_receipt(
         receipt,
         expected_object_hash=object_manifest.manifest_hash,
         expected_instance_hash=bundle_instance.instance_hash,
         expected_cert_sha256=object_manifest.cert_sha256,
-        expected_holder_delta=int(state_after["holder_delta"]),
-        expected_writer_delta=int(state_after["writer_delta"]),
+        expected_holder_delta=expected_holder_delta,
+        expected_writer_delta=expected_writer_delta,
         expected_command_tag=command_tag,
         expected_bundle_hash=bundle_manifest.bundle_hash,
         expected_witness_hash=expected_witness_hash,
