@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from src.fire.registry.bundle_v1 import write_fire_registry_bundle
 from src.fire.registry.index_v1 import (
+    FireRegistryContractReceipt,
     FireRegistryInstanceGateClaimSummary,
     FireRegistryInstanceGateSummary,
     write_fire_registry_index,
@@ -21,6 +24,18 @@ from src.fire.runtime.burn_boost_call_v1 import (
     compile_terms,
     render_object_card,
 )
+
+
+def test_fire_registry_contract_receipt_rejects_non_string_object_ref() -> None:
+    with pytest.raises(TypeError, match=r"registry contract receipt object_refs\[0\] must be a string"):
+        FireRegistryContractReceipt.from_dict(
+            {
+                "name": "oracle_contract",
+                "roles": ["import:oracle.price"],
+                "object_refs": [1],
+                "use_sites": ["BurnBoostCall@v1:import:oracle"],
+            }
+        )
 
 
 def test_fire_registry_release_metadata_write_load_and_verify(tmp_path) -> None:

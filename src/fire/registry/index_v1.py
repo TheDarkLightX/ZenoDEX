@@ -47,6 +47,10 @@ def _require_bool(name: str, value: object) -> bool:
     return bool(value)
 
 
+def _require_string_tuple(name: str, values: list[object]) -> tuple[str, ...]:
+    return tuple(_require_nonempty_str(f"{name}[{idx}]", item) for idx, item in enumerate(values))
+
+
 def _require_0x_hex(name: str, value: object, *, expected_nbytes: int | None = None) -> str:
     text = _require_nonempty_str(name, value)
     if not text.startswith("0x"):
@@ -113,9 +117,9 @@ class FireRegistryContractReceipt:
             raise TypeError("registry contract receipt use_sites must be a list")
         return cls(
             name=payload.get("name"),
-            roles=tuple(str(item) for item in roles),
-            object_refs=tuple(str(item) for item in object_refs),
-            use_sites=tuple(str(item) for item in use_sites),
+            roles=_require_string_tuple("registry contract receipt roles", roles),
+            object_refs=_require_string_tuple("registry contract receipt object_refs", object_refs),
+            use_sites=_require_string_tuple("registry contract receipt use_sites", use_sites),
         )
 
 
