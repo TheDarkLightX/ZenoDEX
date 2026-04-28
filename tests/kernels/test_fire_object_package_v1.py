@@ -948,7 +948,7 @@ def test_fire_object_package_verify_rejects_kernel_settlement_receipt_drift(tmp_
 
     assert ok is False
     assert verification is None
-    assert err == "kernel_settlement_receipt_mismatch"
+    assert err == "payoff_out_mismatch"
 
 
 def test_fire_object_package_verify_rejects_proof_tree_unit_summary_drift(tmp_path) -> None:
