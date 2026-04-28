@@ -3,6 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from tools.check_disaster_search_closed_receipt import build_closed_receipt_ratchet_report
+from tools.check_disaster_proof_schema_map import (
+    CLOSED_AXIS_PROOF_SCHEMA_MAP,
+    build_disaster_proof_schema_map_report,
+)
 from tools.check_formal_proof_hygiene import (
     CRITICAL_FORMAL_PROOF_ARTIFACTS,
     build_formal_proof_hygiene_report,
@@ -98,7 +102,28 @@ def test_formal_proof_hygiene_default_tracks_disaster_proof_schemas() -> None:
 
     assert "lean-mathlib/Proofs/AMMIntegerRuntimeBridge.lean" in tracked
     assert "lean-mathlib/Proofs/DisasterAntichainBasis.lean" in tracked
+    assert "lean-mathlib/Proofs/DisasterTraceDiscoveryChallenge.lean" in tracked
     assert "lean-mathlib/Proofs/CertificateGluing.lean" in tracked
     assert "lean-mathlib/Proofs/ForbiddenTraceMinor.lean" in tracked
     assert "lean-mathlib/Proofs/NoFreeResourceTraceLedger.lean" in tracked
     assert "lean-mathlib/Proofs/ZenoDEXDisasterSchemaInstantiations.lean" in tracked
+
+
+def test_disaster_proof_schema_map_covers_closed_axes() -> None:
+    payload = build_disaster_proof_schema_map_report()
+
+    assert payload["ok"] is True
+    assert payload["axis_count"] == 29
+    assert payload["schema_usage"]["forbidden_trace_minor"] >= 1
+    assert payload["schema_usage"]["no_free_resource_trace_ledger"] >= 1
+    assert payload["schema_usage"]["zenodex_disaster_schema_instantiations"] >= 1
+
+
+def test_disaster_proof_schema_map_rejects_missing_axis() -> None:
+    partial = dict(CLOSED_AXIS_PROOF_SCHEMA_MAP)
+    partial.pop("resource_budget_abort")
+
+    payload = build_disaster_proof_schema_map_report(axis_map=partial)
+
+    assert payload["ok"] is False
+    assert any("resource_budget_abort" in error for error in payload["errors"])

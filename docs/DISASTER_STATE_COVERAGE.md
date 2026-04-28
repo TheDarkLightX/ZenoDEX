@@ -62,6 +62,31 @@ Receipt:
 - `lean-mathlib/proof_receipts/no_free_resource_trace_ledger_2026-04-28.md`
 - `lean-mathlib/proof_receipts/zenodex_disaster_schema_instantiations_2026-04-28.md`
 
+The static proof-schema map is checked by:
+
+```bash
+python3 tools/check_disaster_proof_schema_map.py
+```
+
+Current output:
+
+```text
+axis_count: 29
+schema_count: 7
+amm_integer_runtime_bridge: 1
+certificate_gluing: 13
+disaster_antichain_basis: 8
+disaster_trace_lifting: 11
+forbidden_trace_minor: 15
+no_free_resource_trace_ledger: 6
+zenodex_disaster_schema_instantiations: 6
+```
+
+This map is not a proof that all 29 axes are now fully discharged in Lean. It is
+a ratchet that keeps every closed replay axis attached to the theorem schema
+that should discharge or strengthen it once the concrete runtime predicates are
+instantiated.
+
 ## Evidence Discipline
 
 The disaster-state lane follows the repository's public correct-by-construction
@@ -137,7 +162,8 @@ axis set and fails if any closed axis becomes failed, skipped, inconclusive, or
 missing from the current search inventory.
 
 The same workflow also runs `tools/check_formal_proof_hygiene.py` over critical
-Lean proof artifacts and keeps deployment-posture tests on the default
+Lean proof artifacts, `tools/check_disaster_proof_schema_map.py` over the
+closed-axis proof-schema map, and deployment-posture tests on the default
 API/resource-safety boundary. That does not turn the bounded receipt into an
 exhaustive proof, but it does make regression of the current claim visible on
 every main-branch push and pull request.

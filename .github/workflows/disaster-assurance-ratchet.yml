@@ -32,6 +32,11 @@ jobs:
           python tools/check_formal_proof_hygiene.py \
             --output internal/formal_proof_hygiene.json
 
+      - name: Enforce disaster proof-schema map
+        run: |
+          python tools/check_disaster_proof_schema_map.py \
+            --output internal/disaster_proof_schema_map.json
+
       - name: Run ratchet and deployment posture unit tests
         run: |
           pytest -q \
@@ -54,6 +59,7 @@ jobs:
           name: disaster-assurance-ratchet
           path: |
             internal/formal_proof_hygiene.json
+            internal/disaster_proof_schema_map.json
             internal/stateful_disaster_search_expansion_receipt.closed.json
             internal/stateful_disaster_search_expansion_ratchet.closed.json
           if-no-files-found: ignore
