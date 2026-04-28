@@ -1,0 +1,86 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "fire_strict_settlement_authority_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/FIREStrictSettlementAuthority.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs.FIREStrictSettlementAuthority"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs.lean"
+    },
+    {
+      "cwd": ".",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' lean-mathlib/Proofs/FIREStrictSettlementAuthority.lean\""
+    },
+    {
+      "cwd": ".",
+      "cmd": "pytest -q tests/kernels/test_fire_*.py"
+    },
+    {
+      "cwd": ".",
+      "cmd": "python3 tools/check_fire_snapshot_packages.py --snapshot-dir docs/fire_registry/devnet_v1 --require-replay-input --require-compile-receipt --require-kernel-receipt --require-kernel-eval-receipt --require-kernel-replay-receipt --require-kernel-settlement-receipt --require-proof-tree-cert --pretty"
+    },
+    {
+      "cwd": ".",
+      "cmd": "python3 tools/check_fire_release_assurance.py && python3 tools/check_claims_registry.py && git diff --check"
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.FIREStrictSettlementAuthority",
+      "path": "lean-mathlib/Proofs/FIREStrictSettlementAuthority.lean",
+      "sha256": "sha256:d27d61238c1d3c44c8744d63eb61b5006884cba2432c95e68923faec2707bc61",
+      "theorems": [
+        "strictInt_some_implies_raw_int",
+        "decode_some_implies_raw_holder_int",
+        "decode_some_implies_raw_writer_int",
+        "authority_accept_implies_raw_deltas_int",
+        "string_holder_delta_not_authorized",
+        "bool_writer_delta_not_authorized",
+        "missing_holder_delta_not_authorized"
+      ]
+    }
+  ],
+  "implementation_bindings": [
+    {
+      "path": "src/fire/runtime/common_v1.py",
+      "sha256": "sha256:895869b1a957a45a5a3e0054b889b152622aaa87bd79972d9cc1c4ce8bfcf64f",
+      "binding": "run_verified_settlement rejects non-int settlement_state holder_delta/writer_delta before authority receipt construction"
+    },
+    {
+      "path": "src/fire/kernel/persisted_bundle_settlement_v1.py",
+      "sha256": "sha256:40d081f27013d363530e40d0a40fcf437d41ed48400c1ea2683fe310d8949896",
+      "binding": "persisted bundle settlement cross-check rejects non-int runtime holder_delta/writer_delta before packet comparison"
+    },
+    {
+      "path": "src/fire/verifier/cert_v1.py",
+      "sha256": "sha256:48d6b8310b0e69f83c67ace04a0ec725e23dbbaa9c7517da34f1ccc10fc8f414",
+      "binding": "certificate from_dict parsing rejects non-string schema/rule/name instead of coercing with str(...)"
+    }
+  ],
+  "tests": [
+    {
+      "path": "tests/kernels/test_fire_runtime_common_strictness.py",
+      "sha256": "sha256:0890106a52e042e219f59ed498321b9ec6c14df590bee5486c1af2620ff51faa"
+    },
+    {
+      "path": "tests/kernels/test_fire_persisted_bundle_settlement_strictness.py",
+      "sha256": "sha256:11a72484b08b7c4bffca168aff2f043ac0821ba831ea39a05498a02ec374e0bc"
+    },
+    {
+      "path": "tests/kernels/test_fire_cert_v1.py",
+      "sha256": "sha256:3e83250d78d1760be950b2f649738b9f8361768b3500cd3a9f8de9a191166f8b"
+    }
+  ],
+  "claim": "The FIRE settlement authority boundary is modeled as strict decoding: authority acceptance implies both untrusted settlement delta fields were exact integers, and string-shaped, boolean-shaped, or missing delta fields cannot authorize settlement. The Python runtime and persisted-bundle cross-check are bound to this rule by fail-closed strict type checks and negative regressions.",
+  "result": "proved",
+  "created_utc": "2026-04-28T14:23:11Z"
+}

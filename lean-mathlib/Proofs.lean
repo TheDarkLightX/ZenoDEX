@@ -155,6 +155,7 @@ import Proofs.PokayokeImpactGate
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
 import Proofs.ZenoPayoffLanguage
+import Proofs.FIREStrictSettlementAuthority
 
 /-!
 Proofs library root.
