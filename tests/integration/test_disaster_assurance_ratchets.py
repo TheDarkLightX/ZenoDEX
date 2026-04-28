@@ -3,7 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from tools.check_disaster_search_closed_receipt import build_closed_receipt_ratchet_report
-from tools.check_formal_proof_hygiene import build_formal_proof_hygiene_report, strip_lean_comments
+from tools.check_formal_proof_hygiene import (
+    CRITICAL_FORMAL_PROOF_ARTIFACTS,
+    build_formal_proof_hygiene_report,
+    strip_lean_comments,
+)
 from tools.stateful_scenario_bridge import (
     CLOSED_DISASTER_SEARCH_AXIS_IDS,
     DISASTER_SEARCH_EXPANSION_RECEIPT_SCHEMA,
@@ -87,3 +91,11 @@ def test_formal_proof_hygiene_rejects_active_placeholder(tmp_path: Path) -> None
     assert payload["ok"] is False
     assert payload["active_placeholder_count"] == 1
     assert "sorry@2" in payload["errors"][0]
+
+
+def test_formal_proof_hygiene_default_tracks_disaster_proof_schemas() -> None:
+    tracked = set(CRITICAL_FORMAL_PROOF_ARTIFACTS)
+
+    assert "lean-mathlib/Proofs/AMMIntegerRuntimeBridge.lean" in tracked
+    assert "lean-mathlib/Proofs/DisasterAntichainBasis.lean" in tracked
+    assert "lean-mathlib/Proofs/CertificateGluing.lean" in tracked
