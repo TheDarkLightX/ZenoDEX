@@ -66,7 +66,7 @@
     {
       "module": "Proofs.ZenoPayoffPortfolioFixedPointBridge",
       "path": "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
-      "sha256": "sha256:4585ddb133a7becd691b6ac56064bb55904c03790e224262d3ce74a7dea47565",
+      "sha256": "sha256:ab4140d2b68edd61915905d6eccd2ba4691e95ab5b60b5c9d4eb8c2a13af78a8",
       "theorems": [
         "compile_sum_floorDecode_interval",
         "compile_sum_ceilDecode_interval",
@@ -75,6 +75,9 @@
         "compile_sum_decodeByMode_interval",
         "compile_sum_decodeByMode_posted_collateral_safe",
         "compile_sum_decodeByMode_posted_collateral_safe_and_conserves",
+        "int_two_party_delta_receipt_conserves",
+        "int_two_party_delta_receipt_decode_conserves",
+        "int_two_party_delta_receipt_safe_and_conserves",
         "compile_decodeByMode_two_party_delta_conserves",
         "compile_sum_decodeByMode_two_party_delta_conserves"
       ]
@@ -86,6 +89,6 @@
       "sha256": "sha256:a62f9c3039f9a8ace10aba6bdf85be99f424b67b97c66b0b090ebf3307b3d38d"
     }
   ],
-  "claim": "Successful FIRE/ZPL compilation composes with fixed-point runtime rounding: floor-decoded single-leg and portfolio settlements are safe under a one-tick lower-side buffer, ceil-decoded settlements are safe under a one-tick upper-side buffer, mixed floor/ceil portfolios are safe under the corresponding per-leg side buffers, posted collateral against those expanded intervals prevents bilateral default, and runtime delta conservation is exact when the writer leg negates the rounded holder leg.",
+  "claim": "Successful FIRE/ZPL compilation composes with fixed-point runtime rounding: floor-decoded single-leg and portfolio settlements are safe under a one-tick lower-side buffer, ceil-decoded settlements are safe under a one-tick upper-side buffer, mixed floor/ceil portfolios are safe under the corresponding per-leg side buffers, posted collateral against those expanded intervals prevents bilateral default, and runtime delta conservation is exact when the writer leg negates the rounded holder leg, including the integer receipt delta table and its decoded fixed-point interpretation.",
   "result": "proved"
 }

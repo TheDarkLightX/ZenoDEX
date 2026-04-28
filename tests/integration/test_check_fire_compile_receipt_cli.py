@@ -96,6 +96,7 @@ def test_check_fire_compile_receipt_cli_roundtrip(tmp_path: Path) -> None:
     assert "compile_sum_floorDecode_posted_collateral_safe" in bindings[2]["theorems"]
     assert "compile_sum_decodeByMode_posted_collateral_safe" in bindings[2]["theorems"]
     assert "compile_sum_decodeByMode_posted_collateral_safe_and_conserves" in bindings[2]["theorems"]
+    assert "int_two_party_delta_receipt_safe_and_conserves" in bindings[2]["theorems"]
     assert "compile_sum_decodeByMode_two_party_delta_conserves" in bindings[2]["theorems"]
 
 
