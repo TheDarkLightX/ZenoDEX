@@ -346,10 +346,22 @@ def expected_fire_proof_tree_replay_summary(
         )
     if kernel_replay_receipt is not None and kernel_replay_receipt_sha256 is not None:
         summary["kernel_replay_receipt_sha256"] = kernel_replay_receipt_sha256
-        summary["transcript_sha256"] = str(kernel_replay_receipt["transcript_sha256"])
-        summary["delta_sha256"] = str(kernel_replay_receipt["delta_sha256"])
-        summary["settlement_state_sha256"] = str(kernel_replay_receipt["settlement_state_sha256"])
-        summary["settlement_effects_sha256"] = str(kernel_replay_receipt["settlement_effects_sha256"])
+        summary["transcript_sha256"] = _require_sha256_prefixed(
+            "kernel_replay_receipt.transcript_sha256",
+            kernel_replay_receipt.get("transcript_sha256"),
+        )
+        summary["delta_sha256"] = _require_sha256_prefixed(
+            "kernel_replay_receipt.delta_sha256",
+            kernel_replay_receipt.get("delta_sha256"),
+        )
+        summary["settlement_state_sha256"] = _require_sha256_prefixed(
+            "kernel_replay_receipt.settlement_state_sha256",
+            kernel_replay_receipt.get("settlement_state_sha256"),
+        )
+        summary["settlement_effects_sha256"] = _require_sha256_prefixed(
+            "kernel_replay_receipt.settlement_effects_sha256",
+            kernel_replay_receipt.get("settlement_effects_sha256"),
+        )
     return summary
 
 
