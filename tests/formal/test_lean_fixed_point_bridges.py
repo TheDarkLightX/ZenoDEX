@@ -14,6 +14,7 @@ import pytest
         "Proofs/FixedPointPortfolioBridge.lean",
         "Proofs/ZenoPayoffFixedPointBridge.lean",
         "Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
+        "Proofs/FIREUnified.lean",
     ],
 )
 def test_lean_fixed_point_bridge_file_typechecks(target: str) -> None:

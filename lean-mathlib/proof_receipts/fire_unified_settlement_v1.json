@@ -1,0 +1,59 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "fire_unified_settlement_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/FIREUnified.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs.FIREUnified"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs.lean"
+    },
+    {
+      "cwd": ".",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' lean-mathlib/Proofs/FIREUnified.lean\""
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.FIREUnified",
+      "path": "lean-mathlib/Proofs/FIREUnified.lean",
+      "sha256": "sha256:164b725569f9f9869f14f8e066aaa4f0337500c91aaa0e9e4840957d4428185b",
+      "theorems": [
+        "tick_pos",
+        "FIREPortfolioReceipt.writerDelta_eq_neg",
+        "FIREPortfolioReceipt.net_zero",
+        "fire_portfolio_settlement",
+        "FIREPortfolioReceipt.combine",
+        "FIREPortfolioReceipt.combine_holderDelta",
+        "FIREPortfolioReceipt.combine_writerDelta",
+        "compiled_portfolio_to_certified_payoff",
+        "fire_single_leg_settlement",
+        "floor_buffer_spec",
+        "ceil_buffer_spec",
+        "total_buffer_eq_tick",
+        "holderCollateral_anti",
+        "writerCollateral_mono",
+        "holderCollateral_nonneg",
+        "writerCollateral_nonneg",
+        "two_party_conservation",
+        "portfolio_interval_width_budget"
+      ]
+    }
+  ],
+  "proof_search_source": {
+    "tool": "Aristotle",
+    "project_id": "02c5e13a-4278-4323-9a9c-7f592278a2bd",
+    "local_acceptance": "selectively integrated as a new module after local Lean build and placeholder scan"
+  },
+  "claim": "A compiled multi-leg FIRE/ZPL portfolio with positive fixed-point scale and posted collateral covering the per-leg rounding-mode expanded interval produces a projectable settlement receipt: holder and writer remain solvent after applying their deltas, and the deltas conserve exactly. Independent receipts compose by addition, and the expanded interval width is exactly the unexpanded width plus one tick per leg.",
+  "result": "proved",
+  "created_utc": "2026-04-28T14:49:36Z"
+}
