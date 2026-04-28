@@ -115,6 +115,7 @@ import Proofs.FixedPointIntervalBridge
 import Proofs.FixedPointPortfolioBridge
 import Proofs.TokenomicsTraceSafety
 import Proofs.ZenoPayoffFixedPointBridge
+import Proofs.ZenoPayoffPortfolioFixedPointBridge
 import Proofs.ZenoDEXSettlementGateBlockers
 import Proofs.ZUSDCeilDivAlgebra
 import Proofs.ZUSDFeePipeline
