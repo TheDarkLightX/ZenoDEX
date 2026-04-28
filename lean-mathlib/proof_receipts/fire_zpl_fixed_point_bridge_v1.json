@@ -1,0 +1,84 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "fire_zpl_fixed_point_bridge_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/FixedPointIntervalBridge.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/FixedPointPortfolioBridge.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/ZenoPayoffFixedPointBridge.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/ZenoPayoffPortfolioFixedPointBridge.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs"
+    },
+    {
+      "cwd": ".",
+      "cmd": "pytest -q tests/formal/test_lean_fixed_point_bridges.py"
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.FixedPointIntervalBridge",
+      "path": "lean-mathlib/Proofs/FixedPointIntervalBridge.lean",
+      "sha256": "sha256:1325124379185e0775510bfc62dfbacc4ba7d87b323c96fb2e0826737674d856",
+      "theorems": [
+        "floorDecode_mem_expanded_interval",
+        "ceilDecode_mem_expanded_interval",
+        "floorDecode_abs_error_lt_tick",
+        "ceilDecode_abs_error_lt_tick"
+      ]
+    },
+    {
+      "module": "Proofs.FixedPointPortfolioBridge",
+      "path": "lean-mathlib/Proofs/FixedPointPortfolioBridge.lean",
+      "sha256": "sha256:78929edcd9836582404183999265fda3f9b27a279e9be723d2dee8bc46f6d95b",
+      "theorems": [
+        "sum_floorDecode_mem_card_expanded_interval",
+        "sum_ceilDecode_mem_card_expanded_interval"
+      ]
+    },
+    {
+      "module": "Proofs.ZenoPayoffFixedPointBridge",
+      "path": "lean-mathlib/Proofs/ZenoPayoffFixedPointBridge.lean",
+      "sha256": "sha256:76b56e03f1a24ae30522cc77f2aa513fd416f38dc6f2df8b8a7653ea51bf747b",
+      "theorems": [
+        "compile_floorDecode_interval",
+        "compile_ceilDecode_interval",
+        "compile_floorDecode_posted_collateral_safe",
+        "compile_ceilDecode_posted_collateral_safe"
+      ]
+    },
+    {
+      "module": "Proofs.ZenoPayoffPortfolioFixedPointBridge",
+      "path": "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
+      "sha256": "sha256:a04c70e144e7c325e8029191577d12938912b0df9a46cc02cc72a6f3199a646b",
+      "theorems": [
+        "compile_sum_floorDecode_interval",
+        "compile_sum_ceilDecode_interval",
+        "compile_sum_floorDecode_posted_collateral_safe",
+        "compile_sum_ceilDecode_posted_collateral_safe"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "path": "tests/formal/test_lean_fixed_point_bridges.py",
+      "sha256": "sha256:a62f9c3039f9a8ace10aba6bdf85be99f424b67b97c66b0b090ebf3307b3d38d"
+    }
+  ],
+  "claim": "Successful FIRE/ZPL compilation composes with fixed-point runtime rounding: floor-decoded single-leg and portfolio settlements are safe under a one-tick lower-side buffer, ceil-decoded settlements are safe under a one-tick upper-side buffer, and posted collateral against those expanded intervals prevents bilateral default.",
+  "result": "proved"
+}

@@ -566,6 +566,40 @@ claims:
       theorems:
         - Proofs.ZenoDEX.ceilDiv_mul_ge
 
+  - id: lean:fire_zpl_fixed_point_bridge:one_tick_runtime_settlement
+    status: proved
+    layer: math
+    statement: >
+      Successful FIRE/ZPL compilation composes with fixed-point runtime rounding:
+      floor-decoded single-leg and portfolio settlements are safe under a one-tick
+      lower-side buffer, ceil-decoded settlements are safe under a one-tick upper-side
+      buffer, and posted collateral against those expanded intervals prevents
+      bilateral default.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.FixedPointIntervalBridge"
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.FixedPointPortfolioBridge"
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoPayoffFixedPointBridge"
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.ZenoPayoffPortfolioFixedPointBridge"
+        - cmd: pytest -q tests/formal/test_lean_fixed_point_bridges.py
+      files:
+        - lean-mathlib/Proofs/FixedPointIntervalBridge.lean
+        - lean-mathlib/Proofs/FixedPointPortfolioBridge.lean
+        - lean-mathlib/Proofs/ZenoPayoffFixedPointBridge.lean
+        - lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean
+        - lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
+        - tests/formal/test_lean_fixed_point_bridges.py
+      theorems:
+        - Proofs.FixedPointIntervalBridge.floorDecode_mem_expanded_interval
+        - Proofs.FixedPointIntervalBridge.ceilDecode_mem_expanded_interval
+        - Proofs.FixedPointPortfolioBridge.sum_floorDecode_mem_card_expanded_interval
+        - Proofs.FixedPointPortfolioBridge.sum_ceilDecode_mem_card_expanded_interval
+        - Proofs.ZenoPayoffFixedPointBridge.compile_floorDecode_posted_collateral_safe
+        - Proofs.ZenoPayoffFixedPointBridge.compile_ceilDecode_posted_collateral_safe
+        - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_floorDecode_posted_collateral_safe
+        - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_ceilDecode_posted_collateral_safe
+
   - id: tla:autotrader_nonce_guard_shadow:sequential_nonce_only
     status: supported
     layer: safety
