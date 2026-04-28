@@ -576,7 +576,8 @@ claims:
       buffer, mixed floor/ceil portfolios are safe under the corresponding per-leg
       side buffers, and posted collateral against those expanded intervals prevents
       bilateral default. Runtime delta conservation is exact when the writer leg
-      negates the rounded holder leg.
+      negates the rounded holder leg, including the integer receipt delta table
+      and its decoded fixed-point interpretation.
     evidence:
       kind: lean
       check:
@@ -605,6 +606,9 @@ claims:
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_ceilDecode_posted_collateral_safe
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_posted_collateral_safe
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_posted_collateral_safe_and_conserves
+        - Proofs.ZenoPayoffPortfolioFixedPointBridge.int_two_party_delta_receipt_conserves
+        - Proofs.ZenoPayoffPortfolioFixedPointBridge.int_two_party_delta_receipt_decode_conserves
+        - Proofs.ZenoPayoffPortfolioFixedPointBridge.int_two_party_delta_receipt_safe_and_conserves
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_decodeByMode_two_party_delta_conserves
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_two_party_delta_conserves
 

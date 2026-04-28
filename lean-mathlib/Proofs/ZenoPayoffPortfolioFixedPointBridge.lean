@@ -247,6 +247,43 @@ theorem int_two_party_delta_conserves (holderDelta : Int) :
     holderDelta + (-holderDelta) = 0 := by
   omega
 
+/-- Decode an integer runtime delta at a fixed-point scale. -/
+def decodeIntDelta (scale : ℝ) (delta : Int) : ℝ :=
+  (delta : ℝ) / scale
+
+/-- Integer FIRE receipt deltas conserve exactly when the receipt records the
+writer delta as the negation of the holder delta. -/
+theorem int_two_party_delta_receipt_conserves
+    {holderDelta writerDelta : Int}
+    (hWriter : writerDelta = -holderDelta) :
+    holderDelta + writerDelta = 0 := by
+  subst writerDelta
+  omega
+
+/-- The same integer receipt conservation property remains zero-sum after
+fixed-point decoding. -/
+theorem int_two_party_delta_receipt_decode_conserves
+    {scale : ℝ} {holderDelta writerDelta : Int}
+    (hWriter : writerDelta = -holderDelta) :
+    decodeIntDelta scale holderDelta + decodeIntDelta scale writerDelta = 0 := by
+  subst writerDelta
+  simp [decodeIntDelta]
+  ring
+
+/-- Integer receipt shape for FIRE settlement: if the writer delta is the
+negation of the holder delta and both posted-collateral solvency checks pass,
+then the receipt is solvent on both sides and exactly zero-sum. -/
+theorem int_two_party_delta_receipt_safe_and_conserves
+    {holderPosted writerPosted holderDelta writerDelta : Int}
+    (hWriter : writerDelta = -holderDelta)
+    (hHolderSafe : 0 ≤ holderPosted + holderDelta)
+    (hWriterSafe : 0 ≤ writerPosted + writerDelta) :
+    (0 ≤ holderPosted + holderDelta ∧ 0 ≤ writerPosted + writerDelta) ∧
+      holderDelta + writerDelta = 0 := by
+  constructor
+  · exact ⟨hHolderSafe, hWriterSafe⟩
+  · exact int_two_party_delta_receipt_conserves hWriter
+
 /-- A single compiled ZPL leg decoded with a selected fixed-point rounding mode
 conserves exactly when the counterparty leg is the negation of that rounded
 runtime value. This captures the implementation rule "round once, then mirror";

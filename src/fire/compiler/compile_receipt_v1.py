@@ -75,6 +75,9 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "compile_sum_ceilDecode_posted_collateral_safe",
             "compile_sum_decodeByMode_posted_collateral_safe",
             "compile_sum_decodeByMode_posted_collateral_safe_and_conserves",
+            "int_two_party_delta_receipt_conserves",
+            "int_two_party_delta_receipt_decode_conserves",
+            "int_two_party_delta_receipt_safe_and_conserves",
             "compile_decodeByMode_two_party_delta_conserves",
             "compile_sum_decodeByMode_two_party_delta_conserves",
         ),
@@ -86,7 +89,8 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "under the corresponding per-leg side buffers, and posted collateral "
             "against those expanded intervals prevents bilateral default. Runtime "
             "delta conservation is exact when the writer leg negates the rounded "
-            "holder leg."
+            "holder leg, including the integer receipt delta table and its decoded "
+            "fixed-point interpretation."
         ),
         "source_files": (
             "lean-mathlib/Proofs/FixedPointIntervalBridge.lean",
