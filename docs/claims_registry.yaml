@@ -612,6 +612,35 @@ claims:
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_decodeByMode_two_party_delta_conserves
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_two_party_delta_conserves
 
+  - id: lean:fire_unified_settlement:receipt_composition_laws
+    status: proved
+    layer: math
+    statement: >
+      A compiled multi-leg FIRE/ZPL portfolio with positive fixed-point scale
+      and posted collateral covering the per-leg rounding-mode expanded interval
+      produces a projectable settlement receipt with bilateral solvency and
+      exact conservation. Independent receipts compose by addition with a
+      neutral zero receipt and grouping/order-independent operational
+      projections.
+    evidence:
+      kind: lean
+      check:
+        - cmd: bash -lc "cd lean-mathlib && lake build Proofs.FIREUnified"
+        - cmd: pytest -q tests/formal/test_lean_fixed_point_bridges.py
+      files:
+        - lean-mathlib/Proofs/FIREUnified.lean
+        - lean-mathlib/proof_receipts/fire_unified_settlement_v1.json
+        - tests/formal/test_lean_fixed_point_bridges.py
+      theorems:
+        - Proofs.FIREUnified.fire_portfolio_settlement
+        - Proofs.FIREUnified.FIREPortfolioReceipt.combine
+        - Proofs.FIREUnified.FIREPortfolioReceipt.zero
+        - Proofs.FIREUnified.FIREPortfolioReceipt.combine_zero_operational
+        - Proofs.FIREUnified.FIREPortfolioReceipt.zero_combine_operational
+        - Proofs.FIREUnified.FIREPortfolioReceipt.combine_assoc_operational
+        - Proofs.FIREUnified.FIREPortfolioReceipt.combine_comm_operational
+        - Proofs.FIREUnified.portfolio_interval_width_budget
+
   - id: tla:autotrader_nonce_guard_shadow:sequential_nonce_only
     status: supported
     layer: safety

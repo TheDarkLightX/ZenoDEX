@@ -65,6 +65,15 @@ def _sha256_file(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and value.startswith("sha256:")
+        and len(value) == 71
+        and all(ch in "0123456789abcdef" for ch in value[7:])
+    )
+
+
 def _as_mapping(value: object, *, ctx: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise FireFormalAssuranceClaimsError(f"{ctx}: expected object")
@@ -142,6 +151,69 @@ def _component_paths_exist(component: Mapping[str, object], *, repo_root: Path) 
         _expect(path.exists(), f"{component_id}: missing declared path {rel}")
 
 
+def _check_proof_receipt_module_hashes(
+    receipt_payload: Mapping[str, object],
+    *,
+    repo_root: Path,
+    component_id: str,
+    receipt_idx: int,
+) -> None:
+    modules = _as_sequence(
+        receipt_payload.get("modules"),
+        ctx=f"{component_id}.proof_receipts[{receipt_idx}].modules",
+    )
+    _expect(bool(modules), f"{component_id}.proof_receipts[{receipt_idx}]: proof receipt must bind at least one module")
+    for module_idx, module_obj in enumerate(modules):
+        module = _as_mapping(
+            module_obj,
+            ctx=f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}]",
+        )
+        rel = module.get("path")
+        _expect(
+            isinstance(rel, str) and bool(rel),
+            f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].path must be non-empty",
+        )
+        expected_sha = module.get("sha256")
+        _expect(
+            _is_sha256(expected_sha),
+            f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].sha256 must be sha256-prefixed",
+        )
+        module_path = repo_root / rel
+        _expect(module_path.is_file(), f"{component_id}: proof receipt module file missing: {rel}")
+        actual_sha = _sha256_file(module_path)
+        _expect(
+            actual_sha == expected_sha,
+            f"{component_id}: proof receipt module hash mismatch for {rel}: {actual_sha} != {expected_sha}",
+        )
+
+
+def _check_proof_receipt_integrity(
+    receipt_payload: Mapping[str, object],
+    *,
+    repo_root: Path,
+    component_id: str,
+    receipt_idx: int,
+    declared_checker: str,
+    declared_result: str,
+) -> None:
+    receipt_checker = receipt_payload.get("checker")
+    _expect(
+        receipt_checker == declared_checker,
+        f"{component_id}: proof receipt checker mismatch at index {receipt_idx}: {receipt_checker!r} != {declared_checker!r}",
+    )
+    receipt_result = receipt_payload.get("result")
+    _expect(
+        receipt_result == declared_result,
+        f"{component_id}: proof receipt result mismatch at index {receipt_idx}: {receipt_result!r} != {declared_result!r}",
+    )
+    _check_proof_receipt_module_hashes(
+        receipt_payload,
+        repo_root=repo_root,
+        component_id=component_id,
+        receipt_idx=receipt_idx,
+    )
+
+
 def _check_formal_verification(
     component: Mapping[str, object],
     *,
@@ -174,6 +246,15 @@ def _check_formal_verification(
         _expect(checker in {"lean", "esso", "smt", "other"}, f"{component_id}: unsupported proof checker {checker!r}")
         result = receipt.get("result")
         _expect(result in {"proved", "verified"}, f"{component_id}: unsupported proof receipt result {result!r}")
+        receipt_payload = _load_json(path)
+        _check_proof_receipt_integrity(
+            receipt_payload,
+            repo_root=repo_root,
+            component_id=component_id,
+            receipt_idx=idx,
+            declared_checker=str(checker),
+            declared_result=str(result),
+        )
 
     return claimed
 
