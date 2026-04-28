@@ -260,6 +260,56 @@ def test_fire_registry_index_cli_fails_on_bundle_tamper(tmp_path: Path) -> None:
     assert "object_card_sha_mismatch" in payload["error"]
 
 
+def test_fire_registry_index_cli_rejects_string_instance_gate_bool(tmp_path: Path) -> None:
+    burn_dir = _build_bundle(
+        tmp_path,
+        "burn_boost_call_v1",
+        ["--n-notional", "10", "--strike-index", "4", "--cap-index", "3", "--source-upper", "9"],
+    )
+    index_path = tmp_path / "fire_registry_index.json"
+
+    build = subprocess.run(
+        [
+            sys.executable,
+            str(INDEX_BUILD_CLI),
+            "--bundle-dir",
+            str(burn_dir),
+            "--output",
+            str(index_path),
+        ],
+        cwd=str(REPO_ROOT),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(build.stdout)["ok"] is True
+
+    payload = json.loads(index_path.read_text(encoding="utf-8"))
+    payload["entries"][0]["instance_gates"]["ok"] = "false"
+    index_path.write_text(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True),
+        encoding="utf-8",
+    )
+
+    check = subprocess.run(
+        [
+            sys.executable,
+            str(INDEX_CHECK_CLI),
+            "--index-file",
+            str(index_path),
+        ],
+        cwd=str(REPO_ROOT),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert check.returncode == 1
+    error = json.loads(check.stderr)
+    assert error["schema"] == "zenodex/fire-registry-index-check-report/v1"
+    assert error["ok"] is False
+    assert "instance_gates.ok must be a bool" in error["error"]
+
+
 def test_fire_registry_index_cli_require_signature_rejects_unsigned_index(tmp_path: Path) -> None:
     burn_dir = _build_bundle(
         tmp_path,

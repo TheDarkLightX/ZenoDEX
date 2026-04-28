@@ -41,6 +41,12 @@ def _require_nonempty_str(name: str, value: object) -> str:
     return value
 
 
+def _require_bool(name: str, value: object) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
+
+
 def _require_0x_hex(name: str, value: object, *, expected_nbytes: int | None = None) -> str:
     text = _require_nonempty_str(name, value)
     if not text.startswith("0x"):
@@ -219,12 +225,15 @@ class FireRegistryIndexEntry:
             lock_hash=payload.get("lock_hash"),
             cert_sha256=payload.get("cert_sha256"),
             instance_gate_report=FireInstanceGateReport(
-                param_ok=bool(instance_gates.get("param_ok")),
-                authorization_ok=bool(instance_gates.get("authorization_ok")),
-                nonce_ok=bool(instance_gates.get("nonce_ok")),
-                maturity_ok=bool(instance_gates.get("maturity_ok")),
-                window_ok=bool(instance_gates.get("window_ok")),
-                ok=bool(instance_gates.get("ok")),
+                param_ok=_require_bool("instance_gates.param_ok", instance_gates.get("param_ok")),
+                authorization_ok=_require_bool(
+                    "instance_gates.authorization_ok",
+                    instance_gates.get("authorization_ok"),
+                ),
+                nonce_ok=_require_bool("instance_gates.nonce_ok", instance_gates.get("nonce_ok")),
+                maturity_ok=_require_bool("instance_gates.maturity_ok", instance_gates.get("maturity_ok")),
+                window_ok=_require_bool("instance_gates.window_ok", instance_gates.get("window_ok")),
+                ok=_require_bool("instance_gates.ok", instance_gates.get("ok")),
                 error=instance_gates.get("error"),
             ),
             certificate_instance_gate_claims=FireInstanceGateClaims.from_dict(certificate_instance_gate_claims),
