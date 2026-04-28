@@ -224,6 +224,58 @@ def test_fire_formal_assurance_claims_rejects_receipt_without_named_theorems(tmp
     assert verification is None
 
 
+def test_fire_formal_assurance_claims_rejects_receipt_without_module_checker_command(tmp_path: Path) -> None:
+    payload = _load_manifest()
+    _materialize_declared_paths(tmp_path, payload)
+
+    module_path = tmp_path / "lean-mathlib/Proofs/UncheckedModuleProbe.lean"
+    module_path.parent.mkdir(parents=True, exist_ok=True)
+    module_text = "def uncheckedModuleProbe : Nat := 1\n"
+    module_path.write_text(module_text, encoding="utf-8")
+
+    receipt_payload = {
+        "schema": "zenodex/lean-proof-receipt/v1",
+        "receipt_id": "unchecked_module_probe_v1",
+        "checker": "lean",
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "commands": [{"cwd": "lean-mathlib", "cmd": "lake env lean Proofs/SomeOtherModule.lean"}],
+        "modules": [
+            {
+                "module": "Proofs.UncheckedModuleProbe",
+                "path": "lean-mathlib/Proofs/UncheckedModuleProbe.lean",
+                "sha256": _sha256_text(module_text),
+                "theorems": ["uncheckedModuleProbe"],
+            }
+        ],
+        "claim": "negative test receipt whose checker command targets another module",
+        "result": "proved",
+    }
+    receipt_path = tmp_path / "proof_receipts/unchecked_module_probe_v1.json"
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_text = json.dumps(receipt_payload, sort_keys=True, separators=(",", ":"))
+    receipt_path.write_text(receipt_text, encoding="utf-8")
+
+    formal = _component(payload, "fire_zpl_language_lean_v1")["formal_verification"]
+    formal["proof_receipts"] = [
+        {
+            "path": "proof_receipts/unchecked_module_probe_v1.json",
+            "checker": "lean",
+            "result": "proved",
+            "sha256": _sha256_text(receipt_text),
+            "scope": "negative missing module checker command test",
+        }
+    ]
+    manifest_path = _write_manifest(tmp_path, payload)
+
+    ok, err, verification = verify_fire_formal_assurance_claims_file(manifest_path, repo_root=tmp_path)
+
+    assert ok is False
+    assert err is not None
+    assert "missing Lean checker command" in err
+    assert "Proofs.UncheckedModuleProbe" in err
+    assert verification is None
+
+
 def test_fire_formal_assurance_claims_rejects_lean_trust_escape_even_with_current_hash(tmp_path: Path) -> None:
     payload = _load_manifest()
     _materialize_declared_paths(tmp_path, payload)
