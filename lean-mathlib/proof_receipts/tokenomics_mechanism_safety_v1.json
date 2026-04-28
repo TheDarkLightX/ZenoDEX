@@ -25,7 +25,7 @@
     {
       "module": "Proofs.TokenomicsMechanismSafety",
       "path": "lean-mathlib/Proofs/TokenomicsMechanismSafety.lean",
-      "sha256": "sha256:84c60326430fdd632fd64484fda79c4fa75314ca5766df4b8fe6775ed8084cf4",
+      "sha256": "sha256:abcb1246a4307bc24cc9b90455bd74bdd52a8a66755e363774b485c8ba322cce",
       "theorems": [
         "StepRewardFunded",
         "StepVerifiedValueNondecreasing",
@@ -38,13 +38,15 @@
         "traceRewardSpend_le_verifiedGain_plus_initialTreasury",
         "traceRewardSpend_nonneg",
         "traceVerifiedGain_nonneg",
+        "traceRewardSpend_eq_zero_of_no_value_gain_no_treasury_drop",
+        "positive_reward_closed_loop_implies_not_stepwise_funded",
         "excess_reward_implies_not_stepwise_funded",
         "RewardControllerGuard",
         "trace_safety"
       ]
     }
   ],
-  "claim": "For any admitted finite tokenomics trace, if each reward/rebate/bounty/buyback step is funded by newly verified value plus treasury or resource drawdown, then cumulative spend over the trace is bounded by cumulative verified value gained plus initial treasury. If cumulative spend exceeds that bound, the stepwise funding predicate is impossible. A reward controller guard packages nonnegative reward spend, nonnegative verified value gain, and the fail-closed aggregate spend bound.",
+  "claim": "For any admitted finite tokenomics trace, if each reward/rebate/bounty/buyback step is funded by newly verified value plus treasury or resource drawdown, then cumulative spend over the trace is bounded by cumulative verified value gained plus initial treasury. If a trace creates no verified value and consumes no treasury/resource budget, funded nondecreasing rewards cannot increase; a positive payout over such a loop proves the stepwise funding predicate was violated. If cumulative spend exceeds the verified-value-plus-budget bound, the stepwise funding predicate is impossible. A reward controller guard packages nonnegative reward spend, nonnegative verified value gain, and the fail-closed aggregate spend bound.",
   "result": "proved",
   "created_utc": "2026-04-28T16:50:00Z"
 }
