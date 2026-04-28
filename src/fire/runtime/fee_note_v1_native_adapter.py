@@ -33,6 +33,12 @@ def _require_phase(value: object) -> str:
     return value
 
 
+def _require_nonempty_str(name: str, value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError(f"{name} must be a non-empty string")
+    return value
+
+
 def _state_from_mapping(state: Mapping[str, Any]) -> ref.State:
     return ref.State(
         artifact_lower=_require_int("artifact_lower", state.get("artifact_lower")),
@@ -56,7 +62,7 @@ def _step_error(code: str, message: str) -> Any:
 
 
 def _commit_effect(adapter: "FireFeeNoteV1NativeAdapter", effect_id: str, value: Any) -> None:
-    adapter._pending_effects[str(effect_id)] = value
+    adapter._pending_effects[_require_nonempty_str("effect_id", effect_id)] = value
 
 
 def _commit_receipt_effect(adapter: "FireFeeNoteV1NativeAdapter", args: Mapping[str, Any]) -> None:
@@ -113,9 +119,10 @@ def _run_kernel_step(adapter: "FireFeeNoteV1NativeAdapter", tag: str, args: Mapp
     adapter._pending_effects = dict()
     try:
         for eff_id, value in dict(result.effects or {}).items():
-            eff_handler = EFFECT_HANDLERS.get(str(eff_id))
+            effect_id = _require_nonempty_str("effect_id", eff_id)
+            eff_handler = EFFECT_HANDLERS.get(effect_id)
             if eff_handler is not None:
-                eff_handler(adapter, str(eff_id), value)
+                eff_handler(adapter, effect_id, value)
         _commit_receipt_effect(adapter, args)
         if "verifier_receipt" in adapter._pending_effects:
             adapter._pending_effects["verifier_receipt_obj"] = FireVerifierReceipt.from_dict(
@@ -162,7 +169,10 @@ class FireFeeNoteV1NativeAdapter:
 
     def apply(self, command: Any) -> Any:
         self._pending_effects = {}
-        tag = str(getattr(command, "tag", ""))
+        try:
+            tag = _require_nonempty_str("command.tag", getattr(command, "tag", None))
+        except TypeError:
+            return _step_error("UnknownAction", "command.tag must be a non-empty string")
         handler = ACTION_HANDLERS.get(tag)
         if handler is None:
             return _step_error("UnknownAction", "no handler for command.tag")
