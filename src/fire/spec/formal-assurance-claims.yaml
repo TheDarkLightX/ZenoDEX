@@ -51,9 +51,15 @@ components:
       - lean-mathlib/Proofs/CertifiedFinancialMathObjects.lean
       - lean-mathlib/Proofs/CALCoreSoundness.lean
       - lean-mathlib/Proofs/ZenoPayoffLanguage.lean
+      - lean-mathlib/Proofs/FixedPointIntervalBridge.lean
+      - lean-mathlib/Proofs/FixedPointPortfolioBridge.lean
+      - lean-mathlib/Proofs/ZenoPayoffFixedPointBridge.lean
+      - lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean
       - lean-mathlib/proof_receipts/zeno_payoff_language_v1.json
+      - lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
       - tests/formal/test_lean_cal_core_soundness.py
       - tests/formal/test_lean_zeno_payoff_language.py
+      - tests/formal/test_lean_fixed_point_bridges.py
     can_authorize_settlement: false
     claims_bug_free: false
     assurance_level: proved
@@ -66,6 +72,11 @@ components:
           result: proved
           sha256: sha256:aa691a697e8a8d6b32250d61dc037449ff0cae99075a1142ee0db364f653a3a3
           scope: ZPL compiler soundness, CAL core soundness, and certified payoff collateral safety theorem surface
+        - path: lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:c150f6960ec011a7432561c0e0649269f8c65f8540bd5d6f77ab66fba16fc970
+          scope: FIRE/ZPL fixed-point single-leg and portfolio rounding bridge from compiler certificates to collateral-safe runtime settlement buffers
     notes: this component proves the payoff-language theorem surface only; it does not make the Python compiler or verifier bug-free or settlement-authoritative
 
   - id: fire_verifier_v1

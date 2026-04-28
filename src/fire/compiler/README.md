@@ -28,10 +28,11 @@ FIRE-V/FIRE-VCore and produce a verifier receipt bound to object, instance,
 certificate, witness, and delta hashes.
 
 Compile receipts also carry `formal_proof_bindings` for the Lean proof surface:
-`Proofs.ZenoPayoffLanguage`, `Proofs.CALCoreSoundness`, and their shared
-`CertifiedFinancialMathObjects` dependency. The checker compares those bindings
-against current source hashes, so a receipt generated under one proof surface
-does not silently validate after theorem or source drift.
+`Proofs.ZenoPayoffLanguage`, `Proofs.CALCoreSoundness`, the fixed-point bridge
+stack ending at `Proofs.ZenoPayoffPortfolioFixedPointBridge`, and their shared
+dependencies. The checker compares those bindings against current source hashes,
+so a receipt generated under one proof surface does not silently validate after
+theorem or source drift.
 
 The compiler must not be described as bug-free or formally verified unless
 `src/fire/spec/formal-assurance-claims.yaml` carries checked proof receipts and
