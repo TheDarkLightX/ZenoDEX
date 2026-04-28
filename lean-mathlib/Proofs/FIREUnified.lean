@@ -148,6 +148,71 @@ theorem FIREPortfolioReceipt.combine_comm_operational (R₁ R₂ : FIREPortfolio
   simp [FIREPortfolioReceipt.combine, FIREPortfolioReceipt.operationalFields,
     add_comm]
 
+/-- Aggregate a finite family of FIRE receipts by summing posted collateral and
+deltas. This is the n-ary receipt corresponding to independent book netting. -/
+def FIREPortfolioReceipt.aggregate
+    [DecidableEq ι] (S : Finset ι) (R : ι → FIREPortfolioReceipt) :
+    FIREPortfolioReceipt where
+  holderPosted := S.sum fun i => (R i).holderPosted
+  writerPosted := S.sum fun i => (R i).writerPosted
+  holderDelta := S.sum fun i => (R i).holderDelta
+  writerDelta := S.sum fun i => (R i).writerDelta
+  holder_solvent := by
+    rw [← Finset.sum_add_distrib]
+    exact Finset.sum_nonneg fun i _hi => (R i).holder_solvent
+  writer_solvent := by
+    rw [← Finset.sum_add_distrib]
+    exact Finset.sum_nonneg fun i _hi => (R i).writer_solvent
+  conservation := by
+    rw [← Finset.sum_add_distrib]
+    exact Finset.sum_eq_zero fun i _hi => (R i).conservation
+
+theorem FIREPortfolioReceipt.aggregate_operationalFields
+    [DecidableEq ι] (S : Finset ι) (R : ι → FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.aggregate S R).operationalFields =
+      (S.sum fun i => (R i).holderPosted,
+       S.sum fun i => (R i).writerPosted,
+       S.sum fun i => (R i).holderDelta,
+       S.sum fun i => (R i).writerDelta) := rfl
+
+/-- Aggregating no receipts yields the neutral receipt operationally. -/
+theorem FIREPortfolioReceipt.aggregate_empty_operational
+    [DecidableEq ι] (R : ι → FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.aggregate (∅ : Finset ι) R).operationalFields =
+      FIREPortfolioReceipt.zero.operationalFields := by
+  simp [FIREPortfolioReceipt.aggregate, FIREPortfolioReceipt.zero,
+    FIREPortfolioReceipt.operationalFields]
+
+/-- Inserting one fresh receipt is operationally the same as aggregating the
+tail and then combining the head receipt. -/
+theorem FIREPortfolioReceipt.aggregate_insert_operational
+    [DecidableEq ι] {S : Finset ι} {i : ι}
+    (hi : i ∉ S) (R : ι → FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.aggregate (insert i S) R).operationalFields =
+      ((R i).combine (FIREPortfolioReceipt.aggregate S R)).operationalFields := by
+  simp [FIREPortfolioReceipt.aggregate, FIREPortfolioReceipt.combine,
+    FIREPortfolioReceipt.operationalFields, hi]
+
+/-- Disjoint batch aggregation is operationally identical to aggregating each
+batch separately and then combining the batch receipts. -/
+theorem FIREPortfolioReceipt.aggregate_union_disjoint_operational
+    [DecidableEq ι] {S T : Finset ι}
+    (hdisjoint : Disjoint S T) (R : ι → FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.aggregate (S ∪ T) R).operationalFields =
+      ((FIREPortfolioReceipt.aggregate S R).combine
+        (FIREPortfolioReceipt.aggregate T R)).operationalFields := by
+  simp [FIREPortfolioReceipt.aggregate, FIREPortfolioReceipt.combine,
+    FIREPortfolioReceipt.operationalFields, Finset.sum_union hdisjoint]
+
+/-- Receipt aggregation is invariant under pure relabeling of the index set.
+This makes receipt evidence independent of arbitrary enumeration names. -/
+theorem FIREPortfolioReceipt.aggregate_equiv_operational
+    [DecidableEq ι] [DecidableEq κ]
+    (e : ι ≃ κ) (S : Finset ι) (R : κ → FIREPortfolioReceipt) :
+    (FIREPortfolioReceipt.aggregate (S.map e.toEmbedding) R).operationalFields =
+      (FIREPortfolioReceipt.aggregate S (fun i => R (e i))).operationalFields := by
+  simp [FIREPortfolioReceipt.aggregate, FIREPortfolioReceipt.operationalFields]
+
 /-- A compiled ZPL portfolio lifts to a generic certified payoff with the
 mode-expanded interval. -/
 theorem compiled_portfolio_to_certified_payoff
