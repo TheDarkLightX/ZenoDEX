@@ -21,24 +21,36 @@ from src.fire.kernel import fire_lp_loss_cover_v1_ref as ref
 IR_HASH = "sha256:bf1509a7c86dfd9cd2d353133de9abf879f2fdf2279c4bd3114636233e8e7be4"
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_phase(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError("phase must be a non-empty string")
+    return value
+
+
 def _state_from_mapping(state: Mapping[str, Any]) -> ref.State:
     return ref.State(
-        artifact_lower=int(state["artifact_lower"]),
-        artifact_upper=int(state["artifact_upper"]),
-        cap_amount=int(state["cap_amount"]),
-        deductible=int(state["deductible"]),
-        hodl_lower=int(state["hodl_lower"]),
-        hodl_upper=int(state["hodl_upper"]),
-        holder_delta=int(state["holder_delta"]),
-        holder_posted=int(state["holder_posted"]),
-        lpv_lower=int(state["lpv_lower"]),
-        lpv_upper=int(state["lpv_upper"]),
-        n_notional=int(state["n_notional"]),
-        phase=str(state["phase"]),
-        witness_hodl_final=int(state["witness_hodl_final"]),
-        witness_lpv_final=int(state["witness_lpv_final"]),
-        writer_delta=int(state["writer_delta"]),
-        writer_posted=int(state["writer_posted"]),
+        artifact_lower=_require_int("artifact_lower", state.get("artifact_lower")),
+        artifact_upper=_require_int("artifact_upper", state.get("artifact_upper")),
+        cap_amount=_require_int("cap_amount", state.get("cap_amount")),
+        deductible=_require_int("deductible", state.get("deductible")),
+        hodl_lower=_require_int("hodl_lower", state.get("hodl_lower")),
+        hodl_upper=_require_int("hodl_upper", state.get("hodl_upper")),
+        holder_delta=_require_int("holder_delta", state.get("holder_delta")),
+        holder_posted=_require_int("holder_posted", state.get("holder_posted")),
+        lpv_lower=_require_int("lpv_lower", state.get("lpv_lower")),
+        lpv_upper=_require_int("lpv_upper", state.get("lpv_upper")),
+        n_notional=_require_int("n_notional", state.get("n_notional")),
+        phase=_require_phase(state.get("phase")),
+        witness_hodl_final=_require_int("witness_hodl_final", state.get("witness_hodl_final")),
+        witness_lpv_final=_require_int("witness_lpv_final", state.get("witness_lpv_final")),
+        writer_delta=_require_int("writer_delta", state.get("writer_delta")),
+        writer_posted=_require_int("writer_posted", state.get("writer_posted")),
     )
 
 

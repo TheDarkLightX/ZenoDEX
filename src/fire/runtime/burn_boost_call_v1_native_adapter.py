@@ -21,20 +21,32 @@ from src.fire.kernel import fire_burn_boost_call_v1_ref as ref
 IR_HASH = "sha256:b26b68dbadb3313ef59399eeb2f7f180ea9775bffd3e797c27186a0d5daddc61"
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_phase(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError("phase must be a non-empty string")
+    return value
+
+
 def _state_from_mapping(state: Mapping[str, Any]) -> ref.State:
     return ref.State(
-        artifact_lower=int(state["artifact_lower"]),
-        artifact_upper=int(state["artifact_upper"]),
-        cap_index=int(state["cap_index"]),
-        holder_delta=int(state["holder_delta"]),
-        holder_posted=int(state["holder_posted"]),
-        n_notional=int(state["n_notional"]),
-        phase=str(state["phase"]),
-        source_upper=int(state["source_upper"]),
-        strike_index=int(state["strike_index"]),
-        witness_final=int(state["witness_final"]),
-        writer_delta=int(state["writer_delta"]),
-        writer_posted=int(state["writer_posted"]),
+        artifact_lower=_require_int("artifact_lower", state.get("artifact_lower")),
+        artifact_upper=_require_int("artifact_upper", state.get("artifact_upper")),
+        cap_index=_require_int("cap_index", state.get("cap_index")),
+        holder_delta=_require_int("holder_delta", state.get("holder_delta")),
+        holder_posted=_require_int("holder_posted", state.get("holder_posted")),
+        n_notional=_require_int("n_notional", state.get("n_notional")),
+        phase=_require_phase(state.get("phase")),
+        source_upper=_require_int("source_upper", state.get("source_upper")),
+        strike_index=_require_int("strike_index", state.get("strike_index")),
+        witness_final=_require_int("witness_final", state.get("witness_final")),
+        writer_delta=_require_int("writer_delta", state.get("writer_delta")),
+        writer_posted=_require_int("writer_posted", state.get("writer_posted")),
     )
 
 

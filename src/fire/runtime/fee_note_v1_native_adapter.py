@@ -21,19 +21,31 @@ from src.fire.kernel import fire_fee_note_v1_ref as ref
 IR_HASH = "sha256:1d2740320070d63cc487bbc9333d10ca0d6c43e102ac1940bc4daa517a0492ba"
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_phase(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError("phase must be a non-empty string")
+    return value
+
+
 def _state_from_mapping(state: Mapping[str, Any]) -> ref.State:
     return ref.State(
-        artifact_lower=int(state["artifact_lower"]),
-        artifact_upper=int(state["artifact_upper"]),
-        cap_index=int(state["cap_index"]),
-        holder_delta=int(state["holder_delta"]),
-        holder_posted=int(state["holder_posted"]),
-        n_notional=int(state["n_notional"]),
-        phase=str(state["phase"]),
-        source_upper=int(state["source_upper"]),
-        witness_final=int(state["witness_final"]),
-        writer_delta=int(state["writer_delta"]),
-        writer_posted=int(state["writer_posted"]),
+        artifact_lower=_require_int("artifact_lower", state.get("artifact_lower")),
+        artifact_upper=_require_int("artifact_upper", state.get("artifact_upper")),
+        cap_index=_require_int("cap_index", state.get("cap_index")),
+        holder_delta=_require_int("holder_delta", state.get("holder_delta")),
+        holder_posted=_require_int("holder_posted", state.get("holder_posted")),
+        n_notional=_require_int("n_notional", state.get("n_notional")),
+        phase=_require_phase(state.get("phase")),
+        source_upper=_require_int("source_upper", state.get("source_upper")),
+        witness_final=_require_int("witness_final", state.get("witness_final")),
+        writer_delta=_require_int("writer_delta", state.get("writer_delta")),
+        writer_posted=_require_int("writer_posted", state.get("writer_posted")),
     )
 
 
