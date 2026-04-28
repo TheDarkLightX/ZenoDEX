@@ -40,6 +40,10 @@ way future axes can be promoted from search inventory into replayable guarantees
 - `Proofs.ForbiddenTraceMinor`: if every bad trace embeds a forbidden motif and
   rejection or guard blocking lifts through that embedding, then the whole bad
   trace family is rejected.
+- `Proofs.NoFreeResourceTraceLedger`: if every accepted event carries a safe
+  resource delta and the safe cone is closed under trace composition, then an
+  accepted trace cannot create a protected resource outside that cone; Nat
+  budget lemmas also reject claims above total or prefix budget.
 - `Proofs.CertificateGluing`: locally accepted certificates that glue into one
   compatible global section exclude cross-surface disaster states.
 
@@ -51,6 +55,7 @@ Receipt:
 
 - `lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md`
 - `lean-mathlib/proof_receipts/forbidden_trace_minor_2026-04-28.md`
+- `lean-mathlib/proof_receipts/no_free_resource_trace_ledger_2026-04-28.md`
 
 ## Evidence Discipline
 
