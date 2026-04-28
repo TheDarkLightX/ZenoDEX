@@ -96,7 +96,7 @@ components:
         - path: lean-mathlib/proof_receipts/tokenomics_mechanism_safety_v1.json
           checker: lean
           result: proved
-          sha256: sha256:4d943281e5ef130741d8621d4d2bc11db2b0601d1c49aa85e9949ebfcf8b9eb4
+          sha256: sha256:e690663a3f97af91b1f91516d905d13f7d2b5ae74edac0ca2df0287dbc715c56
           scope: admitted finite tokenomics traces preserve nonnegative reward spend, nonnegative verified value gain, cumulative reward/rebate/bounty/buyback spend bounded by verified value gained plus initial treasury, and no positive payout on no-value/no-budget loops
     notes: this component proves the payoff-language theorem surface only; it does not make the Python compiler or verifier bug-free or settlement-authoritative
 

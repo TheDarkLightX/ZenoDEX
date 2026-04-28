@@ -25,7 +25,7 @@
     {
       "module": "Proofs.TokenomicsMechanismSafety",
       "path": "lean-mathlib/Proofs/TokenomicsMechanismSafety.lean",
-      "sha256": "sha256:abcb1246a4307bc24cc9b90455bd74bdd52a8a66755e363774b485c8ba322cce",
+      "sha256": "sha256:38d924bb2fb499a1cf2ca6dd1e35c06ce2c1e82243ad1c183b802e38ac7c4d3b",
       "theorems": [
         "StepRewardFunded",
         "StepVerifiedValueNondecreasing",
@@ -42,7 +42,9 @@
         "positive_reward_closed_loop_implies_not_stepwise_funded",
         "excess_reward_implies_not_stepwise_funded",
         "RewardControllerGuard",
-        "trace_safety"
+        "trace_safety",
+        "no_value_no_budget_loop_reward_eq_zero",
+        "no_positive_no_value_no_budget_loop_reward"
       ]
     }
   ],
