@@ -99,6 +99,31 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
         ),
     },
+    {
+        "binding_id": "fire_unified_settlement_v1",
+        "proof_system": "lean4",
+        "module": "Proofs.FIREUnified",
+        "checker": "lake env lean Proofs/FIREUnified.lean",
+        "theorems": (
+            "fire_portfolio_settlement",
+            "FIREPortfolioReceipt.combine",
+            "compiled_portfolio_to_certified_payoff",
+            "fire_single_leg_settlement",
+            "portfolio_interval_width_budget",
+        ),
+        "claim": (
+            "Successful FIRE/ZPL fixed-point portfolio settlement can be packaged "
+            "as a projectable receipt carrying bilateral solvency and exact "
+            "zero-sum conservation. Independent receipts compose by addition, "
+            "and the mode-expanded interval width is exactly the unexpanded "
+            "width plus one tick per leg."
+        ),
+        "source_files": (
+            "lean-mathlib/Proofs/FIREUnified.lean",
+            "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
+            "lean-mathlib/Proofs/FixedPointPortfolioBridge.lean",
+        ),
+    },
 )
 
 

@@ -87,6 +87,7 @@ def test_check_fire_compile_receipt_cli_roundtrip(tmp_path: Path) -> None:
         "fire_zpl_language_soundness_v1",
         "fire_cal_core_soundness_v1",
         "fire_zpl_fixed_point_bridge_v1",
+        "fire_unified_settlement_v1",
     ]
     assert bindings[0]["module"] == "Proofs.ZenoPayoffLanguage"
     assert "compile_correct" in bindings[0]["theorems"]
@@ -98,6 +99,10 @@ def test_check_fire_compile_receipt_cli_roundtrip(tmp_path: Path) -> None:
     assert "compile_sum_decodeByMode_posted_collateral_safe_and_conserves" in bindings[2]["theorems"]
     assert "int_two_party_delta_receipt_safe_and_conserves" in bindings[2]["theorems"]
     assert "compile_sum_decodeByMode_two_party_delta_conserves" in bindings[2]["theorems"]
+    assert bindings[3]["module"] == "Proofs.FIREUnified"
+    assert "fire_portfolio_settlement" in bindings[3]["theorems"]
+    assert "FIREPortfolioReceipt.combine" in bindings[3]["theorems"]
+    assert "portfolio_interval_width_budget" in bindings[3]["theorems"]
 
 
 def test_check_fire_compile_receipt_cli_rejects_tampered_receipt(tmp_path: Path) -> None:
