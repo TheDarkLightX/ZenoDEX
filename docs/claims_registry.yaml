@@ -573,7 +573,8 @@ claims:
       Successful FIRE/ZPL compilation composes with fixed-point runtime rounding:
       floor-decoded single-leg and portfolio settlements are safe under a one-tick
       lower-side buffer, ceil-decoded settlements are safe under a one-tick upper-side
-      buffer, and posted collateral against those expanded intervals prevents
+      buffer, mixed floor/ceil portfolios are safe under the corresponding per-leg
+      side buffers, and posted collateral against those expanded intervals prevents
       bilateral default.
     evidence:
       kind: lean
@@ -593,12 +594,15 @@ claims:
       theorems:
         - Proofs.FixedPointIntervalBridge.floorDecode_mem_expanded_interval
         - Proofs.FixedPointIntervalBridge.ceilDecode_mem_expanded_interval
+        - Proofs.FixedPointPortfolioBridge.decodeByMode_mem_expanded_interval
         - Proofs.FixedPointPortfolioBridge.sum_floorDecode_mem_card_expanded_interval
         - Proofs.FixedPointPortfolioBridge.sum_ceilDecode_mem_card_expanded_interval
+        - Proofs.FixedPointPortfolioBridge.sum_decodeByMode_mem_expanded_interval
         - Proofs.ZenoPayoffFixedPointBridge.compile_floorDecode_posted_collateral_safe
         - Proofs.ZenoPayoffFixedPointBridge.compile_ceilDecode_posted_collateral_safe
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_floorDecode_posted_collateral_safe
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_ceilDecode_posted_collateral_safe
+        - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_posted_collateral_safe
 
   - id: tla:autotrader_nonce_guard_shadow:sequential_nonce_only
     status: supported

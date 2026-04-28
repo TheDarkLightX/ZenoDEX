@@ -44,10 +44,12 @@
     {
       "module": "Proofs.FixedPointPortfolioBridge",
       "path": "lean-mathlib/Proofs/FixedPointPortfolioBridge.lean",
-      "sha256": "sha256:78929edcd9836582404183999265fda3f9b27a279e9be723d2dee8bc46f6d95b",
+      "sha256": "sha256:4d8504ac4df25bc032b3af1b9d17327859e1dc8c358267ab466d44488521ebd0",
       "theorems": [
+        "decodeByMode_mem_expanded_interval",
         "sum_floorDecode_mem_card_expanded_interval",
-        "sum_ceilDecode_mem_card_expanded_interval"
+        "sum_ceilDecode_mem_card_expanded_interval",
+        "sum_decodeByMode_mem_expanded_interval"
       ]
     },
     {
@@ -64,12 +66,14 @@
     {
       "module": "Proofs.ZenoPayoffPortfolioFixedPointBridge",
       "path": "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
-      "sha256": "sha256:a04c70e144e7c325e8029191577d12938912b0df9a46cc02cc72a6f3199a646b",
+      "sha256": "sha256:44c7fb00961c02be2c942ba78475fbe2ace218f24d3259841da4ac9a810821f4",
       "theorems": [
         "compile_sum_floorDecode_interval",
         "compile_sum_ceilDecode_interval",
         "compile_sum_floorDecode_posted_collateral_safe",
-        "compile_sum_ceilDecode_posted_collateral_safe"
+        "compile_sum_ceilDecode_posted_collateral_safe",
+        "compile_sum_decodeByMode_interval",
+        "compile_sum_decodeByMode_posted_collateral_safe"
       ]
     }
   ],
@@ -79,6 +83,6 @@
       "sha256": "sha256:a62f9c3039f9a8ace10aba6bdf85be99f424b67b97c66b0b090ebf3307b3d38d"
     }
   ],
-  "claim": "Successful FIRE/ZPL compilation composes with fixed-point runtime rounding: floor-decoded single-leg and portfolio settlements are safe under a one-tick lower-side buffer, ceil-decoded settlements are safe under a one-tick upper-side buffer, and posted collateral against those expanded intervals prevents bilateral default.",
+  "claim": "Successful FIRE/ZPL compilation composes with fixed-point runtime rounding: floor-decoded single-leg and portfolio settlements are safe under a one-tick lower-side buffer, ceil-decoded settlements are safe under a one-tick upper-side buffer, mixed floor/ceil portfolios are safe under the corresponding per-leg side buffers, and posted collateral against those expanded intervals prevents bilateral default.",
   "result": "proved"
 }

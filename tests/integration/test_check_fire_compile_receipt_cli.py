@@ -94,6 +94,7 @@ def test_check_fire_compile_receipt_cli_roundtrip(tmp_path: Path) -> None:
     assert "fireV_accept_soundness" in bindings[1]["theorems"]
     assert bindings[2]["module"] == "Proofs.ZenoPayoffPortfolioFixedPointBridge"
     assert "compile_sum_floorDecode_posted_collateral_safe" in bindings[2]["theorems"]
+    assert "compile_sum_decodeByMode_posted_collateral_safe" in bindings[2]["theorems"]
 
 
 def test_check_fire_compile_receipt_cli_rejects_tampered_receipt(tmp_path: Path) -> None:
