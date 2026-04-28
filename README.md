@@ -148,6 +148,12 @@ their checks are promoted into replayable proof/certificate lanes.
 This is a bounded replay claim, not an exhaustive proof over all possible future
 states. The detailed axis list, replay commands, interpretation, and residual
 backlog are in [docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
+The Lean proof receipt
+[disaster_trace_lifting_v1.json](lean-mathlib/proof_receipts/disaster_trace_lifting_v1.json)
+records the reusable theorem shape for turning a harness/barrier/simulation
+certificate into a named unreachability claim. That proof strengthens how
+promoted axes can be justified; it does not by itself raise the replayed
+29-family count.
 
 The closed receipt is CI-ratcheted by
 `.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails

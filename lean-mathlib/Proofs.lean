@@ -111,6 +111,7 @@ import Proofs.RoundingErrorBound
 import Proofs.SettlementNetting
 import Proofs.FiniteTraceBarriers
 import Proofs.AbstractInterpretationDisasterSafety
+import Proofs.DisasterTraceDiscoveryChallenge
 import Proofs.FixedPointIntervalBridge
 import Proofs.FixedPointPortfolioBridge
 import Proofs.TokenomicsTraceSafety

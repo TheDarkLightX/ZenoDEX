@@ -1,0 +1,71 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "disaster_trace_lifting_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/DisasterTraceDiscoveryChallenge.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs.DisasterTraceDiscoveryChallenge"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs.lean"
+    },
+    {
+      "cwd": ".",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' lean-mathlib/Proofs/DisasterTraceDiscoveryChallenge.lean\""
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.DisasterTraceDiscoveryChallenge",
+      "path": "lean-mathlib/Proofs/DisasterTraceDiscoveryChallenge.lean",
+      "sha256": "sha256:e21eca162a4bb23a2bbf7b88cff9bd44077940e7fddc98764e461f7d1e3c0271",
+      "theorems": [
+        "AxisExcluded",
+        "HarnessSound",
+        "concrete_disaster_of_harness_trace",
+        "no_disaster_of_harness_barrier_trace",
+        "no_disaster_of_trace_forward_simulation",
+        "no_pair_disaster_of_async_barriers",
+        "disaster_trace_refutes_barrier_certificate",
+        "harnessSound_trans",
+        "harness_barrier_of_concrete",
+        "DisasterUnreachCert",
+        "DisasterUnreachCert.no_disaster_reachable",
+        "DisasterUnreachCert.no_disaster_traceN",
+        "DisasterUnreachCert.of_concrete",
+        "no_pair_disaster_of_sync_barriers",
+        "no_pair_disaster_of_async_barriers_traceN",
+        "no_any_disaster_of_all_excluded",
+        "no_any_disaster_of_barrier_reachable",
+        "disaster_reachable_refutes_barrier_certificate",
+        "disaster_trace_refutes_cert",
+        "axisExcluded_of_stronger_safe",
+        "axisExcluded_of_weaker_disaster",
+        "harness_only_no_disaster",
+        "concrete_no_disaster_of_barrier",
+        "no_disaster_of_simulation_barrier"
+      ]
+    }
+  ],
+  "proof_search_source": {
+    "tool": "Aristotle",
+    "project_id": "6855b4a5-264b-4028-9748-6aba0bf04d50",
+    "local_acceptance": "integrated as a separate disaster trace lifting module after local Lean build and placeholder scan"
+  },
+  "boundaries": [
+    "Harness-only guarantees apply only to traces admitted by the harness.",
+    "Full concrete unreachability requires a concrete barrier or a forward simulation into an abstract barrier.",
+    "The certificate object packages proof obligations; it does not discover barriers or prove runtime harness completeness by itself.",
+    "Product-axis theorems exclude the disjunction of named component disasters under the stated sync or async product semantics."
+  ],
+  "claim": "Bounded disaster witness certificates can be lifted into reusable unreachability claims when their harness, barrier, axis-exclusion, product-composition, or forward-simulation obligations are supplied. A witnessed disaster trace refutes the corresponding barrier certificate, and a concrete barrier or simulation barrier excludes named disasters over all reachable concrete states covered by the stated system model.",
+  "result": "proved",
+  "created_utc": "2026-04-28T17:25:00Z"
+}
