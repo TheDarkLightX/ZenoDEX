@@ -57,10 +57,12 @@ components:
       - lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean
       - lean-mathlib/Proofs/FIREUnified.lean
       - lean-mathlib/Proofs/FIREBudgetSafety.lean
+      - lean-mathlib/Proofs/TokenomicsMechanismSafety.lean
       - lean-mathlib/proof_receipts/zeno_payoff_language_v1.json
       - lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
       - lean-mathlib/proof_receipts/fire_unified_settlement_v1.json
       - lean-mathlib/proof_receipts/fire_budget_safety_v1.json
+      - lean-mathlib/proof_receipts/tokenomics_mechanism_safety_v1.json
       - tests/formal/test_lean_cal_core_soundness.py
       - tests/formal/test_lean_zeno_payoff_language.py
       - tests/formal/test_lean_fixed_point_bridges.py
@@ -91,6 +93,11 @@ components:
           result: proved
           sha256: sha256:13067a4cb8f0e043f15d931236b8e3e6fb5ea724d3268e8510d2fd37950c1065
           scope: FIRE reward, rebate, buyback, bounty, and budget controller spend cannot exceed verified value plus explicit budget, and finite batching/relabeling preserves the budget certificate
+        - path: lean-mathlib/proof_receipts/tokenomics_mechanism_safety_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:18d92f3146d0ceb403dd0e947449e90308aa42f544bb5d26ba08a31549c17acb
+          scope: admitted finite tokenomics traces preserve nonnegative reward spend, nonnegative verified value gain, and cumulative reward/rebate/bounty/buyback spend bounded by verified value gained plus initial treasury
     notes: this component proves the payoff-language theorem surface only; it does not make the Python compiler or verifier bug-free or settlement-authoritative
 
   - id: fire_verifier_v1

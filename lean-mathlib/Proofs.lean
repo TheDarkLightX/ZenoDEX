@@ -114,6 +114,7 @@ import Proofs.AbstractInterpretationDisasterSafety
 import Proofs.FixedPointIntervalBridge
 import Proofs.FixedPointPortfolioBridge
 import Proofs.TokenomicsTraceSafety
+import Proofs.TokenomicsMechanismSafety
 import Proofs.ZenoPayoffFixedPointBridge
 import Proofs.ZenoPayoffPortfolioFixedPointBridge
 import Proofs.FIREUnified
