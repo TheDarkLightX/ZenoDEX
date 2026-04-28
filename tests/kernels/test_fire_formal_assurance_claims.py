@@ -170,6 +170,61 @@ def test_fire_formal_assurance_claims_rejects_stale_proof_receipt_module_hash(tm
     assert verification is None
 
 
+def test_fire_formal_assurance_claims_rejects_lean_trust_escape_even_with_current_hash(tmp_path: Path) -> None:
+    payload = _load_manifest()
+    _materialize_declared_paths(tmp_path, payload)
+
+    module_path = tmp_path / "lean-mathlib/Proofs/TrustEscapeProbe.lean"
+    module_path.parent.mkdir(parents=True, exist_ok=True)
+    module_text = """
+/- This comment may mention sorry, axiom, admit, or unsafe without authorizing it. -/
+axiom trustEscapeProbe : Nat
+"""
+    module_path.write_text(module_text, encoding="utf-8")
+
+    receipt_payload = {
+        "schema": "zenodex/lean-proof-receipt/v1",
+        "receipt_id": "trust_escape_probe_v1",
+        "checker": "lean",
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "commands": [],
+        "modules": [
+            {
+                "module": "Proofs.TrustEscapeProbe",
+                "path": "lean-mathlib/Proofs/TrustEscapeProbe.lean",
+                "sha256": _sha256_text(module_text),
+                "theorems": ["trustEscapeProbe"],
+            }
+        ],
+        "claim": "negative test receipt with an in-source Lean trust escape",
+        "result": "proved",
+    }
+    receipt_path = tmp_path / "proof_receipts/trust_escape_probe_v1.json"
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_text = json.dumps(receipt_payload, sort_keys=True, separators=(",", ":"))
+    receipt_path.write_text(receipt_text, encoding="utf-8")
+
+    formal = _component(payload, "fire_zpl_language_lean_v1")["formal_verification"]
+    formal["proof_receipts"] = [
+        {
+            "path": "proof_receipts/trust_escape_probe_v1.json",
+            "checker": "lean",
+            "result": "proved",
+            "sha256": _sha256_text(receipt_text),
+            "scope": "negative Lean trust escape test",
+        }
+    ]
+    manifest_path = _write_manifest(tmp_path, payload)
+
+    ok, err, verification = verify_fire_formal_assurance_claims_file(manifest_path, repo_root=tmp_path)
+
+    assert ok is False
+    assert err is not None
+    assert "proof receipt module contains Lean trust escape" in err
+    assert "'axiom'" in err
+    assert verification is None
+
+
 def test_fire_formal_assurance_claims_rejects_non_authoritative_settlement_authority(tmp_path: Path) -> None:
     payload = _load_manifest()
     _component(payload, "fire_compiler_v1")["can_authorize_settlement"] = True
