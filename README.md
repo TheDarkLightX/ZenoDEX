@@ -155,6 +155,24 @@ certificate into a named unreachability claim. That proof strengthens how
 promoted axes can be justified; it does not by itself raise the replayed
 29-family count.
 
+The proof layer has also been extended with three reusable theorem schemas:
+
+- [AMMIntegerRuntimeBridge.lean](lean-mathlib/Proofs/AMMIntegerRuntimeBridge.lean)
+  connects ideal CPMM quote facts to integer-runtime receipts, including
+  no-overdelivery and bounded rounding envelopes.
+- [DisasterAntichainBasis.lean](lean-mathlib/Proofs/DisasterAntichainBasis.lean)
+  captures the pattern where a small rejected basis of forbidden traces rules
+  out a larger bad trace family.
+- [CertificateGluing.lean](lean-mathlib/Proofs/CertificateGluing.lean)
+  captures cross-surface consistency: if local certificates glue into one
+  compatible global section, accepted bundles cannot also witness the named
+  global bad state.
+
+Those theorems make future disaster-state promotion cheaper and more rigorous,
+but they remain schemas until instantiated against concrete quote, settlement,
+oracle, signer, reward, and routing objects. The receipt is
+[aristotle_runtime_disaster_gluing_2026-04-28.md](lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md).
+
 The closed receipt is CI-ratcheted by
 `.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails
 if any pinned closed axis becomes failed, skipped, inconclusive, or missing from

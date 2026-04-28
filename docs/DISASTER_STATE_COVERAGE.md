@@ -27,6 +27,27 @@ stay in backlog until their replay commands are refreshed, their skipped lanes
 are split out, or their checks are promoted into Lean, ESSO, Tau, TLA, or
 another replayable certificate lane.
 
+## Proof Layer Added For Future Promotion
+
+The current branch adds three reusable Lean theorem schemas that strengthen the
+way future axes can be promoted from search inventory into replayable guarantees:
+
+- `Proofs.AMMIntegerRuntimeBridge`: integer-runtime CPMM receipts imply
+  no-overdelivery, nondecreasing fee-adjusted `k`, and route rounding envelopes.
+- `Proofs.DisasterAntichainBasis`: if every minimal forbidden trace in a basis
+  is rejected, and every bad trace contains one of those basis traces, then the
+  whole bad family is rejected.
+- `Proofs.CertificateGluing`: locally accepted certificates that glue into one
+  compatible global section exclude cross-surface disaster states.
+
+These proofs do not change the closed count from `29` to `125`. They provide
+the reusable math needed to turn more axes into concrete claims once each axis
+has a matching instantiation and replay receipt.
+
+Receipt:
+
+- `lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md`
+
 ## Evidence Discipline
 
 The disaster-state lane follows the repository's public correct-by-construction
