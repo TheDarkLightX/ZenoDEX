@@ -63,6 +63,10 @@ def fire_settlement_delta_hash(*, holder_delta: int, writer_delta: int) -> str:
     return _sha256_bytes(_canonical_json_bytes(payload))
 
 
+def fire_settlement_deltas_conserve(*, holder_delta: int, writer_delta: int) -> bool:
+    return _require_int("holder_delta", holder_delta) + _require_int("writer_delta", writer_delta) == 0
+
+
 def fire_witness_binding_hash(witness_inputs: Mapping[str, object]) -> str:
     if not isinstance(witness_inputs, Mapping):
         raise TypeError("witness_inputs must be a mapping")
@@ -243,6 +247,11 @@ def verify_fire_verifier_receipt(
     )
     if receipt.delta_hash != expected_delta_hash:
         return False, "delta_hash_mismatch"
+    if not fire_settlement_deltas_conserve(
+        holder_delta=receipt.holder_delta,
+        writer_delta=receipt.writer_delta,
+    ):
+        return False, "delta_nonzero_sum"
     expected_receipt_hash = _sha256_bytes(_canonical_json_bytes(receipt.payload_without_hash()))
     if receipt.receipt_hash != expected_receipt_hash:
         return False, "receipt_hash_mismatch"
@@ -370,7 +379,10 @@ def verify_fire_settlement_packet(
         return False, "firev_accept_false"
     if packet.payoff_out != packet.holder_delta:
         return False, "payoff_out_mismatch"
-    if packet.writer_delta != -packet.holder_delta:
+    if not fire_settlement_deltas_conserve(
+        holder_delta=packet.holder_delta,
+        writer_delta=packet.writer_delta,
+    ):
         return False, "delta_nonzero_sum"
     ok, err = verify_fire_verifier_receipt(
         packet.receipt,
@@ -487,6 +499,7 @@ __all__ = [
     "FireVerifierReceipt",
     "extract_verified_fire_settlement_authority_packet",
     "extract_verified_fire_settlement_packet",
+    "fire_settlement_deltas_conserve",
     "fire_settlement_delta_hash",
     "fire_witness_binding_hash",
     "verify_fire_settlement_authority_packet",
