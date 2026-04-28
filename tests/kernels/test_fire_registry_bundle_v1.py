@@ -4,6 +4,8 @@ import hashlib
 import json
 from dataclasses import replace
 
+import pytest
+
 from src.fire.registry.bundle_v1 import (
     FireBundleContractReceipt,
     fire_registry_bundle_file_sha256,
@@ -152,6 +154,28 @@ def test_fire_registry_bundle_detects_contract_receipt_tamper(tmp_path) -> None:
 
     assert ok is False
     assert err == "bundle_contract_receipts_mismatch"
+
+
+def test_fire_bundle_contract_receipt_rejects_non_string_role() -> None:
+    with pytest.raises(TypeError, match=r"contract receipt roles\[0\] must be a string"):
+        FireBundleContractReceipt.from_dict(
+            {
+                "name": "oracle_contract",
+                "roles": [1],
+                "use_sites": ["import:oracle"],
+            }
+        )
+
+
+def test_fire_bundle_contract_receipt_rejects_non_string_use_site() -> None:
+    with pytest.raises(TypeError, match=r"contract receipt use_sites\[0\] must be a string"):
+        FireBundleContractReceipt.from_dict(
+            {
+                "name": "oracle_contract",
+                "roles": ["import:oracle.price"],
+                "use_sites": [False],
+            }
+        )
 
 
 def test_fire_registry_bundle_detects_instance_gate_drift(tmp_path) -> None:
