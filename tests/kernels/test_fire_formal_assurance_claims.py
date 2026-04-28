@@ -44,6 +44,9 @@ def _sha256_text(text: str) -> str:
 
 
 def _materialize_declared_paths(root: Path, payload: dict[str, Any]) -> None:
+    toolchain_path = root / "lean-mathlib/lean-toolchain"
+    toolchain_path.parent.mkdir(parents=True, exist_ok=True)
+    toolchain_path.write_text("leanprover/lean4:v4.27.0\n", encoding="utf-8")
     for component in payload["components"]:
         for rel in component["paths"]:
             path = root / rel
@@ -133,7 +136,7 @@ def test_fire_formal_assurance_claims_rejects_stale_proof_receipt_module_hash(tm
         "receipt_id": "stale_receipt_probe_v1",
         "checker": "lean",
         "lean_toolchain": "leanprover/lean4:v4.27.0",
-        "commands": [],
+        "commands": [{"cwd": "lean-mathlib", "cmd": "lake env lean Proofs/StaleReceiptProbe.lean"}],
         "modules": [
             {
                 "module": "Proofs.StaleReceiptProbe",
@@ -170,6 +173,57 @@ def test_fire_formal_assurance_claims_rejects_stale_proof_receipt_module_hash(tm
     assert verification is None
 
 
+def test_fire_formal_assurance_claims_rejects_receipt_without_named_theorems(tmp_path: Path) -> None:
+    payload = _load_manifest()
+    _materialize_declared_paths(tmp_path, payload)
+
+    module_path = tmp_path / "lean-mathlib/Proofs/NoTheoremProbe.lean"
+    module_path.parent.mkdir(parents=True, exist_ok=True)
+    module_text = "def noTheoremProbe : Nat := 1\n"
+    module_path.write_text(module_text, encoding="utf-8")
+
+    receipt_payload = {
+        "schema": "zenodex/lean-proof-receipt/v1",
+        "receipt_id": "no_theorem_probe_v1",
+        "checker": "lean",
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "commands": [{"cwd": "lean-mathlib", "cmd": "lake env lean Proofs/NoTheoremProbe.lean"}],
+        "modules": [
+            {
+                "module": "Proofs.NoTheoremProbe",
+                "path": "lean-mathlib/Proofs/NoTheoremProbe.lean",
+                "sha256": _sha256_text(module_text),
+                "theorems": [],
+            }
+        ],
+        "claim": "negative test receipt without named theorem surface",
+        "result": "proved",
+    }
+    receipt_path = tmp_path / "proof_receipts/no_theorem_probe_v1.json"
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_text = json.dumps(receipt_payload, sort_keys=True, separators=(",", ":"))
+    receipt_path.write_text(receipt_text, encoding="utf-8")
+
+    formal = _component(payload, "fire_zpl_language_lean_v1")["formal_verification"]
+    formal["proof_receipts"] = [
+        {
+            "path": "proof_receipts/no_theorem_probe_v1.json",
+            "checker": "lean",
+            "result": "proved",
+            "sha256": _sha256_text(receipt_text),
+            "scope": "negative missing theorem list test",
+        }
+    ]
+    manifest_path = _write_manifest(tmp_path, payload)
+
+    ok, err, verification = verify_fire_formal_assurance_claims_file(manifest_path, repo_root=tmp_path)
+
+    assert ok is False
+    assert err is not None
+    assert "theorems must be non-empty" in err
+    assert verification is None
+
+
 def test_fire_formal_assurance_claims_rejects_lean_trust_escape_even_with_current_hash(tmp_path: Path) -> None:
     payload = _load_manifest()
     _materialize_declared_paths(tmp_path, payload)
@@ -187,7 +241,7 @@ axiom trustEscapeProbe : Nat
         "receipt_id": "trust_escape_probe_v1",
         "checker": "lean",
         "lean_toolchain": "leanprover/lean4:v4.27.0",
-        "commands": [],
+        "commands": [{"cwd": "lean-mathlib", "cmd": "lake env lean Proofs/TrustEscapeProbe.lean"}],
         "modules": [
             {
                 "module": "Proofs.TrustEscapeProbe",
