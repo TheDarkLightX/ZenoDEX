@@ -170,6 +170,9 @@ The proof layer has also been extended with three reusable theorem schemas:
   captures the pattern where accepted traces cannot create protected resources
   outside the safe ledger cone, and budget claims cannot exceed total or prefix
   spend bounds.
+- [ZenoDEXDisasterSchemaInstantiations.lean](lean-mathlib/Proofs/ZenoDEXDisasterSchemaInstantiations.lean)
+  binds those schemas to small ZenoDEX-shaped budget and forbidden-motif
+  adapters for future replay receipts.
 - [CertificateGluing.lean](lean-mathlib/Proofs/CertificateGluing.lean)
   captures cross-surface consistency: if local certificates glue into one
   compatible global section, accepted bundles cannot also witness the named
@@ -183,6 +186,8 @@ The forbidden-minor receipt is
 [forbidden_trace_minor_2026-04-28.md](lean-mathlib/proof_receipts/forbidden_trace_minor_2026-04-28.md).
 The no-free-resource receipt is
 [no_free_resource_trace_ledger_2026-04-28.md](lean-mathlib/proof_receipts/no_free_resource_trace_ledger_2026-04-28.md).
+The adapter receipt is
+[zenodex_disaster_schema_instantiations_2026-04-28.md](lean-mathlib/proof_receipts/zenodex_disaster_schema_instantiations_2026-04-28.md).
 
 The closed receipt is CI-ratcheted by
 `.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails
