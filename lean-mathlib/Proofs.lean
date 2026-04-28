@@ -110,6 +110,7 @@ import Proofs.CPMMOutputMonotonicity
 import Proofs.RoundingErrorBound
 import Proofs.SettlementNetting
 import Proofs.FiniteTraceBarriers
+import Proofs.AbstractInterpretationDisasterSafety
 import Proofs.TokenomicsTraceSafety
 import Proofs.ZenoDEXSettlementGateBlockers
 import Proofs.ZUSDCeilDivAlgebra
