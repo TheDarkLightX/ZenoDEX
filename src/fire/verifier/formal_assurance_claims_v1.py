@@ -77,6 +77,12 @@ def _as_sequence(value: object, *, ctx: str) -> Sequence[object]:
     return value
 
 
+def _as_bool(value: object, *, ctx: str) -> bool:
+    if not isinstance(value, bool):
+        raise FireFormalAssuranceClaimsError(f"{ctx}: expected bool")
+    return bool(value)
+
+
 def _load_yaml(path: Path) -> Mapping[str, object]:
     try:
         payload = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -143,7 +149,7 @@ def _check_formal_verification(
 ) -> bool:
     component_id = str(component["id"])
     formal = _as_mapping(component.get("formal_verification"), ctx=f"{component_id}.formal_verification")
-    claimed = bool(formal.get("claimed", False))
+    claimed = _as_bool(formal.get("claimed"), ctx=f"{component_id}.formal_verification.claimed")
     status = formal.get("status")
     proof_receipts = _as_sequence(formal.get("proof_receipts"), ctx=f"{component_id}.proof_receipts")
 
@@ -180,8 +186,8 @@ def _check_component(
     component_id = str(component["id"])
     surface = component.get("surface")
     _expect(isinstance(surface, str) and bool(surface), f"{component_id}: missing surface")
-    can_authorize = bool(component.get("can_authorize_settlement", False))
-    claims_bug_free = bool(component.get("claims_bug_free", False))
+    can_authorize = _as_bool(component.get("can_authorize_settlement"), ctx=f"{component_id}.can_authorize_settlement")
+    claims_bug_free = _as_bool(component.get("claims_bug_free"), ctx=f"{component_id}.claims_bug_free")
     _expect(not claims_bug_free, f"{component_id}: bug-free claims are forbidden")
     _component_paths_exist(component, repo_root=repo_root)
 
