@@ -75,8 +75,8 @@ components:
         - path: lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
           checker: lean
           result: proved
-          sha256: sha256:c150f6960ec011a7432561c0e0649269f8c65f8540bd5d6f77ab66fba16fc970
-          scope: FIRE/ZPL fixed-point single-leg and portfolio rounding bridge from compiler certificates to collateral-safe runtime settlement buffers
+          sha256: sha256:7f3c15133457742a66c368cd1b8437b685e45da37bd5bd744777daeed42f58fa
+          scope: FIRE/ZPL fixed-point single-leg, uniform portfolio, and mixed-rounding portfolio bridge from compiler certificates to collateral-safe runtime settlement buffers
     notes: this component proves the payoff-language theorem surface only; it does not make the Python compiler or verifier bug-free or settlement-authoritative
 
   - id: fire_verifier_v1

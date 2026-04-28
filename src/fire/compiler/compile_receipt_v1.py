@@ -73,13 +73,15 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "compile_ceilDecode_posted_collateral_safe",
             "compile_sum_floorDecode_posted_collateral_safe",
             "compile_sum_ceilDecode_posted_collateral_safe",
+            "compile_sum_decodeByMode_posted_collateral_safe",
         ),
         "claim": (
             "Successful FIRE/ZPL compilation composes with fixed-point runtime "
             "rounding: floor-decoded settlements are safe under a one-tick "
             "lower-side buffer, ceil-decoded settlements are safe under a "
-            "one-tick upper-side buffer, and posted collateral against those "
-            "expanded intervals prevents bilateral default."
+            "one-tick upper-side buffer, mixed floor/ceil portfolios are safe "
+            "under the corresponding per-leg side buffers, and posted collateral "
+            "against those expanded intervals prevents bilateral default."
         ),
         "source_files": (
             "lean-mathlib/Proofs/FixedPointIntervalBridge.lean",

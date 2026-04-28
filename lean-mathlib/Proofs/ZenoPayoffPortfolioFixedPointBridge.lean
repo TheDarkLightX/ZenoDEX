@@ -143,6 +143,69 @@ theorem compile_sum_ceilDecode_posted_collateral_safe
   rcases compile_sum_ceilDecode_no_default S hscale hcompile with ⟨hh, hw⟩
   constructor <;> linarith
 
+/-- A finite bundle of successfully compiled ZPL legs, decoded with per-leg
+rounding modes, stays inside the aggregate mode-expanded interval. -/
+theorem compile_sum_decodeByMode_interval
+    [DecidableEq ι] (S : Finset ι)
+    {a : Asset} {scale : ℝ}
+    {mode : ι → RoundingMode}
+    {expr : ι → Expr Asset (ValueType.amount a)}
+    {cert : ι → CompiledExpr (Asset := Asset) (ValueType.amount a)}
+    (hscale : 0 < scale)
+    (hcompile : ∀ i, i ∈ S → compile (expr i) = some (cert i)) :
+    S.sum (fun i => (cert i).lower - (mode i).lowerBuffer scale) ≤
+        S.sum (fun i => decodeByMode scale (mode i) (Expr.eval (expr i))) ∧
+      S.sum (fun i => decodeByMode scale (mode i) (Expr.eval (expr i))) ≤
+        S.sum (fun i => (cert i).upper + (mode i).upperBuffer scale) := by
+  apply sum_decodeByMode_mem_expanded_interval
+  · exact hscale
+  · intro i hi
+    rcases compile_correct (expr i) (cert i) (hcompile i hi) with ⟨_hv, hl, hu⟩
+    exact ⟨hl, hu⟩
+
+/-- Aggregate mixed-rounded runtime settlement cannot default if collateral is
+posted against the aggregate mode-expanded interval. -/
+theorem compile_sum_decodeByMode_no_default
+    [DecidableEq ι] (S : Finset ι)
+    {a : Asset} {scale : ℝ}
+    {mode : ι → RoundingMode}
+    {expr : ι → Expr Asset (ValueType.amount a)}
+    {cert : ι → CompiledExpr (Asset := Asset) (ValueType.amount a)}
+    (hscale : 0 < scale)
+    (hcompile : ∀ i, i ∈ S → compile (expr i) = some (cert i)) :
+    0 ≤ holderCollateral
+          (S.sum (fun i => (cert i).lower - (mode i).lowerBuffer scale)) +
+        S.sum (fun i => decodeByMode scale (mode i) (Expr.eval (expr i))) ∧
+      0 ≤ writerCollateral
+          (S.sum (fun i => (cert i).upper + (mode i).upperBuffer scale)) -
+        S.sum (fun i => decodeByMode scale (mode i) (Expr.eval (expr i))) := by
+  exact bilateral_no_default_of_bounds
+    (compile_sum_decodeByMode_interval S hscale hcompile)
+
+/-- Posted-collateral version of the mixed-rounding settlement rule. -/
+theorem compile_sum_decodeByMode_posted_collateral_safe
+    [DecidableEq ι] (S : Finset ι)
+    {a : Asset} {scale holderPosted writerPosted : ℝ}
+    {mode : ι → RoundingMode}
+    {expr : ι → Expr Asset (ValueType.amount a)}
+    {cert : ι → CompiledExpr (Asset := Asset) (ValueType.amount a)}
+    (hscale : 0 < scale)
+    (hcompile : ∀ i, i ∈ S → compile (expr i) = some (cert i))
+    (hHolder :
+      holderCollateral
+          (S.sum (fun i => (cert i).lower - (mode i).lowerBuffer scale)) ≤
+        holderPosted)
+    (hWriter :
+      writerCollateral
+          (S.sum (fun i => (cert i).upper + (mode i).upperBuffer scale)) ≤
+        writerPosted) :
+    0 ≤ holderPosted +
+        S.sum (fun i => decodeByMode scale (mode i) (Expr.eval (expr i))) ∧
+      0 ≤ writerPosted -
+        S.sum (fun i => decodeByMode scale (mode i) (Expr.eval (expr i))) := by
+  rcases compile_sum_decodeByMode_no_default S hscale hcompile with ⟨hh, hw⟩
+  constructor <;> linarith
+
 end
 
 end ZenoPayoffPortfolioFixedPointBridge
