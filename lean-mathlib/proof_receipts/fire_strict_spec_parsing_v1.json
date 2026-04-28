@@ -1,0 +1,73 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "fire_strict_spec_parsing_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/FIREStrictSpecParsing.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs.FIREStrictSpecParsing"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' Proofs/FIREStrictSpecParsing.lean\""
+    },
+    {
+      "cwd": ".",
+      "cmd": "pytest -q tests/kernels/test_fire_fmos_file_v1.py"
+    },
+    {
+      "cwd": ".",
+      "cmd": "pytest -q tests/kernels/test_fire_*.py"
+    },
+    {
+      "cwd": ".",
+      "cmd": "python3 tools/check_fire_snapshot_packages.py --snapshot-dir docs/fire_registry/devnet_v1 --require-replay-input --require-compile-receipt --require-kernel-receipt --require-kernel-eval-receipt --require-kernel-replay-receipt --require-kernel-settlement-receipt --require-proof-tree-cert --pretty"
+    },
+    {
+      "cwd": ".",
+      "cmd": "python3 tools/check_fire_release_assurance.py && python3 tools/check_claims_registry.py && git diff --check"
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.FIREStrictSpecParsing",
+      "path": "lean-mathlib/Proofs/FIREStrictSpecParsing.lean",
+      "sha256": "sha256:fe0994a5c13005243529700b09baa3db9aff7e34e58d1a174b92a71248c0c345",
+      "theorems": [
+        "strictNonemptyText_some_implies_raw_text",
+        "text_field_accept_implies_raw_text",
+        "int_field_not_accepted",
+        "bool_field_not_accepted",
+        "missing_field_not_accepted",
+        "empty_text_field_not_accepted",
+        "fmos_header_accept_implies_text_fields",
+        "int_schema_header_not_accepted"
+      ]
+    }
+  ],
+  "implementation_bindings": [
+    {
+      "path": "src/fire/compiler/fmos_file_v1.py",
+      "sha256": "sha256:efdb86e7382a15eb179052a66dac8e59ce4f67a6646e63590a491245130fdbb9",
+      "binding": "FMOS spec loading rejects non-string or empty canonical text fields instead of coercing them with str(...)"
+    }
+  ],
+  "tests": [
+    {
+      "path": "tests/kernels/test_fire_fmos_file_v1.py",
+      "sha256": "sha256:50b0ee04a3f3ed71fbe44971ae985806a5197419366151668f940bde65487cf3"
+    }
+  ],
+  "claim": "The FIRE math-object spec parser is modeled as strict non-empty text decoding: accepted textual metadata must originate from actual non-empty raw text fields, and numeric, boolean, missing, or empty values cannot satisfy the text-field boundary. The FMOS loader is bound to this rule by strict parser checks and negative regressions.",
+  "result": "proved",
+  "created_utc": "2026-04-28T14:29:17Z"
+}

@@ -9,6 +9,9 @@ import pytest
 from src.fire.pathing_v1 import fire_stdlib_objects_dir
 from src.fire.compiler.fmos_file_v1 import (
     FIRE_FMOS_FILE_SCHEMA,
+    FireExprFile,
+    FireMathObjectSpecFile,
+    FireValueRef,
     build_certificate_env_from_spec_file,
     build_expression_from_spec_file,
     build_output_intervals_from_spec_file,
@@ -25,6 +28,16 @@ from src.fire.runtime.burn_boost_call_v1 import BurnBoostCallTerms, SPEC as BURN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPEC_DIR = fire_stdlib_objects_dir()
+
+
+def _burn_spec_payload() -> dict[str, object]:
+    return json.loads((SPEC_DIR / "burn_boost_call_v1.json").read_text(encoding="utf-8"))
+
+
+def _write_spec_payload(tmp_path: Path, payload: dict[str, object], name: str = "bad_spec.json") -> Path:
+    path = tmp_path / name
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
 
 
 def test_load_fire_math_object_spec_file_reads_burn_spec() -> None:
@@ -186,14 +199,12 @@ def test_compile_fmos_artifact_rejects_unit_invalid_spec_for_typed_terms() -> No
 
 
 def test_load_fire_math_object_spec_file_rejects_inverted_term_bounds(tmp_path: Path) -> None:
-    bad_spec = json.loads((SPEC_DIR / "burn_boost_call_v1.json").read_text(encoding="utf-8"))
-    bad_path = tmp_path / "bad_bounds.json"
+    bad_spec = _burn_spec_payload()
     bad_spec["term_fields"][0]["minimum"] = 9
     bad_spec["term_fields"][0]["maximum"] = 3
-    bad_path.write_text(json.dumps(bad_spec, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="term field n_notional has inverted bounds"):
-        load_fire_math_object_spec_file(bad_path)
+        load_fire_math_object_spec_file(_write_spec_payload(tmp_path, bad_spec, "bad_bounds.json"))
 
 
 def test_load_fire_math_object_spec_file_rejects_missing_file(tmp_path: Path) -> None:
@@ -202,10 +213,63 @@ def test_load_fire_math_object_spec_file_rejects_missing_file(tmp_path: Path) ->
 
 
 def test_load_fire_math_object_spec_file_rejects_unknown_import_interface(tmp_path: Path) -> None:
-    bad_spec = json.loads((SPEC_DIR / "burn_boost_call_v1.json").read_text(encoding="utf-8"))
-    bad_path = tmp_path / "bad_import.json"
+    bad_spec = _burn_spec_payload()
     bad_spec["imports"][0]["interface_object_id"] = "missing_index_v1"
-    bad_path.write_text(json.dumps(bad_spec, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="unknown_import_interface:missing_index_v1"):
-        load_fire_math_object_spec_file(bad_path)
+        load_fire_math_object_spec_file(_write_spec_payload(tmp_path, bad_spec, "bad_import.json"))
+
+
+def test_load_fire_math_object_spec_file_rejects_non_string_schema(tmp_path: Path) -> None:
+    bad_spec = _burn_spec_payload()
+    bad_spec["schema"] = 1
+
+    with pytest.raises(TypeError, match="schema must be a non-empty string"):
+        load_fire_math_object_spec_file(_write_spec_payload(tmp_path, bad_spec))
+
+
+def test_load_fire_math_object_spec_file_rejects_non_string_object_id(tmp_path: Path) -> None:
+    bad_spec = _burn_spec_payload()
+    bad_spec["object_id"] = 1
+
+    with pytest.raises(TypeError, match="object_id must be a non-empty string"):
+        load_fire_math_object_spec_file(_write_spec_payload(tmp_path, bad_spec))
+
+
+def test_load_fire_math_object_spec_file_rejects_non_string_term_field_name(tmp_path: Path) -> None:
+    bad_spec = _burn_spec_payload()
+    bad_spec["term_fields"][0]["name"] = 1
+
+    with pytest.raises(TypeError, match="term field name must be a non-empty string"):
+        load_fire_math_object_spec_file(_write_spec_payload(tmp_path, bad_spec))
+
+
+def test_load_fire_math_object_spec_file_rejects_non_string_unit(tmp_path: Path) -> None:
+    bad_spec = _burn_spec_payload()
+    bad_spec["imports"][0]["unit"] = 1
+
+    with pytest.raises(TypeError, match="import unit must be a non-empty string"):
+        load_fire_math_object_spec_file(_write_spec_payload(tmp_path, bad_spec))
+
+
+def test_fire_value_ref_from_dict_rejects_non_string_kind() -> None:
+    with pytest.raises(TypeError, match="value ref kind must be a non-empty string"):
+        FireValueRef.from_dict({"kind": 1, "value": 0})
+
+
+def test_fire_expr_file_from_dict_rejects_non_string_kind() -> None:
+    with pytest.raises(TypeError, match="expression kind must be a non-empty string"):
+        FireExprFile.from_dict({"kind": 1})
+
+
+def test_fire_expr_file_from_dict_rejects_non_string_name() -> None:
+    with pytest.raises(TypeError, match="expression name must be a non-empty string"):
+        FireExprFile.from_dict({"kind": "exact_param", "name": True})
+
+
+def test_fire_math_object_spec_file_from_dict_rejects_non_mapping_term_field() -> None:
+    bad_spec = _burn_spec_payload()
+    bad_spec["term_fields"][0] = "bad"
+
+    with pytest.raises(TypeError, match="term field must be a mapping"):
+        FireMathObjectSpecFile.from_dict(bad_spec)

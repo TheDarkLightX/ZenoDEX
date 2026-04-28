@@ -32,6 +32,18 @@ from .object_compiler_v1 import (
 FIRE_FMOS_FILE_SCHEMA = "zenodex/fire-math-object-spec/v1"
 
 
+def _require_nonempty_str(name: str, value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError(f"{name} must be a non-empty string")
+    return value
+
+
+def _require_mapping(name: str, value: object) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{name} must be a mapping")
+    return value
+
+
 @dataclass(frozen=True)
 class FireValueRef:
     kind: str
@@ -42,7 +54,7 @@ class FireValueRef:
     def from_dict(cls, payload: Mapping[str, Any]) -> "FireValueRef":
         if not isinstance(payload, Mapping):
             raise TypeError("value ref must be a mapping")
-        kind = str(payload["kind"])
+        kind = _require_nonempty_str("value ref kind", payload["kind"])
         value = payload.get("value")
         term = payload.get("term")
         if kind == "const":
@@ -91,7 +103,7 @@ class FireSourceBoundSpec:
             raise TypeError("source bound spec requires non-empty name")
         return cls(
             name=name,
-            unit=str(payload["unit"]),
+            unit=_require_nonempty_str("source bound unit", payload["unit"]),
             lower=FireValueRef.from_dict(payload["lower"]),
             upper=FireValueRef.from_dict(payload["upper"]),
             contract=None if payload.get("contract") is None else FireContractSpec.from_dict(payload["contract"]),
@@ -125,7 +137,7 @@ class FireImportSpec:
             name=name,
             interface_object_id=interface_object_id,
             interface_output=interface_output,
-            unit=str(payload["unit"]),
+            unit=_require_nonempty_str("import unit", payload["unit"]),
             lower=FireValueRef.from_dict(payload["lower"]),
             upper=FireValueRef.from_dict(payload["upper"]),
             contract=None if payload.get("contract") is None else FireContractSpec.from_dict(payload["contract"]),
@@ -154,7 +166,7 @@ class FireWitnessSpec:
         return cls(
             name=name,
             freshness=freshness,
-            unit=str(payload["unit"]),
+            unit=_require_nonempty_str("witness unit", payload["unit"]),
             lower=FireValueRef.from_dict(payload["lower"]),
             upper=FireValueRef.from_dict(payload["upper"]),
             contract=None if payload.get("contract") is None else FireContractSpec.from_dict(payload["contract"]),
@@ -176,11 +188,17 @@ class FireExprFile:
     def from_dict(cls, payload: Mapping[str, Any]) -> "FireExprFile":
         if not isinstance(payload, Mapping):
             raise TypeError("expression payload must be a mapping")
-        kind = str(payload["kind"])
+        kind = _require_nonempty_str("expression kind", payload["kind"])
+        value = payload.get("value")
+        if "value" in payload and (not isinstance(value, int) or isinstance(value, bool)):
+            raise TypeError("expression value must be an int")
+        name = payload.get("name")
+        if "name" in payload and (not isinstance(name, str) or not name):
+            raise TypeError("expression name must be a non-empty string")
         return cls(
             kind=kind,
-            value=payload.get("value"),
-            name=payload.get("name"),
+            value=value,
+            name=name,
             left=None if "left" not in payload else cls.from_dict(payload["left"]),
             right=None if "right" not in payload else cls.from_dict(payload["right"]),
             inner=None if "inner" not in payload else cls.from_dict(payload["inner"]),
@@ -209,7 +227,7 @@ class FireOutputSpec:
         return cls(
             name=name,
             description=description,
-            unit=str(payload["unit"]),
+            unit=_require_nonempty_str("output unit", payload["unit"]),
             expression=FireExprFile.from_dict(payload["expression"]),
         )
 
@@ -236,7 +254,7 @@ class FireMathObjectSpecFile:
     def from_dict(cls, payload: Mapping[str, Any]) -> "FireMathObjectSpecFile":
         if not isinstance(payload, Mapping):
             raise TypeError("spec payload must be a mapping")
-        schema = str(payload["schema"])
+        schema = _require_nonempty_str("schema", payload["schema"])
         if schema != FIRE_FMOS_FILE_SCHEMA:
             raise ValueError(f"unsupported FIRE FMOS file schema: {schema}")
         term_fields_payload = payload.get("term_fields")
@@ -256,19 +274,22 @@ class FireMathObjectSpecFile:
             raise TypeError("outputs must be a list")
         return cls(
             schema=schema,
-            object_id=str(payload["object_id"]),
-            object_name=str(payload["object_name"]),
-            cli_help=str(payload["cli_help"]),
-            object_version=str(payload["object_version"]),
-            object_family=str(payload["object_family"]),
-            settlement_asset=str(payload["settlement_asset"]),
-            payoff_summary=str(payload["payoff_summary"]),
-            ir_hash=str(payload["ir_hash"]),
+            object_id=_require_nonempty_str("object_id", payload["object_id"]),
+            object_name=_require_nonempty_str("object_name", payload["object_name"]),
+            cli_help=_require_nonempty_str("cli_help", payload["cli_help"]),
+            object_version=_require_nonempty_str("object_version", payload["object_version"]),
+            object_family=_require_nonempty_str("object_family", payload["object_family"]),
+            settlement_asset=_require_nonempty_str("settlement_asset", payload["settlement_asset"]),
+            payoff_summary=_require_nonempty_str("payoff_summary", payload["payoff_summary"]),
+            ir_hash=_require_nonempty_str("ir_hash", payload["ir_hash"]),
             term_fields=tuple(
                 FireTermFieldSpec(
-                    name=str(item["name"]),
-                    description=str(item["description"]),
-                    unit=str(item["unit"]),
+                    name=_require_nonempty_str(
+                        "term field name",
+                        _require_mapping("term field", item)["name"],
+                    ),
+                    description=_require_nonempty_str("term field description", item["description"]),
+                    unit=_require_nonempty_str("term field unit", item["unit"]),
                     minimum=item["minimum"],
                     maximum=item["maximum"],
                 )
