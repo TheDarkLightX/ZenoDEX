@@ -51,6 +51,7 @@ components:
       - lean-mathlib/Proofs/CertifiedFinancialMathObjects.lean
       - lean-mathlib/Proofs/CALCoreSoundness.lean
       - lean-mathlib/Proofs/ZenoPayoffLanguage.lean
+      - lean-mathlib/Proofs/ZPLPayoffCombinators.lean
       - lean-mathlib/Proofs/FixedPointIntervalBridge.lean
       - lean-mathlib/Proofs/FixedPointPortfolioBridge.lean
       - lean-mathlib/Proofs/ZenoPayoffFixedPointBridge.lean
@@ -59,6 +60,7 @@ components:
       - lean-mathlib/Proofs/FIREBudgetSafety.lean
       - lean-mathlib/Proofs/TokenomicsMechanismSafety.lean
       - lean-mathlib/proof_receipts/zeno_payoff_language_v1.json
+      - lean-mathlib/proof_receipts/zpl_payoff_combinators_v1.json
       - lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
       - lean-mathlib/proof_receipts/fire_unified_settlement_v1.json
       - lean-mathlib/proof_receipts/fire_budget_safety_v1.json
@@ -78,6 +80,11 @@ components:
           result: proved
           sha256: sha256:74b2130ce96bc9cf72729939c4db5fd90a4713e635d7840a2730eedf102f0eb3
           scope: ZPL compiler soundness, CAL core soundness, and certified payoff collateral safety theorem surface
+        - path: lean-mathlib/proof_receipts/zpl_payoff_combinators_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:33f6235ef78ccb25d3db91d84d882795afe721a7e6731555ffeffecd86869fc0
+          scope: ZPL/FIRE certified payoff combinators for digitals, barrier-gated payoffs, collars, conditional portfolios, short-side negation, collateral monotonicity, and no-default safety
         - path: lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
           checker: lean
           result: proved

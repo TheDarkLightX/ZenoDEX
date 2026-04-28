@@ -1,0 +1,77 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "zpl_payoff_combinators_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/ZPLPayoffCombinators.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs.ZPLPayoffCombinators"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs.lean"
+    },
+    {
+      "cwd": ".",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' lean-mathlib/Proofs/ZPLPayoffCombinators.lean\""
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.ZPLPayoffCombinators",
+      "path": "lean-mathlib/Proofs/ZPLPayoffCombinators.lean",
+      "sha256": "sha256:eb8bb6ae050d338d161123d4bd2af731989d0b380f659bc071343e82caeff35c",
+      "theorems": [
+        "digital",
+        "conditionalZero",
+        "collar",
+        "digital_payoff_eq_amount_or_zero",
+        "digital_bilateral_no_default",
+        "conditionalZero_interval_is_minmax",
+        "conditionalZero_payoff_bounds",
+        "conditionalZero_bilateral_no_default",
+        "collar_payoff_between_floor_cap",
+        "conditionalZero_writerCollateral_le_max",
+        "conditional_portfolio_bilateral_no_default",
+        "writerCollateral_mono",
+        "holderCollateral_anti",
+        "conditionalZero_idempotent_payoff",
+        "conditionalZero_sum_payoff",
+        "digitalPortfolio",
+        "digitalPortfolio_holderCollateral_zero",
+        "digitalPortfolio_bilateral_no_default",
+        "conditionalCollar",
+        "conditionalCollar_bounds",
+        "conditionalCollar_bilateral_no_default",
+        "conditionalZero_lower_of_nonneg",
+        "conditionalZero_holderCollateral_zero_of_nonneg",
+        "conditionalPortfolio",
+        "conditionalPortfolio_bilateral_no_default",
+        "conditionalPortfolio_lower",
+        "conditionalPortfolio_upper",
+        "writerCollateral_nonneg",
+        "holderCollateral_nonneg",
+        "neg",
+        "neg_conditionalZero_bilateral_no_default"
+      ]
+    }
+  ],
+  "proof_search_source": {
+    "tool": "Aristotle",
+    "project_id": "f91b5f93-ab01-4ce6-bf3f-731c700b014d",
+    "local_acceptance": "integrated as a separate ZPL payoff combinator module after local Lean build and placeholder scan"
+  },
+  "boundaries": [
+    "The module proves abstract CertifiedPayoff combinators, not Python compiler bug-freedom.",
+    "Digital and portfolio payoffs require nonnegative declared amounts where stated.",
+    "Conditional/collar theorems prove interval and collateral safety under the declared trigger predicates; they do not prove oracle correctness for trigger inputs."
+  ],
+  "claim": "ZPL/FIRE payoff algebra includes machine-checked digital payoffs, conditional-zero barrier payoffs, collars, conditional portfolios, short-side negation, collateral monotonicity, nonnegative-collateral facts, and portfolio-level bilateral no-default theorems under the CertifiedPayoff interval contract.",
+  "result": "proved",
+  "created_utc": "2026-04-28T18:00:00Z"
+}
