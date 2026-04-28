@@ -33,6 +33,10 @@ def _require_bool(name: str, value: object) -> bool:
     return bool(value)
 
 
+def _require_string_tuple(name: str, values: list[object]) -> tuple[str, ...]:
+    return tuple(_require_nonempty_str(f"{name}[{idx}]", item) for idx, item in enumerate(values))
+
+
 def _canonical_json_bytes(payload: dict[str, object]) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
@@ -156,7 +160,7 @@ class FireInstancePolicy:
         if not isinstance(required_party_roles, list):
             raise TypeError("required_party_roles must be a list")
         return cls(
-            required_party_roles=tuple(str(item) for item in required_party_roles),
+            required_party_roles=_require_string_tuple("required_party_roles", required_party_roles),
             authorization_mode=payload.get("authorization_mode", "role_binding"),
             nonce_required=payload.get("nonce_required", True),
             maturity_required=payload.get("maturity_required", False),
