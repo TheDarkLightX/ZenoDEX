@@ -74,6 +74,8 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "compile_sum_floorDecode_posted_collateral_safe",
             "compile_sum_ceilDecode_posted_collateral_safe",
             "compile_sum_decodeByMode_posted_collateral_safe",
+            "compile_decodeByMode_two_party_delta_conserves",
+            "compile_sum_decodeByMode_two_party_delta_conserves",
         ),
         "claim": (
             "Successful FIRE/ZPL compilation composes with fixed-point runtime "
@@ -81,7 +83,9 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "lower-side buffer, ceil-decoded settlements are safe under a "
             "one-tick upper-side buffer, mixed floor/ceil portfolios are safe "
             "under the corresponding per-leg side buffers, and posted collateral "
-            "against those expanded intervals prevents bilateral default."
+            "against those expanded intervals prevents bilateral default. Runtime "
+            "delta conservation is exact when the writer leg negates the rounded "
+            "holder leg."
         ),
         "source_files": (
             "lean-mathlib/Proofs/FixedPointIntervalBridge.lean",

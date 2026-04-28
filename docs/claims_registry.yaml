@@ -575,7 +575,8 @@ claims:
       lower-side buffer, ceil-decoded settlements are safe under a one-tick upper-side
       buffer, mixed floor/ceil portfolios are safe under the corresponding per-leg
       side buffers, and posted collateral against those expanded intervals prevents
-      bilateral default.
+      bilateral default. Runtime delta conservation is exact when the writer leg
+      negates the rounded holder leg.
     evidence:
       kind: lean
       check:
@@ -603,6 +604,8 @@ claims:
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_floorDecode_posted_collateral_safe
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_ceilDecode_posted_collateral_safe
         - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_posted_collateral_safe
+        - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_decodeByMode_two_party_delta_conserves
+        - Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_two_party_delta_conserves
 
   - id: tla:autotrader_nonce_guard_shadow:sequential_nonce_only
     status: supported

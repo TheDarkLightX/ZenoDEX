@@ -206,6 +206,41 @@ theorem compile_sum_decodeByMode_posted_collateral_safe
   rcases compile_sum_decodeByMode_no_default S hscale hcompile with ⟨hh, hw⟩
   constructor <;> linarith
 
+/-- Integer FIRE settlement deltas conserve exactly when the writer leg is the
+runtime negation of the already-rounded holder leg. -/
+theorem int_two_party_delta_conserves (holderDelta : Int) :
+    holderDelta + (-holderDelta) = 0 := by
+  omega
+
+/-- A single compiled ZPL leg decoded with a selected fixed-point rounding mode
+conserves exactly when the counterparty leg is the negation of that rounded
+runtime value. This captures the implementation rule "round once, then mirror";
+it deliberately avoids independently rounding opposite legs. -/
+theorem compile_decodeByMode_two_party_delta_conserves
+    {a : Asset} {scale : ℝ}
+    {mode : RoundingMode}
+    {expr : Expr Asset (ValueType.amount a)}
+    {cert : CompiledExpr (Asset := Asset) (ValueType.amount a)}
+    (_hcompile : compile expr = some cert) :
+    let holderDelta := decodeByMode scale mode (Expr.eval expr)
+    holderDelta + (-holderDelta) = 0 := by
+  simp
+
+/-- A compiled ZPL portfolio decoded with per-leg fixed-point rounding modes
+conserves exactly when the writer delta is the negation of the aggregate rounded
+holder delta. -/
+theorem compile_sum_decodeByMode_two_party_delta_conserves
+    [DecidableEq ι] (S : Finset ι)
+    {a : Asset} {scale : ℝ}
+    {mode : ι → RoundingMode}
+    {expr : ι → Expr Asset (ValueType.amount a)}
+    {cert : ι → CompiledExpr (Asset := Asset) (ValueType.amount a)}
+    (_hcompile : ∀ i, i ∈ S → compile (expr i) = some (cert i)) :
+    let holderDelta :=
+      S.sum (fun i => decodeByMode scale (mode i) (Expr.eval (expr i)))
+    holderDelta + (-holderDelta) = 0 := by
+  simp
+
 end
 
 end ZenoPayoffPortfolioFixedPointBridge
