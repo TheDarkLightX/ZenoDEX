@@ -116,6 +116,7 @@ import Proofs.DisasterAntichainBasis
 import Proofs.CertificateGluing
 import Proofs.ForbiddenTraceMinor
 import Proofs.NoFreeResourceTraceLedger
+import Proofs.ZenoDEXDisasterSchemaInstantiations
 import Proofs.DisasterTraceDiscoveryChallenge
 import Proofs.FixedPointIntervalBridge
 import Proofs.FixedPointPortfolioBridge

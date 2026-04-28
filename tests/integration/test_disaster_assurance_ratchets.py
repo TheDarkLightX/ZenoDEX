@@ -101,3 +101,4 @@ def test_formal_proof_hygiene_default_tracks_disaster_proof_schemas() -> None:
     assert "lean-mathlib/Proofs/CertificateGluing.lean" in tracked
     assert "lean-mathlib/Proofs/ForbiddenTraceMinor.lean" in tracked
     assert "lean-mathlib/Proofs/NoFreeResourceTraceLedger.lean" in tracked
+    assert "lean-mathlib/Proofs/ZenoDEXDisasterSchemaInstantiations.lean" in tracked

@@ -44,6 +44,10 @@ way future axes can be promoted from search inventory into replayable guarantees
   resource delta and the safe cone is closed under trace composition, then an
   accepted trace cannot create a protected resource outside that cone; Nat
   budget lemmas also reject claims above total or prefix budget.
+- `Proofs.ZenoDEXDisasterSchemaInstantiations`: small proof adapters for
+  ZenoDEX-shaped resource budgets and forbidden motifs, including API scan
+  budgets, proof-mining rewards, bounty payouts, proof work, stale settlement,
+  missing-oracle settlement, unpaired COW fills, and API overscan.
 - `Proofs.CertificateGluing`: locally accepted certificates that glue into one
   compatible global section exclude cross-surface disaster states.
 
@@ -56,6 +60,7 @@ Receipt:
 - `lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md`
 - `lean-mathlib/proof_receipts/forbidden_trace_minor_2026-04-28.md`
 - `lean-mathlib/proof_receipts/no_free_resource_trace_ledger_2026-04-28.md`
+- `lean-mathlib/proof_receipts/zenodex_disaster_schema_instantiations_2026-04-28.md`
 
 ## Evidence Discipline
 
