@@ -63,7 +63,7 @@ def _commit_settlement_packet_effect(adapter: "FireBurnBoostCallV1NativeAdapter"
         holder_delta=int(adapter._state.holder_delta),
         writer_delta=int(adapter._state.writer_delta),
         payoff_out=int(adapter._state.holder_delta),
-        firev_accept=bool(adapter._pending_effects.get("firev_accept")),
+        firev_accept=adapter._pending_effects["firev_accept"],
     )
     adapter._pending_effects["settlement_packet"] = packet.to_dict()
 
@@ -96,19 +96,26 @@ def _run_kernel_step(adapter: "FireBurnBoostCallV1NativeAdapter", tag: str, args
 
     from ESSO.kernel.interpreter import StepOk  # type: ignore
 
+    previous_state = adapter._state
+    previous_effects = dict(adapter._pending_effects)
     adapter._state = result.state
     adapter._pending_effects = dict()
-    for eff_id, value in dict(result.effects or {}).items():
-        eff_handler = EFFECT_HANDLERS.get(str(eff_id))
-        if eff_handler is not None:
-            eff_handler(adapter, str(eff_id), value)
-    _commit_receipt_effect(adapter, args)
-    if "verifier_receipt" in adapter._pending_effects:
-        adapter._pending_effects["verifier_receipt_obj"] = FireVerifierReceipt.from_dict(
-            adapter._pending_effects["verifier_receipt"]
-        )
-        _commit_settlement_packet_effect(adapter, args)
-        del adapter._pending_effects["verifier_receipt_obj"]
+    try:
+        for eff_id, value in dict(result.effects or {}).items():
+            eff_handler = EFFECT_HANDLERS.get(str(eff_id))
+            if eff_handler is not None:
+                eff_handler(adapter, str(eff_id), value)
+        _commit_receipt_effect(adapter, args)
+        if "verifier_receipt" in adapter._pending_effects:
+            adapter._pending_effects["verifier_receipt_obj"] = FireVerifierReceipt.from_dict(
+                adapter._pending_effects["verifier_receipt"]
+            )
+            _commit_settlement_packet_effect(adapter, args)
+            del adapter._pending_effects["verifier_receipt_obj"]
+    except (KeyError, TypeError, ValueError) as exc:
+        adapter._state = previous_state
+        adapter._pending_effects = previous_effects
+        return _step_error("GuardFalse", f"settlement packet gate failed: {exc}")
     return StepOk(state=vars(result.state), effects=dict(result.effects or {}))
 
 
