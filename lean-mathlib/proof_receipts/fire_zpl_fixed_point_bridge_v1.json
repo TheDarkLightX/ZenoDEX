@@ -66,7 +66,7 @@
     {
       "module": "Proofs.ZenoPayoffPortfolioFixedPointBridge",
       "path": "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
-      "sha256": "sha256:c1f20a00680582476a401c004eadf9e9f09f5127e641a20873eefde78b505851",
+      "sha256": "sha256:4585ddb133a7becd691b6ac56064bb55904c03790e224262d3ce74a7dea47565",
       "theorems": [
         "compile_sum_floorDecode_interval",
         "compile_sum_ceilDecode_interval",
@@ -74,6 +74,7 @@
         "compile_sum_ceilDecode_posted_collateral_safe",
         "compile_sum_decodeByMode_interval",
         "compile_sum_decodeByMode_posted_collateral_safe",
+        "compile_sum_decodeByMode_posted_collateral_safe_and_conserves",
         "compile_decodeByMode_two_party_delta_conserves",
         "compile_sum_decodeByMode_two_party_delta_conserves"
       ]

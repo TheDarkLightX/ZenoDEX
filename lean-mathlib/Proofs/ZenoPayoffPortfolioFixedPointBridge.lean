@@ -206,6 +206,41 @@ theorem compile_sum_decodeByMode_posted_collateral_safe
   rcases compile_sum_decodeByMode_no_default S hscale hcompile with ⟨hh, hw⟩
   constructor <;> linarith
 
+/-- Posted-collateral mixed-rounding settlement in the runtime delta-table shape:
+the holder receives the aggregate rounded portfolio payoff, the writer receives
+its negation, both sides remain solvent, and the deltas conserve exactly. -/
+theorem compile_sum_decodeByMode_posted_collateral_safe_and_conserves
+    [DecidableEq ι] (S : Finset ι)
+    {a : Asset} {scale holderPosted writerPosted : ℝ}
+    {mode : ι → RoundingMode}
+    {expr : ι → Expr Asset (ValueType.amount a)}
+    {cert : ι → CompiledExpr (Asset := Asset) (ValueType.amount a)}
+    (hscale : 0 < scale)
+    (hcompile : ∀ i, i ∈ S → compile (expr i) = some (cert i))
+    (hHolder :
+      holderCollateral
+          (S.sum (fun i => (cert i).lower - (mode i).lowerBuffer scale)) ≤
+        holderPosted)
+    (hWriter :
+      writerCollateral
+          (S.sum (fun i => (cert i).upper + (mode i).upperBuffer scale)) ≤
+        writerPosted) :
+    let holderDelta :=
+      S.sum (fun i => decodeByMode scale (mode i) (Expr.eval (expr i)))
+    let writerDelta := -holderDelta
+    (0 ≤ holderPosted + holderDelta ∧
+        0 ≤ writerPosted + writerDelta) ∧
+      holderDelta + writerDelta = 0 := by
+  dsimp
+  rcases
+    compile_sum_decodeByMode_posted_collateral_safe S hscale hcompile hHolder hWriter
+    with ⟨hh, hw⟩
+  constructor
+  · constructor
+    · exact hh
+    · simpa [sub_eq_add_neg] using hw
+  · ring
+
 /-- Integer FIRE settlement deltas conserve exactly when the writer leg is the
 runtime negation of the already-rounded holder leg. -/
 theorem int_two_party_delta_conserves (holderDelta : Int) :
