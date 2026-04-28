@@ -28,6 +28,12 @@ PROOF_SCHEMA_FILES: dict[str, str] = {
     ),
 }
 
+PROOF_SUPPORT_FILES: dict[str, str] = {
+    "zenodex_closed_axis_proof_schema_map": (
+        "lean-mathlib/Proofs/ZenoDEXClosedAxisProofSchemaMap.lean"
+    ),
+}
+
 # This is a schema-alignment map, not a claim that every axis is fully proved.
 # Each closed axis must name the reusable proof shapes that would discharge or
 # strengthen its replay receipt once instantiated against concrete trace/state
@@ -163,6 +169,7 @@ def build_disaster_proof_schema_map_report(
     axis_map: Mapping[str, Sequence[str]] = CLOSED_AXIS_PROOF_SCHEMA_MAP,
     expected_axis_ids: Sequence[str] = CLOSED_DISASTER_SEARCH_AXIS_IDS,
     schema_files: Mapping[str, str] = PROOF_SCHEMA_FILES,
+    support_files: Mapping[str, str] = PROOF_SUPPORT_FILES,
 ) -> dict[str, Any]:
     errors: list[str] = []
     warnings: list[str] = []
@@ -207,6 +214,13 @@ def build_disaster_proof_schema_map_report(
         if schema_usage.get(schema_name, 0) == 0:
             warnings.append(f"{schema_name}: schema is tracked but unused by closed axes")
 
+    for support_name, proof_file in sorted(support_files.items()):
+        path = _resolve(proof_file)
+        if not path.is_file():
+            errors.append(f"{support_name}: support proof file missing: {proof_file}")
+        if proof_file not in hygiene_set:
+            errors.append(f"{support_name}: support proof file is not in formal hygiene ratchet: {proof_file}")
+
     return {
         "schema": DISASTER_PROOF_SCHEMA_MAP_SCHEMA,
         "ok": not errors,
@@ -214,7 +228,9 @@ def build_disaster_proof_schema_map_report(
         "warnings": warnings,
         "axis_count": len(expected),
         "schema_count": len(schema_files),
+        "support_proof_file_count": len(support_files),
         "schema_usage": dict(sorted(schema_usage.items())),
+        "support_proof_files": dict(sorted(support_files.items())),
         "axes": rows,
     }
 
@@ -224,6 +240,7 @@ def _print_text(payload: dict[str, Any]) -> None:
     print(f"ok: {'yes' if payload['ok'] else 'no'}")
     print(f"axis_count: {payload['axis_count']}")
     print(f"schema_count: {payload['schema_count']}")
+    print(f"support_proof_file_count: {payload['support_proof_file_count']}")
     print("schema_usage:")
     for name, count in payload["schema_usage"].items():
         print(f"- {name}: {count}")

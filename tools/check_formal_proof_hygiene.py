@@ -33,6 +33,7 @@ CRITICAL_FORMAL_PROOF_ARTIFACTS: tuple[str, ...] = (
     "lean-mathlib/Proofs/ForbiddenTraceMinor.lean",
     "lean-mathlib/Proofs/NoFreeResourceTraceLedger.lean",
     "lean-mathlib/Proofs/ZenoDEXDisasterSchemaInstantiations.lean",
+    "lean-mathlib/Proofs/ZenoDEXClosedAxisProofSchemaMap.lean",
     "lean-mathlib/Proofs/PerpEpochSafety.lean",
     "lean-mathlib/Proofs/PerpOracleGuard.lean",
     "lean-mathlib/Proofs/PerpFundingAlgebra.lean",
