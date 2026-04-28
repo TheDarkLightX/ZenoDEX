@@ -242,10 +242,10 @@ def build_fire_kernel_settlement_receipt(
         object_instance=object_instance,
         replay_input=replay_input,
     )
-    holder_delta = int(settlement_state["holder_delta"])
-    writer_delta = int(settlement_state["writer_delta"])
-    payoff_out = int(settlement_effects["payoff_out"])
-    firev_accept = bool(settlement_effects["firev_accept"])
+    holder_delta = _require_int("settlement_state.holder_delta", settlement_state.get("holder_delta"))
+    writer_delta = _require_int("settlement_state.writer_delta", settlement_state.get("writer_delta"))
+    payoff_out = _require_int("settlement_effects.payoff_out", settlement_effects.get("payoff_out"))
+    firev_accept = _require_bool("settlement_effects.firev_accept", settlement_effects.get("firev_accept"))
     if holder_delta != payoff_out:
         raise RuntimeError("kernel settlement payoff_out does not match holder_delta")
     if writer_delta != -holder_delta:
