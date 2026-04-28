@@ -57,6 +57,21 @@ def test_fire_verifier_receipt_rejects_delta_tamper() -> None:
     assert verify_fire_verifier_receipt(tampered) == (False, "delta_hash_mismatch")
 
 
+def test_fire_verifier_receipt_rejects_balanced_hash_with_nonconserving_deltas() -> None:
+    receipt = FireVerifierReceipt.build(
+        object_hash="sha256:" + ("11" * 32),
+        instance_hash="sha256:" + ("22" * 32),
+        cert_sha256="sha256:" + ("33" * 32),
+        holder_delta=30,
+        writer_delta=-29,
+        command_tag="firev_accept_and_settle",
+        object_name="BurnBoostCall",
+        object_version="v1",
+    )
+
+    assert verify_fire_verifier_receipt(receipt) == (False, "delta_nonzero_sum")
+
+
 def test_fire_verifier_receipt_rejects_witness_binding_mismatch() -> None:
     receipt = FireVerifierReceipt.build(
         object_hash="sha256:" + ("11" * 32),
