@@ -160,6 +160,41 @@ def test_fire_lp_loss_cover_native_adapter_unknown_action(monkeypatch) -> None:
     assert result.code == "UnknownAction"
 
 
+def test_fire_lp_loss_cover_native_adapter_rejects_non_string_command_tag(monkeypatch) -> None:
+    interp_mod = _install_fake_interpreter(monkeypatch)
+    from src.fire.runtime.lp_loss_cover_v1_native_adapter import make_adapter
+
+    class LooksLikeAuthority:
+        def __str__(self) -> str:
+            return "firev_accept_and_settle"
+
+    adapter = make_adapter(ir={"schema": "fake"})
+    adapter.reset(
+        state={
+            "artifact_lower": 0,
+            "artifact_upper": 0,
+            "cap_amount": 0,
+            "deductible": 0,
+            "hodl_lower": 0,
+            "hodl_upper": 0,
+            "holder_delta": 0,
+            "holder_posted": 0,
+            "lpv_lower": 0,
+            "lpv_upper": 0,
+            "n_notional": 0,
+            "phase": "Idle",
+            "witness_hodl_final": 0,
+            "witness_lpv_final": 0,
+            "writer_delta": 0,
+            "writer_posted": 0,
+        }
+    )
+    result = adapter.apply(SimpleNamespace(tag=LooksLikeAuthority(), args={}))
+    assert isinstance(result, interp_mod.StepError)
+    assert result.code == "UnknownAction"
+    assert "command.tag must be a non-empty string" in result.message
+
+
 def test_fire_lp_loss_cover_native_adapter_guard_false(monkeypatch) -> None:
     interp_mod = _install_fake_interpreter(monkeypatch)
     from src.fire.runtime.lp_loss_cover_v1_native_adapter import make_adapter
