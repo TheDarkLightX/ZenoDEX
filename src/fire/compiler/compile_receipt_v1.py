@@ -74,6 +74,7 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "compile_sum_floorDecode_posted_collateral_safe",
             "compile_sum_ceilDecode_posted_collateral_safe",
             "compile_sum_decodeByMode_posted_collateral_safe",
+            "compile_sum_decodeByMode_posted_collateral_safe_and_conserves",
             "compile_decodeByMode_two_party_delta_conserves",
             "compile_sum_decodeByMode_two_party_delta_conserves",
         ),
