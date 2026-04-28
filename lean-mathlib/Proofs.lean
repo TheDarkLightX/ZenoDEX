@@ -156,6 +156,7 @@ import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
 import Proofs.ZenoPayoffLanguage
 import Proofs.FIREStrictSettlementAuthority
+import Proofs.FIREStrictSpecParsing
 
 /-!
 Proofs library root.
