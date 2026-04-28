@@ -45,8 +45,9 @@ Those bindings record the Lean module, checker command, theorem names,
 toolchain, and source hashes for the ZPL/CAL proof surface and fixed-point
 runtime bridge that support the compiled object. The release-level formal
 claims gate also checks proof-receipt module hashes against the current Lean
-source files, so a stale proof receipt cannot keep a public formal claim alive
-after theorem-source drift.
+source files and rejects Lean trust escapes such as `sorry`, `admit`, `axiom`,
+`unsafe`, or `sorryAx` outside comments, so a stale or placeholder-bearing proof
+receipt cannot keep a public formal claim alive after theorem-source drift.
 
 ```text
 CompileReceiptOK ∧ FormalProofBindingHashesOK -> PayoffProofSurfaceBound

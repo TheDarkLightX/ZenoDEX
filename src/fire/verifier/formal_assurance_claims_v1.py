@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -29,6 +30,7 @@ REQUIRED_FORBIDDEN_CLAIMS = frozenset(
         "private_esso_required_for_public_runtime",
     }
 )
+LEAN_TRUST_ESCAPE_RE = re.compile(r"\b(sorry|admit|axiom|unsafe|sorryAx)\b")
 
 
 class FireFormalAssuranceClaimsError(RuntimeError):
@@ -151,12 +153,61 @@ def _component_paths_exist(component: Mapping[str, object], *, repo_root: Path) 
         _expect(path.exists(), f"{component_id}: missing declared path {rel}")
 
 
+def _strip_lean_comments(text: str) -> str:
+    out: list[str] = []
+    idx = 0
+    block_depth = 0
+    while idx < len(text):
+        nxt = text[idx : idx + 2]
+        if block_depth > 0:
+            if nxt == "/-":
+                block_depth += 1
+                idx += 2
+                continue
+            if nxt == "-/":
+                block_depth -= 1
+                idx += 2
+                continue
+            if text[idx] == "\n":
+                out.append("\n")
+            idx += 1
+            continue
+        if nxt == "/-":
+            block_depth = 1
+            idx += 2
+            continue
+        if nxt == "--":
+            while idx < len(text) and text[idx] != "\n":
+                idx += 1
+            continue
+        out.append(text[idx])
+        idx += 1
+    return "".join(out)
+
+
+def _check_lean_module_trust_hygiene(
+    module_path: Path,
+    *,
+    component_id: str,
+    rel: str,
+) -> None:
+    stripped = _strip_lean_comments(module_path.read_text(encoding="utf-8"))
+    for line_no, line in enumerate(stripped.splitlines(), start=1):
+        match = LEAN_TRUST_ESCAPE_RE.search(line)
+        if match is not None:
+            raise FireFormalAssuranceClaimsError(
+                f"{component_id}: proof receipt module contains Lean trust escape "
+                f"{match.group(1)!r} at {rel}:{line_no}"
+            )
+
+
 def _check_proof_receipt_module_hashes(
     receipt_payload: Mapping[str, object],
     *,
     repo_root: Path,
     component_id: str,
     receipt_idx: int,
+    declared_checker: str,
 ) -> None:
     modules = _as_sequence(
         receipt_payload.get("modules"),
@@ -185,6 +236,8 @@ def _check_proof_receipt_module_hashes(
             actual_sha == expected_sha,
             f"{component_id}: proof receipt module hash mismatch for {rel}: {actual_sha} != {expected_sha}",
         )
+        if declared_checker == "lean":
+            _check_lean_module_trust_hygiene(module_path, component_id=component_id, rel=rel)
 
 
 def _check_proof_receipt_integrity(
@@ -211,6 +264,7 @@ def _check_proof_receipt_integrity(
         repo_root=repo_root,
         component_id=component_id,
         receipt_idx=receipt_idx,
+        declared_checker=declared_checker,
     )
 
 
