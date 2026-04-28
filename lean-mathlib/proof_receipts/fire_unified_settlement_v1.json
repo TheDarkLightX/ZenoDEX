@@ -25,7 +25,7 @@
     {
       "module": "Proofs.FIREUnified",
       "path": "lean-mathlib/Proofs/FIREUnified.lean",
-      "sha256": "sha256:164b725569f9f9869f14f8e066aaa4f0337500c91aaa0e9e4840957d4428185b",
+      "sha256": "sha256:d33861443b7e89124bfe6093e0c7511f0ad57ef132041ee718c555f30d290381",
       "theorems": [
         "tick_pos",
         "FIREPortfolioReceipt.writerDelta_eq_neg",
@@ -34,6 +34,12 @@
         "FIREPortfolioReceipt.combine",
         "FIREPortfolioReceipt.combine_holderDelta",
         "FIREPortfolioReceipt.combine_writerDelta",
+        "FIREPortfolioReceipt.zero",
+        "FIREPortfolioReceipt.operationalFields",
+        "FIREPortfolioReceipt.combine_zero_operational",
+        "FIREPortfolioReceipt.zero_combine_operational",
+        "FIREPortfolioReceipt.combine_assoc_operational",
+        "FIREPortfolioReceipt.combine_comm_operational",
         "compiled_portfolio_to_certified_payoff",
         "fire_single_leg_settlement",
         "floor_buffer_spec",
@@ -53,7 +59,7 @@
     "project_id": "02c5e13a-4278-4323-9a9c-7f592278a2bd",
     "local_acceptance": "selectively integrated as a new module after local Lean build and placeholder scan"
   },
-  "claim": "A compiled multi-leg FIRE/ZPL portfolio with positive fixed-point scale and posted collateral covering the per-leg rounding-mode expanded interval produces a projectable settlement receipt: holder and writer remain solvent after applying their deltas, and the deltas conserve exactly. Independent receipts compose by addition, and the expanded interval width is exactly the unexpanded width plus one tick per leg.",
+  "claim": "A compiled multi-leg FIRE/ZPL portfolio with positive fixed-point scale and posted collateral covering the per-leg rounding-mode expanded interval produces a projectable settlement receipt: holder and writer remain solvent after applying their deltas, and the deltas conserve exactly. Independent receipts compose by addition with a neutral zero receipt and grouping/order-independent operational projections, and the expanded interval width is exactly the unexpanded width plus one tick per leg.",
   "result": "proved",
   "created_utc": "2026-04-28T14:49:36Z"
 }

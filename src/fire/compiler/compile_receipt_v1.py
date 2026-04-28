@@ -109,12 +109,20 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "FIREPortfolioReceipt.combine",
             "compiled_portfolio_to_certified_payoff",
             "fire_single_leg_settlement",
+            "FIREPortfolioReceipt.zero",
+            "FIREPortfolioReceipt.operationalFields",
+            "FIREPortfolioReceipt.combine_zero_operational",
+            "FIREPortfolioReceipt.zero_combine_operational",
+            "FIREPortfolioReceipt.combine_assoc_operational",
+            "FIREPortfolioReceipt.combine_comm_operational",
             "portfolio_interval_width_budget",
         ),
         "claim": (
             "Successful FIRE/ZPL fixed-point portfolio settlement can be packaged "
             "as a projectable receipt carrying bilateral solvency and exact "
             "zero-sum conservation. Independent receipts compose by addition, "
+            "with a neutral zero receipt and grouping/order-independent "
+            "operational projections, "
             "and the mode-expanded interval width is exactly the unexpanded "
             "width plus one tick per leg."
         ),
