@@ -48,6 +48,8 @@ way future axes can be promoted from search inventory into replayable guarantees
   ZenoDEX-shaped resource budgets and forbidden motifs, including API scan
   budgets, proof-mining rewards, bounty payouts, proof work, stale settlement,
   missing-oracle settlement, unpaired COW fills, and API overscan.
+- `Proofs.ZenoDEXClosedAxisProofSchemaMap`: Lean-side enumeration proving the
+  29 closed axes have nonempty proof-schema assignments.
 - `Proofs.CertificateGluing`: locally accepted certificates that glue into one
   compatible global section exclude cross-surface disaster states.
 
@@ -73,6 +75,7 @@ Current output:
 ```text
 axis_count: 29
 schema_count: 7
+support_proof_file_count: 1
 amm_integer_runtime_bridge: 1
 certificate_gluing: 13
 disaster_antichain_basis: 8
@@ -85,7 +88,8 @@ zenodex_disaster_schema_instantiations: 6
 This map is not a proof that all 29 axes are now fully discharged in Lean. It is
 a ratchet that keeps every closed replay axis attached to the theorem schema
 that should discharge or strengthen it once the concrete runtime predicates are
-instantiated.
+instantiated. The Lean-side map module is tracked by the same hygiene gate but
+is intentionally not counted as an axis-discharge schema.
 
 ## Evidence Discipline
 
