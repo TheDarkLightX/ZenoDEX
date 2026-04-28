@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.fire.registry.object_manifest_v1 import (
     DEFAULT_FIRE_EVIDENCE,
     FireImportedInterfaceRequirement,
@@ -68,6 +70,19 @@ def test_fire_object_manifest_round_trip_and_verify() -> None:
 
     assert restored == manifest
     assert verify_fire_object_manifest(restored) == (True, None)
+
+
+def test_fire_instance_policy_from_dict_rejects_non_string_required_party_role() -> None:
+    with pytest.raises(TypeError, match=r"required_party_roles\[0\] must be a string"):
+        FireInstancePolicy.from_dict(
+            {
+                "required_party_roles": [1],
+                "authorization_mode": "role_binding",
+                "nonce_required": True,
+                "maturity_required": False,
+                "settlement_window_required": False,
+            }
+        )
 
 
 def test_fire_object_manifest_detects_hash_tamper() -> None:
