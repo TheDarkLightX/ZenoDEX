@@ -42,8 +42,8 @@ to make package acceptance receipts authorize settlement.
 
 `fire-compile-receipt.schema.json` now requires `formal_proof_bindings`.
 Those bindings record the Lean module, checker command, theorem names,
-toolchain, and source hashes for the ZPL/CAL proof surface that supports the
-compiled object.
+toolchain, and source hashes for the ZPL/CAL proof surface and fixed-point
+runtime bridge that support the compiled object.
 
 ```text
 CompileReceiptOK ∧ FormalProofBindingHashesOK -> PayoffProofSurfaceBound
@@ -51,7 +51,8 @@ CompileReceiptOK ∧ FormalProofBindingHashesOK -> PayoffProofSurfaceBound
 
 Plain English: a compile receipt is not just tied to Python compiler output; it
 also names the exact checked Lean facts that justify the payoff-language safety
-claim and rejects if those proof files drift.
+claim, including the one-tick fixed-point rounding buffers for runtime
+settlement, and rejects if those proof files drift.
 
 Release checks should run the aggregate gate:
 
