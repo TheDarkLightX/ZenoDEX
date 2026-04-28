@@ -9,6 +9,7 @@ from src.fire.registry.bundle_v1 import load_fire_registry_bundle, write_fire_re
 from src.fire.verifier.settlement_apply_report_v1 import (
     FIRE_SETTLEMENT_APPLY_REPORT_SCHEMA,
     build_fire_settlement_apply_report,
+    fire_settlement_apply_report_hash,
     settlement_apply_report_payload_without_hash,
     verify_fire_settlement_apply_report,
 )
@@ -129,6 +130,20 @@ def test_verify_fire_settlement_apply_report_rejects_report_hash_tamper() -> Non
     payload = _report_payload()
     payload["report_hash"] = "sha256:" + "9" * 64
     assert verify_fire_settlement_apply_report(payload) == (False, "report_hash_mismatch")
+
+
+def test_verify_fire_settlement_apply_report_rejects_non_string_mapping_key() -> None:
+    payload = _report_payload()
+    payload[123] = "unexpected"
+    payload["report_hash"] = fire_settlement_apply_report_hash(
+        {str(key): value for key, value in payload.items() if key != "report_hash"}
+    )
+
+    ok, err = verify_fire_settlement_apply_report(payload)
+
+    assert ok is False
+    assert err is not None
+    assert err.startswith("report_key_invalid:")
 
 
 def test_verify_fire_settlement_apply_report_matches_expected_bundle_dir(tmp_path: Path) -> None:
