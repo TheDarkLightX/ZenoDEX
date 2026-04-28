@@ -188,11 +188,14 @@ def build_fire_kernel_eval_receipt(
         object_id=entry.object_id,
         object_instance=object_instance,
     )
-    if compiled_state.get("artifact_lower") != object_manifest.artifact_lower:
+    compiled_artifact_lower = _require_int("compiled_state.artifact_lower", compiled_state.get("artifact_lower"))
+    compiled_artifact_upper = _require_int("compiled_state.artifact_upper", compiled_state.get("artifact_upper"))
+    compiled_upper = _require_int("compiled_effects.compiled_upper", compiled_effects.get("compiled_upper"))
+    if compiled_artifact_lower != object_manifest.artifact_lower:
         raise RuntimeError("kernel eval artifact_lower does not match canonical manifest")
-    if compiled_state.get("artifact_upper") != object_manifest.artifact_upper:
+    if compiled_artifact_upper != object_manifest.artifact_upper:
         raise RuntimeError("kernel eval artifact_upper does not match canonical manifest")
-    if compiled_effects.get("compiled_upper") != object_manifest.artifact_upper:
+    if compiled_upper != object_manifest.artifact_upper:
         raise RuntimeError("kernel eval compiled_upper effect does not match canonical manifest")
     return {
         "schema": FIRE_KERNEL_EVAL_RECEIPT_SCHEMA,
@@ -211,8 +214,8 @@ def build_fire_kernel_eval_receipt(
         "compile_command_args": _compile_command(entry.object_id, _parameter_values_from_instance(object_instance))[1],
         "compiled_state": compiled_state,
         "compiled_effects": compiled_effects,
-        "compiled_artifact_lower": int(compiled_state["artifact_lower"]),
-        "compiled_artifact_upper": int(compiled_state["artifact_upper"]),
+        "compiled_artifact_lower": compiled_artifact_lower,
+        "compiled_artifact_upper": compiled_artifact_upper,
     }
 
 

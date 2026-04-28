@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from src.fire.kernel import kernel_replay_receipt_v1 as replay_mod
+from src.fire.kernel import kernel_eval_receipt_v1 as eval_mod
 from src.fire.kernel import kernel_settlement_receipt_v1 as settlement_mod
 from src.fire.registry.bundle_v1 import write_fire_registry_bundle
 from src.fire.registry.instance_v1 import FireObjectInstanceManifest
@@ -64,6 +65,52 @@ def test_kernel_settlement_receipt_builder_rejects_non_bool_firev_accept_effect(
             replay_input_sha256=_SHA0,
             kernel_receipt_sha256=_SHA1,
             kernel_eval_receipt_sha256=_SHA2,
+        )
+
+
+def test_kernel_eval_receipt_builder_rejects_bool_artifact_lower(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    object_manifest, object_instance, _replay_input = _bundle_inputs(tmp_path)
+
+    def _fake_run_compile_command(**_kwargs):
+        return (
+            {"phase": "Compiled", "artifact_lower": False, "artifact_upper": 30},
+            {"compiled_upper": 30},
+            "compile_burn_boost_call",
+        )
+
+    monkeypatch.setattr(eval_mod, "_run_compile_command", _fake_run_compile_command)
+
+    with pytest.raises(TypeError, match="compiled_state.artifact_lower must be an int"):
+        eval_mod.build_fire_kernel_eval_receipt(
+            object_manifest=object_manifest,
+            object_instance=object_instance,
+            kernel_receipt_sha256=_SHA1,
+        )
+
+
+def test_kernel_eval_receipt_builder_rejects_string_compiled_upper_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    object_manifest, object_instance, _replay_input = _bundle_inputs(tmp_path)
+
+    def _fake_run_compile_command(**_kwargs):
+        return (
+            {"phase": "Compiled", "artifact_lower": 0, "artifact_upper": 30},
+            {"compiled_upper": "30"},
+            "compile_burn_boost_call",
+        )
+
+    monkeypatch.setattr(eval_mod, "_run_compile_command", _fake_run_compile_command)
+
+    with pytest.raises(TypeError, match="compiled_effects.compiled_upper must be an int"):
+        eval_mod.build_fire_kernel_eval_receipt(
+            object_manifest=object_manifest,
+            object_instance=object_instance,
+            kernel_receipt_sha256=_SHA1,
         )
 
 
