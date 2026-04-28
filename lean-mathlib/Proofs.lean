@@ -113,6 +113,7 @@ import Proofs.FiniteTraceBarriers
 import Proofs.AbstractInterpretationDisasterSafety
 import Proofs.FixedPointIntervalBridge
 import Proofs.TokenomicsTraceSafety
+import Proofs.ZenoPayoffFixedPointBridge
 import Proofs.ZenoDEXSettlementGateBlockers
 import Proofs.ZUSDCeilDivAlgebra
 import Proofs.ZUSDFeePipeline
