@@ -73,6 +73,12 @@ def _require_mapping(name: str, value: object) -> Mapping[str, object]:
     return value
 
 
+def _require_bool(name: str, value: object) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
+
+
 def _derive_evidence_floor(claims: Mapping[str, object]) -> str:
     weakest = max(
         (
@@ -322,10 +328,22 @@ def expected_fire_proof_tree_replay_summary(
     }
     if kernel_settlement_receipt is not None and kernel_settlement_receipt_sha256 is not None:
         summary["kernel_settlement_receipt_sha256"] = kernel_settlement_receipt_sha256
-        summary["holder_delta"] = int(kernel_settlement_receipt["holder_delta"])
-        summary["writer_delta"] = int(kernel_settlement_receipt["writer_delta"])
-        summary["payoff_out"] = int(kernel_settlement_receipt["payoff_out"])
-        summary["firev_accept"] = bool(kernel_settlement_receipt["firev_accept"])
+        summary["holder_delta"] = _require_int(
+            "kernel_settlement_receipt.holder_delta",
+            kernel_settlement_receipt.get("holder_delta"),
+        )
+        summary["writer_delta"] = _require_int(
+            "kernel_settlement_receipt.writer_delta",
+            kernel_settlement_receipt.get("writer_delta"),
+        )
+        summary["payoff_out"] = _require_int(
+            "kernel_settlement_receipt.payoff_out",
+            kernel_settlement_receipt.get("payoff_out"),
+        )
+        summary["firev_accept"] = _require_bool(
+            "kernel_settlement_receipt.firev_accept",
+            kernel_settlement_receipt.get("firev_accept"),
+        )
     if kernel_replay_receipt is not None and kernel_replay_receipt_sha256 is not None:
         summary["kernel_replay_receipt_sha256"] = kernel_replay_receipt_sha256
         summary["transcript_sha256"] = str(kernel_replay_receipt["transcript_sha256"])
