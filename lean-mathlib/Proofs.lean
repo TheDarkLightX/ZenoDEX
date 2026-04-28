@@ -159,6 +159,7 @@ import Proofs.MSTCertificateBasics
 import Proofs.PokayokeImpactGate
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
+import Proofs.ZPLPayoffCombinators
 import Proofs.ZenoPayoffLanguage
 import Proofs.FIREStrictSettlementAuthority
 import Proofs.FIREStrictSpecParsing
