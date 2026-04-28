@@ -37,6 +37,23 @@ def _component(payload: dict[str, Any], component_id: str) -> dict[str, Any]:
     raise AssertionError(f"missing component {component_id}")
 
 
+def _sha256_text(text: str) -> str:
+    import hashlib
+
+    return "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _materialize_declared_paths(root: Path, payload: dict[str, Any]) -> None:
+    for component in payload["components"]:
+        for rel in component["paths"]:
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.suffix:
+                path.write_text("placeholder\n", encoding="utf-8")
+            else:
+                path.mkdir(parents=True, exist_ok=True)
+
+
 def test_fire_formal_assurance_claims_accept_current_manifest() -> None:
     ok, err, verification = verify_fire_formal_assurance_claims_file()
 
@@ -100,6 +117,56 @@ def test_fire_formal_assurance_claims_rejects_formal_claim_without_receipt(tmp_p
     assert ok is False
     assert err is not None
     assert "formal verification claim requires at least one proof receipt" in err
+    assert verification is None
+
+
+def test_fire_formal_assurance_claims_rejects_stale_proof_receipt_module_hash(tmp_path: Path) -> None:
+    payload = _load_manifest()
+    _materialize_declared_paths(tmp_path, payload)
+
+    module_path = tmp_path / "lean-mathlib/Proofs/StaleReceiptProbe.lean"
+    module_path.parent.mkdir(parents=True, exist_ok=True)
+    module_path.write_text("def staleReceiptProbe : Nat := 1\n", encoding="utf-8")
+
+    receipt_payload = {
+        "schema": "zenodex/lean-proof-receipt/v1",
+        "receipt_id": "stale_receipt_probe_v1",
+        "checker": "lean",
+        "lean_toolchain": "leanprover/lean4:v4.27.0",
+        "commands": [],
+        "modules": [
+            {
+                "module": "Proofs.StaleReceiptProbe",
+                "path": "lean-mathlib/Proofs/StaleReceiptProbe.lean",
+                "sha256": "sha256:" + ("0" * 64),
+                "theorems": ["staleReceiptProbe"],
+            }
+        ],
+        "claim": "negative test receipt with stale module hash",
+        "result": "proved",
+    }
+    receipt_path = tmp_path / "proof_receipts/stale_receipt_probe_v1.json"
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_text = json.dumps(receipt_payload, sort_keys=True, separators=(",", ":"))
+    receipt_path.write_text(receipt_text, encoding="utf-8")
+
+    formal = _component(payload, "fire_zpl_language_lean_v1")["formal_verification"]
+    formal["proof_receipts"] = [
+        {
+            "path": "proof_receipts/stale_receipt_probe_v1.json",
+            "checker": "lean",
+            "result": "proved",
+            "sha256": _sha256_text(receipt_text),
+            "scope": "negative stale module hash test",
+        }
+    ]
+    manifest_path = _write_manifest(tmp_path, payload)
+
+    ok, err, verification = verify_fire_formal_assurance_claims_file(manifest_path, repo_root=tmp_path)
+
+    assert ok is False
+    assert err is not None
+    assert "proof receipt module hash mismatch" in err
     assert verification is None
 
 
