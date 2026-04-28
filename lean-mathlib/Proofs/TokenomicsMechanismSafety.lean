@@ -122,6 +122,41 @@ theorem traceVerifiedGain_nonneg
   unfold traceVerifiedGain
   exact sub_nonneg.mpr h
 
+/-- If a trace creates no verified value and consumes no treasury/resource
+budget, then a funded nondecreasing reward counter cannot increase. -/
+theorem traceRewardSpend_eq_zero_of_no_value_gain_no_treasury_drop
+    (M : MarketSystem σ) (R V T : σ → Rat)
+    (hReward : StepRewardNondecreasing M R)
+    (hFunded : StepRewardFunded M R V T)
+    {n : Nat} {s t : σ} (hTrace : TraceN M n s t)
+    (hValueClosed : V t = V s)
+    (hTreasuryClosed : T t = T s) :
+    traceRewardSpend R hTrace = 0 := by
+  have hUpper :=
+    traceRewardSpend_le_verifiedGain_plus_treasuryDrop
+      M R V T hFunded hTrace
+  have hLower := traceRewardSpend_nonneg M R hReward hTrace
+  unfold traceRewardSpend at hUpper hLower ⊢
+  unfold traceVerifiedGain at hUpper
+  rw [hValueClosed, hTreasuryClosed] at hUpper
+  linarith
+
+/-- A positive payout over a no-value/no-budget loop proves the step-funding
+rule was violated somewhere in the trace. -/
+theorem positive_reward_closed_loop_implies_not_stepwise_funded
+    (M : MarketSystem σ) (R V T : σ → Rat)
+    (hReward : StepRewardNondecreasing M R)
+    {n : Nat} {s t : σ} (hTrace : TraceN M n s t)
+    (hValueClosed : V t = V s)
+    (hTreasuryClosed : T t = T s)
+    (hPositiveReward : 0 < traceRewardSpend R hTrace) :
+    ¬ StepRewardFunded M R V T := by
+  intro hFunded
+  have hZero :=
+    traceRewardSpend_eq_zero_of_no_value_gain_no_treasury_drop
+      M R V T hReward hFunded hTrace hValueClosed hTreasuryClosed
+  linarith
+
 /-- No unfunded-reward theorem: if a terminal trace pays more than verified
 value gained plus initial treasury, then at least one admitted transition must
 violate the step funding rule. -/
