@@ -112,6 +112,7 @@ import Proofs.SettlementNetting
 import Proofs.FiniteTraceBarriers
 import Proofs.AbstractInterpretationDisasterSafety
 import Proofs.FixedPointIntervalBridge
+import Proofs.FixedPointPortfolioBridge
 import Proofs.TokenomicsTraceSafety
 import Proofs.ZenoPayoffFixedPointBridge
 import Proofs.ZenoDEXSettlementGateBlockers
