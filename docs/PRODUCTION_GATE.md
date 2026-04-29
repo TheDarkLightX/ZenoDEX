@@ -3,6 +3,7 @@
 This repo includes a single “production gate” script that runs the same checks we treat as launch-blocking:
 
 - Kernel spec assurance (manifest-backed)
+- Container hardening artifact checks
 - Python unit tests
 - UI dependency audit (`npm audit`)
 - Build the production container image
@@ -26,6 +27,7 @@ bash tools/prod_gate.sh --skip-ui
 ### What “pass” means
 
 - Kernel assurance returns `ok: true` for **all kernels in** `tools/kernel_assurance_manifest.json`.
+- Container hardening checks pass for compose, AppArmor, and Dockerfile runtime-user artifacts.
 - The vendored ESSO package tree hash, git provenance hash, and solver versions match the manifest pin before any long-running verification starts.
 - Trivy finds **0 HIGH/CRITICAL vulnerabilities with available fixes** in the final image artifact.
 

@@ -5,6 +5,7 @@ set -euo pipefail
 #
 # Runs:
 # - python tests
+# - container hardening artifact checks
 # - private-toolchain kernel assurance (cpmm_swap + liquidity_pool)
 # - npm audit for UI
 # - docker build of production image
@@ -60,6 +61,9 @@ echo "[gate] installing python requirements"
 . .venv/bin/activate
 python -m pip install --upgrade --quiet pip
 pip install --quiet -r requirements.txt
+
+echo "[gate] checking container hardening artifacts"
+python tools/check_container_hardening.py
 
 KERNEL_JSON="$(mktemp)"
 echo "[gate] running kernel assurance (manifest-backed)"
