@@ -66,6 +66,9 @@ import Proofs.FIREBudgetSafety
 import Proofs.FIREUnified
 import Proofs.AgentCapabilityBounds
 import Proofs.AdvisoryPokayokeBridge
+import Proofs.SolverCheckerSeparation
+import Proofs.CrossSurfaceBenefitBudget
+import Proofs.RoleCollapseReleaseGate
 import Proofs.ZenoDEXAutoTraderBinaryDecision
 import Proofs.ZenoDEXAutoTraderDecisionBinding
 import Proofs.ZenoDEXAutoTraderStageCertificate
