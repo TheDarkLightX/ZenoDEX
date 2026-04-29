@@ -91,6 +91,7 @@ import Proofs.DEXCanonicalSelection
 import Proofs.OppositeDirectionNoncommutativity
 import Proofs.CPMMOutputMonotonicity
 import Proofs.GaloisSplitCertificate
+import Proofs.CPMMConcavity
 import Proofs.ZenoDEXExactOutManyPoolOrderedPathWitnessShapeLadder
 import Proofs.ZenoDEXExactOutManyPoolRuntimeGeneratorChecker
 import Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverWitnessExtraction
