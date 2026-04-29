@@ -85,6 +85,8 @@ import Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverWitnessExtraction
 import Proofs.ZenoDEXExactOutManyPoolSelectedDomainEmissionBridge
 import Proofs.ForwardSimulationDisaster
 import Proofs.FiniteTraceBarriers
+import Proofs.TokenomicsTraceSafety
+import Proofs.TokenomicsMechanismSafety
 import Proofs.OracleBenefitAccounting
 import Proofs.OracleBenefitRiskClasses
 import Proofs.OracleSyncGateSoundness
