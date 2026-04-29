@@ -41,6 +41,18 @@ Quick syntax check without loading:
 apparmor_parser -K -Q .docker/apparmor/zenodex
 ```
 
+The repo also includes a static regression checker:
+
+```bash
+python3 tools/check_container_hardening.py
+```
+
+It checks the default compose file, optional AppArmor overlay, optional
+local-node compose file, chaos compose file, Dockerfile runtime user, and the
+minimum AppArmor deny/allow rules. This is not a substitute for a live
+container escape audit, but it prevents accidental removal of the hardening
+rails.
+
 ## Auxiliary Compose Profiles
 
 The optional local Tau node and chaos-testing compose files now carry baseline
@@ -67,6 +79,7 @@ trace replay risks brittle operator failures.
 ## Local Validation
 
 ```bash
+python3 tools/check_container_hardening.py
 docker compose -f docker-compose.yml -f docker-compose.apparmor.yml config
 docker compose -f docker-compose.yml -f docker-compose.permissionless.yml --profile local-node config
 docker compose -f docker-compose.chaos.yml config
