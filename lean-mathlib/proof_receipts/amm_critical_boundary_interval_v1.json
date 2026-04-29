@@ -1,0 +1,45 @@
+{
+  "receipt_id": "amm_critical_boundary_interval_v1",
+  "artifact": "lean-mathlib/Proofs/AMMCriticalBoundaryInterval.lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "TauSwap.Impossibility.CriticalBoundaryInterval.criticalFromD_div_four_tendsto",
+    "TauSwap.Impossibility.CriticalBoundaryInterval.criticalFromD_eventually_negative",
+    "TauSwap.Impossibility.CriticalBoundaryInterval.criticalFromD_exists_negative",
+    "TauSwap.Impossibility.CriticalBoundaryInterval.criticalFromD_not_global_nonnegative",
+    "TauSwap.Impossibility.CriticalBoundaryInterval.criticalFactorPoly_neg_candidate_interval",
+    "TauSwap.Impossibility.CriticalBoundaryInterval.criticalFactorModel_neg_candidate_interval"
+  ],
+  "claims": [
+    "At the critical power-family boundary alpha = 2/3, the normalized curvature delta has quartic coefficient -179/1536.",
+    "The critical-boundary curvature delta is eventually negative in a punctured neighborhood of the center.",
+    "There exists a non-center witness where the critical-boundary curvature delta is negative.",
+    "The critical-boundary curvature delta cannot be globally nonnegative.",
+    "In the a = w^(1/8) coordinate, the factorized critical model is strictly negative on 4/5 <= a <= 23/20 when a != 1."
+  ],
+  "proof_method": [
+    "algebraic factorization through the a = w^(1/8) coordinate",
+    "punctured-neighborhood limit composition",
+    "Horner interval certificate for the degree-42 polynomial sign theorem",
+    "sign algebra for the factorized rational model"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.AMMCriticalBoundaryInterval",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|\\baxiom\\b|\\bunsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/AMMCriticalBoundaryInterval.lean || true",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "Does not claim global negativity outside 4/5 <= a <= 23/20.",
+    "Does not prove an arbitrary-invariant analogue of the critical-boundary statement.",
+    "Does not replace integer-runtime or executable AMM kernel verification."
+  ]
+}
