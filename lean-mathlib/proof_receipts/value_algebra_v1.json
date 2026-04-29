@@ -1,0 +1,95 @@
+{
+  "receipt_id": "value_algebra_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/DEXValueAlgebra.lean",
+    "lean-mathlib/Proofs/LPValueAlgebra.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.DEXValueAlgebra.Settl",
+    "Proofs.DEXValueAlgebra.Δ",
+    "Proofs.DEXValueAlgebra.V",
+    "Proofs.LPValueAlgebra.LPPos",
+    "Proofs.LPValueAlgebra.lpValue",
+    "Proofs.LPValueAlgebra.rxProj",
+    "Proofs.LPValueAlgebra.ryProj",
+    "Proofs.LPValueAlgebra.lpLinear",
+    "Proofs.LPValueAlgebra.lpValueHom",
+    "Proofs.LPValueAlgebra.swapDelta",
+    "Proofs.LPValueAlgebra.traderPnL"
+  ],
+  "theorems": [
+    "Proofs.DEXValueAlgebra.V_at_unit_price",
+    "Proofs.DEXValueAlgebra.value_decomposition",
+    "Proofs.DEXValueAlgebra.balanced_value",
+    "Proofs.DEXValueAlgebra.price_sensitivity",
+    "Proofs.DEXValueAlgebra.V_separates_points",
+    "Proofs.DEXValueAlgebra.ker_Δ_inter_ker_V_trivial",
+    "Proofs.DEXValueAlgebra.two_prices_determine",
+    "Proofs.DEXValueAlgebra.balanced_positive_value",
+    "Proofs.DEXValueAlgebra.witness_V_at_unit",
+    "Proofs.DEXValueAlgebra.witness_balanced_value",
+    "Proofs.DEXValueAlgebra.witness_nontrivial_kernel",
+    "Proofs.DEXValueAlgebra.witness_two_prices",
+    "Proofs.DEXValueAlgebra.witness_arbitrage",
+    "Proofs.LPValueAlgebra.price_sensitivity",
+    "Proofs.LPValueAlgebra.impermanent_loss_as_delta",
+    "Proofs.LPValueAlgebra.lpValueHom_ker_trivial",
+    "Proofs.LPValueAlgebra.lp_value_separates",
+    "Proofs.LPValueAlgebra.two_price_determines_reserves",
+    "Proofs.LPValueAlgebra.swap_zero_sum",
+    "Proofs.LPValueAlgebra.strict_price_monotonicity",
+    "Proofs.LPValueAlgebra.strict_price_anti_monotonicity",
+    "Proofs.LPValueAlgebra.reserve_recovery_from_values",
+    "Proofs.LPValueAlgebra.constant_valuation_iff_zero_rx",
+    "Proofs.LPValueAlgebra.lp_value_zero_for_all_prices",
+    "Proofs.LPValueAlgebra.nonzero_pos_has_revealing_price",
+    "Proofs.LPValueAlgebra.valuation_faithful",
+    "Proofs.LPValueAlgebra.valuation_determines_position",
+    "Proofs.LPValueAlgebra.witness_valuation_core",
+    "Proofs.LPValueAlgebra.witness_zero_sum",
+    "Proofs.LPValueAlgebra.witness_monotonicity",
+    "Proofs.LPValueAlgebra.witness_structural"
+  ],
+  "claims": [
+    "A settlement has a family of price-parameterized value homomorphisms `V p s = p * dx + dy`.",
+    "Conservation is exactly value at unit price.",
+    "Balanced settlement value decomposes to price deviation times token-X exposure.",
+    "Two distinct price evaluations determine a settlement uniquely.",
+    "LP valuation is a price-indexed homomorphism over reserve components.",
+    "LP value sensitivity is exactly reserve-X exposure.",
+    "LP valuation is faithful: equal value at every price implies equal reserves.",
+    "LP swap value and trader PnL are zero-sum under the stated value model."
+  ],
+  "proof_method": [
+    "additive group and homomorphism definitions",
+    "integer linear algebra",
+    "two-price separation",
+    "ordered-ring monotonicity",
+    "native witnesses for non-vacuity"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.DEXValueAlgebra Proofs.LPValueAlgebra",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/DEXValueAlgebra.lean lean-mathlib/Proofs/LPValueAlgebra.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "These proofs define a value algebra and separation theory; they do not choose live market prices.",
+    "Runtime integrations still need oracle/source evidence for the prices used by `V` and `lpValue`.",
+    "The LP model is a two-asset integer reserve abstraction, not a complete portfolio-risk model.",
+    "The zero-sum swap theorem is relative to the stated valuation model and does not include fees, latency, or external market impact."
+  ]
+}
