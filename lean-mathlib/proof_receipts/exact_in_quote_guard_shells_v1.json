@@ -1,0 +1,80 @@
+{
+  "receipt_id": "exact_in_quote_guard_shells_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactInRouteOracleContract.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactInRouteGuardedQuotePacket.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.Routing.ExactInRouteOracleContract.Inputs",
+    "TauSwap.Routing.ExactInRouteOracleContract.canonicalWinner",
+    "TauSwap.Routing.ExactInRouteOracleContract.Contract",
+    "TauSwap.Routing.ExactInRouteOracleContract.buildContract",
+    "TauSwap.Routing.ExactInRouteOracleContract.verifyContract",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.Inputs",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.Candidate",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.GuardError",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.Packet",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.buildPacket",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.verifyPacket"
+  ],
+  "theorems": [
+    "TauSwap.Routing.ExactInRouteOracleContract.verifyContract_iff",
+    "TauSwap.Routing.ExactInRouteOracleContract.verifyContract_of_build",
+    "TauSwap.Routing.ExactInRouteOracleContract.verifyingContract_unique",
+    "TauSwap.Routing.ExactInRouteOracleContract.canonicalWinner_eq",
+    "TauSwap.Routing.ExactInRouteOracleContract.runtimeMatchesCanonical_iff",
+    "TauSwap.Routing.ExactInRouteOracleContract.runtimeMismatch_iff",
+    "TauSwap.Routing.ExactInRouteOracleContract.candidateCount_eq",
+    "TauSwap.Routing.ExactInRouteOracleContract.certificate_eq_route_certificate_build",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.guardOk_iff",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.guardFails_iff",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.quote_isSome_iff",
+    "TauSwap.Routing.ExactInRouteGuardedQuotePacket.mismatch_error_iff"
+  ],
+  "claims": [
+    "The exact-in oracle contract verifies exactly when it equals the canonical rebuilt contract.",
+    "The oracle contract canonical winner equals the certificate winner reconstructed from the route certificate.",
+    "runtimeMatchesCanonical is true exactly when the runtime choice equals the canonical winner.",
+    "The guarded quote packet verifies exactly when it equals the canonical rebuilt packet.",
+    "guardOk and quote.isSome are true exactly when the runtime choice equals the canonical winner.",
+    "A runtime mismatch produces the explicit runtimeNotCanonical error."
+  ],
+  "proof_method": [
+    "deterministic contract and packet rebuild equality",
+    "winner reconstruction from buildCertificate",
+    "decide/equality Boolean reflection",
+    "case split on runtimeMatchesCanonical",
+    "guard success/error equivalences"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactInRouteOracleContract",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactInRouteGuardedQuotePacket",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactInRouteOracleContract.lean lean-mathlib/Proofs/ZenoDEXExactInRouteGuardedQuotePacket.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "These shells prove deterministic verifier behavior for the exact-in oracle contract and guarded quote packet.",
+    "They do not prove the Python route search is complete or economically optimal.",
+    "They are proof-only and do not change runtime quote or routing behavior."
+  ]
+}
