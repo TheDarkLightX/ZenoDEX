@@ -50,6 +50,7 @@ import Proofs.PerpInsuranceSafety
 import Proofs.PerpLiquidationInsuranceBound
 import Proofs.PerpIntegerBridge
 import Proofs.FundingRateMarketSafety
+import Proofs.FundingImbalanceEV
 import Proofs.ILFuturesSafety
 import Proofs.VolatilityTierSafety
 import Proofs.CurveSelectionSafety
