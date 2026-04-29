@@ -69,6 +69,8 @@ import Proofs.AdvisoryPokayokeBridge
 import Proofs.SolverCheckerSeparation
 import Proofs.CrossSurfaceBenefitBudget
 import Proofs.RoleCollapseReleaseGate
+import Proofs.ZenoDEXExactOutManyPoolOrderedPathWitnessShapeLadder
+import Proofs.ZenoDEXExactOutManyPoolRuntimeGeneratorChecker
 import Proofs.ZenoDEXAutoTraderBinaryDecision
 import Proofs.ZenoDEXAutoTraderDecisionBinding
 import Proofs.ZenoDEXAutoTraderStageCertificate
