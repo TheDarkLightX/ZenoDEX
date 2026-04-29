@@ -1,0 +1,59 @@
+{
+  "receipt_id": "amm_normalized_surface_bridge_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/AMMLocalJetFrontier.lean",
+    "lean-mathlib/Proofs/AMMGlobalCounterexamples.lean",
+    "lean-mathlib/Proofs/AMMPowerFamilyGlobal.lean",
+    "lean-mathlib/Proofs/OriginalHODLCurvatureLeadingLaw.lean",
+    "lean-mathlib/Proofs/AMMPowerFamilyOriginalHODLSurfaceMismatch.lean",
+    "lean-mathlib/Proofs/AMMPowerFamilyOriginalHODLCurvatureNormalization.lean",
+    "lean-mathlib/Proofs/AMMOriginalHODLNormalizedSlippageBridge.lean",
+    "lean-mathlib/Proofs/AMMOriginalHODLNormalizedPairBridge.lean",
+    "lean-mathlib/Proofs/AMMOriginalHODLNormalizedFunctionBridge.lean",
+    "lean-mathlib/Proofs/AMMOriginalHODLNormalizedSurfaceBridge.lean",
+    "lean-mathlib/Proofs/AMMOriginalHODLNormalizedSurfaceSemantics.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "TauSwap.Impossibility.LocalJetFrontier.powerFamilyNormalizedSurface_same_sign_obstruction",
+    "TauSwap.Impossibility.LocalJetFrontier.powerFamilyNormalizedSurface_mixed_sign_tradeoff",
+    "TauSwap.Impossibility.LocalJetFrontier.powerFamilyNormalizedSurface_slippage_not_global_no_worse",
+    "TauSwap.Impossibility.LocalJetFrontier.powerFamilyNormalizedSurface_no_uniform_curvature_orientation",
+    "TauSwap.Impossibility.LocalJetFrontier.powerFamilySameSignSurfaceModel_not_simultaneous_global_no_worse",
+    "TauSwap.Impossibility.LocalJetFrontier.powerFamilyMixedSignSurfaceModel_tradeoff"
+  ],
+  "claims": [
+    "The normalized power-family surface has a proved same-sign obstruction for 0 < alpha < 2/3.",
+    "The normalized power-family surface has a proved mixed-sign tradeoff obstruction for 2/3 < alpha.",
+    "For every positive alpha, the normalized power-family candidate cannot be globally no worse in slippage.",
+    "No single curvature no-worse orientation covers all positive alpha in the normalized power-family surface.",
+    "The surface-level obstruction transports through a semantic-model interface for future raw-AMM extraction proofs."
+  ],
+  "proof_method": [
+    "local coefficient witnesses",
+    "eventual-sign to global-nonpos refutation",
+    "function-level candidate-minus-baseline delta transport",
+    "shared AMMCoefficientSurface packaging",
+    "semantic model assumption objects for raw-AMM transport"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.AMMOriginalHODLNormalizedSurfaceSemantics Proofs.AMMCriticalBoundaryInterval",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|\\baxiom\\b|\\bunsafe\\b|\\bsorryAx\\b' <promoted AMM bridge files>",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This is a normalized surface bridge, not a raw runtime AMM verifier.",
+    "The open regimes exclude the exact alpha = 2/3 boundary; that boundary is covered separately by amm_critical_boundary_interval_v1.",
+    "The semantic-model interface still requires future raw-AMM extraction proofs to supply the declared surface assumptions.",
+    "The theorem is continuous real-analysis proof work and does not replace integer-runtime AMM kernel verification."
+  ]
+}
