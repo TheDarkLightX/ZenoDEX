@@ -416,6 +416,25 @@ theorem criticalFromD_eventually_negative :
     mul_lt_mul_of_pos_right hratio hd4
   simpa [ne_of_gt hd4] using hmul
 
+/-- The local negativity theorem is constructive at the proposition level:
+there is an explicit non-center point where the critical-boundary delta is
+negative. -/
+theorem criticalFromD_exists_negative :
+    ∃ d : ℝ, d ≠ 0 ∧ criticalFromD d < 0 := by
+  obtain ⟨d, hneg, hd⟩ :=
+    (criticalFromD_eventually_negative.and self_mem_nhdsWithin).exists
+  exact ⟨d, by simpa using hd, hneg⟩
+
+/-- Global nonnegativity is impossible for the critical-boundary delta.  This
+is the bridge-shaped corollary used by later function-surface packaging: once
+this delta is identified with `candidate - baseline`, the reversed no-worse
+claim is immediately refuted. -/
+theorem criticalFromD_not_global_nonnegative :
+    ¬ (∀ d : ℝ, 0 ≤ criticalFromD d) := by
+  intro hglobal
+  obtain ⟨d, _hd, hneg⟩ := criticalFromD_exists_negative
+  exact not_le_of_gt hneg (hglobal d)
+
 /-- Horner stages for interval-certified evaluation of `criticalFactorPoly`.
 They keep the interval proof local and avoid large degree-42 polynomial
 normalization during the sign proof. -/
