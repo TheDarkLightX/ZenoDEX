@@ -1,0 +1,118 @@
+{
+  "receipt_id": "settlement_certificate_packet_shells_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXSettlementCompactBundle.lean",
+    "lean-mathlib/Proofs/ZenoDEXSettlementPriceHistoryCertificate.lean",
+    "lean-mathlib/Proofs/ZenoDEXSettlementValuePacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXSettlementFeatureExtensionPacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXSettlementEndogenousLPValuePacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXSettlementEndToEndCertificatePacket.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.ZenoDEX.SettlementCompactBundle.CanonicalIds",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.MonotonePriceTrace",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.CompactPriceGate",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.FullPriceRails",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.FlagsAllOn",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.CompactBundleOk",
+    "TauSwap.Settlement.PriceHistoryCertificate.Inputs",
+    "TauSwap.Settlement.PriceHistoryCertificate.Certificate",
+    "TauSwap.Settlement.PriceHistoryCertificate.buildCertificate",
+    "TauSwap.Settlement.PriceHistoryCertificate.verifyCertificate",
+    "TauSwap.SettlementValuePacket.Inputs",
+    "TauSwap.SettlementValuePacket.Packet",
+    "TauSwap.SettlementValuePacket.buildPacket",
+    "TauSwap.SettlementValuePacket.verifyPacket",
+    "TauSwap.SettlementFeatureExtensionPacket.Inputs",
+    "TauSwap.SettlementFeatureExtensionPacket.Packet",
+    "TauSwap.SettlementFeatureExtensionPacket.buildPacket",
+    "TauSwap.SettlementFeatureExtensionPacket.verifyPacket",
+    "TauSwap.SettlementEndogenousLPValuePacket.Inputs",
+    "TauSwap.SettlementEndogenousLPValuePacket.Packet",
+    "TauSwap.SettlementEndogenousLPValuePacket.buildPacket",
+    "TauSwap.SettlementEndogenousLPValuePacket.verifyPacket",
+    "TauSwap.SettlementEndToEndCertificatePacket.Inputs",
+    "TauSwap.SettlementEndToEndCertificatePacket.Packet",
+    "TauSwap.SettlementEndToEndCertificatePacket.buildPacket",
+    "TauSwap.SettlementEndToEndCertificatePacket.verifyPacket"
+  ],
+  "theorems": [
+    "TauSwap.ZenoDEX.SettlementCompactBundle.fullPriceRails_implies_compactPriceGate",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.compactBundleOk_of_fullPriceRails_of_flags",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.flagsAllOn_all_true",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.compactBundleOk_of_fullPriceRails_all_true",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.compactBundleOk_implies_lastStepBound",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.compactBundleOk_implies_canonicalIds",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.compactPriceGate_counterexample",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.not_fullPriceRails_counterexample",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.compactBundleOk_counterexample",
+    "TauSwap.ZenoDEX.SettlementCompactBundle.compactBundle_not_equivalent_to_fullPriceRails",
+    "TauSwap.Settlement.PriceHistoryCertificate.verifyCertificate_iff",
+    "TauSwap.Settlement.PriceHistoryCertificate.verifyCertificate_of_build",
+    "TauSwap.Settlement.PriceHistoryCertificate.verifyingCertificate_unique",
+    "TauSwap.SettlementValuePacket.verifyPacket_iff",
+    "TauSwap.SettlementValuePacket.verifyPacket_of_build",
+    "TauSwap.SettlementValuePacket.verifyingPacket_unique",
+    "TauSwap.SettlementValuePacket.packetOk_iff",
+    "TauSwap.SettlementFeatureExtensionPacket.verifyPacket_iff",
+    "TauSwap.SettlementFeatureExtensionPacket.verifyPacket_of_build",
+    "TauSwap.SettlementFeatureExtensionPacket.verifyingPacket_unique",
+    "TauSwap.SettlementFeatureExtensionPacket.packetOk_iff",
+    "TauSwap.SettlementEndogenousLPValuePacket.verifyPacket_iff",
+    "TauSwap.SettlementEndogenousLPValuePacket.verifyPacket_of_build",
+    "TauSwap.SettlementEndogenousLPValuePacket.verifyingPacket_unique",
+    "TauSwap.SettlementEndogenousLPValuePacket.packetOk_iff",
+    "TauSwap.SettlementEndToEndCertificatePacket.verifyPacket_iff",
+    "TauSwap.SettlementEndToEndCertificatePacket.verifyPacket_of_build",
+    "TauSwap.SettlementEndToEndCertificatePacket.verifyingPacket_unique",
+    "TauSwap.SettlementEndToEndCertificatePacket.packetOk_iff"
+  ],
+  "claims": [
+    "The compact settlement bundle is implied by the stronger full price-rails shape plus module flags, while the compact gate is not equivalent to full rails.",
+    "The settlement price-history certificate is deterministic: verifier success is exactly equality with the canonical rebuilt certificate.",
+    "Settlement value, feature-extension, endogenous LP value, and end-to-end certificate packets are deterministic rebuilt shells.",
+    "Each packet's `packetOk` field is exactly the conjunction of its declared fail-closed gate bits."
+  ],
+  "proof_method": [
+    "arithmetic decomposition of canonical id ordering and compact price rail conditions",
+    "explicit counterexample witnesses for compact-vs-full rail non-equivalence",
+    "deterministic rebuild equality for certificate/packet verification",
+    "Boolean conjunction normalization for packet acceptance surfaces"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXSettlementCompactBundle Proofs.ZenoDEXSettlementPriceHistoryCertificate Proofs.ZenoDEXSettlementValuePacket Proofs.ZenoDEXSettlementFeatureExtensionPacket Proofs.ZenoDEXSettlementEndogenousLPValuePacket Proofs.ZenoDEXSettlementEndToEndCertificatePacket",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < settlement-certificate-packet-shells-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/settlement_certificate_packet_shells_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXSettlementCompactBundle.lean lean-mathlib/Proofs/ZenoDEXSettlementPriceHistoryCertificate.lean lean-mathlib/Proofs/ZenoDEXSettlementValuePacket.lean lean-mathlib/Proofs/ZenoDEXSettlementFeatureExtensionPacket.lean lean-mathlib/Proofs/ZenoDEXSettlementEndogenousLPValuePacket.lean lean-mathlib/Proofs/ZenoDEXSettlementEndToEndCertificatePacket.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/ZenoDEXSettlementCompactBundle.lean lean-mathlib/Proofs/ZenoDEXSettlementPriceHistoryCertificate.lean lean-mathlib/Proofs/ZenoDEXSettlementValuePacket.lean lean-mathlib/Proofs/ZenoDEXSettlementFeatureExtensionPacket.lean lean-mathlib/Proofs/ZenoDEXSettlementEndogenousLPValuePacket.lean lean-mathlib/Proofs/ZenoDEXSettlementEndToEndCertificatePacket.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves deterministic shell and Boolean gate facts for settlement certificate packets.",
+    "Hashing, JSON serialization, external attestations, and live oracle availability are outside this Lean shell receipt.",
+    "This is proof-only and does not change settlement runtime behavior."
+  ]
+}

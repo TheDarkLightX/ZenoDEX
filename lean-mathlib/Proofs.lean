@@ -6,6 +6,12 @@ import Proofs.CPMMSettlement
 import Proofs.BatchCPMMUnification
 import Proofs.SettlementCanonicalExecution
 import Proofs.SettlementMechanism
+import Proofs.ZenoDEXSettlementCompactBundle
+import Proofs.ZenoDEXSettlementPriceHistoryCertificate
+import Proofs.ZenoDEXSettlementValuePacket
+import Proofs.ZenoDEXSettlementFeatureExtensionPacket
+import Proofs.ZenoDEXSettlementEndogenousLPValuePacket
+import Proofs.ZenoDEXSettlementEndToEndCertificatePacket
 import Proofs.PokayokeSafety
 import Proofs.PerpEpochSafety
 import Proofs.PerpMechanismDesign
