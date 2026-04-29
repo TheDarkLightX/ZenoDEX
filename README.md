@@ -155,7 +155,8 @@ certificate into a named unreachability claim. That proof strengthens how
 promoted axes can be justified; it does not by itself raise the replayed
 29-family count.
 
-The proof layer has also been extended with three reusable theorem schemas:
+The proof layer has also been extended with reusable theorem schemas and
+adapters:
 
 - [AMMIntegerRuntimeBridge.lean](lean-mathlib/Proofs/AMMIntegerRuntimeBridge.lean)
   connects ideal CPMM quote facts to integer-runtime receipts, including
@@ -192,7 +193,9 @@ The closed-axis proof-schema map is checked by
 [check_disaster_proof_schema_map.py](tools/check_disaster_proof_schema_map.py)
 and currently maps all `29` closed axes to one or more proof-schema lanes.
 The Lean-side mirror is
-[ZenoDEXClosedAxisProofSchemaMap.lean](lean-mathlib/Proofs/ZenoDEXClosedAxisProofSchemaMap.lean).
+[ZenoDEXClosedAxisProofSchemaMap.lean](lean-mathlib/Proofs/ZenoDEXClosedAxisProofSchemaMap.lean);
+the checker also rejects drift between the Python map used by the replay
+tooling and the Lean-side enumeration.
 
 The closed receipt is CI-ratcheted by
 `.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails
