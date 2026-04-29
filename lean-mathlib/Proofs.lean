@@ -94,6 +94,7 @@ import Proofs.GaloisSplitCertificate
 import Proofs.CPMMConcavity
 import Proofs.BatchGreedyOptimality
 import Proofs.BatchGreedyApproximation
+import Proofs.ZenoDEXExactInRouteCertificate
 import Proofs.ZenoDEXExactInRouteRankProjection
 import Proofs.ZenoDEXExactInTrueKeyWinner
 import Proofs.ZenoDEXExactInRouteRankProjectionPacket
