@@ -13,10 +13,10 @@
   "lean_toolchain": "leanprover/lean4:v4.27.0",
   "theorems": [
     "Proofs.ZenoPayoffLanguage.compile_correct",
-    "Proofs.ZPLPayoffCombinators.addExpr_correct",
-    "Proofs.ZPLPayoffCombinators.subExpr_correct",
-    "Proofs.ZPLPayoffCombinators.negExpr_correct",
-    "Proofs.ZPLPayoffCombinators.clampExpr_correct",
+    "Proofs.ZPLPayoffCombinators.CertifiedPayoff.digital_bilateral_no_default",
+    "Proofs.ZPLPayoffCombinators.CertifiedPayoff.conditionalZero_bilateral_no_default",
+    "Proofs.ZPLPayoffCombinators.CertifiedPayoff.collar_payoff_between_floor_cap",
+    "Proofs.ZPLPayoffCombinators.CertifiedPayoff.neg_conditionalZero_bilateral_no_default",
     "Proofs.ZenoPayoffFixedPointBridge.compile_floorDecode_interval",
     "Proofs.ZenoPayoffFixedPointBridge.compile_ceilDecode_interval",
     "Proofs.ZenoPayoffFixedPointBridge.compile_floorDecode_posted_collateral_safe",
@@ -58,7 +58,7 @@
       "result": "passed with pre-existing linter warnings in unrelated proof files"
     },
     {
-      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' <promoted FIRE/ZPL files>",
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoPayoffLanguage.lean lean-mathlib/Proofs/ZPLPayoffCombinators.lean lean-mathlib/Proofs/FixedPointIntervalBridge.lean lean-mathlib/Proofs/FixedPointPortfolioBridge.lean lean-mathlib/Proofs/ZenoPayoffFixedPointBridge.lean lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean lean-mathlib/Proofs/FIREBudgetSafety.lean lean-mathlib/Proofs/FIREUnified.lean",
       "result": "no matches"
     }
   ],
