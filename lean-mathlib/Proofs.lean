@@ -88,6 +88,7 @@ import Proofs.MEVResistanceBound
 import Proofs.DEXValueAlgebra
 import Proofs.LPValueAlgebra
 import Proofs.DEXCanonicalSelection
+import Proofs.OppositeDirectionNoncommutativity
 import Proofs.ZenoDEXExactOutManyPoolOrderedPathWitnessShapeLadder
 import Proofs.ZenoDEXExactOutManyPoolRuntimeGeneratorChecker
 import Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverWitnessExtraction
