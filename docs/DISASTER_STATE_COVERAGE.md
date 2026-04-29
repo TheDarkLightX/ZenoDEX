@@ -29,8 +29,9 @@ another replayable certificate lane.
 
 ## Proof Layer Added For Future Promotion
 
-The current branch adds three reusable Lean theorem schemas that strengthen the
-way future axes can be promoted from search inventory into replayable guarantees:
+The current branch adds reusable Lean theorem schemas and adapters that
+strengthen the way future axes can be promoted from search inventory into
+replayable guarantees:
 
 - `Proofs.AMMIntegerRuntimeBridge`: integer-runtime CPMM receipts imply
   no-overdelivery, nondecreasing fee-adjusted `k`, and route rounding envelopes.
@@ -76,6 +77,9 @@ Current output:
 axis_count: 29
 schema_count: 7
 support_proof_file_count: 1
+lean_mirror_ok: yes
+lean_mirror_axis_count: 29
+lean_mirror_assignment_count: 29
 amm_integer_runtime_bridge: 1
 certificate_gluing: 13
 disaster_antichain_basis: 8
@@ -89,7 +93,9 @@ This map is not a proof that all 29 axes are now fully discharged in Lean. It is
 a ratchet that keeps every closed replay axis attached to the theorem schema
 that should discharge or strengthen it once the concrete runtime predicates are
 instantiated. The Lean-side map module is tracked by the same hygiene gate but
-is intentionally not counted as an axis-discharge schema.
+is intentionally not counted as an axis-discharge schema. The checker compares
+the Python map used by the replay tooling against the Lean mirror and fails on
+axis or schema-assignment drift.
 
 ## Evidence Discipline
 
