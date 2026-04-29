@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="720" viewBox="0 0 1080 720" role="img" aria-label="Critical boundary quartic coefficient">
+<title>Critical boundary quartic coefficient</title>
+<desc>At alpha = 2/3, the quotient ΔCurv_norm(2/3,d)/d^4 converges to -179/1536.</desc>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="92" y="34" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">Critical boundary quartic coefficient</text>
+<text x="92" y="58" font-family="Inter, Arial, sans-serif" font-size="14" fill="#4b5563">At alpha = 2/3, the quotient ΔCurv_norm(2/3,d)/d^4 converges to -179/1536.</text>
+<line x1="92" y1="628" x2="1042" y2="628" stroke="#374151" stroke-width="1.5"/>
+<line x1="92" y1="628" x2="92" y2="76" stroke="#374151" stroke-width="1.5"/>
+<line x1="202.46511627906978" y1="628" x2="202.46511627906978" y2="76" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="202.46511627906978" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">1e-4</text>
+<line x1="423.3953488372093" y1="628" x2="423.3953488372093" y2="76" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="423.3953488372093" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">1e-3</text>
+<line x1="644.3255813953489" y1="628" x2="644.3255813953489" y2="76" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="644.3255813953489" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">1e-2</text>
+<line x1="865.2558139534884" y1="628" x2="865.2558139534884" y2="76" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="865.2558139534884" y="656" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">1e-1</text>
+<line x1="92" y1="632.6312569994512" x2="1042" y2="632.6312569994512" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="636.6312569994512" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-0.121</text>
+<line x1="92" y1="512.7389409687137" x2="1042" y2="512.7389409687137" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="516.7389409687137" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-0.109</text>
+<line x1="92" y1="402.8376512738709" x2="1042" y2="402.8376512738709" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="406.8376512738709" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-0.098</text>
+<line x1="92" y1="292.936361579028" x2="1042" y2="292.936361579028" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="296.936361579028" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-0.087</text>
+<line x1="92" y1="183.03507188418527" x2="1042" y2="183.03507188418527" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="187.03507188418527" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-0.076</text>
+<line x1="92" y1="73.13378218934253" x2="1042" y2="73.13378218934253" stroke="#d1d5db" stroke-width="1" opacity="0.65"/>
+<text x="80" y="77.13378218934253" text-anchor="end" font-family="Inter, Arial, sans-serif" font-size="12" fill="#4b5563">-0.065</text>
+<text x="567.0" y="690" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#111827">log10(|d|)</text>
+<text transform="translate(28 352.0) rotate(-90)" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#111827">ΔCurv_norm(2/3,d) / d^4</text>
+<polyline points="92.000,588.036 1042.000,588.036" fill="none" stroke="#dc2626" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="8 7"/>
+<polyline points="92.000,588.036 98.835,588.036 105.669,588.036 112.504,588.036 119.338,588.036 126.173,588.036 133.007,588.036 139.842,588.036 146.676,588.036 153.511,588.036 160.345,588.036 167.180,588.036 174.014,588.036 180.849,588.036 187.683,588.036 194.518,588.036 201.353,588.036 208.187,588.036 215.022,588.036 221.856,588.036 228.691,588.036 235.525,588.036 242.360,588.036 249.194,588.036 256.029,588.036 262.863,588.036 269.698,588.036 276.532,588.036 283.367,588.036 290.201,588.036 297.036,588.036 303.871,588.036 310.705,588.036 317.540,588.036 324.374,588.036 331.209,588.036 338.043,588.036 344.878,588.036 351.712,588.036 358.547,588.035 365.381,588.035 372.216,588.035 379.050,588.035 385.885,588.035 392.719,588.035 399.554,588.035 406.388,588.035 413.223,588.035 420.058,588.034 426.892,588.034 433.727,588.034 440.561,588.034 447.396,588.033 454.230,588.033 461.065,588.032 467.899,588.032 474.734,588.031 481.568,588.031 488.403,588.030 495.237,588.029 502.072,588.028 508.906,588.026 515.741,588.025 522.576,588.023 529.410,588.021 536.245,588.019 543.079,588.017 549.914,588.014 556.748,588.010 563.583,588.007 570.417,588.002 577.252,587.997 584.086,587.991 590.921,587.984 597.755,587.976 604.590,587.967 611.424,587.956 618.259,587.944 625.094,587.930 631.928,587.914 638.763,587.895 645.597,587.874 652.432,587.849 659.266,587.820 666.101,587.787 672.935,587.749 679.770,587.705 686.604,587.654 693.439,587.596 700.273,587.529 707.108,587.451 713.942,587.361 720.777,587.258 727.612,587.139 734.446,587.002 741.281,586.844 748.115,586.661 754.950,586.451 761.784,586.209 768.619,585.929 775.453,585.607 782.288,585.235 789.122,584.807 795.957,584.314 802.791,583.745 809.626,583.090 816.460,582.335 823.295,581.465 830.129,580.462 836.964,579.307 843.799,577.978 850.633,576.446 857.468,574.683 864.302,572.654 871.137,570.320 877.971,567.634 884.806,564.546 891.640,560.998 898.475,556.921 905.309,552.241 912.144,546.871 918.978,540.715 925.813,533.664 932.647,525.597 939.482,516.376 946.317,505.853 953.151,493.862 959.986,480.223 966.820,464.741 973.655,447.209 980.489,427.412 987.324,405.127 994.158,380.131 1000.993,352.214 1007.827,321.181 1014.662,286.876 1021.496,249.190 1028.331,208.087 1035.165,163.621 1042.000,115.964" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<line x1="720" y1="92" x2="750" y2="92" stroke="#2563eb" stroke-width="3"/>
+<text x="760" y="97" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">computed quotient</text>
+<line x1="720" y1="116" x2="750" y2="116" stroke="#dc2626" stroke-width="3" stroke-dasharray="8 7"/>
+<text x="760" y="121" font-family="Inter, Arial, sans-serif" font-size="13" fill="#111827">Lean-proved limit -179/1536</text>
+</svg>
