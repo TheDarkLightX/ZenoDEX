@@ -51,6 +51,8 @@ import Proofs.FundingRateMarketSafety
 import Proofs.ILFuturesSafety
 import Proofs.VolatilityTierSafety
 import Proofs.CurveSelectionSafety
+import Proofs.DeterministicAgentTieBreak
+import Proofs.DeterministicAgentTieBreakSort
 import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
 import Proofs.ZenoDEXExactOutManyPoolPathWitnessCanonicalCandidateMinimum
