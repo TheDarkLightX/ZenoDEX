@@ -408,11 +408,14 @@ Who this is for:
 
 ## Permissionless Hosting
 - Operator guide: `docs/PERMISSIONLESS_HOSTING.md`
+- Container hardening: `docs/CONTAINER_HARDENING.md`
 - Local Tau node + app bridge: `docs/tau_testnet_local_node.md`
 - Static/IPFS frontend publisher: `bash tools/publish_ui_ipfs.sh`
 
 Recommended posture:
 - run the public path with a rootless container or Podman
+- on Linux hosts, optionally add the AppArmor overlay:
+  `docker compose -f docker-compose.yml -f docker-compose.apparmor.yml up -d`
 - keep `TAU_NET_RPC` unset unless you intentionally want a remote fallback
 - prefer a local Tau node over a managed RPC
 - pin/mirror the static frontend independently of the API if you want globally replicable hosting

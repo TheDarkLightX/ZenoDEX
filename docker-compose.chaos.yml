@@ -1,0 +1,38 @@
+# Docker Compose for chaos engineering infrastructure
+# Usage: docker-compose -f docker-compose.chaos.yml up -d
+
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.7.0
+    container_name: zenodex_toxiproxy
+    ports:
+      # Toxiproxy API
+      - "8474:8474"
+      # Proxy ports for chaos experiments
+      - "8475:8475"  # tau_net_client proxy
+      - "8476:8476"  # api_server proxy
+      - "8477:8477"  # spare
+      - "8478:8478"  # spare
+      - "8479:8479"  # spare
+      - "8480:8480"  # spare
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 256m
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,nodev,size=32m
+    init: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8474/version"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - chaos_net
+
+networks:
+  chaos_net:
+    driver: bridge

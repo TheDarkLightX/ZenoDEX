@@ -1,0 +1,75 @@
+#include <tunables/global>
+
+# Optional AppArmor supplement for the ZenoDEX production container.
+#
+# Load on Linux hosts with:
+#   sudo apparmor_parser -r .docker/apparmor/zenodex
+#
+# Then run with:
+#   docker compose -f docker-compose.yml -f docker-compose.apparmor.yml up -d
+#
+# This profile is intentionally a supplement to the container controls already
+# in docker-compose.yml: non-root user, read-only rootfs, tmpfs write points,
+# no-new-privileges, cap_drop: ALL, pid limit, and memory limit.
+
+profile zenodex flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # Normal API/UI traffic only. Raw and packet sockets are not needed by the
+  # Python API or nginx static UI path.
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  deny network raw,
+  deny network packet,
+
+  # The compose profile drops all capabilities. Keep the AppArmor side aligned
+  # so a future compose regression cannot silently regain privileged operations.
+  deny capability,
+
+  # No container path should need to mount, remount, trace other tasks, or
+  # mutate host/kernel control planes.
+  deny mount,
+  deny remount,
+  deny umount,
+  deny ptrace,
+  deny @{PROC}/sys/** rwklx,
+  deny @{PROC}/sysrq-trigger rwklx,
+  deny @{PROC}/kcore rwklx,
+  deny /sys/** wklx,
+  deny /sys/kernel/security/** rwklx,
+  deny /sys/kernel/debug/** rwklx,
+  deny /sys/fs/bpf/** rwklx,
+
+  # Read-only runtime image, Python stdlib/site-packages, nginx config, and UI
+  # assets. Shared libraries need mmap-read.
+  /** r,
+  /** mr,
+
+  # Entry points and subprocesses used by .docker/entrypoint.sh.
+  /entrypoint.sh r,
+  /bin/bash ix,
+  /usr/bin/mkdir ix,
+  /usr/sbin/nginx ix,
+  /usr/local/bin/python ix,
+  /usr/local/bin/python3 ix,
+  /usr/local/bin/python3.11 ix,
+
+  # Writable locations mirror the tmpfs/volume mounts in docker-compose.yml.
+  /tmp/** rwk,
+  /var/run/** rwk,
+  /var/cache/nginx/** rwk,
+  /var/log/nginx/** rwk,
+  /app/data/** rwk,
+
+  # Device and descriptor access needed for container stdio and entropy.
+  /dev/null rw,
+  /dev/zero r,
+  /dev/random r,
+  /dev/urandom r,
+  /dev/stdout w,
+  /dev/stderr w,
+  /dev/fd/** rw,
+}
