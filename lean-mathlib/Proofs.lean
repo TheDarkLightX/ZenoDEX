@@ -36,6 +36,8 @@ import Proofs.QuarticBlendK
 import Proofs.QuarticBlendSwapSpec
 import Proofs.TauSafeMul32
 import Proofs.PerpFundingRateSafety
+import Proofs.PerpFundingAlgebra
+import Proofs.PerpFundingEpochGateProved
 import Proofs.PerpCascadeSafety
 import Proofs.PerpInsuranceSafety
 import Proofs.PerpIntegerBridge
