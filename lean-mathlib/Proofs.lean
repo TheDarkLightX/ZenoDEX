@@ -49,6 +49,7 @@ import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
 import Proofs.ZenoDEXExactOutManyPoolPathWitnessCanonicalCandidateMinimum
 import Proofs.ZenoDEXRounding
+import Proofs.RoundingErrorBound
 import Proofs.BatchApproximation
 import Proofs.ExactOutAdaptiveGate
 import Proofs.MobiusCPMMRoutingBounds
