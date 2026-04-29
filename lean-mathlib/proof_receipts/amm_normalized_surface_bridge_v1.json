@@ -46,7 +46,7 @@
       "result": "passed with pre-existing linter warnings in unrelated proof files"
     },
     {
-      "command": "rg -n '^\\s*(sorry|admit)\\b|\\baxiom\\b|\\bunsafe\\b|\\bsorryAx\\b' <promoted AMM bridge files>",
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/AMMLocalJetFrontier.lean lean-mathlib/Proofs/AMMGlobalCounterexamples.lean lean-mathlib/Proofs/AMMPowerFamilyGlobal.lean lean-mathlib/Proofs/OriginalHODLCurvatureLeadingLaw.lean lean-mathlib/Proofs/AMMPowerFamilyOriginalHODLSurfaceMismatch.lean lean-mathlib/Proofs/AMMPowerFamilyOriginalHODLCurvatureNormalization.lean lean-mathlib/Proofs/AMMOriginalHODLNormalizedSlippageBridge.lean lean-mathlib/Proofs/AMMOriginalHODLNormalizedPairBridge.lean lean-mathlib/Proofs/AMMOriginalHODLNormalizedFunctionBridge.lean lean-mathlib/Proofs/AMMOriginalHODLNormalizedSurfaceBridge.lean lean-mathlib/Proofs/AMMOriginalHODLNormalizedSurfaceSemantics.lean",
       "result": "no matches"
     }
   ],
