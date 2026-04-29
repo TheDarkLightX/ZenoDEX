@@ -44,6 +44,7 @@ import Proofs.TauSafeMul32
 import Proofs.PerpFundingRateSafety
 import Proofs.PerpFundingAlgebra
 import Proofs.PerpFundingEpochGateProved
+import Proofs.PerpFundingSymmetry
 import Proofs.PerpCascadeSafety
 import Proofs.PerpInsuranceSafety
 import Proofs.PerpIntegerBridge
