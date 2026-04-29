@@ -47,6 +47,7 @@ import Proofs.PerpFundingEpochGateProved
 import Proofs.PerpFundingSymmetry
 import Proofs.PerpCascadeSafety
 import Proofs.PerpInsuranceSafety
+import Proofs.PerpLiquidationInsuranceBound
 import Proofs.PerpIntegerBridge
 import Proofs.FundingRateMarketSafety
 import Proofs.ILFuturesSafety
