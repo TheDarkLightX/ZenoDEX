@@ -52,6 +52,7 @@ import Proofs.ZenoDEXRounding
 import Proofs.RoundingErrorBound
 import Proofs.ArbitrageCertificate
 import Proofs.CrossSliceComposition
+import Proofs.AntiFragmentation
 import Proofs.BatchApproximation
 import Proofs.ExactOutAdaptiveGate
 import Proofs.MobiusCPMMRoutingBounds
