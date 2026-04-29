@@ -79,6 +79,9 @@ import Proofs.AdvisoryPokayokeBridge
 import Proofs.SolverCheckerSeparation
 import Proofs.CrossSurfaceBenefitBudget
 import Proofs.RoleCollapseReleaseGate
+import Proofs.CrossProtocolRecaptureGate
+import Proofs.TwoVenueComposition
+import Proofs.TwoVenueGovernanceComposition
 import Proofs.ZenoDEXExactOutManyPoolOrderedPathWitnessShapeLadder
 import Proofs.ZenoDEXExactOutManyPoolRuntimeGeneratorChecker
 import Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverWitnessExtraction
