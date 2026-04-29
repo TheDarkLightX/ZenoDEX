@@ -84,6 +84,7 @@ import Proofs.TwoVenueComposition
 import Proofs.TwoVenueGovernanceComposition
 import Proofs.DefensiveLiquidityBenefit
 import Proofs.BonusBetBudgetSafety
+import Proofs.MEVResistanceBound
 import Proofs.ZenoDEXExactOutManyPoolOrderedPathWitnessShapeLadder
 import Proofs.ZenoDEXExactOutManyPoolRuntimeGeneratorChecker
 import Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverWitnessExtraction
