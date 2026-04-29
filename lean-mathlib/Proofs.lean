@@ -53,6 +53,7 @@ import Proofs.RoundingErrorBound
 import Proofs.ArbitrageCertificate
 import Proofs.CrossSliceComposition
 import Proofs.AntiFragmentation
+import Proofs.FeeAwareAntiFragmentation
 import Proofs.BatchApproximation
 import Proofs.ExactOutAdaptiveGate
 import Proofs.MobiusCPMMRoutingBounds
