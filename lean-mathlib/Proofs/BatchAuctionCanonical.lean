@@ -59,6 +59,16 @@ theorem key_le_iff (v₁ v₂ s₁ s₂ : Nat) (o₁ o₂ : Order) :
   simp [key, Prod.Lex.toLex_le_toLex, Prod.Lex.toLex_lt_toLex]
   tauto
 
+theorem key_le_components {k₁ k₂ : Key} (h : k₁ ≤ k₂) :
+    (vol k₂ < vol k₁) ∨
+      (vol k₁ = vol k₂ ∧ ((sur k₂ < sur k₁) ∨ (sur k₁ = sur k₂ ∧ ord k₁ ≤ ord k₂))) := by
+  simpa [vol, sur, ord, key] using
+    (key_le_iff
+      (v₁ := vol k₁) (v₂ := vol k₂)
+      (s₁ := sur k₁) (s₂ := sur k₂)
+      (o₁ := ord k₁) (o₂ := ord k₂)).1 (by
+        simpa [key, vol, sur, ord] using h)
+
 theorem exists_unique_min_of_finset_nonempty {α : Type} [LinearOrder α] (S : Finset α) (hS : S.Nonempty) :
     ∃! m, m ∈ S ∧ ∀ x ∈ S, m ≤ x := by
   classical
@@ -135,4 +145,3 @@ theorem canonical_dominates (S : Finset Key) (hS : S.Nonempty) :
 
 end Batch
 end TauSwap
-
