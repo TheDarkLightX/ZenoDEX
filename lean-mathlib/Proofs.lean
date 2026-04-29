@@ -15,8 +15,11 @@ import Proofs.CubicSumRatio
 import Proofs.CpmmSwapV8ExactOutMinimality
 import Proofs.ImpossibilityTheorem
 import Proofs.AMMLocalJetFrontier
+import Proofs.AMMFunctionalAnalysisFrontier
 import Proofs.OriginalHODLCurvatureLeadingLaw
 import Proofs.AMMGlobalCounterexamples
+import Proofs.AMMOriginalHODLGlobalBridge
+import Proofs.AMMOriginalHODLWitnessFamilyBridge
 import Proofs.AMMPowerFamilyGlobal
 import Proofs.AMMCriticalBoundaryInterval
 import Proofs.AMMPowerFamilyOriginalHODLSurfaceMismatch
@@ -26,6 +29,9 @@ import Proofs.AMMOriginalHODLNormalizedPairBridge
 import Proofs.AMMOriginalHODLNormalizedFunctionBridge
 import Proofs.AMMOriginalHODLNormalizedSurfaceBridge
 import Proofs.AMMOriginalHODLNormalizedSurfaceSemantics
+import Proofs.AMMGlobalCPMMBudget
+import Proofs.AMMGlobalBoundaryCountermodels
+import Proofs.AMMRawSemanticsBridge
 import Proofs.QuarticBlendK
 import Proofs.QuarticBlendSwapSpec
 import Proofs.TauSafeMul32
