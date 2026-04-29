@@ -12,14 +12,14 @@
   "theorems": [
     "TauSwap.Impossibility.LocalJetFrontier.functional_frontier_no_simultaneous_dominance",
     "TauSwap.Impossibility.LocalJetFrontier.RawFunctionalFrontierSemantics.not_simultaneous_global_no_worse",
-    "TauSwap.Impossibility.LocalJetFrontier.originalHODL_not_simultaneous_global_no_worse",
-    "TauSwap.Impossibility.LocalJetFrontier.OriginalHODLRawExpansionSemantics.not_simultaneous_global_no_worse",
-    "TauSwap.Impossibility.LocalJetFrontier.OriginalHODLWitnessFamily.no_admissible_simultaneous_global_no_worse",
+    "TauSwap.Impossibility.LocalJetFrontier.OriginalHODLBridge.originalHODL_not_simultaneous_global_no_worse",
+    "TauSwap.Impossibility.LocalJetFrontier.OriginalHODLBridge.OriginalHODLRawExpansionSemantics.not_simultaneous_global_no_worse",
+    "TauSwap.Impossibility.LocalJetFrontier.OriginalHODLWitnessFamilyBridge.OriginalHODLWitnessFamily.no_admissible_simultaneous_global_no_worse",
     "TauSwap.Impossibility.LocalJetFrontier.cpmm_same_price_no_free_lunch_of_pathwise_slippage",
-    "TauSwap.Impossibility.LocalJetFrontier.raw_cpmm_same_price_no_free_lunch_of_pathwise_slippage",
-    "TauSwap.Impossibility.LocalJetFrontier.raw_cpmm_same_price_no_free_lunch_of_derivative_defect_field",
+    "TauSwap.Impossibility.LocalJetFrontier.RawAMMBridge.raw_cpmm_same_price_no_free_lunch_of_pathwise_slippage",
+    "TauSwap.Impossibility.LocalJetFrontier.RawAMMBridge.raw_cpmm_same_price_no_free_lunch_of_derivative_defect_field",
     "TauSwap.Impossibility.LocalJetFrontier.not_universal_over_unconstrained_coefficient_surfaces",
-    "TauSwap.Impossibility.LocalJetFrontier.raw_coefficients_simultaneous_dominance_possible_without_expansion"
+    "TauSwap.Impossibility.LocalJetFrontier.OriginalHODLBridge.raw_coefficients_simultaneous_dominance_possible_without_expansion"
   ],
   "claims": [
     "A functional frontier profile rules out simultaneous global no-worse dominance.",
@@ -48,7 +48,7 @@
       "result": "passed with pre-existing linter warnings in unrelated proof files"
     },
     {
-      "command": "rg -n '^\\s*(sorry|admit)\\b|\\baxiom\\b|\\bunsafe\\b|\\bsorryAx\\b' <promoted AMM raw/budget files>",
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/AMMFunctionalAnalysisFrontier.lean lean-mathlib/Proofs/AMMOriginalHODLGlobalBridge.lean lean-mathlib/Proofs/AMMOriginalHODLWitnessFamilyBridge.lean lean-mathlib/Proofs/AMMGlobalCPMMBudget.lean lean-mathlib/Proofs/AMMGlobalBoundaryCountermodels.lean lean-mathlib/Proofs/AMMRawSemanticsBridge.lean",
       "result": "no matches"
     }
   ],
