@@ -1,0 +1,72 @@
+{
+  "receipt_id": "fire_zpl_fixed_point_bridge_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoPayoffLanguage.lean",
+    "lean-mathlib/Proofs/ZPLPayoffCombinators.lean",
+    "lean-mathlib/Proofs/FixedPointIntervalBridge.lean",
+    "lean-mathlib/Proofs/FixedPointPortfolioBridge.lean",
+    "lean-mathlib/Proofs/ZenoPayoffFixedPointBridge.lean",
+    "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
+    "lean-mathlib/Proofs/FIREBudgetSafety.lean",
+    "lean-mathlib/Proofs/FIREUnified.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "Proofs.ZenoPayoffLanguage.compile_correct",
+    "Proofs.ZPLPayoffCombinators.addExpr_correct",
+    "Proofs.ZPLPayoffCombinators.subExpr_correct",
+    "Proofs.ZPLPayoffCombinators.negExpr_correct",
+    "Proofs.ZPLPayoffCombinators.clampExpr_correct",
+    "Proofs.ZenoPayoffFixedPointBridge.compile_floorDecode_interval",
+    "Proofs.ZenoPayoffFixedPointBridge.compile_ceilDecode_interval",
+    "Proofs.ZenoPayoffFixedPointBridge.compile_floorDecode_posted_collateral_safe",
+    "Proofs.ZenoPayoffFixedPointBridge.compile_ceilDecode_posted_collateral_safe",
+    "Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_interval",
+    "Proofs.ZenoPayoffPortfolioFixedPointBridge.compile_sum_decodeByMode_posted_collateral_safe_and_conserves",
+    "Proofs.FIREBudgetSafety.FIREBudgetCertificate.aggregate_spend_le_value_plus_budget",
+    "Proofs.FIREBudgetSafety.FIREBudgetCertificate.combine_spend_le",
+    "Proofs.FIREUnified.fire_portfolio_settlement",
+    "Proofs.FIREUnified.FIREPortfolioReceipt.aggregate_bilateral_solvent",
+    "Proofs.FIREUnified.FIREPortfolioReceipt.aggregate_conservation",
+    "Proofs.FIREUnified.compiled_portfolio_to_certified_payoff",
+    "Proofs.FIREUnified.portfolio_interval_width_budget"
+  ],
+  "claims": [
+    "The ZPL compiler returns a value equal to expression evaluation together with lower and upper payoff bounds.",
+    "Core payoff combinators preserve certified bounds compositionally.",
+    "Floor and ceil fixed-point runtime decoding stay within a conservative one-tick expansion of the real-valued certified interval.",
+    "Posted collateral covering the mode-expanded interval prevents bilateral default for single-leg and finite portfolio settlements.",
+    "Two-party fixed-point settlement deltas conserve exactly when represented as holder delta plus negated writer delta.",
+    "Finite FIRE budget certificates compose additively and preserve the fail-closed spend rule spend <= verifiedValue + explicitBudget.",
+    "A unified FIRE portfolio receipt packages bilateral solvency and exact conservation for compiled ZPL portfolios."
+  ],
+  "proof_method": [
+    "structural compiler soundness over a small payoff expression language",
+    "interval arithmetic for payoff combinators",
+    "floor/ceil fixed-point one-tick interval bridge",
+    "finite-sum portfolio lifting over Finset",
+    "bilateral collateral no-default lemmas",
+    "componentwise additive budget certificate algebra"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoPayoffLanguage Proofs.ZPLPayoffCombinators Proofs.ZenoPayoffFixedPointBridge Proofs.ZenoPayoffPortfolioFixedPointBridge Proofs.FIREBudgetSafety Proofs.FIREUnified",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' <promoted FIRE/ZPL files>",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This package proves a proof-level model, not direct bytecode or deployed smart-contract verification.",
+    "The fixed-point bridge assumes a positive scale and uses a one-tick conservative expansion around real payoff bounds.",
+    "Solvency conclusions require posted collateral to cover the certified lower and upper interval selected by the rounding mode.",
+    "The proofs certify payoff bounds, collateral no-default, conservation, and budget caps; they do not prove oracle validity, market completeness, fair pricing, or legal/regulatory compliance.",
+    "Runtime integration still needs executable conformance tests or a compiler/extraction proof tying deployed code to these Lean definitions."
+  ]
+}

@@ -57,6 +57,13 @@ import Proofs.FeeCeilDecomposition
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
 import Proofs.ZenoPayoffLanguage
+import Proofs.ZPLPayoffCombinators
+import Proofs.FixedPointIntervalBridge
+import Proofs.FixedPointPortfolioBridge
+import Proofs.ZenoPayoffFixedPointBridge
+import Proofs.ZenoPayoffPortfolioFixedPointBridge
+import Proofs.FIREBudgetSafety
+import Proofs.FIREUnified
 
 /-!
 Proofs library root.
