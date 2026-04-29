@@ -64,6 +64,8 @@ import Proofs.ZenoPayoffFixedPointBridge
 import Proofs.ZenoPayoffPortfolioFixedPointBridge
 import Proofs.FIREBudgetSafety
 import Proofs.FIREUnified
+import Proofs.AgentCapabilityBounds
+import Proofs.AdvisoryPokayokeBridge
 
 /-!
 Proofs library root.
