@@ -1,0 +1,149 @@
+{
+  "receipt_id": "settlement_algebra_mechanism_foundation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/SettlementAlgebra.lean",
+    "lean-mathlib/Proofs/CPMMSettlement.lean",
+    "lean-mathlib/Proofs/BatchCPMMUnification.lean",
+    "lean-mathlib/Proofs/SettlementCanonicalExecution.lean",
+    "lean-mathlib/Proofs/SettlementMechanism.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "SettlementAlgebra.State",
+    "SettlementAlgebra.Settlement",
+    "SettlementAlgebra.netFlow",
+    "SettlementAlgebra.Settlement.isBalanced",
+    "SettlementAlgebra.Settlement.isSafe",
+    "SettlementAlgebra.Settlement.swap",
+    "CPMMSettlement.cpmmSwapToSettlement",
+    "CPMMSettlement.lpDepositToSettlement",
+    "CPMMSettlement.lpWithdrawToSettlement",
+    "CPMMSettlement.CPMMState",
+    "CPMMSettlement.ValidCPMMSwap",
+    "BatchCPMMUnification.BatchSettlement",
+    "BatchCPMMUnification.batchToSettlement",
+    "BatchCPMMUnification.batchAB",
+    "BatchCPMMUnification.executeSwap",
+    "BatchCPMMUnification.executeBatchSwaps",
+    "TauSwap.SettlementCanonicalExecution.CertificateOK",
+    "TauSwap.SettlementCanonicalExecution.ListCertificateOK",
+    "TauSwap.SettlementCanonicalExecution.SettlementCandidate",
+    "TauSwap.SettlementCanonicalExecution.Realizes",
+    "TauSwap.SettlementMechanism.Mechanism",
+    "TauSwap.SettlementMechanism.SettlementObligations",
+    "TauSwap.SettlementMechanism.CanonicalSafeSettlement"
+  ],
+  "theorems": [
+    "SettlementAlgebra.Settlement.id_comp",
+    "SettlementAlgebra.Settlement.comp_id",
+    "SettlementAlgebra.Settlement.comp_assoc",
+    "SettlementAlgebra.Settlement.comp_comm",
+    "SettlementAlgebra.conservation_homomorphism",
+    "SettlementAlgebra.balanced_iff_mem_ker",
+    "SettlementAlgebra.balanced_iff_sum_zero",
+    "SettlementAlgebra.Settlement.id_balanced",
+    "SettlementAlgebra.Settlement.balanced_comp_balanced",
+    "SettlementAlgebra.balanced_implies_safe",
+    "SettlementAlgebra.Settlement.safe_comp_safe",
+    "SettlementAlgebra.Settlement.comp_inv",
+    "SettlementAlgebra.Settlement.inv_comp",
+    "SettlementAlgebra.Settlement.inv_balanced",
+    "SettlementAlgebra.swap_balanced",
+    "SettlementAlgebra.swap_nonneg_flow",
+    "SettlementAlgebra.swap_composition",
+    "CPMMSettlement.cpmmSwapToSettlement_eq_swap",
+    "CPMMSettlement.equal_swap_balanced",
+    "CPMMSettlement.cpmm_swap_safe",
+    "CPMMSettlement.cpmm_output_bounded",
+    "CPMMSettlement.cpmm_swap_net_flow",
+    "CPMMSettlement.cpmm_swap_net_flow_nonneg",
+    "CPMMSettlement.cpmm_swap_composition",
+    "CPMMSettlement.cpmm_swap_net_flow_additive",
+    "CPMMSettlement.lp_deposit_safe",
+    "CPMMSettlement.lp_deposit_net_flow",
+    "CPMMSettlement.lp_withdraw_net_flow",
+    "CPMMSettlement.lp_roundtrip_safe",
+    "CPMMSettlement.ValidCPMMSwap.amount_out_le_reserve",
+    "CPMMSettlement.valid_swap_preserves_K",
+    "BatchCPMMUnification.batchToSettlement_empty",
+    "BatchCPMMUnification.batchAB_empty",
+    "BatchCPMMUnification.zero_settlement_safe",
+    "BatchCPMMUnification.safe_pair_safe_settlement",
+    "BatchCPMMUnification.foldl_safe_settlement",
+    "BatchCPMMUnification.batch_safe_implies_settlement_safe",
+    "BatchCPMMUnification.batchAB_append",
+    "BatchCPMMUnification.batchToSettlement_append",
+    "BatchCPMMUnification.batchIsSafe_append",
+    "BatchCPMMUnification.executeSwap_K_mono",
+    "BatchCPMMUnification.executeBatchSwaps_K_mono",
+    "BatchCPMMUnification.executeSwap_K_gap_exact",
+    "BatchCPMMUnification.executeBatchSwaps_K_gap_sum",
+    "BatchCPMMUnification.unified_batch_safety",
+    "BatchCPMMUnification.conservation_is_homomorphic",
+    "TauSwap.SettlementCanonicalExecution.certificateOK_toFinset_of_listCertificate",
+    "TauSwap.SettlementCanonicalExecution.listCertificateOK_of_certificateOK_toFinset",
+    "TauSwap.SettlementCanonicalExecution.certificate_volume_max",
+    "TauSwap.SettlementCanonicalExecution.certificate_surplus_max_on_volume_tie",
+    "TauSwap.SettlementCanonicalExecution.certificate_order_min_on_objective_tie",
+    "TauSwap.SettlementCanonicalExecution.certificate_unique",
+    "TauSwap.SettlementCanonicalExecution.realizes_batchAB_eq",
+    "TauSwap.SettlementCanonicalExecution.realizes_batchToSettlement_eq",
+    "TauSwap.SettlementCanonicalExecution.realized_certificate_canonical_objective",
+    "TauSwap.SettlementCanonicalExecution.realized_certificate_executes_canonical_settlement",
+    "TauSwap.SettlementCanonicalExecution.realized_runtime_list_certificate_executes_canonical_image_settlement",
+    "TauSwap.SettlementMechanism.generatorExact_coversKeyList",
+    "TauSwap.SettlementMechanism.obligations_imply_canonical_safe",
+    "TauSwap.SettlementMechanism.accepted_mechanism_canonical_safe",
+    "TauSwap.SettlementMechanism.global_settlement_algebra"
+  ],
+  "claims": [
+    "Settlements form an additive composition surface with identity, inverse, commutativity, and associativity facts over net token deltas.",
+    "Balanced settlements are exactly zero net-flow settlements and are closed under settlement composition.",
+    "CPMM swap, LP deposit, LP withdrawal, and roundtrip settlement helpers preserve the declared net-flow and safety relationships under their stated bounds.",
+    "Batch settlement conversion composes homomorphically, safe batches imply safe settlement, and batch CPMM execution preserves monotone K-growth in the modeled CPMM state.",
+    "Canonical execution certificates enforce volume maximality, surplus maximality among volume ties, and order minimality among objective ties.",
+    "Mechanism obligations imply canonical safe settlement when generator coverage, winner certification, feasibility, and trace realization all hold."
+  ],
+  "proof_method": [
+    "additive group and homomorphism algebra over integer settlement deltas",
+    "natural-number CPMM output bounds and K-monotonicity arithmetic",
+    "list fold induction for batch settlement and batch K-gap sums",
+    "finite-set/list certificate transfer and lexicographic key comparison",
+    "mechanism-level composition of generator coverage, certified winner, feasibility, and trace-realization obligations"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.SettlementAlgebra Proofs.CPMMSettlement Proofs.BatchCPMMUnification Proofs.SettlementCanonicalExecution Proofs.SettlementMechanism",
+      "result": "passed with pre-existing linter warnings in imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < settlement-algebra-mechanism-foundation-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/settlement_algebra_mechanism_foundation_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/SettlementAlgebra.lean lean-mathlib/Proofs/CPMMSettlement.lean lean-mathlib/Proofs/BatchCPMMUnification.lean lean-mathlib/Proofs/SettlementCanonicalExecution.lean lean-mathlib/Proofs/SettlementMechanism.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/SettlementAlgebra.lean lean-mathlib/Proofs/CPMMSettlement.lean lean-mathlib/Proofs/BatchCPMMUnification.lean lean-mathlib/Proofs/SettlementCanonicalExecution.lean lean-mathlib/Proofs/SettlementMechanism.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves the modeled algebra, CPMM settlement helper, batch settlement, certificate, and mechanism obligation facts listed here.",
+    "It does not prove live pool data correctness, transaction authorization, external attestation validity, JSON serialization, or runtime API behavior.",
+    "The mechanism theorem is conditional: runtime systems must still provide exact generator coverage, a valid winner certificate, feasibility, and trace realization."
+  ]
+}
