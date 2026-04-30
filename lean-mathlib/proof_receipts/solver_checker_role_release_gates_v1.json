@@ -1,0 +1,75 @@
+{
+  "receipt_id": "solver_checker_role_release_gates_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/SolverCheckerSeparation.lean",
+    "lean-mathlib/Proofs/CrossSurfaceBenefitBudget.lean",
+    "lean-mathlib/Proofs/RoleCollapseReleaseGate.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "Proofs.SolverCheckerSeparation.solver_sound_of_checker_sound_and_solver_accepted",
+    "Proofs.SolverCheckerSeparation.prop_solver_sound_of_checker_sound_and_solver_accepted",
+    "Proofs.SolverCheckerSeparation.solver_valid_output_exists_of_checker_sound_and_solver_total_accepted",
+    "Proofs.SolverCheckerSeparation.equivalent_checkers_preserve_solver_soundness",
+    "Proofs.SolverCheckerSeparation.composed_solver_sound",
+    "Proofs.SolverCheckerSeparation.witness_irrelevance",
+    "Proofs.CrossSurfaceBenefitBudget.shared_budget_antitone_in_overlap",
+    "Proofs.CrossSurfaceBenefitBudget.positive_settlement_reward_requires_positive_shared_budget",
+    "Proofs.CrossSurfaceBenefitBudget.positive_governance_transfer_requires_positive_shared_budget",
+    "Proofs.CrossSurfaceBenefitBudget.nonpositive_shared_budget_forces_zero_take",
+    "Proofs.CrossSurfaceBenefitBudget.total_take_le_shared_budget_if_overlap_reserved",
+    "Proofs.CrossSurfaceBenefitBudget.witness_positive_settlement_reward",
+    "Proofs.CrossSurfaceBenefitBudget.witness_zero_budget_case",
+    "Proofs.RoleCollapseReleaseGate.release_admissible_requires_live_execution",
+    "Proofs.RoleCollapseReleaseGate.release_admissible_requires_live_execution_capability",
+    "Proofs.RoleCollapseReleaseGate.release_admissible_requires_positive_shared_budget",
+    "Proofs.RoleCollapseReleaseGate.nonpositive_shared_budget_blocks_release",
+    "Proofs.RoleCollapseReleaseGate.no_release_when_live_execution_forbidden",
+    "Proofs.RoleCollapseReleaseGate.stage_capability_blocks_release",
+    "Proofs.RoleCollapseReleaseGate.advisory_capability_blocks_release",
+    "Proofs.RoleCollapseReleaseGate.zero_loss_capability_blocks_positive_loss_release",
+    "Proofs.RoleCollapseReleaseGate.witness_release_admissible",
+    "Proofs.RoleCollapseReleaseGate.witness_nonpositive_budget_blocks_release"
+  ],
+  "claims": [
+    "Solver/checker separation: if every checker-accepted decision satisfies the specification and every solver output is checker-accepted, every solver output is specification-valid.",
+    "Equivalent checkers preserve solver soundness when acceptance behavior is identical.",
+    "Sound solver stages compose when the intermediate specifications imply the end specification.",
+    "Witness payloads are non-authoritative: for a sound solver, validity depends on the accepted decision, not on trusting the witness by itself.",
+    "Cross-surface extraction is bounded by one shared verified-benefit budget after overlap removal.",
+    "Non-positive shared verified budget forces all nonnegative settlement, liquidity, oracle, and governance takes to zero.",
+    "Role-collapse release requires execute authority, live-execution capability, bounded loss, positive shared budget, and cross-surface take below that shared budget.",
+    "Advisory-only, stage-only, no-live-execution, zero-loss, and non-positive-budget cases fail closed for execute-class role-collapse release."
+  ],
+  "proof_method": [
+    "checker-soundness implication",
+    "Boolean and Prop checker acceptance decomposition",
+    "solver-stage composition by matching optional outputs",
+    "integer budget inequalities over shared cross-surface benefit",
+    "capability-rank case analysis reused from the advisory capability model"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.SolverCheckerSeparation Proofs.CrossSurfaceBenefitBudget Proofs.RoleCollapseReleaseGate",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/SolverCheckerSeparation.lean lean-mathlib/Proofs/CrossSurfaceBenefitBudget.lean lean-mathlib/Proofs/RoleCollapseReleaseGate.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This is a proof-level interface theorem. Runtime integrations still need to map concrete solver, checker, decision, and witness types into the abstract fields.",
+    "The solver/checker theorem proves accepted solver outputs are spec-valid; it does not prove checker completeness unless a separate completeness proof is supplied.",
+    "Cross-surface budget arithmetic assumes faithful measurement of verified benefits, overlap, and requested extraction values.",
+    "Role-collapse release safety composes existing capability and budget models; it does not prove a full equilibrium for post-AGI reward systems."
+  ]
+}

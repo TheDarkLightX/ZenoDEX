@@ -1,0 +1,67 @@
+{
+  "receipt_id": "cpmm_edge_rounding_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/CPMMEdgeRounding.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "CPMMEdgeRounding.ceilDiv",
+    "CPMMEdgeRounding.ceilSwapOut"
+  ],
+  "theorems": [
+    "CPMMEdgeRounding.floor_le_ceil",
+    "CPMMEdgeRounding.ceil_le_floor_succ",
+    "CPMMEdgeRounding.ceil_eq_floor_of_dvd",
+    "CPMMEdgeRounding.ceil_eq_floor_succ_of_not_dvd",
+    "CPMMEdgeRounding.cpmm_edge_gap_le_one",
+    "CPMMEdgeRounding.cpmm_floor_le_ceil",
+    "CPMMEdgeRounding.cpmm_edge_perturbation",
+    "CPMMEdgeRounding.cpmm_certificate_rounding_safe",
+    "CPMMEdgeRounding.cpmm_gap_instantiation",
+    "CPMMEdgeRounding.cpmm_no_arb_with_rounding",
+    "CPMMEdgeRounding.witness_ceil_div",
+    "CPMMEdgeRounding.witness_cpmm_gap_one",
+    "CPMMEdgeRounding.witness_cpmm_gap_zero",
+    "CPMMEdgeRounding.witness_perturbation_z",
+    "CPMMEdgeRounding.witness_certificate",
+    "CPMMEdgeRounding.witness_end_to_end_pathWeight"
+  ],
+  "claims": [
+    "For CPMM integer swap output, the floor output is never above the ceiling output and the ceiling/floor gap is at most one unit per edge.",
+    "The per-edge CPMM rounding gap can be expressed in integer form as actual floor output greater than or equal to ideal ceiling output minus one.",
+    "An arbitrage certificate with margin at least one against ceiling-weight CPMM edges remains no-arbitrage safe under floor-rounded CPMM edges.",
+    "The complete CPMM graph instantiation provides the perturbation hypothesis directly from pool reserves and trade amounts.",
+    "Concrete witnesses cover ceiling division, tight gap-one behavior, exact gap-zero behavior, integer perturbation, certificate absorption, and end-to-end pathWeight behavior."
+  ],
+  "proof_method": [
+    "Nat floor/ceiling division bounds",
+    "CPMM swapOut arithmetic inherited from AntiFragmentation",
+    "integer-cast perturbation bound",
+    "composition with Proofs.CrossSliceComposition.perturbed_no_arbitrage",
+    "native_decide witnesses for non-vacuity examples"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.CPMMEdgeRounding",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/CPMMEdgeRounding.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The rounding theorem is per CPMM edge and uses a one-unit integer perturbation bound; multi-hop certificate margins must account for the chosen path/cycle model.",
+    "The no-arbitrage theorem assumes a provided potential certificate with margin at least one on ceiling weights.",
+    "The theorem does not prove that a runtime graph builder emits all relevant CPMM edges, nor that oracle-derived edge weights are fresh or authorized.",
+    "The packet is a math bridge from CPMM rounding to arbitrage-certificate safety, not a routing optimality or liquidity adequacy proof."
+  ]
+}

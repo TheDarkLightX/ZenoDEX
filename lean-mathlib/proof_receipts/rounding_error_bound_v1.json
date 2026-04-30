@@ -1,0 +1,70 @@
+{
+  "receipt_id": "rounding_error_bound_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/RoundingErrorBound.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "Proofs.RoundingErrorBound.floor_div_remainder",
+    "Proofs.RoundingErrorBound.single_hop_gap",
+    "Proofs.RoundingErrorBound.floor_div_no_overcount",
+    "Proofs.RoundingErrorBound.rounding_gap_bound_general",
+    "Proofs.RoundingErrorBound.rounding_gap_bound",
+    "Proofs.RoundingErrorBound.rounding_gap_lipschitz_bound",
+    "Proofs.RoundingErrorBound.lipschitz_bound_le_conservative",
+    "Proofs.RoundingErrorBound.witness_conservative_base",
+    "Proofs.RoundingErrorBound.witness_conservative_step",
+    "Proofs.RoundingErrorBound.witness_3hop_gap",
+    "Proofs.RoundingErrorBound.witness_lipschitz_base",
+    "Proofs.RoundingErrorBound.witness_lipschitz_step",
+    "Proofs.RoundingErrorBound.witness_remainder_tight",
+    "Proofs.RoundingErrorBound.witness_remainder_zero",
+    "Proofs.RoundingErrorBound.witness_cpmm_hop",
+    "Proofs.RoundingErrorBound.step_weaken",
+    "Proofs.RoundingErrorBound.lipschitz_implies_conservative",
+    "Proofs.RoundingErrorBound.conservative_is_general_C2",
+    "Proofs.RoundingErrorBound.lipschitz_is_general_C1",
+    "Proofs.RoundingErrorBound.general_bound_tight",
+    "Proofs.RoundingErrorBound.conservative_bound_tight",
+    "Proofs.RoundingErrorBound.lipschitz_bound_tight",
+    "Proofs.RoundingErrorBound.lipschitz_strictly_better"
+  ],
+  "claims": [
+    "Floor division never overcounts and its remainder is strictly below the positive divisor.",
+    "A single CPMM-style floor-division hop has raw numerator rounding residue below the denominator.",
+    "Any abstract multi-hop rounding-gap sequence with base gap at most 1 and per-step increase at most C has gap at most C*k-(C-1).",
+    "The conservative route model specializes the general theorem to a 2*k-1 accumulated rounding bound.",
+    "The Lipschitz route model specializes the general theorem to a k accumulated rounding bound.",
+    "The Lipschitz bound is always no worse than the conservative bound and is strictly better when k >= 2.",
+    "The general, conservative, and Lipschitz bounds have explicit tightness witnesses."
+  ],
+  "proof_method": [
+    "Nat floor-division remainder theorem",
+    "integer recurrence induction over hop count",
+    "specialization of the parameterized recurrence theorem",
+    "explicit witness functions for tightness and non-vacuity"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.RoundingErrorBound",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/RoundingErrorBound.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The main multi-hop theorems are abstract recurrence bounds; a concrete runtime route must still prove its gap function satisfies the stated base and step hypotheses.",
+    "The single-hop CPMM theorem bounds floor-division residue in numerator units, not complete economic route optimality.",
+    "These proofs do not by themselves prove reserve updates, authorization, oracle freshness, or route canonicality."
+  ]
+}

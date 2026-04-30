@@ -1,0 +1,70 @@
+{
+  "receipt_id": "canonical_selection_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/DEXCanonicalSelection.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.DEXCanonicalSelection.select",
+    "Proofs.DEXCanonicalSelection.BatchTie",
+    "Proofs.DEXCanonicalSelection.BatchTie.winner"
+  ],
+  "theorems": [
+    "Proofs.DEXCanonicalSelection.unique_minimum",
+    "Proofs.DEXCanonicalSelection.unique_maximum",
+    "Proofs.DEXCanonicalSelection.min_eq_max_iff_forall_eq",
+    "Proofs.DEXCanonicalSelection.select_mem",
+    "Proofs.DEXCanonicalSelection.select_le",
+    "Proofs.DEXCanonicalSelection.select_antimono",
+    "Proofs.DEXCanonicalSelection.select_union_le_left",
+    "Proofs.DEXCanonicalSelection.select_union_le_right",
+    "Proofs.DEXCanonicalSelection.select_filter_ge",
+    "Proofs.DEXCanonicalSelection.canonical_winner_mem",
+    "Proofs.DEXCanonicalSelection.canonical_winner_le",
+    "Proofs.DEXCanonicalSelection.canonical_winner_unique",
+    "Proofs.DEXCanonicalSelection.refinement_weakens_winner",
+    "Proofs.DEXCanonicalSelection.select_idempotent",
+    "Proofs.DEXCanonicalSelection.witness_min_nat",
+    "Proofs.DEXCanonicalSelection.witness_max_nat",
+    "Proofs.DEXCanonicalSelection.witness_singleton_min",
+    "Proofs.DEXCanonicalSelection.witness_min_ne_max",
+    "Proofs.DEXCanonicalSelection.witness_antimono"
+  ],
+  "claims": [
+    "Every nonempty finite candidate set over a linear order has a unique minimum.",
+    "The canonical selector returns a member of the candidate set and is less than or equal to every candidate.",
+    "Enlarging a candidate set can only improve or preserve the selected minimum.",
+    "Filtering a candidate set can only worsen or preserve the selected minimum when the filtered set remains nonempty.",
+    "For any batch tie over a total key, the canonical winner is deterministic and unique.",
+    "Selecting a singleton containing the selected winner is idempotent."
+  ],
+  "proof_method": [
+    "Lean Finset minimum and maximum primitives",
+    "linear-order antisymmetry",
+    "subset monotonicity of finite-set minima",
+    "finite native witnesses"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.DEXCanonicalSelection",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/DEXCanonicalSelection.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The theorem assumes a finite nonempty candidate set and a linear order key.",
+    "Runtime code must still construct the candidate set and total key correctly.",
+    "This proves deterministic tie resolution, not economic optimality of the candidate-generation policy."
+  ]
+}
