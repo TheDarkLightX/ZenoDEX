@@ -1,0 +1,69 @@
+{
+  "receipt_id": "anti_fragmentation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/AntiFragmentation.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "AntiFragmentation.swapOut",
+    "AntiFragmentation.kValue",
+    "AntiFragmentation.gap",
+    "AntiFragmentation.gapCarry",
+    "AntiFragmentation.swapBuyThenSell",
+    "AntiFragmentation.swapSellThenBuy"
+  ],
+  "theorems": [
+    "AntiFragmentation.floor_div_subadditive",
+    "AntiFragmentation.floor_div_exact_decomposition",
+    "AntiFragmentation.floor_div_carry_le_one",
+    "AntiFragmentation.floor_div_gap_one_iff",
+    "AntiFragmentation.witness_anti_fragmentation",
+    "AntiFragmentation.anti_fragmentation_general",
+    "AntiFragmentation.single_eq_split_plus_gapCarry",
+    "AntiFragmentation.gap_zero_of_degenerate",
+    "AntiFragmentation.swapOut_mono_amount",
+    "AntiFragmentation.witness_monotonicity",
+    "AntiFragmentation.k_nondecreasing",
+    "AntiFragmentation.witness_k_and_gap",
+    "AntiFragmentation.witness_commutativity"
+  ],
+  "claims": [
+    "Floor division is subadditive: splitting a numerator across two floors cannot increase the total quotient.",
+    "The exact split-vs-joint floor-division gap is a carry term, and that carry is at most one.",
+    "The carry gap is one exactly when the two remainders cross the divisor boundary.",
+    "For zero-fee CPMM output, executing one combined swap produces at least as much output as executing the same amount in two sequential fragments.",
+    "The single-vs-split CPMM gap is explicitly captured by the carry term and degenerates to zero for zero amount or zero output reserve.",
+    "CPMM output is monotone in input amount and the product invariant is nondecreasing after integer swap execution.",
+    "Concrete witnesses exercise anti-fragmentation, monotonicity, K nondecrease, and opposite-direction noncommutativity examples."
+  ],
+  "proof_method": [
+    "Nat floor-division algebra",
+    "Euclidean quotient/remainder decomposition",
+    "carry-bit characterization",
+    "integer arithmetic for CPMM output and K-value relations",
+    "non-vacuity witnesses checked by native_decide and simplification"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.AntiFragmentation",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/AntiFragmentation.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The main anti-fragmentation theorem models zero-fee CPMM integer output; fee-aware routing requires separate proofs.",
+    "The proof is for a two-fragment split and does not by itself prove arbitrary N-way fragmentation or all route-selection policies.",
+    "These proofs do not establish authorization, oracle freshness, pool-discovery correctness, or full settlement canonicality."
+  ]
+}

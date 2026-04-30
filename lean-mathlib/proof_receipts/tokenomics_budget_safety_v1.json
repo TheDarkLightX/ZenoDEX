@@ -1,0 +1,97 @@
+{
+  "receipt_id": "tokenomics_budget_safety_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/TokenomicsTraceSafety.lean",
+    "lean-mathlib/Proofs/TokenomicsMechanismSafety.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.TokenomicsTraceSafety.MarketSystem",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.TraceN",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.StepSupplyNonincreasing",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.StepSupplyLeFactor",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.StepBurnFundedByTreasury",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.TreasuryNonnegative",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.StepOutputNondecreasing",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.outputPerToken",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.traceSupplyDrop",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.TokenomicsControllerGuard",
+    "Proofs.TokenomicsMechanismSafety.StepRewardFunded",
+    "Proofs.TokenomicsMechanismSafety.StepVerifiedValueNondecreasing",
+    "Proofs.TokenomicsMechanismSafety.StepRewardNondecreasing",
+    "Proofs.TokenomicsMechanismSafety.traceRewardSpend",
+    "Proofs.TokenomicsMechanismSafety.traceVerifiedGain",
+    "Proofs.TokenomicsMechanismSafety.RewardControllerGuard"
+  ],
+  "theorems": [
+    "Proofs.TokenomicsTraceSafety.MarketSystem.supply_le_of_traceN_stepSupplyNonincreasing",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.traceSupplyDrop_nonneg_of_stepSupplyNonincreasing",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.factor_pow_le_one",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.factor_pow_mul_le_initial",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.supply_le_factor_pow_of_traceN",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.supply_le_initial_of_traceN_factor",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.traceSupplyDrop_le_treasuryDrop_of_stepBurnFunded",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.traceSupplyDrop_le_initialTreasury_of_stepBurnFunded",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.traceSupplyDrop_le_initialTreasury_of_stepBurnFunded_nonnegativeTreasury",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.traceSupplyDrop_between_zero_and_initialTreasury",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.terminalSupply_ge_initial_minus_treasury",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.output_le_of_traceN_stepOutputNondecreasing",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.outputPerToken_le_of_output_nondec_supply_noninc",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.outputPerToken_le_of_traceN_output_nondec_supply_factor",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.TokenomicsControllerGuard.stepSupplyNonincreasing",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.TokenomicsControllerGuard.traceSupplyDrop_between_zero_and_initialTreasury",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.TokenomicsControllerGuard.terminalSupply_ge_initial_minus_treasury",
+    "Proofs.TokenomicsTraceSafety.MarketSystem.TokenomicsControllerGuard.outputPerToken_le",
+    "Proofs.TokenomicsMechanismSafety.reward_le_of_traceN_stepRewardNondecreasing",
+    "Proofs.TokenomicsMechanismSafety.verifiedValue_le_of_traceN_stepVerifiedValueNondecreasing",
+    "Proofs.TokenomicsMechanismSafety.traceRewardSpend_le_verifiedGain_plus_treasuryDrop",
+    "Proofs.TokenomicsMechanismSafety.traceRewardSpend_le_verifiedGain_plus_initialTreasury",
+    "Proofs.TokenomicsMechanismSafety.traceRewardSpend_nonneg",
+    "Proofs.TokenomicsMechanismSafety.traceVerifiedGain_nonneg",
+    "Proofs.TokenomicsMechanismSafety.traceRewardSpend_eq_zero_of_no_value_gain_no_treasury_drop",
+    "Proofs.TokenomicsMechanismSafety.positive_reward_closed_loop_implies_not_stepwise_funded",
+    "Proofs.TokenomicsMechanismSafety.excess_reward_implies_not_stepwise_funded",
+    "Proofs.TokenomicsMechanismSafety.RewardControllerGuard.trace_safety",
+    "Proofs.TokenomicsMechanismSafety.RewardControllerGuard.no_value_no_budget_loop_reward_eq_zero",
+    "Proofs.TokenomicsMechanismSafety.RewardControllerGuard.no_positive_no_value_no_budget_loop_reward"
+  ],
+  "claims": [
+    "A tokenomics trace with stepwise supply nonincrease has nonnegative supply drop.",
+    "Supply contraction bounded by a factor q <= 1 remains bounded by the initial supply.",
+    "Every admitted supply burn must be funded by treasury/resource drawdown, so total supply drop is bounded by initial treasury when terminal treasury is nonnegative.",
+    "When output is nondecreasing and positive supply is preserved, output per token is monotone across admitted traces.",
+    "Reward, rebate, bounty, and buyback spend over a trace is bounded by verified value gained plus treasury/resource drawdown.",
+    "If no verified value is gained and no treasury/resource budget is consumed, a guarded controller cannot produce positive reward spend.",
+    "If observed reward spend exceeds verified value plus budget, at least one stepwise funding premise is false."
+  ],
+  "proof_method": [
+    "finite-trace induction through FiniteTraceBarriers.TraceN",
+    "Rat arithmetic with linarith/ring",
+    "stepwise budget inequalities telescoped over traces",
+    "controller guard structures packaging premises into fail-closed trace theorems"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.TokenomicsTraceSafety Proofs.TokenomicsMechanismSafety",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/TokenomicsTraceSafety.lean lean-mathlib/Proofs/TokenomicsMechanismSafety.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The theorems are generic transition-system laws; concrete tokenomics mechanisms still need an instantiation showing their transitions satisfy the guard premises.",
+    "The budget law does not select an optimal reward policy; it only rejects unfunded reward loops.",
+    "The proofs reason over rational-valued counters and do not establish fixed-width runtime arithmetic soundness.",
+    "The controller guard is economic safety scaffolding, not legal, tax, broker-dealer, or securities-law analysis."
+  ]
+}

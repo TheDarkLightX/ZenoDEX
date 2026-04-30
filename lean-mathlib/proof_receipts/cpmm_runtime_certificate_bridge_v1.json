@@ -1,0 +1,70 @@
+{
+  "receipt_id": "cpmm_runtime_certificate_bridge_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/CPMMRuntimeCertificateBridge.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "CPMMRuntimeCertificateBridge.RuntimeSwapInput",
+    "CPMMRuntimeCertificateBridge.runtimeFee",
+    "CPMMRuntimeCertificateBridge.runtimeNet",
+    "CPMMRuntimeCertificateBridge.runtimeOut",
+    "CPMMRuntimeCertificateBridge.runtimeCeilOut",
+    "CPMMRuntimeCertificateBridge.runtimeKBefore",
+    "CPMMRuntimeCertificateBridge.runtimeKAfter",
+    "CPMMRuntimeCertificateBridge.runtimeKGap",
+    "CPMMRuntimeCertificateBridge.RuntimeSwapCertificate",
+    "CPMMRuntimeCertificateBridge.VerifiesRuntimeSwap"
+  ],
+  "theorems": [
+    "CPMMRuntimeCertificateBridge.runtime_out_no_overdelivery",
+    "CPMMRuntimeCertificateBridge.runtime_floor_le_ceiling",
+    "CPMMRuntimeCertificateBridge.runtime_ceiling_le_floor_plus_one",
+    "CPMMRuntimeCertificateBridge.runtime_k_gap_exact",
+    "CPMMRuntimeCertificateBridge.runtime_k_nondec",
+    "CPMMRuntimeCertificateBridge.verified_runtime_swap_certificate_sound",
+    "CPMMRuntimeCertificateBridge.route_rounding_budget_sound",
+    "CPMMRuntimeCertificateBridge.route_rounding_lipschitz_budget_sound",
+    "CPMMRuntimeCertificateBridge.witness_zero_fee_runtime_bridge"
+  ],
+  "claims": [
+    "A compact runtime swap certificate is sound when every emitted field matches the canonical integer CPMM formula.",
+    "Certified runtime output cannot overdeliver the output reserve.",
+    "Runtime floor output is bounded by the favorable ceiling output, and the ceiling output is at most one unit above runtime output.",
+    "A certified fee-in-pool runtime step has exact K accounting and nondecreasing K under fee_bps <= 10000.",
+    "Route-level rounding budgets are sound when the checker supplies the declared recurrence certificate.",
+    "The zero-fee example witnesses the bridge on pool (1000,1000) with gross input 100."
+  ],
+  "proof_method": [
+    "certificate-field equality contract",
+    "reuse of CPMMInvariants.swap_output_le_reserve",
+    "reuse of CPMMEdgeRounding floor/ceiling bounds",
+    "reuse of FeeAwareBatchKGap single-step exact K-gap accounting",
+    "reuse of RoundingErrorBound recurrence theorems",
+    "native_decide non-vacuity witness"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.CPMMRuntimeCertificateBridge",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/CPMMRuntimeCertificateBridge.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This bridge proves soundness for the mathematical certificate shape, not that any specific Python/Rust/Solidity implementation emits this exact certificate.",
+    "Fixed-width machine arithmetic still needs a separate representation/no-overflow bridge to natural-number semantics.",
+    "Route rounding budget soundness is abstract over the route metric; the runtime must define and check gap in the same units.",
+    "The bridge does not cover authorization, oracle freshness, route discovery, settlement attestation validity, or cross-pool graph completeness."
+  ]
+}
