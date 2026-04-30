@@ -118,6 +118,20 @@ def _as_mapping(value: object, *, ctx: str) -> Mapping[str, object]:
     return value
 
 
+def _require_nonempty_str(value: object, *, ctx: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise FireReleaseAssuranceError(f"{ctx}: expected non-empty string")
+    return value
+
+
+def _strict_string_set(values: object, *, ctx: str) -> set[str]:
+    _expect(isinstance(values, list), f"{ctx} must be a list")
+    result: set[str] = set()
+    for idx, value in enumerate(values):
+        result.add(_require_nonempty_str(value, ctx=f"{ctx}[{idx}]"))
+    return result
+
+
 def _expect(condition: bool, message: str) -> None:
     if not condition:
         raise FireReleaseAssuranceError(message)
@@ -177,19 +191,22 @@ def _check_verifier_rules(path: Path) -> None:
     establishes = rule.get("establishes")
     _expect(isinstance(establishes, list) and establishes, "settlement authority rule must establish a predicate")
     predicates = {
-        str(_as_mapping(entry, ctx="settlement_authority_receipt_binding.establishes[]").get("predicate"))
-        for entry in establishes
+        _require_nonempty_str(
+            _as_mapping(entry, ctx=f"settlement_authority_receipt_binding.establishes[{idx}]").get("predicate"),
+            ctx=f"settlement_authority_receipt_binding.establishes[{idx}].predicate",
+        )
+        for idx, entry in enumerate(establishes)
     }
     _expect("FIREVReceiptOK" in predicates, "settlement authority rule must establish FIREVReceiptOK")
 
     reject_if = rule.get("reject_if")
-    _expect(isinstance(reject_if, list), "settlement authority rule must declare reject_if conditions")
-    missing_rejects = sorted(REQUIRED_SETTLEMENT_RULE_REJECTS - {str(value) for value in reject_if})
+    reject_conditions = _strict_string_set(reject_if, ctx="settlement authority rule reject_if")
+    missing_rejects = sorted(REQUIRED_SETTLEMENT_RULE_REJECTS - reject_conditions)
     _expect(not missing_rejects, f"settlement authority rule missing reject_if conditions: {missing_rejects}")
 
     non_authoritative_surfaces = rules.get("non_authoritative_surfaces")
-    _expect(isinstance(non_authoritative_surfaces, list), "non_authoritative_surfaces must be a list")
-    missing_surfaces = sorted(REQUIRED_NON_AUTHORITATIVE_SURFACES - {str(value) for value in non_authoritative_surfaces})
+    surfaces = _strict_string_set(non_authoritative_surfaces, ctx="non_authoritative_surfaces")
+    missing_surfaces = sorted(REQUIRED_NON_AUTHORITATIVE_SURFACES - surfaces)
     _expect(not missing_surfaces, f"missing non-authoritative surfaces: {missing_surfaces}")
 
 

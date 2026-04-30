@@ -202,6 +202,12 @@ def _ensure_int_mapping(name: str, payload: Mapping[str, object]) -> dict[str, i
     return normalized
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 def _resolve_entry(object_name: str, object_version: str, object_family: str) -> FirePersistedBundleSettlementEntry:
     matches = [
         entry
@@ -317,8 +323,17 @@ def _crosscheck_runtime_and_applied_settlement(
         return "crosscheck_payload_missing"
     if packet.receipt.to_dict() != runtime_receipt.to_dict():
         return "crosscheck_receipt_mismatch"
-    runtime_holder_delta = int(getattr(verified_settlement, "holder_delta"))
-    runtime_writer_delta = int(getattr(verified_settlement, "writer_delta"))
+    try:
+        runtime_holder_delta = _require_int(
+            "verified_settlement.holder_delta",
+            getattr(verified_settlement, "holder_delta", None),
+        )
+        runtime_writer_delta = _require_int(
+            "verified_settlement.writer_delta",
+            getattr(verified_settlement, "writer_delta", None),
+        )
+    except TypeError as exc:
+        return f"crosscheck_runtime_delta_invalid:{exc}"
     if packet.holder_delta != runtime_holder_delta:
         return "crosscheck_holder_delta_mismatch"
     if packet.writer_delta != runtime_writer_delta:

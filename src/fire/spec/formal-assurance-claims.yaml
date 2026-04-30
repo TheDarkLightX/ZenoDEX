@@ -51,9 +51,23 @@ components:
       - lean-mathlib/Proofs/CertifiedFinancialMathObjects.lean
       - lean-mathlib/Proofs/CALCoreSoundness.lean
       - lean-mathlib/Proofs/ZenoPayoffLanguage.lean
+      - lean-mathlib/Proofs/ZPLPayoffCombinators.lean
+      - lean-mathlib/Proofs/FixedPointIntervalBridge.lean
+      - lean-mathlib/Proofs/FixedPointPortfolioBridge.lean
+      - lean-mathlib/Proofs/ZenoPayoffFixedPointBridge.lean
+      - lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean
+      - lean-mathlib/Proofs/FIREUnified.lean
+      - lean-mathlib/Proofs/FIREBudgetSafety.lean
+      - lean-mathlib/Proofs/TokenomicsMechanismSafety.lean
       - lean-mathlib/proof_receipts/zeno_payoff_language_v1.json
+      - lean-mathlib/proof_receipts/zpl_payoff_combinators_v1.json
+      - lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
+      - lean-mathlib/proof_receipts/fire_unified_settlement_v1.json
+      - lean-mathlib/proof_receipts/fire_budget_safety_v1.json
+      - lean-mathlib/proof_receipts/tokenomics_mechanism_safety_v1.json
       - tests/formal/test_lean_cal_core_soundness.py
       - tests/formal/test_lean_zeno_payoff_language.py
+      - tests/formal/test_lean_fixed_point_bridges.py
     can_authorize_settlement: false
     claims_bug_free: false
     assurance_level: proved
@@ -64,8 +78,33 @@ components:
         - path: lean-mathlib/proof_receipts/zeno_payoff_language_v1.json
           checker: lean
           result: proved
-          sha256: sha256:aa691a697e8a8d6b32250d61dc037449ff0cae99075a1142ee0db364f653a3a3
+          sha256: sha256:74b2130ce96bc9cf72729939c4db5fd90a4713e635d7840a2730eedf102f0eb3
           scope: ZPL compiler soundness, CAL core soundness, and certified payoff collateral safety theorem surface
+        - path: lean-mathlib/proof_receipts/zpl_payoff_combinators_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:33f6235ef78ccb25d3db91d84d882795afe721a7e6731555ffeffecd86869fc0
+          scope: ZPL/FIRE certified payoff combinators for digitals, barrier-gated payoffs, collars, conditional portfolios, short-side negation, collateral monotonicity, and no-default safety
+        - path: lean-mathlib/proof_receipts/fire_zpl_fixed_point_bridge_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:d006c4da5734fb3e3e6a2d1a2b314e5f23386b5b57d152dd652019229c93efa2
+          scope: FIRE/ZPL fixed-point single-leg, uniform portfolio, and mixed-rounding portfolio bridge from compiler certificates to collateral-safe runtime settlement buffers, including exact two-party delta conservation by negating the rounded holder leg at the integer receipt layer and decoded fixed-point layer
+        - path: lean-mathlib/proof_receipts/fire_unified_settlement_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:501b9123b1bc79b86632cea205c215935503f5fffe087bc84e6bf8ab1eb8f2de
+          scope: FIRE/ZPL unified settlement receipt theorem surface, including bilateral solvency, exact conservation, net-zero aggregate accounting, neutral receipt, and grouping/order-independent operational receipt composition
+        - path: lean-mathlib/proof_receipts/fire_budget_safety_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:819b3299d9d1074fc57a7485baa2a57b77fc951eb01e33463b90be516f692f1b
+          scope: FIRE reward, rebate, buyback, bounty, and budget controller spend cannot exceed verified value plus explicit budget, and finite batching/relabeling/composition/proportional-cap refinement preserve the budget certificate
+        - path: lean-mathlib/proof_receipts/tokenomics_mechanism_safety_v1.json
+          checker: lean
+          result: proved
+          sha256: sha256:e690663a3f97af91b1f91516d905d13f7d2b5ae74edac0ca2df0287dbc715c56
+          scope: admitted finite tokenomics traces preserve nonnegative reward spend, nonnegative verified value gain, cumulative reward/rebate/bounty/buyback spend bounded by verified value gained plus initial treasury, and no positive payout on no-value/no-budget loops
     notes: this component proves the payoff-language theorem surface only; it does not make the Python compiler or verifier bug-free or settlement-authoritative
 
   - id: fire_verifier_v1

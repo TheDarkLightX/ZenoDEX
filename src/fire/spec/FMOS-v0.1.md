@@ -27,11 +27,12 @@ authorization surface:
 ```text
 FIREVReceiptOK(receipt) :=
   object_hash ∧ instance_hash ∧ cert_sha256 ∧ witness_hash ∧ delta_hash
+  ∧ DeltaConservationOK
 ```
 
 Plain English: the receipt must bind the object, instance, certificate,
-witness bundle, and emitted settlement delta before any delta application path
-may proceed.
+witness bundle, and emitted settlement delta, and the bound settlement delta
+must conserve, before any delta application path may proceed.
 
 ### Current bridge posture
 

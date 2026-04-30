@@ -21,20 +21,38 @@ from src.fire.kernel import fire_burn_boost_call_v1_ref as ref
 IR_HASH = "sha256:b26b68dbadb3313ef59399eeb2f7f180ea9775bffd3e797c27186a0d5daddc61"
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_phase(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError("phase must be a non-empty string")
+    return value
+
+
+def _require_nonempty_str(name: str, value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError(f"{name} must be a non-empty string")
+    return value
+
+
 def _state_from_mapping(state: Mapping[str, Any]) -> ref.State:
     return ref.State(
-        artifact_lower=int(state["artifact_lower"]),
-        artifact_upper=int(state["artifact_upper"]),
-        cap_index=int(state["cap_index"]),
-        holder_delta=int(state["holder_delta"]),
-        holder_posted=int(state["holder_posted"]),
-        n_notional=int(state["n_notional"]),
-        phase=str(state["phase"]),
-        source_upper=int(state["source_upper"]),
-        strike_index=int(state["strike_index"]),
-        witness_final=int(state["witness_final"]),
-        writer_delta=int(state["writer_delta"]),
-        writer_posted=int(state["writer_posted"]),
+        artifact_lower=_require_int("artifact_lower", state.get("artifact_lower")),
+        artifact_upper=_require_int("artifact_upper", state.get("artifact_upper")),
+        cap_index=_require_int("cap_index", state.get("cap_index")),
+        holder_delta=_require_int("holder_delta", state.get("holder_delta")),
+        holder_posted=_require_int("holder_posted", state.get("holder_posted")),
+        n_notional=_require_int("n_notional", state.get("n_notional")),
+        phase=_require_phase(state.get("phase")),
+        source_upper=_require_int("source_upper", state.get("source_upper")),
+        strike_index=_require_int("strike_index", state.get("strike_index")),
+        witness_final=_require_int("witness_final", state.get("witness_final")),
+        writer_delta=_require_int("writer_delta", state.get("writer_delta")),
+        writer_posted=_require_int("writer_posted", state.get("writer_posted")),
     )
 
 
@@ -45,7 +63,7 @@ def _step_error(code: str, message: str) -> Any:
 
 
 def _commit_effect(adapter: "FireBurnBoostCallV1NativeAdapter", effect_id: str, value: Any) -> None:
-    adapter._pending_effects[str(effect_id)] = value
+    adapter._pending_effects[_require_nonempty_str("effect_id", effect_id)] = value
 
 
 def _commit_receipt_effect(adapter: "FireBurnBoostCallV1NativeAdapter", args: Mapping[str, Any]) -> None:
@@ -63,7 +81,7 @@ def _commit_settlement_packet_effect(adapter: "FireBurnBoostCallV1NativeAdapter"
         holder_delta=int(adapter._state.holder_delta),
         writer_delta=int(adapter._state.writer_delta),
         payoff_out=int(adapter._state.holder_delta),
-        firev_accept=bool(adapter._pending_effects.get("firev_accept")),
+        firev_accept=adapter._pending_effects["firev_accept"],
     )
     adapter._pending_effects["settlement_packet"] = packet.to_dict()
 
@@ -96,19 +114,27 @@ def _run_kernel_step(adapter: "FireBurnBoostCallV1NativeAdapter", tag: str, args
 
     from ESSO.kernel.interpreter import StepOk  # type: ignore
 
+    previous_state = adapter._state
+    previous_effects = dict(adapter._pending_effects)
     adapter._state = result.state
     adapter._pending_effects = dict()
-    for eff_id, value in dict(result.effects or {}).items():
-        eff_handler = EFFECT_HANDLERS.get(str(eff_id))
-        if eff_handler is not None:
-            eff_handler(adapter, str(eff_id), value)
-    _commit_receipt_effect(adapter, args)
-    if "verifier_receipt" in adapter._pending_effects:
-        adapter._pending_effects["verifier_receipt_obj"] = FireVerifierReceipt.from_dict(
-            adapter._pending_effects["verifier_receipt"]
-        )
-        _commit_settlement_packet_effect(adapter, args)
-        del adapter._pending_effects["verifier_receipt_obj"]
+    try:
+        for eff_id, value in dict(result.effects or {}).items():
+            effect_id = _require_nonempty_str("effect_id", eff_id)
+            eff_handler = EFFECT_HANDLERS.get(effect_id)
+            if eff_handler is not None:
+                eff_handler(adapter, effect_id, value)
+        _commit_receipt_effect(adapter, args)
+        if "verifier_receipt" in adapter._pending_effects:
+            adapter._pending_effects["verifier_receipt_obj"] = FireVerifierReceipt.from_dict(
+                adapter._pending_effects["verifier_receipt"]
+            )
+            _commit_settlement_packet_effect(adapter, args)
+            del adapter._pending_effects["verifier_receipt_obj"]
+    except (KeyError, TypeError, ValueError) as exc:
+        adapter._state = previous_state
+        adapter._pending_effects = previous_effects
+        return _step_error("GuardFalse", f"settlement packet gate failed: {exc}")
     return StepOk(state=vars(result.state), effects=dict(result.effects or {}))
 
 
@@ -144,7 +170,10 @@ class FireBurnBoostCallV1NativeAdapter:
 
     def apply(self, command: Any) -> Any:
         self._pending_effects = {}
-        tag = str(getattr(command, "tag", ""))
+        try:
+            tag = _require_nonempty_str("command.tag", getattr(command, "tag", None))
+        except TypeError:
+            return _step_error("UnknownAction", "command.tag must be a non-empty string")
         handler = ACTION_HANDLERS.get(tag)
         if handler is None:
             return _step_error("UnknownAction", "no handler for command.tag")

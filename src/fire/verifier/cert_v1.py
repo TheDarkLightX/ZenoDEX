@@ -39,6 +39,12 @@ def _require_evidence_level(name: str, value: object) -> str:
     return value
 
 
+def _require_nonempty_str(name: str, value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError(f"{name} must be a non-empty string")
+    return value
+
+
 @dataclass(frozen=True)
 class FireInterval:
     lower: int
@@ -159,11 +165,11 @@ class FireCertNode:
         if not isinstance(raw_children, (list, tuple)):
             raise TypeError("children must be a sequence")
         return cls(
-            rule=str(payload["rule"]),
+            rule=_require_nonempty_str("rule", payload["rule"]),
             lower=_require_int("lower", payload["lower"]),
             upper=_require_int("upper", payload["upper"]),
             value=None if "value" not in payload else _require_int("value", payload["value"]),
-            name=None if "name" not in payload else str(payload["name"]),
+            name=None if "name" not in payload else _require_nonempty_str("name", payload["name"]),
             children=tuple(cls.from_dict(child) for child in raw_children),
         )
 
@@ -213,7 +219,7 @@ class FireIntervalCertificate:
             raise TypeError("certificate payload must be a mapping")
         claims_payload = payload.get("instance_gate_claims")
         return cls(
-            schema=str(payload["schema"]),
+            schema=_require_nonempty_str("schema", payload["schema"]),
             root=FireCertNode.from_dict(payload["root"]),
             instance_gate_claims=(
                 None if claims_payload is None else FireInstanceGateClaims.from_dict(claims_payload)

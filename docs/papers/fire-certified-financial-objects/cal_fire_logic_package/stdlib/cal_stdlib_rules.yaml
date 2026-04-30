@@ -338,6 +338,7 @@ rules:
       - receipt_cert_sha256_matches_certificate: true
       - receipt_witness_hash_matches_witness_bundle: true
       - receipt_delta_hash_matches_delta: true
+      - receipt_delta_conservation_ok: true
       - verifier_receipt_hash_valid: true
     conclusion:
       predicate: FIREVReceiptOK
@@ -347,6 +348,7 @@ rules:
       - cert_sha256_mismatch
       - witness_hash_mismatch
       - delta_hash_mismatch
+      - delta_nonzero_sum
       - receipt_hash_mismatch
 
   - id: settlement_admissibility

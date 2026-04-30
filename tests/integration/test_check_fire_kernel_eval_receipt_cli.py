@@ -122,4 +122,42 @@ def test_check_fire_kernel_eval_receipt_cli_rejects_tampered_receipt(tmp_path: P
     error = json.loads(proc.stderr)
     assert error["schema"] == "zenodex/fire-kernel-eval-receipt-check-report/v1"
     assert error["ok"] is False
-    assert error["error"] == "kernel_eval_receipt_mismatch"
+    assert error["error"] == "compiled_artifact_upper_mismatch"
+
+
+def test_check_fire_kernel_eval_receipt_cli_rejects_lower_bound_drift(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "burn_bundle"
+    _build_burn_bundle(bundle_dir)
+
+    receipt_path = bundle_dir / "kernel_eval_receipt.json"
+    payload = json.loads(receipt_path.read_text(encoding="utf-8"))
+    payload["compiled_artifact_lower"] = -1
+    receipt_path.write_text(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(CHECK_CLI),
+            "--receipt-file",
+            str(receipt_path),
+            "--object-manifest-file",
+            str(bundle_dir / "object_manifest.json"),
+            "--instance-manifest-file",
+            str(bundle_dir / "instance_manifest.json"),
+            "--kernel-receipt-file",
+            str(bundle_dir / "kernel_receipt.json"),
+        ],
+        cwd=str(REPO_ROOT),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 1
+    error = json.loads(proc.stderr)
+    assert error["schema"] == "zenodex/fire-kernel-eval-receipt-check-report/v1"
+    assert error["ok"] is False
+    assert error["error"] == "compiled_artifact_lower_mismatch"

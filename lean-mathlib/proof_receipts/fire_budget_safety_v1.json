@@ -1,0 +1,52 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "fire_budget_safety_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/FIREBudgetSafety.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs.FIREBudgetSafety"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs.lean"
+    },
+    {
+      "cwd": ".",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' lean-mathlib/Proofs/FIREBudgetSafety.lean\""
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.FIREBudgetSafety",
+      "path": "lean-mathlib/Proofs/FIREBudgetSafety.lean",
+      "sha256": "sha256:98654adc1e1009001d4ab05c95af12d1f198445fd5a33b353febe2693a031d54",
+      "theorems": [
+        "FIREBudgetCertificate",
+        "aggregate",
+        "aggregate_spend_le_value_plus_budget",
+        "aggregate_union_disjoint_spend_le",
+        "aggregate_equiv_fields",
+        "combine",
+        "zero",
+        "aggregate_empty",
+        "aggregate_insert",
+        "combine_assoc",
+        "combine_zero",
+        "zero_combine",
+        "combine_comm",
+        "combine_spend_le",
+        "aggregate_proportional_bound",
+        "aggregate_spend_mono"
+      ]
+    }
+  ],
+  "claim": "A FIRE reward, rebate, buyback, bounty, or budget controller may only authorize spend through a certificate whose spend is nonnegative and bounded by verified value plus explicit budget. Finite aggregation preserves this fail-closed budget law, disjoint batching cannot create extra spend capacity, relabeling certificates preserves the operational budget triple, binary budget composition has zero/associative/commutative operational laws, proportional caps lift to aggregates, and pointwise spend refinement lowers aggregate spend.",
+  "result": "proved",
+  "created_utc": "2026-04-28T16:35:00Z"
+}

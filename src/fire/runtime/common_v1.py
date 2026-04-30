@@ -52,6 +52,12 @@ def require_bounded_int(name: str, value: object, *, minimum: int = 0, maximum: 
     return out
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 def compile_certified_artifact(
     terms: TermsT,
     *,
@@ -232,12 +238,17 @@ def run_verified_settlement(
         witness_hash = None if witness_inputs is None else fire_witness_binding_hash(witness_inputs)
     except (TypeError, ValueError) as exc:
         return False, f"witness_binding_invalid:{exc}", None, None
+    try:
+        holder_delta = _require_int("settlement_state.holder_delta", getattr(result.state, "holder_delta", None))
+        writer_delta = _require_int("settlement_state.writer_delta", getattr(result.state, "writer_delta", None))
+    except TypeError as exc:
+        return False, f"settlement_state_invalid:{exc}", None, None
     receipt = FireVerifierReceipt.build(
         object_hash=context.manifest.manifest_hash,
         instance_hash=context.instance_manifest.instance_hash,
         cert_sha256=artifact.cert_sha256,
-        holder_delta=int(getattr(result.state, "holder_delta")),
-        writer_delta=int(getattr(result.state, "writer_delta")),
+        holder_delta=holder_delta,
+        writer_delta=writer_delta,
         command_tag=command_tag,
         object_name=context.manifest.object_name,
         object_version=context.manifest.object_version,
@@ -249,8 +260,8 @@ def run_verified_settlement(
         expected_object_hash=context.manifest.manifest_hash,
         expected_instance_hash=context.instance_manifest.instance_hash,
         expected_cert_sha256=artifact.cert_sha256,
-        expected_holder_delta=int(getattr(result.state, "holder_delta")),
-        expected_writer_delta=int(getattr(result.state, "writer_delta")),
+        expected_holder_delta=holder_delta,
+        expected_writer_delta=writer_delta,
         expected_command_tag=command_tag,
         expected_bundle_hash=context.bundle_hash,
         expected_witness_hash=witness_hash,

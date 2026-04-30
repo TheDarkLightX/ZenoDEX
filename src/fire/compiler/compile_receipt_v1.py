@@ -63,6 +63,75 @@ FIRE_COMPILE_RECEIPT_FORMAL_PROOF_BINDINGS = (
             "lean-mathlib/Proofs/CertifiedFinancialMathObjects.lean",
         ),
     },
+    {
+        "binding_id": "fire_zpl_fixed_point_bridge_v1",
+        "proof_system": "lean4",
+        "module": "Proofs.ZenoPayoffPortfolioFixedPointBridge",
+        "checker": "lake env lean Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
+        "theorems": (
+            "compile_floorDecode_posted_collateral_safe",
+            "compile_ceilDecode_posted_collateral_safe",
+            "compile_sum_floorDecode_posted_collateral_safe",
+            "compile_sum_ceilDecode_posted_collateral_safe",
+            "compile_sum_decodeByMode_posted_collateral_safe",
+            "compile_sum_decodeByMode_posted_collateral_safe_and_conserves",
+            "int_two_party_delta_receipt_conserves",
+            "int_two_party_delta_receipt_decode_conserves",
+            "int_two_party_delta_receipt_safe_and_conserves",
+            "compile_decodeByMode_two_party_delta_conserves",
+            "compile_sum_decodeByMode_two_party_delta_conserves",
+        ),
+        "claim": (
+            "Successful FIRE/ZPL compilation composes with fixed-point runtime "
+            "rounding: floor-decoded settlements are safe under a one-tick "
+            "lower-side buffer, ceil-decoded settlements are safe under a "
+            "one-tick upper-side buffer, mixed floor/ceil portfolios are safe "
+            "under the corresponding per-leg side buffers, and posted collateral "
+            "against those expanded intervals prevents bilateral default. Runtime "
+            "delta conservation is exact when the writer leg negates the rounded "
+            "holder leg, including the integer receipt delta table and its decoded "
+            "fixed-point interpretation."
+        ),
+        "source_files": (
+            "lean-mathlib/Proofs/FixedPointIntervalBridge.lean",
+            "lean-mathlib/Proofs/FixedPointPortfolioBridge.lean",
+            "lean-mathlib/Proofs/ZenoPayoffFixedPointBridge.lean",
+            "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
+        ),
+    },
+    {
+        "binding_id": "fire_unified_settlement_v1",
+        "proof_system": "lean4",
+        "module": "Proofs.FIREUnified",
+        "checker": "lake env lean Proofs/FIREUnified.lean",
+        "theorems": (
+            "fire_portfolio_settlement",
+            "FIREPortfolioReceipt.combine",
+            "compiled_portfolio_to_certified_payoff",
+            "fire_single_leg_settlement",
+            "FIREPortfolioReceipt.zero",
+            "FIREPortfolioReceipt.operationalFields",
+            "FIREPortfolioReceipt.combine_zero_operational",
+            "FIREPortfolioReceipt.zero_combine_operational",
+            "FIREPortfolioReceipt.combine_assoc_operational",
+            "FIREPortfolioReceipt.combine_comm_operational",
+            "portfolio_interval_width_budget",
+        ),
+        "claim": (
+            "Successful FIRE/ZPL fixed-point portfolio settlement can be packaged "
+            "as a projectable receipt carrying bilateral solvency and exact "
+            "zero-sum conservation. Independent receipts compose by addition, "
+            "with a neutral zero receipt and grouping/order-independent "
+            "operational projections, "
+            "and the mode-expanded interval width is exactly the unexpanded "
+            "width plus one tick per leg."
+        ),
+        "source_files": (
+            "lean-mathlib/Proofs/FIREUnified.lean",
+            "lean-mathlib/Proofs/ZenoPayoffPortfolioFixedPointBridge.lean",
+            "lean-mathlib/Proofs/FixedPointPortfolioBridge.lean",
+        ),
+    },
 )
 
 

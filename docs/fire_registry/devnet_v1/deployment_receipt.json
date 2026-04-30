@@ -61,11 +61,11 @@
       ]
     }
   ],
-  "index_file_sha256": "sha256:7bb13cfd2f2788f9cadd9173a8c55859f32a99fa684b9c15621cf39f48e45963",
-  "index_hash": "sha256:a76f7fd725d1def342703215dc39afdb63bba71489d82f09ce3240e83bc565d4",
-  "receipt_sha256": "13023ca7f91335e45e639ca156d5a0744fbe6089cbd1ef12121e539ac4f83ca2",
+  "index_file_sha256": "sha256:57f0b96398221712000160726d9b6e78baf4c62a51a8099111a94c27132f6281",
+  "index_hash": "sha256:9fa204864ba57d1348c3ee89f25b7df1dad3abba7896c60d75bbfae737bb96cc",
+  "receipt_sha256": "a0d97219a3cdae1e7fa15c70eb0513ed3ee83a7ee7c75f9f04f5925789f6775a",
   "release_metadata_path": "release_metadata.json",
-  "release_metadata_sha256": "a22b145ccd9496febf6ad7187b34d6d77497f979246974ca8e70af6c6ee5cf17",
+  "release_metadata_sha256": "e601a1fb9515bc54b7bc669b3c0f5717e566ee75c714dd1842723fbe294af6de",
   "require_signature": true,
   "required_signer_pubkey": "0x8e0b26637a9bc464c5a9ac490f6e673a0fb6279d7918c46a870307cf1f96109abf975d8453dc77273f9aba47c8eb68c2",
   "schema": "zenodex/fire-registry-deployment-receipt/v1",

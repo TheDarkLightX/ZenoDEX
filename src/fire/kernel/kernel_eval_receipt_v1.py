@@ -92,6 +92,12 @@ def _require_nonempty_str(name: str, value: object) -> str:
     return value
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
 def _require_sha256_prefixed(name: str, value: object) -> str:
     text = _require_nonempty_str(name, value)
     if not text.startswith("sha256:") or len(text) != len("sha256:") + 64:
@@ -182,11 +188,14 @@ def build_fire_kernel_eval_receipt(
         object_id=entry.object_id,
         object_instance=object_instance,
     )
-    if compiled_state.get("artifact_lower") != object_manifest.artifact_lower:
+    compiled_artifact_lower = _require_int("compiled_state.artifact_lower", compiled_state.get("artifact_lower"))
+    compiled_artifact_upper = _require_int("compiled_state.artifact_upper", compiled_state.get("artifact_upper"))
+    compiled_upper = _require_int("compiled_effects.compiled_upper", compiled_effects.get("compiled_upper"))
+    if compiled_artifact_lower != object_manifest.artifact_lower:
         raise RuntimeError("kernel eval artifact_lower does not match canonical manifest")
-    if compiled_state.get("artifact_upper") != object_manifest.artifact_upper:
+    if compiled_artifact_upper != object_manifest.artifact_upper:
         raise RuntimeError("kernel eval artifact_upper does not match canonical manifest")
-    if compiled_effects.get("compiled_upper") != object_manifest.artifact_upper:
+    if compiled_upper != object_manifest.artifact_upper:
         raise RuntimeError("kernel eval compiled_upper effect does not match canonical manifest")
     return {
         "schema": FIRE_KERNEL_EVAL_RECEIPT_SCHEMA,
@@ -205,8 +214,8 @@ def build_fire_kernel_eval_receipt(
         "compile_command_args": _compile_command(entry.object_id, _parameter_values_from_instance(object_instance))[1],
         "compiled_state": compiled_state,
         "compiled_effects": compiled_effects,
-        "compiled_artifact_lower": int(compiled_state["artifact_lower"]),
-        "compiled_artifact_upper": int(compiled_state["artifact_upper"]),
+        "compiled_artifact_lower": compiled_artifact_lower,
+        "compiled_artifact_upper": compiled_artifact_upper,
     }
 
 
@@ -288,13 +297,18 @@ def verify_fire_kernel_eval_receipt(
         _normalize_scalar_mapping("compile_command_args", payload.get("compile_command_args"))
         _normalize_scalar_mapping("compiled_state", payload.get("compiled_state"))
         _normalize_scalar_mapping("compiled_effects", payload.get("compiled_effects"))
-        compiled_artifact_lower = int(payload.get("compiled_artifact_lower"))
-        compiled_artifact_upper = int(payload.get("compiled_artifact_upper"))
+        compiled_artifact_lower = _require_int("compiled_artifact_lower", payload.get("compiled_artifact_lower"))
+        compiled_artifact_upper = _require_int("compiled_artifact_upper", payload.get("compiled_artifact_upper"))
     except (TypeError, ValueError) as exc:
         return False, f"kernel_eval_receipt_invalid:{exc}", None
 
     if expected_kernel_receipt_sha256 is not None and kernel_receipt_sha256 != expected_kernel_receipt_sha256:
         return False, "expected_kernel_receipt_sha256_mismatch", None
+
+    if compiled_artifact_lower != object_manifest.artifact_lower:
+        return False, "compiled_artifact_lower_mismatch", None
+    if compiled_artifact_upper != object_manifest.artifact_upper:
+        return False, "compiled_artifact_upper_mismatch", None
 
     expected = build_fire_kernel_eval_receipt(
         object_manifest=object_manifest,

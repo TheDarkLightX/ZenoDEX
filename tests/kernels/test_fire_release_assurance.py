@@ -106,6 +106,43 @@ def test_fire_release_assurance_rejects_missing_witness_reject_rule(tmp_path: Pa
     assert verification is None
 
 
+def test_fire_release_assurance_rejects_non_string_rule_predicate(tmp_path: Path) -> None:
+    rules = yaml.safe_load(fire_verifier_rules_path().read_text(encoding="utf-8"))
+    assert isinstance(rules, dict)
+    for entry in rules["rule_catalog"]["settlement"]:
+        if entry["id"] == "settlement_authority_receipt_binding":
+            entry["establishes"].append({"predicate": 123})
+    rules_path = _write_yaml(tmp_path, "verifier-rules.yaml", rules)
+
+    ok, err, verification = verify_fire_release_assurance(
+        verifier_rules=rules_path,
+        repo_root=REPO_ROOT,
+    )
+
+    assert ok is False
+    assert err is not None
+    assert "settlement_authority_receipt_binding.establishes" in err
+    assert "predicate" in err
+    assert verification is None
+
+
+def test_fire_release_assurance_rejects_non_string_surface(tmp_path: Path) -> None:
+    rules = yaml.safe_load(fire_verifier_rules_path().read_text(encoding="utf-8"))
+    assert isinstance(rules, dict)
+    rules["non_authoritative_surfaces"].append(123)
+    rules_path = _write_yaml(tmp_path, "verifier-rules.yaml", rules)
+
+    ok, err, verification = verify_fire_release_assurance(
+        verifier_rules=rules_path,
+        repo_root=REPO_ROOT,
+    )
+
+    assert ok is False
+    assert err is not None
+    assert "non_authoritative_surfaces" in err
+    assert verification is None
+
+
 def test_fire_release_assurance_rejects_formal_claim_gate_failure(tmp_path: Path) -> None:
     manifest = yaml.safe_load(fire_formal_assurance_claims_path().read_text(encoding="utf-8"))
     assert isinstance(manifest, dict)

@@ -453,6 +453,7 @@ FIREVReceiptOK(receipt) :=
   AND receipt.cert_sha256 = cert_sha256
   AND receipt.witness_hash = H(w)
   AND receipt.delta_hash = H(Delta)
+  AND DeltaConservationOK(Delta)
 ```
 
 ```text

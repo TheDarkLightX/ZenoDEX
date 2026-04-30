@@ -95,14 +95,17 @@ Settlement authority remains:
 
 ```text
 SettlementAuthority := runtime cert ∧ verifier receipt
-FIREVReceiptOK(receipt) := object_hash ∧ instance_hash ∧ cert_sha256 ∧ witness_hash ∧ delta_hash
+FIREVReceiptOK(receipt) :=
+  object_hash ∧ instance_hash ∧ cert_sha256 ∧ witness_hash ∧ delta_hash
+  ∧ DeltaConservationOK
 SettlementAuthority(packet) -> verify_fire_settlement_authority_packet(packet)
 ```
 
 Plain English: a runtime verifier receipt is settlement authority only when
 it binds the accepted object, instance, certificate, witness bundle, and emitted
-delta. Package evidence such as `compile_receipt.json`, `kernel_receipt.json`,
-`kernel_eval_receipt.json`, `kernel_replay_receipt.json`,
+delta, and the holder/writer deltas conserve. Package evidence such as
+`compile_receipt.json`, `kernel_receipt.json`, `kernel_eval_receipt.json`,
+`kernel_replay_receipt.json`,
 `kernel_settlement_receipt.json`, and `proof_tree_certificate.json` can
 strengthen provenance and fail-closed checks, but they do not authorize funds
 movement by themselves.

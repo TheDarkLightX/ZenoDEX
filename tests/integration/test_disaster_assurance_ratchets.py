@@ -3,7 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from tools.check_disaster_search_closed_receipt import build_closed_receipt_ratchet_report
-from tools.check_formal_proof_hygiene import build_formal_proof_hygiene_report, strip_lean_comments
+from tools.check_disaster_proof_schema_map import (
+    CLOSED_AXIS_PROOF_SCHEMA_MAP,
+    build_disaster_proof_schema_map_report,
+)
+from tools.check_formal_proof_hygiene import (
+    CRITICAL_FORMAL_PROOF_ARTIFACTS,
+    build_formal_proof_hygiene_report,
+    strip_lean_comments,
+)
 from tools.stateful_scenario_bridge import (
     CLOSED_DISASTER_SEARCH_AXIS_IDS,
     DISASTER_SEARCH_EXPANSION_RECEIPT_SCHEMA,
@@ -87,3 +95,60 @@ def test_formal_proof_hygiene_rejects_active_placeholder(tmp_path: Path) -> None
     assert payload["ok"] is False
     assert payload["active_placeholder_count"] == 1
     assert "sorry@2" in payload["errors"][0]
+
+
+def test_formal_proof_hygiene_default_tracks_disaster_proof_schemas() -> None:
+    tracked = set(CRITICAL_FORMAL_PROOF_ARTIFACTS)
+
+    assert "lean-mathlib/Proofs/AMMIntegerRuntimeBridge.lean" in tracked
+    assert "lean-mathlib/Proofs/DisasterAntichainBasis.lean" in tracked
+    assert "lean-mathlib/Proofs/DisasterTraceDiscoveryChallenge.lean" in tracked
+    assert "lean-mathlib/Proofs/CertificateGluing.lean" in tracked
+    assert "lean-mathlib/Proofs/ForbiddenTraceMinor.lean" in tracked
+    assert "lean-mathlib/Proofs/NoFreeResourceTraceLedger.lean" in tracked
+    assert "lean-mathlib/Proofs/ZenoDEXDisasterSchemaInstantiations.lean" in tracked
+    assert "lean-mathlib/Proofs/ZenoDEXClosedAxisProofSchemaMap.lean" in tracked
+
+
+def test_disaster_proof_schema_map_covers_closed_axes() -> None:
+    payload = build_disaster_proof_schema_map_report()
+
+    assert payload["ok"] is True
+    assert payload["axis_count"] == 29
+    assert payload["lean_mirror"]["ok"] is True
+    assert payload["lean_mirror"]["axis_count"] == 29
+    assert payload["lean_mirror"]["assignment_count"] == 29
+    assert payload["schema_usage"]["forbidden_trace_minor"] >= 1
+    assert payload["schema_usage"]["no_free_resource_trace_ledger"] >= 1
+    assert payload["schema_usage"]["zenodex_disaster_schema_instantiations"] >= 1
+
+
+def test_disaster_proof_schema_map_rejects_missing_axis() -> None:
+    partial = dict(CLOSED_AXIS_PROOF_SCHEMA_MAP)
+    partial.pop("resource_budget_abort")
+
+    payload = build_disaster_proof_schema_map_report(axis_map=partial)
+
+    assert payload["ok"] is False
+    assert any("resource_budget_abort" in error for error in payload["errors"])
+
+
+def test_disaster_proof_schema_map_rejects_lean_mirror_drift(tmp_path: Path) -> None:
+    mirror = Path("lean-mathlib/Proofs/ZenoDEXClosedAxisProofSchemaMap.lean")
+    drifted = tmp_path / "ZenoDEXClosedAxisProofSchemaMap.lean"
+    text = mirror.read_text(encoding="utf-8")
+    drifted.write_text(
+        text.replace(
+            "| .resourceBudgetAbort =>\n"
+            "      [.noFreeResourceTraceLedger, .zenodexDisasterSchemaInstantiations]",
+            "| .resourceBudgetAbort =>\n"
+            "      [.certificateGluing]",
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_disaster_proof_schema_map_report(lean_mirror_path=drifted)
+
+    assert payload["ok"] is False
+    assert payload["lean_mirror"]["ok"] is False
+    assert any("Lean mirror schema mismatch for resourceBudgetAbort" in error for error in payload["errors"])

@@ -134,4 +134,88 @@ def test_check_fire_kernel_settlement_receipt_cli_rejects_tampered_receipt(tmp_p
     error = json.loads(proc.stderr)
     assert error["schema"] == "zenodex/fire-kernel-settlement-receipt-check-report/v1"
     assert error["ok"] is False
-    assert error["error"] == "kernel_settlement_receipt_mismatch"
+    assert error["error"] == "payoff_out_mismatch"
+
+
+def test_check_fire_kernel_settlement_receipt_cli_rejects_nonconserving_delta(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "burn_bundle"
+    _build_burn_bundle(bundle_dir)
+
+    receipt_path = bundle_dir / "kernel_settlement_receipt.json"
+    payload = json.loads(receipt_path.read_text(encoding="utf-8"))
+    payload["writer_delta"] = int(payload["writer_delta"]) + 1
+    receipt_path.write_text(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(CHECK_CLI),
+            "--receipt-file",
+            str(receipt_path),
+            "--object-manifest-file",
+            str(bundle_dir / "object_manifest.json"),
+            "--instance-manifest-file",
+            str(bundle_dir / "instance_manifest.json"),
+            "--replay-input-file",
+            str(bundle_dir / "replay_input.json"),
+            "--kernel-receipt-file",
+            str(bundle_dir / "kernel_receipt.json"),
+            "--kernel-eval-receipt-file",
+            str(bundle_dir / "kernel_eval_receipt.json"),
+        ],
+        cwd=str(REPO_ROOT),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 1
+    error = json.loads(proc.stderr)
+    assert error["schema"] == "zenodex/fire-kernel-settlement-receipt-check-report/v1"
+    assert error["ok"] is False
+    assert error["error"] == "delta_nonzero_sum"
+
+
+def test_check_fire_kernel_settlement_receipt_cli_rejects_false_accept_flag(tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "burn_bundle"
+    _build_burn_bundle(bundle_dir)
+
+    receipt_path = bundle_dir / "kernel_settlement_receipt.json"
+    payload = json.loads(receipt_path.read_text(encoding="utf-8"))
+    payload["firev_accept"] = False
+    receipt_path.write_text(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True),
+        encoding="utf-8",
+    )
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(CHECK_CLI),
+            "--receipt-file",
+            str(receipt_path),
+            "--object-manifest-file",
+            str(bundle_dir / "object_manifest.json"),
+            "--instance-manifest-file",
+            str(bundle_dir / "instance_manifest.json"),
+            "--replay-input-file",
+            str(bundle_dir / "replay_input.json"),
+            "--kernel-receipt-file",
+            str(bundle_dir / "kernel_receipt.json"),
+            "--kernel-eval-receipt-file",
+            str(bundle_dir / "kernel_eval_receipt.json"),
+        ],
+        cwd=str(REPO_ROOT),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 1
+    error = json.loads(proc.stderr)
+    assert error["schema"] == "zenodex/fire-kernel-settlement-receipt-check-report/v1"
+    assert error["ok"] is False
+    assert error["error"] == "firev_accept_false"

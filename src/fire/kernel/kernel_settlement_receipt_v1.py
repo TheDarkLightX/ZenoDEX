@@ -111,6 +111,18 @@ def _require_nonempty_str(name: str, value: object) -> str:
     return value
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_bool(name: str, value: object) -> bool:
+    if not isinstance(value, bool):
+        raise TypeError(f"{name} must be a bool")
+    return bool(value)
+
+
 def _require_sha256_prefixed(name: str, value: object) -> str:
     text = _require_nonempty_str(name, value)
     if not text.startswith("sha256:") or len(text) != len("sha256:") + 64:
@@ -230,10 +242,10 @@ def build_fire_kernel_settlement_receipt(
         object_instance=object_instance,
         replay_input=replay_input,
     )
-    holder_delta = int(settlement_state["holder_delta"])
-    writer_delta = int(settlement_state["writer_delta"])
-    payoff_out = int(settlement_effects["payoff_out"])
-    firev_accept = bool(settlement_effects["firev_accept"])
+    holder_delta = _require_int("settlement_state.holder_delta", settlement_state.get("holder_delta"))
+    writer_delta = _require_int("settlement_state.writer_delta", settlement_state.get("writer_delta"))
+    payoff_out = _require_int("settlement_effects.payoff_out", settlement_effects.get("payoff_out"))
+    firev_accept = _require_bool("settlement_effects.firev_accept", settlement_effects.get("firev_accept"))
     if holder_delta != payoff_out:
         raise RuntimeError("kernel settlement payoff_out does not match holder_delta")
     if writer_delta != -holder_delta:
@@ -370,10 +382,10 @@ def verify_fire_kernel_settlement_receipt(
         _normalize_scalar_mapping("settlement_command_args", payload.get("settlement_command_args"))
         _normalize_scalar_mapping("settlement_state", payload.get("settlement_state"))
         _normalize_scalar_mapping("settlement_effects", payload.get("settlement_effects"))
-        holder_delta = int(payload.get("holder_delta"))
-        writer_delta = int(payload.get("writer_delta"))
-        payoff_out = int(payload.get("payoff_out"))
-        firev_accept = bool(payload.get("firev_accept"))
+        holder_delta = _require_int("holder_delta", payload.get("holder_delta"))
+        writer_delta = _require_int("writer_delta", payload.get("writer_delta"))
+        payoff_out = _require_int("payoff_out", payload.get("payoff_out"))
+        firev_accept = _require_bool("firev_accept", payload.get("firev_accept"))
     except (TypeError, ValueError) as exc:
         return False, f"kernel_settlement_receipt_invalid:{exc}", None
 
@@ -383,6 +395,13 @@ def verify_fire_kernel_settlement_receipt(
         return False, "expected_kernel_receipt_sha256_mismatch", None
     if expected_kernel_eval_receipt_sha256 is not None and kernel_eval_receipt_sha256 != expected_kernel_eval_receipt_sha256:
         return False, "expected_kernel_eval_receipt_sha256_mismatch", None
+
+    if holder_delta != payoff_out:
+        return False, "payoff_out_mismatch", None
+    if writer_delta != -holder_delta:
+        return False, "delta_nonzero_sum", None
+    if not firev_accept:
+        return False, "firev_accept_false", None
 
     expected = build_fire_kernel_settlement_receipt(
         object_manifest=object_manifest,

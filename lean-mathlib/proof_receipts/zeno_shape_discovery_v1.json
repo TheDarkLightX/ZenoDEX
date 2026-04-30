@@ -1,0 +1,84 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "zeno_shape_discovery_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/ZenoShapeDiscovery.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs.ZenoShapeDiscovery"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs.lean"
+    },
+    {
+      "cwd": ".",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' lean-mathlib/Proofs/ZenoShapeDiscovery.lean\""
+    },
+    {
+      "cwd": ".",
+      "cmd": "pytest -q tests/formal/test_lean_zeno_shape_discovery.py"
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.ZenoShapeDiscovery",
+      "path": "lean-mathlib/Proofs/ZenoShapeDiscovery.lean",
+      "sha256": "sha256:aa48196519be7c283adc1f1cad5650af8ad17e7941deaf541f440603b866bb6f",
+      "theorems": [
+        "canonical_winner_unique",
+        "winner_mem",
+        "winner_le",
+        "winner_of_singleton",
+        "winner_of_subset",
+        "accepted_trace_preserves_safe",
+        "accepted_trace_excludes_disaster",
+        "accepted_trace_append",
+        "accepted_trace_all_safe",
+        "accepted_trace_preserves_invariant",
+        "accepted_trace_preserves_pair",
+        "coverage_transfers_across_equivalent_axes",
+        "representative_cover_lifts_to_family",
+        "axisCovered_mono",
+        "familyCovered_mono",
+        "axisObligationEquivalent_refl",
+        "axisObligationEquivalent_symm",
+        "axisObligationEquivalent_trans",
+        "familyCovered_union",
+        "burn_step_preserves_floor",
+        "burn_step_surplus_nonincreasing",
+        "burn_step_zero_noop",
+        "max_burn_is_surplus",
+        "max_burn_reaches_floor",
+        "pipeline_safety_and_floor",
+        "trace_winner_unique_at_each_step"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "path": "tests/formal/test_lean_zeno_shape_discovery.py",
+      "sha256": "sha256:ce35402669749b92ac2c3aa5b35879089de58be22dac0fd9a27b86d2971d29b1"
+    }
+  ],
+  "proof_search_source": {
+    "tool": "Aristotle",
+    "project_id": "c61ac5a8-90ee-4547-9bd7-8e03ee9d5930",
+    "local_acceptance": "selectively integrated as an abstract proof-shape module after local Lean build and placeholder scan"
+  },
+  "boundaries": [
+    "No global DEX safety is claimed without an AcceptedStep preservation hypothesis.",
+    "No runtime enumeration completeness is claimed by FamilyCovered.",
+    "No unbounded guard synthesis is claimed; representative maps must be supplied.",
+    "Burn-floor theorems are Nat-only and do not model real-valued tokenomics.",
+    "Canonical winner uniqueness does not imply winner existence."
+  ],
+  "claim": "Abstract disaster-state and tokenomics theorem shapes are machine-checked: accepted local safety preservation lifts to accepted traces, safe traces exclude declared disasters, guard coverage transfers across equivalent axes and representative families, canonical winners are unique under antisymmetric dominance, and capped natural-number burn steps preserve a protected floor.",
+  "result": "proved",
+  "created_utc": "2026-04-28T14:55:33Z"
+}
