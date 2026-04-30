@@ -44,10 +44,13 @@ import Proofs.TauSafeMul32
 import Proofs.PerpFundingRateSafety
 import Proofs.PerpFundingAlgebra
 import Proofs.PerpFundingEpochGateProved
+import Proofs.PerpFundingSymmetry
 import Proofs.PerpCascadeSafety
 import Proofs.PerpInsuranceSafety
+import Proofs.PerpLiquidationInsuranceBound
 import Proofs.PerpIntegerBridge
 import Proofs.FundingRateMarketSafety
+import Proofs.FundingImbalanceEV
 import Proofs.ILFuturesSafety
 import Proofs.VolatilityTierSafety
 import Proofs.CurveSelectionSafety
@@ -72,6 +75,10 @@ import Proofs.PiecewiseEnvelopeNoOverdelivery
 import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
 import Proofs.PiecewiseEnvelopeParametric
 import Proofs.FeeCeilDecomposition
+import Proofs.FeeDustCarryConservation
+import Proofs.FeeRevenueBoundedness
+import Proofs.FeeSplitRoundingGap
+import Proofs.ProtocolFeeShareThreshold
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
 import Proofs.ZenoPayoffLanguage
