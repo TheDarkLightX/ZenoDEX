@@ -1,0 +1,71 @@
+{
+  "receipt_id": "autotrader_release_certificate_bridge_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXAutoTraderBinaryDecision.lean",
+    "lean-mathlib/Proofs/ZenoDEXAutoTraderDecisionBinding.lean",
+    "lean-mathlib/Proofs/ZenoDEXAutoTraderStageCertificate.lean",
+    "lean-mathlib/Proofs/ZenoDEXAutoTraderLiveReleaseCertificate.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "TauSwap.AutoTrader.BinaryDecision.winnerPair_is_canonical",
+    "TauSwap.AutoTrader.BinaryDecision.canonicalWinner_unique",
+    "TauSwap.AutoTrader.BinaryDecision.exists_unique_canonicalWinner",
+    "TauSwap.AutoTrader.DecisionBinding.candidateSetHash_eq_canonicalCandidateSetHash",
+    "TauSwap.AutoTrader.DecisionBinding.bindingOk_of_wellFormed",
+    "TauSwap.AutoTrader.DecisionBinding.buildDecisionCertificate_bindingBit_true",
+    "TauSwap.AutoTrader.DecisionBinding.verifyDecisionCertificate_iff",
+    "TauSwap.AutoTrader.DecisionBinding.verifyingCertificate_unique",
+    "TauSwap.AutoTrader.DecisionBinding.buildDecisionCertificate_argmaxShape",
+    "TauSwap.AutoTrader.StageCertificate.highestStage_liveRelease_of_releaseEligible",
+    "TauSwap.AutoTrader.StageCertificate.highestStage_signer_of_no_hashes",
+    "TauSwap.AutoTrader.StageCertificate.verifyCertificate_iff",
+    "TauSwap.AutoTrader.StageCertificate.verifyingCertificate_unique",
+    "TauSwap.AutoTrader.LiveReleaseCertificate.releaseOk_iff",
+    "TauSwap.AutoTrader.LiveReleaseCertificate.verifyCertificate_iff",
+    "TauSwap.AutoTrader.LiveReleaseCertificate.verifyingCertificate_unique",
+    "TauSwap.AutoTrader.LiveReleaseCertificate.buildCertificate_releaseError_liveAdmission",
+    "TauSwap.AutoTrader.LiveReleaseCertificate.buildCertificate_releaseError_emitNotRequested"
+  ],
+  "claims": [
+    "The binary autotrader decision frontier has a unique canonical winner under the Tau argmax pair order: larger key wins, ties prefer smaller index.",
+    "When emit is not both requested and admissible, the no-op candidate wins by canonical tie-break.",
+    "A well-formed strategy candidate set produces true binding bits in the rebuilt decision certificate.",
+    "Verifier success for decision, stage, and live-release certificates is exactly equality with the canonical rebuilt certificate.",
+    "For fixed inputs, verifying certificates are unique.",
+    "The stage certificate deterministically reports live release only when all required hash surfaces are present.",
+    "The live-release bit is exactly the conjunction of emit request, live admission, system composition, submit bundle, and emit-finalize gates.",
+    "Live-release errors select deterministic blocker codes for missing live admission or missing emit request."
+  ],
+  "proof_method": [
+    "finite Boolean case analysis for binary decision canonicality",
+    "deterministic certificate rebuilding equality",
+    "candidate-set binding decomposition",
+    "stage-selection conditional simplification",
+    "release-gate conjunction and blocker-priority proofs"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXAutoTraderBinaryDecision Proofs.ZenoDEXAutoTraderDecisionBinding Proofs.ZenoDEXAutoTraderStageCertificate Proofs.ZenoDEXAutoTraderLiveReleaseCertificate",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXAutoTraderBinaryDecision.lean lean-mathlib/Proofs/ZenoDEXAutoTraderDecisionBinding.lean lean-mathlib/Proofs/ZenoDEXAutoTraderStageCertificate.lean lean-mathlib/Proofs/ZenoDEXAutoTraderLiveReleaseCertificate.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This proof package models hashes and canonical payloads as deterministic inputs; it does not prove SHA256 or canonical JSON correctness.",
+    "The binary decision theorem covers the two-candidate NO_OP versus EMIT_COMPILED_INTENT frontier used by the current shell.",
+    "Live-release safety is a deterministic certificate-shell theorem. It does not prove that external live admission, system composition, submit bundle, or emit-finalize gates are themselves semantically complete.",
+    "The package should be composed with the advisory capability proof for authority separation and with runtime tests for concrete certificate serialization."
+  ]
+}

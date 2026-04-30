@@ -1,0 +1,61 @@
+{
+  "receipt_id": "advisory_capability_pokayoke_bridge_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/AgentCapabilityBounds.lean",
+    "lean-mathlib/Proofs/AdvisoryPokayokeBridge.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "Proofs.AgentCapabilityBounds.allowed_live_execution_requires_capability",
+    "Proofs.AgentCapabilityBounds.allowed_execute_requires_live_execution",
+    "Proofs.AgentCapabilityBounds.no_execute_when_live_execution_forbidden",
+    "Proofs.AgentCapabilityBounds.stage_capability_cannot_authorize_execute",
+    "Proofs.AgentCapabilityBounds.advisory_capability_cannot_authorize_stronger_action",
+    "Proofs.AgentCapabilityBounds.advisory_non_authoritative_blocks_live_execution",
+    "Proofs.AgentCapabilityBounds.advisory_non_authoritative_blocks_execute",
+    "Proofs.AgentCapabilityBounds.allowed_action_respects_loss_ceiling",
+    "Proofs.AgentCapabilityBounds.zero_loss_capability_blocks_positive_loss",
+    "Proofs.AdvisoryPokayokeBridge.advisory_execute_request_blocked",
+    "Proofs.AdvisoryPokayokeBridge.advisory_live_request_blocked",
+    "Proofs.AdvisoryPokayokeBridge.advisory_execute_request_cannot_be_authorized_and_submitted",
+    "Proofs.AdvisoryPokayokeBridge.advisory_live_request_cannot_be_authorized_and_submitted",
+    "Proofs.AdvisoryPokayokeBridge.advisory_execute_dangerous_without_interlock_blocked_at_both_boundaries",
+    "Proofs.AdvisoryPokayokeBridge.advisory_live_dangerous_without_interlock_blocked_at_both_boundaries"
+  ],
+  "claims": [
+    "Authority is modeled as an explicit rank: advisory < stage < execute.",
+    "An allowed execute-class request must be a live-execution request.",
+    "Any allowed live-execution request requires a capability whose liveExecutionAllowed flag is true.",
+    "A non-live advisory capability cannot authorize execute-class or live-execution requests.",
+    "Allowed delegated actions respect their declared loss ceiling.",
+    "A zero-loss capability cannot authorize positive requested loss.",
+    "When composed with the poka-yoke submit gate, advisory non-live authority and submitAllowed cannot jointly authorize execute/live requests.",
+    "Dangerous requests without the interlock are blocked at both the capability boundary and the submit-interlock boundary."
+  ],
+  "proof_method": [
+    "finite authority-rank case analysis",
+    "capability admission predicate decomposition",
+    "integer loss-ceiling inequalities",
+    "composition with the existing poka-yoke submit theorem"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.AgentCapabilityBounds Proofs.AdvisoryPokayokeBridge",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/AgentCapabilityBounds.lean lean-mathlib/Proofs/AdvisoryPokayokeBridge.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This is a proof-level authority model. Runtime systems still need to map concrete KRR/autotrader/API capabilities into these fields.",
+    "The theorem prevents advisory non-live authority from authorizing execute/live requests; it does not prove that every deployed integration uses this capability model.",
+    "The loss ceiling is an integer field in the model and assumes the caller supplies a faithful requestedLoss value.",
+    "The poka-yoke bridge relies on the existing submitAllowed and dangerous_without_interlock_blocks definitions."
+  ]
+}
