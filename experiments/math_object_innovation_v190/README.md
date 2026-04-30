@@ -101,6 +101,7 @@ protocol parameters.
 python3 experiments/math_object_innovation_v190/run_cycle.py
 pytest -q experiments/math_object_innovation_v190/test_cycle.py
 julia experiments/math_object_innovation_v190/run_julia_probe.jl
+python3 experiments/math_object_innovation_v190/run_mutation_checks.py
 ```
 
 The Python cycle is the exact replay gate. The Julia probe is a fast discovery
@@ -114,6 +115,7 @@ candidate_policy_count = 155527
 survivor_count = 5510
 best_survivor = grid_090937_max_burn_guarded
 model_audit.total_model_invariant_failures = 0
+mutation_receipt.detected_count = 5 / 5
 ```
 
 Selected best-survivor metrics:
@@ -160,3 +162,16 @@ The cycle includes an internal model audit:
 The optional Julia probe is an independent implementation of the named-policy
 accounting totals. The Python test compares Julia totals against the canonical
 Python report when Julia is installed.
+
+The mutation receipt deliberately corrupts model outputs and requires the audit
+layer to catch:
+
+- negative gross revenue,
+- wrong user-net accounting,
+- wrong net-revenue accounting,
+- sink-budget over-allocation,
+- false survivor flags.
+
+This does not prove the economic assumptions are complete. It proves the current
+audit layer is sensitive to the bug classes that are easiest to accidentally
+introduce while changing the model.

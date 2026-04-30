@@ -28,6 +28,7 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
   - `fee_surface_launch`: survivor `true`, net protocol revenue `2258`,
     total user net value `3669`, burn budget `1016`
   - `model_audit.total_model_invariant_failures = 0`
+  - `mutation_receipt.detected_count = 5 / 5`
 
 ## Non-promotion note from v182
 

@@ -1,0 +1,78 @@
+{
+  "all_detected": true,
+  "checks": {
+    "false_survivor_flag": {
+      "audit": {
+        "all_named_expectations_passed": true,
+        "gross_negative_count": 0,
+        "named_expectations": {},
+        "net_identity_failures": 0,
+        "sink_budget_overallocations": 0,
+        "survivor_rule_failures": 1,
+        "total_model_invariant_failures": 1,
+        "user_net_identity_failures": 0
+      },
+      "detected": true
+    },
+    "negative_gross_revenue": {
+      "audit": {
+        "all_named_expectations_passed": true,
+        "gross_negative_count": 1,
+        "named_expectations": {},
+        "net_identity_failures": 1,
+        "sink_budget_overallocations": 0,
+        "survivor_rule_failures": 0,
+        "total_model_invariant_failures": 2,
+        "user_net_identity_failures": 0
+      },
+      "detected": true
+    },
+    "sink_budget_overallocation": {
+      "audit": {
+        "all_named_expectations_passed": true,
+        "gross_negative_count": 0,
+        "named_expectations": {},
+        "net_identity_failures": 0,
+        "sink_budget_overallocations": 1,
+        "survivor_rule_failures": 0,
+        "total_model_invariant_failures": 1,
+        "user_net_identity_failures": 0
+      },
+      "detected": true
+    },
+    "wrong_net_revenue_identity": {
+      "audit": {
+        "all_named_expectations_passed": true,
+        "gross_negative_count": 0,
+        "named_expectations": {},
+        "net_identity_failures": 1,
+        "sink_budget_overallocations": 0,
+        "survivor_rule_failures": 0,
+        "total_model_invariant_failures": 1,
+        "user_net_identity_failures": 0
+      },
+      "detected": true
+    },
+    "wrong_user_net_identity": {
+      "audit": {
+        "all_named_expectations_passed": true,
+        "gross_negative_count": 0,
+        "named_expectations": {},
+        "net_identity_failures": 0,
+        "sink_budget_overallocations": 0,
+        "survivor_rule_failures": 0,
+        "total_model_invariant_failures": 1,
+        "user_net_identity_failures": 1
+      },
+      "detected": true
+    }
+  },
+  "cycle": "v190",
+  "detected_count": 5,
+  "mutant_count": 5,
+  "non_claims": [
+    "Mutation checks do not prove the economics are complete.",
+    "Mutation checks prove only that the current audit layer is sensitive to these known bug classes."
+  ],
+  "object": "revenue_surface_atlas_model_mutation_checks_v1"
+}

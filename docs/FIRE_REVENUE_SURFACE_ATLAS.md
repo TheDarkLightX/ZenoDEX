@@ -137,6 +137,7 @@ Current v190 replay:
 candidate_policy_count = 155527
 survivor_count = 5510
 model_audit.total_model_invariant_failures = 0
+mutation_receipt.detected_count = 5 / 5
 ```
 
 Best bounded survivor:
@@ -161,3 +162,8 @@ total_user_net_value = 3669
 In plain English: there are revenue-generating fee surfaces that survive the
 bounded model without leaning on penalty revenue or passive emissions. The next
 question is calibration against real quote/action corpora.
+
+The mutation receipt deliberately corrupts the model in five ways and confirms
+the audit layer detects each corruption. That does not prove the economics are
+complete; it does prove the accounting audit is sensitive to known-bad bug
+classes.

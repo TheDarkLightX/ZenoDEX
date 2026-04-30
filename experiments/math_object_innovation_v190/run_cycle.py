@@ -528,26 +528,37 @@ def audit_scores(scores: list[PolicyScore]) -> dict[str, object]:
                 net_identity_failures += 1
 
     named = {score.policy: score for score in scores if score.policy in {policy.name for policy in NAMED_POLICIES}}
-    named_expectations = {
-        "zero_fee_not_revenue_generating": (
-            named["zero_fee"].gross_protocol_revenue == 0
-            and not named["zero_fee"].survivor
-        ),
-        "launch_policy_survives": named["fee_surface_launch"].survivor,
-        "extractive_notional_rejected": (
-            not named["extractive_notional"].survivor
-            and named["extractive_notional"].negative_user_surface_count > 0
-        ),
-        "wash_rebate_farm_rejected": (
-            not named["wash_rebate_farm"].survivor
-            and (named["wash_rebate_farm"].wash_profit_max > 0 or named["wash_rebate_farm"].rail_violation_count > 0)
-        ),
-        "penalty_dependency_rejected": (
-            not named["penalty_dependency"].survivor
-            and named["penalty_dependency"].penalty_dependency_bps >= 9000
-        ),
-        "subsidized_passive_yield_rejected": not named["subsidized_passive_yield"].survivor,
+    required_named = {
+        "zero_fee",
+        "fee_surface_launch",
+        "extractive_notional",
+        "wash_rebate_farm",
+        "penalty_dependency",
+        "subsidized_passive_yield",
     }
+    if required_named.issubset(named):
+        named_expectations = {
+            "zero_fee_not_revenue_generating": (
+                named["zero_fee"].gross_protocol_revenue == 0
+                and not named["zero_fee"].survivor
+            ),
+            "launch_policy_survives": named["fee_surface_launch"].survivor,
+            "extractive_notional_rejected": (
+                not named["extractive_notional"].survivor
+                and named["extractive_notional"].negative_user_surface_count > 0
+            ),
+            "wash_rebate_farm_rejected": (
+                not named["wash_rebate_farm"].survivor
+                and (named["wash_rebate_farm"].wash_profit_max > 0 or named["wash_rebate_farm"].rail_violation_count > 0)
+            ),
+            "penalty_dependency_rejected": (
+                not named["penalty_dependency"].survivor
+                and named["penalty_dependency"].penalty_dependency_bps >= 9000
+            ),
+            "subsidized_passive_yield_rejected": not named["subsidized_passive_yield"].survivor,
+        }
+    else:
+        named_expectations = {}
 
     return {
         "gross_negative_count": gross_negative_count,

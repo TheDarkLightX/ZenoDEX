@@ -20,6 +20,9 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
   nonnegative, user-net identity, net-revenue identity, sink budget
   non-overallocation, survivor-rule consistency, named falsifier expectations,
   and optional Julia-vs-Python accounting cross-check.
+- Add mutation sensitivity before trusting a tokenomics oracle: deliberately
+  corrupt negative gross revenue, user-net identity, net-revenue identity, sink
+  budgets, and survivor flags; the v190 receipt catches `5/5`.
 - Next cycle should calibrate the fee-surface corpus against real quote/action
   receipts and split retail fee surfaces from pro/integrator fee surfaces.
 
