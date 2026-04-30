@@ -30,7 +30,7 @@ theorem ceilDiv_mul_ge (a b : Nat) (hb : 0 < b) : a ≤ ceilDiv a b * b + (b - 1
     have h0 : a ≤ a + (b - 1) := Nat.le_add_right _ _
     -- a + b - 1 = a + (b - 1) when 1 ≤ b
     have hab : a + b - 1 = a + (b - 1) := Nat.add_sub_assoc hb1 a
-    simpa [hab] using h0
+    simp [hab] at h0 ⊢
   have hdiv : a / b ≤ (a + b - 1) / b := Nat.div_le_div_right hle_num
   -- Convert division inequality to multiplication inequality:
   have hmul : a ≤ (a + b - 1) / b * b + b - 1 := (Nat.div_le_iff_le_mul hb).1 hdiv
