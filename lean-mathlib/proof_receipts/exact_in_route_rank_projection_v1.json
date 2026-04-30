@@ -1,0 +1,57 @@
+{
+  "receipt_id": "exact_in_route_rank_projection_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactInRouteRankProjection.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.Routing.ExactInRouteRankProjection.orderedUniqueKeys",
+    "TauSwap.Routing.ExactInRouteRankProjection.rankOf",
+    "TauSwap.Routing.ExactInRouteRankProjection.trueKeyLe",
+    "TauSwap.Routing.ExactInRouteRankProjection.projectedCandidate"
+  ],
+  "theorems": [
+    "TauSwap.Routing.ExactInRouteRankProjection.mem_orderedUniqueKeys_iff",
+    "TauSwap.Routing.ExactInRouteRankProjection.sortedLT_orderedUniqueKeys",
+    "TauSwap.Routing.ExactInRouteRankProjection.rankOf_eq_iff_eq",
+    "TauSwap.Routing.ExactInRouteRankProjection.rankOf_lt_rankOf_of_lt",
+    "TauSwap.Routing.ExactInRouteRankProjection.lt_of_rankOf_lt_rankOf",
+    "TauSwap.Routing.ExactInRouteRankProjection.projectedCandidate_keyLe_iff_trueKeyLe"
+  ],
+  "claims": [
+    "The Lean model of sorted(set(keys)) preserves membership exactly.",
+    "The sorted unique route-key projection is strictly sorted.",
+    "For keys present in the original key list, equal projected ranks are equivalent to equal semantic keys.",
+    "For keys present in the original key list, projected rank order is equivalent to true semantic key order.",
+    "The candidate surface consumed by the exact-in certificate shell preserves the true route-key order plus original index tie-break."
+  ],
+  "proof_method": [
+    "Finset sort membership and strict sortedness",
+    "List idxOf injectivity on duplicate-free sorted projections",
+    "bidirectional rank/order transport",
+    "candidate keyLe equivalence against true route-key order"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactInRouteRankProjection",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactInRouteRankProjection.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This packet proves the rank-projection/order bridge for a generic linear-order key list.",
+    "It does not by itself prove route generation completeness or runtime certificate emission.",
+    "It relies on the imported exact-in route certificate Candidate/keyLe model."
+  ]
+}
