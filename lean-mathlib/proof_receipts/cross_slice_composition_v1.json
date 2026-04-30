@@ -1,0 +1,57 @@
+{
+  "receipt_id": "cross_slice_composition_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/CrossSliceComposition.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "Proofs.CrossSliceComposition.margin_absorbs_perturbation",
+    "Proofs.CrossSliceComposition.perturbed_no_arbitrage",
+    "Proofs.CrossSliceComposition.k_hop_conservative_margin",
+    "Proofs.CrossSliceComposition.k_hop_lipschitz_margin",
+    "Proofs.CrossSliceComposition.margin_sufficient_for_fewer_hops",
+    "Proofs.CrossSliceComposition.fewer_hops_no_arbitrage",
+    "Proofs.CrossSliceComposition.witness_margin_3",
+    "Proofs.CrossSliceComposition.witness_perturbed_survives",
+    "Proofs.CrossSliceComposition.witness_perturbed_certificate_valid",
+    "Proofs.CrossSliceComposition.witness_insufficient_margin",
+    "Proofs.CrossSliceComposition.witness_tight_margin"
+  ],
+  "claims": [
+    "A reduced-cost certificate with margin epsilon remains valid after edge weights are perturbed downward by at most epsilon.",
+    "Margin absorption composes with the arbitrage certificate theorem to prove no-arbitrage cycles for perturbed actual weights.",
+    "A conservative k-hop rounding budget of 2*k-1 can be used as the required certificate margin.",
+    "Under a Lipschitz-1 rounding model, the tighter k-hop margin k is sufficient.",
+    "A margin sized for k hops also covers any smaller j-hop perturbation budget when j <= k.",
+    "Concrete witnesses show sufficient margin, insufficient margin, and exact-threshold tightness."
+  ],
+  "proof_method": [
+    "integer linear arithmetic for margin absorption",
+    "composition with ArbitrageCertificate.certificate_soundness",
+    "monotonicity of the conservative hop budget",
+    "explicit finite witnesses for survival, failure, and tightness"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.CrossSliceComposition",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/CrossSliceComposition.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The proof assumes actual edge weights satisfy the declared perturbation bound; a runtime checker must establish that bound for concrete rounded routes.",
+    "The k-hop conservative and Lipschitz margins are instantiated as arithmetic budgets, not derived here from concrete CPMM route execution.",
+    "These proofs do not establish route optimality, reserve update correctness, authorization, oracle freshness, or graph-construction soundness."
+  ]
+}

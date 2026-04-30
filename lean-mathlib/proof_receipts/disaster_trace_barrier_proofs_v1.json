@@ -1,0 +1,73 @@
+{
+  "receipt_id": "disaster_trace_barrier_proofs_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ForwardSimulationDisaster.lean",
+    "lean-mathlib/Proofs/FiniteTraceBarriers.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "TauSwap.DisasterSimulation.invariant_of_reachable",
+    "TauSwap.DisasterSimulation.forward_sim_reachable",
+    "TauSwap.DisasterSimulation.concrete_safe_of_abstract_invariant",
+    "TauSwap.DisasterSimulation.no_concrete_disaster_of_abstract_simulation",
+    "TauSwap.DisasterSimulation.deterministicAbstraction_forwardSim",
+    "TauSwap.DisasterSimulation.no_concrete_disaster_of_deterministic_abstraction",
+    "TauSwap.DisasterSimulation.setConcretization_forwardSim",
+    "TauSwap.DisasterSimulation.no_concrete_disaster_of_set_concretization",
+    "TauSwap.DisasterSimulation.syncProduct_forwardSim",
+    "TauSwap.DisasterSimulation.asyncProduct_forwardSim",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.reachable_of_traceN",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.traceN_of_stepIncluded",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.reachable_of_stepIncluded",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.barrier_of_reachable",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.barrier_of_traceN",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.safe_of_reachable_barrier",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.safe_of_traceN_barrier",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.barrierPreserved_of_stepIncluded",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.pair_barrier_of_sync_reachable",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.pair_barrier_of_async_reachable",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.pair_safe_of_async_reachable",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.BarrierCertificate.barrier_of_reachable",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.BarrierCertificate.safe_of_reachable",
+    "Proofs.FiniteTraceBarriers.TransitionSystem.BarrierCertificate.safe_of_traceN"
+  ],
+  "claims": [
+    "Concrete traces lift into abstract traces under a forward simulation relation.",
+    "Abstract invariant preservation transfers to concrete safety through the simulation relation.",
+    "If an abstract invariant excludes a concrete disaster through the simulation relation, the concrete disaster is unreachable from any simulated initial state.",
+    "Deterministic abstraction functions and set-valued concretizations are both instances of the forward-simulation disaster exclusion pattern.",
+    "Synchronous and asynchronous product simulations compose, supporting cross-surface disaster analysis.",
+    "Finite and unbounded trace safety follows from a preserved barrier score and a sound barrier-to-safety implication.",
+    "Barrier preservation and safety transfer through step inclusion and through synchronous/asynchronous product traces."
+  ],
+  "proof_method": [
+    "induction over reflexive-transitive reachability",
+    "forward-simulation trace lifting",
+    "invariant preservation over abstract traces",
+    "deterministic graph relation and set-concretization specialization",
+    "component-wise product simulation and barrier induction"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ForwardSimulationDisaster Proofs.FiniteTraceBarriers",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ForwardSimulationDisaster.lean lean-mathlib/Proofs/FiniteTraceBarriers.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "These are generic proof patterns. Concrete ZenoDEX disaster-state claims still need instantiated states, steps, abstraction relations, invariants, and exclusion predicates.",
+    "Forward simulation proves safety preservation for reachable traces under the supplied simulation; it does not synthesize the simulation relation.",
+    "Barrier certificates require a preserved score and sound score-to-safety implication; bounded search receipts must still justify those assumptions for each concrete surface."
+  ]
+}
