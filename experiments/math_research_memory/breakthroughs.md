@@ -6,6 +6,29 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
 
 # Breakthroughs
 
+## Non-promotion note from v190
+
+- `revenue_surface_atlas_v1` survives as a useful FIRE tokenomics object, but
+  it is not promoted as a breakthrough.
+- Reason:
+  - it gives an explicit fee-surface atlas rather than treating staking as a
+    revenue source,
+  - it searches `155527` bounded policies and finds `5510` survivors,
+  - it keeps the launch-shaped policy alive while rejecting zero-fee,
+    extractive-notional, wash-rebate, penalty-dependent, and passive-subsidy
+    shapes,
+  - and it now includes model-bug controls plus a small Lean algebra skeleton,
+  - but it is still a bounded oracle over hand-authored scenarios, not a live
+    calibrated fee engine.
+
+- Current measured result:
+  - `best_survivor = grid_090937_max_burn_guarded`
+  - `best_survivor`: net protocol revenue `5322`, burn budget `4257`,
+    deflation margin `4257`, penalty dependency `0` bps
+  - `fee_surface_launch`: survivor `true`, net protocol revenue `2258`,
+    total user net value `3669`, burn budget `1016`
+  - `model_audit.total_model_invariant_failures = 0`
+
 ## Non-promotion note from v182
 
 - `bernstein_interval_sign_certificate_v1` survives as a useful Tau/FIRE proof

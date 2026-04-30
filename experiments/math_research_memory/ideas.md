@@ -6,6 +6,28 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
 
 # Ideas
 
+## v190 revenue surface atlas
+
+- `revenue_surface_atlas_v1`
+  - turns FIRE tokenomics into concrete fee surfaces rather than generic
+    reward or staking language.
+  - modeled surfaces: swap rake, route surplus capture, exact-out savings,
+    COW/batch solver surplus, protection receipts, automation, pro
+    certificates/API, integrator routing, treasury market-maker bot profit,
+    arbitrage recapture auctions, LP loss-cover premium, and early-exit
+    penalties.
+  - key laws:
+    `UserFee <= MeasuredUserValue`,
+    `StakeRewards <= RevenueBackedRewardBudget + ExplicitSubsidy`,
+    and `BurnBudget > SubsidyEmissions` for actual supply deflation.
+  - bounded result: `155527` policies searched, `5510` survivors,
+    `0` model-audit invariant failures.
+  - named falsifiers: zero fee, extractive notional fees, wash rebate farming,
+    penalty dependency, and subsidized passive yield are rejected.
+  - Lean skeleton: `lean-mathlib/Proofs/RevenueSurfaceSafety.lean`.
+  - next frontier: replay real route/protection/automation/API receipts and
+    mine empirical value-density caps per surface.
+
 ## v182 Bernstein certificate fast path for bounded Tau/FIRE polynomial QE
 
 - `bernstein_interval_sign_certificate_v1`

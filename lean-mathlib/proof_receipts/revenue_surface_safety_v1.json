@@ -1,0 +1,20 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/RevenueSurfaceSafety.lean",
+  "claim": "Core FIRE revenue-surface algebra: fee-capped user charges leave nonnegative net value, fee-capped rebates make wash loops nonprofitable under nonnegative execution drag, and supply decreases only when burn exceeds emissions.",
+  "file": "lean-mathlib/Proofs/RevenueSurfaceSafety.lean",
+  "non_claims": [
+    "Does not prove measured user value is truthful.",
+    "Does not prove production fee parameters are optimal.",
+    "Does not prove wash trading impossible outside the stated fee/reward/drag assumptions.",
+    "Does not prove token price appreciation."
+  ],
+  "status": "checked",
+  "theorems": [
+    "Proofs.RevenueSurfaceSafety.user_net_nonnegative_of_fee_le_value",
+    "Proofs.RevenueSurfaceSafety.wash_profit_nonpositive_of_reward_le_fee",
+    "Proofs.RevenueSurfaceSafety.wash_profit_nonpositive_of_combined_rewards_le_fee",
+    "Proofs.RevenueSurfaceSafety.supply_decreases_of_burn_gt_emission",
+    "Proofs.RevenueSurfaceSafety.supply_nonincreasing_of_burn_ge_emission",
+    "Proofs.RevenueSurfaceSafety.lock_reward_spend_le_pool"
+  ]
+}

@@ -6,6 +6,23 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 
 # Workflow
 
+## Updated lesson from v190
+
+- Tokenomics revenue work must model explicit fee surfaces, not just abstract
+  value flow or staking allocation.
+- Staking is an allocation/commitment surface; revenue comes from measured
+  route surplus, exact-out savings, solver surplus, protection/automation,
+  pro receipts/API, integrator flow, treasury market-making, arbitrage
+  recapture, and bounded insurance premiums.
+- Penalties can protect commitment schedules, but a policy that depends on
+  penalty revenue is unhealthy and should fail the revenue model.
+- The v190 model bug audit is now part of the method: gross revenue
+  nonnegative, user-net identity, net-revenue identity, sink budget
+  non-overallocation, survivor-rule consistency, named falsifier expectations,
+  and optional Julia-vs-Python accounting cross-check.
+- Next cycle should calibrate the fee-surface corpus against real quote/action
+  receipts and split retail fee surfaces from pro/integrator fee surfaces.
+
 ## Updated lesson from v182
 
 - DLMF and Julia are most useful to this repo as a certificate-discovery

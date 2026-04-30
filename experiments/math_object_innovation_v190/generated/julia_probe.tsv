@@ -1,0 +1,6 @@
+policy	gross_revenue	net_revenue	user_fee	user_net
+zero_fee	0	-513	0	6490
+fee_surface_launch	2771	2258	2821	3669
+surplus_bot_heavy	3740	3227	2960	3530
+extractive_notional	23395	22882	22995	-16505
+penalty_dependency	12500	11987	12500	-6010
