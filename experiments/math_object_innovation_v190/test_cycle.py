@@ -160,3 +160,84 @@ def test_mutation_receipt_all_detected() -> None:
     assert receipt["mutant_count"] == 5
     assert receipt["detected_count"] == 5
     assert receipt["all_detected"] is True
+
+
+def test_report_integrity_replay_all_passed() -> None:
+    subprocess.run([sys.executable, str(ROOT / "check_report_integrity.py")], check=True)
+    receipt = json.loads((ROOT / "generated" / "report_integrity_receipt.json").read_text(encoding="utf-8"))
+    assert receipt["check_count"] >= 10
+    assert receipt["passed_count"] == receipt["check_count"]
+    assert receipt["all_passed"] is True
+
+
+def test_fee_monotonicity_metamorphic_laws() -> None:
+    cycle = cycle_module()
+    base = _named_policy("fee_surface_launch")
+
+    higher_base = replace(base, base_notional_fee_bps=base.base_notional_fee_bps + 1)
+    higher_value = replace(base, value_capture_bps=base.value_capture_bps + 1)
+    higher_pro = replace(base, pro_notional_fee_bps=base.pro_notional_fee_bps + 1)
+
+    base_score = cycle.evaluate_policy(base)
+    higher_base_score = cycle.evaluate_policy(higher_base)
+    higher_value_score = cycle.evaluate_policy(higher_value)
+    higher_pro_score = cycle.evaluate_policy(higher_pro)
+
+    assert higher_base_score.gross_protocol_revenue >= base_score.gross_protocol_revenue
+    assert higher_base_score.total_user_fee_paid >= base_score.total_user_fee_paid
+    assert higher_base_score.total_user_net_value <= base_score.total_user_net_value
+
+    assert higher_value_score.gross_protocol_revenue >= base_score.gross_protocol_revenue
+    assert higher_value_score.total_user_fee_paid >= base_score.total_user_fee_paid
+    assert higher_value_score.total_user_net_value <= base_score.total_user_net_value
+
+    assert higher_pro_score.gross_protocol_revenue >= base_score.gross_protocol_revenue
+    assert higher_pro_score.total_user_fee_paid >= base_score.total_user_fee_paid
+    assert higher_pro_score.total_user_net_value <= base_score.total_user_net_value
+
+
+def test_reward_wash_pressure_metamorphic_law() -> None:
+    cycle = cycle_module()
+    base = _named_policy("fee_surface_launch")
+    higher_rewards = replace(
+        base,
+        fee_rebate_bps=base.fee_rebate_bps + 1000,
+        usage_reward_bps=base.usage_reward_bps + 1000,
+    )
+    base_score = cycle.evaluate_policy(base)
+    higher_score = cycle.evaluate_policy(higher_rewards)
+
+    assert higher_score.gross_protocol_revenue == base_score.gross_protocol_revenue
+    assert higher_score.total_user_fee_paid == base_score.total_user_fee_paid
+    assert higher_score.wash_profit_max >= base_score.wash_profit_max
+
+
+def test_sink_split_metamorphic_law() -> None:
+    cycle = cycle_module()
+    base = _named_policy("fee_surface_launch")
+    higher_burn_sink = replace(
+        base.sink,
+        burn_bps=base.sink.burn_bps + 500,
+        user_rebate_bps=base.sink.user_rebate_bps - 500,
+    )
+    higher_burn = replace(base, sink=higher_burn_sink)
+
+    base_score = cycle.evaluate_policy(base)
+    higher_score = cycle.evaluate_policy(higher_burn)
+
+    assert cycle.sink_sum(higher_burn_sink) == cycle.BPS
+    assert higher_score.net_protocol_revenue == base_score.net_protocol_revenue
+    assert higher_score.burn_budget >= base_score.burn_budget
+    assert higher_score.user_rebate_budget <= base_score.user_rebate_budget
+
+
+def test_floor_bps_boundary_laws() -> None:
+    cycle = cycle_module()
+    for amount in (0, 1, 7, 10_000, 123_456_789):
+        assert cycle.floor_bps(amount, 0) == 0
+        assert cycle.floor_bps(amount, cycle.BPS) == amount
+        prev = -1
+        for bps in (0, 1, 2, 9999, 10_000):
+            current = cycle.floor_bps(amount, bps)
+            assert current >= prev
+            prev = current

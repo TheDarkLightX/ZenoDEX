@@ -102,6 +102,7 @@ python3 experiments/math_object_innovation_v190/run_cycle.py
 pytest -q experiments/math_object_innovation_v190/test_cycle.py
 julia experiments/math_object_innovation_v190/run_julia_probe.jl
 python3 experiments/math_object_innovation_v190/run_mutation_checks.py
+python3 experiments/math_object_innovation_v190/check_report_integrity.py
 ```
 
 The Python cycle is the exact replay gate. The Julia probe is a fast discovery
@@ -116,6 +117,7 @@ survivor_count = 5510
 best_survivor = grid_090937_max_burn_guarded
 model_audit.total_model_invariant_failures = 0
 mutation_receipt.detected_count = 5 / 5
+report_integrity.passed_count = 11 / 11
 ```
 
 Selected best-survivor metrics:
@@ -175,3 +177,15 @@ layer to catch:
 This does not prove the economic assumptions are complete. It proves the current
 audit layer is sensitive to the bug classes that are easiest to accidentally
 introduce while changing the model.
+
+The report-integrity receipt regenerates the bounded search and compares the
+published report against recomputed counts, best survivor, model audit, and
+named policy summaries. This catches stale or hand-edited report fields.
+
+The test suite also checks metamorphic laws:
+
+- raising a fee cannot lower total fees from the same policy,
+- raising a user-facing fee cannot improve user net value,
+- raising rebate/usage rewards cannot lower wash pressure,
+- shifting a fixed sink split toward burn cannot lower burn budget,
+- bps floor arithmetic obeys zero, full-scale, and monotonic boundaries.

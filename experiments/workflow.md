@@ -23,6 +23,11 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 - Add mutation sensitivity before trusting a tokenomics oracle: deliberately
   corrupt negative gross revenue, user-net identity, net-revenue identity, sink
   budgets, and survivor flags; the v190 receipt catches `5/5`.
+- Add report-integrity replay before trusting generated research artifacts:
+  regenerate the bounded search and compare counts, best survivor, model audit,
+  and named-policy summaries. v190 passes `11/11` integrity checks.
+- Add metamorphic laws for fee/reward/sink monotonicity so the model rejects
+  local direction errors even when totals still look plausible.
 - Next cycle should calibrate the fee-surface corpus against real quote/action
   receipts and split retail fee surfaces from pro/integrator fee surfaces.
 

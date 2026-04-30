@@ -29,6 +29,7 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
     total user net value `3669`, burn budget `1016`
   - `model_audit.total_model_invariant_failures = 0`
   - `mutation_receipt.detected_count = 5 / 5`
+  - `report_integrity.passed_count = 11 / 11`
 
 ## Non-promotion note from v182
 

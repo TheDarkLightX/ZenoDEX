@@ -1,0 +1,24 @@
+{
+  "all_passed": true,
+  "check_count": 11,
+  "checks": {
+    "best_survivor": true,
+    "candidate_policy_count": true,
+    "model_audit": true,
+    "named_policy_extractive_notional": true,
+    "named_policy_fee_surface_launch": true,
+    "named_policy_penalty_dependency": true,
+    "named_policy_subsidized_passive_yield": true,
+    "named_policy_surplus_bot_heavy": true,
+    "named_policy_wash_rebate_farm": true,
+    "named_policy_zero_fee": true,
+    "survivor_count": true
+  },
+  "cycle": "v190",
+  "non_claims": [
+    "Report integrity replay catches stale or hand-edited report fields.",
+    "It does not independently validate the economic assumptions."
+  ],
+  "object": "revenue_surface_atlas_report_integrity_v1",
+  "passed_count": 11
+}

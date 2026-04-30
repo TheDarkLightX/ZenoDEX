@@ -138,6 +138,7 @@ candidate_policy_count = 155527
 survivor_count = 5510
 model_audit.total_model_invariant_failures = 0
 mutation_receipt.detected_count = 5 / 5
+report_integrity.passed_count = 11 / 11
 ```
 
 Best bounded survivor:
@@ -167,3 +168,7 @@ The mutation receipt deliberately corrupts the model in five ways and confirms
 the audit layer detects each corruption. That does not prove the economics are
 complete; it does prove the accounting audit is sensitive to known-bad bug
 classes.
+
+The report-integrity receipt regenerates the bounded search and confirms the
+published report is not stale or hand-edited for the counted fields, best
+survivor, model audit, and named-policy summaries.
