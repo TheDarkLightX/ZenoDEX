@@ -281,3 +281,54 @@ def test_receipt_calibration_rejects_malformed_rows(tmp_path: Path) -> None:
     assert report["accepted_count"] == 1
     assert report["malformed_count"] == 1
     assert report["model_audit"]["total_calibration_invariant_failures"] == 1
+
+
+def test_fee_cap_recommendations_are_guarded() -> None:
+    subprocess.run([sys.executable, str(ROOT / "calibrate_receipts.py")], check=True)
+    subprocess.run([sys.executable, str(ROOT / "build_fee_cap_recommendations.py")], check=True)
+    report = json.loads((ROOT / "generated" / "fee_cap_recommendations.json").read_text(encoding="utf-8"))
+    recs = {row["surface"]: row for row in report["recommendations"]}
+
+    assert report["schema"] == "zenodex/fire-revenue-fee-cap-recommendations/v1"
+    assert report["surface_count"] == 11
+    assert report["candidate_review_cap_count"] == 6
+    assert report["launch_parameter_claim_count"] == 0
+    assert report["model_audit"]["total_recommendation_invariant_failures"] == 0
+
+    assert recs["route_surplus_capture"]["status"] == "candidate_review_cap"
+    assert recs["route_surplus_capture"]["recommended_user_value_cap_bps"] == 2500
+    assert recs["route_surplus_capture"]["hard_value_cap_bps"] == 2500
+
+    assert recs["cow_batch_solver_surplus"]["status"] == "candidate_review_cap"
+    assert recs["cow_batch_solver_surplus"]["recommended_user_value_cap_bps"] == 5000
+    assert recs["lp_loss_cover_premium"]["recommended_user_value_cap_bps"] == 5000
+
+    assert recs["treasury_market_maker_bot"]["status"] == "protocol_surplus_internal_capture"
+    assert recs["treasury_market_maker_bot"]["recommended_user_value_cap_bps"] is None
+    assert recs["staking_early_exit_penalty"]["status"] == "penalty_not_primary_revenue"
+    assert recs["staking_early_exit_penalty"]["launch_parameter_claim"] is False
+    assert recs["extractive_notional_bad"]["status"] == "rejected_only"
+
+
+def test_fee_cap_recommendations_fail_closed_on_thin_samples(tmp_path: Path) -> None:
+    subprocess.run([sys.executable, str(ROOT / "calibrate_receipts.py")], check=True)
+    out = tmp_path / "fee_caps.json"
+    subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "build_fee_cap_recommendations.py"),
+            "--min-user-fee-samples",
+            "2",
+            "--output",
+            str(out),
+        ],
+        check=True,
+    )
+    report = json.loads(out.read_text(encoding="utf-8"))
+    recs = {row["surface"]: row for row in report["recommendations"]}
+
+    assert report["candidate_review_cap_count"] == 0
+    assert report["status_counts"]["insufficient_user_fee_evidence"] == 6
+    assert recs["route_surplus_capture"]["recommended_user_value_cap_bps"] is None
+    assert recs["route_surplus_capture"]["status"] == "insufficient_user_fee_evidence"
+    assert report["model_audit"]["total_recommendation_invariant_failures"] == 0

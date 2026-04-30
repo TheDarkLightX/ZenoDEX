@@ -27,6 +27,9 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
   - receipt bridge: JSONL `fire-revenue-surface-receipt/v1` rows calibrate
     empirical value-density caps and reject unsafe rows before they enter the
     fee-surface model.
+  - fee-cap recommendation bridge: accepted user-paid receipts can produce
+    review-only caps bounded by measured value and hard rails; protocol-surplus
+    captures and penalties are classified separately.
   - Lean skeleton: `lean-mathlib/Proofs/RevenueSurfaceSafety.lean`.
   - next frontier: replay real route/protection/automation/API receipts and
     mine empirical value-density caps per surface.

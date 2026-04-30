@@ -33,6 +33,10 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
   empirical value-density summaries and rejects rows where fees exceed measured
   value, protocol surplus capture exceeds surplus, penalties are primary, wash
   risk is too high, or primary revenue is negative net.
+- Convert calibration into caps only through a fail-closed recommendation
+  layer: user-paid caps require accepted user-fee receipts and hard value rails;
+  penalties and protocol-surplus captures are explicitly not launch fee caps.
+  The current fixture emits `6/11` review caps and `0` launch-parameter claims.
 - Next cycle should feed real quote/action/API receipts into the calibrator and
   split retail fee surfaces from pro/integrator fee surfaces.
 

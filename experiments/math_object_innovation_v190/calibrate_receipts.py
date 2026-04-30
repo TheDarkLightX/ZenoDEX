@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections import defaultdict
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -159,10 +159,22 @@ def summarize_surface(evals: Iterable[ReceiptEvaluation]) -> dict[str, object]:
     accepted = [row for row in rows if row.accepted]
     fee_value_bps = [row.fee_bps_of_value for row in accepted if row.receipt.fee_source == "user"]
     fee_notional_bps = [row.fee_bps_of_notional for row in accepted if row.receipt.notional_units > 0]
+    fee_source_counts = {source: 0 for source in sorted(FEE_SOURCES)}
+    accepted_fee_source_counts = {source: 0 for source in sorted(FEE_SOURCES)}
+    for row in rows:
+        fee_source_counts[row.receipt.fee_source] += 1
+    for row in accepted:
+        accepted_fee_source_counts[row.receipt.fee_source] += 1
     return {
         "row_count": len(rows),
         "accepted_count": len(accepted),
         "rejected_count": len(rows) - len(accepted),
+        "fee_source_counts": fee_source_counts,
+        "accepted_fee_source_counts": accepted_fee_source_counts,
+        "accepted_recurring_count": sum(1 for row in accepted if row.receipt.recurring),
+        "accepted_primary_revenue_count": sum(1 for row in accepted if row.receipt.primary_revenue),
+        "accepted_retail_eligible_count": sum(1 for row in accepted if row.receipt.eligible_for_retail),
+        "accepted_wash_score_max_bps": max((row.receipt.wash_score_bps for row in accepted), default=0),
         "accepted_measured_value_units": sum(row.receipt.measured_value_units for row in accepted),
         "accepted_user_fee_paid_units": sum(row.receipt.user_fee_paid_units for row in accepted),
         "accepted_protocol_revenue_units": sum(row.receipt.protocol_revenue_units for row in accepted),
@@ -211,7 +223,7 @@ def calibration_report(path: Path) -> dict[str, object]:
 
     report = {
         "schema": "zenodex/fire-revenue-surface-calibration-report/v1",
-        "source_path": str(path),
+        "source_path": _display_path(path),
         "receipt_count": len(receipts),
         "malformed_count": len(malformed),
         "accepted_count": len(accepted),
@@ -252,6 +264,14 @@ def calibration_report(path: Path) -> dict[str, object]:
         ],
     }
     return report
+
+
+def _display_path(path: Path) -> str:
+    root = Path(__file__).resolve().parent
+    try:
+        return str(path.resolve().relative_to(root))
+    except ValueError:
+        return str(path)
 
 
 def main(argv: list[str] | None = None) -> int:

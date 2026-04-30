@@ -139,6 +139,8 @@ survivor_count = 5510
 model_audit.total_model_invariant_failures = 0
 mutation_receipt.detected_count = 5 / 5
 report_integrity.passed_count = 11 / 11
+fee_cap_recommendations.candidate_review_cap_count = 6 / 11
+fee_cap_recommendations.launch_parameter_claim_count = 0
 ```
 
 Best bounded survivor:
@@ -209,3 +211,28 @@ The two rejected rows are deliberate: one charges more than measured value and
 one has an excessive wash score. Real deployment should feed actual
 quote/action/API receipts into the same calibrator before setting launch fee
 caps.
+
+The fee-cap recommendation layer converts accepted user-paid receipt surfaces
+into review-stage caps only:
+
+```text
+CandidateReviewCap:
+  user_fee_paid <= measured_user_value
+  ∧ recommended_cap <= hard_value_cap
+  ∧ launch_parameter_claim = false
+```
+
+In plain English: the recommendation artifact can say "this fee cap is worth
+reviewing," but it cannot claim the cap is ready to launch. Protocol-surplus
+surfaces and penalties are kept out of user-paid fee-cap recommendations.
+
+Current fixture replay:
+
+```text
+surface_count = 11
+candidate_review_cap_count = 6
+protocol_surplus_internal_capture = 2
+penalty_not_primary_revenue = 1
+rejected_only = 2
+total_recommendation_invariant_failures = 0
+```

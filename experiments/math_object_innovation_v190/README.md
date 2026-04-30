@@ -104,6 +104,7 @@ julia experiments/math_object_innovation_v190/run_julia_probe.jl
 python3 experiments/math_object_innovation_v190/run_mutation_checks.py
 python3 experiments/math_object_innovation_v190/check_report_integrity.py
 python3 experiments/math_object_innovation_v190/calibrate_receipts.py
+python3 experiments/math_object_innovation_v190/build_fee_cap_recommendations.py
 ```
 
 The Python cycle is the exact replay gate. The Julia probe is a fast discovery
@@ -119,6 +120,8 @@ best_survivor = grid_090937_max_burn_guarded
 model_audit.total_model_invariant_failures = 0
 mutation_receipt.detected_count = 5 / 5
 report_integrity.passed_count = 11 / 11
+fee_cap_recommendations.candidate_review_cap_count = 6 / 11
+fee_cap_recommendations.launch_parameter_claim_count = 0
 ```
 
 Selected best-survivor metrics:
@@ -225,3 +228,42 @@ rejected_count = 2
 The sample fixture is not market data. It is scaffolding for future real
 quote/action/API receipts, and it gives the model a typed path from observed
 events to empirical value-density caps.
+
+## Fee-Cap Recommendation Guard
+
+The fee-cap builder consumes the calibration report and emits only review-stage
+caps:
+
+```text
+CandidateReviewCap:
+  accepted_user_fee_samples >= min_user_fee_samples
+  ∧ user_fee_paid <= measured_user_value
+  ∧ recommended_cap <= hard_value_cap
+```
+
+In plain English: a surface can receive a review cap only when accepted
+user-paid receipts exist, the fee never exceeds the measured value in the
+calibrated rows, and the cap is clipped by an explicit hard rail.
+
+Current fixture replay:
+
+```text
+surface_count = 11
+candidate_review_cap_count = 6
+protocol_surplus_internal_capture = 2
+penalty_not_primary_revenue = 1
+rejected_only = 2
+launch_parameter_claim_count = 0
+total_recommendation_invariant_failures = 0
+```
+
+The output is intentionally not a launch parameter file. It separates
+user-paid fee caps from protocol-surplus captures and penalties, and it can be
+run with a higher sample threshold:
+
+```bash
+python3 experiments/math_object_innovation_v190/build_fee_cap_recommendations.py --min-user-fee-samples 2
+```
+
+With the current single-row fixture corpus, that stricter setting marks all
+six user-paid fee surfaces as `insufficient_user_fee_evidence`.

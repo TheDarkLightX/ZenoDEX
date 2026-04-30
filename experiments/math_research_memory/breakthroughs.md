@@ -32,6 +32,9 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
   - `report_integrity.passed_count = 11 / 11`
   - receipt calibration fixture: `receipt_count = 11`, `accepted_count = 9`,
     `rejected_count = 2`
+  - fee-cap recommendation fixture: `candidate_review_cap_count = 6 / 11`,
+    `launch_parameter_claim_count = 0`,
+    `total_recommendation_invariant_failures = 0`
 
 ## Non-promotion note from v182
 
