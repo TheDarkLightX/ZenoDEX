@@ -1,0 +1,117 @@
+{
+  "receipt_id": "exact_out_cpmm_quote_realization_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPathRealization.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmQuoteTotality.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmOrderedQuotedPathCompleteness.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.zeroAlloc",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.widenAlloc",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.CpmmPool",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.capOut",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.grossInRequired",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.quoteIn"
+  ],
+  "theorems": [
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.supportSet_zeroAlloc",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.supportLegs_zeroAlloc",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.widenAlloc_val",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.supportSet_widenAlloc_eq",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.supportIndices_widenAlloc_eq",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.supportLegs_widenAlloc_eq",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.map_fst_to_legs_eq_of_vals",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.supportSet_update_eq_insert",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.exists_alloc_of_sorted_support_presentation",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.quoted_amountOut_sum_eq_target",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.quoted_support_positive",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.quoted_support_cap_bounded",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathRealization.exists_alloc_of_sorted_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.grossInRequired_pos",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.grossInRequired_satisfies_exact_out",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.quoteIn_eq_some_grossInRequired_of_pos_le_cap",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.quoteTotalOnPositiveBounded",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.presentedBy_of_cpmm_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.packetOk_implies_feasible_quote_and_minimality_of_cpmm_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.packetOk_implies_feasible_quote_and_minimality_of_cpmm_witnessStreamCover",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.packetOk_implies_feasible_quote_and_minimality_of_cpmm_pathWitnessStreamCover",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.packetOk_implies_feasible_quote_and_minimality_of_cpmm_witnessStreamSetCover",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.packetOk_implies_feasible_quote_and_minimality_of_cpmm_pathWitnessStreamSetCover",
+    "TauSwap.Routing.ExactOutManyPoolCpmmQuoteTotality.packetOk_implies_feasible_quote_and_minimality_of_cpmm_ordered_path_list_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.emitOfOrderedQuotedPaths_iff_feasible_of_cpmm_ordered_path_complete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.emitOfOrderedQuotedPaths_iff_feasible_of_cpmm_ordered_path_list_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.emitOfOrderedQuotedPaths_iff_feasible_of_cpmm_ordered_path_set_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.selected_domain_search_complete_of_cpmm_ordered_path_complete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.selected_domain_search_complete_of_cpmm_ordered_path_list_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.selected_domain_search_complete_of_cpmm_ordered_path_set_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.selected_domain_canonical_exists_of_cpmm_ordered_path_complete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.selected_domain_canonical_exists_of_cpmm_ordered_path_list_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmOrderedQuotedPathCompleteness.selected_domain_canonical_exists_of_cpmm_ordered_path_set_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.emitOfQuotedPathQuoteStream_iff_feasible_of_cpmm_quoteStreamComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.emitOfQuotedPathQuoteStream_iff_feasible_of_cpmm_projectionSetCover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.selected_domain_search_complete_of_cpmm_quoteStreamComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.selected_domain_search_complete_of_cpmm_projectionSetCover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.selected_domain_canonical_exists_of_cpmm_quoteStreamComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.selected_domain_canonical_exists_of_cpmm_projectionSetCover"
+  ],
+  "claims": [
+    "A sorted positive capacity-bounded quoted support presentation that sums to the target has a concrete bounded allocation witness.",
+    "The CPMM exact-out quote function is total for positive requested outputs below `reserveOut`, assuming positive input reserves and `fee_bps < 10000`.",
+    "The CPMM gross input quote satisfies the exact-out CPMM inequality used by the runtime quote model.",
+    "Under CPMM quote totality and quoted-presentation cover, packet success implies a feasible quote and emitted minimality.",
+    "Ordered quoted-path list/set cover is sufficient to turn emitted paths into selected-domain completeness and canonical existence in the CPMM audited regime.",
+    "Quoted path quote-stream cover is sufficient to turn emitted quote streams into selected-domain completeness and canonical existence in the CPMM audited regime."
+  ],
+  "proof_method": [
+    "constructive allocation realization from sorted support presentations",
+    "natural-number ceiling-division arithmetic for CPMM exact-out quotes",
+    "specialization of abstract quoted-presentation completeness bridges with CPMM quote totality",
+    "composition with selected-domain canonical-existence theorems"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolQuotedPathRealization",
+      "result": "passed with pre-existing linter warnings in this proof file"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolCpmmQuoteTotality",
+      "result": "passed with pre-existing linter warnings in imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolCpmmOrderedQuotedPathCompleteness",
+      "result": "passed with pre-existing linter warnings in imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness",
+      "result": "passed with pre-existing linter warnings in imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated and imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-cpmm-quote-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_cpmm_quote_realization_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPathRealization.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmQuoteTotality.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmOrderedQuotedPathCompleteness.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt is still bounded to the audited CPMM quoted-path/quote-stream cover assumptions.",
+    "It does not prove the runtime emits a complete quoted path stream unless the corresponding cover premise is supplied.",
+    "It does not prove cross-pool route generation outside the modeled exact-out CPMM quote conditions.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}

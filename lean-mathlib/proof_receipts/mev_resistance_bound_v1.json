@@ -1,0 +1,63 @@
+{
+  "receipt_id": "mev_resistance_bound_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/MEVResistanceBound.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.MEVResistanceBound.reductionNum"
+  ],
+  "theorems": [
+    "Proofs.MEVResistanceBound.reduction_single",
+    "Proofs.MEVResistanceBound.reduction_lt_denom",
+    "Proofs.MEVResistanceBound.reduction_mono",
+    "Proofs.MEVResistanceBound.profit_dilution",
+    "Proofs.MEVResistanceBound.eliminated_mev_cross",
+    "Proofs.MEVResistanceBound.double_batch_does_not_increase_mev",
+    "Proofs.MEVResistanceBound.reduction_bounded",
+    "Proofs.MEVResistanceBound.reduction_positive",
+    "Proofs.MEVResistanceBound.threshold_90pct",
+    "Proofs.MEVResistanceBound.threshold_99pct",
+    "Proofs.MEVResistanceBound.target_batch_size",
+    "Proofs.MEVResistanceBound.witness_batch5",
+    "Proofs.MEVResistanceBound.witness_single_no_protection",
+    "Proofs.MEVResistanceBound.witness_mono_5_10",
+    "Proofs.MEVResistanceBound.witness_reduction_num_identity"
+  ],
+  "claims": [
+    "Under a modeled `base_profit / n` sealed-batch dilution premise, finite batch reduction is `(n - 1) / n` in cross-multiplied integer form.",
+    "The modeled reduction fraction is monotone in batch size.",
+    "Doubling batch size cannot increase modeled remaining MEV.",
+    "The integer-safe eliminated-MEV bound absorbs floor division.",
+    "Concrete witnesses cover batch sizes 1, 5, 10, and 100."
+  ],
+  "proof_method": [
+    "natural-number division bounds",
+    "cross-multiplied fraction comparison",
+    "floor-division conservative inequalities",
+    "threshold witnesses"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.MEVResistanceBound",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/MEVResistanceBound.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves arithmetic consequences of a dilution model; it does not prove a concrete exchange implements that model.",
+    "Runtime/mechanism evidence must justify when `profit(n) = floor(base_profit / n)` is an admissible abstraction.",
+    "The bound is about availability of extractable profit under the model, not legal, market, or regulatory classification."
+  ]
+}

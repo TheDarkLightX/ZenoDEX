@@ -1,0 +1,43 @@
+{
+  "receipt_id": "exact_out_selected_domain_emission_bridge_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainEmissionBridge.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainEmissionBridge.emittedByGenerator_of_structurallyReachable_of_quoteSuccess",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainEmissionBridge.feasible_support_emittedByGenerator_of_quoteSuccess"
+  ],
+  "claims": [
+    "A structurally reachable selected-domain support path is emitted by the modeled recursive generator when every support leg quotes successfully.",
+    "Every feasible bounded selected-domain allocation is emitted by the modeled generator under the same per-leg quote-success condition."
+  ],
+  "proof_method": [
+    "induction over structural reachability",
+    "head quote-success extraction from support-leg membership",
+    "reuse of the feasible support-leg structural reachability theorem"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolSelectedDomainEmissionBridge",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainEmissionBridge.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This bridge does not prove global pool-prefilter completeness.",
+    "The theorem requires quote success for every positive support leg; quote-totality is supplied by separate proof packets.",
+    "The modeled generator relation captures the proof-relevant recursive branch constraints, not concrete serialization or Python control-flow equivalence."
+  ]
+}
