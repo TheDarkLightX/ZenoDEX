@@ -11,8 +11,8 @@ canonical-key level.
 Instead of lifting selected-domain minimality through allocation semantics, it
 works directly over finite key sets:
 
-- `selectedKeys`: keys admitted by a repaired selected-domain surface
-- `fullKeys`: keys admitted by the bounded full-domain audit surface
+- `selectedKeys`: keys accepted by a repaired selected-domain surface
+- `fullKeys`: keys accepted by the bounded full-domain audit surface
 
 If every full-domain key is dominated by some selected-domain key, then any
 selected-domain minimum already lifts to a full-domain minimum.

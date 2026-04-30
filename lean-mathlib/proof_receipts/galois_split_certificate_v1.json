@@ -1,0 +1,64 @@
+{
+  "receipt_id": "galois_split_certificate_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/GaloisSplitCertificate.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.GaloisSplitCertificate.DiscreteConcave",
+    "Proofs.GaloisSplitCertificate.StrictDiscreteConcave"
+  ],
+  "theorems": [
+    "Proofs.GaloisSplitCertificate.right_delta_chain",
+    "Proofs.GaloisSplitCertificate.right_mono",
+    "Proofs.GaloisSplitCertificate.left_delta_chain",
+    "Proofs.GaloisSplitCertificate.left_mono",
+    "Proofs.GaloisSplitCertificate.certificate_implies_global_max",
+    "Proofs.GaloisSplitCertificate.necessity_right",
+    "Proofs.GaloisSplitCertificate.necessity_left",
+    "Proofs.GaloisSplitCertificate.strict_concave_is_concave",
+    "Proofs.GaloisSplitCertificate.strict_concave_maximizers_adjacent",
+    "Proofs.GaloisSplitCertificate.maximizer_interval",
+    "Proofs.GaloisSplitCertificate.witness_concave",
+    "Proofs.GaloisSplitCertificate.witness_strict_concave",
+    "Proofs.GaloisSplitCertificate.witness_global_max",
+    "Proofs.GaloisSplitCertificate.witness_necessity_right",
+    "Proofs.GaloisSplitCertificate.witness_adjacency",
+    "Proofs.GaloisSplitCertificate.witness_maximizer_interval"
+  ],
+  "claims": [
+    "For a discretely concave integer objective on a finite domain, a candidate that beats both local neighbors is a global maximum.",
+    "Right-neighbor failure and left-neighbor failure produce explicit better witnesses, so failed local certificates are not silently accepted.",
+    "Strict discrete concavity forces distinct maximizers to be adjacent.",
+    "The maximizer set of a discretely concave objective is interval-closed."
+  ],
+  "proof_method": [
+    "first-difference monotonicity",
+    "rightward and leftward delta propagation",
+    "telescoping monotonicity",
+    "finite-domain witness theorems"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.GaloisSplitCertificate",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/GaloisSplitCertificate.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The certificate theorem applies to integer-valued objectives that satisfy the stated discrete-concavity predicate on a finite natural-number domain.",
+    "The proof gives an O(1) local optimality certificate for this mathematical predicate; runtime split routing still needs a separate proof that its objective satisfies the predicate on the claimed domain.",
+    "The theorem maximizes a single objective function and does not encode multi-objective tie-breaking by itself."
+  ]
+}

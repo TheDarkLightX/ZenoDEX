@@ -1,0 +1,43 @@
+{
+  "receipt_id": "exact_out_repaired_key_cover_witness_extraction_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverWitnessExtraction.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "TauSwap.ZenoDEX.ExactOutManyPoolRepairedKeyCoverWitnessExtraction.concreteSelectedWinner_implies_selectedMinimumWitness",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRepairedKeyCoverWitnessExtraction.concreteRuntimeWitnesses_discharge_interpretation_bridge"
+  ],
+  "claims": [
+    "Concrete runtime selected-winner rows can be converted into the abstract selected-minimum witness required by the repaired key-cover semantic bridge.",
+    "When interpretation packet booleans, selected/full key subset evidence, concrete selected-winner rows, and concrete domination rows are supplied, the repaired key-cover interpretation bridge yields a unique full canonical minimum."
+  ],
+  "proof_method": [
+    "membership equivalence between concrete candidate-key list and abstract selected-key finset",
+    "minimality transfer from concrete candidate rows to selected-key witness",
+    "composition with repaired key-cover interpretation and concrete domination-row witness bridges"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverWitnessExtraction",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverWitnessExtraction.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This bridge assumes the runtime faithfully provides the candidate-key list, selected/full subset evidence, and domination rows named by the witness structures.",
+    "The theorem discharges the repaired key-cover semantic bridge; it does not prove the upstream generator enumerates every feasible candidate by itself.",
+    "Concrete packet serialization and hash binding remain runtime/test obligations outside this Lean theorem."
+  ]
+}
