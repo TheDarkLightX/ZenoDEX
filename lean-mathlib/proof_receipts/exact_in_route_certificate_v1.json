@@ -1,0 +1,75 @@
+{
+  "receipt_id": "exact_in_route_certificate_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactInRouteCertificate.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.Routing.ExactInRouteCertificate.Candidate",
+    "TauSwap.Routing.ExactInRouteCertificate.keyLe",
+    "TauSwap.Routing.ExactInRouteCertificate.chooseBetter",
+    "TauSwap.Routing.ExactInRouteCertificate.ArgminStep",
+    "TauSwap.Routing.ExactInRouteCertificate.buildArgminStep",
+    "TauSwap.Routing.ExactInRouteCertificate.Certificate",
+    "TauSwap.Routing.ExactInRouteCertificate.buildCertificate",
+    "TauSwap.Routing.ExactInRouteCertificate.verifyCertificate"
+  ],
+  "theorems": [
+    "TauSwap.Routing.ExactInRouteCertificate.keyLe_trans",
+    "TauSwap.Routing.ExactInRouteCertificate.chooseBetter_keyLe_best",
+    "TauSwap.Routing.ExactInRouteCertificate.chooseBetter_keyLe_cand",
+    "TauSwap.Routing.ExactInRouteCertificate.foldl_chooseBetter_keyLe_all",
+    "TauSwap.Routing.ExactInRouteCertificate.verifyCertificate_iff",
+    "TauSwap.Routing.ExactInRouteCertificate.verifyCertificate_of_build",
+    "TauSwap.Routing.ExactInRouteCertificate.verifyingCertificate_unique",
+    "TauSwap.Routing.ExactInRouteCertificate.buildCertificate_winner_keyLe_all",
+    "TauSwap.Routing.ExactInRouteCertificate.buildCertificate_prefers_lower_candidate_index_on_equal_key"
+  ],
+  "claims": [
+    "The exact-in ranked-candidate key relation is transitive.",
+    "For any two candidates, chooseBetter returns a candidate whose key is no worse than each compared candidate.",
+    "Folding chooseBetter over a nonempty candidate stream produces a winner whose key is no worse than the first candidate and every rest candidate.",
+    "Certificate verification is deterministic equality against the canonical rebuilt certificate.",
+    "For a fixed nonempty candidate stream and binding bit, a verifying certificate is unique.",
+    "A rebuilt certificate winner key dominates every candidate in the candidate stream.",
+    "When two candidates have the same route-key rank, chooseBetter selects the lower candidate index."
+  ],
+  "proof_method": [
+    "case analysis over route-key rank ordering and candidate-index tie-breaks",
+    "induction over the candidate list for fold dominance",
+    "definitional equality for verifier soundness and uniqueness",
+    "direct arithmetic proof for equal-rank lower-index selection"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactInRouteCertificate",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_in_route_certificate_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactInRouteCertificate.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves the Tau-visible ranked-candidate certificate shell.",
+    "It does not prove the full Python route-key construction or candidate generator completeness.",
+    "Runtime code remains responsible for mapping concrete exact-in route keys into deterministic ranks.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}

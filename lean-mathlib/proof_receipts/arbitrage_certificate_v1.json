@@ -1,0 +1,79 @@
+{
+  "receipt_id": "arbitrage_certificate_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ArbitrageCertificate.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.ArbitrageCertificate.pathWeight",
+    "Proofs.ArbitrageCertificate.potentialDiff",
+    "Proofs.ArbitrageCertificate.reducedPath",
+    "Proofs.ArbitrageCertificate.Certificate",
+    "Proofs.ArbitrageCertificate.pathWeightHom",
+    "Proofs.ArbitrageCertificate.Certificate.add",
+    "Proofs.ArbitrageCertificate.witness_global_certificate"
+  ],
+  "theorems": [
+    "Proofs.ArbitrageCertificate.path_eq_reduced_sub_potential",
+    "Proofs.ArbitrageCertificate.potential_telescopes",
+    "Proofs.ArbitrageCertificate.potential_cycle_zero",
+    "Proofs.ArbitrageCertificate.reduced_path_nonneg",
+    "Proofs.ArbitrageCertificate.certificate_soundness",
+    "Proofs.ArbitrageCertificate.path_lower_bound",
+    "Proofs.ArbitrageCertificate.incremental_soundness",
+    "Proofs.ArbitrageCertificate.pathWeight_add",
+    "Proofs.ArbitrageCertificate.pathWeight_zero",
+    "Proofs.ArbitrageCertificate.pathWeight_neg",
+    "Proofs.ArbitrageCertificate.certificate_add",
+    "Proofs.ArbitrageCertificate.dual_certificate_constant",
+    "Proofs.ArbitrageCertificate.dual_certificate_coboundary",
+    "Proofs.ArbitrageCertificate.coboundary_cycle_zero",
+    "Proofs.ArbitrageCertificate.no_certificate_for_negative_cycle",
+    "Proofs.ArbitrageCertificate.witness_cycle_weight",
+    "Proofs.ArbitrageCertificate.witness_global_cycle_weight",
+    "Proofs.ArbitrageCertificate.witness_converse",
+    "Proofs.ArbitrageCertificate.witness_pathWeight_add",
+    "Proofs.ArbitrageCertificate.witness_coboundary_zero",
+    "Proofs.ArbitrageCertificate.witness_dual"
+  ],
+  "claims": [
+    "A reduced-cost potential certificate proves every closed walk has non-negative total weight.",
+    "Potential differences telescope, so certificate soundness reduces to non-negativity of reduced path weights.",
+    "The same certificate gives a lower bound for any open path: path weight is at least final potential minus initial potential.",
+    "Path weights are additive in edge weights and can be packaged as an AddMonoidHom.",
+    "Valid certificates compose under edge-weight addition by adding their potentials.",
+    "A negative cycle is an explicit obstruction to any valid potential certificate.",
+    "If both a weight function and its negation admit certificates, the weight function is an exact coboundary and every cycle has zero circulation.",
+    "Single-edge updates preserve a certificate when the updated edge still satisfies the reduced-cost condition."
+  ],
+  "proof_method": [
+    "list induction over vertex sequences",
+    "telescoping sums for potential differences",
+    "integer linear arithmetic over reduced costs",
+    "homomorphism packaging for path-weight additivity",
+    "contrapositive use of certificate soundness for negative-cycle exclusion"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ArbitrageCertificate",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ArbitrageCertificate.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The graph model is represented by total functions over natural-number vertices, not by a finite edge-set structure.",
+    "The certificate checks reduced costs universally over vertex pairs; a runtime finite graph must provide a faithful finite-domain checker or an equivalent specialization.",
+    "These proofs establish potential-certificate soundness, not route optimality, oracle freshness, authorization, or runtime gas/complexity bounds."
+  ]
+}

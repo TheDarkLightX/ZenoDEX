@@ -1,0 +1,83 @@
+{
+  "receipt_id": "cross_protocol_recapture_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/CrossProtocolRecaptureGate.lean",
+    "lean-mathlib/Proofs/TwoVenueComposition.lean",
+    "lean-mathlib/Proofs/TwoVenueGovernanceComposition.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.CrossProtocolRecaptureGate.adjustedSharedBudget",
+    "Proofs.CrossProtocolRecaptureGate.crossProtocolReleaseAdmissible",
+    "Proofs.TwoVenueComposition.venueTake",
+    "Proofs.TwoVenueComposition.twoVenuePrincipalAdmissible",
+    "Proofs.TwoVenueGovernanceComposition.venuePlusGovernanceRecapture",
+    "Proofs.TwoVenueGovernanceComposition.twoVenueGovernanceAdmissible"
+  ],
+  "theorems": [
+    "Proofs.CrossProtocolRecaptureGate.adjusted_budget_antitone_in_external_recapture",
+    "Proofs.CrossProtocolRecaptureGate.adjusted_budget_eq_shared_when_no_external_recapture",
+    "Proofs.CrossProtocolRecaptureGate.cross_protocol_release_implies_role_collapse_release",
+    "Proofs.CrossProtocolRecaptureGate.cross_protocol_release_requires_live_execution_capability",
+    "Proofs.CrossProtocolRecaptureGate.cross_protocol_release_requires_positive_adjusted_budget",
+    "Proofs.CrossProtocolRecaptureGate.cross_protocol_release_requires_external_recapture_below_shared_budget",
+    "Proofs.CrossProtocolRecaptureGate.nonpositive_adjusted_budget_blocks_release",
+    "Proofs.CrossProtocolRecaptureGate.external_recapture_exhausts_budget_blocks_release",
+    "Proofs.CrossProtocolRecaptureGate.witness_cross_protocol_release_without_external_recapture",
+    "Proofs.CrossProtocolRecaptureGate.witness_external_recapture_blocks_release",
+    "Proofs.TwoVenueComposition.two_venue_requires_live_capability_a",
+    "Proofs.TwoVenueComposition.two_venue_requires_live_capability_b",
+    "Proofs.TwoVenueComposition.two_venue_admissible_requires_b_take_lt_a_shared_budget",
+    "Proofs.TwoVenueComposition.venue_b_take_exhausts_a_budget_blocks_two_venue_admissibility",
+    "Proofs.TwoVenueComposition.two_venue_admissible_requires_positive_budget_b",
+    "Proofs.TwoVenueComposition.witness_two_venue_admissible",
+    "Proofs.TwoVenueComposition.witness_two_venue_blocked_by_b_take",
+    "Proofs.TwoVenueGovernanceComposition.two_venue_governance_requires_live_capability_a",
+    "Proofs.TwoVenueGovernanceComposition.two_venue_governance_requires_live_capability_b",
+    "Proofs.TwoVenueGovernanceComposition.two_venue_governance_requires_b_take_plus_gov_lt_a_budget",
+    "Proofs.TwoVenueGovernanceComposition.two_venue_governance_requires_a_take_plus_gov_lt_b_budget",
+    "Proofs.TwoVenueGovernanceComposition.b_take_plus_gov_exhausts_a_budget_blocks",
+    "Proofs.TwoVenueGovernanceComposition.governance_alone_reaching_a_budget_blocks",
+    "Proofs.TwoVenueGovernanceComposition.witness_two_venue_governance_admissible",
+    "Proofs.TwoVenueGovernanceComposition.witness_governance_blocks_pair"
+  ],
+  "claims": [
+    "Cross-protocol release budgets subtract external recapture before permitting positive internal release.",
+    "If external recapture exhausts the shared verified budget, release is blocked.",
+    "Any cross-protocol release still inherits the live-execution capability requirement from the role-collapse release gate.",
+    "In a two-venue composition, venue B's realized take acts as venue A's external recapture term, so admissibility requires B's take to be below A's shared budget.",
+    "Governance-side extraction composes with the other venue's take as an additional recapture term, and can block otherwise admissible paired releases.",
+    "Concrete witnesses cover admissible and blocked cross-protocol, two-venue, and governance-timed scenarios."
+  ],
+  "proof_method": [
+    "linear integer accounting",
+    "composition with RoleCollapseReleaseGate and CrossSurfaceBenefitBudget",
+    "two-venue substitution of realized venue take into external recapture",
+    "governance-side recapture extension",
+    "native_decide witnesses for bounded examples"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.CrossProtocolRecaptureGate Proofs.TwoVenueComposition Proofs.TwoVenueGovernanceComposition",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/CrossProtocolRecaptureGate.lean lean-mathlib/Proofs/TwoVenueComposition.lean lean-mathlib/Proofs/TwoVenueGovernanceComposition.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "These are local accounting gates, not a complete cross-protocol equilibrium theorem.",
+    "Concrete deployments still need to instantiate shared verified budget, venue take, external recapture, and governance extraction from runtime evidence.",
+    "The proofs do not select a tokenomics policy; they only constrain when a positive release can be admitted.",
+    "The model is not legal, tax, broker-dealer, or securities-law analysis."
+  ]
+}
