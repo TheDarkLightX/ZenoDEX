@@ -75,6 +75,10 @@ import Proofs.PiecewiseEnvelopeNoOverdelivery
 import Proofs.PiecewiseEnvelopeNoOverdeliveryV2
 import Proofs.PiecewiseEnvelopeParametric
 import Proofs.FeeCeilDecomposition
+import Proofs.FeeDustCarryConservation
+import Proofs.FeeRevenueBoundedness
+import Proofs.FeeSplitRoundingGap
+import Proofs.ProtocolFeeShareThreshold
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
 import Proofs.ZenoPayoffLanguage
