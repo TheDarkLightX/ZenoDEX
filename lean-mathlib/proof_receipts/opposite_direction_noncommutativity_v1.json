@@ -1,0 +1,86 @@
+{
+  "receipt_id": "opposite_direction_noncommutativity_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "OppositeDirectionNoncommutativity.Pool",
+    "OppositeDirectionNoncommutativity.Pool.K",
+    "OppositeDirectionNoncommutativity.outY",
+    "OppositeDirectionNoncommutativity.outX",
+    "OppositeDirectionNoncommutativity.swapXtoY",
+    "OppositeDirectionNoncommutativity.swapYtoX",
+    "OppositeDirectionNoncommutativity.path_XY_YX",
+    "OppositeDirectionNoncommutativity.path_YX_XY"
+  ],
+  "theorems": [
+    "OppositeDirectionNoncommutativity.second_mover_advantage_Y",
+    "OppositeDirectionNoncommutativity.second_mover_advantage_X",
+    "OppositeDirectionNoncommutativity.second_mover_strict_Y",
+    "OppositeDirectionNoncommutativity.second_mover_strict_X",
+    "OppositeDirectionNoncommutativity.witness_strict_conditions",
+    "OppositeDirectionNoncommutativity.swapXtoY_K_exact",
+    "OppositeDirectionNoncommutativity.swapYtoX_K_exact",
+    "OppositeDirectionNoncommutativity.swapXtoY_K_mono",
+    "OppositeDirectionNoncommutativity.swapYtoX_K_mono",
+    "OppositeDirectionNoncommutativity.path1_K_mono",
+    "OppositeDirectionNoncommutativity.path2_K_mono",
+    "OppositeDirectionNoncommutativity.first_swap_K_dominance",
+    "OppositeDirectionNoncommutativity.first_swap_K_dominance_iff",
+    "OppositeDirectionNoncommutativity.path_rx_strict_order",
+    "OppositeDirectionNoncommutativity.generic_path_noncommutativity",
+    "OppositeDirectionNoncommutativity.path1_K_gap_exact",
+    "OppositeDirectionNoncommutativity.path2_K_gap_exact",
+    "OppositeDirectionNoncommutativity.K_gap_path_difference",
+    "OppositeDirectionNoncommutativity.K_gap_path_difference_Z",
+    "OppositeDirectionNoncommutativity.path_K_ordering_iff",
+    "OppositeDirectionNoncommutativity.path_K_noncommutative_iff",
+    "OppositeDirectionNoncommutativity.witness_K_gap_composition",
+    "OppositeDirectionNoncommutativity.witness_strict_noncommutativity",
+    "OppositeDirectionNoncommutativity.witness_final_state_differs",
+    "OppositeDirectionNoncommutativity.witness_K_values_differ",
+    "OppositeDirectionNoncommutativity.witness_total_output_differs",
+    "OppositeDirectionNoncommutativity.witness_asymmetric_pool",
+    "OppositeDirectionNoncommutativity.witness_small_amounts",
+    "OppositeDirectionNoncommutativity.witness_K_gap_both_signs"
+  ],
+  "claims": [
+    "Executing a swap after an opposite-direction same-pool swap gives a weak second-mover output advantage.",
+    "Under denominator-width conditions, the second-mover advantage is strict.",
+    "K-increase from each no-fee CPMM swap is exactly the Euclidean remainder term.",
+    "Two opposite-direction paths have exact K-gap decompositions, and their K difference is governed by cross-remainder terms.",
+    "Concrete witnesses show output, final state, K value, and total output can differ by order.",
+    "Opposite-direction same-pool swaps should not be canonicalized by assuming commutativity."
+  ],
+  "proof_method": [
+    "natural-number division monotonicity",
+    "strict quotient gap lemmas",
+    "Euclidean division exact K-gap formulas",
+    "path-wise K decomposition",
+    "native witnesses for non-vacuity"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.OppositeDirectionNoncommutativity",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The model is a no-fee integer CPMM abstraction over one two-token pool.",
+    "The theorem prevents assuming commutativity for opposite-direction same-pool swaps; it does not prove every concrete settlement policy is optimal.",
+    "Same-direction and different-pool reorder rules require their own assumptions and proofs."
+  ]
+}
