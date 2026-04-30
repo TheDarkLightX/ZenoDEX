@@ -160,6 +160,17 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "total_false_prunes": total_false_prunes,
             "total_floor_violations": total_floor_violations,
         },
+        "lean_promotion": {
+            "artifact": "lean-mathlib/Proofs/RouteIntervalGraph.lean",
+            "receipt": "lean-mathlib/proof_receipts/route_interval_graph_v1.json",
+            "checker_command": "lake env lean Proofs/RouteIntervalGraph.lean",
+            "closed_theorems": [
+                "cpmm_post_fee_floor_interval",
+                "pathProduct_potential_bound",
+                "pathProduct_le_potential_ratio",
+            ],
+            "status": "checked_no_placeholders",
+        },
         "by_split": dict(sorted(by_split.items())),
         "floor_metrics": floor_metrics,
         "restricted_theorems": [
@@ -170,7 +181,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
                     "and a route prefix reaches asset v with exact amount a, "
                     "then every continuation to dst outputs at most a*p[v]/p[dst]."
                 ),
-                "proof_lane": "Lean over positive rational potentials plus monotone CPMM edge upper bounds",
+                "proof_lane": "Promoted to Lean as pathProduct_potential_bound and pathProduct_le_potential_ratio",
             },
             {
                 "name": "cpmm_post_fee_floor_error_lt_one",
@@ -178,7 +189,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
                     "For positive integer reserves and post-fee net input n, "
                     "let q = n*reserve_out/(reserve_in+n). Then floor(q) <= q < floor(q)+1."
                 ),
-                "proof_lane": "Lean Nat/Rat floor arithmetic; can become a reusable integer interval edge lemma",
+                "proof_lane": "Promoted to Lean as cpmm_post_fee_floor_interval",
             },
             {
                 "name": "treasury_arbitrage_dual_guard",

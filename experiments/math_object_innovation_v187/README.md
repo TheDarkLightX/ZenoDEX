@@ -77,6 +77,26 @@ pytest -q test_cycle.py
 `run_cycle.py` invokes Julia, writes `generated/raw.tsv`, and builds
 `generated/report.json`.
 
+## Lean Promotion
+
+The two reusable theorem targets from this cycle now have a checked Lean packet:
+
+- `lean-mathlib/Proofs/RouteIntervalGraph.lean`
+- `lean-mathlib/proof_receipts/route_interval_graph_v1.json`
+
+Closed theorem surface:
+
+- `cpmm_post_fee_floor_interval`
+- `pathProduct_potential_bound`
+- `pathProduct_le_potential_ratio`
+
+Checker:
+
+```bash
+cd ../../lean-mathlib
+lake env lean Proofs/RouteIntervalGraph.lean
+```
+
 ## Non-Claims
 
 This is not a proof of production route optimality. It does not cover:

@@ -1592,7 +1592,10 @@ Interpretation:
     admission without trusting floating-point prices or heuristic graph search.
   - the same object can become a dual guard: opportunity certificate first,
     budget-safety guard second.
+- Proof promotion:
+  - `lean-mathlib/Proofs/RouteIntervalGraph.lean` closes the CPMM integer
+    floor interval theorem and the abstract potential-ratio route-product
+    theorem with no placeholders.
 - Scope limit:
-  - the cycle is still a Julia exact-rational discovery receipt plus focused
-    tests,
-  - not a Lean theorem over all graph sizes or a production execution engine.
+  - the Lean packet proves the reusable abstract certificate shape,
+  - not production route optimality or live execution under reserve mutation.

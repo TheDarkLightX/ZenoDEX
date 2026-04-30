@@ -2059,8 +2059,8 @@ Interpretation:
   - observed `0` floor-interval violations; max exact errors were `158/159` and `276/277`, both below `1`.
 
 - next theorem targets:
-  - `potential_route_prefix_prune_sound`: a positive potential certificate makes continuation output upper-bounded by the prefix potential value.
-  - `cpmm_post_fee_floor_error_lt_one`: the local integer floor bridge has exact error in `[0,1)`.
+  - `potential_route_prefix_prune_sound`: a positive potential certificate makes continuation output upper-bounded by the prefix potential value. Promoted to Lean as `pathProduct_potential_bound` and `pathProduct_le_potential_ratio`.
+  - `cpmm_post_fee_floor_error_lt_one`: the local integer floor bridge has exact error in `[0,1)`. Promoted to Lean as `cpmm_post_fee_floor_interval`.
   - `treasury_arbitrage_dual_guard`: treasury opportunities require both the opportunity certificate and the already proved budget guard.
 
 - negative knowledge:

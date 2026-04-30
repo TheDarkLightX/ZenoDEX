@@ -1329,3 +1329,4 @@ Interpretation:
 - Julia exact rationals are useful when the object is a bridge between real-valued intuition and integer execution; use them to preserve exact floor errors and avoid floating-point artifact claims.
 - A route-pruning idea should report false prunes, not only pruning rate. Zero false prunes on a bounded corpus is the signal that the next step is a proof target, while higher pruning rates can wait.
 - Opportunity logic should compose with budget logic: a treasury or market-maker path should require both an opportunity certificate and a spend/burn/budget guard before it becomes admissible.
+- When a discovery cycle yields both a local integer interval lemma and an abstract certificate lemma, promote those two reusable pieces first; leave full runtime optimality for a later composition proof.

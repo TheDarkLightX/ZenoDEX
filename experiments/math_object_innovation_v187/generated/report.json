@@ -76,6 +76,17 @@
     "noarb_graphs": 80,
     "route_max_edges": 3
   },
+  "lean_promotion": {
+    "artifact": "lean-mathlib/Proofs/RouteIntervalGraph.lean",
+    "checker_command": "lake env lean Proofs/RouteIntervalGraph.lean",
+    "closed_theorems": [
+      "cpmm_post_fee_floor_interval",
+      "pathProduct_potential_bound",
+      "pathProduct_le_potential_ratio"
+    ],
+    "receipt": "lean-mathlib/proof_receipts/route_interval_graph_v1.json",
+    "status": "checked_no_placeholders"
+  },
   "non_claims": [
     "not a production router",
     "not a complete arbitrage detector",
@@ -93,12 +104,12 @@
   "restricted_theorems": [
     {
       "name": "potential_route_prefix_prune_sound",
-      "proof_lane": "Lean over positive rational potentials plus monotone CPMM edge upper bounds",
+      "proof_lane": "Promoted to Lean as pathProduct_potential_bound and pathProduct_le_potential_ratio",
       "statement": "If every edge satisfies upper_rate(i,j)*p[j] <= p[i], and a route prefix reaches asset v with exact amount a, then every continuation to dst outputs at most a*p[v]/p[dst]."
     },
     {
       "name": "cpmm_post_fee_floor_error_lt_one",
-      "proof_lane": "Lean Nat/Rat floor arithmetic; can become a reusable integer interval edge lemma",
+      "proof_lane": "Promoted to Lean as cpmm_post_fee_floor_interval",
       "statement": "For positive integer reserves and post-fee net input n, let q = n*reserve_out/(reserve_in+n). Then floor(q) <= q < floor(q)+1."
     },
     {
