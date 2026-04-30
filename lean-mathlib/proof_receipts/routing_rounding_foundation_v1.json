@@ -1,0 +1,83 @@
+{
+  "receipt_id": "routing_rounding_foundation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutTwoPoolCompleteness.lean",
+    "lean-mathlib/Proofs/ZenoDEXRoutingArgmin.lean",
+    "lean-mathlib/Proofs/ZenoDEXRounding.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.lo",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.hi",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.Feasible",
+    "Proofs.ZenoDEX.argminStep",
+    "Proofs.ZenoDEX.ceilDiv"
+  ],
+  "theorems": [
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.feasible_in_interval",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.interval_is_feasible",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.feasible_iff_in_interval",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.interval_nonempty_of_feasible",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.two_pool_capacity_guard",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.two_pool_canonical_exists",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.two_pool_search_complete",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.two_pool_end_to_end",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.witness_basic",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.witness_asymmetric",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.witness_infeasible",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.witness_exact_capacity",
+    "TauSwap.ZenoDEX.ExactOutTwoPoolCompleteness.witness_single_pool",
+    "Proofs.ZenoDEX.argminStep_key_le_best",
+    "Proofs.ZenoDEX.argminStep_key_le_a",
+    "Proofs.ZenoDEX.foldl_argmin_key_le_all",
+    "Proofs.ZenoDEX.ceilDiv_mul_ge"
+  ],
+  "claims": [
+    "For two-pool exact-out routing, feasible allocations are exactly the integer interval `[Q - max1, min(Q, max0)]` under natural-number truncated subtraction.",
+    "The two-pool capacity guard is exact: all allocations are infeasible exactly when the interval is empty.",
+    "When total capacity covers demand, the two-pool exact-out search interval has a unique canonical minimum under the imported exact-out canonical minimizer framework.",
+    "The simple list argmin step returns a key no larger than either compared input, and folding it gives a key no larger than every enumerated candidate key.",
+    "The natural-number `ceilDiv` helper has the recorded rounding envelope `a <= ceilDiv a b * b + (b - 1)` for positive denominators."
+  ],
+  "proof_method": [
+    "linear arithmetic over natural-number interval bounds",
+    "composition with exact-out canonical minimizer and brute-force completeness lemmas",
+    "structural induction over candidate lists for argmin fold correctness",
+    "natural-number division monotonicity and bounded rounding arithmetic"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutTwoPoolCompleteness Proofs.ZenoDEXRoutingArgmin Proofs.ZenoDEXRounding",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < routing-rounding-foundation-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/routing_rounding_foundation_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXExactOutTwoPoolCompleteness.lean lean-mathlib/Proofs/ZenoDEXRoutingArgmin.lean lean-mathlib/Proofs/ZenoDEXRounding.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/ZenoDEXExactOutTwoPoolCompleteness.lean lean-mathlib/Proofs/ZenoDEXRoutingArgmin.lean lean-mathlib/Proofs/ZenoDEXRounding.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves integer interval, argmin fold, and ceilDiv arithmetic facts only.",
+    "It does not prove CPMM quote economics, pool reserve updates, JSON certificate serialization, or runtime API behavior.",
+    "The exact-out two-pool uniqueness result depends on the imported canonical minimizer and brute-force completeness proof surface."
+  ]
+}

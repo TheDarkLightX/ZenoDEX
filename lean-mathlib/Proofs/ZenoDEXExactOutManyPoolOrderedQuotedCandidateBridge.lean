@@ -24,7 +24,7 @@ noncomputable section
 /-!
 # ZenoDEX Exact-Out Many-Pool Ordered Quoted Candidate Bridge
 
-This file removes the remaining abstract compatibility axiom from the
+This file removes the remaining abstract compatibility premise from the
 ordered-path packet bridge.
 
 If the quote oracle is deterministic, then a feasible audited allocation has a
