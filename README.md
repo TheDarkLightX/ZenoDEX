@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/zenodex/zenodex_full_transparent_1024.png" alt="ZenoDEX" width="360">
+</p>
+
 # ZenoDex
 
 ZenoDex is a decentralized exchange (DEX) and token-economics stack for Tau Network. It uses a **hybrid model**: Python computes operational state, while **Tau Language specs validate invariants** and settlement rules.
