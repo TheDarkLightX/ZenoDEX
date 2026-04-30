@@ -6,6 +6,23 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
 
 # Ideas
 
+## v191 fee-cap calibration stress corpus
+
+- `fee_cap_calibration_stress_corpus_v1`
+  - turns the v190 receipt-to-cap bridge into a regression-tested stress
+    object rather than a singleton fixture.
+  - bounded corpus: `32` rows, including `18` accepted user-paid rows, `6`
+    accepted protocol-surplus rows, `3` accepted penalty rows, and `5`
+    deliberately rejected adversarial rows.
+  - adversarial coverage: extractive user fee, protocol surplus overcapture,
+    primary penalty revenue, wash farming, and primary negative net revenue.
+  - current result: `6` review caps survive, `5` bad rows reject for exact
+    expected reasons, retail caps stay within hard rails, and
+    `launch_parameter_claim_count = 0`.
+  - next frontier: replace the synthetic stress corpus with real execution
+    receipts and compare empirical cap drift against the synthetic regression
+    oracle.
+
 ## v190 revenue surface atlas
 
 - `revenue_surface_atlas_v1`

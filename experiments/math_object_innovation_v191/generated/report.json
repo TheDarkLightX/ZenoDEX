@@ -1,0 +1,61 @@
+{
+  "accepted_count": 27,
+  "actual_reject_reason_counts": {
+    "penalty_marked_primary": 1,
+    "primary_surface_negative_net_revenue": 1,
+    "protocol_revenue_exceeds_surplus": 1,
+    "user_fee_exceeds_measured_value": 1,
+    "wash_score_rejected": 1
+  },
+  "artifacts": {
+    "calibration_report": "generated/calibration_report.json",
+    "fee_cap_recommendations": "generated/fee_cap_recommendations.json",
+    "stress_receipts_jsonl": "generated/stress_revenue_surface_receipts.jsonl"
+  },
+  "candidate_review_cap_count": 6,
+  "cap_clip_surfaces": [
+    "cow_batch_solver_surplus",
+    "lp_loss_cover_premium"
+  ],
+  "discovery_domain": {
+    "accepted_samples_per_user_fee_surface": 3,
+    "bad_row_count": 5,
+    "penalty_surface_count": 1,
+    "protocol_surplus_surface_count": 2,
+    "user_fee_surface_count": 6
+  },
+  "expected_reject_reason_counts": {
+    "penalty_marked_primary": 1,
+    "primary_surface_negative_net_revenue": 1,
+    "protocol_revenue_exceeds_surplus": 1,
+    "user_fee_exceeds_measured_value": 1,
+    "wash_score_rejected": 1
+  },
+  "holdout_domain": "none; this is a deterministic synthetic stress corpus, not market data",
+  "launch_parameter_claim_count": 0,
+  "model_audit": {
+    "calibration_invariant_failures": 0,
+    "recommendation_invariant_failures": 0,
+    "total_stress_invariant_failures": 0
+  },
+  "non_claims": [
+    "This is not production market calibration.",
+    "The corpus proves bridge sensitivity on declared synthetic cases, not economic optimality.",
+    "Runtime launch parameters still require real receipts, governance review, and on-chain guard alignment."
+  ],
+  "object": "fee_cap_calibration_stress_corpus_v1",
+  "oracle_dependent": true,
+  "receipt_count": 32,
+  "reject_reason_mismatches": {},
+  "rejected_count": 5,
+  "retail_cap_failures": 0,
+  "schema": "zenodex/math-object-innovation-v191-report/v1",
+  "status_counts": {
+    "candidate_review_cap": 6,
+    "penalty_not_primary_revenue": 1,
+    "protocol_surplus_internal_capture": 2,
+    "rejected_only": 5
+  },
+  "strongest_claim": "A deterministic 32-row synthetic corpus with three accepted samples per user-paid surface exercises the receipt -> calibration -> fee-cap bridge: six review caps survive, five adversarial rows are rejected for the expected reasons, retail caps stay under 2500 bps of measured value, and no launch parameter claim is emitted.",
+  "tier": "descriptive_oracle"
+}

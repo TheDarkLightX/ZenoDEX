@@ -6,6 +6,22 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 
 # Workflow
 
+## Updated lesson from v191
+
+- A fee-cap model is not credible if every cap is backed by one fixture row.
+  v191 adds a deterministic 32-row stress corpus with three accepted samples
+  for each user-paid surface plus explicit adversarial rows.
+- The receipt-to-cap bridge now has a stronger model-bug check: expected bad
+  rows must reject for exact reasons, strict sample thresholds must fail
+  closed, retail caps must remain under hard value rails, and no generated
+  cap may claim launch-parameter status.
+- Current result: `receipt_count = 32`, `accepted_count = 27`,
+  `rejected_count = 5`, `candidate_review_cap_count = 6`,
+  `launch_parameter_claim_count = 0`, and
+  `total_stress_invariant_failures = 0`.
+- Next cycle should replace synthetic rows with real route/protection/API
+  receipts and keep the synthetic corpus as a regression oracle.
+
 ## Updated lesson from v190
 
 - Tokenomics revenue work must model explicit fee surfaces, not just abstract

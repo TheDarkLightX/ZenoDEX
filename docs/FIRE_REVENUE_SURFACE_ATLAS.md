@@ -236,3 +236,25 @@ penalty_not_primary_revenue = 1
 rejected_only = 2
 total_recommendation_invariant_failures = 0
 ```
+
+## Synthetic Stress Corpus
+
+The v191 stress corpus adds a stronger model-bug guard around the same bridge:
+
+```text
+receipt_count = 32
+accepted_count = 27
+rejected_count = 5
+candidate_review_cap_count = 6
+launch_parameter_claim_count = 0
+total_stress_invariant_failures = 0
+```
+
+In plain English: the bridge now has a deterministic multi-sample regression
+corpus. It includes three accepted samples for each user-paid fee surface and
+five bad rows that must reject for exact reasons: extractive user fees,
+protocol-surplus overcapture, primary penalty revenue, wash farming, and
+primary negative net revenue.
+
+The stress corpus is still not market calibration. It is a model-bug harness
+that should remain stable while real quote/action/API receipts are added.

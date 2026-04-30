@@ -6,6 +6,27 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
 
 # Breakthroughs
 
+## Non-promotion note from v191
+
+- `fee_cap_calibration_stress_corpus_v1` survives as a useful model-bug
+  control for FIRE revenue calibration, but it is not promoted as a
+  breakthrough.
+- Reason:
+  - it gives the fee-cap bridge a multi-sample stress corpus,
+  - it proves the current bridge rejects five declared bad revenue rows for the
+    exact expected reasons,
+  - it verifies strict sample thresholds fail closed and no launch parameter
+    claim is emitted,
+  - but it is still synthetic and descriptive, not live market calibration.
+
+- Current measured result:
+  - `receipt_count = 32`
+  - `accepted_count = 27`
+  - `rejected_count = 5`
+  - `candidate_review_cap_count = 6`
+  - `launch_parameter_claim_count = 0`
+  - `total_stress_invariant_failures = 0`
+
 ## Non-promotion note from v190
 
 - `revenue_surface_atlas_v1` survives as a useful FIRE tokenomics object, but
