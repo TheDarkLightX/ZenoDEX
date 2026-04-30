@@ -1,0 +1,53 @@
+{
+  "schema": "zenodex/lean-proof-receipt/v1",
+  "receipt_id": "treasury_rebalancer_guard_v1",
+  "checker": "lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "commands": [
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake env lean Proofs/TreasuryRebalancerGuard.lean"
+    },
+    {
+      "cwd": "lean-mathlib",
+      "cmd": "lake build Proofs.TreasuryRebalancerGuard"
+    },
+    {
+      "cwd": ".",
+      "cmd": "bash -lc \"! rg -n '\\b(sorry|admit|axiom|unsafe|sorryAx)\\b' lean-mathlib/Proofs/TreasuryRebalancerGuard.lean\""
+    }
+  ],
+  "modules": [
+    {
+      "module": "Proofs.TreasuryRebalancerGuard",
+      "path": "lean-mathlib/Proofs/TreasuryRebalancerGuard.lean",
+      "sha256": "sha256:1710c36be063097e57314f31c2e6d2231c3de0f5958be54cf64eab5d50418061",
+      "theorems": [
+        "admissible_implies_not_paused",
+        "admissible_implies_anti_abuse_flags",
+        "admissible_implies_oracle_fresh",
+        "admissible_implies_public_route",
+        "admissible_implies_no_private_orderflow",
+        "admissible_implies_no_user_sandwich",
+        "admissible_implies_no_self_trade",
+        "admissible_implies_edge_covers_costs",
+        "admissible_implies_loss_budget_after",
+        "admissible_implies_inventory_after",
+        "applyTrade_preserves_policyInvariant",
+        "not_admissible_when_paused",
+        "not_admissible_without_oracle",
+        "not_admissible_with_private_orderflow",
+        "not_admissible_with_user_sandwich",
+        "not_admissible_with_self_trade",
+        "not_admissible_when_edge_below_cost_and_buffer",
+        "trace_preserves_policyInvariant",
+        "trace_daily_loss_within_budget",
+        "trace_inventory_within_cap",
+        "witness_trade_admissible"
+      ]
+    }
+  ],
+  "claim": "For the treasury rebalancer guard model, admitted trades require the strategy to be unpaused, all anti-abuse flags to pass, and expected edge to cover cost plus risk buffer. Applying any admitted trade preserves the state policy invariant: reserved daily loss remains within the daily budget, the daily budget remains backed by treasury balance, and inventory exposure remains within cap. The invariant also lifts across finite traces of admitted trades. Missing oracle freshness, private orderflow exclusion, no-sandwich, no-self-trade, or edge coverage makes admission impossible.",
+  "result": "proved",
+  "created_utc": "2026-04-30T00:45:00Z"
+}

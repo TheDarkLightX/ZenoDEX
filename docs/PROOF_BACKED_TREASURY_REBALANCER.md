@@ -235,6 +235,28 @@ This proves the bounded model's declared invariants are inductive under its
 declared actions and parameter domains. It does not prove trading profitability
 or production safety.
 
+Lean proof status:
+
+```text
+lake env lean Proofs/TreasuryRebalancerGuard.lean
+lake build Proofs.TreasuryRebalancerGuard
+```
+
+Receipt:
+
+```text
+lean-mathlib/proof_receipts/treasury_rebalancer_guard_v1.json
+```
+
+The Lean packet proves the guard contract in a theorem-oriented form:
+
+- admitted trades imply the strategy is not paused,
+- admitted trades imply oracle freshness, public route, no private order flow,
+  no user sandwich, and no self-trade,
+- admitted trades imply edge covers cost plus risk buffer,
+- applying an admitted trade preserves daily loss and inventory caps,
+- finite traces of admitted trades preserve those caps.
+
 ## Non-Claims
 
 This design does not claim:
