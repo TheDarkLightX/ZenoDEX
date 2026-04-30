@@ -103,6 +103,7 @@ pytest -q experiments/math_object_innovation_v190/test_cycle.py
 julia experiments/math_object_innovation_v190/run_julia_probe.jl
 python3 experiments/math_object_innovation_v190/run_mutation_checks.py
 python3 experiments/math_object_innovation_v190/check_report_integrity.py
+python3 experiments/math_object_innovation_v190/calibrate_receipts.py
 ```
 
 The Python cycle is the exact replay gate. The Julia probe is a fast discovery
@@ -189,3 +190,38 @@ The test suite also checks metamorphic laws:
 - raising rebate/usage rewards cannot lower wash pressure,
 - shifting a fixed sink split toward burn cannot lower burn budget,
 - bps floor arithmetic obeys zero, full-scale, and monotonic boundaries.
+
+## Receipt Calibration Bridge
+
+The remaining economics gap is the meaning of `MeasuredUserValue`. The
+calibration bridge defines a JSONL receipt shape:
+
+```text
+schema = zenodex/fire-revenue-surface-receipt/v1
+surface
+fee_source
+notional_units
+measured_value_units
+user_fee_paid_units
+protocol_revenue_units
+direct_cost_units
+recurring
+primary_revenue
+wash_score_bps
+```
+
+Rows are rejected when user fees exceed measured value, protocol-surplus
+capture exceeds surplus, penalties are marked primary, wash score is too high,
+or primary revenue is negative after direct costs.
+
+Current fixture replay:
+
+```text
+receipt_count = 11
+accepted_count = 9
+rejected_count = 2
+```
+
+The sample fixture is not market data. It is scaffolding for future real
+quote/action/API receipts, and it gives the model a typed path from observed
+events to empirical value-density caps.

@@ -241,3 +241,43 @@ def test_floor_bps_boundary_laws() -> None:
             current = cycle.floor_bps(amount, bps)
             assert current >= prev
             prev = current
+
+
+def test_receipt_calibration_fixture() -> None:
+    subprocess.run([sys.executable, str(ROOT / "calibrate_receipts.py")], check=True)
+    report = json.loads((ROOT / "generated" / "receipt_calibration_report.json").read_text(encoding="utf-8"))
+    assert report["receipt_count"] == 11
+    assert report["accepted_count"] == 9
+    assert report["rejected_count"] == 2
+    assert report["model_audit"]["total_calibration_invariant_failures"] == 0
+    assert report["reject_reason_counts"]["user_fee_exceeds_measured_value"] == 1
+    assert report["reject_reason_counts"]["wash_score_rejected"] == 1
+    assert report["penalty_revenue_bps"] < 1000
+    assert report["primary_recurring_revenue_bps"] > 9000
+    assert report["surface_summaries"]["route_surplus_capture"]["suggested_review_cap_bps_of_value"] == 2500
+
+
+def test_receipt_calibration_rejects_malformed_rows(tmp_path: Path) -> None:
+    bad = tmp_path / "bad.jsonl"
+    out = tmp_path / "out.json"
+    bad.write_text(
+        "\n".join(
+            [
+                '{"schema":"zenodex/fire-revenue-surface-receipt/v1","event_id":"ok","surface":"route_surplus_capture","fee_source":"user","asset":"OUT","notional_units":1000,"measured_value_units":100,"user_fee_paid_units":10,"protocol_revenue_units":10,"direct_cost_units":1,"recurring":true,"primary_revenue":true,"wash_score_bps":0,"eligible_for_retail":true}',
+                '{"schema":"bad","event_id":"bad"}',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "calibrate_receipts.py"), str(bad), "--output", str(out)],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    assert proc.returncode == 1
+    report = json.loads(out.read_text(encoding="utf-8"))
+    assert report["accepted_count"] == 1
+    assert report["malformed_count"] == 1
+    assert report["model_audit"]["total_calibration_invariant_failures"] == 1

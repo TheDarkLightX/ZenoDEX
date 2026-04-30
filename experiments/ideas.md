@@ -24,6 +24,9 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
     `0` model-audit invariant failures.
   - named falsifiers: zero fee, extractive notional fees, wash rebate farming,
     penalty dependency, and subsidized passive yield are rejected.
+  - receipt bridge: JSONL `fire-revenue-surface-receipt/v1` rows calibrate
+    empirical value-density caps and reject unsafe rows before they enter the
+    fee-surface model.
   - Lean skeleton: `lean-mathlib/Proofs/RevenueSurfaceSafety.lean`.
   - next frontier: replay real route/protection/automation/API receipts and
     mine empirical value-density caps per surface.

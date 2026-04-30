@@ -30,6 +30,8 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
   - `model_audit.total_model_invariant_failures = 0`
   - `mutation_receipt.detected_count = 5 / 5`
   - `report_integrity.passed_count = 11 / 11`
+  - receipt calibration fixture: `receipt_count = 11`, `accepted_count = 9`,
+    `rejected_count = 2`
 
 ## Non-promotion note from v182
 

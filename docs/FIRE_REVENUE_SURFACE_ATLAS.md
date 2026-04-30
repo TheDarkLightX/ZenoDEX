@@ -172,3 +172,40 @@ classes.
 The report-integrity receipt regenerates the bounded search and confirms the
 published report is not stale or hand-edited for the counted fields, best
 survivor, model audit, and named-policy summaries.
+
+## Receipt Calibration
+
+The fee-surface model depends on measured value. That measurement must come
+from receipts, not from intuition.
+
+The v190 calibration bridge accepts JSONL rows with:
+
+```text
+surface
+fee_source
+notional_units
+measured_value_units
+user_fee_paid_units
+protocol_revenue_units
+direct_cost_units
+recurring
+primary_revenue
+wash_score_bps
+```
+
+In plain English: every fee event must say what surface it belongs to, what
+value was measured, what the user paid, what the protocol captured, what direct
+costs apply, and whether wash-trade risk makes the row inadmissible.
+
+The fixture replay currently reports:
+
+```text
+receipt_count = 11
+accepted_count = 9
+rejected_count = 2
+```
+
+The two rejected rows are deliberate: one charges more than measured value and
+one has an excessive wash score. Real deployment should feed actual
+quote/action/API receipts into the same calibrator before setting launch fee
+caps.

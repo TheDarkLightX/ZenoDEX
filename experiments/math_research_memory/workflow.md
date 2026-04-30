@@ -28,8 +28,13 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
   and named-policy summaries. v190 passes `11/11` integrity checks.
 - Add metamorphic laws for fee/reward/sink monotonicity so the model rejects
   local direction errors even when totals still look plausible.
-- Next cycle should calibrate the fee-surface corpus against real quote/action
-  receipts and split retail fee surfaces from pro/integrator fee surfaces.
+- Close the "measured value" gap with typed receipt calibration before treating
+  fee caps as serious: v190 now maps JSONL revenue-surface receipts into
+  empirical value-density summaries and rejects rows where fees exceed measured
+  value, protocol surplus capture exceeds surplus, penalties are primary, wash
+  risk is too high, or primary revenue is negative net.
+- Next cycle should feed real quote/action/API receipts into the calibrator and
+  split retail fee surfaces from pro/integrator fee surfaces.
 
 ## Updated lesson from v182
 
