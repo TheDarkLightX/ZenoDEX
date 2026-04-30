@@ -1,3 +1,9 @@
+---
+title: TOKEN_REGISTRY_DESIGN
+type: note
+permalink: autonomous-tau-dex-review/docs/token-registry-design
+---
+
 # Token Registry & Listing Design (AGRS + ZDEX Launch)
 
 ## Purpose
@@ -298,7 +304,7 @@ ZDEX must have a single, unambiguous definition:
 - **Initial distribution**:
   - genesis mint allocation and/or an explicit mint policy module.
 
-If using the existing deflationary spec family in this repo (`src/tau_specs/tdex_token_v1.tau`, `docs/TDEX_TOKEN.md`), do not allow ZDEX into CPMM pools unless the swap math is upgraded to model transfer burns exactly.
+If using the existing deflationary spec family in this repo (`src/tau_specs/tdex_token_v1.tau`; current public token doc: `docs/ZDEX_TOKEN.md`), do not allow ZDEX into CPMM pools unless the swap math is upgraded to model transfer burns exactly.
 
 ---
 
@@ -359,3 +365,9 @@ This turns “native external balance” into an internal exact-transfer asset, 
 6. For testnet:
    - either enable `TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH=1` and use native AGRS directly,
    - or implement `wAGRS` deposit/withdraw and keep the DEX purely internal.
+
+## Companion Designs
+
+- [TOKEN_ADMISSION_AND_POOL_LAUNCH.md](TOKEN_ADMISSION_AND_POOL_LAUNCH.md)
+  describes the user-facing admission flow, the AGRS/ZDEX launch pair, and how
+  custom tokens become eligible for pools.
