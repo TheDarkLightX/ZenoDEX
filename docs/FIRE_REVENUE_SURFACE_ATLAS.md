@@ -296,6 +296,48 @@ This is still fixture-based, not live telemetry. The improvement is that the
 measured value in these receipts now comes from the same router arithmetic used
 by ZenoDEX quote paths.
 
+## Evidence-Meet Caps
+
+The v193 replay composes all v190-v192 recommendation artifacts into a
+conservative cap meet:
+
+```text
+MeetCap(surface) := min { cap(source, surface) such that cap exists }
+```
+
+In plain English: when several evidence sources recommend review caps, the
+composed cap is the lowest available cap. Adding evidence cannot loosen the
+composed cap.
+
+Current replay:
+
+```text
+surface_count = 16
+meet_cap_surface_count = 6
+execution_backed_meet_count = 2
+synthetic_meet_count = 4
+no_user_value_cap_count = 10
+total_meet_invariant_failures = 0
+```
+
+Execution-backed meet caps:
+
+```text
+route_surplus_capture = 1800 bps
+exact_out_savings_capture = 2000 bps
+```
+
+Lean also checks the core cap-meet algebra in
+[`RevenueSurfaceSafety.lean`](../lean-mathlib/Proofs/RevenueSurfaceSafety.lean):
+
+```text
+fee <= min(capA, capB) ∧ capA <= value -> 0 <= value - fee
+```
+
+In plain English: if a fee is below the meet cap, and at least one source cap
+was already safe relative to measured user value, then the user net remains
+nonnegative.
+
 ## Visual Summary
 
 The Julia-generated figures live in

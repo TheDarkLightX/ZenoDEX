@@ -6,6 +6,25 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
 
 # Breakthroughs
 
+## Non-promotion note from v193
+
+- `evidence_meet_fee_cap_lattice_v1` survives as a useful symbolic compiler for
+  composing fee-cap evidence, but it is not promoted as a full breakthrough.
+- Reason:
+  - it gives a clean lattice operation for fee-cap evidence,
+  - it reduces execution-backed route caps to the tighter stress-backed meet,
+  - it has a small Lean proof that the meet cannot loosen a safe source cap,
+  - but the upstream caps are still oracle-dependent review artifacts.
+
+- Current measured result:
+  - `surface_count = 16`
+  - `meet_cap_surface_count = 6`
+  - `execution_backed_meet_count = 2`
+  - `synthetic_meet_count = 4`
+  - `single_source_cap_count = 0`
+  - `no_user_value_cap_count = 10`
+  - `total_meet_invariant_failures = 0`
+
 ## Non-promotion note from v192
 
 - `execution_derived_fee_receipt_bridge_v1` survives as a useful bridge from

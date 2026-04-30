@@ -6,6 +6,20 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
 
 # Ideas
 
+## v193 evidence-meet fee-cap lattice
+
+- `evidence_meet_fee_cap_lattice_v1`
+  - composes v190 fixture caps, v191 stress caps, and v192 execution-derived
+    caps by taking the minimum available cap per surface.
+  - core law: `MeetCap(surface) <= cap(source, surface)` for every source cap.
+  - bounded result: `6` user-value meet caps, `2` execution-backed meet caps,
+    `4` synthetic-only meet caps, and `0` invariant failures.
+  - Lean bridge: `RevenueSurfaceSafety.lean` proves that charging below
+    `min(capA, capB)` preserves user nonnegative net whenever either source
+    cap is safe relative to measured value.
+  - next frontier: use the meet cap as a config-lint boundary for launch
+    parameters and require explicit assumption-change receipts for overrides.
+
 ## v192 execution-derived fee receipts
 
 - `execution_derived_fee_receipt_bridge_v1`

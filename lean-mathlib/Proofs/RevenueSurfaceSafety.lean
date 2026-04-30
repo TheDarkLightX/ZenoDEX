@@ -63,5 +63,50 @@ theorem lock_reward_spend_le_pool
     (hcap : lockRewardSpend ≤ lockRewardPool) :
     lockRewardSpend ≤ lockRewardPool := hcap
 
+/-! ## Evidence-meet fee caps
+
+The fee-cap calibration experiments combine independent recommendation
+artifacts by taking the minimum available cap. These lemmas capture the small
+algebraic spine: a meet cap never exceeds any source cap, and if any source cap
+was already safe relative to measured user value, then charging below the meet
+is also safe.
+-/
+
+/-- The meet of two candidate caps cannot exceed the left cap. -/
+theorem cap_meet_le_left {capA capB : ℝ} :
+    min capA capB ≤ capA :=
+  min_le_left _ _
+
+/-- The meet of two candidate caps cannot exceed the right cap. -/
+theorem cap_meet_le_right {capA capB : ℝ} :
+    min capA capB ≤ capB :=
+  min_le_right _ _
+
+/-- Charging below the meet of two caps is safe whenever the left cap is safe
+relative to measured value. -/
+theorem user_net_nonnegative_of_fee_le_cap_meet_left
+    {value fee capA capB : ℝ}
+    (hfee : fee ≤ min capA capB) (hcapA : capA ≤ value) :
+    0 ≤ value - fee := by
+  have hmeet_le_capA : min capA capB ≤ capA := cap_meet_le_left
+  have hfee_le_value : fee ≤ value := le_trans hfee (le_trans hmeet_le_capA hcapA)
+  exact user_net_nonnegative_of_fee_le_value hfee_le_value
+
+/-- Charging below the meet of two caps is safe whenever the right cap is safe
+relative to measured value. -/
+theorem user_net_nonnegative_of_fee_le_cap_meet_right
+    {value fee capA capB : ℝ}
+    (hfee : fee ≤ min capA capB) (hcapB : capB ≤ value) :
+    0 ≤ value - fee := by
+  have hmeet_le_capB : min capA capB ≤ capB := cap_meet_le_right
+  have hfee_le_value : fee ≤ value := le_trans hfee (le_trans hmeet_le_capB hcapB)
+  exact user_net_nonnegative_of_fee_le_value hfee_le_value
+
+/-- Adding a third cap to the meet cannot loosen the composed cap relative to
+the original left cap. -/
+theorem cap_meet3_le_first {capA capB capC : ℝ} :
+    min (min capA capB) capC ≤ capA := by
+  exact le_trans (min_le_left _ _) (min_le_left _ _)
+
 end RevenueSurfaceSafety
 end Proofs

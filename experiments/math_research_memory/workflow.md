@@ -6,6 +6,22 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 
 # Workflow
 
+## Updated lesson from v193
+
+- Fee caps should compose by meet, not by replacement. The new law is
+  `MeetCap(surface) := min {cap(source, surface) such that cap exists}`.
+- The meet compiler turns v190-v192 recommendation artifacts into `6`
+  conservative user-value caps: `2` execution-backed and `4` synthetic-only.
+- The execution-backed meet caps are lower than the execution-only caps because
+  stress evidence is tighter: route surplus meets at `1800` bps and exact-out
+  savings meets at `2000` bps.
+- Lean now checks the algebraic spine: if `fee <= min(capA, capB)` and one
+  source cap is safe relative to measured value, then user net remains
+  nonnegative.
+- Next cycle should promote the meet-cap artifact into a small runtime config
+  checker that rejects any launch config exceeding the evidence meet unless an
+  explicit governance override records the assumption change.
+
 ## Updated lesson from v192
 
 - Synthetic calibration is not enough; v192 derives receipt values from actual
