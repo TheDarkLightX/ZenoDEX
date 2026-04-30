@@ -1,0 +1,92 @@
+{
+  "receipt_id": "cpmm_output_monotonicity_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/CPMMOutputMonotonicity.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "CPMMOutputMonotonicity.swapOutOrderHom",
+    "CPMMOutputMonotonicity.multiHopOrderHom",
+    "CPMMOutputMonotonicity.routeOrderHom"
+  ],
+  "theorems": [
+    "CPMMOutputMonotonicity.swapOut_mono_y",
+    "CPMMOutputMonotonicity.swapOut_strict_y",
+    "CPMMOutputMonotonicity.swapOut_anti_x",
+    "CPMMOutputMonotonicity.swapOut_joint_mono",
+    "CPMMOutputMonotonicity.swapOut_shift_lower",
+    "CPMMOutputMonotonicity.swapOut_shift_upper",
+    "CPMMOutputMonotonicity.swapOut_shift_exact",
+    "CPMMOutputMonotonicity.witness_shift_carry_zero",
+    "CPMMOutputMonotonicity.witness_shift_carry_one",
+    "CPMMOutputMonotonicity.swapOut_shift_carry_formula",
+    "CPMMOutputMonotonicity.swapOut_contraction",
+    "CPMMOutputMonotonicity.witness_contraction",
+    "CPMMOutputMonotonicity.swapOut_contraction_tight",
+    "CPMMOutputMonotonicity.swapOut_le_input",
+    "CPMMOutputMonotonicity.swapOut_monotone_y",
+    "CPMMOutputMonotonicity.swapOut_antitone_x",
+    "CPMMOutputMonotonicity.swapOutOrderHom_apply",
+    "CPMMOutputMonotonicity.multiHop_monotone",
+    "CPMMOutputMonotonicity.multiHopOrderHom_apply",
+    "CPMMOutputMonotonicity.witness_multihop",
+    "CPMMOutputMonotonicity.swapOut_approx_additive",
+    "CPMMOutputMonotonicity.witness_approx_additive_tight",
+    "CPMMOutputMonotonicity.swapOut_route_monotone",
+    "CPMMOutputMonotonicity.witness_route_mono",
+    "CPMMOutputMonotonicity.swapOut_diminishing_returns",
+    "CPMMOutputMonotonicity.swapOut_compose_upper",
+    "CPMMOutputMonotonicity.witness_diminishing_returns",
+    "CPMMOutputMonotonicity.witness_compose_upper",
+    "CPMMOutputMonotonicity.swapOut_pos",
+    "CPMMOutputMonotonicity.swapOut_eq_zero",
+    "CPMMOutputMonotonicity.witness_positivity_threshold",
+    "CPMMOutputMonotonicity.swapOut_zero_iff",
+    "CPMMOutputMonotonicity.witness_zero_iff",
+    "CPMMOutputMonotonicity.swapOut_sublinear",
+    "CPMMOutputMonotonicity.witness_sublinear",
+    "CPMMOutputMonotonicity.fee_reduces_output",
+    "CPMMOutputMonotonicity.witness_reserve_mono",
+    "CPMMOutputMonotonicity.witness_shift_bound",
+    "CPMMOutputMonotonicity.witness_fee_reduces",
+    "CPMMOutputMonotonicity.witness_no_free_tokens",
+    "CPMMOutputMonotonicity.witness_strict"
+  ],
+  "claims": [
+    "CPMM exact-in output is monotone in output reserve and antitone in input reserve.",
+    "Reserve-output increases are strict once the numerator increase spans at least one denominator width.",
+    "Output changes from reserve shifts have exact quotient-plus-carry decompositions with carry in {0,1}.",
+    "The output function is 1-Lipschitz in output reserve and the bound is tight.",
+    "Monotonicity composes across order-hom wrappers and simple multi-hop routes.",
+    "The zero-output boundary, sublinear spot-price bound, and fee-reduced-output bound are checked with witnesses."
+  ],
+  "proof_method": [
+    "natural-number division monotonicity",
+    "floor-division subadditivity and exact carry decomposition",
+    "Mathlib Monotone/Antitone/order-hom wrappers",
+    "native witnesses for sharpness and non-vacuity"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.CPMMOutputMonotonicity",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/CPMMOutputMonotonicity.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The model uses the integer CPMM swapOut abstraction imported from AntiFragmentation.",
+    "The proofs reason about output/reserve sensitivity, rounding carries, and simple route composition; they do not by themselves prove a full settlement policy optimal.",
+    "Fee handling is represented by fee-reduced input monotonicity, not by a complete fee-accounting runtime proof."
+  ]
+}
