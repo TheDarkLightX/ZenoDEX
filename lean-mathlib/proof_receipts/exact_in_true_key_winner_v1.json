@@ -1,0 +1,54 @@
+{
+  "receipt_id": "exact_in_true_key_winner_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactInTrueKeyWinner.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.Routing.ExactInTrueKeyWinner.projectedCandidates"
+  ],
+  "theorems": [
+    "TauSwap.Routing.ExactInTrueKeyWinner.mem_projectedCandidates",
+    "TauSwap.Routing.ExactInTrueKeyWinner.candidateIndex_lt_length_of_mem_projectedCandidates",
+    "TauSwap.Routing.ExactInTrueKeyWinner.projectedCandidate_of_mem_projectedCandidates",
+    "TauSwap.Routing.ExactInTrueKeyWinner.projectedCandidate_injective",
+    "TauSwap.Routing.ExactInTrueKeyWinner.candidateWinner_iff_trueKeyWinner",
+    "TauSwap.Routing.ExactInTrueKeyWinner.exact_in_exists_unique_true_key_winner"
+  ],
+  "claims": [
+    "Every finite key list induces a projected candidate list with valid candidate indices.",
+    "Projected candidates can be recovered from their candidateIndex field when they are members of the projected list.",
+    "Projected candidates are injective over finite indices.",
+    "Being minimal under the projected certificate key is equivalent to being minimal under the true semantic route-key order.",
+    "Every nonempty exact-in key list has a unique true semantic route-key winner."
+  ],
+  "proof_method": [
+    "membership transport through List.finRange and map",
+    "projection injectivity via candidateIndex equality",
+    "winner equivalence using exact_in_route_rank_projection_v1",
+    "unique canonical winner inheritance from the exact-in certificate model"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactInTrueKeyWinner",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactInTrueKeyWinner.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This packet proves the finite nonempty exact-in true-key winner theorem for the Lean certificate model.",
+    "It relies on the projected rank bridge and the existing exact-in canonical-winner theorem.",
+    "It does not prove route generation completeness, runtime emission, or multi-hop economic optimality."
+  ]
+}

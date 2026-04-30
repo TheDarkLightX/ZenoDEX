@@ -1,0 +1,72 @@
+{
+  "receipt_id": "exact_out_canonical_minimizer_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutCanonicalMinimizer.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.Leg",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.Legs",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.Key",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.key",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.inputTotal",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.legCount",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.legsLex"
+  ],
+  "theorems": [
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.key_unpack",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.key_le_iff",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.equal_input_key_le_iff",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.equal_input_equal_leg_count_key_le_iff",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.exists_unique_min_of_finset_nonempty",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.exists_unique_canonical",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.eq_min_of_mem_of_le_all",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.mem_and_le_all_iff_eq_min",
+    "TauSwap.ZenoDEX.ExactOutCanonicalMinimizer.canonical_prefers_fewer_legs_then_lex"
+  ],
+  "claims": [
+    "The exact-out canonical key is the lexicographic tuple `(input_total, leg_count, legs_lex)`.",
+    "The key ordering unfolds to input minimization, then fewer legs, then lexicographic leg ordering.",
+    "Every nonempty finite candidate key set has a unique canonical minimum.",
+    "A candidate is the canonical minimum exactly when it is in the set and no worse than every set element.",
+    "The canonical minimum exposes the intended exact-out tie-break priorities: minimal input, then fewer legs, then lexicographic legs."
+  ],
+  "proof_method": [
+    "lexicographic-order unfolding through Mathlib `Lex` wrappers",
+    "finite-set minimum uniqueness via `Finset.min'`",
+    "order antisymmetry for minimum equality",
+    "case analysis on the unfolded exact-out key order"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutCanonicalMinimizer",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-canonical-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_canonical_minimizer_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactOutCanonicalMinimizer.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves the finite-key canonical minimizer used by exact-out routing certificates.",
+    "It does not prove runtime candidate generation is complete.",
+    "It does not prove CPMM quote arithmetic or reserve transition correctness.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}
