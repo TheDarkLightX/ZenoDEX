@@ -1,0 +1,114 @@
+{
+  "receipt_id": "batch_canonical_foundation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/BatchOptimality.lean",
+    "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+    "lean-mathlib/Proofs/BatchApproximation.lean",
+    "lean-mathlib/Proofs/BatchRefinementOrder.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "BatchOptimality.Intent",
+    "BatchOptimality.ValidOutcome",
+    "BatchOptimality.volume",
+    "BatchOptimality.surplus",
+    "BatchOptimality.AB",
+    "BatchOptimality.lexLe",
+    "BatchOptimality.lexLt",
+    "BatchOptimality.pairAdd",
+    "TauSwap.Batch.key",
+    "TauSwap.Batch.vol",
+    "TauSwap.Batch.sur",
+    "TauSwap.Batch.ord",
+    "Proofs.BatchApproximation.SwapIntent",
+    "Proofs.BatchApproximation.SwapResult",
+    "Proofs.BatchApproximation.ABValue",
+    "Proofs.BatchApproximation.totalA",
+    "Proofs.BatchApproximation.totalB",
+    "Proofs.BatchApproximation.swapConserved",
+    "Proofs.BatchRefinementOrder.better",
+    "Proofs.BatchRefinementOrder.noWorse"
+  ],
+  "theorems": [
+    "BatchOptimality.surplus_nonneg",
+    "BatchOptimality.surplus_filled",
+    "BatchOptimality.volume_unfilled",
+    "BatchOptimality.surplus_unfilled",
+    "BatchOptimality.AB_unfilled",
+    "BatchOptimality.AB_filled",
+    "BatchOptimality.lexLe_refl",
+    "BatchOptimality.lexLe_trans",
+    "BatchOptimality.lexLe_total",
+    "BatchOptimality.lexLe_antisymm",
+    "BatchOptimality.pairAdd_assoc",
+    "BatchOptimality.pairAdd_comm",
+    "BatchOptimality.pairAdd_zero_left",
+    "BatchOptimality.pairAdd_zero_right",
+    "TauSwap.Batch.key_le_iff",
+    "TauSwap.Batch.key_le_components",
+    "TauSwap.Batch.exists_unique_min_of_finset_nonempty",
+    "TauSwap.Batch.exists_unique_canonical",
+    "TauSwap.Batch.canonical_dominates",
+    "Proofs.BatchApproximation.A_monotone_append",
+    "Proofs.BatchApproximation.total_A_order_independent",
+    "Proofs.BatchApproximation.single_conservation",
+    "Proofs.BatchApproximation.batch_conservation_nil",
+    "Proofs.BatchApproximation.tiebreak_total",
+    "Proofs.BatchApproximation.tiebreak_deterministic",
+    "Proofs.BatchRefinementOrder.better_irrefl",
+    "Proofs.BatchRefinementOrder.better_trans",
+    "Proofs.BatchRefinementOrder.noWorse_trans",
+    "Proofs.BatchRefinementOrder.two_step_refinement_never_degrades",
+    "Proofs.BatchRefinementOrder.witness_refinement_chain"
+  ],
+  "claims": [
+    "Batch outcomes expose nonnegative surplus, zero objective for unfilled outcomes, and deterministic `(volume, surplus)` AB extraction for filled outcomes.",
+    "The batch lexicographic objective is reflexive, transitive, total, and antisymmetric over `(volume, surplus)` pairs.",
+    "The AB addition operator is associative, commutative, and has `(0, 0)` as a left and right identity.",
+    "The canonical batch key has a checked component interpretation and every nonempty finite key set has a unique canonical minimum.",
+    "Batch approximation helpers preserve monotone total executed volume, order-independent total volume summation, and basic conservation facts.",
+    "Refinement steps are transitive and cannot degrade after two no-worse steps under the modeled better/no-worse relation."
+  ],
+  "proof_method": [
+    "case analysis over filled/unfilled outcome constructors",
+    "lexicographic order decomposition over natural-number objective pairs",
+    "finite-set minimum existence and uniqueness under the canonical key order",
+    "list append and permutation-style summation arithmetic",
+    "relation algebra over strict improvement and no-worse refinement"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.BatchOptimality Proofs.BatchAuctionCanonical Proofs.BatchApproximation Proofs.BatchRefinementOrder",
+      "result": "passed with pre-existing linter warnings in BatchAuctionCanonical"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < batch-canonical-foundation-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/batch_canonical_foundation_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/BatchOptimality.lean lean-mathlib/Proofs/BatchAuctionCanonical.lean lean-mathlib/Proofs/BatchApproximation.lean lean-mathlib/Proofs/BatchRefinementOrder.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/BatchOptimality.lean lean-mathlib/Proofs/BatchAuctionCanonical.lean lean-mathlib/Proofs/BatchApproximation.lean lean-mathlib/Proofs/BatchRefinementOrder.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves modeled batch objective, canonical key, approximation, and refinement-order facts only.",
+    "It does not prove runtime candidate generation completeness, pool execution correctness, user authorization, or cross-asset settlement safety.",
+    "The canonical-winner facts require the runtime and verifier to share the exact same total key and candidate set."
+  ]
+}
