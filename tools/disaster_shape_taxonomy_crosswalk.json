@@ -1,0 +1,486 @@
+{
+  "schema": "zenodex/disaster-shape-taxonomy-crosswalk/v1",
+  "generated_on": "2026-04-30",
+  "purpose": "Map public attack, smart-contract, DeFi incident, and chaos-engineering taxonomies onto ZenoDEX-specific disaster-search axes. This is a search-expansion artifact, not a proof that the public taxonomies are complete.",
+  "coverage_contract": {
+    "axis_source": "tools.stateful_scenario_bridge.DISASTER_SEARCH_EXPANSION_AXES",
+    "minimum_status": "mapped_to_public_seed_family",
+    "unmapped_axis_policy": "fail_checker",
+    "promotion_rule": "A mapped public family becomes a stronger assurance claim only after the referenced ZenoDEX axis has replayable evidence, proof evidence, fuzz evidence, or an explicit out-of-scope decision."
+  },
+  "public_sources": [
+    {
+      "id": "capec",
+      "name": "MITRE CAPEC",
+      "url": "https://capec.mitre.org/",
+      "role": "General adversary attack-pattern seed catalog."
+    },
+    {
+      "id": "owasp_scs",
+      "name": "OWASP Smart Contract Security",
+      "url": "https://scs.owasp.org/SCSVS/",
+      "role": "Smart-contract verification, weakness, and testing taxonomy."
+    },
+    {
+      "id": "owasp_sc_top10",
+      "name": "OWASP Smart Contract Top 10",
+      "url": "https://owasp.org/www-project-smart-contract-top-10/",
+      "role": "High-level Web3 vulnerability family seed catalog."
+    },
+    {
+      "id": "swc_legacy",
+      "name": "Smart Contract Weakness Classification Registry",
+      "url": "https://github.com/SmartContractSecurity/SWC-registry",
+      "role": "Legacy smart-contract weakness names; not treated as complete because the registry is no longer actively maintained."
+    },
+    {
+      "id": "defi_rekt",
+      "name": "De.Fi Rekt Database",
+      "url": "https://docs.de.fi/audits/rekt-database",
+      "role": "Incident-derived DeFi category and exploit-shape seeds."
+    },
+    {
+      "id": "chaos_principles",
+      "name": "Principles of Chaos Engineering",
+      "url": "https://principlesofchaos.org/",
+      "role": "Operational perturbation and steady-state disruption seeds."
+    }
+  ],
+  "entries": [
+    {
+      "id": "epoch_clock_and_lifecycle_split_brain",
+      "source_families": [
+        "CAPEC: race condition and time-of-check/time-of-use style attack patterns",
+        "OWASP SCSVS-BRIDGE: blockchain data and state management",
+        "Chaos: clock skew, delayed events, recovery ordering"
+      ],
+      "mapped_axis_ids": [
+        "epoch_split_brain",
+        "perp_funding_liquidation_oracle_window",
+        "oracle_funding_clock_commitment_boundary",
+        "perp_engine_integration_oracle_bootstrap_boundary",
+        "tla_queue_lifecycle_model_boundary",
+        "tla_perp_settlement_queue_model_boundary",
+        "ltl_oracle_recovery_schedule_boundary",
+        "optimizer_liveness_prompt_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "Epoch, clock, lifecycle, or fairness views disagree and an old or future state is treated as current."
+    },
+    {
+      "id": "identity_authority_and_capability_drift",
+      "source_families": [
+        "OWASP SC01/SC04 style access-control and authorization failures",
+        "OWASP SCSVS-AUTH: access control and authentication",
+        "SWC legacy: authorization, signature replay, role mismanagement"
+      ],
+      "mapped_axis_ids": [
+        "identity_registry_drift",
+        "tau_gate_policy_aliasing",
+        "strategy_session_capability_replay",
+        "intent_auth_shape_replay",
+        "zusd_api_token_policy_surface",
+        "agent_policy_signing_artifact_boundary",
+        "intent_normal_form_nonce_gate_boundary",
+        "strategy_native_policy_guard_surface",
+        "tau_witness_autotrader_binding_surface",
+        "intent_nonce_confidential_state_native_boundary",
+        "tau_autotrader_spec_guard_boundary",
+        "decision_tau_witness_runner_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A valid-looking action is authorized under the wrong signer, role, capability, session, nonce, or policy identity."
+    },
+    {
+      "id": "canonicalization_ordering_mev_and_route_selection",
+      "source_families": [
+        "OWASP SC02/SC04: business logic and flash-loan-facilitated attacks",
+        "OWASP SCWE: transaction order dependence and extractable value from predictable ordering",
+        "De.Fi Rekt: DEX and flash-loan incident categories"
+      ],
+      "mapped_axis_ids": [
+        "canonicalization_equivocation",
+        "reciprocal_netting_pair_forgery",
+        "batch_clearing_fragmentation_ordering",
+        "cantor_region_partition_invariance",
+        "exact_out_prefilter_winner_repair_boundary",
+        "batch_refinement_mci_parity_boundary",
+        "exact_in_route_certificate_guarded_key_boundary",
+        "settlement_formal_packet_contract_boundary",
+        "exact_out_formal_packet_contract_boundary",
+        "exact_in_lean_rank_projection_boundary",
+        "exact_out_lean_certificate_boundary",
+        "exact_out_lean_concrete_recursion_boundary",
+        "exact_out_lean_ordered_presentation_boundary",
+        "exact_out_lean_repaired_key_cover_boundary",
+        "exact_out_lean_stream_support_boundary",
+        "advisory_swap_sandwich_preflight_boundary",
+        "functional_core_split_parity_branch_boundary",
+        "lean_amm_canonical_math_boundary",
+        "batch_settler_greedy_adapter_boundary",
+        "exact_out_adaptive_region_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "Two semantically neighboring candidate sets, orderings, or repaired routes select different winners or admit extractive ordering."
+    },
+    {
+      "id": "serialization_schema_width_and_parser_confusion",
+      "source_families": [
+        "CAPEC: data structure manipulation and input manipulation",
+        "OWASP SC05: lack of input validation",
+        "OWASP SCWE: ABI encoding, calldata length, type conversion, bitwise, and right-to-left override failures"
+      ],
+      "mapped_axis_ids": [
+        "serialization_width_aliasing",
+        "operations_parser_canonical_envelope",
+        "state_accounting_size_boundary",
+        "boundary_concolic_wrapper_consistency",
+        "quote_receipt_transport_intent_boundary",
+        "quote_receipt_native_adapter_parity_boundary",
+        "numeric_kernel_ml_history_boundary",
+        "tool_guard_lint_symbolic_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A byte width, schema field, parser envelope, or symbolic rewrite changes meaning while preserving a valid-looking shape."
+    },
+    {
+      "id": "resource_exhaustion_and_unbounded_search",
+      "source_families": [
+        "OWASP SC10: denial of service",
+        "OWASP SCSVS-BLOCK and SCSVS-DEFI: DoS, gas usage, loop efficiency",
+        "Chaos: traffic spike and downstream overload"
+      ],
+      "mapped_axis_ids": [
+        "resource_budget_abort",
+        "bounded_advisory_search_envelope",
+        "exact_out_candidate_domain_explosion",
+        "resource_load_shedding_chaos_boundary",
+        "exact_out_shadow_runtime_prefilter_boundary",
+        "tau_runner_subprocess_transport_boundary",
+        "tau_exact_out_resource_spec_boundary",
+        "optimizer_liveness_prompt_boundary",
+        "operator_environment_tooling_boundary",
+        "exact_out_adaptive_region_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A caller or dependency chooses bounds that turn advisory, quote, proof, subprocess, or optimization work into a CPU/memory availability failure."
+    },
+    {
+      "id": "external_state_dependency_transport_and_rpc_boundary",
+      "source_families": [
+        "CAPEC: supply-chain, protocol, and communication attack patterns",
+        "OWASP SCSVS-COMM: secure interactions and communications",
+        "Chaos: malformed response, dependency outage, network severance"
+      ],
+      "mapped_axis_ids": [
+        "external_state_drift",
+        "dependency_outage_fail_closed",
+        "tau_net_client_transport_boundary",
+        "tau_runner_api_lifecycle_fail_closed",
+        "confidential_core_verifier_binding_boundary",
+        "tau_runner_subprocess_transport_boundary",
+        "cross_module_tool_checker_boundary",
+        "autotrader_krr_import_supply_chain_boundary",
+        "operator_environment_tooling_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A remote endpoint, external verifier, subprocess, imported source, or transport boundary returns stale, malformed, excessive, or mismatched data."
+    },
+    {
+      "id": "atomicity_replay_persistence_and_recovery",
+      "source_families": [
+        "CAPEC: replay and transaction manipulation attack patterns",
+        "OWASP SCWE: nonce handling and replay vulnerabilities",
+        "Chaos: restart, persistence loss, partial failure"
+      ],
+      "mapped_axis_ids": [
+        "atomicity_partial_side_effect",
+        "restart_replay_persistence",
+        "intent_auth_shape_replay",
+        "proof_mining_packet_envelope_replay",
+        "dex_engine_sequence_anomaly_surface",
+        "autotrader_policy_artifact_replay",
+        "settlement_witness_lifecycle_value_drift",
+        "fire_runtime_receipt_replay_boundary",
+        "proof_mining_manager_slot_control_boundary",
+        "fire_registry_deployment_sync_boundary",
+        "fire_kernel_release_verifier_boundary",
+        "permissionless_proof_mining_tooling_boundary",
+        "proof_mining_native_permissionless_boundary",
+        "dex_settlement_recovery_proof_unit_boundary",
+        "acceptance_tcb_minimized_witness_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A partially-applied, replayed, recovered, or persisted artifact is accepted as fresh and complete."
+    },
+    {
+      "id": "numeric_arithmetic_rounding_and_integer_semantics",
+      "source_families": [
+        "OWASP SC07/SC09: arithmetic, rounding, precision, overflow, underflow",
+        "OWASP SCSVS-ORACLE: arithmetic and logic security",
+        "SWC legacy: integer overflow, unsafe downcasting, rounding direction"
+      ],
+      "mapped_axis_ids": [
+        "numeric_boundary_coupling",
+        "state_accounting_size_boundary",
+        "zusd_native_accounting_gate_boundary",
+        "settlement_apply_witness_native_boundary",
+        "perp_native_adapter_oracle_bva_boundary",
+        "numeric_kernel_ml_history_boundary",
+        "amm_curve_il_parity_boundary",
+        "lean_amm_canonical_math_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "Integer runtime arithmetic, rounding envelopes, BVA artifacts, or curve-family math disagree with a proof or economic invariant."
+    },
+    {
+      "id": "oracle_price_provenance_and_market_data_freshness",
+      "source_families": [
+        "OWASP SC03: price oracle manipulation",
+        "OWASP SCSVS-BRIDGE: blockchain data and state management",
+        "De.Fi Rekt: DEX, lending, stablecoin, and oracle-dependent incidents"
+      ],
+      "mapped_axis_ids": [
+        "zusd_oracle_recovery_split_brain",
+        "perp_funding_liquidation_oracle_window",
+        "perp_v2_ref_oracle_parity_boundary",
+        "oracle_funding_clock_commitment_boundary",
+        "perp_engine_integration_oracle_bootstrap_boundary",
+        "settlement_price_provenance_semantic_boundary",
+        "perp_native_adapter_oracle_bva_boundary",
+        "settlement_lean_price_oracle_boundary",
+        "ltl_oracle_recovery_schedule_boundary",
+        "tau_semantic_proof_gate_split_boundary",
+        "advisory_swap_sandwich_preflight_boundary",
+        "zusd_support_native_selector_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "Oracle freshness, provenance, benefit accounting, or market-data proof lanes split and a stale price becomes authoritative."
+    },
+    {
+      "id": "confidential_attestation_and_private_request_binding",
+      "source_families": [
+        "CAPEC: trust boundary and data integrity attack patterns",
+        "OWASP SCSVS-CRYPTO and SCSVS-COMM: signature, hash, and communication integrity",
+        "De.Fi Rekt: bridge and infrastructure categories"
+      ],
+      "mapped_axis_ids": [
+        "confidential_receipt_attestation_drift",
+        "confidential_request_admission_gate_decomposition",
+        "confidential_core_verifier_binding_boundary",
+        "intent_nonce_confidential_state_native_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A confidential request, receipt, verifier, or nonce root is bound to a neighboring private state."
+    },
+    {
+      "id": "supply_chain_proof_artifact_and_release_integrity",
+      "source_families": [
+        "CAPEC: supply-chain and trusted artifact substitution",
+        "OWASP SCSVS-CODE: code management and dependency controls",
+        "Chaos: tooling drift and artifact replay"
+      ],
+      "mapped_axis_ids": [
+        "fire_registry_proof_tree_supply_chain",
+        "tau_operator_policy_supply_chain",
+        "autotrader_policy_artifact_replay",
+        "runtime_shell_adapter_consistency",
+        "autotrader_policy_toolchain_state_boundary",
+        "fire_cli_supply_chain_receipt_boundary",
+        "fire_registry_deployment_sync_boundary",
+        "tau_operator_policy_receipt_symbolic_boundary",
+        "fire_kernel_release_verifier_boundary",
+        "claims_falsifier_inventory_boundary",
+        "stateful_report_bridge_ranking_boundary",
+        "tau_operator_library_artifact_boundary",
+        "rc1_release_readiness_artifact_boundary",
+        "fire_cal_package_claim_boundary",
+        "autotrader_krr_import_supply_chain_boundary",
+        "shapeforge_release_ratchet_artifact_boundary",
+        "zenograph_autotrader_ranking_artifact_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A proof, receipt, registry, toolchain, release matrix, or generated artifact remains valid after its source root changes."
+    },
+    {
+      "id": "settlement_witness_certificate_and_recompute_boundary",
+      "source_families": [
+        "OWASP SC02: business logic vulnerabilities",
+        "OWASP SCSVS-GOV: business logic and economic security",
+        "CAPEC: transaction and data integrity patterns"
+      ],
+      "mapped_axis_ids": [
+        "settlement_proof_recompute_gate",
+        "quote_receipt_gate_decomposition_consistency",
+        "settlement_witness_lifecycle_value_drift",
+        "settlement_formal_packet_contract_boundary",
+        "settlement_apply_witness_native_boundary",
+        "settlement_price_provenance_semantic_boundary",
+        "tla_perp_settlement_queue_model_boundary",
+        "settlement_lean_price_oracle_boundary",
+        "dex_settlement_recovery_proof_unit_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A settlement certificate, recompute proof, witness lifecycle, or native witness adapter accepts a value not bound to the current execution state."
+    },
+    {
+      "id": "market_namespace_curve_dispatch_and_reference_parity",
+      "source_families": [
+        "OWASP SC02: business logic vulnerabilities",
+        "OWASP SC07: arithmetic and precision failures",
+        "De.Fi Rekt: DEX and AMM incident categories"
+      ],
+      "mapped_axis_ids": [
+        "market_namespace_version_isolation",
+        "curve_registry_dispatch_aliasing",
+        "dex_core_ref_parity_drift",
+        "batch_refinement_mci_parity_boundary",
+        "zusd_native_accounting_gate_boundary",
+        "functional_core_split_parity_branch_boundary",
+        "amm_curve_il_parity_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A market namespace, curve tag, adapter, or reference model changes while a neighboring state is treated as equivalent."
+    },
+    {
+      "id": "fire_tokenomics_rewards_and_budget_safety",
+      "source_families": [
+        "OWASP SCSVS-GOV: business logic and economic security",
+        "De.Fi Rekt: token, stablecoin, yield aggregator, and incentive incidents",
+        "CAPEC: abuse of reward and business logic conditions"
+      ],
+      "mapped_axis_ids": [
+        "vault_reward_carry_spendability",
+        "fire_runtime_receipt_replay_boundary",
+        "zusd_native_accounting_gate_boundary",
+        "proof_mining_manager_slot_control_boundary",
+        "fire_cli_supply_chain_receipt_boundary",
+        "fire_registry_deployment_sync_boundary",
+        "fire_kernel_release_verifier_boundary",
+        "fire_formal_runtime_note_boundary",
+        "fire_cal_package_claim_boundary",
+        "tokenomics_wash_budget_boundary",
+        "lean_repair_economics_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A reward, rebate, proof-mining, FIRE, tokenomics, or repair-economics path spends more than its verified budget or binds to a stale package."
+    },
+    {
+      "id": "autotrader_krr_ai_policy_and_reasoner_boundary",
+      "source_families": [
+        "CAPEC: manipulation of trusted decision inputs",
+        "OWASP SCSVS-AUTH and SCSVS-GOV: authority and business logic boundaries",
+        "Chaos: stale facts and policy artifact drift"
+      ],
+      "mapped_axis_ids": [
+        "advisory_cache_receipt_coherence",
+        "autotrader_policy_artifact_replay",
+        "agent_policy_signing_artifact_boundary",
+        "zenograph_krr_policy_state_boundary",
+        "strategy_native_policy_guard_surface",
+        "autotrader_policy_toolchain_state_boundary",
+        "strategy_residual_guard_binding_boundary",
+        "tau_witness_autotrader_binding_surface",
+        "tau_semantic_proof_gate_split_boundary",
+        "tau_autotrader_spec_guard_boundary",
+        "chaos_regret_campaign_boundary",
+        "autotrader_krr_import_supply_chain_boundary",
+        "lean_autotrader_solver_policy_boundary",
+        "krr_region_ba_reasoner_boundary",
+        "zenograph_autotrader_ranking_artifact_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A non-authoritative AI/KRR/advisory output is mistaken for live authority, or a fact/policy/ranking artifact drifts after signing."
+    },
+    {
+      "id": "stablecoin_vault_support_and_recovery",
+      "source_families": [
+        "De.Fi Rekt: stablecoin and borrowing/lending incident categories",
+        "OWASP SC03: oracle manipulation",
+        "OWASP SCSVS-GOV: economic safety"
+      ],
+      "mapped_axis_ids": [
+        "zusd_oracle_recovery_split_brain",
+        "zusd_api_token_policy_surface",
+        "zusd_native_accounting_gate_boundary",
+        "ltl_oracle_recovery_schedule_boundary",
+        "zusd_support_native_selector_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A zUSD vault/support/oracle recovery path chooses the wrong source of truth or selector state."
+    },
+    {
+      "id": "general_chaos_steady_state_and_repair_barrier",
+      "source_families": [
+        "Principles of Chaos Engineering: steady-state disruption and controlled perturbation",
+        "CAPEC: compound adversarial operation sequences",
+        "OWASP SCSVS: cross-control regression pressure"
+      ],
+      "mapped_axis_ids": [
+        "repair_after_tamper",
+        "dependency_outage_fail_closed",
+        "resource_load_shedding_chaos_boundary",
+        "boundary_concolic_wrapper_consistency",
+        "tau_runner_api_lifecycle_fail_closed",
+        "tla_queue_lifecycle_model_boundary",
+        "acceptance_tcb_minimized_witness_boundary",
+        "chaos_regret_campaign_boundary",
+        "operator_environment_tooling_boundary",
+        "shapeforge_release_ratchet_artifact_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A compound perturbation disrupts steady state and the system neither rejects nor presents a valid recovery certificate."
+    },
+    {
+      "id": "sealed_bid_bounty_and_catalog_feedback",
+      "source_families": [
+        "CAPEC: commitment manipulation and data integrity patterns",
+        "OWASP SCSVS-CRYPTO: hash/signature binding",
+        "De.Fi Rekt: marketplace, DAO, and incentive incident seeds"
+      ],
+      "mapped_axis_ids": [
+        "sealed_bid_reveal_commitment_binding",
+        "stateful_bounty_catalog_feedback_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "A commitment, reveal, bounty catalog, or candidate-index feedback path admits a substituted or omitted candidate."
+    },
+    {
+      "id": "cross_surface_composition_and_formal_bridge_drift",
+      "source_families": [
+        "CAPEC: multi-stage and chained attack patterns",
+        "OWASP SCSVS-ARCH: architecture, design, and threat modeling",
+        "Chaos: interaction faults between otherwise healthy subsystems"
+      ],
+      "mapped_axis_ids": [
+        "cantor_shapeforge_morphism_bridge_boundary",
+        "settlement_formal_packet_contract_boundary",
+        "exact_out_formal_packet_contract_boundary",
+        "fire_formal_runtime_note_boundary",
+        "lean_repair_economics_boundary",
+        "lean_autotrader_solver_policy_boundary",
+        "lean_cross_surface_composition_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "Two locally valid proof, runtime, or policy surfaces compose into a globally invalid state."
+    },
+    {
+      "id": "perps_liquidation_funding_and_legacy_reference",
+      "source_families": [
+        "De.Fi Rekt: derivatives, lending, liquidation, and oracle incident seeds",
+        "OWASP SC03/SC07: oracle and arithmetic failure classes",
+        "OWASP SCSVS-GOV: economic safety"
+      ],
+      "mapped_axis_ids": [
+        "perp_funding_liquidation_oracle_window",
+        "perp_submission_surface_gate_composition",
+        "perp_v2_ref_oracle_parity_boundary",
+        "perp_core_legacy_ref_hazard_boundary",
+        "perp_engine_integration_oracle_bootstrap_boundary",
+        "perp_native_adapter_oracle_bva_boundary"
+      ],
+      "coverage_posture": "covered_axis_family",
+      "what_if": "Perps settlement, funding, liquidation, legacy refs, or submission guards disagree at an oracle or arithmetic boundary."
+    }
+  ]
+}

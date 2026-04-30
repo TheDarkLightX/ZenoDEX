@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="430" viewBox="0 0 980 430">
+<rect width="100%" height="100%" fill="#fbfaf7"/>
+<style>
+  text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #172026; }
+  .title { font-size: 23px; font-weight: 750; }
+  .subtitle { font-size: 13px; fill: #52606d; }
+  .label { font-size: 12px; fill: #36424d; }
+  .value { font-size: 12px; font-weight: 700; fill: #172026; }
+  .tiny { font-size: 10px; fill: #61717f; }
+  .axis { stroke: #cbd5dd; stroke-width: 1; }
+  .grid { stroke: #e3e8ed; stroke-width: 1; }
+</style>
+<text class="title" x="70" y="42">FIRE Revenue Math Assurance Ladder</text>
+<text class="subtitle" x="70" y="65">From bounded policy search to execution-derived fee-cap receipts. Bar width uses log10(count + 1).</text>
+<text class="label" x="70" y="110">Policy candidates</text>
+<rect x="250" y="92" width="840" height="24" rx="3" fill="#334155"/>
+<text class="value" x="1100" y="109">155527</text>
+<text class="label" x="70" y="153">Survivor policies</text>
+<rect x="250" y="135" width="605" height="24" rx="3" fill="#0f766e"/>
+<text class="value" x="865" y="152">5510</text>
+<text class="label" x="70" y="196">Fixture receipts</text>
+<rect x="250" y="178" width="175" height="24" rx="3" fill="#2563eb"/>
+<text class="value" x="435" y="195">11</text>
+<text class="label" x="70" y="239">Stress receipts</text>
+<rect x="250" y="221" width="246" height="24" rx="3" fill="#7c3aed"/>
+<text class="value" x="506" y="238">32</text>
+<text class="label" x="70" y="282">Execution receipts</text>
+<rect x="250" y="264" width="214" height="24" rx="3" fill="#db2777"/>
+<text class="value" x="474" y="281">20</text>
+<text class="label" x="70" y="325">Execution review caps</text>
+<rect x="250" y="307" width="77" height="24" rx="3" fill="#ea580c"/>
+<text class="value" x="337" y="324">2</text>
+<text class="tiny" x="70" y="382">Interpretation: this is not one proof. It is a ladder of increasingly concrete evidence: search, survivor filtering, receipt guards, stress rows, and real router-derived measurements.</text>
+</svg>

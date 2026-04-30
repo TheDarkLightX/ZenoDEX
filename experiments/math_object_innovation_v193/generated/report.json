@@ -1,0 +1,332 @@
+{
+  "discovery_domain": {
+    "source_count": 3,
+    "sources": [
+      "v190_fixture",
+      "v191_stress",
+      "v192_execution"
+    ],
+    "surface_count": 16
+  },
+  "execution_backed_meet_count": 2,
+  "holdout_domain": "none; composes existing v190-v192 recommendation artifacts",
+  "meet_cap_surface_count": 6,
+  "meet_rows": [
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v190_fixture": 0,
+        "v191_stress": 0
+      },
+      "source_statuses": {
+        "v190_fixture": "protocol_surplus_internal_capture",
+        "v191_stress": "protocol_surplus_internal_capture"
+      },
+      "surface": "arbitrage_recapture_auction"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "synthetic_meet_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": 5000,
+      "source_caps": {
+        "v190_fixture": 5000,
+        "v191_stress": 5000
+      },
+      "source_sample_counts": {
+        "v190_fixture": 1,
+        "v191_stress": 3
+      },
+      "source_statuses": {
+        "v190_fixture": "candidate_review_cap",
+        "v191_stress": "candidate_review_cap"
+      },
+      "surface": "cow_batch_solver_surplus"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "execution_backed_meet_cap",
+      "execution_stress_tension_bps": 497,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": 2000,
+      "source_caps": {
+        "v190_fixture": 2500,
+        "v191_stress": 2000,
+        "v192_execution": 2497
+      },
+      "source_sample_counts": {
+        "v190_fixture": 1,
+        "v191_stress": 3,
+        "v192_execution": 9
+      },
+      "source_statuses": {
+        "v190_fixture": "candidate_review_cap",
+        "v191_stress": "candidate_review_cap",
+        "v192_execution": "candidate_review_cap"
+      },
+      "surface": "exact_out_savings_capture"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v192_execution": 0
+      },
+      "source_statuses": {
+        "v192_execution": "rejected_only"
+      },
+      "surface": "execution_exact_out_wash_bad"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v192_execution": 0
+      },
+      "source_statuses": {
+        "v192_execution": "rejected_only"
+      },
+      "surface": "execution_route_overcharge_bad"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v190_fixture": 0,
+        "v191_stress": 0
+      },
+      "source_statuses": {
+        "v190_fixture": "rejected_only",
+        "v191_stress": "rejected_only"
+      },
+      "surface": "extractive_notional_bad"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "synthetic_meet_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": 3000,
+      "source_caps": {
+        "v190_fixture": 3555,
+        "v191_stress": 3000
+      },
+      "source_sample_counts": {
+        "v190_fixture": 1,
+        "v191_stress": 3
+      },
+      "source_statuses": {
+        "v190_fixture": "candidate_review_cap",
+        "v191_stress": "candidate_review_cap"
+      },
+      "surface": "integrator_router_surface"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "synthetic_meet_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": 5000,
+      "source_caps": {
+        "v190_fixture": 5000,
+        "v191_stress": 5000
+      },
+      "source_sample_counts": {
+        "v190_fixture": 1,
+        "v191_stress": 3
+      },
+      "source_statuses": {
+        "v190_fixture": "candidate_review_cap",
+        "v191_stress": "candidate_review_cap"
+      },
+      "surface": "lp_loss_cover_premium"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v191_stress": 0
+      },
+      "source_statuses": {
+        "v191_stress": "rejected_only"
+      },
+      "surface": "primary_negative_net_bad"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v191_stress": 0
+      },
+      "source_statuses": {
+        "v191_stress": "rejected_only"
+      },
+      "surface": "primary_penalty_bad"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "synthetic_meet_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": 3000,
+      "source_caps": {
+        "v190_fixture": 4000,
+        "v191_stress": 3000
+      },
+      "source_sample_counts": {
+        "v190_fixture": 1,
+        "v191_stress": 3
+      },
+      "source_statuses": {
+        "v190_fixture": "candidate_review_cap",
+        "v191_stress": "candidate_review_cap"
+      },
+      "surface": "pro_certificate_api"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v191_stress": 0
+      },
+      "source_statuses": {
+        "v191_stress": "rejected_only"
+      },
+      "surface": "protocol_surplus_overcapture_bad"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "execution_backed_meet_cap",
+      "execution_stress_tension_bps": 700,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": 1800,
+      "source_caps": {
+        "v190_fixture": 2500,
+        "v191_stress": 1800,
+        "v192_execution": 2500
+      },
+      "source_sample_counts": {
+        "v190_fixture": 1,
+        "v191_stress": 3,
+        "v192_execution": 9
+      },
+      "source_statuses": {
+        "v190_fixture": "candidate_review_cap",
+        "v191_stress": "candidate_review_cap",
+        "v192_execution": "candidate_review_cap"
+      },
+      "surface": "route_surplus_capture"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v190_fixture": 0,
+        "v191_stress": 0
+      },
+      "source_statuses": {
+        "v190_fixture": "penalty_not_primary_revenue",
+        "v191_stress": "penalty_not_primary_revenue"
+      },
+      "surface": "staking_early_exit_penalty"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v190_fixture": 0,
+        "v191_stress": 0
+      },
+      "source_statuses": {
+        "v190_fixture": "protocol_surplus_internal_capture",
+        "v191_stress": "protocol_surplus_internal_capture"
+      },
+      "surface": "treasury_market_maker_bot"
+    },
+    {
+      "cap_bound_failures": 0,
+      "classification": "no_user_value_cap",
+      "execution_stress_tension_bps": null,
+      "launch_parameter_claim": false,
+      "meet_cap_bps": null,
+      "source_caps": {},
+      "source_sample_counts": {
+        "v190_fixture": 0,
+        "v191_stress": 0
+      },
+      "source_statuses": {
+        "v190_fixture": "rejected_only",
+        "v191_stress": "rejected_only"
+      },
+      "surface": "wash_rebate_bad"
+    }
+  ],
+  "model_audit": {
+    "cap_bound_failures": 0,
+    "execution_backed_source_count_failures": 0,
+    "launch_claim_failures": 0,
+    "total_meet_invariant_failures": 0
+  },
+  "no_user_value_cap_count": 10,
+  "non_claims": [
+    "The meet cap is a conservative review artifact, not a launch fee schedule.",
+    "Oracle-dependent source caps still depend on truthful measured-value receipts.",
+    "Execution-stress tension is a signal for more data, not proof that either corpus is economically complete."
+  ],
+  "object": "evidence_meet_fee_cap_lattice_v1",
+  "oracle_dependent": true,
+  "schema": "zenodex/math-object-innovation-v193-report/v1",
+  "single_source_cap_count": 0,
+  "status_counts": {
+    "execution_backed_meet_cap": 2,
+    "no_user_value_cap": 10,
+    "synthetic_meet_cap": 4
+  },
+  "strongest_claim": "The v190-v192 cap artifacts compose into an evidence-meet lattice: six user-value surfaces receive a conservative meet cap, two are backed by execution-derived evidence, four remain synthetic-only, and adding evidence never loosens the composed cap because the meet is the minimum of available caps.",
+  "surface_count": 16,
+  "synthetic_meet_count": 4,
+  "tension_surface_count": 2,
+  "tension_surfaces": [
+    "exact_out_savings_capture",
+    "route_surplus_capture"
+  ],
+  "tier": "symbolic_state_compiler"
+}

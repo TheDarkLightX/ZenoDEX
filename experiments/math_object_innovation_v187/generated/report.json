@@ -1,0 +1,138 @@
+{
+  "aot_iterations": 40,
+  "by_split": {
+    "discovery": {
+      "false_prunes": 0,
+      "injected_graphs": 40,
+      "injected_profitable_cycles": 40,
+      "injected_rejected": 40,
+      "noarb_certified": 80,
+      "noarb_graphs": 80,
+      "pruneable_candidates": 258,
+      "route_candidates": 800
+    },
+    "holdout": {
+      "false_prunes": 0,
+      "injected_graphs": 40,
+      "injected_profitable_cycles": 40,
+      "injected_rejected": 40,
+      "noarb_certified": 80,
+      "noarb_graphs": 80,
+      "pruneable_candidates": 264,
+      "route_candidates": 800
+    }
+  },
+  "discovery_domain": {
+    "assets": 5,
+    "floor_grid": {
+      "post_fee_net_in": [
+        1,
+        80
+      ],
+      "reserve_in": [
+        1,
+        80
+      ],
+      "reserve_out": [
+        1,
+        80
+      ]
+    },
+    "injected_graphs": 40,
+    "noarb_graphs": 80,
+    "route_max_edges": 3
+  },
+  "floor_metrics": {
+    "discovery": {
+      "grid_count": 512000,
+      "max_error": "158/159",
+      "max_error_lt_one": true,
+      "violations": 0
+    },
+    "holdout": {
+      "grid_count": 216000,
+      "max_error": "276/277",
+      "max_error_lt_one": true,
+      "violations": 0
+    }
+  },
+  "holdout_domain": {
+    "assets": 5,
+    "floor_grid": {
+      "post_fee_net_in": [
+        81,
+        140
+      ],
+      "reserve_in": [
+        81,
+        140
+      ],
+      "reserve_out": [
+        81,
+        140
+      ]
+    },
+    "injected_graphs": 40,
+    "noarb_graphs": 80,
+    "route_max_edges": 3
+  },
+  "lean_promotion": {
+    "artifact": "lean-mathlib/Proofs/RouteIntervalGraph.lean",
+    "checker_command": "lake env lean Proofs/RouteIntervalGraph.lean",
+    "closed_theorems": [
+      "cpmm_post_fee_floor_interval",
+      "pathProduct_potential_bound",
+      "pathProduct_le_potential_ratio"
+    ],
+    "receipt": "lean-mathlib/proof_receipts/route_interval_graph_v1.json",
+    "status": "checked_no_placeholders"
+  },
+  "non_claims": [
+    "not a production router",
+    "not a complete arbitrage detector",
+    "not a proof over all graph sizes",
+    "not a live external-venue market-making proof"
+  ],
+  "oracle_dependent": true,
+  "reference_sources": [
+    "DLMF Chapter 3 numerical methods / interval thinking",
+    "Wolfram Functions Site as formula-oracle class reference",
+    "OEIS as future residual sequence-recognition fallback",
+    "Lean Mathlib as formal theorem target library",
+    "local lean-mathlib/Proofs/ArbitrageCertificate.lean"
+  ],
+  "restricted_theorems": [
+    {
+      "name": "potential_route_prefix_prune_sound",
+      "proof_lane": "Promoted to Lean as pathProduct_potential_bound and pathProduct_le_potential_ratio",
+      "statement": "If every edge satisfies upper_rate(i,j)*p[j] <= p[i], and a route prefix reaches asset v with exact amount a, then every continuation to dst outputs at most a*p[v]/p[dst]."
+    },
+    {
+      "name": "cpmm_post_fee_floor_error_lt_one",
+      "proof_lane": "Promoted to Lean as cpmm_post_fee_floor_interval",
+      "statement": "For positive integer reserves and post-fee net input n, let q = n*reserve_out/(reserve_in+n). Then floor(q) <= q < floor(q)+1."
+    },
+    {
+      "name": "treasury_arbitrage_dual_guard",
+      "proof_lane": "Compose existing TreasuryRebalancerGuard with a new certificate predicate",
+      "statement": "A treasury opportunity is admissible only when a potential/interval opportunity certificate and the existing treasury budget guard both accept."
+    }
+  ],
+  "schema": "math-object-innovation/v187",
+  "selected_objects": [
+    "certificate_carrying_arbitrage_graph",
+    "integer_interval_cpmm_bridge"
+  ],
+  "strongest_claim": "Exact-rational Julia discovery supports a certificate-carrying route interval graph: potential-certified no-arb graphs safely prune bounded route candidates with zero false prunes, injected arbitrage graphs are rejected by the certificate, and post-fee CPMM local floor error stays in [0,1) on the bounded grids.",
+  "summary": {
+    "total_false_prunes": 0,
+    "total_floor_violations": 0,
+    "total_injected_graphs": 80,
+    "total_injected_rejected": 80,
+    "total_noarb_certified": 160,
+    "total_noarb_graphs": 160,
+    "total_pruneable_candidates": 522,
+    "total_route_candidates": 1600
+  },
+  "tier": "symbolic_state_compiler"
+}
