@@ -1,0 +1,79 @@
+{
+  "receipt_id": "batch_greedy_optimality_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/BatchGreedyOptimality.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "BatchGreedyOptimality.Intent",
+    "BatchGreedyOptimality.intentOut",
+    "BatchGreedyOptimality.satisfiable",
+    "BatchGreedyOptimality.poolAfter",
+    "BatchGreedyOptimality.greedyVol",
+    "BatchGreedyOptimality.reverseVol",
+    "BatchGreedyOptimality.poolAfterN",
+    "BatchGreedyOptimality.outputAtN"
+  ],
+  "theorems": [
+    "BatchGreedyOptimality.price_impact_reduces_output",
+    "BatchGreedyOptimality.witness_price_impact",
+    "BatchGreedyOptimality.satisfiable_on_original_if_on_depleted",
+    "BatchGreedyOptimality.not_sat_on_depleted_if_not_on_original",
+    "BatchGreedyOptimality.witness_sat_transfer",
+    "BatchGreedyOptimality.output_decreases_with_larger_prior",
+    "BatchGreedyOptimality.witness_larger_prior",
+    "BatchGreedyOptimality.volume_order_independent_if_both_feasible",
+    "BatchGreedyOptimality.witness_both_feasible",
+    "BatchGreedyOptimality.equal_input_same_pool",
+    "BatchGreedyOptimality.equal_input_same_second_output",
+    "BatchGreedyOptimality.equal_input_sat_transfer",
+    "BatchGreedyOptimality.greedy_volume_ge_reverse_equal_input",
+    "BatchGreedyOptimality.witness_greedy_dominance",
+    "BatchGreedyOptimality.witness_equal_input_pool",
+    "BatchGreedyOptimality.equal_input_first_output_eq",
+    "BatchGreedyOptimality.equal_input_output_sum_invariant",
+    "BatchGreedyOptimality.witness_output_invariant",
+    "BatchGreedyOptimality.exchange_requires_equal_inputs",
+    "BatchGreedyOptimality.outputAtN_antitone",
+    "BatchGreedyOptimality.witness_position_outputs",
+    "BatchGreedyOptimality.poolAfterN_one",
+    "BatchGreedyOptimality.exchange_at_any_position"
+  ],
+  "claims": [
+    "For two same-direction equal-input CPMM intents, processing the higher-minOut intent first maximizes executed input volume against the reverse order.",
+    "A satisfiable intent on a depleted pool is satisfiable on the original pool.",
+    "With equal inputs, both execution orders produce the same final depleted pool when both execute.",
+    "Total output is order-invariant for two equal-input intents when both execute.",
+    "The exchange property is sharp: it can fail without equal input sizes.",
+    "Position output is non-increasing through repeated equal-input execution, supporting the k-intent extension."
+  ],
+  "proof_method": [
+    "CPMM output monotonicity and diminishing returns",
+    "case analysis over skip-on-fail execution",
+    "equal-input pool-state equality",
+    "native witnesses for sharpness and non-vacuity"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.BatchGreedyOptimality",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/BatchGreedyOptimality.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The main optimality theorem covers two same-direction intents with equal input sizes on one CPMM pool.",
+    "The proof compares greedy order with the reverse order under skip-on-fail execution; it does not prove arbitrary heterogeneous batch optimality.",
+    "The k-intent lemmas provide exchange foundations, while the full k-intent approximation lives in a separate proof packet."
+  ]
+}
