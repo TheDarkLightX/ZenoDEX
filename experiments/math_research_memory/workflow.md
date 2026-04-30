@@ -1342,3 +1342,4 @@ Interpretation:
 - After a bounded recognizer finds exact endpoint falsifiers, try to extract the endpoint formula before expanding the corpus.
 - A closed obstruction formula is better than a larger counterexample table because it supplies the recognizer's cheapest necessary-condition gate.
 - Promote the algebraic skeleton even if the full special-function theorem remains external; this cleanly separates local proof from reference-backed theorem import.
+- After the identity is proved, immediately prove the sign theorem used by the runtime/filter. The sign theorem is what turns a formula into a fail-closed recognizer gate.

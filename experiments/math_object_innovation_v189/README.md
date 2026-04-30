@@ -96,6 +96,10 @@ Closed theorem surface:
 
 - `right_endpoint_obstruction_formula`
 - `left_endpoint_obstruction_formula`
+- `right_endpoint_obstruction_nonneg_of_alpha_le_beta`
+- `right_endpoint_obstruction_negative_of_beta_lt_alpha`
+- `left_endpoint_obstruction_nonneg_of_beta_le_alpha`
+- `left_endpoint_obstruction_negative_of_alpha_lt_beta`
 
 Checker:
 
@@ -104,8 +108,9 @@ cd ../../lean-mathlib
 lake env lean Proofs/JacobiTuranEndpointObstruction.lean
 ```
 
-This proves the small ratio identity behind the endpoint obstruction. It still
-does not prove full interval positivity inside the Gasper cone.
+This proves the small ratio identity behind the endpoint obstruction and the
+sign consequences used by a fail-closed cone prefilter. It still does not prove
+full interval positivity inside the Gasper cone.
 
 ## Reference Anchors
 

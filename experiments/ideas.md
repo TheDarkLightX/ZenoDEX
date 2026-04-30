@@ -2110,6 +2110,7 @@ Interpretation:
 
 - Lean promotion:
   - `lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean` proves the algebraic endpoint-ratio skeleton for both orientations.
+  - it now also proves the sign consequences: right endpoint nonnegative in `alpha <= beta`, right endpoint negative when `beta < alpha`, and the mirrored left endpoint statements.
   - proof receipt: `lean-mathlib/proof_receipts/jacobi_turan_endpoint_obstruction_v1.json`.
 
 - negative knowledge:

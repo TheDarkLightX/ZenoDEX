@@ -7,13 +7,18 @@
   "placeholder_scan_clean": true,
   "theorems": [
     "Proofs.JacobiTuranEndpointObstruction.right_endpoint_obstruction_formula",
-    "Proofs.JacobiTuranEndpointObstruction.left_endpoint_obstruction_formula"
+    "Proofs.JacobiTuranEndpointObstruction.left_endpoint_obstruction_formula",
+    "Proofs.JacobiTuranEndpointObstruction.right_endpoint_obstruction_nonneg_of_alpha_le_beta",
+    "Proofs.JacobiTuranEndpointObstruction.right_endpoint_obstruction_negative_of_beta_lt_alpha",
+    "Proofs.JacobiTuranEndpointObstruction.left_endpoint_obstruction_nonneg_of_beta_le_alpha",
+    "Proofs.JacobiTuranEndpointObstruction.left_endpoint_obstruction_negative_of_alpha_lt_beta"
   ],
   "source_discovery_packet": "experiments/math_object_innovation_v189",
   "proof_idea": [
     "Model the endpoint Turan determinant as cur^2 - prev*next.",
     "Assume the adjacent endpoint ratios supplied by the Jacobi binomial recurrence.",
-    "Clear nonzero denominators and normalize by ring arithmetic to expose beta-alpha or alpha-beta."
+    "Clear nonzero denominators and normalize by ring arithmetic to expose beta-alpha or alpha-beta.",
+    "Use denominator positivity and square nonnegativity to derive the cone nonnegative and wrong-cone negative sign theorems."
   ],
   "scope_limits": [
     "This proves the algebraic endpoint obstruction skeleton, not Gasper's full Jacobi Turan theorem.",
