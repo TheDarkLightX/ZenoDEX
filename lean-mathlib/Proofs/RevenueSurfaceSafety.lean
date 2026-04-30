@@ -134,5 +134,60 @@ theorem launch_user_net_nonnegative_without_override
     0 ≤ value - fee := by
   exact user_net_nonnegative_of_fee_le_value (le_trans hfee hcap)
 
+/-! ## Proof-gated gamification budget facts
+
+Token rewards in the gamification model are bounded by the meet of verified
+value, explicit budget, sybil-adjusted capacity, and treasury cap. Non-token
+progress remains outside this token-reward theorem.
+-/
+
+/-- A reward below the four-way meet is below verified value. -/
+theorem reward_le_value_of_reward_le_budget_meet
+    {reward verifiedValue budgetCap sybilAdjustedCap treasuryCap : ℝ}
+    (hreward :
+      reward ≤ min (min verifiedValue budgetCap) (min sybilAdjustedCap treasuryCap)) :
+    reward ≤ verifiedValue := by
+  have hmeet_left :
+      min (min verifiedValue budgetCap) (min sybilAdjustedCap treasuryCap)
+        ≤ min verifiedValue budgetCap := min_le_left _ _
+  have hvalue : min verifiedValue budgetCap ≤ verifiedValue := min_le_left _ _
+  exact le_trans hreward (le_trans hmeet_left hvalue)
+
+/-- A reward below the four-way meet is below the explicit budget cap. -/
+theorem reward_le_budget_of_reward_le_budget_meet
+    {reward verifiedValue budgetCap sybilAdjustedCap treasuryCap : ℝ}
+    (hreward :
+      reward ≤ min (min verifiedValue budgetCap) (min sybilAdjustedCap treasuryCap)) :
+    reward ≤ budgetCap := by
+  have hmeet_left :
+      min (min verifiedValue budgetCap) (min sybilAdjustedCap treasuryCap)
+        ≤ min verifiedValue budgetCap := min_le_left _ _
+  have hbudget : min verifiedValue budgetCap ≤ budgetCap := min_le_right _ _
+  exact le_trans hreward (le_trans hmeet_left hbudget)
+
+/-- A reward below the four-way meet is below the sybil-adjusted cap. -/
+theorem reward_le_sybil_adjusted_of_reward_le_budget_meet
+    {reward verifiedValue budgetCap sybilAdjustedCap treasuryCap : ℝ}
+    (hreward :
+      reward ≤ min (min verifiedValue budgetCap) (min sybilAdjustedCap treasuryCap)) :
+    reward ≤ sybilAdjustedCap := by
+  have hmeet_right :
+      min (min verifiedValue budgetCap) (min sybilAdjustedCap treasuryCap)
+        ≤ min sybilAdjustedCap treasuryCap := min_le_right _ _
+  have hsybil : min sybilAdjustedCap treasuryCap ≤ sybilAdjustedCap := min_le_left _ _
+  exact le_trans hreward (le_trans hmeet_right hsybil)
+
+/-- A reward below the four-way meet is below the treasury cap. -/
+theorem reward_le_treasury_of_reward_le_budget_meet
+    {reward verifiedValue budgetCap sybilAdjustedCap treasuryCap : ℝ}
+    (hreward :
+      reward ≤ min (min verifiedValue budgetCap) (min sybilAdjustedCap treasuryCap)) :
+    reward ≤ treasuryCap := by
+  have hmeet_right :
+      min (min verifiedValue budgetCap) (min sybilAdjustedCap treasuryCap)
+        ≤ min sybilAdjustedCap treasuryCap := min_le_right _ _
+  have htreasury : min sybilAdjustedCap treasuryCap ≤ treasuryCap := min_le_right _ _
+  exact le_trans hreward (le_trans hmeet_right htreasury)
+
 end RevenueSurfaceSafety
 end Proofs

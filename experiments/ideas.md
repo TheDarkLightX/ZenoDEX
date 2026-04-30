@@ -6,6 +6,35 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
 
 # Ideas
 
+## v197 proof-gated gamification budget
+
+- `proof_gated_gamification_budget_v1`
+  - separates token rewards from XP/status/non-token progress.
+  - token reward law:
+    `reward <= min(VerifiedValue, BudgetCap, SybilAdjustedCap, TreasuryCap)`
+    plus `ProofOK`, `AntiSybilOK`, and `ReceiptScopeOK`.
+  - bounded result: `12` quests, `5` accepted token rewards, `1` accepted
+    XP-only quest, `6` rejected adversarial quests, and `0` invariant failures.
+  - Lean bridge: `RevenueSurfaceSafety.lean` proves that a reward below the
+    four-way meet is below each individual cap.
+  - next frontier: use real proof-mining and disaster-witness receipts as quest
+    inputs rather than hand-authored quest rows.
+
+## v198 disaster potential chaos morphisms
+
+- `disaster_potential_chaos_morphism_v1`
+  - models chaos injections as morphisms over a weighted disaster-potential
+    vector.
+  - core law:
+    `SafeTransition(s -> s') := Risk(s') <= Risk(s) OR RecoveryCertificate(s -> s')`.
+  - bounded result: `108` cases, `54` accepted, `54` rejected, `12` direct
+    repairs, `42` certified recoveries, `12` catastrophic rejections, and `0`
+    invariant failures.
+  - Lean bridge: `DisasterPotentialSafety.lean` proves that accepted
+    risk-increasing transitions require the recovery certificate.
+  - next frontier: wire the risk vector to actual disaster-state replay axes and
+    fuzz campaign objectives.
+
 ## v195 assumption-change override packet language
 
 - `assumption_change_override_packet_language_v1`
@@ -2222,3 +2251,46 @@ Interpretation:
   - the endpoint obstruction is a necessary cone filter, not a full Jacobi Turan positivity theorem.
   - the Lean theorem uses a recurrence-defined endpoint coefficient; it does not yet prove equality with Mathlib's generalized binomial/Jacobi endpoint definitions.
   - the next useful formal step is either a Pochhammer/binomial recurrence bridge or a trusted theorem import boundary for the full Gasper theorem.
+
+## v196 derivative Bernstein monotonicity certificates
+
+- `derivative_bernstein_monotonicity_certificate_v1`
+  - tests a Tau-style fast path for obligations of the form
+    `forall x y in [a,b], x <= y -> p(x) <= p(y)`.
+  - exact Julia `Rational{BigInt}` replay over `[0,1]` checks Bernstein
+    coefficients of `p'` over equal subdivisions in `{1,2,4,8}`.
+  - bounded corpus: `33` polynomial cases, `29` true monotone cases, and `4`
+    negative controls.
+  - result: `27/29` true monotone cases accepted, `0/4` negative controls
+    accepted, and `15147` exact grid pair comparisons avoided by accepted
+    derivative certificates.
+  - demo checker: `experiments/math_object_innovation_v196/derivative_menu_checker.py`
+    accepts `2/3` built-in obligations and leaves the decreasing-line negative
+    control as `UNKNOWN`.
+  - Tau checkout sidecar:
+    `external/tau-lang/scripts/tau_derivative_certificate_menu.py`,
+    `external/tau-lang/demos/demo_4.2-derivative_certificate_menu.json`, and
+    `external/tau-lang/docs/derivative_certificate_menu.md`.
+  - Lean bridge: `TauFragmentCertificates.derivativeCertificate_monotoneOn`
+    and `TauFragmentCertificates.derivativeCertificate_nonnegOn_of_leftEndpoint`
+    check in `lean-mathlib/Proofs/TauFragmentCertificates.lean`.
+
+- `derivative_sign_redundancy_negative_knowledge_v1`
+  - the derivative certificate did not add new endpoint-based sign
+    nonnegativity accepts when ordinary Bernstein used the same partition and
+    `p(0)` was shifted nonnegative.
+  - measured redundancy check: `27/27` accepted monotone cases were also
+    ordinary Bernstein sign accepts on the same pieces after the endpoint
+    shift, with `0` redundancy failures.
+  - conclusion: derivative Bernstein is a monotonicity / two-variable-order
+    reduction path, not a better plain sign certificate under matched
+    partitions.
+
+- next frontier:
+  - add adaptive critical-point splitting for square-derivative shapes,
+    because non-dyadic centered cubic cases are true monotone but remain
+    `UNKNOWN` under equal dyadic subdivisions up to `8` pieces.
+  - benchmark the Tau sidecar against extractor-shaped monotonicity obligations.
+  - the result is now tutorial-ready if the tutorial states the non-claim that
+    derivative Bernstein does not improve plain sign certificates under matched
+    partitions.

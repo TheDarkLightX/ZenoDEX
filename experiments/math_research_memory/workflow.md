@@ -6,6 +6,34 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 
 # Workflow
 
+## Updated lesson from v197
+
+- Gamification should split token rewards from non-token progress.
+- The token reward law is:
+  `reward <= min(VerifiedValue, BudgetCap, SybilAdjustedCap, TreasuryCap)`
+  plus proof, anti-sybil, and receipt-scope gates.
+- The bounded replay checks `12` quests: `5` accepted token rewards, `1`
+  accepted XP-only quest, `6` rejected adversarial quests, and `0` invariant
+  failures.
+- Lean now checks the reward-meet spine: a reward below the four-way meet is
+  below verified value, budget, sybil-adjusted cap, and treasury cap.
+- Next cycle should connect quest receipts to real proof-mining, disaster
+  witness, liquidity-support, and market-maker receipts.
+
+## Updated lesson from v198
+
+- Chaos engineering can be modeled as typed morphisms over a disaster-potential
+  vector rather than as unstructured fault injection.
+- The core law is:
+  `SafeTransition(s -> s') := Risk(s') <= Risk(s) OR RecoveryCertificate(s -> s')`.
+- The bounded replay checks `108` chaos cases: `54` accepted, `54` rejected,
+  `12` direct repairs, `42` certified recoveries, `12` catastrophic rejections,
+  and `0` invariant failures.
+- Lean now checks the generic spine: if an accepted transition increases risk,
+  the recovery-certificate branch must be present.
+- Next cycle should map existing disaster-state harness axes into this risk
+  vector so fuzzing can optimize for accepted risk increases.
+
 ## Updated lesson from v195
 
 - An override branch must not be a free-form escape hatch. It needs its own
@@ -1458,3 +1486,19 @@ Interpretation:
 - Promote the algebraic skeleton even if the full special-function theorem remains external; this cleanly separates local proof from reference-backed theorem import.
 - After the identity is proved, immediately prove the sign theorem used by the runtime/filter. The sign theorem is what turns a formula into a fail-closed recognizer gate.
 - If a proof assumes adjacent ratios, define the coefficient recurrence locally and prove the ratio update next; this shrinks the trusted gap without needing the full special-function theorem.
+
+## process lesson from v196 derivative Bernstein monotonicity
+- Before adding a derivative certificate to a sign menu, test whether it is
+  merely a rephrasing of ordinary Bernstein positivity on the same partition.
+  In v196 it was redundant for endpoint-based sign nonnegativity.
+- The right Tau optimization surface is the original formula shape, not only
+  the polynomial family. Derivative certificates are valuable for monotonicity
+  because they reduce a two-variable order obligation to a one-variable sign
+  certificate.
+- Equal dyadic subdivision is a useful first guardrail, but true monotone
+  square-derivative cases with non-dyadic roots remain `UNKNOWN`. The next
+  certificate menu should add adaptive critical-point splitting before claiming
+  broad monotonicity coverage.
+- Once the Lean bridge names the exact theorem surface used by `ACCEPT`, sidecar
+  packaging is enough for a tutorial demo. Extractor-shaped benchmarks are the
+  next quality improvement, not a blocker for a scoped tutorial.

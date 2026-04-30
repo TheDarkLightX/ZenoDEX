@@ -6,6 +6,45 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
 
 # Breakthroughs
 
+## Non-promotion note from v197
+
+- `proof_gated_gamification_budget_v1` survives as a useful mechanism-design
+  object, but it is not promoted as a full breakthrough.
+- Reason:
+  - it gives gamification a cap-meet token reward law,
+  - it rejects hype, wash-loop, missing-proof, over-budget, over-sybil, and
+    stale-receipt quest shapes,
+  - and Lean checks that the four-way reward meet implies every individual cap,
+  - but it is not yet connected to live proof-mining or user receipts.
+
+- Current measured result:
+  - `quest_count = 12`
+  - `accepted_count = 6`
+  - `accepted_token_reward_count = 5`
+  - `accepted_xp_only_count = 1`
+  - `rejected_count = 6`
+  - `total_gamification_budget_invariant_failures = 0`
+
+## Non-promotion note from v198
+
+- `disaster_potential_chaos_morphism_v1` survives as a useful chaos-engineering
+  object, but it is not promoted as a full breakthrough.
+- Reason:
+  - it gives chaos campaigns a weighted potential and certificate rule,
+  - it distinguishes direct repairs, certified recoveries, ordinary rejections,
+    and catastrophic over-cap rejections,
+  - and Lean checks that accepted risk increases require the certificate branch,
+  - but the risk weights and morphism corpus are still research choices.
+
+- Current measured result:
+  - `case_count = 108`
+  - `accepted_count = 54`
+  - `rejected_count = 54`
+  - `direct_repair_count = 12`
+  - `certified_recovery_count = 42`
+  - `catastrophic_rejection_count = 12`
+  - `total_disaster_potential_invariant_failures = 0`
+
 ## Non-promotion note from v195
 
 - `assumption_change_override_packet_language_v1` survives as a useful
@@ -1784,3 +1823,31 @@ Interpretation:
   - the proof is a recurrence-defined endpoint-ratio skeleton plus
     cone/wrong-cone sign theorem,
   - not a proof of full Jacobi interval positivity or the full Gasper theorem.
+
+## Method note from v196
+
+- `derivative_bernstein_monotonicity_certificate_v1` is promoted as a useful
+  Tau optimization target for monotonicity obligations, not as a new generic
+  sign prover.
+- Reason:
+  - it accepts `27/29` true monotone polynomial cases in the bounded exact
+    corpus,
+  - accepts `0/4` negative controls,
+  - and replaces accepted two-variable order obligations with one derivative
+    sign certificate.
+- Practical consequence:
+  - the local Lean bridge now packages Mathlib's
+    `monotoneOn_of_deriv_nonneg` with the interval-cover Bernstein certificate
+    surface as `TauFragmentCertificates.derivativeCertificate_monotoneOn`.
+  - the demo checker and Tau checkout sidecar now exist and are fail-closed;
+    the remaining improvement is benchmarking against extractor-shaped
+    obligations.
+- Negative knowledge:
+  - endpoint-based sign nonnegativity did not improve: `27/27` derivative
+    accepts were also direct Bernstein sign accepts on the same pieces after
+    shifting the left endpoint nonnegative.
+  - derivative Bernstein should be sold as a monotonicity/QE-fragment
+    reduction, not as a replacement for the existing sign menu.
+  - non-dyadic square-derivative roots show that equal dyadic subdivision is
+    incomplete, so adaptive root/critical-point splitting is the next
+    certificate-family frontier.

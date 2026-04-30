@@ -417,6 +417,46 @@ Every atom has a private negative witness, meaning each field is necessary in
 the bounded corpus. Weaker packet languages such as text-only or authority-only
 false-accept at least one bad override.
 
+## Proof-Gated Gamification Budget
+
+The v197 replay makes gamification a budgeted mechanism instead of an emission
+loop.
+
+```text
+TokenRewardOK(q) :=
+  reward(q) <= min(VerifiedValue, BudgetCap, SybilAdjustedCap, TreasuryCap)
+  AND ProofOK(q)
+  AND AntiSybilOK(q)
+  AND ReceiptScopeOK(q)
+```
+
+In plain English: a quest can pay tokens only when the reward is below verified
+value, explicit budget, sybil-adjusted capacity, and treasury cap, and the
+required proof gates are present.
+
+Current replay:
+
+```text
+quest_count = 12
+accepted_count = 6
+accepted_token_reward_count = 5
+accepted_xp_only_count = 1
+rejected_count = 6
+total_gamification_budget_invariant_failures = 0
+```
+
+Lean checks the reward-meet algebra in
+[`RevenueSurfaceSafety.lean`](../lean-mathlib/Proofs/RevenueSurfaceSafety.lean):
+
+```text
+reward <= min(min(value, budget), min(sybil_cap, treasury_cap))
+  -> reward <= value AND reward <= budget AND reward <= sybil_cap AND reward <= treasury_cap
+```
+
+In plain English: if a token reward is under the four-way meet cap, it is under
+each individual safety cap. XP-only progress can remain low-friction because it
+does not emit tokens.
+
 ## Visual Summary
 
 The Julia-generated figures live in
