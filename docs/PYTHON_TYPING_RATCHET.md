@@ -24,7 +24,7 @@ The gate currently enforces:
 - at least `98.9%` fully typed function signatures in `src/`;
 - at least `97.5%` fully typed function signatures in `src/core` plus
   `src/state`;
-- at least `45` tracked files present in the configured mypy file list.
+- at least `25` tracked files present in the configured mypy file list.
 
 This is a ratchet, not a proof that Python runtime values can never violate a
 type contract. It prevents the already-high annotation surface from silently

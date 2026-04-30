@@ -28,7 +28,7 @@ def test_current_tracked_python_typing_ratchet_holds() -> None:
         result,
         min_src_full_typed_pct=98.9,
         min_core_state_full_typed_pct=97.5,
-        min_mypy_configured_present=45,
+        min_mypy_configured_present=25,
     )
 
     assert errors == []

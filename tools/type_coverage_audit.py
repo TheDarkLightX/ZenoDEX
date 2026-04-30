@@ -251,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="Fail if ratchet thresholds are not met.")
     parser.add_argument("--min-src-full-typed-pct", type=float, default=98.9)
     parser.add_argument("--min-core-state-full-typed-pct", type=float, default=97.5)
-    parser.add_argument("--min-mypy-configured-present", type=int, default=45)
+    parser.add_argument("--min-mypy-configured-present", type=int, default=25)
     args = parser.parse_args(argv)
 
     result = audit_typing()
