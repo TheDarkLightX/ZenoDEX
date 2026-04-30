@@ -1,0 +1,77 @@
+{
+  "receipt_id": "exact_out_selected_key_cover_bridge_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCertifiedBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPathWitnessCanonicalCandidateMinimum.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolKeyCoverBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolConcreteKeyCoverWitness.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.Routing.ExactOutManyPoolSelectedDomainCertifiedBridge.PresentedBy",
+    "TauSwap.ZenoDEX.ExactOutManyPoolKeyCoverBridge.KeyCover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteKeyCoverWitness.DominationEntry",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteKeyCoverWitness.ConcreteKeyCoverWitness"
+  ],
+  "theorems": [
+    "TauSwap.Routing.ExactOutManyPoolSelectedDomainCertifiedBridge.packetOk_implies_presented_feasible_minimality",
+    "TauSwap.Routing.ExactOutManyPoolSelectedDomainCertifiedBridge.packetOk_implies_presented_feasible_quote_and_minimality",
+    "TauSwap.Routing.ExactOutManyPoolPathWitnessCanonicalCandidateMinimum.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_pathWitnessStreamCover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolPathWitnessCanonicalCandidateMinimum.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_pathWitnessStreamSetCover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolPathWitnessCanonicalCandidateMinimum.packetOk_implies_exists_unique_feasibleCandidateSet_minimum_of_quoteTotal_and_pathWitnessStreamSetCover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolPathWitnessCanonicalCandidateMinimum.packetOk_implies_exists_unique_feasibleCandidateSet_minimum_of_cpmm_pathWitnessStreamSetCover_canonicalCandidate",
+    "TauSwap.ZenoDEX.ExactOutManyPoolKeyCoverBridge.keyCover_implies_selected_min_lifts_to_full",
+    "TauSwap.ZenoDEX.ExactOutManyPoolKeyCoverBridge.keyCover_implies_exists_unique_full_canonical",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteKeyCoverWitness.concreteWitness_implies_keyCover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteKeyCoverWitness.concreteWitness_and_minimum_implies_full_canonical",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteKeyCoverWitness.concreteWitness_discharges_semantic_bridge",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteKeyCoverWitness.witness_concrete_keyCover"
+  ],
+  "claims": [
+    "Successful many-pool certified packets lift from emitted-stream minimality to full selected-domain minimality when the emitted candidate stream faithfully presents the audited feasible domain.",
+    "Path-witness stream covers can use the canonical feasible allocation-to-candidate map to prove quote replay and a unique feasible canonical candidate minimum.",
+    "A selected key minimum lifts to a full-domain canonical minimum when the selected key set is included in the full set and every full key is covered by a dominating selected key.",
+    "Concrete domination-entry arrays imply the abstract key-cover property used by the repaired key-cover semantic bridge."
+  ],
+  "proof_method": [
+    "presentation-hypothesis composition with certified packet equivalences",
+    "path-witness stream cover lifting through canonical candidate construction",
+    "finite key-set dominance and selected-to-full minimum transfer",
+    "concrete domination row coverage translated into abstract KeyCover"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolSelectedDomainCertifiedBridge Proofs.ZenoDEXExactOutManyPoolPathWitnessCanonicalCandidateMinimum Proofs.ZenoDEXExactOutManyPoolKeyCoverBridge Proofs.ZenoDEXExactOutManyPoolConcreteKeyCoverWitness",
+      "result": "passed with pre-existing linter warnings in imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated and imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-selected-key-cover-bridge-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_selected_key_cover_bridge_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCertifiedBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPathWitnessCanonicalCandidateMinimum.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolKeyCoverBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolConcreteKeyCoverWitness.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCertifiedBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPathWitnessCanonicalCandidateMinimum.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolKeyCoverBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolConcreteKeyCoverWitness.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves bridge theorems under explicit presentation, path-witness cover, or concrete key-cover premises.",
+    "It does not prove that runtime serialization faithfully constructs those witnesses; runtime packet binding is covered by separate tests and receipts.",
+    "It does not change routing, quote, or settlement runtime behavior."
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "receipt_id": "deterministic_nonce_foundation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/DeterministicAgentTieBreak.lean",
+    "lean-mathlib/Proofs/DeterministicAgentTieBreakSort.lean",
+    "lean-mathlib/Proofs/ZenoDEXNonces.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.ZenoDEX.lastAfterBatch"
+  ],
+  "theorems": [
+    "TauSwap.Agent.exists_unique_min_of_finset_nonempty",
+    "TauSwap.Agent.min'_eq_sorted0",
+    "TauSwap.Agent.sorted0_eq_min'",
+    "Proofs.ZenoDEX.nonce_seq_le_lastAfter",
+    "Proofs.ZenoDEX.nonce_from_previous_batch_lt_next_expected",
+    "Proofs.ZenoDEX.no_replay_in_later_valid_seq"
+  ],
+  "claims": [
+    "Every nonempty finite candidate set under a linear order has a unique certificate-shaped minimum: membership plus no-larger-than-every-candidate.",
+    "Sorting a nonempty finite candidate set and taking index zero is definitionally aligned with `Finset.min'` under the same order.",
+    "For sequential per-sender nonce batches, every nonce accepted in the current batch is strictly below the first nonce expected after the batch.",
+    "A nonce from a valid accepted batch cannot equal any nonce in a later valid sequential batch."
+  ],
+  "proof_method": [
+    "Mathlib finite-set minimum theorems and antisymmetry for uniqueness",
+    "Mathlib sorted-min bridge lemmas for sorted-first tie-break alignment",
+    "natural-number sequence arithmetic for nonce upper bounds and strict separation"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.DeterministicAgentTieBreak Proofs.DeterministicAgentTieBreakSort Proofs.ZenoDEXNonces",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < deterministic-nonce-foundation-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/deterministic_nonce_foundation_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/DeterministicAgentTieBreak.lean lean-mathlib/Proofs/DeterministicAgentTieBreakSort.lean lean-mathlib/Proofs/ZenoDEXNonces.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/DeterministicAgentTieBreak.lean lean-mathlib/Proofs/DeterministicAgentTieBreakSort.lean lean-mathlib/Proofs/ZenoDEXNonces.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves order-theoretic tie-break and arithmetic nonce facts only.",
+    "It does not prove cryptographic signature validity, persistent storage correctness, network ordering, or runtime transaction admission behavior.",
+    "The deterministic winner facts require a shared linear order/key between producer and verifier."
+  ]
+}
