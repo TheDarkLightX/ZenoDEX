@@ -7,8 +7,7 @@ import Proofs.BatchAuctionCanonical
 /-!
 # ZenoDEX Unique Canonical Winner Everywhere
 
-Composing proof for the ShapeForge `unique_canonical_winner_everywhere` clause.
-Closes Gap 1 in target shapes `shape_pp_candidate_v1` and `dex_kernel_candidate_v1`.
+Composing proof for the DEX-wide unique canonical winner property.
 
 ## The Canonical Winner Principle
 
@@ -29,7 +28,7 @@ Each subsystem instantiates this with a different key type:
 ## Cross-invariant: canonical_winner_requires_total_key
 
 The `keyLe_is_total_order` theorem certifies that exact-in's `keyLe` satisfies
-all four total-order axioms (reflexive, transitive, antisymmetric, total).
+the total-order axioms used by the winner-selection model.
 Batch and exact-out inherit this from Mathlib's `LinearOrder` typeclass.
 
 ## Scope
@@ -245,7 +244,7 @@ satisfies all four axioms of a total order:
   3. Antisymmetric: keyLe a b → keyLe b a → a = b
   4. Total: keyLe a b ∨ keyLe b a
 
-This certifies the ShapeForge cross-invariant `canonical_winner_requires_total_key`:
+This certifies the cross-invariant `canonical_winner_requires_total_key`:
 the exact-in routing key is total on every admitted nonempty candidate set.
 
 Batch and exact-out keys inherit this property from Mathlib's `LinearOrder`
@@ -268,7 +267,7 @@ Source: `Proofs.BatchAuctionCanonical.exists_unique_canonical`.
 Key type: `(Volume^od ×_lex Surplus^od) ×_lex Order` — maximize volume,
 then surplus, then choose the lexicographically smallest order.
 
-This is the batch leg of the `unique_canonical_winner_everywhere` clause. -/
+This is the batch leg of the DEX-wide unique canonical winner property. -/
 theorem batch_unique_canonical_winner
     (S : Finset Batch.Key) (hS : S.Nonempty) :
     ∃! k, k ∈ S ∧ ∀ x ∈ S, k ≤ x :=
@@ -281,7 +280,7 @@ theorem batch_unique_canonical_winner
 /-- **UNIFIED THREE-WAY CANONICALITY**: All three DEX optimizer subsystems
 produce unique canonical winners from the same abstract principle.
 
-This is the composing theorem for ShapeForge `unique_canonical_winner_everywhere`.
+This is the composing theorem for the DEX-wide unique canonical winner property.
 It packages:
 - Batch: `∃!` winner under `(Volume^od ×_lex Surplus^od) ×_lex Order`
 - Exact-in: `∃!` winner under `keyLe = lex(routeKeyRank, candidateIndex)`
@@ -336,8 +335,7 @@ This composes:
 - `projectedCandidate_keyLe_iff_trueKeyLe` (`keyLe` on projected ↔ `trueKeyLe`)
 
 to prove: the Python runtime's `sorted(set(keys))` rank projection faithfully
-identifies the true canonical winner. Promotes `routing_exact_in_argmin` from
-**contract** to **proved**. -/
+identifies the true canonical winner. -/
 theorem exists_unique_trueKeyLe_minimum
     {α : Type} [LinearOrder α]
     (keys : List α) (hne : 0 < keys.length) :
@@ -430,26 +428,25 @@ theorem witness_bounded_complete_canonical_preconditions :
     (0 : Nat) ∈ Finset.Icc 0 2 := by decide
 
 -- ════════════════════════════════════════════════════════════════════════════
--- Part 11: Complete promotion summary
+-- Part 11: Canonicality summary
 -- ════════════════════════════════════════════════════════════════════════════
 
-/-- **PROMOTION SUMMARY**: All three slice promotions needed for
-`unique_canonical_winner_everywhere` at `proved` status:
+/-- **CANONICALITY SUMMARY**: All three optimizer slices satisfy the
+unique-canonical-winner contract:
 
-| Slice | Status | Key Theorem |
-|-------|--------|-------------|
-| `batch_canonicalization` | proved | `batch_unique_canonical_winner` |
-| `routing_exact_in_argmin` | proved | `exists_unique_trueKeyLe_minimum` |
-| `exact_out_canonical_minimizer` | proved | `exact_out_bounded_complete_canonical` |
+| Slice | Key Theorem |
+|-------|-------------|
+| `batch_canonicalization` | `batch_unique_canonical_winner` |
+| `routing_exact_in_argmin` | `exists_unique_trueKeyLe_minimum` |
+| `exact_out_canonical_minimizer` | `exact_out_bounded_complete_canonical` |
 
 Cross-invariant `canonical_winner_requires_total_key`:
   certified by `keyLe_is_total_order` (exact-in) and Mathlib `LinearOrder`
   (batch, exact-out).
 
-**Scope**: Canonicality fully proved. Generator completeness beyond the bounded
-search domain is a separate scope boundary — see negative knowledge entry
-`exact_out_generator_is_globally_complete_v1`. -/
-theorem promotion_summary :
+**Scope**: Canonicality is covered here. Generator completeness beyond the
+bounded search domain remains a separate scope boundary. -/
+theorem canonicality_summary :
     -- (1) Batch: unique canonical winner for any nonempty Finset
     (∀ (S : Finset Batch.Key), S.Nonempty → ∃! k, k ∈ S ∧ ∀ x ∈ S, k ≤ x) ∧
     -- (2) Exact-in: unique canonical winner via fold + rank projection
