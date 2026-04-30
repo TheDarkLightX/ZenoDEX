@@ -82,6 +82,36 @@ def applyTrade (s : State) (t : Trade) : State :=
     lastTradeEpoch := t.nowEpoch
     admittedCount := s.admittedCount + 1 }
 
+theorem applyTrade_treasuryBalance_eq
+    (s : State) (t : Trade) :
+    (applyTrade s t).treasuryBalance = s.treasuryBalance := by
+  simp [applyTrade]
+
+theorem applyTrade_maxDailyLossBudget_eq
+    (s : State) (t : Trade) :
+    (applyTrade s t).maxDailyLossBudget = s.maxDailyLossBudget := by
+  simp [applyTrade]
+
+theorem applyTrade_maxInventoryBps_eq
+    (s : State) (t : Trade) :
+    (applyTrade s t).maxInventoryBps = s.maxInventoryBps := by
+  simp [applyTrade]
+
+theorem applyTrade_liquidityBudget_eq
+    (s : State) (t : Trade) :
+    (applyTrade s t).liquidityBudget = s.liquidityBudget := by
+  simp [applyTrade]
+
+theorem applyTrade_dailyLossUsed_monotone
+    (s : State) (t : Trade) :
+    s.dailyLossUsed ≤ (applyTrade s t).dailyLossUsed := by
+  simp [applyTrade]
+
+theorem applyTrade_admittedCount_monotone
+    (s : State) (t : Trade) :
+    s.admittedCount ≤ (applyTrade s t).admittedCount := by
+  simp [applyTrade]
+
 theorem admissible_implies_not_paused
     {s : State} {t : Trade} (h : TradeAdmissible s t) :
     s.paused = false := by
@@ -212,6 +242,66 @@ theorem trace_preserves_policyInvariant
   | cons t hAdm hRest ih =>
       exact ih (applyTrade_preserves_policyInvariant hInv hAdm)
 
+theorem trace_treasuryBalance_eq
+    {s u : State}
+    (hTrace : Trace s u) :
+    u.treasuryBalance = s.treasuryBalance := by
+  induction hTrace with
+  | nil s =>
+      rfl
+  | cons t _hAdm _hRest ih =>
+      simpa [applyTrade] using ih
+
+theorem trace_maxDailyLossBudget_eq
+    {s u : State}
+    (hTrace : Trace s u) :
+    u.maxDailyLossBudget = s.maxDailyLossBudget := by
+  induction hTrace with
+  | nil s =>
+      rfl
+  | cons t _hAdm _hRest ih =>
+      simpa [applyTrade] using ih
+
+theorem trace_maxInventoryBps_eq
+    {s u : State}
+    (hTrace : Trace s u) :
+    u.maxInventoryBps = s.maxInventoryBps := by
+  induction hTrace with
+  | nil s =>
+      rfl
+  | cons t _hAdm _hRest ih =>
+      simpa [applyTrade] using ih
+
+theorem trace_liquidityBudget_eq
+    {s u : State}
+    (hTrace : Trace s u) :
+    u.liquidityBudget = s.liquidityBudget := by
+  induction hTrace with
+  | nil s =>
+      rfl
+  | cons t _hAdm _hRest ih =>
+      simpa [applyTrade] using ih
+
+theorem trace_dailyLossUsed_monotone
+    {s u : State}
+    (hTrace : Trace s u) :
+    s.dailyLossUsed ≤ u.dailyLossUsed := by
+  induction hTrace with
+  | nil s =>
+      exact le_rfl
+  | cons t _hAdm _hRest ih =>
+      exact (applyTrade_dailyLossUsed_monotone _ t).trans ih
+
+theorem trace_admittedCount_monotone
+    {s u : State}
+    (hTrace : Trace s u) :
+    s.admittedCount ≤ u.admittedCount := by
+  induction hTrace with
+  | nil s =>
+      exact le_rfl
+  | cons t _hAdm _hRest ih =>
+      exact (applyTrade_admittedCount_monotone _ t).trans ih
+
 /-- If the initial state respects the policy invariant, every admitted finite
 trace ends with reserved loss still inside the daily loss budget. -/
 theorem trace_daily_loss_within_budget
@@ -229,6 +319,39 @@ theorem trace_inventory_within_cap
     (hInv : PolicyInvariant s) :
     u.inventoryExposureBps ≤ u.maxInventoryBps := by
   exact (trace_preserves_policyInvariant hTrace hInv).2.2
+
+/-- In a pure admitted-trade trace, the daily loss budget itself is not changed,
+so final reserved loss remains bounded by the initial daily loss budget. -/
+theorem trace_daily_loss_within_initial_budget
+    {s u : State}
+    (hTrace : Trace s u)
+    (hInv : PolicyInvariant s) :
+    u.dailyLossUsed ≤ s.maxDailyLossBudget := by
+  have hWithin := trace_daily_loss_within_budget hTrace hInv
+  simpa [trace_maxDailyLossBudget_eq hTrace] using hWithin
+
+/-- In a pure admitted-trade trace, the inventory cap itself is not changed,
+so final inventory exposure remains bounded by the initial inventory cap. -/
+theorem trace_inventory_within_initial_cap
+    {s u : State}
+    (hTrace : Trace s u)
+    (hInv : PolicyInvariant s) :
+    u.inventoryExposureBps ≤ s.maxInventoryBps := by
+  have hWithin := trace_inventory_within_cap hTrace hInv
+  simpa [trace_maxInventoryBps_eq hTrace] using hWithin
+
+/-- Combining monotonic reserved loss with the static budget gives the strongest
+pure-trace budget envelope: final reserved loss is between the initial reserved
+loss and the initial daily budget. -/
+theorem trace_reserved_loss_between_initial_and_budget
+    {s u : State}
+    (hTrace : Trace s u)
+    (hInv : PolicyInvariant s) :
+    s.dailyLossUsed ≤ u.dailyLossUsed ∧
+      u.dailyLossUsed ≤ s.maxDailyLossBudget := by
+  exact
+    ⟨trace_dailyLossUsed_monotone hTrace,
+      trace_daily_loss_within_initial_budget hTrace hInv⟩
 
 /-- Witness: a clean trade with enough edge and budget is admissible. -/
 theorem witness_trade_admissible :

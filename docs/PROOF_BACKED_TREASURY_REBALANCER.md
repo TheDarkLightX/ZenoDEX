@@ -255,7 +255,13 @@ The Lean packet proves the guard contract in a theorem-oriented form:
   no user sandwich, and no self-trade,
 - admitted trades imply edge covers cost plus risk buffer,
 - applying an admitted trade preserves daily loss and inventory caps,
-- finite traces of admitted trades preserve those caps.
+- finite traces of admitted trades preserve those caps,
+- pure admitted-trade traces cannot silently change treasury balance, daily
+  loss budget, inventory cap, or liquidity budget,
+- reserved loss and admitted-count are monotone across pure admitted-trade
+  traces,
+- final reserved loss stays between initial reserved loss and the initial daily
+  loss budget.
 
 ## Non-Claims
 
