@@ -1,0 +1,86 @@
+{
+  "receipt_id": "cpmm_concavity_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/CPMMConcavity.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.CPMMConcavity.cpmmOut",
+    "Proofs.CPMMConcavity.cpmmSplitObj",
+    "Proofs.CPMMConcavity.NearlyDiscreteConcave"
+  ],
+  "theorems": [
+    "Proofs.CPMMConcavity.cpmmOut_eq_swapOut",
+    "Proofs.CPMMConcavity.sq_neighbors",
+    "Proofs.CPMMConcavity.witness_sq_neighbors",
+    "Proofs.CPMMConcavity.cpmmOut_mono",
+    "Proofs.CPMMConcavity.witness_cpmmOut_mono",
+    "Proofs.CPMMConcavity.cross_mul_concavity",
+    "Proofs.CPMMConcavity.cpmmOut_second_diff_le_one",
+    "Proofs.CPMMConcavity.witness_second_diff_tight",
+    "Proofs.CPMMConcavity.witness_second_diff_zero",
+    "Proofs.CPMMConcavity.split_concave_of_concave",
+    "Proofs.CPMMConcavity.witness_sum_concave",
+    "Proofs.CPMMConcavity.discrete_concave_reverse",
+    "Proofs.CPMMConcavity.split_objective_concave",
+    "Proofs.CPMMConcavity.witness_split_objective_concave",
+    "Proofs.CPMMConcavity.cpmm_split_second_diff_le_two",
+    "Proofs.CPMMConcavity.witness_split_second_diff",
+    "Proofs.CPMMConcavity.cpmm_split_certificate_sound",
+    "Proofs.CPMMConcavity.witness_split_concavity",
+    "Proofs.CPMMConcavity.witness_certificate_values",
+    "Proofs.CPMMConcavity.witness_full_chain",
+    "Proofs.CPMMConcavity.cpmmOut_zero",
+    "Proofs.CPMMConcavity.cpmmOut_le_reserve",
+    "Proofs.CPMMConcavity.witness_large_pool",
+    "Proofs.CPMMConcavity.nearly_zero_iff_concave",
+    "Proofs.CPMMConcavity.nearly_mono_grade",
+    "Proofs.CPMMConcavity.nearly_sum",
+    "Proofs.CPMMConcavity.nearly_reverse",
+    "Proofs.CPMMConcavity.cpmmOut_nearly_concave",
+    "Proofs.CPMMConcavity.cpmm_split_nearly_concave",
+    "Proofs.CPMMConcavity.nearly_right_delta_drift",
+    "Proofs.CPMMConcavity.nearly_right_quadratic_bound",
+    "Proofs.CPMMConcavity.cpmmOut_defect_tight",
+    "Proofs.CPMMConcavity.cpmmOut_exact_concave_large",
+    "Proofs.CPMMConcavity.witness_delta_drift",
+    "Proofs.CPMMConcavity.witness_quadratic_bound"
+  ],
+  "claims": [
+    "The integer CPMM output function has second finite difference at most one when the input reserve is positive.",
+    "The split objective built from two CPMM outputs has second finite difference at most two.",
+    "When a concrete split objective is discretely concave, the Galois split certificate proves global optimality from local neighbor checks.",
+    "NearlyDiscreteConcave gives a compositional defect algebra: grade 0 is exact discrete concavity, grades add under sums, and grade is preserved by reversal.",
+    "CPMM output is grade 1 and the two-pool split objective is grade 2 under the stated positive-reserve preconditions."
+  ],
+  "proof_method": [
+    "integer CPMM algebra",
+    "cross-multiplied continuous concavity core",
+    "floor-division contradiction bound",
+    "composition through GaloisSplitCertificate",
+    "graded defect algebra for near-concavity"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.CPMMConcavity",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/CPMMConcavity.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The exact global split certificate still requires a concrete DiscreteConcave proof for the instance being certified.",
+    "The general CPMM split objective is proved nearly concave with grade 2, not exactly concave in all cases.",
+    "The theorem covers the mathematical CPMM split objective and does not by itself assert that every runtime routing implementation emits the matching objective and domain."
+  ]
+}

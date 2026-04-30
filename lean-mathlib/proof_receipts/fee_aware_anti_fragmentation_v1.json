@@ -1,0 +1,80 @@
+{
+  "receipt_id": "fee_aware_anti_fragmentation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "FeeAwareAntiFragmentation.feeAwareSwapOut",
+    "FeeAwareAntiFragmentation.feeAwareBatchOutput"
+  ],
+  "theorems": [
+    "FeeAwareAntiFragmentation.ceil_div_mul_ge",
+    "FeeAwareAntiFragmentation.ceil_div_mul_lt",
+    "FeeAwareAntiFragmentation.ceilDiv_mono",
+    "FeeAwareAntiFragmentation.ceil_div_subadditive",
+    "FeeAwareAntiFragmentation.ceil_div_gap_le_one",
+    "FeeAwareAntiFragmentation.fee_le_amount",
+    "FeeAwareAntiFragmentation.fee_subadditive",
+    "FeeAwareAntiFragmentation.fee_gap_le_one",
+    "FeeAwareAntiFragmentation.fee_mono",
+    "FeeAwareAntiFragmentation.net_amount_superadditive",
+    "FeeAwareAntiFragmentation.net_amount_gap_tight",
+    "FeeAwareAntiFragmentation.ceilDiv_list_subadditive",
+    "FeeAwareAntiFragmentation.ceilDiv_list_gap",
+    "FeeAwareAntiFragmentation.fee_list_subadditive",
+    "FeeAwareAntiFragmentation.fee_list_gap",
+    "FeeAwareAntiFragmentation.net_amount_list_superadditive",
+    "FeeAwareAntiFragmentation.net_amount_list_gap",
+    "FeeAwareAntiFragmentation.witness_nway_gap",
+    "FeeAwareAntiFragmentation.fee_aware_anti_fragmentation",
+    "FeeAwareAntiFragmentation.fee_aware_k_nondecreasing",
+    "FeeAwareAntiFragmentation.feeAwareBatchOutput_le_single",
+    "FeeAwareAntiFragmentation.fee_in_pool_K_decomposition",
+    "FeeAwareAntiFragmentation.fee_in_pool_K_ge_nofee",
+    "FeeAwareAntiFragmentation.fee_in_pool_K_exact",
+    "FeeAwareAntiFragmentation.witness_ceiling_algebra",
+    "FeeAwareAntiFragmentation.witness_fee_algebra",
+    "FeeAwareAntiFragmentation.witness_fee_aware_anti_fragmentation",
+    "FeeAwareAntiFragmentation.witness_fee_in_pool_K"
+  ],
+  "claims": [
+    "Ceiling division rounds high enough to cover the numerator and overshoots by less than one divisor.",
+    "Ceiling division is subadditive, with a two-term gap bounded by one.",
+    "Ceiling-based fees are subadditive, so net amount after fees is superadditive under the declared bps cap.",
+    "The list versions lift fee subadditivity and net-amount superadditivity to N-way fragmentation.",
+    "Fee-aware CPMM anti-fragmentation holds: one combined gross swap produces at least as much output as sequential split gross swaps through the same fee pipeline.",
+    "The fee-aware K value is nondecreasing and admits explicit decomposition/equality witnesses.",
+    "Concrete witnesses cover ceiling algebra, fee algebra, fee-aware anti-fragmentation, N-way gap behavior, and fee-in-pool K behavior."
+  ],
+  "proof_method": [
+    "Nat ceiling-division arithmetic",
+    "fee pipeline decomposition through ceilDiv",
+    "composition with zero-fee AntiFragmentation.anti_fragmentation_general",
+    "list induction for N-way fee and net-amount bounds",
+    "CPMM K decomposition over integer reserve updates"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.FeeAwareAntiFragmentation",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The theorem models the ceiling-fee pipeline used by this proof packet; runtime code must show it uses the same rounding semantics.",
+    "The anti-fragmentation statement addresses same-direction fragmentation, not opposite-direction ordering or arbitrary route canonicalization.",
+    "These proofs do not establish authorization, oracle freshness, path discovery, or complete settlement validation."
+  ]
+}
