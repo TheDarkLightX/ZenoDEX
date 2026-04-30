@@ -1,0 +1,70 @@
+{
+  "receipt_id": "unique_canonical_winner_everywhere_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [],
+  "theorems": [
+    "TauSwap.UniqueCanonicalWinnerEverywhere.keyLe_refl",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.keyLe_antisymm",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.keyLe_total",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.chooseBetter_mem",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.foldl_chooseBetter_mem",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.exact_in_exists_unique_canonical_winner",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.certificate_identifies_unique_winner",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.exact_out_unique_canonical_winner",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.witness_exact_in_3_candidates",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.witness_exact_in_tie_break",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.witness_exact_in_uniqueness",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.keyLe_is_total_order",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.batch_unique_canonical_winner",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.unified_three_way_canonicality",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.abstract_unique_minimum_principle",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.exists_unique_trueKeyLe_minimum",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.witness_trueKeyLe_minimum_3keys",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.exact_out_bounded_complete_canonical",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.witness_bounded_complete_canonical_preconditions",
+    "TauSwap.UniqueCanonicalWinnerEverywhere.canonicality_summary"
+  ],
+  "claims": [
+    "The exact-in candidate key relation is reflexive, antisymmetric, total, and bundled with the imported transitivity theorem.",
+    "The exact-in fold winner is a member of the nonempty candidate stream and uniquely dominates all stream candidates.",
+    "The exact-in route certificate identifies the same canonical winner as the fold model.",
+    "Batch, exact-in, and exact-out winner selection all instantiate the same unique-minimum principle under their declared keys.",
+    "For any nonempty exact-in semantic key list, rank projection plus fold selection yields a unique true-key minimum.",
+    "For the bounded exact-out brute-force search domain, the brute-force witness is the unique canonical minimum."
+  ],
+  "proof_method": [
+    "direct arithmetic proof of exact-in key totality",
+    "fold membership invariant for chooseBetter",
+    "uniqueness by key antisymmetry",
+    "composition of batch, exact-in, exact-out unique-minimum theorems",
+    "rank-projection bridge from projected candidates to true semantic keys",
+    "bounded exact-out brute-force witness uniqueness"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXUniqueCanonicalWinnerEverywhere",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXUniqueCanonicalWinnerEverywhere.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This packet proves canonical winner uniqueness under declared candidate sets and keys.",
+    "It does not prove all runtime generators emit complete feasible domains.",
+    "The exact-out completeness claim is bounded to the finite brute-force search interval modeled by the imported theorem.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}
