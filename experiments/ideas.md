@@ -6,6 +6,21 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
 
 # Ideas
 
+## v192 execution-derived fee receipts
+
+- `execution_derived_fee_receipt_bridge_v1`
+  - connects FIRE fee calibration to actual ZenoDEX CPMM routing arithmetic.
+  - exact-in receipt value:
+    `best_route_amount_out - direct_route_amount_out`.
+  - exact-out receipt value:
+    `direct_route_amount_in - best_route_amount_in`.
+  - bounded result: `18` accepted execution-derived receipts and `2`
+    deliberately bad rows across `3` deterministic market fixtures.
+  - current caps: route surplus `2500` bps of measured value and exact-out
+    savings `2497` bps of measured value, both review-only.
+  - next frontier: emit the same receipt shape from quote/API replay logs and
+    compare live cap drift against synthetic and execution-fixture baselines.
+
 ## v191 fee-cap calibration stress corpus
 
 - `fee_cap_calibration_stress_corpus_v1`

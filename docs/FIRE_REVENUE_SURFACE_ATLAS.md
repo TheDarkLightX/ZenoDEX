@@ -258,3 +258,40 @@ primary negative net revenue.
 
 The stress corpus is still not market calibration. It is a model-bug harness
 that should remain stable while real quote/action/API receipts are added.
+
+## Execution-Derived Receipts
+
+The v192 replay connects the same calibration bridge to actual CPMM routing
+arithmetic:
+
+```text
+RouteSurplusValue := best_route_amount_out - direct_route_amount_out
+ExactOutSavingsValue := direct_route_amount_in - best_route_amount_in
+```
+
+In plain English: the receipt value is measured from the router's improvement
+over a direct route in deterministic CPMM fixture markets.
+
+Current replay:
+
+```text
+receipt_count = 20
+accepted_count = 18
+rejected_count = 2
+route_receipt_count = 9
+exact_out_receipt_count = 9
+candidate_review_cap_count = 2
+launch_parameter_claim_count = 0
+total_execution_receipt_invariant_failures = 0
+```
+
+Runtime-derived measured ranges:
+
+```text
+route_improvement = 119 .. 7441
+exact_out_savings = 55 .. 4183
+```
+
+This is still fixture-based, not live telemetry. The improvement is that the
+measured value in these receipts now comes from the same router arithmetic used
+by ZenoDEX quote paths.

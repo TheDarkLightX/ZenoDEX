@@ -6,6 +6,21 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 
 # Workflow
 
+## Updated lesson from v192
+
+- Synthetic calibration is not enough; v192 derives receipt values from actual
+  CPMM router arithmetic in deterministic fixture markets.
+- The execution-derived value laws are:
+  `RouteSurplusValue := best_route_amount_out - direct_route_amount_out` and
+  `ExactOutSavingsValue := direct_route_amount_in - best_route_amount_in`.
+- Current result: `receipt_count = 20`, `accepted_count = 18`,
+  `rejected_count = 2`, `route_receipt_count = 9`,
+  `exact_out_receipt_count = 9`, `candidate_review_cap_count = 2`,
+  `launch_parameter_claim_count = 0`, and
+  `total_execution_receipt_invariant_failures = 0`.
+- Next cycle should attach the same receipt emission shape to real quote/API
+  traces or replay logs, so cap drift can be measured against market data.
+
 ## Updated lesson from v191
 
 - A fee-cap model is not credible if every cap is backed by one fixture row.

@@ -6,6 +6,28 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
 
 # Breakthroughs
 
+## Non-promotion note from v192
+
+- `execution_derived_fee_receipt_bridge_v1` survives as a useful bridge from
+  runtime route arithmetic to FIRE revenue calibration, but it is not promoted
+  as a breakthrough.
+- Reason:
+  - it replaces hand-authored measured value with actual router deltas in
+    deterministic fixture markets,
+  - it keeps review caps bounded by measured value and hard retail rails,
+  - it rejects deliberately tampered over-fee and wash-risk rows,
+  - but it is still fixture replay, not live market calibration.
+
+- Current measured result:
+  - `receipt_count = 20`
+  - `accepted_count = 18`
+  - `rejected_count = 2`
+  - `route_receipt_count = 9`
+  - `exact_out_receipt_count = 9`
+  - `candidate_review_cap_count = 2`
+  - `launch_parameter_claim_count = 0`
+  - `total_execution_receipt_invariant_failures = 0`
+
 ## Non-promotion note from v191
 
 - `fee_cap_calibration_stress_corpus_v1` survives as a useful model-bug
