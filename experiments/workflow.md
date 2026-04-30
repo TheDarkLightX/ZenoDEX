@@ -1330,3 +1330,15 @@ Interpretation:
 - A route-pruning idea should report false prunes, not only pruning rate. Zero false prunes on a bounded corpus is the signal that the next step is a proof target, while higher pruning rates can wait.
 - Opportunity logic should compose with budget logic: a treasury or market-maker path should require both an opportunity certificate and a spend/burn/budget guard before it becomes admissible.
 - When a discovery cycle yields both a local integer interval lemma and an abstract certificate lemma, promote those two reusable pieces first; leave full runtime optimality for a later composition proof.
+
+## process lesson from v188 Gasper-cone Jacobi Turan orientation
+- When a reference family fails, search for the missing side condition before abandoning the theorem shape. v188 shows the v186 Jacobi Turan failure was a cone/orientation issue.
+- Endpoint counterexamples are stronger than certificate failures. They should trigger recognizer narrowing, not deeper subdivision.
+- Mirror symmetries can turn a one-sided theorem into a practical two-sided recognizer: right-normalized Jacobi in the `beta >= alpha` cone plus the `x -> 1-x, alpha <-> beta` mirror gives the oriented endpoint rule.
+- The useful optimization shape is fragment filtering: test cheap symbolic side conditions first, then emit a small certificate only when the fragment is inside the theorem's domain.
+- Record the theorem import boundary explicitly. The bounded recognizer has exact certificates, while the full Gasper theorem still needs Lean closure or a trusted reference bridge.
+
+## process lesson from v189 endpoint obstruction extraction
+- After a bounded recognizer finds exact endpoint falsifiers, try to extract the endpoint formula before expanding the corpus.
+- A closed obstruction formula is better than a larger counterexample table because it supplies the recognizer's cheapest necessary-condition gate.
+- Promote the algebraic skeleton even if the full special-function theorem remains external; this cleanly separates local proof from reference-backed theorem import.

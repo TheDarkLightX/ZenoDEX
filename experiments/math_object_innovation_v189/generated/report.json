@@ -1,0 +1,656 @@
+{
+  "anchor_metrics": {
+    "left": {
+      "count": 5184,
+      "formula_matches": 5184,
+      "signs": {
+        "negative": 2304,
+        "positive": 2304,
+        "zero": 576
+      }
+    },
+    "right": {
+      "count": 5184,
+      "formula_matches": 5184,
+      "signs": {
+        "negative": 2304,
+        "positive": 2304,
+        "zero": 576
+      }
+    }
+  },
+  "discovery_domain": {
+    "alpha_beta_values": [
+      "0",
+      "1/3",
+      "1/2",
+      "2/3",
+      "1",
+      "3/2",
+      "2",
+      "3",
+      "5"
+    ],
+    "n": [
+      1,
+      32
+    ]
+  },
+  "formulae": {
+    "left_right_endpoint": "T_n^-(1) = (C(n+alpha,n)/C(n+beta,n))^2 * (alpha-beta)/((n+beta+1)*(n+alpha))",
+    "right_left_endpoint": "T_n^+(0) = (C(n+beta,n)/C(n+alpha,n))^2 * (beta-alpha)/((n+alpha+1)*(n+beta))",
+    "where": "C(n+gamma,n) denotes binom(n+gamma,n), n >= 1"
+  },
+  "holdout_domain": {
+    "alpha_beta_values": [
+      "0",
+      "1/3",
+      "1/2",
+      "2/3",
+      "1",
+      "3/2",
+      "2",
+      "3",
+      "5"
+    ],
+    "n": [
+      33,
+      64
+    ]
+  },
+  "lean_promotion": {
+    "artifact": "lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean",
+    "checker_command": "lake env lean Proofs/JacobiTuranEndpointObstruction.lean",
+    "closed_theorems": [
+      "right_endpoint_obstruction_formula",
+      "left_endpoint_obstruction_formula"
+    ],
+    "receipt": "lean-mathlib/proof_receipts/jacobi_turan_endpoint_obstruction_v1.json",
+    "scope": "algebraic endpoint-ratio skeleton, not full Jacobi/Gasper positivity",
+    "status": "checked_no_placeholders"
+  },
+  "negative_knowledge": [
+    "A strict wrong endpoint cannot be fixed by a stronger interval certificate; the endpoint determinant is negative before any subdivision begins.",
+    "The endpoint formula proves only the necessary cone obstruction, not full interval positivity inside the cone.",
+    "The full Gasper theorem remains a separate proof/import target."
+  ],
+  "next_frontier": [
+    "Formalize the endpoint obstruction in Lean using generalized binomial/Pochhammer arithmetic.",
+    "Use this as a cheap prefilter in the Jacobi Turan recognizer before invoking Bernstein certificates.",
+    "Search for a similarly compact interior positivity certificate inside the cone."
+  ],
+  "oracle_dependent": false,
+  "proof_sketch": [
+    "For right normalization, the opposite endpoint value is r_n = C(n+beta,n)/C(n+alpha,n) up to the harmless Jacobi endpoint sign.",
+    "The Turan endpoint is r_n^2 - r_{n-1}*r_{n+1}.",
+    "The ratio r_{n+1}/r_n is (n+beta+1)/(n+alpha+1).",
+    "Substituting adjacent ratios gives the displayed factor beta-alpha over a positive denominator.",
+    "The left-normalized formula follows by the mirror swap alpha <-> beta and x -> 1-x."
+  ],
+  "reference_sources": [
+    "DLMF Chapter 18 Jacobi endpoint conventions",
+    "DLMF 18.14(ii) Jacobi Turan-type inequality reference surface",
+    "Gasper/Szego parameter-cone literature used as theorem-shape guidance"
+  ],
+  "relation_metrics": {
+    "alpha_eq_beta": {
+      "count": 1152,
+      "formula_matches": 1152,
+      "signs": {
+        "zero": 1152
+      }
+    },
+    "alpha_gt_beta": {
+      "count": 4608,
+      "formula_matches": 4608,
+      "signs": {
+        "negative": 2304,
+        "positive": 2304
+      }
+    },
+    "beta_gt_alpha": {
+      "count": 4608,
+      "formula_matches": 4608,
+      "signs": {
+        "negative": 2304,
+        "positive": 2304
+      }
+    }
+  },
+  "rows_sample": [
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 1,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 1,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 2,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 2,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 3,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 3,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 4,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 4,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 5,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 5,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 6,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 6,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 7,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 7,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 8,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 8,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 9,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 9,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 10,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 10,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 11,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 11,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 12,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 12,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 13,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 13,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 14,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 14,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 15,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 15,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 16,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 16,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 17,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 17,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 18,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 18,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 19,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 19,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "right",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=0",
+      "formula_match": true,
+      "n": 20,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    },
+    {
+      "alpha": "0",
+      "anchor": "left",
+      "beta": "0",
+      "closed": "0",
+      "cone_ok": true,
+      "direct": "0",
+      "endpoint": "x=1",
+      "formula_match": true,
+      "n": 20,
+      "relation": "alpha_eq_beta",
+      "sign": "zero"
+    }
+  ],
+  "schema": "math-object-innovation/v189",
+  "strongest_claim": "The Jacobi Turan wrong-endpoint obstruction has a closed endpoint formula: right-normalized Turan at x=0 has sign beta-alpha, and left-normalized Turan at x=1 has sign alpha-beta. The exact bounded scan found zero mismatches against direct endpoint evaluation.",
+  "summary": {
+    "equal_parameter_zero": 1152,
+    "formula_mismatches": 0,
+    "inside_cone_rows": 5760,
+    "inside_nonnegative": 5760,
+    "outside_cone_rows": 4608,
+    "outside_negative": 4608,
+    "rows": 10368,
+    "strict_wrong_negative": 4608,
+    "strict_wrong_rows": 4608
+  },
+  "tier": "symbolic_state_compiler"
+}

@@ -2067,3 +2067,52 @@ Interpretation:
   - this is a `symbolic_state_compiler`, not a production router.
   - the result still depends on upstream certified potentials / upper-rate certificates.
   - it does not cover all graph sizes, live concurrent reserve mutation, or external venue execution.
+
+## v188 Gasper-cone Jacobi Turan orientation
+
+- `gasper_cone_jacobi_turan_oriented_recognizer_v1`
+  - repairs the v186 asymmetric Jacobi Turan failure by using the cone-compatible endpoint normalization.
+  - for shifted Jacobi `J_n(x) = P_n^(alpha,beta)(2*x-1)`, the right-normalized Turan profile is tested only in the `beta >= alpha` cone, and the left-normalized profile is the mirrored `alpha >= beta` cone.
+  - the oriented recognizer chooses right endpoint when `beta >= alpha`, otherwise left endpoint.
+  - bounded exact Julia scan over 21 rational `(alpha,beta)` pairs and `1 <= n <= 18` certifies `378/378` oriented obligations with max `8` Bernstein pieces.
+  - total in-cone positive claims across right, left, and oriented rows certify `810/810`.
+
+- `wrong_endpoint_jacobi_turan_falsifier_v1`
+  - strict wrong-endpoint cases are not merely hard for Bernstein certificates.
+  - all `648/648` outside-cone rows are exact endpoint counterexamples.
+  - all `324/324` strict wrong-anchor rows are endpoint-falsified.
+  - negative controls remain fail-closed with `0/4` accepted.
+
+- theorem/search implications:
+  - v186's failures were a parameter-cone/orientation signal, not random certificate weakness.
+  - the practical Tau/FIRE dispatch rule is: check the Jacobi Turan cone first, orient the endpoint, emit a Bernstein certificate inside the cone, otherwise reject the theorem recognizer and fall back to ordinary handling.
+  - the next proof target is the mirror lemma:
+    left-normalized `(alpha,beta)` at `x=0` reduces to right-normalized `(beta,alpha)` at `1-x`.
+
+- negative knowledge:
+  - more subdivision is not a remedy for strict outside-cone Jacobi Turan formulas, because exact endpoint values are negative.
+  - the result is a bounded recognizer/certificate profile, not a local proof of Gasper's full Jacobi Turan theorem.
+  - the full theorem should remain reference-backed until a Lean proof or trusted theorem import exists.
+
+## v189 Jacobi Turan endpoint obstruction formula
+
+- `jacobi_turan_endpoint_obstruction_formula_v1`
+  - extracts the exact endpoint formula explaining why the strict wrong endpoint in v188 is mathematically false.
+  - exact Julia scan over `10368` rational rows found `0` mismatches between direct endpoint evaluation and the closed formula.
+  - inside-cone endpoint rows were nonnegative: `5760/5760`.
+  - outside-cone endpoint rows were negative: `4608/4608`.
+  - equal-parameter boundary rows were zero: `1152`.
+
+- closed formula:
+  - right normalization at the opposite endpoint has sign controlled by `beta - alpha`.
+  - left normalization at the opposite endpoint has sign controlled by `alpha - beta`.
+  - in endpoint-ratio form, the obstruction factors as a square ratio times this signed parameter difference over a positive denominator.
+
+- Lean promotion:
+  - `lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean` proves the algebraic endpoint-ratio skeleton for both orientations.
+  - proof receipt: `lean-mathlib/proof_receipts/jacobi_turan_endpoint_obstruction_v1.json`.
+
+- negative knowledge:
+  - the endpoint obstruction is a necessary cone filter, not a full Jacobi Turan positivity theorem.
+  - the Lean theorem assumes the adjacent endpoint-ratio recurrence; it does not prove the full Jacobi polynomial endpoint convention.
+  - the next useful formal step is either a Pochhammer/binomial recurrence bridge or a trusted theorem import boundary for the full Gasper theorem.

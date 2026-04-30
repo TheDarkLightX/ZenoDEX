@@ -1,0 +1,23 @@
+{
+  "schema": "zenodex-lean-proof-receipt/v1",
+  "artifact": "lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "checker_command": "lake env lean Proofs/JacobiTuranEndpointObstruction.lean",
+  "placeholder_scan": "rg -n \"\\bsorry\\b|\\badmit\\b|\\baxiom\\b|\\bunsafe\\b|sorryAx\" lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean || true",
+  "placeholder_scan_clean": true,
+  "theorems": [
+    "Proofs.JacobiTuranEndpointObstruction.right_endpoint_obstruction_formula",
+    "Proofs.JacobiTuranEndpointObstruction.left_endpoint_obstruction_formula"
+  ],
+  "source_discovery_packet": "experiments/math_object_innovation_v189",
+  "proof_idea": [
+    "Model the endpoint Turan determinant as cur^2 - prev*next.",
+    "Assume the adjacent endpoint ratios supplied by the Jacobi binomial recurrence.",
+    "Clear nonzero denominators and normalize by ring arithmetic to expose beta-alpha or alpha-beta."
+  ],
+  "scope_limits": [
+    "This proves the algebraic endpoint obstruction skeleton, not Gasper's full Jacobi Turan theorem.",
+    "It assumes the adjacent endpoint-ratio recurrence as input.",
+    "It does not prove interval positivity inside the valid parameter cone."
+  ]
+}

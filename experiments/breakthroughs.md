@@ -1599,3 +1599,48 @@ Interpretation:
 - Scope limit:
   - the Lean packet proves the reusable abstract certificate shape,
   - not production route optimality or live execution under reserve mutation.
+
+## Method note from v188
+
+- `gasper_cone_jacobi_turan_oriented_recognizer_v1` is promoted as a
+  high-value dispatch-method object, not as a finished general theorem.
+- Reason:
+  - it explains the v186 asymmetric Jacobi Turan failures as wrong endpoint /
+    wrong parameter-cone cases,
+  - it certifies `810/810` in-cone positive rows and `378/378` oriented rows
+    in the bounded exact-rational corpus,
+  - it endpoint-falsifies `648/648` outside-cone rows, including `324/324`
+    deliberate strict wrong-anchor cases,
+  - and it accepts `0/4` negative controls.
+- Practical consequence:
+  - the Tau/FIRE certificate menu can treat Jacobi Turan as fragment-sensitive:
+    recognize the cone, orient the endpoint, emit a Bernstein certificate only
+    inside that cone, and avoid wasting QE/subdivision on endpoint-false cases.
+  - this is the clearest current example of DLMF/reference guidance turning a
+    failed special-function conjecture into a sharper recognizer.
+- Proof target:
+  - formalize the mirror equivalence from left-normalized `(alpha,beta)` on
+    `[0,1]` to right-normalized `(beta,alpha)` under `x -> 1-x`.
+  - keep Gasper's full cone theorem as an external theorem target until there
+    is a local Lean proof or trusted theorem import.
+- Scope limit:
+  - the experiment proves bounded exact certificates and exact endpoint
+    falsifiers,
+  - not the unbounded Jacobi Turan theorem.
+
+## Method note from v189
+
+- `jacobi_turan_endpoint_obstruction_formula_v1` is promoted as a proof-shaped
+  obstruction lemma.
+- Reason:
+  - it converts v188's endpoint falsifiers into a closed formula,
+  - it checks `10368/10368` exact-rational rows with `0` formula mismatches,
+  - and the algebraic core is now Lean-checked for both endpoint orientations.
+- Practical consequence:
+  - the recognizer can reject strict wrong-cone endpoint choices before running
+    Bernstein subdivision or Tau QE.
+  - this is stronger than a bounded counterexample table because the sign source
+    is now explicit: `beta - alpha` or `alpha - beta`.
+- Scope limit:
+  - the proof is an endpoint-ratio skeleton,
+  - not a proof of full Jacobi interval positivity or the full Gasper theorem.
