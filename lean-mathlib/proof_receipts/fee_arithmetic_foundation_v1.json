@@ -1,0 +1,95 @@
+{
+  "receipt_id": "fee_arithmetic_foundation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/FeeCeilDecomposition.lean",
+    "lean-mathlib/Proofs/FeeDustCarryConservation.lean",
+    "lean-mathlib/Proofs/FeeRevenueBoundedness.lean",
+    "lean-mathlib/Proofs/FeeSplitRoundingGap.lean",
+    "lean-mathlib/Proofs/ProtocolFeeShareThreshold.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "FeeDustCarry.feeSplit",
+    "Proofs.FeeRevenueBoundedness.feeComponent",
+    "Proofs.FeeSplitRoundingGap.feeComponent",
+    "Proofs.ProtocolFeeShareThreshold.BPS",
+    "Proofs.ProtocolFeeShareThreshold.lpResidual"
+  ],
+  "theorems": [
+    "CPMMInvariants.computeFee_decomposed",
+    "FeeDustCarry.distributed_le_total",
+    "FeeDustCarry.fee_split_conservation",
+    "FeeDustCarry.fee_split_dust_bounded",
+    "FeeDustCarry.fee_split_outputs_nonneg",
+    "FeeDustCarry.witness_clean_split",
+    "FeeDustCarry.witness_max_dust",
+    "FeeDustCarry.witness_conservation_with_carry",
+    "FeeDustCarry.witness_dust_carry_enables_output",
+    "FeeDustCarry.witness_multi_step_conservation",
+    "FeeDustCarry.witness_dust_bounded_with_carry",
+    "Proofs.FeeRevenueBoundedness.fee_component_nonneg",
+    "Proofs.FeeRevenueBoundedness.fee_component_le_amount",
+    "Proofs.FeeRevenueBoundedness.fee_component_le_1m",
+    "Proofs.FeeRevenueBoundedness.fee_component_le_10m",
+    "Proofs.FeeRevenueBoundedness.bounded_add_from_sub_guard",
+    "Proofs.FeeRevenueBoundedness.fee_calculator_step_preserves_cap",
+    "Proofs.FeeRevenueBoundedness.fee_optimizer_step_preserves_cap",
+    "Proofs.FeeSplitRoundingGap.split_fee_le_merged_fee",
+    "Proofs.FeeSplitRoundingGap.merged_fee_le_split_fee_plus_one",
+    "Proofs.FeeSplitRoundingGap.merged_split_gap_at_most_one",
+    "Proofs.FeeSplitRoundingGap.witness_gap_one",
+    "Proofs.FeeSplitRoundingGap.witness_gap_zero",
+    "Proofs.ProtocolFeeShareThreshold.lpResidual_full_capture_zero",
+    "Proofs.ProtocolFeeShareThreshold.lpResidual_monotone_in_protocol_capture",
+    "Proofs.ProtocolFeeShareThreshold.lpResidual_positive_if_large_base_and_not_full_capture"
+  ],
+  "claims": [
+    "The CPMM fee expression is decomposed into an equivalent ceiling-style formula.",
+    "Fee dust splitting conserves fee plus carried dust, bounds new dust below the denominator, and keeps split outputs nonnegative.",
+    "Fee revenue components are nonnegative and bounded by amount under basis-point preconditions, with guarded cap-preservation lemmas for calculator and optimizer steps.",
+    "Splitting a fee calculation across two amounts differs from the merged calculation by at most one unit in the modeled floor-division formula.",
+    "Protocol fee capture monotonically reduces LP residual, full capture gives zero residual, and positive residual remains when the base is large enough and capture is not full."
+  ],
+  "proof_method": [
+    "natural-number division and modulo decomposition",
+    "fee-split quotient/remainder arithmetic with carried dust",
+    "basis-point multiplication/division bounds",
+    "two-part floor-division rounding gap analysis",
+    "monotonicity reasoning over protocol capture basis points"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.FeeCeilDecomposition Proofs.FeeDustCarryConservation Proofs.FeeRevenueBoundedness Proofs.FeeSplitRoundingGap Proofs.ProtocolFeeShareThreshold",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < fee-arithmetic-foundation-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/fee_arithmetic_foundation_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/FeeCeilDecomposition.lean lean-mathlib/Proofs/FeeDustCarryConservation.lean lean-mathlib/Proofs/FeeRevenueBoundedness.lean lean-mathlib/Proofs/FeeSplitRoundingGap.lean lean-mathlib/Proofs/ProtocolFeeShareThreshold.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/FeeCeilDecomposition.lean lean-mathlib/Proofs/FeeDustCarryConservation.lean lean-mathlib/Proofs/FeeRevenueBoundedness.lean lean-mathlib/Proofs/FeeSplitRoundingGap.lean lean-mathlib/Proofs/ProtocolFeeShareThreshold.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves modeled fee arithmetic, dust carry, revenue bound, split rounding, and protocol-share facts only.",
+    "It does not prove business-policy optimality, tokenomics desirability, market fairness, or runtime integration.",
+    "The fee-bound theorems rely on their stated basis-point and cap preconditions."
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "receipt_id": "exact_out_many_pool_packet_shells_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCandidateDomainContract.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOracleContract.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolGuardedQuotePacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCertifiedWinnerPacket.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.Routing.ExactOutManyPoolCandidateDomainContract.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolCandidateDomainContract.Contract",
+    "TauSwap.Routing.ExactOutManyPoolCandidateDomainContract.buildContract",
+    "TauSwap.Routing.ExactOutManyPoolCandidateDomainContract.verifyContract",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.canonicalWinner",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.Contract",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.buildContract",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.verifyContract",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.GuardError",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.Packet",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.buildPacket",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.verifyPacket",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.Packet",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.buildPacket",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.verifyPacket",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.ofDomainAndGuard",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.AuditedEmittedMinimality"
+  ],
+  "theorems": [
+    "TauSwap.Routing.ExactOutManyPoolCandidateDomainContract.verifyContract_iff",
+    "TauSwap.Routing.ExactOutManyPoolCandidateDomainContract.verifyContract_of_build",
+    "TauSwap.Routing.ExactOutManyPoolCandidateDomainContract.verifyingContract_unique",
+    "TauSwap.Routing.ExactOutManyPoolCandidateDomainContract.contractOk_iff",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.chooseBetter_eq_best_or_cand",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.foldl_chooseBetter_eq_best_or_mem",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.keyLe_antisymm",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.verifyContract_iff",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.verifyContract_of_build",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.verifyingContract_unique",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.canonicalWinner_mem",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.canonicalWinner_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.canonicalWinner_eq_of_mem_of_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.canonicalWinner_eq",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.runtimeMatchesCanonical_iff",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.runtimeMatchesCanonical_iff_mem_and_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.runtimeMismatch_iff",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.runtimeMismatch_iff_not_mem_and_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolOracleContract.certificate_eq_route_certificate_build",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.guardOk_iff",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.guardOk_iff_mem_and_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.guardFails_iff",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.guardFails_iff_not_mem_and_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_isSome_iff",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_runtimeChoice_iff_guardOk",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_runtimeChoice_iff",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_canonicalWinner_iff_guardOk",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_canonicalWinner_iff",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_isSome_iff_mem_and_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_runtimeChoice_iff_mem_and_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.quote_eq_some_canonicalWinner_iff_mem_and_keyLe_all",
+    "TauSwap.Routing.ExactOutManyPoolGuardedQuotePacket.mismatch_error_iff",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.packetOk_iff",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.packetOk_iff_audited_emitted_minimality",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.packetOk_iff_audited_domain_and_quote",
+    "TauSwap.Routing.ExactOutManyPoolCertifiedWinnerPacket.packetOk_iff_audited_domain_and_quote_eq_canonicalWinner"
+  ],
+  "claims": [
+    "The many-pool candidate-domain contract is a deterministic rebuild from eight explicit audit booleans.",
+    "The domain contract accepts exactly when sortedness, budget, nonempty-domain, completeness, leg-bound, pool-id, containment, and candidate-count facts are all true.",
+    "The oracle contract computes a canonical winner from the exact-out route certificate and records whether the runtime choice equals that winner.",
+    "The canonical winner is in the candidate stream and is no worse than every stream candidate.",
+    "A runtime choice matches the canonical winner exactly when it is in the emitted stream and key-minimal over the stream.",
+    "The guarded quote packet emits a quote exactly when the runtime choice is canonical; otherwise it emits a mismatch error.",
+    "The certified winner packet accepts exactly when the candidate-domain audit facts hold and the guarded quote proves emitted minimality.",
+    "The combined packet can be read either as audited emitted minimality, audited domain plus runtime quote, or audited domain plus canonical-winner quote."
+  ],
+  "proof_method": [
+    "Boolean conjunction normalization for domain-contract facts.",
+    "Fold membership and dominance lemmas from the exact-out route certificate shell.",
+    "Antisymmetry of the ranked exact-out key relation for canonical-winner equality.",
+    "Case analysis over the runtimeMatchesCanonical guard bit.",
+    "Composition of domain-contract equivalences with guarded-quote equivalences."
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolCandidateDomainContract",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolOracleContract",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolGuardedQuotePacket",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolCertifiedWinnerPacket",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-many-pool-packet-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_many_pool_packet_shells_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCandidateDomainContract.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOracleContract.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolGuardedQuotePacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCertifiedWinnerPacket.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves deterministic packet shells and equivalences over the emitted candidate stream.",
+    "It does not prove global many-pool generator completeness beyond the audit facts carried by the packet.",
+    "It does not prove runtime quote arithmetic or reserve transition correctness.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}
