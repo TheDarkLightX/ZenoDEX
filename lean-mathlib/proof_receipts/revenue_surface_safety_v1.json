@@ -1,6 +1,6 @@
 {
   "checker": "cd lean-mathlib && lake env lean Proofs/RevenueSurfaceSafety.lean",
-  "claim": "Core FIRE revenue-surface algebra: fee-capped user charges leave nonnegative net value, fee-capped rebates make wash loops nonprofitable under nonnegative execution drag, supply decreases only when burn exceeds emissions, and evidence-meet caps cannot loosen a safe source cap.",
+  "claim": "Core FIRE revenue-surface algebra: fee-capped user charges leave nonnegative net value, fee-capped rebates make wash loops nonprofitable under nonnegative execution drag, supply decreases only when burn exceeds emissions, evidence-meet caps cannot loosen a safe source cap, and over-cap launch/config acceptance requires an explicit override branch.",
   "file": "lean-mathlib/Proofs/RevenueSurfaceSafety.lean",
   "non_claims": [
     "Does not prove measured user value is truthful.",
@@ -20,6 +20,8 @@
     "Proofs.RevenueSurfaceSafety.cap_meet_le_right",
     "Proofs.RevenueSurfaceSafety.user_net_nonnegative_of_fee_le_cap_meet_left",
     "Proofs.RevenueSurfaceSafety.user_net_nonnegative_of_fee_le_cap_meet_right",
-    "Proofs.RevenueSurfaceSafety.cap_meet3_le_first"
+    "Proofs.RevenueSurfaceSafety.cap_meet3_le_first",
+    "Proofs.RevenueSurfaceSafety.launch_overcap_requires_override",
+    "Proofs.RevenueSurfaceSafety.launch_user_net_nonnegative_without_override"
   ]
 }

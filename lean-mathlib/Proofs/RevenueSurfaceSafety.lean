@@ -108,5 +108,31 @@ theorem cap_meet3_le_first {capA capB capC : ℝ} :
     min (min capA capB) capC ≤ capA := by
   exact le_trans (min_le_left _ _) (min_le_left _ _)
 
+/-! ## Launch/config guard facts
+
+The launch/config lint experiment compiles review caps into a fail-closed guard:
+under-cap fees may claim the current evidence-backed user-net property, while
+over-cap fees need an explicit assumption-change override and cannot inherit
+that property automatically.
+-/
+
+/-- If the guard accepts either an under-cap fee or an override, then an over-cap
+fee can only be accepted through the override branch. -/
+theorem launch_overcap_requires_override
+    {fee cap : ℝ} {overrideRecorded : Prop}
+    (hok : fee ≤ cap ∨ overrideRecorded) (hover : cap < fee) :
+    overrideRecorded := by
+  rcases hok with hcap | hoverride
+  · linarith
+  · exact hoverride
+
+/-- A launch/config fee that is below a cap already known safe relative to
+measured value leaves user net nonnegative. -/
+theorem launch_user_net_nonnegative_without_override
+    {value fee cap : ℝ}
+    (hfee : fee ≤ cap) (hcap : cap ≤ value) :
+    0 ≤ value - fee := by
+  exact user_net_nonnegative_of_fee_le_value (le_trans hfee hcap)
+
 end RevenueSurfaceSafety
 end Proofs

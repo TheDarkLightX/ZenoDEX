@@ -6,6 +6,24 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 
 # Workflow
 
+## Updated lesson from v194
+
+- Evidence-meet caps become more useful when compiled into a config guard, not
+  just reported as recommendations.
+- The launch/config guard law is:
+  `LaunchFeeOK(surface) := fee_bps(surface) <= MeetCap(surface) OR AssumptionChangeOverride(surface)`.
+- The bounded replay checks `10` candidate configs and `18` surface fee lines:
+  `2` accepted without override, `3` accepted with explicit assumption-change
+  overrides, `5` rejected, and `0` config invariant failures.
+- The strongest distinction is semantic, not numeric: under-meet configs may
+  claim the current evidence-backed user-net cap, while over-meet or uncapped
+  configs can only proceed as explicit assumption-change reviews.
+- Lean now checks the guard spine: if `(fee <= cap OR overrideRecorded)` and
+  `cap < fee`, then `overrideRecorded` must hold.
+- Next cycle should test the same guard against adversarial governance override
+  packets: stale cap references, reused assumption IDs, signer threshold drift,
+  conflicting override domains, and replayed approvals.
+
 ## Updated lesson from v193
 
 - Fee caps should compose by meet, not by replacement. The new law is

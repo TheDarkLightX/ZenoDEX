@@ -6,6 +6,22 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
 
 # Ideas
 
+## v194 evidence-meet launch config guard
+
+- `evidence_meet_launch_config_guard_v1`
+  - compiles the v193 meet caps into a bounded launch/config lint relation:
+    `fee_bps <= MeetCap(surface) OR AssumptionChangeOverride(surface)`.
+  - under-meet configs can claim evidence compliance; over-meet or uncapped
+    configs require an explicit governance assumption-change record and cannot
+    inherit the user-net safety claim.
+  - bounded result: `10` configs, `18` surface checks, `2` accepted without
+    override, `3` accepted with override, `5` rejected, and `0` invariant
+    failures.
+  - Lean bridge: `RevenueSurfaceSafety.lean` proves that if an accepted fee is
+    above the cap, the override branch must be present.
+  - next frontier: adversarial override packets and replay safety for
+    assumption-change records.
+
 ## v193 evidence-meet fee-cap lattice
 
 - `evidence_meet_fee_cap_lattice_v1`

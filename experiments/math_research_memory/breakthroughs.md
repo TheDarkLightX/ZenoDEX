@@ -6,6 +6,30 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
 
 # Breakthroughs
 
+## Non-promotion note from v194
+
+- `evidence_meet_launch_config_guard_v1` survives as a useful symbolic compiler
+  from review caps to config-lint obligations, but it is not promoted as a full
+  breakthrough.
+- Reason:
+  - it turns the v193 meet cap into an explicit fail-closed guard relation,
+  - it rejects over-cap, uncapped, malformed-override, unsafe-claim, and
+    redundant-override candidates in the bounded corpus,
+  - and Lean checks that over-cap acceptance under the guard implies the
+    override branch,
+  - but accepted-with-override configs are assumption-change reviews, not
+    evidence-backed safe fee schedules.
+
+- Current measured result:
+  - `config_count = 10`
+  - `surface_check_count = 18`
+  - `accepted_without_override_count = 2`
+  - `accepted_with_override_count = 3`
+  - `rejected_count = 5`
+  - `evidence_compliant_config_count = 2`
+  - `governance_assumption_change_count = 3`
+  - `total_config_invariant_failures = 0`
+
 ## Non-promotion note from v193
 
 - `evidence_meet_fee_cap_lattice_v1` survives as a useful symbolic compiler for

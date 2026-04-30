@@ -338,6 +338,45 @@ In plain English: if a fee is below the meet cap, and at least one source cap
 was already safe relative to measured user value, then the user net remains
 nonnegative.
 
+## Evidence-Meet Launch Config Guard
+
+The v194 replay turns the meet-cap artifact into a bounded config-lint rule:
+
+```text
+LaunchFeeOK(surface) :=
+  fee_bps(surface) <= MeetCap(surface)
+  OR AssumptionChangeOverride(surface)
+```
+
+In plain English: a proposed fee line can claim the current evidence-backed cap
+only when it is at or below the meet cap. If it is over the cap, or if the
+surface has no meet cap, the checker requires an explicit governance
+assumption-change record and does not allow the user-net safety claim to carry
+over automatically.
+
+Current replay:
+
+```text
+config_count = 10
+surface_check_count = 18
+accepted_without_override_count = 2
+accepted_with_override_count = 3
+rejected_count = 5
+evidence_compliant_config_count = 2
+governance_assumption_change_count = 3
+total_config_invariant_failures = 0
+```
+
+Lean checks the corresponding guard fact in
+[`RevenueSurfaceSafety.lean`](../lean-mathlib/Proofs/RevenueSurfaceSafety.lean):
+
+```text
+(fee <= cap OR overrideRecorded) AND cap < fee -> overrideRecorded
+```
+
+In plain English: once a fee is above the cap, the only way through this guard
+is the explicit override branch.
+
 ## Visual Summary
 
 The Julia-generated figures live in
