@@ -1,0 +1,151 @@
+{
+  "receipt_id": "exact_out_quoted_witness_bridge_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedStructuralReachability.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPresentationBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedWitnessStreamBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPathStreamBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedPresentationBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedCandidateBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedPathCompleteness.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPathQuoteStreamCompleteness.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.QuotedLeg",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.supportOfQuotedLegs",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.QuoteTotalOnPositiveBounded",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.QuotedStructurallyReachable",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPresentationBridge.QuotedPresentedBy",
+    "TauSwap.Routing.ExactOutManyPoolQuotedWitnessStreamBridge.QuotedWitness",
+    "TauSwap.Routing.ExactOutManyPoolQuotedWitnessStreamBridge.WitnessStreamCovers",
+    "TauSwap.Routing.ExactOutManyPoolQuotedWitnessStreamBridge.WitnessStreamSetCovers",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.QuotedPathWitness",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.PathWitnessStreamCovers",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.PathWitnessStreamSetCovers",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.OrderedQuotedPresentedBy",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.OrderedQuotedPathListCovers",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.OrderedQuotedPathSetCovers",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.feasibleCandidateSet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.emitOfOrderedQuotedPaths",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.OrderedQuotedPathComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.QuotedPathQuote",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.emitOfQuotedPathQuoteStream",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.OrderedQuotedPathQuoteStreamComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.OrderedQuotedPathProjectionSetCovers"
+  ],
+  "theorems": [
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.supportOfQuotedLegs_nil",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.supportOfQuotedLegs_cons",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.structurallyReachable_of_quoted",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.quoted_of_structurallyReachable",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedStructuralReachability.quoted_of_feasible_supportLegs",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPresentationBridge.feasible_candidate_mem_of_quoteTotal_and_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPresentationBridge.presentedBy_of_quoteTotal_and_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPresentationBridge.packetOk_implies_feasible_minimality_of_quoteTotal_and_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPresentationBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolQuotedWitnessStreamBridge.witnessStreamSetCovers_of_list_cover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedWitnessStreamBridge.quotedPresentedBy_of_witnessStreamCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedWitnessStreamBridge.quotedPresentedBy_of_witnessStreamSetCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedWitnessStreamBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_witnessStreamCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedWitnessStreamBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_witnessStreamSetCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.QuotedPathWitness.realizedAlloc_feasible",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.QuotedPathWitness.supportEq_realizedAlloc",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.pathWitnessStreamSetCovers_of_list_cover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.witnessStreamCovers_of_pathWitnessStreamCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.witnessStreamSetCovers_of_pathWitnessStreamSetCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.quotedPresentedBy_of_pathWitnessStreamCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.quotedPresentedBy_of_pathWitnessStreamSetCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_pathWitnessStreamCover",
+    "TauSwap.Routing.ExactOutManyPoolQuotedPathStreamBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_pathWitnessStreamSetCover",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.feasible_candidate_mem_of_quoteTotal_and_ordered_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.presentedBy_of_quoteTotal_and_ordered_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.packetOk_implies_feasible_minimality_of_quoteTotal_and_ordered_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_ordered_quoted_presentation",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.orderedQuotedPathSetCovers_of_list_cover",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.orderedQuotedPresentedBy_of_ordered_path_list_cover",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.orderedQuotedPresentedBy_of_ordered_path_set_cover",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_ordered_path_list_cover",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedPresentationBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_ordered_path_set_cover",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.keyLe_antisymm",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.quotedLegs_eq_of_supportEq_of_reachable",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.canonicalCandidateOfQuoted_eq_candidateOfQuoted",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_ordered_path_list_cover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.packetOk_implies_feasible_quote_and_minimality_of_cpmm_ordered_path_list_cover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.packetOk_implies_feasible_quote_and_minimality_of_quoteTotal_and_ordered_path_set_cover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.packetOk_implies_feasible_quote_and_minimality_of_cpmm_ordered_path_set_cover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.packetOk_implies_exists_unique_feasibleCandidateSet_minimum_of_quoteTotal_and_ordered_path_list_cover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.packetOk_implies_exists_unique_feasibleCandidateSet_minimum_of_cpmm_ordered_path_list_cover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.packetOk_implies_exists_unique_feasibleCandidateSet_minimum_of_quoteTotal_and_ordered_path_set_cover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolOrderedQuotedCandidateBridge.packetOk_implies_exists_unique_feasibleCandidateSet_minimum_of_cpmm_ordered_path_set_cover_canonicalCandidate",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.orderedQuotedPathComplete_of_list_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.orderedQuotedPathComplete_of_set_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.alloc_eq_of_supportLegs_eq",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.emitOfOrderedQuotedPaths_iff_feasible_of_quoteTotal_and_ordered_path_complete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.emitOfOrderedQuotedPaths_iff_feasible_of_quoteTotal_and_ordered_path_list_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.emitOfOrderedQuotedPaths_iff_feasible_of_quoteTotal_and_ordered_path_set_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.selected_domain_search_complete_of_quoteTotal_and_ordered_path_complete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.selected_domain_search_complete_of_quoteTotal_and_ordered_path_set_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.selected_domain_canonical_exists_of_quoteTotal_and_ordered_path_complete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolOrderedQuotedPathCompleteness.selected_domain_canonical_exists_of_quoteTotal_and_ordered_path_set_cover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.orderedQuotedPathQuoteStreamComplete_of_projectionSetCover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.emitOfQuotedPathQuoteStream_iff_emitOfOrderedQuotedPaths",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.orderedQuotedPathComplete_of_quoteStreamComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.emitOfQuotedPathQuoteStream_iff_feasible_of_quoteTotal_and_quoteStreamComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.emitOfQuotedPathQuoteStream_iff_feasible_of_quoteTotal_and_projectionSetCover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.selected_domain_search_complete_of_quoteTotal_and_quoteStreamComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.selected_domain_search_complete_of_quoteTotal_and_projectionSetCover",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.selected_domain_canonical_exists_of_quoteTotal_and_quoteStreamComplete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolQuotedPathQuoteStreamCompleteness.selected_domain_canonical_exists_of_quoteTotal_and_projectionSetCover"
+  ],
+  "claims": [
+    "Quoted exact-out legs can be connected back to structural recursion reachability and can be extracted from feasible sorted support presentations.",
+    "A supplied quoted presentation, witness stream, path stream, ordered path cover, or quoted path quote stream can be lifted into feasible candidate membership and minimality for the guarded packet.",
+    "Ordered quoted path coverage is strong enough to give selected-domain search completeness and canonical existence under the supplied quote-total relation.",
+    "The ordered quoted candidate bridge removes the separate candidate-compatibility premise by defining the canonical candidate directly from the unique quoted path realization.",
+    "For CPMM quote-total instances, the same bridge yields a unique feasible candidate-set minimum under the exact-out route certificate key."
+  ],
+  "proof_method": [
+    "finite-list and finite-set cover lifting",
+    "support-presentation equality and realized-allocation reconstruction",
+    "quoted path stream projection into ordered path completeness",
+    "key antisymmetry for unique canonical minima",
+    "deterministic quoted realization to identify canonical candidates without an extra compatibility hypothesis"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolQuotedPresentationBridge Proofs.ZenoDEXExactOutManyPoolQuotedPathStreamBridge Proofs.ZenoDEXExactOutManyPoolOrderedQuotedPresentationBridge Proofs.ZenoDEXExactOutManyPoolOrderedQuotedCandidateBridge Proofs.ZenoDEXExactOutManyPoolOrderedQuotedPathCompleteness Proofs.ZenoDEXExactOutManyPoolQuotedPathQuoteStreamCompleteness",
+      "result": "passed with pre-existing linter warnings in imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated and imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-quoted-witness-bridge-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_quoted_witness_bridge_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedStructuralReachability.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPresentationBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedWitnessStreamBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPathStreamBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedPresentationBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedCandidateBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedPathCompleteness.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPathQuoteStreamCompleteness.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedStructuralReachability.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPresentationBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedWitnessStreamBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPathStreamBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedPresentationBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedCandidateBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedQuotedPathCompleteness.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolQuotedPathQuoteStreamCompleteness.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves quoted witness, path, and ordered-candidate bridge facts for exact-out many-pool certificates.",
+    "It assumes the relevant list, set, stream, or projection cover premise when lifting runtime emissions to full feasible-domain coverage.",
+    "It does not prove that a production generator emits a complete stream on its own; that remains the job of the runtime generator checker and emission bridge receipts.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}
