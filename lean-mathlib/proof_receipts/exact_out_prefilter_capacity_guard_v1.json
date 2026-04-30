@@ -1,0 +1,111 @@
+{
+  "receipt_id": "exact_out_prefilter_capacity_guard_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterContract.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterContractionBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterSupportBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedPrefilterContract.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedPrefilterSemanticBridge.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.greedyAlloc",
+    "TauSwap.Routing.ExactOutManyPoolPrefilterContract.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolPrefilterContract.Contract",
+    "TauSwap.Routing.ExactOutManyPoolPrefilterContract.buildContract",
+    "TauSwap.Routing.ExactOutManyPoolPrefilterContract.verifyContract",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterContractionBridge.SelectedFeasible",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterContractionBridge.ContractsToSelected",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterSupportBridge.SupportInside",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterSupportBridge.SelectedFeasible",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterContract.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterContract.Contract",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterContract.buildContract",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterContract.verifyContract",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterSemanticBridge.SelectedDomainMinimumWitness"
+  ],
+  "theorems": [
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.alloc_sum_le_cap_sum",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.infeasible_of_cap_lt",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.greedyAlloc_le_cap",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.greedyAlloc_sum",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.greedyAlloc_feasible",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.capacity_guard_iff",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.two_pool_guard",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.witness_feasible",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.witness_infeasible",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.witness_boundary",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.witness_single_pool",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.witness_zero_pools",
+    "TauSwap.ZenoDEX.ManyPoolCapacityGuard.witness_greedy_matches",
+    "TauSwap.Routing.ExactOutManyPoolPrefilterContract.verifyContract_iff",
+    "TauSwap.Routing.ExactOutManyPoolPrefilterContract.verifyContract_of_build",
+    "TauSwap.Routing.ExactOutManyPoolPrefilterContract.verifyingContract_unique",
+    "TauSwap.Routing.ExactOutManyPoolPrefilterContract.contractOk_iff",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterContractionBridge.contraction_implies_selected_domain_global_minimality",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterContractionBridge.contraction_implies_selected_domain_canonical_exists",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterSupportBridge.supportInside_iff_forall_positive_mem",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterSupportBridge.selectedFeasible_iff_feasible_of_support_sound",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterSupportBridge.support_sound_implies_selected_domain_search_complete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolPrefilterSupportBridge.support_sound_implies_selected_domain_canonical_exists",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterContract.verifyContract_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterContract.verifyContract_of_build",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterContract.verifyingContract_unique",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterContract.contractOk_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterSemanticBridge.contractOk_implies_repairedSelectedDomainMatchesFullCanonical",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterSemanticBridge.contractOk_implies_repairedContractionHolds",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterSemanticBridge.contractOk_and_interpretation_implies_bounded_global_minimality",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterSemanticBridge.contractOk_and_interpretation_implies_bounded_canonical_exists",
+    "TauSwap.Routing.ExactOutManyPoolRepairedPrefilterSemanticBridge.verifyContract_and_contractOk_and_interpretation_implies_bounded_canonical_exists"
+  ],
+  "claims": [
+    "The exact-out many-pool capacity guard is equivalent to existence of a feasible bounded allocation and is witnessed constructively by the greedy allocator.",
+    "Prefilter contracts are deterministic packet shells with precise acceptance equivalences over sortedness, containment, support soundness, and contraction flags.",
+    "Support-sound prefilters preserve selected-domain search completeness and canonical existence.",
+    "Contraction-sound prefilters allow selected-domain minimality/canonical existence to lift back to the bounded full domain.",
+    "The repaired prefilter semantic bridge turns contract success plus an interpreted selected-domain minimum witness into bounded full-domain minimality and canonical existence."
+  ],
+  "proof_method": [
+    "finite capacity sums and greedy allocation construction",
+    "Boolean contract-field normalization",
+    "support containment equivalences for selected feasible domains",
+    "selected-to-full-domain contraction transfer",
+    "composition of repaired prefilter contract checks with selected-domain minimum witnesses"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolCapacityGuard Proofs.ZenoDEXExactOutManyPoolPrefilterContract Proofs.ZenoDEXExactOutManyPoolPrefilterContractionBridge Proofs.ZenoDEXExactOutManyPoolPrefilterSupportBridge Proofs.ZenoDEXExactOutManyPoolRepairedPrefilterContract Proofs.ZenoDEXExactOutManyPoolRepairedPrefilterSemanticBridge",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated and imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-prefilter-capacity-guard-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_prefilter_capacity_guard_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterContract.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterContractionBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterSupportBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedPrefilterContract.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedPrefilterSemanticBridge.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterContract.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterContractionBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolPrefilterSupportBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedPrefilterContract.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedPrefilterSemanticBridge.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves prefilter/capacity guard facts in Lean and records the repaired prefilter semantic bridge.",
+    "It does not prove concrete runtime serialization, pool discovery, or upstream quote data freshness.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}
