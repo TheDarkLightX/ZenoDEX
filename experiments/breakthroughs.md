@@ -6,6 +6,28 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/breakthrou
 
 # Breakthroughs
 
+## Non-promotion note from v195
+
+- `assumption_change_override_packet_language_v1` survives as a useful
+  witness-language result, but it is not promoted as a full breakthrough.
+- Reason:
+  - it proves, over the bounded corpus, that all eight override atoms are
+    forced by private negative witnesses,
+  - it identifies the full packet guard as the unique minimal exact language,
+  - and it falsifies tempting text-only and authority-only packet languages,
+  - but it is not yet a cryptographic signature, governance registry, or
+    production checker implementation.
+
+- Current measured result:
+  - `packet_count = 13`
+  - `valid_packet_count = 2`
+  - `invalid_packet_count = 11`
+  - `atom_count = 8`
+  - `forced_atom_count = 8`
+  - `minimal_exact_language_count = 1`
+  - `minimal_exact_atom_count = 8`
+  - `total_override_language_invariant_failures = 0`
+
 ## Non-promotion note from v194
 
 - `evidence_meet_launch_config_guard_v1` survives as a useful symbolic compiler

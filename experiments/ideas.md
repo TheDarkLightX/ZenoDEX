@@ -6,6 +6,21 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/ideas
 
 # Ideas
 
+## v195 assumption-change override packet language
+
+- `assumption_change_override_packet_language_v1`
+  - searches for the smallest exact witness language for v194 governance
+    assumption-change overrides.
+  - required atoms: `domain_ok`, `surface_binding_ok`, `cap_reference_ok`,
+    `assumption_nonce_fresh`, `signer_threshold_ok`, `registry_root_ok`,
+    `epoch_freshness_ok`, and `no_user_net_ack_ok`.
+  - bounded result: `13` packets, `2` valid packets, `11` invalid packets,
+    `8` forced atoms, `1` minimal exact language, and `0` invariant failures.
+  - every atom has a private negative witness; dropping any atom false-accepts
+    a concrete adversarial packet.
+  - next frontier: concrete schema/checker design and replay-protection rules
+    once governance signer semantics are fixed.
+
 ## v194 evidence-meet launch config guard
 
 - `evidence_meet_launch_config_guard_v1`

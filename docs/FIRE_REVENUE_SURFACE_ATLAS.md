@@ -377,6 +377,46 @@ Lean checks the corresponding guard fact in
 In plain English: once a fee is above the cap, the only way through this guard
 is the explicit override branch.
 
+## Override Packet Witness Language
+
+The v195 replay makes the override branch itself checkable. It searches for the
+smallest exact packet language that rejects stale, replayed, mis-bound, or
+under-authorized assumption-change overrides.
+
+```text
+Good(packet) <->
+  domain_ok
+  AND surface_binding_ok
+  AND cap_reference_ok
+  AND assumption_nonce_fresh
+  AND signer_threshold_ok
+  AND registry_root_ok
+  AND epoch_freshness_ok
+  AND no_user_net_ack_ok
+```
+
+In plain English: an override is not just text saying "governance approved."
+It must bind the intended domain, surface, cap reference, unique assumption
+nonce, signer threshold, registry root, freshness window, and acknowledgement
+that the evidence-backed user-net claim no longer applies.
+
+Current replay:
+
+```text
+packet_count = 13
+valid_packet_count = 2
+invalid_packet_count = 11
+atom_count = 8
+forced_atom_count = 8
+minimal_exact_language_count = 1
+minimal_exact_atom_count = 8
+total_override_language_invariant_failures = 0
+```
+
+Every atom has a private negative witness, meaning each field is necessary in
+the bounded corpus. Weaker packet languages such as text-only or authority-only
+false-accept at least one bad override.
+
 ## Visual Summary
 
 The Julia-generated figures live in

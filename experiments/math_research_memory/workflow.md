@@ -6,6 +6,21 @@ permalink: autonomous-tau-dex-review/experiments/math-research-memory/workflow
 
 # Workflow
 
+## Updated lesson from v195
+
+- An override branch must not be a free-form escape hatch. It needs its own
+  witness language.
+- The minimal exact bounded language for assumption-change packets uses `8`
+  atoms: domain, surface binding, cap reference, nonce freshness, signer
+  threshold, registry root, epoch freshness, and no-user-net acknowledgement.
+- The bounded replay checks `13` packets: `2` valid, `11` adversarial, and
+  `0` invariant failures. Every required atom has a private negative witness.
+- Weaker languages such as text-only, authority-only, fresh-authority-only, and
+  cap-and-ack-only all false-accept bad packets.
+- Next cycle should decide whether this override packet language should become
+  a concrete JSON schema and checker under `tools/`, or remain a research-only
+  design until real governance signing rules are chosen.
+
 ## Updated lesson from v194
 
 - Evidence-meet caps become more useful when compiled into a config guard, not
