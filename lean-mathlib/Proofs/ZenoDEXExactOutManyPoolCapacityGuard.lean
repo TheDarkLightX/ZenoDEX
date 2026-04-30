@@ -30,7 +30,7 @@ The constructive direction builds an explicit greedy allocation
 ## Evidence chain
 - `ZenoDEXExactOutTwoPoolCompleteness.lean`: Two-pool capacity guard (n=2 special case)
 - `src/core/split_routing_dispatch.py:568-616`: Python implementation with same bounds
-- This file: n-pool generalization with constructive greedy allocation (0 sorry)
+- This file: n-pool generalization with constructive greedy allocation (no placeholders)
 -/
 
 namespace TauSwap
