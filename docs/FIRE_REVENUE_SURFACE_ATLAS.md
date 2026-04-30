@@ -295,3 +295,16 @@ exact_out_savings = 55 .. 4183
 This is still fixture-based, not live telemetry. The improvement is that the
 measured value in these receipts now comes from the same router arithmetic used
 by ZenoDEX quote paths.
+
+## Visual Summary
+
+The Julia-generated figures live in
+[`docs/assets/fire-revenue-math/`](assets/fire-revenue-math/README.md):
+
+![FIRE revenue math assurance ladder](assets/fire-revenue-math/math_ladder.svg)
+
+![Receipt guard outcomes](assets/fire-revenue-math/receipt_outcomes.svg)
+
+![Execution-derived user value ranges](assets/fire-revenue-math/execution_value_ranges.svg)
+
+![Review caps against hard rail](assets/fire-revenue-math/review_caps.svg)
