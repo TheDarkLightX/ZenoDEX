@@ -1,0 +1,72 @@
+{
+  "receipt_id": "exact_in_packet_shells_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactInRouteRankProjectionPacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactInRouteTrueKeyInterpretationPacket.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.Inputs",
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.Packet",
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.buildPacket",
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.verifyPacket",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.Inputs",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.Packet",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.buildPacket",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.verifyPacket"
+  ],
+  "theorems": [
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.packetOk_iff",
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.packetOk_iff_fields_true",
+    "TauSwap.Routing.ExactInRouteRankProjectionPacket.packetOk_implies_rankOrderPreservesTrueKeyOrder",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.packetOk_iff",
+    "TauSwap.Routing.ExactInRouteTrueKeyInterpretationPacket.packetOk_implies_winnerTrueKeyMinimal"
+  ],
+  "claims": [
+    "Each exact-in rank-projection packet verifies exactly when it equals the canonical packet rebuilt from inputs.",
+    "Rank-projection packetOk is equivalent to all declared rank-projection fields being true.",
+    "Rank-projection packetOk implies the true-key-order preservation flag is true.",
+    "Each exact-in true-key interpretation packet verifies exactly when it equals the canonical packet rebuilt from inputs.",
+    "True-key interpretation packetOk is equivalent to all declared interpretation fields being true.",
+    "True-key interpretation packetOk implies the winnerTrueKeyMinimal flag is true."
+  ],
+  "proof_method": [
+    "deterministic packet rebuild equality",
+    "Bool.and_eq_true decomposition",
+    "unique verifying packet by equality",
+    "field implication from packetOk conjunction"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactInRouteRankProjectionPacket",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactInRouteTrueKeyInterpretationPacket",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactInRouteRankProjectionPacket.lean lean-mathlib/Proofs/ZenoDEXExactInRouteTrueKeyInterpretationPacket.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "These packet shells prove deterministic verifier wiring for explicit Boolean proof fields.",
+    "They do not prove the full Python route-key semantics or candidate-generation completeness.",
+    "They are proof-only and do not change runtime routing behavior."
+  ]
+}
