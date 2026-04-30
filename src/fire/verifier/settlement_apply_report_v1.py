@@ -26,7 +26,13 @@ def _sha256_bytes(payload: bytes) -> str:
 
 
 def settlement_apply_report_payload_without_hash(payload: Mapping[str, Any]) -> dict[str, object]:
-    return {str(key): value for key, value in payload.items() if key != "report_hash"}
+    out: dict[str, object] = {}
+    for key, value in payload.items():
+        if not isinstance(key, str) or not key:
+            raise TypeError("settlement apply report keys must be non-empty strings")
+        if key != "report_hash":
+            out[key] = value
+    return out
 
 
 def fire_settlement_apply_report_hash(payload_without_hash: Mapping[str, object]) -> str:
@@ -56,7 +62,11 @@ def verify_fire_settlement_apply_report(
         return False, "schema_mismatch"
     if payload.get("ok") is not True:
         return False, "ok_false"
-    if payload.get("report_hash") != fire_settlement_apply_report_hash(settlement_apply_report_payload_without_hash(payload)):
+    try:
+        payload_without_hash = settlement_apply_report_payload_without_hash(payload)
+    except TypeError as exc:
+        return False, f"report_key_invalid:{exc}"
+    if payload.get("report_hash") != fire_settlement_apply_report_hash(payload_without_hash):
         return False, "report_hash_mismatch"
 
     try:

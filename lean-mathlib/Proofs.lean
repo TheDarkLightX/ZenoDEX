@@ -108,7 +108,27 @@ import Proofs.OppositeDirectionNoncommutativity
 import Proofs.FeeAwareBatchKGap
 import Proofs.CPMMOutputMonotonicity
 import Proofs.RoundingErrorBound
+import Proofs.AMMIntegerRuntimeBridge
 import Proofs.SettlementNetting
+import Proofs.FiniteTraceBarriers
+import Proofs.AbstractInterpretationDisasterSafety
+import Proofs.DisasterAntichainBasis
+import Proofs.CertificateGluing
+import Proofs.ForbiddenTraceMinor
+import Proofs.NoFreeResourceTraceLedger
+import Proofs.ZenoDEXDisasterSchemaInstantiations
+import Proofs.ZenoDEXClosedAxisProofSchemaMap
+import Proofs.DisasterTraceDiscoveryChallenge
+import Proofs.FixedPointIntervalBridge
+import Proofs.FixedPointPortfolioBridge
+import Proofs.TokenomicsTraceSafety
+import Proofs.TokenomicsMechanismSafety
+import Proofs.ZenoPayoffFixedPointBridge
+import Proofs.ZenoPayoffPortfolioFixedPointBridge
+import Proofs.FIREUnified
+import Proofs.FIREBudgetSafety
+import Proofs.ZenoShapeDiscovery
+import Proofs.ZenoDEXSettlementGateBlockers
 import Proofs.ZUSDCeilDivAlgebra
 import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
@@ -146,7 +166,10 @@ import Proofs.MSTCertificateBasics
 import Proofs.PokayokeImpactGate
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
+import Proofs.ZPLPayoffCombinators
 import Proofs.ZenoPayoffLanguage
+import Proofs.FIREStrictSettlementAuthority
+import Proofs.FIREStrictSpecParsing
 
 /-!
 Proofs library root.

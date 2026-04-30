@@ -21,24 +21,42 @@ from src.fire.kernel import fire_lp_loss_cover_v1_ref as ref
 IR_HASH = "sha256:bf1509a7c86dfd9cd2d353133de9abf879f2fdf2279c4bd3114636233e8e7be4"
 
 
+def _require_int(name: str, value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise TypeError(f"{name} must be an int")
+    return int(value)
+
+
+def _require_phase(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError("phase must be a non-empty string")
+    return value
+
+
+def _require_nonempty_str(name: str, value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError(f"{name} must be a non-empty string")
+    return value
+
+
 def _state_from_mapping(state: Mapping[str, Any]) -> ref.State:
     return ref.State(
-        artifact_lower=int(state["artifact_lower"]),
-        artifact_upper=int(state["artifact_upper"]),
-        cap_amount=int(state["cap_amount"]),
-        deductible=int(state["deductible"]),
-        hodl_lower=int(state["hodl_lower"]),
-        hodl_upper=int(state["hodl_upper"]),
-        holder_delta=int(state["holder_delta"]),
-        holder_posted=int(state["holder_posted"]),
-        lpv_lower=int(state["lpv_lower"]),
-        lpv_upper=int(state["lpv_upper"]),
-        n_notional=int(state["n_notional"]),
-        phase=str(state["phase"]),
-        witness_hodl_final=int(state["witness_hodl_final"]),
-        witness_lpv_final=int(state["witness_lpv_final"]),
-        writer_delta=int(state["writer_delta"]),
-        writer_posted=int(state["writer_posted"]),
+        artifact_lower=_require_int("artifact_lower", state.get("artifact_lower")),
+        artifact_upper=_require_int("artifact_upper", state.get("artifact_upper")),
+        cap_amount=_require_int("cap_amount", state.get("cap_amount")),
+        deductible=_require_int("deductible", state.get("deductible")),
+        hodl_lower=_require_int("hodl_lower", state.get("hodl_lower")),
+        hodl_upper=_require_int("hodl_upper", state.get("hodl_upper")),
+        holder_delta=_require_int("holder_delta", state.get("holder_delta")),
+        holder_posted=_require_int("holder_posted", state.get("holder_posted")),
+        lpv_lower=_require_int("lpv_lower", state.get("lpv_lower")),
+        lpv_upper=_require_int("lpv_upper", state.get("lpv_upper")),
+        n_notional=_require_int("n_notional", state.get("n_notional")),
+        phase=_require_phase(state.get("phase")),
+        witness_hodl_final=_require_int("witness_hodl_final", state.get("witness_hodl_final")),
+        witness_lpv_final=_require_int("witness_lpv_final", state.get("witness_lpv_final")),
+        writer_delta=_require_int("writer_delta", state.get("writer_delta")),
+        writer_posted=_require_int("writer_posted", state.get("writer_posted")),
     )
 
 
@@ -49,7 +67,7 @@ def _step_error(code: str, message: str) -> Any:
 
 
 def _commit_effect(adapter: "FireLPLossCoverV1NativeAdapter", effect_id: str, value: Any) -> None:
-    adapter._pending_effects[str(effect_id)] = value
+    adapter._pending_effects[_require_nonempty_str("effect_id", effect_id)] = value
 
 
 def _commit_receipt_effect(adapter: "FireLPLossCoverV1NativeAdapter", args: Mapping[str, Any]) -> None:
@@ -67,7 +85,7 @@ def _commit_settlement_packet_effect(adapter: "FireLPLossCoverV1NativeAdapter", 
         holder_delta=int(adapter._state.holder_delta),
         writer_delta=int(adapter._state.writer_delta),
         payoff_out=int(adapter._state.holder_delta),
-        firev_accept=bool(adapter._pending_effects.get("firev_accept")),
+        firev_accept=adapter._pending_effects["firev_accept"],
     )
     adapter._pending_effects["settlement_packet"] = packet.to_dict()
 
@@ -103,19 +121,27 @@ def _run_kernel_step(adapter: "FireLPLossCoverV1NativeAdapter", tag: str, args: 
 
     from ESSO.kernel.interpreter import StepOk  # type: ignore
 
+    previous_state = adapter._state
+    previous_effects = dict(adapter._pending_effects)
     adapter._state = result.state
     adapter._pending_effects = dict()
-    for eff_id, value in dict(result.effects or {}).items():
-        eff_handler = EFFECT_HANDLERS.get(str(eff_id))
-        if eff_handler is not None:
-            eff_handler(adapter, str(eff_id), value)
-    _commit_receipt_effect(adapter, args)
-    if "verifier_receipt" in adapter._pending_effects:
-        adapter._pending_effects["verifier_receipt_obj"] = FireVerifierReceipt.from_dict(
-            adapter._pending_effects["verifier_receipt"]
-        )
-        _commit_settlement_packet_effect(adapter, args)
-        del adapter._pending_effects["verifier_receipt_obj"]
+    try:
+        for eff_id, value in dict(result.effects or {}).items():
+            effect_id = _require_nonempty_str("effect_id", eff_id)
+            eff_handler = EFFECT_HANDLERS.get(effect_id)
+            if eff_handler is not None:
+                eff_handler(adapter, effect_id, value)
+        _commit_receipt_effect(adapter, args)
+        if "verifier_receipt" in adapter._pending_effects:
+            adapter._pending_effects["verifier_receipt_obj"] = FireVerifierReceipt.from_dict(
+                adapter._pending_effects["verifier_receipt"]
+            )
+            _commit_settlement_packet_effect(adapter, args)
+            del adapter._pending_effects["verifier_receipt_obj"]
+    except (KeyError, TypeError, ValueError) as exc:
+        adapter._state = previous_state
+        adapter._pending_effects = previous_effects
+        return _step_error("GuardFalse", f"settlement packet gate failed: {exc}")
     return StepOk(state=vars(result.state), effects=dict(result.effects or {}))
 
 
@@ -151,7 +177,10 @@ class FireLPLossCoverV1NativeAdapter:
 
     def apply(self, command: Any) -> Any:
         self._pending_effects = {}
-        tag = str(getattr(command, "tag", ""))
+        try:
+            tag = _require_nonempty_str("command.tag", getattr(command, "tag", None))
+        except TypeError:
+            return _step_error("UnknownAction", "command.tag must be a non-empty string")
         handler = ACTION_HANDLERS.get(tag)
         if handler is None:
             return _step_error("UnknownAction", "no handler for command.tag")

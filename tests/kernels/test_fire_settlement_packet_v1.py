@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.fire.verifier.settlement_v1 import (
     FireSettlementPacket,
     FireVerifierReceipt,
@@ -66,6 +68,28 @@ def test_fire_settlement_packet_rejects_delta_tamper() -> None:
     )
     tampered = replace(packet, payoff_out=29)
     assert verify_fire_settlement_packet(tampered) == (False, "payoff_out_mismatch")
+
+
+def test_fire_settlement_packet_builder_rejects_nonconserving_deltas() -> None:
+    receipt = FireVerifierReceipt.build(
+        object_hash="sha256:" + "1" * 64,
+        instance_hash="sha256:" + "2" * 64,
+        cert_sha256="sha256:" + "3" * 64,
+        holder_delta=30,
+        writer_delta=-30,
+        command_tag="firev_accept_and_settle",
+        object_name="BurnBoostCall",
+        object_version="1.0.0",
+    )
+
+    with pytest.raises(ValueError, match="delta_nonzero_sum"):
+        FireSettlementPacket.build(
+            receipt=receipt,
+            holder_delta=30,
+            writer_delta=-29,
+            payoff_out=30,
+            firev_accept=True,
+        )
 
 
 def test_fire_settlement_packet_can_require_receipt_witness_hash() -> None:

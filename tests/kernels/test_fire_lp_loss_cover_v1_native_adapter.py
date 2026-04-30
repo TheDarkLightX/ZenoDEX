@@ -160,6 +160,41 @@ def test_fire_lp_loss_cover_native_adapter_unknown_action(monkeypatch) -> None:
     assert result.code == "UnknownAction"
 
 
+def test_fire_lp_loss_cover_native_adapter_rejects_non_string_command_tag(monkeypatch) -> None:
+    interp_mod = _install_fake_interpreter(monkeypatch)
+    from src.fire.runtime.lp_loss_cover_v1_native_adapter import make_adapter
+
+    class LooksLikeAuthority:
+        def __str__(self) -> str:
+            return "firev_accept_and_settle"
+
+    adapter = make_adapter(ir={"schema": "fake"})
+    adapter.reset(
+        state={
+            "artifact_lower": 0,
+            "artifact_upper": 0,
+            "cap_amount": 0,
+            "deductible": 0,
+            "hodl_lower": 0,
+            "hodl_upper": 0,
+            "holder_delta": 0,
+            "holder_posted": 0,
+            "lpv_lower": 0,
+            "lpv_upper": 0,
+            "n_notional": 0,
+            "phase": "Idle",
+            "witness_hodl_final": 0,
+            "witness_lpv_final": 0,
+            "writer_delta": 0,
+            "writer_posted": 0,
+        }
+    )
+    result = adapter.apply(SimpleNamespace(tag=LooksLikeAuthority(), args={}))
+    assert isinstance(result, interp_mod.StepError)
+    assert result.code == "UnknownAction"
+    assert "command.tag must be a non-empty string" in result.message
+
+
 def test_fire_lp_loss_cover_native_adapter_guard_false(monkeypatch) -> None:
     interp_mod = _install_fake_interpreter(monkeypatch)
     from src.fire.runtime.lp_loss_cover_v1_native_adapter import make_adapter
@@ -283,6 +318,89 @@ def test_fire_lp_loss_cover_native_adapter_accepts_persisted_bundle(monkeypatch,
         ),
         expected_command_tag="firev_accept_and_settle",
     ) == (True, None)
+    assert dict(adapter.drain_effects()) == {}
+
+
+def test_fire_lp_loss_cover_native_adapter_rejects_non_bool_firev_accept_effect(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    interp_mod = _install_fake_interpreter(monkeypatch)
+    import src.fire.runtime.lp_loss_cover_v1_native_adapter as adapter_mod
+
+    artifact = compile_terms(
+        LPLossCoverTerms(
+            n_notional=10,
+            deductible=2,
+            cap_amount=5,
+            hodl_lower=10,
+            hodl_upper=20,
+            lpv_lower=7,
+            lpv_upper=12,
+        )
+    )
+    bundle_dir = tmp_path / "lp_bundle"
+    bundle_manifest, bundle_file_sha256 = write_fire_registry_bundle(
+        bundle_dir,
+        artifact=artifact,
+        build_manifest=build_manifest,
+        render_object_card=render_object_card,
+    )
+
+    def _string_firev_accept(adapter, effect_id: str, _value) -> None:
+        adapter._pending_effects[effect_id] = "false"
+
+    monkeypatch.setitem(adapter_mod.EFFECT_HANDLERS, "firev_accept", _string_firev_accept)
+
+    adapter = adapter_mod.make_adapter(ir={"schema": "fake"})
+    adapter.reset(
+        state={
+            "artifact_lower": artifact.artifact_lower,
+            "artifact_upper": artifact.artifact_upper,
+            "cap_amount": artifact.terms.cap_amount,
+            "deductible": artifact.terms.deductible,
+            "hodl_lower": artifact.terms.hodl_lower,
+            "hodl_upper": artifact.terms.hodl_upper,
+            "holder_delta": 0,
+            "holder_posted": 0,
+            "lpv_lower": artifact.terms.lpv_lower,
+            "lpv_upper": artifact.terms.lpv_upper,
+            "n_notional": artifact.terms.n_notional,
+            "phase": "Compiled",
+            "witness_hodl_final": 0,
+            "witness_lpv_final": 0,
+            "writer_delta": 0,
+            "writer_posted": 0,
+        }
+    )
+    result = adapter.apply(
+        SimpleNamespace(
+            tag="firev_accept_and_settle",
+            args={
+                "witness_hodl_final_in": 20,
+                "witness_lpv_final_in": 7,
+                "holder_posted_in": 0,
+                "writer_posted_in": 50,
+                "persisted_bundle_dir": str(bundle_dir),
+                "expected_bundle_hash": bundle_manifest.bundle_hash,
+                "expected_bundle_file_sha256": bundle_file_sha256,
+                "expected_cert_sha256": artifact.cert_sha256,
+                "verifier_receipt": _receipt_for_bundle(
+                    bundle_dir,
+                    holder_delta=50,
+                    writer_delta=-50,
+                    witness_hodl_final=20,
+                    witness_lpv_final=7,
+                ),
+            },
+        )
+    )
+
+    assert isinstance(result, interp_mod.StepError)
+    assert result.code == "GuardFalse"
+    assert "firev_accept must be a bool" in result.message
+    assert adapter.get_state()["holder_delta"] == 0
+    assert adapter.get_state()["writer_delta"] == 0
     assert dict(adapter.drain_effects()) == {}
 
 

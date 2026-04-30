@@ -65,6 +65,10 @@ def _require_nonempty_str(name: str, value: object) -> str:
     return value
 
 
+def _require_string_tuple(name: str, values: list[object]) -> tuple[str, ...]:
+    return tuple(_require_nonempty_str(f"{name}[{idx}]", item) for idx, item in enumerate(values))
+
+
 def _canonical_json_bytes(payload: Mapping[str, object]) -> bytes:
     return json.dumps(dict(payload), sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
@@ -125,8 +129,8 @@ class FireBundleContractReceipt:
             raise TypeError("contract receipt use_sites must be a list")
         return cls(
             name=payload.get("name"),
-            roles=tuple(str(item) for item in roles),
-            use_sites=tuple(str(item) for item in use_sites),
+            roles=_require_string_tuple("contract receipt roles", roles),
+            use_sites=_require_string_tuple("contract receipt use_sites", use_sites),
         )
 
 

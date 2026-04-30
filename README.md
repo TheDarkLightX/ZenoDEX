@@ -148,6 +148,54 @@ their checks are promoted into replayable proof/certificate lanes.
 This is a bounded replay claim, not an exhaustive proof over all possible future
 states. The detailed axis list, replay commands, interpretation, and residual
 backlog are in [docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
+The Lean proof receipt
+[disaster_trace_lifting_v1.json](lean-mathlib/proof_receipts/disaster_trace_lifting_v1.json)
+records the reusable theorem shape for turning a harness/barrier/simulation
+certificate into a named unreachability claim. That proof strengthens how
+promoted axes can be justified; it does not by itself raise the replayed
+29-family count.
+
+The proof layer has also been extended with reusable theorem schemas and
+adapters:
+
+- [AMMIntegerRuntimeBridge.lean](lean-mathlib/Proofs/AMMIntegerRuntimeBridge.lean)
+  connects ideal CPMM quote facts to integer-runtime receipts, including
+  no-overdelivery and bounded rounding envelopes.
+- [DisasterAntichainBasis.lean](lean-mathlib/Proofs/DisasterAntichainBasis.lean)
+  captures the pattern where a small rejected basis of forbidden traces rules
+  out a larger bad trace family.
+- [ForbiddenTraceMinor.lean](lean-mathlib/Proofs/ForbiddenTraceMinor.lean)
+  captures the pattern where every bad trace embeds a forbidden motif, and
+  motif rejection or guard blocking lifts through that embedding.
+- [NoFreeResourceTraceLedger.lean](lean-mathlib/Proofs/NoFreeResourceTraceLedger.lean)
+  captures the pattern where accepted traces cannot create protected resources
+  outside the safe ledger cone, and budget claims cannot exceed total or prefix
+  spend bounds.
+- [ZenoDEXDisasterSchemaInstantiations.lean](lean-mathlib/Proofs/ZenoDEXDisasterSchemaInstantiations.lean)
+  binds those schemas to small ZenoDEX-shaped budget and forbidden-motif
+  adapters for future replay receipts.
+- [CertificateGluing.lean](lean-mathlib/Proofs/CertificateGluing.lean)
+  captures cross-surface consistency: if local certificates glue into one
+  compatible global section, accepted bundles cannot also witness the named
+  global bad state.
+
+Those theorems make future disaster-state promotion cheaper and more rigorous,
+but they remain schemas until instantiated against concrete quote, settlement,
+oracle, signer, reward, and routing objects. The receipt is
+[aristotle_runtime_disaster_gluing_2026-04-28.md](lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md).
+The forbidden-minor receipt is
+[forbidden_trace_minor_2026-04-28.md](lean-mathlib/proof_receipts/forbidden_trace_minor_2026-04-28.md).
+The no-free-resource receipt is
+[no_free_resource_trace_ledger_2026-04-28.md](lean-mathlib/proof_receipts/no_free_resource_trace_ledger_2026-04-28.md).
+The adapter receipt is
+[zenodex_disaster_schema_instantiations_2026-04-28.md](lean-mathlib/proof_receipts/zenodex_disaster_schema_instantiations_2026-04-28.md).
+The closed-axis proof-schema map is checked by
+[check_disaster_proof_schema_map.py](tools/check_disaster_proof_schema_map.py)
+and currently maps all `29` closed axes to one or more proof-schema lanes.
+The Lean-side mirror is
+[ZenoDEXClosedAxisProofSchemaMap.lean](lean-mathlib/Proofs/ZenoDEXClosedAxisProofSchemaMap.lean);
+the checker also rejects drift between the Python map used by the replay
+tooling and the Lean-side enumeration.
 
 The closed receipt is CI-ratcheted by
 `.github/workflows/disaster-assurance-ratchet.yml`: a main-branch change fails

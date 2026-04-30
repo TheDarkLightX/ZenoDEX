@@ -16,6 +16,7 @@ def test_cal_fire_logic_package_names_full_receipt_binding_tuple() -> None:
         "receipt.cert_sha256",
         "receipt.witness_hash",
         "receipt.delta_hash",
+        "DeltaConservationOK",
     }
     for relative_path in ("spec/CAL_v0.1_Spec.md", "spec/CAL_FireLogic_Book.md"):
         text = (CAL_PACKAGE / relative_path).read_text(encoding="utf-8")
@@ -40,6 +41,7 @@ def test_cal_fire_logic_package_stdlib_has_settlement_receipt_binding_rule() -> 
     assert {"receipt_cert_sha256_matches_certificate": True} in premises
     assert {"receipt_witness_hash_matches_witness_bundle": True} in premises
     assert {"receipt_delta_hash_matches_delta": True} in premises
+    assert {"receipt_delta_conservation_ok": True} in premises
     assert {"verifier_receipt_hash_valid": True} in premises
 
     reject_if = set(rule["reject_if"])
@@ -49,5 +51,6 @@ def test_cal_fire_logic_package_stdlib_has_settlement_receipt_binding_rule() -> 
         "cert_sha256_mismatch",
         "witness_hash_mismatch",
         "delta_hash_mismatch",
+        "delta_nonzero_sum",
         "receipt_hash_mismatch",
     }.issubset(reject_if)

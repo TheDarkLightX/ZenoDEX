@@ -1,11 +1,35 @@
 from __future__ import annotations
 
-from src.fire.verifier.proof_tree_cert_v1 import verify_fire_proof_tree_certificate
+import pytest
+
+from src.fire.registry.replay_input_v1 import FireReplayInput
+from src.fire.verifier.proof_tree_cert_v1 import (
+    expected_fire_proof_tree_replay_summary,
+    verify_fire_proof_tree_certificate,
+)
 
 
 OBJECT_HASH = "sha256:" + ("1" * 64)
 INSTANCE_HASH = "sha256:" + ("2" * 64)
 CERTIFICATE_SHA256 = "sha256:" + ("4" * 64)
+REPLAY_INPUT_SHA256 = "sha256:" + ("5" * 64)
+KERNEL_SETTLEMENT_RECEIPT_SHA256 = "sha256:" + ("6" * 64)
+KERNEL_REPLAY_RECEIPT_SHA256 = "sha256:" + ("7" * 64)
+
+
+def _replay_input() -> FireReplayInput:
+    return FireReplayInput(
+        object_name="BurnBoostCall",
+        object_version="v1",
+        object_family="capped_index_call",
+        object_hash=OBJECT_HASH,
+        instance_hash=INSTANCE_HASH,
+        holder_posted=0,
+        writer_posted=30,
+        holder_balance=100,
+        writer_balance=250,
+        witness_inputs={"witness_final": 7},
+    )
 
 
 def _valid_payload() -> dict[str, object]:
@@ -146,6 +170,57 @@ def test_verify_fire_proof_tree_certificate_accepts_repo_sha256_draft() -> None:
     assert verification.evidence_floor == "contract"
     assert verification.claim_count == 2
     assert verification.proof_node_count == 5
+
+
+def test_expected_fire_proof_tree_replay_summary_requires_bool_firev_accept() -> None:
+    kernel_settlement_receipt = {
+        "holder_delta": 0,
+        "writer_delta": 0,
+        "payoff_out": 0,
+        "firev_accept": "false",
+    }
+
+    with pytest.raises(TypeError, match="kernel_settlement_receipt.firev_accept must be a bool"):
+        expected_fire_proof_tree_replay_summary(
+            _replay_input(),
+            replay_input_sha256=REPLAY_INPUT_SHA256,
+            kernel_settlement_receipt=kernel_settlement_receipt,
+            kernel_settlement_receipt_sha256=KERNEL_SETTLEMENT_RECEIPT_SHA256,
+        )
+
+
+def test_expected_fire_proof_tree_replay_summary_requires_integer_deltas() -> None:
+    kernel_settlement_receipt = {
+        "holder_delta": "0",
+        "writer_delta": 0,
+        "payoff_out": 0,
+        "firev_accept": True,
+    }
+
+    with pytest.raises(TypeError, match="kernel_settlement_receipt.holder_delta must be an int"):
+        expected_fire_proof_tree_replay_summary(
+            _replay_input(),
+            replay_input_sha256=REPLAY_INPUT_SHA256,
+            kernel_settlement_receipt=kernel_settlement_receipt,
+            kernel_settlement_receipt_sha256=KERNEL_SETTLEMENT_RECEIPT_SHA256,
+        )
+
+
+def test_expected_fire_proof_tree_replay_summary_requires_replay_hash_strings() -> None:
+    kernel_replay_receipt = {
+        "transcript_sha256": 0,
+        "delta_sha256": "sha256:" + ("8" * 64),
+        "settlement_state_sha256": "sha256:" + ("9" * 64),
+        "settlement_effects_sha256": "sha256:" + ("a" * 64),
+    }
+
+    with pytest.raises(ValueError, match="kernel_replay_receipt.transcript_sha256 must be a sha256"):
+        expected_fire_proof_tree_replay_summary(
+            _replay_input(),
+            replay_input_sha256=REPLAY_INPUT_SHA256,
+            kernel_replay_receipt=kernel_replay_receipt,
+            kernel_replay_receipt_sha256=KERNEL_REPLAY_RECEIPT_SHA256,
+        )
 
 
 def test_verify_fire_proof_tree_certificate_rejects_bad_evidence_floor() -> None:

@@ -275,6 +275,7 @@ rule_catalog:
         - cert_sha256_mismatch
         - witness_hash_mismatch
         - delta_hash_mismatch
+        - delta_nonzero_sum
         - receipt_hash_mismatch
     - id: settlement_admissibility
       establishes:

@@ -27,6 +27,76 @@ stay in backlog until their replay commands are refreshed, their skipped lanes
 are split out, or their checks are promoted into Lean, ESSO, Tau, TLA, or
 another replayable certificate lane.
 
+## Proof Layer Added For Future Promotion
+
+The current branch adds reusable Lean theorem schemas and adapters that
+strengthen the way future axes can be promoted from search inventory into
+replayable guarantees:
+
+- `Proofs.AMMIntegerRuntimeBridge`: integer-runtime CPMM receipts imply
+  no-overdelivery, nondecreasing fee-adjusted `k`, and route rounding envelopes.
+- `Proofs.DisasterAntichainBasis`: if every minimal forbidden trace in a basis
+  is rejected, and every bad trace contains one of those basis traces, then the
+  whole bad family is rejected.
+- `Proofs.ForbiddenTraceMinor`: if every bad trace embeds a forbidden motif and
+  rejection or guard blocking lifts through that embedding, then the whole bad
+  trace family is rejected.
+- `Proofs.NoFreeResourceTraceLedger`: if every accepted event carries a safe
+  resource delta and the safe cone is closed under trace composition, then an
+  accepted trace cannot create a protected resource outside that cone; Nat
+  budget lemmas also reject claims above total or prefix budget.
+- `Proofs.ZenoDEXDisasterSchemaInstantiations`: small proof adapters for
+  ZenoDEX-shaped resource budgets and forbidden motifs, including API scan
+  budgets, proof-mining rewards, bounty payouts, proof work, stale settlement,
+  missing-oracle settlement, unpaired COW fills, and API overscan.
+- `Proofs.ZenoDEXClosedAxisProofSchemaMap`: Lean-side enumeration proving the
+  29 closed axes have nonempty proof-schema assignments.
+- `Proofs.CertificateGluing`: locally accepted certificates that glue into one
+  compatible global section exclude cross-surface disaster states.
+
+These proofs do not change the closed count from `29` to `125`. They provide
+the reusable math needed to turn more axes into concrete claims once each axis
+has a matching instantiation and replay receipt.
+
+Receipt:
+
+- `lean-mathlib/proof_receipts/aristotle_runtime_disaster_gluing_2026-04-28.md`
+- `lean-mathlib/proof_receipts/forbidden_trace_minor_2026-04-28.md`
+- `lean-mathlib/proof_receipts/no_free_resource_trace_ledger_2026-04-28.md`
+- `lean-mathlib/proof_receipts/zenodex_disaster_schema_instantiations_2026-04-28.md`
+
+The static proof-schema map is checked by:
+
+```bash
+python3 tools/check_disaster_proof_schema_map.py
+```
+
+Current output:
+
+```text
+axis_count: 29
+schema_count: 7
+support_proof_file_count: 1
+lean_mirror_ok: yes
+lean_mirror_axis_count: 29
+lean_mirror_assignment_count: 29
+amm_integer_runtime_bridge: 1
+certificate_gluing: 13
+disaster_antichain_basis: 8
+disaster_trace_lifting: 11
+forbidden_trace_minor: 15
+no_free_resource_trace_ledger: 6
+zenodex_disaster_schema_instantiations: 6
+```
+
+This map is not a proof that all 29 axes are now fully discharged in Lean. It is
+a ratchet that keeps every closed replay axis attached to the theorem schema
+that should discharge or strengthen it once the concrete runtime predicates are
+instantiated. The Lean-side map module is tracked by the same hygiene gate but
+is intentionally not counted as an axis-discharge schema. The checker compares
+the Python map used by the replay tooling against the Lean mirror and fails on
+axis or schema-assignment drift.
+
 ## Evidence Discipline
 
 The disaster-state lane follows the repository's public correct-by-construction
@@ -102,7 +172,8 @@ axis set and fails if any closed axis becomes failed, skipped, inconclusive, or
 missing from the current search inventory.
 
 The same workflow also runs `tools/check_formal_proof_hygiene.py` over critical
-Lean proof artifacts and keeps deployment-posture tests on the default
+Lean proof artifacts, `tools/check_disaster_proof_schema_map.py` over the
+closed-axis proof-schema map, and deployment-posture tests on the default
 API/resource-safety boundary. That does not turn the bounded receipt into an
 exhaustive proof, but it does make regression of the current claim visible on
 every main-branch push and pull request.

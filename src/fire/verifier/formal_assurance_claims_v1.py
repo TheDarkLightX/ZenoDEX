@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -14,6 +15,7 @@ from src.fire.pathing_v1 import fire_formal_assurance_claims_path, fire_formal_a
 
 FIRE_FORMAL_ASSURANCE_CLAIMS_SCHEMA = "zenodex/fire-formal-assurance-claims/v1"
 FIRE_FORMAL_ASSURANCE_CLAIMS_CHECK_REPORT_SCHEMA = "zenodex/fire-formal-assurance-claims-check-report/v1"
+LEAN_PROOF_RECEIPT_SCHEMA = "zenodex/lean-proof-receipt/v1"
 
 SETTLEMENT_ADMISSIBILITY_STATEMENT = "FIREVAccept(O, I, Gamma, w, C) -> SettlementSafe(O, I, w, C)"
 REQUIRED_EVIDENCE_LEVELS = ("proved", "contract", "implemented", "tested_discovery", "hypothesis")
@@ -29,6 +31,8 @@ REQUIRED_FORBIDDEN_CLAIMS = frozenset(
         "private_esso_required_for_public_runtime",
     }
 )
+LEAN_TRUST_ESCAPE_RE = re.compile(r"\b(sorry|admit|axiom|unsafe|sorryAx)\b")
+LEAN_DECLARATION_KINDS = ("theorem", "lemma", "def", "abbrev", "structure", "inductive", "class")
 
 
 class FireFormalAssuranceClaimsError(RuntimeError):
@@ -65,6 +69,23 @@ def _sha256_file(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _lean_toolchain(repo_root: Path) -> str:
+    path = repo_root / "lean-mathlib" / "lean-toolchain"
+    _expect(path.is_file(), "Lean proof receipt checking requires lean-mathlib/lean-toolchain")
+    value = path.read_text(encoding="utf-8").strip()
+    _expect(bool(value), "lean-mathlib/lean-toolchain must be non-empty")
+    return value
+
+
+def _is_sha256(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and value.startswith("sha256:")
+        and len(value) == 71
+        and all(ch in "0123456789abcdef" for ch in value[7:])
+    )
+
+
 def _as_mapping(value: object, *, ctx: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         raise FireFormalAssuranceClaimsError(f"{ctx}: expected object")
@@ -75,6 +96,12 @@ def _as_sequence(value: object, *, ctx: str) -> Sequence[object]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
         raise FireFormalAssuranceClaimsError(f"{ctx}: expected array")
     return value
+
+
+def _as_bool(value: object, *, ctx: str) -> bool:
+    if not isinstance(value, bool):
+        raise FireFormalAssuranceClaimsError(f"{ctx}: expected bool")
+    return bool(value)
 
 
 def _load_yaml(path: Path) -> Mapping[str, object]:
@@ -136,6 +163,264 @@ def _component_paths_exist(component: Mapping[str, object], *, repo_root: Path) 
         _expect(path.exists(), f"{component_id}: missing declared path {rel}")
 
 
+def _require_nonempty_str(value: object, *, ctx: str) -> str:
+    _expect(isinstance(value, str) and bool(value), f"{ctx}: expected non-empty string")
+    return str(value)
+
+
+def _strip_lean_comments(text: str) -> str:
+    out: list[str] = []
+    idx = 0
+    block_depth = 0
+    while idx < len(text):
+        nxt = text[idx : idx + 2]
+        if block_depth > 0:
+            if nxt == "/-":
+                block_depth += 1
+                idx += 2
+                continue
+            if nxt == "-/":
+                block_depth -= 1
+                idx += 2
+                continue
+            if text[idx] == "\n":
+                out.append("\n")
+            idx += 1
+            continue
+        if nxt == "/-":
+            block_depth = 1
+            idx += 2
+            continue
+        if nxt == "--":
+            while idx < len(text) and text[idx] != "\n":
+                idx += 1
+            continue
+        out.append(text[idx])
+        idx += 1
+    return "".join(out)
+
+
+def _lean_decl_pattern(name: str) -> re.Pattern[str]:
+    kinds = "|".join(LEAN_DECLARATION_KINDS)
+    return re.compile(rf"\b(?:{kinds})\s+{re.escape(name)}\b")
+
+
+def _check_lean_theorem_bindings(
+    *,
+    stripped_source: str,
+    theorems: object,
+    component_id: str,
+    receipt_idx: int,
+    module_idx: int,
+    rel: str,
+) -> None:
+    theorem_items = _as_sequence(
+        theorems,
+        ctx=f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].theorems",
+    )
+    _expect(
+        bool(theorem_items),
+        f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].theorems must be non-empty",
+    )
+    seen: set[str] = set()
+    for theorem_idx, theorem in enumerate(theorem_items):
+        name = _require_nonempty_str(
+            theorem,
+            ctx=f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].theorems[{theorem_idx}]",
+        )
+        _expect(
+            name not in seen,
+            f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].theorems duplicate: {name}",
+        )
+        seen.add(name)
+        _expect(
+            _lean_decl_pattern(name).search(stripped_source) is not None,
+            f"{component_id}: proof receipt theorem {name!r} not found as a declaration in {rel}",
+        )
+
+
+def _lean_source_path_for_command(rel: str) -> str:
+    prefix = "lean-mathlib/"
+    if rel.startswith(prefix):
+        return rel[len(prefix) :]
+    return rel
+
+
+def _check_lean_module_has_checker_command(
+    *,
+    commands: Sequence[str],
+    module_name: str,
+    rel: str,
+    component_id: str,
+    receipt_idx: int,
+    module_idx: int,
+) -> None:
+    source_path = _lean_source_path_for_command(rel)
+    env_lean_marker = f"lake env lean {source_path}"
+    build_marker = f"lake build {module_name}"
+    _expect(
+        any(env_lean_marker in command or build_marker in command for command in commands),
+        f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}] missing Lean checker command "
+        f"for {module_name} ({source_path})",
+    )
+
+
+def _check_lean_module_trust_hygiene(
+    stripped_source: str,
+    *,
+    component_id: str,
+    rel: str,
+) -> None:
+    for line_no, line in enumerate(stripped_source.splitlines(), start=1):
+        match = LEAN_TRUST_ESCAPE_RE.search(line)
+        if match is not None:
+            raise FireFormalAssuranceClaimsError(
+                f"{component_id}: proof receipt module contains Lean trust escape "
+                f"{match.group(1)!r} at {rel}:{line_no}"
+            )
+
+
+def _check_proof_receipt_module_hashes(
+    receipt_payload: Mapping[str, object],
+    *,
+    repo_root: Path,
+    component_id: str,
+    receipt_idx: int,
+    declared_checker: str,
+    commands: Sequence[str],
+) -> None:
+    modules = _as_sequence(
+        receipt_payload.get("modules"),
+        ctx=f"{component_id}.proof_receipts[{receipt_idx}].modules",
+    )
+    _expect(bool(modules), f"{component_id}.proof_receipts[{receipt_idx}]: proof receipt must bind at least one module")
+    for module_idx, module_obj in enumerate(modules):
+        module = _as_mapping(
+            module_obj,
+            ctx=f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}]",
+        )
+        module_name = _require_nonempty_str(
+            module.get("module"),
+            ctx=f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].module",
+        )
+        if declared_checker == "lean":
+            _expect(
+                module_name.startswith("Proofs."),
+                f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].module must be under Proofs.*",
+            )
+        rel = module.get("path")
+        _expect(
+            isinstance(rel, str) and bool(rel),
+            f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].path must be non-empty",
+        )
+        expected_sha = module.get("sha256")
+        _expect(
+            _is_sha256(expected_sha),
+            f"{component_id}.proof_receipts[{receipt_idx}].modules[{module_idx}].sha256 must be sha256-prefixed",
+        )
+        module_path = repo_root / rel
+        _expect(module_path.is_file(), f"{component_id}: proof receipt module file missing: {rel}")
+        actual_sha = _sha256_file(module_path)
+        _expect(
+            actual_sha == expected_sha,
+            f"{component_id}: proof receipt module hash mismatch for {rel}: {actual_sha} != {expected_sha}",
+        )
+        if declared_checker == "lean":
+            _check_lean_module_has_checker_command(
+                commands=commands,
+                module_name=module_name,
+                rel=rel,
+                component_id=component_id,
+                receipt_idx=receipt_idx,
+                module_idx=module_idx,
+            )
+            stripped = _strip_lean_comments(module_path.read_text(encoding="utf-8"))
+            _check_lean_module_trust_hygiene(stripped, component_id=component_id, rel=rel)
+            _check_lean_theorem_bindings(
+                stripped_source=stripped,
+                theorems=module.get("theorems"),
+                component_id=component_id,
+                receipt_idx=receipt_idx,
+                module_idx=module_idx,
+                rel=rel,
+            )
+
+
+def _check_proof_receipt_commands(
+    receipt_payload: Mapping[str, object],
+    *,
+    component_id: str,
+    receipt_idx: int,
+) -> tuple[str, ...]:
+    commands = _as_sequence(
+        receipt_payload.get("commands"),
+        ctx=f"{component_id}.proof_receipts[{receipt_idx}].commands",
+    )
+    _expect(bool(commands), f"{component_id}.proof_receipts[{receipt_idx}].commands must be non-empty")
+    normalized_commands: list[str] = []
+    for cmd_idx, command_obj in enumerate(commands):
+        command = _as_mapping(
+            command_obj,
+            ctx=f"{component_id}.proof_receipts[{receipt_idx}].commands[{cmd_idx}]",
+        )
+        _require_nonempty_str(
+            command.get("cwd"),
+            ctx=f"{component_id}.proof_receipts[{receipt_idx}].commands[{cmd_idx}].cwd",
+        )
+        _require_nonempty_str(
+            command.get("cmd"),
+            ctx=f"{component_id}.proof_receipts[{receipt_idx}].commands[{cmd_idx}].cmd",
+        )
+        normalized_commands.append(str(command["cmd"]))
+    return tuple(normalized_commands)
+
+
+def _check_proof_receipt_integrity(
+    receipt_payload: Mapping[str, object],
+    *,
+    repo_root: Path,
+    component_id: str,
+    receipt_idx: int,
+    declared_checker: str,
+    declared_result: str,
+) -> None:
+    if declared_checker == "lean":
+        schema = receipt_payload.get("schema")
+        _expect(
+            schema == LEAN_PROOF_RECEIPT_SCHEMA,
+            f"{component_id}: Lean proof receipt schema mismatch at index {receipt_idx}: {schema!r}",
+        )
+        receipt_toolchain = _require_nonempty_str(
+            receipt_payload.get("lean_toolchain"),
+            ctx=f"{component_id}.proof_receipts[{receipt_idx}].lean_toolchain",
+        )
+        expected_toolchain = _lean_toolchain(repo_root)
+        _expect(
+            receipt_toolchain == expected_toolchain,
+            f"{component_id}: Lean proof receipt toolchain mismatch at index {receipt_idx}: "
+            f"{receipt_toolchain!r} != {expected_toolchain!r}",
+        )
+    receipt_checker = receipt_payload.get("checker")
+    _expect(
+        receipt_checker == declared_checker,
+        f"{component_id}: proof receipt checker mismatch at index {receipt_idx}: {receipt_checker!r} != {declared_checker!r}",
+    )
+    receipt_result = receipt_payload.get("result")
+    _expect(
+        receipt_result == declared_result,
+        f"{component_id}: proof receipt result mismatch at index {receipt_idx}: {receipt_result!r} != {declared_result!r}",
+    )
+    commands = _check_proof_receipt_commands(receipt_payload, component_id=component_id, receipt_idx=receipt_idx)
+    _check_proof_receipt_module_hashes(
+        receipt_payload,
+        repo_root=repo_root,
+        component_id=component_id,
+        receipt_idx=receipt_idx,
+        declared_checker=declared_checker,
+        commands=commands,
+    )
+
+
 def _check_formal_verification(
     component: Mapping[str, object],
     *,
@@ -143,7 +428,7 @@ def _check_formal_verification(
 ) -> bool:
     component_id = str(component["id"])
     formal = _as_mapping(component.get("formal_verification"), ctx=f"{component_id}.formal_verification")
-    claimed = bool(formal.get("claimed", False))
+    claimed = _as_bool(formal.get("claimed"), ctx=f"{component_id}.formal_verification.claimed")
     status = formal.get("status")
     proof_receipts = _as_sequence(formal.get("proof_receipts"), ctx=f"{component_id}.proof_receipts")
 
@@ -168,6 +453,15 @@ def _check_formal_verification(
         _expect(checker in {"lean", "esso", "smt", "other"}, f"{component_id}: unsupported proof checker {checker!r}")
         result = receipt.get("result")
         _expect(result in {"proved", "verified"}, f"{component_id}: unsupported proof receipt result {result!r}")
+        receipt_payload = _load_json(path)
+        _check_proof_receipt_integrity(
+            receipt_payload,
+            repo_root=repo_root,
+            component_id=component_id,
+            receipt_idx=idx,
+            declared_checker=str(checker),
+            declared_result=str(result),
+        )
 
     return claimed
 
@@ -180,8 +474,8 @@ def _check_component(
     component_id = str(component["id"])
     surface = component.get("surface")
     _expect(isinstance(surface, str) and bool(surface), f"{component_id}: missing surface")
-    can_authorize = bool(component.get("can_authorize_settlement", False))
-    claims_bug_free = bool(component.get("claims_bug_free", False))
+    can_authorize = _as_bool(component.get("can_authorize_settlement"), ctx=f"{component_id}.can_authorize_settlement")
+    claims_bug_free = _as_bool(component.get("claims_bug_free"), ctx=f"{component_id}.claims_bug_free")
     _expect(not claims_bug_free, f"{component_id}: bug-free claims are forbidden")
     _component_paths_exist(component, repo_root=repo_root)
 

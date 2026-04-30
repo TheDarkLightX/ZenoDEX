@@ -63,6 +63,10 @@ def fire_settlement_delta_hash(*, holder_delta: int, writer_delta: int) -> str:
     return _sha256_bytes(_canonical_json_bytes(payload))
 
 
+def fire_settlement_deltas_conserve(*, holder_delta: int, writer_delta: int) -> bool:
+    return _require_int("holder_delta", holder_delta) + _require_int("writer_delta", writer_delta) == 0
+
+
 def fire_witness_binding_hash(witness_inputs: Mapping[str, object]) -> str:
     if not isinstance(witness_inputs, Mapping):
         raise TypeError("witness_inputs must be a mapping")
@@ -151,15 +155,19 @@ class FireVerifierReceipt:
         bundle_hash: str | None = None,
         witness_hash: str | None = None,
     ) -> "FireVerifierReceipt":
-        delta_hash = fire_settlement_delta_hash(holder_delta=holder_delta, writer_delta=writer_delta)
+        holder_delta_i = _require_int("holder_delta", holder_delta)
+        writer_delta_i = _require_int("writer_delta", writer_delta)
+        if not fire_settlement_deltas_conserve(holder_delta=holder_delta_i, writer_delta=writer_delta_i):
+            raise ValueError("delta_nonzero_sum")
+        delta_hash = fire_settlement_delta_hash(holder_delta=holder_delta_i, writer_delta=writer_delta_i)
         payload_without_hash: dict[str, object] = {
             "schema": FIRE_VERIFIER_RECEIPT_SCHEMA,
             "object_hash": _require_sha256_prefixed("object_hash", object_hash),
             "instance_hash": _require_sha256_prefixed("instance_hash", instance_hash),
             "cert_sha256": _require_sha256_prefixed("cert_sha256", cert_sha256),
             "delta_hash": delta_hash,
-            "holder_delta": _require_int("holder_delta", holder_delta),
-            "writer_delta": _require_int("writer_delta", writer_delta),
+            "holder_delta": holder_delta_i,
+            "writer_delta": writer_delta_i,
             "command_tag": _require_nonempty_str("command_tag", command_tag),
             "object_name": _require_nonempty_str("object_name", object_name),
             "object_version": _require_nonempty_str("object_version", object_version),
@@ -243,6 +251,11 @@ def verify_fire_verifier_receipt(
     )
     if receipt.delta_hash != expected_delta_hash:
         return False, "delta_hash_mismatch"
+    if not fire_settlement_deltas_conserve(
+        holder_delta=receipt.holder_delta,
+        writer_delta=receipt.writer_delta,
+    ):
+        return False, "delta_nonzero_sum"
     expected_receipt_hash = _sha256_bytes(_canonical_json_bytes(receipt.payload_without_hash()))
     if receipt.receipt_hash != expected_receipt_hash:
         return False, "receipt_hash_mismatch"
@@ -321,11 +334,15 @@ class FireSettlementPacket:
         payoff_out: int,
         firev_accept: bool,
     ) -> "FireSettlementPacket":
+        holder_delta_i = _require_int("holder_delta", holder_delta)
+        writer_delta_i = _require_int("writer_delta", writer_delta)
+        if not fire_settlement_deltas_conserve(holder_delta=holder_delta_i, writer_delta=writer_delta_i):
+            raise ValueError("delta_nonzero_sum")
         payload_without_hash: dict[str, object] = {
             "schema": FIRE_SETTLEMENT_PACKET_SCHEMA,
             "receipt": receipt.to_dict(),
-            "holder_delta": _require_int("holder_delta", holder_delta),
-            "writer_delta": _require_int("writer_delta", writer_delta),
+            "holder_delta": holder_delta_i,
+            "writer_delta": writer_delta_i,
             "payoff_out": _require_int("payoff_out", payoff_out),
             "firev_accept": _require_bool("firev_accept", firev_accept),
         }
@@ -370,7 +387,10 @@ def verify_fire_settlement_packet(
         return False, "firev_accept_false"
     if packet.payoff_out != packet.holder_delta:
         return False, "payoff_out_mismatch"
-    if packet.writer_delta != -packet.holder_delta:
+    if not fire_settlement_deltas_conserve(
+        holder_delta=packet.holder_delta,
+        writer_delta=packet.writer_delta,
+    ):
         return False, "delta_nonzero_sum"
     ok, err = verify_fire_verifier_receipt(
         packet.receipt,
@@ -487,6 +507,7 @@ __all__ = [
     "FireVerifierReceipt",
     "extract_verified_fire_settlement_authority_packet",
     "extract_verified_fire_settlement_packet",
+    "fire_settlement_deltas_conserve",
     "fire_settlement_delta_hash",
     "fire_witness_binding_hash",
     "verify_fire_settlement_authority_packet",
