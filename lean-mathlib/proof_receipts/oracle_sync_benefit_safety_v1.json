@@ -1,0 +1,98 @@
+{
+  "receipt_id": "oracle_sync_benefit_safety_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/OracleBenefitAccounting.lean",
+    "lean-mathlib/Proofs/OracleBenefitRiskClasses.lean",
+    "lean-mathlib/Proofs/OracleSyncGateSoundness.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "Proofs.OracleBenefitAccounting.oracleNetBenefit_eq_risk_minus_recapturable",
+    "Proofs.OracleBenefitAccounting.totalVerifiedBenefit_eq_totalReward_minus_overlap",
+    "Proofs.OracleBenefitAccounting.positive_oracle_reward_requires_surplus",
+    "Proofs.OracleBenefitAccounting.oracle_reward_zero_if_recapturable_dominates",
+    "Proofs.OracleBenefitAccounting.oracle_net_benefit_antitone_in_safety_margin",
+    "Proofs.OracleBenefitAccounting.total_reward_zero_if_verified_nonpositive",
+    "Proofs.OracleBenefitAccounting.total_reward_le_verified_total_if_overlap_reserved",
+    "Proofs.OracleBenefitAccounting.witness_positive_oracle_reward_case",
+    "Proofs.OracleBenefitAccounting.witness_blocked_oracle_reward_case",
+    "Proofs.OracleBenefitAccounting.witness_total_reward_blocked_case",
+    "Proofs.OracleBenefitRiskClasses.risky_ops_enabled_eq_top",
+    "Proofs.OracleBenefitRiskClasses.risky_ops_implies_settlement_enabled",
+    "Proofs.OracleBenefitRiskClasses.settlement_implies_quote_enabled",
+    "Proofs.OracleBenefitRiskClasses.positive_class_delta_iff_improves",
+    "Proofs.OracleBenefitRiskClasses.rewardable_transition_requires_positive_class_delta",
+    "Proofs.OracleBenefitRiskClasses.class_improvement_transitive",
+    "Proofs.OracleBenefitRiskClasses.rewardable_transition_requires_improvement",
+    "Proofs.OracleBenefitRiskClasses.class_improvement_into_risky_ops_requires_not_top",
+    "Proofs.OracleBenefitRiskClasses.rewardable_transition_into_risky_ops_requires_not_already_enabled",
+    "Proofs.OracleBenefitRiskClasses.rewardable_transition_to_settlement_implies_quote_enabled_target",
+    "Proofs.OracleBenefitRiskClasses.witness_transition_gain",
+    "Proofs.OracleBenefitRiskClasses.witness_rewardable_transition",
+    "Proofs.OracleBenefitRiskClasses.witness_nonimproving_transition_blocked",
+    "cross_div_le",
+    "crossmul_implies_prod",
+    "prod_implies_crossmul_succ",
+    "prod_monotone",
+    "extraction_bounded",
+    "extraction_bounded_prod",
+    "gate_monotone",
+    "compose_move_divergence",
+    "full_composition",
+    "extraction_additive",
+    "small_div_zero_extraction",
+    "parameter_selection",
+    "parameter_selection_prod",
+    "fee_dominates_extraction",
+    "fee_dominates_extraction_prod",
+    "witness_gate_admits_and_tight",
+    "witness_gate_rejects",
+    "witness_predicate_gap",
+    "witness_bridge_tight",
+    "witness_prod_extraction_tight",
+    "witness_full_composition",
+    "witness_parameter_selection",
+    "witness_fee_dominance",
+    "witness_prod_fee_dominance"
+  ],
+  "claims": [
+    "Positive oracle rewards require strict verified surplus after same-update PnL, spam value, overlap, and safety margin are subtracted.",
+    "If recapturable terms dominate verified oracle benefit, any non-negative oracle reward bounded by net benefit is zero.",
+    "Risky oracle operations imply settlement admissibility, and settlement admissibility implies quote admissibility.",
+    "Positive rewardable oracle-class transitions require strict improvement in the bounded oracle risk lattice.",
+    "Rewardable transitions into the risky-ops class cannot pay again when the source state already enabled risky ops.",
+    "The production floor-division oracle sync predicate implies the formal cross-multiplication predicate with a one-basis-point budget expansion.",
+    "Cross-module extraction is bounded by collateral times divergence budget over the BPS scale.",
+    "Fee and parameter-selection theorems give sufficient conditions for fees or configured budgets to dominate bounded oracle divergence extraction."
+  ],
+  "proof_method": [
+    "integer arithmetic over net-benefit and overlap-reserved reward budgets",
+    "finite risk-class rank reasoning",
+    "Nat floor-division bridge to cross-multiplication",
+    "cross-division extraction bounds",
+    "monotonicity and fee-dominance inequalities"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.OracleBenefitAccounting Proofs.OracleBenefitRiskClasses Proofs.OracleSyncGateSoundness",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/OracleBenefitAccounting.lean lean-mathlib/Proofs/OracleBenefitRiskClasses.lean lean-mathlib/Proofs/OracleSyncGateSoundness.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "OracleSyncGateSoundness models the documented floor-division production predicate and proves bounds with a D+1 basis-point expansion; it does not prove every runtime caller uses the gate.",
+    "The oracle benefit proofs assume faithful accounting of risk reduction, same-update PnL, spam value, overlap, and safety margin.",
+    "The risk-class lattice is a finite local rewardability model, not a complete oracle governance or market-equilibrium proof."
+  ]
+}

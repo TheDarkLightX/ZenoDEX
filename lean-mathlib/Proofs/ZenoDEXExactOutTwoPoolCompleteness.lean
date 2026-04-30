@@ -30,7 +30,7 @@ optimum — no feasible allocation is missed.
 - `ZenoDEXExactOutCanonicalMinimizer.lean`: canonical key ordering, unique minimum
 - `ZenoDEXExactOutBruteforceCompleteness.lean`: interval search → unique canonical
 - `src/core/split_routing_dispatch.py:568-616`: Python implementation with same bounds
-- This file: bridge from concrete bounds to abstract completeness (0 sorry)
+- This file: bridge from concrete bounds to abstract completeness
 -/
 
 namespace TauSwap

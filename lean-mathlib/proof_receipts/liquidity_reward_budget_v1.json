@@ -1,0 +1,90 @@
+{
+  "receipt_id": "liquidity_reward_budget_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/DefensiveLiquidityBenefit.lean",
+    "lean-mathlib/Proofs/BonusBetBudgetSafety.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.DefensiveLiquidityBenefit.LiquidityServiceClass",
+    "Proofs.DefensiveLiquidityBenefit.serviceRank",
+    "Proofs.DefensiveLiquidityBenefit.externalServiceEnabled",
+    "Proofs.DefensiveLiquidityBenefit.defensiveServiceEnabled",
+    "Proofs.DefensiveLiquidityBenefit.oracleSafeServiceEnabled",
+    "Proofs.DefensiveLiquidityBenefit.liquidityNetBenefit",
+    "Proofs.DefensiveLiquidityBenefit.rewardableLiquidity",
+    "Proofs.BonusBetBudgetSafety.BPS",
+    "Proofs.BonusBetBudgetSafety.expectedWinnersFloor",
+    "Proofs.BonusBetBudgetSafety.rawBonusPerWinner",
+    "Proofs.BonusBetBudgetSafety.cappedBonusPerWinner",
+    "Proofs.BonusBetBudgetSafety.budgetAvailable",
+    "Proofs.BonusBetBudgetSafety.paidBonus",
+    "Proofs.BonusBetBudgetSafety.realizedBonus"
+  ],
+  "theorems": [
+    "Proofs.DefensiveLiquidityBenefit.external_service_enabled_iff",
+    "Proofs.DefensiveLiquidityBenefit.defensive_service_enabled_iff",
+    "Proofs.DefensiveLiquidityBenefit.oracle_safe_service_enabled_iff",
+    "Proofs.DefensiveLiquidityBenefit.oracle_safe_implies_defensive",
+    "Proofs.DefensiveLiquidityBenefit.defensive_implies_external_service",
+    "Proofs.DefensiveLiquidityBenefit.rewardable_liquidity_implies_external_service",
+    "Proofs.DefensiveLiquidityBenefit.not_rewardable_without_external_service",
+    "Proofs.DefensiveLiquidityBenefit.positive_liquidity_reward_requires_surplus",
+    "Proofs.DefensiveLiquidityBenefit.liquidity_reward_zero_if_recapturable_dominates",
+    "Proofs.DefensiveLiquidityBenefit.rewardable_oracle_safe_service_is_defensive",
+    "Proofs.DefensiveLiquidityBenefit.rewardable_defensive_service_is_external",
+    "Proofs.DefensiveLiquidityBenefit.witness_rewardable_defensive_service",
+    "Proofs.DefensiveLiquidityBenefit.witness_passive_depth_blocked",
+    "Proofs.DefensiveLiquidityBenefit.witness_recapturable_dominates",
+    "Proofs.BonusBetBudgetSafety.cappedBonusPerWinner_le_raw",
+    "Proofs.BonusBetBudgetSafety.cappedBonusPerWinner_le_cap",
+    "Proofs.BonusBetBudgetSafety.paidBonus_le_budgetAvailable",
+    "Proofs.BonusBetBudgetSafety.paidBonus_le_preclip",
+    "Proofs.BonusBetBudgetSafety.realizedBonus_le_paid",
+    "Proofs.BonusBetBudgetSafety.realizedBonus_le_budgetAvailable",
+    "Proofs.BonusBetBudgetSafety.budgetAvailable_zero_when_honest_demand_exhausts",
+    "Proofs.BonusBetBudgetSafety.paidBonus_zero_when_no_available_budget",
+    "Proofs.BonusBetBudgetSafety.paidBonus_zero_when_no_expected_winners",
+    "Proofs.BonusBetBudgetSafety.realizedBonus_zero_when_ev_zero"
+  ],
+  "claims": [
+    "Passive and merely posted liquidity are not rewardable without external-flow service.",
+    "A positive liquidity reward requires external fee or safety-lift surplus after subtracting self-flow, inventory recycling, overlap, and safety margin.",
+    "If recapturable terms dominate external fee plus safety lift, any non-negative liquidity reward collapses to zero.",
+    "Defended and oracle-safe liquidity classes refine the external-flow service class.",
+    "Winner-only bonus credits are clipped by expected winners, per-winner cap, and available epoch budget.",
+    "Realized bonus value cannot exceed paid bonus credits when expected-value basis points are at most 10000.",
+    "Bonus credits collapse to zero when honest demand exhausts the epoch budget or when no expected winners exist."
+  ],
+  "proof_method": [
+    "finite service-class case split",
+    "linear integer accounting",
+    "natural-number min clipping",
+    "basis-point haircut arithmetic",
+    "concrete admissible and blocked witnesses"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.DefensiveLiquidityBenefit Proofs.BonusBetBudgetSafety",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/DefensiveLiquidityBenefit.lean lean-mathlib/Proofs/BonusBetBudgetSafety.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "These are local reward-admission arithmetic gates, not a complete tokenomics equilibrium theorem.",
+    "Deployments still need runtime evidence that externalFee, safetyLift, selfFlow, inventoryRecycle, overlap, and safetyMargin are measured correctly.",
+    "Bonus-bet issuance is modeled as bounded credits; this receipt does not claim securities, gambling, tax, or regulatory safety.",
+    "The proofs constrain payout admission; they do not select a policy for reward rates, eligibility, or expected-value basis points."
+  ]
+}
