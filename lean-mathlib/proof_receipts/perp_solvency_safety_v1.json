@@ -1,0 +1,95 @@
+{
+  "receipt_id": "perp_solvency_safety_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/PerpCascadeSafety.lean",
+    "lean-mathlib/Proofs/PerpInsuranceSafety.lean",
+    "lean-mathlib/Proofs/PerpLiquidationInsuranceBound.lean",
+    "lean-mathlib/Proofs/PerpProtocolSafety.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.PerpLiquidationInsuranceBound.nextInsuranceBalance",
+    "Proofs.PerpLiquidationInsuranceBound.preLiquidationInsurance"
+  ],
+  "theorems": [
+    "Proofs.PerpCascadeSafety.isolated_margin_independence",
+    "Proofs.PerpCascadeSafety.total_conservation_two",
+    "Proofs.PerpCascadeSafety.cascade_impossible_isolated",
+    "Proofs.PerpCascadeSafety.post_pnl_lower_bound",
+    "Proofs.PerpCascadeSafety.witness_isolation",
+    "Proofs.PerpCascadeSafety.witness_conservation",
+    "Proofs.PerpCascadeSafety.witness_no_cascade",
+    "Proofs.PerpCascadeSafety.witness_post_pnl",
+    "Proofs.PerpInsuranceSafety.insurance_accounting",
+    "Proofs.PerpInsuranceSafety.insurance_solvency_from_surplus",
+    "Proofs.PerpInsuranceSafety.insurance_multi_epoch_solvent",
+    "Proofs.PerpInsuranceSafety.insurance_depletion_bounded",
+    "Proofs.PerpInsuranceSafety.insurance_survives_epochs",
+    "Proofs.PerpInsuranceSafety.witness_accounting",
+    "Proofs.PerpInsuranceSafety.witness_solvent",
+    "Proofs.PerpInsuranceSafety.witness_multi_epoch",
+    "Proofs.PerpInsuranceSafety.witness_depletion",
+    "Proofs.PerpInsuranceSafety.witness_survives",
+    "Proofs.PerpLiquidationInsuranceBound.next_insurance_eq_pre_plus_penalty",
+    "Proofs.PerpLiquidationInsuranceBound.next_insurance_le_cap",
+    "Proofs.PerpLiquidationInsuranceBound.next_insurance_nonneg",
+    "Proofs.PerpLiquidationInsuranceBound.state_guard_implies_next_cap",
+    "Proofs.PerpLiquidationInsuranceBound.witness_next_insurance_eval",
+    "Proofs.PerpLiquidationInsuranceBound.witness_bound_example",
+    "Proofs.PerpProtocolSafety.no_value_creation",
+    "Proofs.PerpProtocolSafety.interaction_budget",
+    "Proofs.PerpProtocolSafety.insurance_conservation",
+    "Proofs.PerpProtocolSafety.unified_perp_safety",
+    "Proofs.PerpProtocolSafety.unified_perp_safety_clamped",
+    "Proofs.PerpProtocolSafety.witness_unified_perp_safety",
+    "Proofs.PerpProtocolSafety.witness_no_value_creation",
+    "Proofs.PerpProtocolSafety.witness_interaction_budget"
+  ],
+  "claims": [
+    "Isolated margin updates do not alter unrelated isolated positions, and modeled pairwise updates preserve total collateral under the stated deltas.",
+    "Modeled insurance accounting preserves fund relationships and remains solvent when surplus/coverage preconditions hold across one or many epochs.",
+    "Liquidation insurance balance updates equal the pre-liquidation balance plus penalty and remain within cap under the stated state guard.",
+    "Unified perps protocol safety composes no-value-creation, interaction budget, and insurance-conservation facts under the modeled assumptions."
+  ],
+  "proof_method": [
+    "linear arithmetic over isolated margin and post-PnL lower bounds",
+    "natural-number insurance accounting and depletion bounds",
+    "cap-preservation arithmetic for liquidation insurance transitions",
+    "composition of existing collateral, insurance, and clamped-move lemmas"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.PerpCascadeSafety Proofs.PerpInsuranceSafety Proofs.PerpLiquidationInsuranceBound Proofs.PerpProtocolSafety",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < perp-solvency-safety-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/perp_solvency_safety_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/PerpCascadeSafety.lean lean-mathlib/Proofs/PerpInsuranceSafety.lean lean-mathlib/Proofs/PerpLiquidationInsuranceBound.lean lean-mathlib/Proofs/PerpProtocolSafety.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/PerpCascadeSafety.lean lean-mathlib/Proofs/PerpInsuranceSafety.lean lean-mathlib/Proofs/PerpLiquidationInsuranceBound.lean lean-mathlib/Proofs/PerpProtocolSafety.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves modeled solvency and conservation facts only.",
+    "It does not prove oracle freshness, position eligibility, price publication validity, liquidation trigger correctness, or runtime authorization.",
+    "The composed protocol safety lemmas apply only when their stated arithmetic and guard preconditions are established by the runtime path."
+  ]
+}
