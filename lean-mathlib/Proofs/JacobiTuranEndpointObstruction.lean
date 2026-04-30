@@ -18,6 +18,70 @@ namespace JacobiTuranEndpointObstruction
 def turanEndpoint (prev cur next : Rat) : Rat :=
   cur ^ 2 - prev * next
 
+/-! ## Endpoint coefficient ratios -/
+
+/-- Recursive endpoint coefficient model for `binom(n + gamma, n)`.
+
+This is intentionally recurrence-first instead of importing a large
+special-function library. It is the exact algebraic object used by the endpoint
+obstruction formula:
+
+`C(0,gamma) = 1`
+`C(n+1,gamma) = C(n,gamma) * (n + gamma + 1) / (n + 1)`.
+-/
+def endpointCoeff : Nat -> Rat -> Rat
+  | 0, _ => 1
+  | n + 1, gamma => endpointCoeff n gamma * (((n : Rat) + gamma + 1) / ((n : Rat) + 1))
+
+/-- Ratio of two endpoint coefficients. -/
+def endpointRatio (n : Nat) (alpha beta : Rat) : Rat :=
+  endpointCoeff n beta / endpointCoeff n alpha
+
+theorem endpointCoeff_zero (gamma : Rat) :
+    endpointCoeff 0 gamma = 1 := by
+  rfl
+
+theorem endpointCoeff_succ (n : Nat) (gamma : Rat) :
+    endpointCoeff (n + 1) gamma =
+      endpointCoeff n gamma * (((n : Rat) + gamma + 1) / ((n : Rat) + 1)) := by
+  rfl
+
+/-- Adjacent ratio update for endpoint coefficients.
+
+In plain English: once the denominator coefficient and the next denominator
+factor are nonzero, the endpoint ratio advances by the expected adjacent
+Jacobi endpoint factor.
+-/
+theorem endpointRatio_succ
+    (n : Nat) (alpha beta : Rat)
+    (hCoeff : endpointCoeff n alpha ≠ 0)
+    (hAlphaStep : (n : Rat) + alpha + 1 ≠ 0) :
+    endpointRatio (n + 1) alpha beta =
+      endpointRatio n alpha beta *
+        (((n : Rat) + beta + 1) / ((n : Rat) + alpha + 1)) := by
+  unfold endpointRatio
+  rw [endpointCoeff_succ n beta, endpointCoeff_succ n alpha]
+  have hNat : ((n : Rat) + 1) ≠ 0 := by
+    have hPos : 0 < (n : Rat) + 1 := by positivity
+    exact ne_of_gt hPos
+  field_simp [hCoeff, hAlphaStep, hNat]
+
+/-- Backward adjacent ratio form for endpoint coefficients.
+
+In plain English: the previous endpoint ratio is the current ratio multiplied
+by the reciprocal adjacent factor.
+-/
+theorem endpointRatio_prev_of_succ
+    (n : Nat) (alpha beta : Rat)
+    (hCoeff : endpointCoeff n alpha ≠ 0)
+    (hAlphaStep : (n : Rat) + alpha + 1 ≠ 0)
+    (hBetaStep : (n : Rat) + beta + 1 ≠ 0) :
+    endpointRatio n alpha beta =
+      endpointRatio (n + 1) alpha beta *
+        (((n : Rat) + alpha + 1) / ((n : Rat) + beta + 1)) := by
+  rw [endpointRatio_succ n alpha beta hCoeff hAlphaStep]
+  field_simp [hBetaStep, hAlphaStep]
+
 /-- Right-normalized endpoint obstruction.
 
 In plain English: if adjacent endpoint ratios satisfy the Jacobi binomial-ratio

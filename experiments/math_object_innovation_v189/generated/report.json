@@ -62,6 +62,9 @@
     "artifact": "lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean",
     "checker_command": "lake env lean Proofs/JacobiTuranEndpointObstruction.lean",
     "closed_theorems": [
+      "endpointCoeff_succ",
+      "endpointRatio_succ",
+      "endpointRatio_prev_of_succ",
       "right_endpoint_obstruction_formula",
       "left_endpoint_obstruction_formula",
       "right_endpoint_obstruction_nonneg_of_alpha_le_beta",
@@ -70,7 +73,7 @@
       "left_endpoint_obstruction_negative_of_alpha_lt_beta"
     ],
     "receipt": "lean-mathlib/proof_receipts/jacobi_turan_endpoint_obstruction_v1.json",
-    "scope": "algebraic endpoint-ratio skeleton plus sign consequences, not full Jacobi/Gasper positivity",
+    "scope": "recurrence-defined endpoint coefficient ratio bridge plus sign consequences, not full Jacobi/Gasper positivity",
     "status": "checked_no_placeholders"
   },
   "negative_knowledge": [

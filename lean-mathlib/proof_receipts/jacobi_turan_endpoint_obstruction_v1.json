@@ -6,6 +6,9 @@
   "placeholder_scan": "rg -n \"\\bsorry\\b|\\badmit\\b|\\baxiom\\b|\\bunsafe\\b|sorryAx\" lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean || true",
   "placeholder_scan_clean": true,
   "theorems": [
+    "Proofs.JacobiTuranEndpointObstruction.endpointCoeff_succ",
+    "Proofs.JacobiTuranEndpointObstruction.endpointRatio_succ",
+    "Proofs.JacobiTuranEndpointObstruction.endpointRatio_prev_of_succ",
     "Proofs.JacobiTuranEndpointObstruction.right_endpoint_obstruction_formula",
     "Proofs.JacobiTuranEndpointObstruction.left_endpoint_obstruction_formula",
     "Proofs.JacobiTuranEndpointObstruction.right_endpoint_obstruction_nonneg_of_alpha_le_beta",
@@ -16,13 +19,13 @@
   "source_discovery_packet": "experiments/math_object_innovation_v189",
   "proof_idea": [
     "Model the endpoint Turan determinant as cur^2 - prev*next.",
-    "Assume the adjacent endpoint ratios supplied by the Jacobi binomial recurrence.",
+    "Define the endpoint coefficient by the Jacobi/Pochhammer recurrence and prove forward/backward endpoint-ratio updates.",
     "Clear nonzero denominators and normalize by ring arithmetic to expose beta-alpha or alpha-beta.",
     "Use denominator positivity and square nonnegativity to derive the cone nonnegative and wrong-cone negative sign theorems."
   ],
   "scope_limits": [
     "This proves the algebraic endpoint obstruction skeleton, not Gasper's full Jacobi Turan theorem.",
-    "It assumes the adjacent endpoint-ratio recurrence as input.",
+    "It models the endpoint coefficient by recurrence instead of proving equality with Mathlib's generalized binomial/Jacobi endpoint definitions.",
     "It does not prove interval positivity inside the valid parameter cone."
   ]
 }

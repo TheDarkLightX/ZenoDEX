@@ -1635,13 +1635,14 @@ Interpretation:
 - Reason:
   - it converts v188's endpoint falsifiers into a closed formula,
   - it checks `10368/10368` exact-rational rows with `0` formula mismatches,
-  - and the algebraic core plus sign consequences are now Lean-checked for both
-    endpoint orientations.
+  - and the recurrence-defined endpoint ratio bridge plus sign consequences are
+    now Lean-checked for both endpoint orientations.
 - Practical consequence:
   - the recognizer can reject strict wrong-cone endpoint choices before running
     Bernstein subdivision or Tau QE.
   - this is stronger than a bounded counterexample table because the sign source
     is now explicit: `beta - alpha` or `alpha - beta`.
 - Scope limit:
-  - the proof is an endpoint-ratio skeleton plus cone/wrong-cone sign theorem,
+  - the proof is a recurrence-defined endpoint-ratio skeleton plus
+    cone/wrong-cone sign theorem,
   - not a proof of full Jacobi interval positivity or the full Gasper theorem.

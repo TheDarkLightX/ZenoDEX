@@ -2109,11 +2109,11 @@ Interpretation:
   - in endpoint-ratio form, the obstruction factors as a square ratio times this signed parameter difference over a positive denominator.
 
 - Lean promotion:
-  - `lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean` proves the algebraic endpoint-ratio skeleton for both orientations.
+  - `lean-mathlib/Proofs/JacobiTuranEndpointObstruction.lean` proves the recurrence-defined endpoint coefficient ratio bridge and the algebraic endpoint-ratio skeleton for both orientations.
   - it now also proves the sign consequences: right endpoint nonnegative in `alpha <= beta`, right endpoint negative when `beta < alpha`, and the mirrored left endpoint statements.
   - proof receipt: `lean-mathlib/proof_receipts/jacobi_turan_endpoint_obstruction_v1.json`.
 
 - negative knowledge:
   - the endpoint obstruction is a necessary cone filter, not a full Jacobi Turan positivity theorem.
-  - the Lean theorem assumes the adjacent endpoint-ratio recurrence; it does not prove the full Jacobi polynomial endpoint convention.
+  - the Lean theorem uses a recurrence-defined endpoint coefficient; it does not yet prove equality with Mathlib's generalized binomial/Jacobi endpoint definitions.
   - the next useful formal step is either a Pochhammer/binomial recurrence bridge or a trusted theorem import boundary for the full Gasper theorem.

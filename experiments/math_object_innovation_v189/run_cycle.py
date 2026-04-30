@@ -122,6 +122,9 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "receipt": "lean-mathlib/proof_receipts/jacobi_turan_endpoint_obstruction_v1.json",
             "checker_command": "lake env lean Proofs/JacobiTuranEndpointObstruction.lean",
             "closed_theorems": [
+                "endpointCoeff_succ",
+                "endpointRatio_succ",
+                "endpointRatio_prev_of_succ",
                 "right_endpoint_obstruction_formula",
                 "left_endpoint_obstruction_formula",
                 "right_endpoint_obstruction_nonneg_of_alpha_le_beta",
@@ -130,7 +133,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "left_endpoint_obstruction_negative_of_alpha_lt_beta",
             ],
             "status": "checked_no_placeholders",
-            "scope": "algebraic endpoint-ratio skeleton plus sign consequences, not full Jacobi/Gasper positivity",
+            "scope": "recurrence-defined endpoint coefficient ratio bridge plus sign consequences, not full Jacobi/Gasper positivity",
         },
         "anchor_metrics": {anchor: group_metrics(group_rows) for anchor, group_rows in sorted(by_anchor.items())},
         "relation_metrics": {relation: group_metrics(group_rows) for relation, group_rows in sorted(by_relation.items())},
