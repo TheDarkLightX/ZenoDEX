@@ -261,7 +261,12 @@ The Lean packet proves the guard contract in a theorem-oriented form:
 - reserved loss and admitted-count are monotone across pure admitted-trade
   traces,
 - final reserved loss stays between initial reserved loss and the initial daily
-  loss budget.
+  loss budget,
+- admitted governance policy updates preserve the same budget/inventory
+  invariant only when the new budget is treasury-backed and the current
+  reserved loss and inventory fit under the new caps,
+- finite full-system traces over trades, policy updates, and pause/unpause
+  changes preserve the policy invariant.
 
 ## Non-Claims
 

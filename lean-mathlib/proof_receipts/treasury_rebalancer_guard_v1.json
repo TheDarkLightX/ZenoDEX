@@ -21,7 +21,7 @@
     {
       "module": "Proofs.TreasuryRebalancerGuard",
       "path": "lean-mathlib/Proofs/TreasuryRebalancerGuard.lean",
-      "sha256": "sha256:b17c038aaeb8f9b50939db90bf9d085e5631467caad318e8f1cda6563bf7477c",
+      "sha256": "sha256:f249e5d140160c38cfdc5f645fd2bcd32095aaafb21662dcc891ee5a2f2a29b8",
       "theorems": [
         "applyTrade_treasuryBalance_eq",
         "applyTrade_maxDailyLossBudget_eq",
@@ -29,6 +29,14 @@
         "applyTrade_liquidityBudget_eq",
         "applyTrade_dailyLossUsed_monotone",
         "applyTrade_admittedCount_monotone",
+        "applyPolicyUpdate_treasuryBalance_eq",
+        "applyPolicyUpdate_dailyLossUsed_eq",
+        "applyPolicyUpdate_inventoryExposureBps_eq",
+        "applyPolicyUpdate_preserves_policyInvariant",
+        "applyPause_preserves_policyInvariant",
+        "not_policyUpdateAdmissible_when_budget_unbacked",
+        "not_policyUpdateAdmissible_when_budget_below_reserved_loss",
+        "not_policyUpdateAdmissible_when_cap_below_inventory",
         "admissible_implies_not_paused",
         "admissible_implies_anti_abuse_flags",
         "admissible_implies_oracle_fresh",
@@ -47,6 +55,10 @@
         "not_admissible_with_self_trade",
         "not_admissible_when_edge_below_cost_and_buffer",
         "trace_preserves_policyInvariant",
+        "systemTrace_preserves_policyInvariant",
+        "systemTrace_daily_loss_within_budget",
+        "systemTrace_inventory_within_cap",
+        "systemTrace_budget_backed_by_treasury",
         "trace_treasuryBalance_eq",
         "trace_maxDailyLossBudget_eq",
         "trace_maxInventoryBps_eq",
@@ -62,7 +74,7 @@
       ]
     }
   ],
-  "claim": "For the treasury rebalancer guard model, admitted trades require the strategy to be unpaused, all anti-abuse flags to pass, and expected edge to cover cost plus risk buffer. Applying any admitted trade preserves the state policy invariant: reserved daily loss remains within the daily budget, the daily budget remains backed by treasury balance, and inventory exposure remains within cap. The invariant also lifts across finite traces of admitted trades. Pure admitted-trade traces cannot silently change treasury balance, daily loss budget, inventory cap, or liquidity budget; reserved loss and admitted-count are monotone; final reserved loss stays between initial reserved loss and the initial daily loss budget. Missing oracle freshness, private orderflow exclusion, no-sandwich, no-self-trade, or edge coverage makes admission impossible.",
+  "claim": "For the treasury rebalancer guard model, admitted trades require the strategy to be unpaused, all anti-abuse flags to pass, and expected edge to cover cost plus risk buffer. Applying any admitted trade preserves the state policy invariant: reserved daily loss remains within the daily budget, the daily budget remains backed by treasury balance, and inventory exposure remains within cap. Admitted governance policy updates preserve the same invariant only when the new daily loss budget is treasury-backed, the current reserved loss fits under the new budget, and current inventory fits under the new cap; otherwise those policy updates are impossible. Pause/unpause control preserves the numeric invariant. The invariant lifts across full finite system traces over trades, policy updates, and pause changes. Pure admitted-trade traces cannot silently change treasury balance, daily loss budget, inventory cap, or liquidity budget; reserved loss and admitted-count are monotone; final reserved loss stays between initial reserved loss and the initial daily loss budget. Missing oracle freshness, private orderflow exclusion, no-sandwich, no-self-trade, or edge coverage makes admission impossible.",
   "result": "proved",
-  "created_utc": "2026-04-30T00:56:00Z"
+  "created_utc": "2026-04-30T01:08:00Z"
 }

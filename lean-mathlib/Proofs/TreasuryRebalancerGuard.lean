@@ -46,6 +46,14 @@ structure Trade where
   noSelfTrade : Bool
 deriving Repr
 
+/-- Governance policy update for the rebalancer guard. -/
+structure PolicyUpdate where
+  newMaxDailyLossBudget : ℕ
+  newLiquidityBudget : ℕ
+  newMaxInventoryBps : ℕ
+  newCooldownEpochs : ℕ
+deriving Repr
+
 /-- State-level budget invariant. -/
 def PolicyInvariant (s : State) : Prop :=
   s.dailyLossUsed ≤ s.maxDailyLossBudget ∧
@@ -74,6 +82,13 @@ def ArithmeticOK (s : State) (t : Trade) : Prop :=
 def TradeAdmissible (s : State) (t : Trade) : Prop :=
   s.paused = false ∧ AntiAbuseFlagsOK t ∧ ArithmeticOK s t
 
+/-- Governance may change policy only when the new bounds still cover current
+reserved loss and inventory, and the loss budget remains treasury-backed. -/
+def PolicyUpdateAdmissible (s : State) (p : PolicyUpdate) : Prop :=
+  p.newMaxDailyLossBudget ≤ s.treasuryBalance ∧
+    s.dailyLossUsed ≤ p.newMaxDailyLossBudget ∧
+    s.inventoryExposureBps ≤ p.newMaxInventoryBps
+
 /-- The state update performed by an admitted trade. -/
 def applyTrade (s : State) (t : Trade) : State :=
   { s with
@@ -81,6 +96,18 @@ def applyTrade (s : State) (t : Trade) : State :=
     inventoryExposureBps := t.inventoryAfterBps
     lastTradeEpoch := t.nowEpoch
     admittedCount := s.admittedCount + 1 }
+
+/-- The state update performed by an admitted governance policy change. -/
+def applyPolicyUpdate (s : State) (p : PolicyUpdate) : State :=
+  { s with
+    maxDailyLossBudget := p.newMaxDailyLossBudget
+    liquidityBudget := p.newLiquidityBudget
+    maxInventoryBps := p.newMaxInventoryBps
+    cooldownEpochs := p.newCooldownEpochs }
+
+/-- The state update performed by pause/unpause control. -/
+def applyPause (s : State) (paused : Bool) : State :=
+  { s with paused := paused }
 
 theorem applyTrade_treasuryBalance_eq
     (s : State) (t : Trade) :
@@ -111,6 +138,58 @@ theorem applyTrade_admittedCount_monotone
     (s : State) (t : Trade) :
     s.admittedCount ≤ (applyTrade s t).admittedCount := by
   simp [applyTrade]
+
+theorem applyPolicyUpdate_treasuryBalance_eq
+    (s : State) (p : PolicyUpdate) :
+    (applyPolicyUpdate s p).treasuryBalance = s.treasuryBalance := by
+  simp [applyPolicyUpdate]
+
+theorem applyPolicyUpdate_dailyLossUsed_eq
+    (s : State) (p : PolicyUpdate) :
+    (applyPolicyUpdate s p).dailyLossUsed = s.dailyLossUsed := by
+  simp [applyPolicyUpdate]
+
+theorem applyPolicyUpdate_inventoryExposureBps_eq
+    (s : State) (p : PolicyUpdate) :
+    (applyPolicyUpdate s p).inventoryExposureBps = s.inventoryExposureBps := by
+  simp [applyPolicyUpdate]
+
+theorem applyPolicyUpdate_preserves_policyInvariant
+    {s : State} {p : PolicyUpdate}
+    (hAdm : PolicyUpdateAdmissible s p) :
+    PolicyInvariant (applyPolicyUpdate s p) := by
+  rcases hAdm with ⟨hBacked, hLoss, hInventory⟩
+  exact
+    ⟨by simpa [applyPolicyUpdate] using hLoss,
+      by simpa [applyPolicyUpdate] using hBacked,
+      by simpa [applyPolicyUpdate] using hInventory⟩
+
+theorem applyPause_preserves_policyInvariant
+    {s : State} {paused : Bool}
+    (hInv : PolicyInvariant s) :
+    PolicyInvariant (applyPause s paused) := by
+  simpa [applyPause] using hInv
+
+theorem not_policyUpdateAdmissible_when_budget_unbacked
+    {s : State} {p : PolicyUpdate}
+    (hBudget : s.treasuryBalance < p.newMaxDailyLossBudget) :
+    ¬ PolicyUpdateAdmissible s p := by
+  intro h
+  exact (not_lt_of_ge h.1) hBudget
+
+theorem not_policyUpdateAdmissible_when_budget_below_reserved_loss
+    {s : State} {p : PolicyUpdate}
+    (hLoss : p.newMaxDailyLossBudget < s.dailyLossUsed) :
+    ¬ PolicyUpdateAdmissible s p := by
+  intro h
+  exact (not_lt_of_ge h.2.1) hLoss
+
+theorem not_policyUpdateAdmissible_when_cap_below_inventory
+    {s : State} {p : PolicyUpdate}
+    (hInventory : p.newMaxInventoryBps < s.inventoryExposureBps) :
+    ¬ PolicyUpdateAdmissible s p := by
+  intro h
+  exact (not_lt_of_ge h.2.2) hInventory
 
 theorem admissible_implies_not_paused
     {s : State} {t : Trade} (h : TradeAdmissible s t) :
@@ -231,6 +310,19 @@ inductive Trace : State → State → Prop
       (hAdm : TradeAdmissible s t)
       (hRest : Trace (applyTrade s t) v) : Trace s v
 
+/-- A finite sequence over the full non-live guard surface:
+admitted trades, admitted policy updates, and pause/unpause control. -/
+inductive SystemTrace : State → State → Prop
+  | nil (s : State) : SystemTrace s s
+  | trade {s v : State} (t : Trade)
+      (hAdm : TradeAdmissible s t)
+      (hRest : SystemTrace (applyTrade s t) v) : SystemTrace s v
+  | policy {s v : State} (p : PolicyUpdate)
+      (hAdm : PolicyUpdateAdmissible s p)
+      (hRest : SystemTrace (applyPolicyUpdate s p) v) : SystemTrace s v
+  | pause {s v : State} (paused : Bool)
+      (hRest : SystemTrace (applyPause s paused) v) : SystemTrace s v
+
 theorem trace_preserves_policyInvariant
     {s u : State}
     (hTrace : Trace s u)
@@ -241,6 +333,42 @@ theorem trace_preserves_policyInvariant
       exact hInv
   | cons t hAdm hRest ih =>
       exact ih (applyTrade_preserves_policyInvariant hInv hAdm)
+
+theorem systemTrace_preserves_policyInvariant
+    {s u : State}
+    (hTrace : SystemTrace s u)
+    (hInv : PolicyInvariant s) :
+    PolicyInvariant u := by
+  induction hTrace with
+  | nil s =>
+      exact hInv
+  | trade t hAdm _hRest ih =>
+      exact ih (applyTrade_preserves_policyInvariant hInv hAdm)
+  | policy p hAdm _hRest ih =>
+      exact ih (applyPolicyUpdate_preserves_policyInvariant hAdm)
+  | pause paused _hRest ih =>
+      exact ih (applyPause_preserves_policyInvariant hInv)
+
+theorem systemTrace_daily_loss_within_budget
+    {s u : State}
+    (hTrace : SystemTrace s u)
+    (hInv : PolicyInvariant s) :
+    u.dailyLossUsed ≤ u.maxDailyLossBudget := by
+  exact (systemTrace_preserves_policyInvariant hTrace hInv).1
+
+theorem systemTrace_inventory_within_cap
+    {s u : State}
+    (hTrace : SystemTrace s u)
+    (hInv : PolicyInvariant s) :
+    u.inventoryExposureBps ≤ u.maxInventoryBps := by
+  exact (systemTrace_preserves_policyInvariant hTrace hInv).2.2
+
+theorem systemTrace_budget_backed_by_treasury
+    {s u : State}
+    (hTrace : SystemTrace s u)
+    (hInv : PolicyInvariant s) :
+    u.maxDailyLossBudget ≤ u.treasuryBalance := by
+  exact (systemTrace_preserves_policyInvariant hTrace hInv).2.1
 
 theorem trace_treasuryBalance_eq
     {s u : State}
