@@ -25,7 +25,7 @@ theorem candidateIndex_lt_length_of_mem_projectedCandidates
     cand.candidateIndex < keys.length := by
   unfold projectedCandidates at h
   rcases List.mem_map.1 h with ⟨i, _hi, rfl⟩
-  simpa [projectedCandidate] using i.2
+  simp [projectedCandidate]
 
 theorem projectedCandidate_of_mem_projectedCandidates
     {keys : List α} {cand : Candidate}

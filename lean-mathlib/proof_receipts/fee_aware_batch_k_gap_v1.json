@@ -1,0 +1,96 @@
+{
+  "receipt_id": "fee_aware_batch_k_gap_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/FeeAwareBatchKGap.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "FeeAwareBatchKGap.FeePool",
+    "FeeAwareBatchKGap.FeePool.K",
+    "FeeAwareBatchKGap.feeSwap",
+    "FeeAwareBatchKGap.feeBatch",
+    "FeeAwareBatchKGap.feeAwareKGap",
+    "FeeAwareBatchKGap.feeBatchKGapSum",
+    "FeeAwareBatchKGap.feeRetentionBonus",
+    "FeeAwareBatchKGap.feeBatchRetentionSum",
+    "FeeAwareBatchKGap.batchOutputSum"
+  ],
+  "theorems": [
+    "FeeAwareBatchKGap.feeBatch_nil",
+    "FeeAwareBatchKGap.feeBatch_singleton",
+    "FeeAwareBatchKGap.feeBatchKGapSum_nil",
+    "FeeAwareBatchKGap.feeSwap_K_gap_exact",
+    "FeeAwareBatchKGap.feeBatch_K_gap_sum",
+    "FeeAwareBatchKGap.computeFee_pos",
+    "FeeAwareBatchKGap.swapOut_lt_reserve",
+    "FeeAwareBatchKGap.feeRetentionBonus_pos",
+    "FeeAwareBatchKGap.feeAwareKGap_strict_pos",
+    "FeeAwareBatchKGap.feeBatch_K_strict_mono",
+    "FeeAwareBatchKGap.feeSwap_rx_pos",
+    "FeeAwareBatchKGap.feeSwap_ry_pos",
+    "FeeAwareBatchKGap.feeBatch_rx_pos",
+    "FeeAwareBatchKGap.feeBatch_ry_pos",
+    "FeeAwareBatchKGap.feeBatch_append",
+    "FeeAwareBatchKGap.feeBatchKGapSum_append",
+    "FeeAwareBatchKGap.witness_batch_composition",
+    "FeeAwareBatchKGap.feeBatch_K_split",
+    "FeeAwareBatchKGap.feeBatch_rx_formula",
+    "FeeAwareBatchKGap.feeBatchKGapSum_ge_retention",
+    "FeeAwareBatchKGap.witness_retention_lower_bound",
+    "FeeAwareBatchKGap.feeBatch_K_strict_mono_any",
+    "FeeAwareBatchKGap.witness_general_strict_mono",
+    "FeeAwareBatchKGap.feeBatch_output_conservation",
+    "FeeAwareBatchKGap.feeBatch_balance_sheet",
+    "FeeAwareBatchKGap.feeBatch_K_certificate_unique",
+    "FeeAwareBatchKGap.feeBatch_output_certificate_unique",
+    "FeeAwareBatchKGap.feeSwap_K_mono_bps",
+    "FeeAwareBatchKGap.witness_K_mono_bps",
+    "FeeAwareBatchKGap.witness_batch_order_dependence",
+    "FeeAwareBatchKGap.witness_balance_sheet",
+    "FeeAwareBatchKGap.witness_single_step",
+    "FeeAwareBatchKGap.witness_batch_telescoping",
+    "FeeAwareBatchKGap.witness_fee_vs_nofee",
+    "FeeAwareBatchKGap.witness_zero_fee_collapse"
+  ],
+  "claims": [
+    "A fee-in-pool CPMM batch has an exact telescoping K identity: final K equals initial K plus the sum of per-step fee-aware K gaps.",
+    "Each single-step K gap decomposes into an integer-division remainder plus a fee-retention bonus.",
+    "Positive reserves are preserved across fee-aware batches, and any positive trade under a positive fee rate strictly increases K.",
+    "Batch execution composes as a list action, and the K-gap sum splits additively across sub-batches.",
+    "Input-side and output-side accounting identities recover gross input volume, total output, and K-gap certificates from boundary data.",
+    "The K value after a single fee-in-pool swap is monotone in the fee rate under the declared bps cap.",
+    "Concrete witnesses cover batch composition, retention lower bounds, general strict monotonicity, balance-sheet checks, order dependence, single-step behavior, batch telescoping, fee-vs-zero-fee comparison, and zero-fee collapse."
+  ],
+  "proof_method": [
+    "list induction over fee-aware CPMM batch execution",
+    "single-step reuse of FeeAwareAntiFragmentation.fee_in_pool_K_exact",
+    "Nat ceiling-fee positivity and reserve-preservation lemmas",
+    "monoid-action style append/splitting identities",
+    "boundary-data certificate uniqueness via arithmetic cancellation",
+    "native_decide witnesses for non-vacuity examples"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.FeeAwareBatchKGap",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/FeeAwareBatchKGap.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The model covers same-direction fee-in-pool CPMM execution in natural-number arithmetic; runtime code still needs a bridge showing it emits these exact gross amounts, fee calculations, and reserve updates.",
+    "The strict K-increase result requires positive reserves, positive trade size, positive fee rate, and fee_bps <= 10000.",
+    "The batch order-dependence witness shows this theorem is an accounting certificate, not an order-optimality theorem.",
+    "The proof does not establish authorization, oracle freshness, path discovery, cross-pool routing, or settlement attestation validity."
+  ]
+}

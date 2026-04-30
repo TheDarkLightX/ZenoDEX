@@ -1,0 +1,120 @@
+{
+  "receipt_id": "exact_out_repaired_packet_semantics_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedFullDomainCertifiedPacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedAdvisoryQuotePacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverPacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverSemanticBridge.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverInterpretationPacket.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.Packet",
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.buildPacket",
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.verifyPacket",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.Packet",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.buildPacket",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.verifyPacket",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.Packet",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.buildPacket",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.verifyPacket",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverSemanticBridge.SelectedKeyMinimumWitness",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.Inputs",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.Packet",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.buildPacket",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.verifyPacket"
+  ],
+  "theorems": [
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.packetOk_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedFullDomainCertifiedPacket.packetOk_iff_repairedPacketOk_and_repairedMatchesFullCanonical",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.packetOk_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.advisoryQuotePresent_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.runtimeMatchesAdvisory_iff_packetOk",
+    "TauSwap.Routing.ExactOutManyPoolRepairedAdvisoryQuotePacket.errorPresent_iff_not_packetOk",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.packetOk_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverPacket.packetOk_iff_fields_true",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverSemanticBridge.packetOk_implies_selectedDomainContractOk",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverSemanticBridge.packetOk_implies_repairedFullDomainPacketOk",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverSemanticBridge.packetOk_implies_selectedKeysSubsetFullKeys",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverSemanticBridge.packetOk_implies_keyCoverHolds",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverSemanticBridge.packetOk_implies_selectedDomainCanonicalMatchesFullDomainCanonical",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverSemanticBridge.packetOk_and_interpretation_implies_full_canonical_exists",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverSemanticBridge.verifyPacket_and_packetOk_and_interpretation_implies_full_canonical_exists",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.verifyPacket_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.verifyPacket_of_build",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.verifyingPacket_unique",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.packetOk_iff",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationPacket.packetOk_iff_fields_true",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_implies_keyCoverPacketOk",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_implies_selectedWinnerIndexInRange",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_implies_selectedWinnerMatchesCertificate",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_implies_selectedWinnerKeyMinimal",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_implies_dominationWitnessIndicesInRange",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_implies_dominationWitnessesCoverFullCandidates",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_implies_dominationWitnessKeysMatchCandidates",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_implies_dominationWitnessesDominate",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.packetOk_and_interpretation_implies_full_canonical_exists",
+    "TauSwap.Routing.ExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.verifyPackets_and_interpretation_implies_full_canonical_exists"
+  ],
+  "claims": [
+    "Repaired full-domain and advisory quote packets are deterministic rebuilds with precise acceptance/error equivalences.",
+    "The repaired key-cover packet accepts exactly when selected-domain, full-domain, subset, cover, and canonical-match fields are true.",
+    "The semantic bridge turns key-cover packet success plus a selected-key minimum witness into unique full-domain canonical existence.",
+    "The interpretation packet exposes concrete selected-winner and domination-witness checks as individual fail-closed fields.",
+    "The interpretation semantic bridge composes interpretation packet success with key-cover packet success and witness interpretation to recover unique full-domain canonical existence."
+  ],
+  "proof_method": [
+    "Boolean field normalization for repaired packet shells",
+    "packet verification uniqueness by deterministic rebuild equality",
+    "semantic projection lemmas from packetOk to individual audit facts",
+    "composition of selected-key minimum, key-cover, and interpretation witnesses"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolRepairedFullDomainCertifiedPacket Proofs.ZenoDEXExactOutManyPoolRepairedAdvisoryQuotePacket Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverPacket Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverSemanticBridge Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverInterpretationPacket Proofs.ZenoDEXExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated and imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-repaired-packet-semantics-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_repaired_packet_semantics_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedFullDomainCertifiedPacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedAdvisoryQuotePacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverPacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverSemanticBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverInterpretationPacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedFullDomainCertifiedPacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedAdvisoryQuotePacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverPacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverSemanticBridge.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverInterpretationPacket.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRepairedKeyCoverInterpretationSemanticBridge.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt covers repaired packet shell and semantic bridge proofs, not concrete Python serialization correctness.",
+    "Full-domain canonical existence still depends on supplied selected-key minimum and witness-interpretation premises.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}

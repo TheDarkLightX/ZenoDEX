@@ -1,0 +1,141 @@
+{
+  "receipt_id": "exact_out_many_pool_foundation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCompleteness.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportPresentation.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportHeadBounds.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportTailRecursion.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRemainingCapacityEnvelope.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRemainingCapacityTopSum.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolResidualAllocation.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolReindexedResidualAllocation.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolStructuralRecursionReachability.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolConcreteRecursionBranch.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolConcreteRecursionReduction.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.Alloc",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.usedLegCount",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.Feasible",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.feasibleSet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.emittedSet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.feasibleKeySet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.emittedKeySet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportSet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportIndices",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportLegs",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportHeadBounds.residualSupportCap",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityEnvelope.suffixSet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityEnvelope.remainingCapacityEnvelope",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityTopSum.suffixCapacityList",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityTopSum.remainingCapacityTopSum",
+    "TauSwap.ZenoDEX.ExactOutManyPoolResidualAllocation.residualAlloc",
+    "TauSwap.ZenoDEX.ExactOutManyPoolResidualAllocation.FeasibleFor",
+    "TauSwap.ZenoDEX.ExactOutManyPoolReindexedResidualAllocation.reindexAlloc",
+    "TauSwap.ZenoDEX.ExactOutManyPoolReindexedResidualAllocation.reindexedResidualAlloc",
+    "TauSwap.ZenoDEX.ExactOutManyPoolStructuralRecursionReachability.StructurallyReachable"
+  ],
+  "theorems": [
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.mem_feasibleSet_of_feasible",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.mem_emittedSet_of_emit",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.feasibleKeySet_nonempty_of_witness",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.emittedSet_eq_feasibleSet_of_pointwise_iff",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.emittedKeySet_eq_feasibleKeySet_of_pointwise_iff",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.selected_domain_search_complete",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSelectedDomainCompleteness.selected_domain_canonical_exists",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.mem_supportSet_iff",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.mem_supportIndices_iff",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportIndices_nodup",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportIndices_sorted",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportIndices_length",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportLegs_fst",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportLegs_length",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportSet_sum_eq_total",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.supportLeg_mem_iff",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportPresentation.feasible_has_sorted_support_presentation",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportHeadBounds.feasible_support_cons_head_capacity_bounds",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportHeadBounds.feasible_support_cons_head_within_future_range",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportTailRecursion.tail_sortedLT_of_cons_sortedLT",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportTailRecursion.head_lt_of_mem_tail_of_cons_sortedLT",
+    "TauSwap.ZenoDEX.ExactOutManyPoolSupportTailRecursion.feasible_support_cons_residual_obligations",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityEnvelope.residualSupportCap_le_remainingCapacityEnvelope",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityEnvelope.feasible_support_cons_head_within_envelope_range",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityTopSum.sum_subset_le_remainingCapacityTopSum",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityTopSum.remainingCapacityEnvelope_le_remainingCapacityTopSum",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityTopSum.residualSupportCap_le_remainingCapacityTopSum",
+    "TauSwap.ZenoDEX.ExactOutManyPoolRemainingCapacityTopSum.feasible_support_cons_head_within_top_sum_range",
+    "TauSwap.ZenoDEX.ExactOutManyPoolResidualAllocation.supportSet_residualAlloc_eq_erase",
+    "TauSwap.ZenoDEX.ExactOutManyPoolResidualAllocation.feasible_support_cons_residual_alloc_packet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolReindexedResidualAllocation.component_le_target_of_feasibleFor",
+    "TauSwap.ZenoDEX.ExactOutManyPoolReindexedResidualAllocation.supportSet_reindexAlloc_eq",
+    "TauSwap.ZenoDEX.ExactOutManyPoolReindexedResidualAllocation.supportIndices_reindexAlloc_eq",
+    "TauSwap.ZenoDEX.ExactOutManyPoolReindexedResidualAllocation.supportLegs_reindexAlloc_eq",
+    "TauSwap.ZenoDEX.ExactOutManyPoolReindexedResidualAllocation.feasible_reindexAlloc_of_feasibleFor",
+    "TauSwap.ZenoDEX.ExactOutManyPoolReindexedResidualAllocation.feasible_support_cons_reindexed_residual_packet",
+    "TauSwap.ZenoDEX.ExactOutManyPoolStructuralRecursionReachability.target_zero_of_supportLegs_nil",
+    "TauSwap.ZenoDEX.ExactOutManyPoolStructuralRecursionReachability.structurallyReachable_of_feasible_presentation",
+    "TauSwap.ZenoDEX.ExactOutManyPoolStructuralRecursionReachability.feasible_supportLegs_structurallyReachable",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteRecursionBranch.feasible_support_cons_concrete_recurse_obligations",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteRecursionBranch.feasible_support_singleton_head_eq_total",
+    "TauSwap.ZenoDEX.ExactOutManyPoolConcreteRecursionReduction.feasible_support_cons_reduces_to_concrete_residual"
+  ],
+  "claims": [
+    "A bounded exact-out allocation domain can be represented as finite feasible and emitted sets, with emitted-key equality following from pointwise generator completeness.",
+    "Every feasible allocation has a sorted, duplicate-free support presentation whose leg amounts sum to the target.",
+    "For a nonempty feasible domain, selected-domain canonical existence follows from the exact-out canonical minimizer.",
+    "For a feasible support presentation with a head leg and residual tail, the head amount lies within concrete capacity and remaining-target bounds.",
+    "Residual allocation erases the selected head support and preserves the tail support presentation needed for recursion.",
+    "Reindexed residual allocation preserves support sets, support indices, support legs, and feasibility under a residual target.",
+    "The remaining-capacity envelope and top-sum bounds are sufficient to justify concrete recursion ranges.",
+    "A feasible support presentation is structurally reachable by the selected-domain recursion, and concrete recursion reduction packages the exact induction step."
+  ],
+  "proof_method": [
+    "finite-set image and equality reasoning for emitted and feasible domains",
+    "support-set sorting and sum preservation over finite allocations",
+    "residual-allocation construction by erasing the head support",
+    "reindexing lemmas to move residual targets through the same support presentation",
+    "remaining-capacity envelope/top-sum inequalities for range safety",
+    "structural induction over sorted support presentations"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolSelectedDomainCompleteness",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolSupportPresentation",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolConcreteRecursionReduction",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated and imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-many-pool-foundation-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_many_pool_foundation_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCompleteness.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportPresentation.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportHeadBounds.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportTailRecursion.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRemainingCapacityEnvelope.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRemainingCapacityTopSum.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolResidualAllocation.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolReindexedResidualAllocation.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolStructuralRecursionReachability.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolConcreteRecursionBranch.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolConcreteRecursionReduction.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves foundational selected-domain recursion and support-presentation facts.",
+    "It does not prove a production generator emits every feasible route unless the pointwise completeness or cover premise is supplied.",
+    "It does not prove CPMM quote arithmetic; that is covered by the separate exact-out CPMM quote receipt.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}

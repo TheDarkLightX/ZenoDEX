@@ -1,0 +1,98 @@
+{
+  "receipt_id": "perp_arithmetic_safety_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/PerpEpochSafety.lean",
+    "lean-mathlib/Proofs/PerpFundingRateSafety.lean",
+    "lean-mathlib/Proofs/PerpIntegerBridge.lean",
+    "lean-mathlib/Proofs/PerpFundingSymmetry.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.PerpEpochSafety.clamp_move",
+    "Proofs.PerpFundingSymmetry.fundingTransfer",
+    "Proofs.PerpFundingSymmetry.nextCollateralA",
+    "Proofs.PerpFundingSymmetry.nextCollateralB",
+    "Proofs.PerpFundingSymmetry.nextFundingPaidA",
+    "Proofs.PerpFundingSymmetry.nextFundingPaidB"
+  ],
+  "theorems": [
+    "Proofs.PerpEpochSafety.collateral_nonneg_after_bounded_move",
+    "Proofs.PerpEpochSafety.collateral_nonneg_after_bounded_move_with_abs_bound",
+    "Proofs.PerpEpochSafety.abs_clamp_move_sub_le",
+    "Proofs.PerpEpochSafety.collateral_nonneg_after_clamped_move",
+    "Proofs.PerpFundingRateSafety.funding_budget_balance_rat",
+    "Proofs.PerpFundingRateSafety.funding_extraction_bounded",
+    "Proofs.PerpFundingRateSafety.funding_multi_epoch_bb",
+    "Proofs.PerpFundingRateSafety.int_fdiv_neg_gap",
+    "Proofs.PerpFundingRateSafety.int_funding_gap_bounded",
+    "Proofs.PerpFundingRateSafety.int_multi_epoch_funding_gap",
+    "Proofs.PerpFundingRateSafety.witness_funding_bb",
+    "Proofs.PerpFundingRateSafety.witness_extraction_bounded",
+    "Proofs.PerpFundingRateSafety.witness_multi_epoch_bb",
+    "Proofs.PerpFundingRateSafety.witness_int_gap",
+    "Proofs.PerpFundingRateSafety.witness_int_gap_abs",
+    "Proofs.PerpFundingRateSafety.witness_multi_epoch_int_gap",
+    "Proofs.PerpIntegerBridge.int_emod_bounded",
+    "Proofs.PerpIntegerBridge.int_div_conservative",
+    "Proofs.PerpIntegerBridge.int_single_div_gap",
+    "Proofs.PerpIntegerBridge.int_symmetric_div_gap",
+    "Proofs.PerpIntegerBridge.witness_emod",
+    "Proofs.PerpIntegerBridge.witness_conservative",
+    "Proofs.PerpIntegerBridge.witness_gap",
+    "Proofs.PerpIntegerBridge.witness_symmetric_gap",
+    "Proofs.PerpIntegerBridge.witness_exact_division",
+    "Proofs.PerpFundingSymmetry.collateral_total_preserved",
+    "Proofs.PerpFundingSymmetry.funding_paid_sum_preserved",
+    "Proofs.PerpFundingSymmetry.funding_net_delta_zero",
+    "Proofs.PerpFundingSymmetry.funding_b_is_neg_funding_a",
+    "Proofs.PerpFundingSymmetry.witness_funding_paid_update",
+    "Proofs.PerpFundingSymmetry.witness_collateral_conservation"
+  ],
+  "claims": [
+    "Bounded and clamped perp price moves preserve nonnegative collateral under the stated algebraic preconditions.",
+    "Rational funding transfers are budget-balanced for symmetric long/short exposure and bounded by available extraction surplus under the modeled assumptions.",
+    "Integer floor-division and remainder lemmas bound single-step and multi-epoch funding rounding gaps.",
+    "Symmetric funding transfer updates preserve total collateral and funding-paid sums, with one side's funding delta equal to the negative of the other side's delta."
+  ],
+  "proof_method": [
+    "linear and nonlinear rational arithmetic over collateral and mark-price deltas",
+    "integer division/remainder bounds for runtime-style funding arithmetic",
+    "finite-list summation bounds for cumulative funding gaps",
+    "ring normalization for symmetric transfer conservation"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.PerpEpochSafety Proofs.PerpFundingRateSafety Proofs.PerpIntegerBridge Proofs.PerpFundingSymmetry",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < perp-arithmetic-safety-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/perp_arithmetic_safety_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/PerpEpochSafety.lean lean-mathlib/Proofs/PerpFundingRateSafety.lean lean-mathlib/Proofs/PerpIntegerBridge.lean lean-mathlib/Proofs/PerpFundingSymmetry.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/PerpEpochSafety.lean lean-mathlib/Proofs/PerpFundingRateSafety.lean lean-mathlib/Proofs/PerpIntegerBridge.lean lean-mathlib/Proofs/PerpFundingSymmetry.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves modeled arithmetic safety facts only; it does not assert live oracle freshness, operator authorization, liquidation eligibility, or storage-level state transition correctness.",
+    "The rational collateral theorems assume their stated bounds hold before execution; runtime guards must still establish those bounds.",
+    "The integer funding theorems bound arithmetic gaps, not economic fairness or market manipulation resistance."
+  ]
+}
