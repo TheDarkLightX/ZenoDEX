@@ -1,0 +1,75 @@
+{
+  "receipt_id": "batch_greedy_approximation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/BatchGreedyApproximation.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "BatchGreedyApproximation.scheduleVol",
+    "BatchGreedyApproximation.scheduleOut"
+  ],
+  "theorems": [
+    "BatchGreedyApproximation.witness_scheduleVol",
+    "BatchGreedyApproximation.tail_pool_both_exec",
+    "BatchGreedyApproximation.witness_tail_pool",
+    "BatchGreedyApproximation.depletion_gap_bounded",
+    "BatchGreedyApproximation.witness_depletion_gap",
+    "BatchGreedyApproximation.k_intent_greedy_volume_optimal",
+    "BatchGreedyApproximation.witness_k_intent_greedy",
+    "BatchGreedyApproximation.witness_k_intent_4",
+    "BatchGreedyApproximation.two_intent_B_gap_zero",
+    "BatchGreedyApproximation.greedy_B_gap_bounded",
+    "BatchGreedyApproximation.witness_B_gap_zero",
+    "BatchGreedyApproximation.outputAtN_antitone_trans",
+    "BatchGreedyApproximation.witness_antitone_trans",
+    "BatchGreedyApproximation.satisfiable_at_earlier_position",
+    "BatchGreedyApproximation.witness_position_threshold",
+    "BatchGreedyApproximation.exchange_property",
+    "BatchGreedyApproximation.satisfiable_set_nesting",
+    "BatchGreedyApproximation.witness_sat_nesting",
+    "BatchGreedyApproximation.scheduleVol_le_sum_input",
+    "BatchGreedyApproximation.witness_vol_bound"
+  ],
+  "claims": [
+    "Skip-on-fail schedule volume and output are defined for finite lists of CPMM intents.",
+    "For equal-input intents, the pool state after two executions is order-invariant.",
+    "Adding one prior equal-input execution can reduce tail schedule volume by at most one lot size.",
+    "For equal-input intents ordered by descending minOut, an adjacent greedy order has at least the schedule volume of the swapped order.",
+    "For two equal-input intents, total output and surplus are order-invariant when both execute.",
+    "Position output through repeated equal-input execution is non-increasing across arbitrary offsets.",
+    "Satisfiability at a later equal-input position implies satisfiability at the earlier position.",
+    "Schedule volume is bounded by the sum of offered inputs."
+  ],
+  "proof_method": [
+    "structural recursion over finite intent lists",
+    "equal-input pool-state invariance from BatchGreedyOptimality",
+    "depletion-gap induction",
+    "case analysis over skip-on-fail execution",
+    "position-output monotonicity through repeated equal-input CPMM depletion",
+    "native witnesses for non-vacuity and sharpness examples"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.BatchGreedyApproximation",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/BatchGreedyApproximation.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "The adjacent-swap optimality theorem assumes all participating intents have the same input size.",
+    "The main volume theorem is local to adjacent transpositions and skip-on-fail execution, not arbitrary heterogeneous batch optimality.",
+    "The B-gap theorem covers the two-intent equal-input case where both executions are compared at the same pool.",
+    "The results model CPMM integer output via the imported swapOut definition."
+  ]
+}
