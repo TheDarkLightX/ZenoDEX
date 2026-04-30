@@ -36,6 +36,14 @@ For every named axis in the current disaster-search plan, the current replay
 evidence passes under the configured timeout. This is not a claim that all
 possible future or unbounded disaster states are formally impossible.
 
+The public-taxonomy seed map for these axes is recorded in
+[DISASTER_SHAPE_TAXONOMY_CROSSWALK.md](DISASTER_SHAPE_TAXONOMY_CROSSWALK.md).
+That crosswalk maps CAPEC, OWASP, SWC, De.Fi/Rekt, and chaos-engineering
+families onto the local disaster axes so future public incidents can be turned
+into repo-local witness or proof obligations. The follow-on closure obligations
+are recorded in
+[DISASTER_CLASS_CLOSURE_PACKETS.md](DISASTER_CLASS_CLOSURE_PACKETS.md).
+
 ## Replay
 
 Build the current plan:
