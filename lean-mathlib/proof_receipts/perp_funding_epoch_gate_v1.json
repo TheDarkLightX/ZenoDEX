@@ -1,0 +1,77 @@
+{
+  "receipt_id": "perp_funding_epoch_gate_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/PerpFundingAlgebra.lean",
+    "lean-mathlib/Proofs/PerpFundingEpochGateProved.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "Proofs.PerpFundingAlgebra.breakeven_char",
+    "Proofs.PerpFundingAlgebra.mtm_separates",
+    "Proofs.PerpFundingAlgebra.hedge_cancels",
+    "Proofs.PerpFundingAlgebra.funding_bilinear",
+    "Proofs.PerpFundingAlgebra.funding_zero_sum",
+    "Proofs.PerpFundingAlgebra.funding_ker_is_zero_exposure",
+    "Proofs.PerpFundingAlgebra.fundingHom_ker_trivial",
+    "Proofs.PerpFundingAlgebra.pnl_after_funding",
+    "Proofs.PerpFundingAlgebra.effective_price_shift",
+    "Proofs.PerpFundingAlgebra.witness_mtm_long",
+    "Proofs.PerpFundingAlgebra.witness_hedge",
+    "Proofs.PerpFundingAlgebra.witness_zero_sum",
+    "Proofs.PerpFundingAlgebra.witness_bilinear",
+    "Proofs.PerpFundingAlgebra.witness_price_shift",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_conservation",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_conservation_multi",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_extraction_bounded",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_multi_epoch_bb",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_integer_gap_bounded",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_effective_price_shift",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_cumulative_price_shift",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_composition",
+    "Proofs.PerpFundingEpochGateProved.epoch_gate_full_composition",
+    "Proofs.PerpFundingEpochGateProved.witness_epoch_gate",
+    "Proofs.PerpFundingEpochGateProved.witness_conservation",
+    "Proofs.PerpFundingEpochGateProved.witness_multi_pair_conservation",
+    "Proofs.PerpFundingEpochGateProved.witness_extraction",
+    "Proofs.PerpFundingEpochGateProved.witness_cumulative_price_shift"
+  ],
+  "claims": [
+    "Perp mark-to-market has a checked break-even characterization and two distinct prices separate positions.",
+    "Matched long/short base exposure makes funding redistributive: funding payments sum to zero.",
+    "Funding is bilinear in the rate and shifts the effective mark price from p to p-r.",
+    "Nonzero funding-rate kernel is exactly zero base exposure.",
+    "For a list of per-epoch long/short payments, per-epoch budget balance composes into cumulative budget balance.",
+    "Across integer funding epochs, the total floor-division rounding gap stays between -N and 0.",
+    "The epoch gate composition theorem bundles budget balance, integer gap bounds, conservation, extraction bound, and effective price shift into one system-level witness."
+  ],
+  "proof_method": [
+    "integer linear algebra for mark-to-market and funding homomorphisms",
+    "zero-sum matched-base conservation",
+    "reuse of existing funding-rate extraction and integer-gap theorems",
+    "list induction for multi-pair conservation",
+    "record-valued composition of per-epoch safety obligations"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.PerpFundingAlgebra Proofs.PerpFundingEpochGateProved",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/PerpFundingAlgebra.lean lean-mathlib/Proofs/PerpFundingEpochGateProved.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "These are algebraic and epoch-gate composition proofs. They do not prove oracle freshness, clearing-price admissibility, or runtime authorization.",
+    "The epoch gate composition reuses existing extraction-bound and integer-gap theorems from PerpFundingRateSafety; it assumes those modeled inputs faithfully represent runtime funding calculations.",
+    "The funding conservation theorem applies to matched base exposure; unmatched books require a separate imbalance or insurance accounting proof."
+  ]
+}

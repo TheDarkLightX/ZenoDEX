@@ -1,0 +1,65 @@
+{
+  "receipt_id": "exact_out_bruteforce_completeness_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutBruteforceCompleteness.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "TauSwap.ZenoDEX.ExactOutBruteforceCompleteness.searchSet"
+  ],
+  "theorems": [
+    "TauSwap.ZenoDEX.ExactOutBruteforceCompleteness.mem_searchSet",
+    "TauSwap.ZenoDEX.ExactOutBruteforceCompleteness.searchSet_nonempty",
+    "TauSwap.ZenoDEX.ExactOutBruteforceCompleteness.witness_key_le_all",
+    "TauSwap.ZenoDEX.ExactOutBruteforceCompleteness.witness_is_canonical",
+    "TauSwap.ZenoDEX.ExactOutBruteforceCompleteness.witness_eq_searchSet_min",
+    "TauSwap.ZenoDEX.ExactOutBruteforceCompleteness.witness_prefers_fewer_legs_then_lex",
+    "TauSwap.ZenoDEX.ExactOutBruteforceCompleteness.witness_is_unique_canonical"
+  ],
+  "claims": [
+    "The bounded exact-out brute-force search set is the image of a closed natural-number interval through the route-key function.",
+    "If the closed search interval is nonempty, then the resulting key set is nonempty.",
+    "A witness that is no worse than every interval point is no worse than every emitted search-set key.",
+    "A bounded witness in the interval with the all-points dominance property is the canonical search-set minimum.",
+    "The bounded brute-force witness inherits the exact-out tie-break interpretation from the canonical minimizer.",
+    "Under the bounded witness assumptions, the canonical search-set key is unique."
+  ],
+  "proof_method": [
+    "Finset interval image membership",
+    "nonempty interval witness at the lower bound",
+    "pullback of route-key dominance through image membership",
+    "reuse of exact-out canonical minimizer theorems"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutBruteforceCompleteness",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < exact-out-bruteforce-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/exact_out_bruteforce_completeness_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\\\s*(sorry|admit)\\\\b|^\\\\s*axiom\\\\b|^\\\\s*unsafe\\\\b|\\\\bsorryAx\\\\b' lean-mathlib/Proofs/ZenoDEXExactOutBruteforceCompleteness.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt is bounded to the finite interval explicitly searched by the modeled brute-force verifier.",
+    "It does not prove an adaptive or heuristic search covered all feasible runtime candidates unless that runtime domain is exactly the modeled interval image.",
+    "It relies on the route-key function supplied to the theorem.",
+    "This is proof-only and does not change runtime routing behavior."
+  ]
+}

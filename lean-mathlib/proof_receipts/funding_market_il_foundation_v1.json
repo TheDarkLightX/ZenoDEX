@@ -1,0 +1,96 @@
+{
+  "receipt_id": "funding_market_il_foundation_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/FundingRateMarketSafety.lean",
+    "lean-mathlib/Proofs/FundingImbalanceEV.lean",
+    "lean-mathlib/Proofs/ILFuturesSafety.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "definitions": [
+    "Proofs.FundingRateMarketSafety.impliedRateNumerator",
+    "Proofs.FundingRateMarketSafety.impliedRateDenominator",
+    "Proofs.FundingRateMarketSafety.clamp",
+    "Proofs.FundingImbalanceEV.dualEV",
+    "Proofs.ILFuturesSafety.ilBps",
+    "Proofs.ILFuturesSafety.computePayout",
+    "Proofs.ILFuturesSafety.PoolSnapshot",
+    "Proofs.ILFuturesSafety.ILFuturesState",
+    "Proofs.ILFuturesSafety.totalFunds"
+  ],
+  "theorems": [
+    "Proofs.FundingRateMarketSafety.rate_bounded",
+    "Proofs.FundingRateMarketSafety.implied_rate_balanced",
+    "Proofs.FundingRateMarketSafety.endogenous_rate_conservation",
+    "Proofs.FundingRateMarketSafety.protocol_fee_bounded",
+    "Proofs.FundingRateMarketSafety.open_increases_long",
+    "Proofs.FundingRateMarketSafety.open_increases_short",
+    "Proofs.FundingRateMarketSafety.advance_resets",
+    "Proofs.FundingRateMarketSafety.basis_numerator_positive",
+    "Proofs.FundingRateMarketSafety.basis_numerator_negative",
+    "Proofs.FundingRateMarketSafety.witness_implied_rate",
+    "Proofs.FundingRateMarketSafety.witness_clamp",
+    "Proofs.FundingRateMarketSafety.witness_conservation",
+    "Proofs.FundingImbalanceEV.dualEV_nonneg",
+    "Proofs.FundingImbalanceEV.dualEV_eq_zero_iff",
+    "Proofs.FundingImbalanceEV.dualEV_pos_iff",
+    "Proofs.FundingImbalanceEV.witness_dualEV_positive",
+    "Proofs.ILFuturesSafety.il_bps_bounded",
+    "Proofs.ILFuturesSafety.payout_bounded",
+    "Proofs.ILFuturesSafety.zero_il_zero_payout",
+    "Proofs.ILFuturesSafety.il_futures_conservation",
+    "Proofs.ILFuturesSafety.open_long_increases_exposure",
+    "Proofs.ILFuturesSafety.open_short_increases_exposure",
+    "Proofs.ILFuturesSafety.epoch_advance_deterministic",
+    "Proofs.ILFuturesSafety.witness_payout_computation",
+    "Proofs.ILFuturesSafety.witness_payout_bounded_concrete",
+    "Proofs.ILFuturesSafety.witness_zero_il",
+    "Proofs.ILFuturesSafety.witness_conservation_concrete"
+  ],
+  "claims": [
+    "Funding-rate clamp outputs stay within the symmetric cap, and the balanced exposure case has zero implied numerator.",
+    "Modeled endogenous funding-rate payout accounting conserves the declared premium/protocol/distributable split.",
+    "The dual imbalance EV expression is nonnegative for positive long/short exposures, zero exactly at balance, and positive off balance.",
+    "IL futures payout and accounting helpers are bounded by basis-point constraints and preserve total funds across the modeled payout/fee split."
+  ],
+  "proof_method": [
+    "integer clamp case analysis and arithmetic normalization",
+    "rational square nonnegativity and positivity characterization",
+    "natural-number multiplication/division bounds for basis-point payouts",
+    "direct conservation equalities for modeled pool accounting"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.FundingRateMarketSafety Proofs.FundingImbalanceEV Proofs.ILFuturesSafety",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated/imported proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < funding-market-il-foundation-theorem-name-check-script",
+      "result": "passed for every definition and theorem listed in this receipt"
+    },
+    {
+      "command": "python3 -m json.tool lean-mathlib/proof_receipts/funding_market_il_foundation_v1.json",
+      "result": "passed"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/FundingRateMarketSafety.lean lean-mathlib/Proofs/FundingImbalanceEV.lean lean-mathlib/Proofs/ILFuturesSafety.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "rg -n 'sorry|admit|axiom|unsafe|set_option autoImplicit true' lean-mathlib/Proofs/FundingRateMarketSafety.lean lean-mathlib/Proofs/FundingImbalanceEV.lean lean-mathlib/Proofs/ILFuturesSafety.lean",
+      "result": "no matches"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "boundaries": [
+    "This receipt proves modeled funding-market and IL-futures arithmetic facts only.",
+    "It does not prove oracle source quality, market-manipulation resistance, premium pricing adequacy, or runtime settlement integration.",
+    "The EV and payout theorems apply only under their positive-exposure and basis-point preconditions."
+  ]
+}
