@@ -149,6 +149,20 @@ The combined replay returns:
 }
 ```
 
+## Completion Audit
+
+Run the ten-criterion local MVP audit:
+
+```bash
+python3 tools/zenodex_oracle_mvp_completion_audit.py
+```
+
+The audit checks the launcher, dry-run flow, feed registration, signed report
+submission, admitted aggregate/read path, action adapters, token budget and
+reporter lifecycle verifiers, CI gate wiring, public docs, and RC package
+manifest. Add `--run-gate` when you want the audit itself to rerun the full
+local Oracle replay gate.
+
 ## Not Claimed
 
 This CLI does not claim:

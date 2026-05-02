@@ -6,6 +6,7 @@ python3 tools/zenodex_oracle_cli.py chaos all
 
 pytest -q \
   tests/test_zenodex_oracle_cli.py \
+  tests/test_zenodex_oracle_mvp_completion_audit.py \
   tests/test_zenodex_oracle.py \
   tests/test_zenodex_oracle_chaos.py \
   tests/test_zenodex_oracle_budget.py \
