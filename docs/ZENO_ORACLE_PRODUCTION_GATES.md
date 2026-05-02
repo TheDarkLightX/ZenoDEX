@@ -76,6 +76,9 @@ The verifier should accept a receipt bundle and return one of:
 
 Required behavior:
 
+- fail closed on unknown top-level, terminal, read-receipt, or action-receipt
+  fields;
+- fail closed on local bundles above the verifier input-size budget;
 - fail closed on missing dependencies;
 - fail closed on unsupported receipt types;
 - fail closed on dependency order violations;

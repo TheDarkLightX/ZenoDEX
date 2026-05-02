@@ -207,6 +207,26 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
             _mutate(lambda b: _read(b).__setitem__("status", "pending")),
             ["read_receipt_not_accepted"],
         ),
+        (
+            "unknown_top_level_field_survives",
+            _mutate(lambda b: b.__setitem__("debug_override", True)),
+            ["unknown_bundle_field:debug_override"],
+        ),
+        (
+            "unknown_terminal_field_survives",
+            _mutate(lambda b: b["terminal"].__setitem__("action_kind", "perp_settle")),
+            ["unknown_terminal_field:action_kind"],
+        ),
+        (
+            "unknown_read_receipt_field_survives",
+            _mutate(lambda b: _read(b).__setitem__("source_debug_json", {"unchecked": True})),
+            ["unknown_read_receipt_field:source_debug_json"],
+        ),
+        (
+            "unknown_action_receipt_field_survives",
+            _mutate(lambda b: _action(b).__setitem__("skip_oracle_guard", False)),
+            ["unknown_consumer_action_receipt_field:skip_oracle_guard"],
+        ),
     ]
 
 

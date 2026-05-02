@@ -222,6 +222,55 @@ def test_zenodex_oracle_verify_rejects_terminal_id_aliasing(tmp_path: Path) -> N
     assert "terminal_receipts_must_be_distinct" in result["errors"]
 
 
+def test_zenodex_oracle_verify_rejects_unknown_top_level_field(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["debug_override"] = True
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert "unknown_bundle_field:debug_override" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_unknown_terminal_field(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["terminal"]["action_kind"] = "perp_settle"
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert "unknown_terminal_field:action_kind" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_unknown_read_field(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["receipts"][0]["source_debug_json"] = {"unchecked": True}
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert "unknown_read_receipt_field:source_debug_json" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_unknown_action_field(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["receipts"][1]["skip_oracle_guard"] = False
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert "unknown_consumer_action_receipt_field:skip_oracle_guard" in result["errors"]
+
+
+def test_zenodex_oracle_verify_inconclusive_on_oversized_bundle(tmp_path: Path) -> None:
+    bundle_path = tmp_path / "oversized-bundle.json"
+    bundle_path.write_text('{"padding":"' + ("x" * 1_000_001) + '"}', encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "tools/zenodex_oracle.py", "verify", str(bundle_path)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 3
+    assert proc.stderr == ""
+    result = json.loads(proc.stdout)
+    assert result["status"] == "inconclusive"
+    assert any(error.startswith("bundle_load_failed:bundle_file_too_large:") for error in result["errors"])
+
+
 def test_zenodex_oracle_sample_bundle_cli_emits_verifiable_bundle(tmp_path: Path) -> None:
     bundle_path = tmp_path / "sample-bundle.json"
     sample_proc = subprocess.run(
