@@ -38,3 +38,5 @@ pytest -q \
   tests/test_zenodex_oracle_economic_security_chaos.py
 
 pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
+pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapter
+pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter

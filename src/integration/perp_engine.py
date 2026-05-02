@@ -500,6 +500,7 @@ class PerpEngineConfig:
     # isolated settlement with the boolean gate below.
     oracle_adapter_bridge_verifier: Optional[OracleAdapterBridgeVerifier] = None
     require_oracle_adapter_for_isolated_settle_epoch: bool = False
+    require_oracle_adapter_for_clearinghouse_settle_epoch: bool = False
     # Anti-bounty-farming posture guard:
     # require a non-trivial minimum collectible liquidation penalty for bounty-eligible notional.
     min_collectible_liquidation_penalty_quote: int = 1_000
@@ -773,9 +774,10 @@ def _require_oracle_adapter_bridge(
     consumer_module: str,
     action_kind: str,
     expected_action_id: Optional[str] = None,
+    required: bool = False,
 ) -> Optional[str]:
     if "oracle_adapter_bridge" not in data:
-        if config.require_oracle_adapter_for_isolated_settle_epoch:
+        if required:
             return f"{action_kind} requires oracle_adapter_bridge"
         return None
 
@@ -824,6 +826,34 @@ def _perps_runtime_oracle_action_id(
         "clearing_price_e8": int(global_state.get("clearing_price_e8", 0)),
         "index_price_e8": int(global_state.get("index_price_e8", 0)),
         "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _perps_clearinghouse_runtime_oracle_action_id(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    action_kind: str,
+    market_kind: str,
+    quote_asset: str,
+    state: Mapping[str, Any],
+    participant_pubkeys: tuple[str, ...],
+) -> str:
+    payload = {
+        "schema": "zenodex.oracle.perps_clearinghouse_runtime_action_id.v1",
+        "chain_id": config.chain_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": action_kind,
+        "market_kind": market_kind,
+        "market_id": market_id,
+        "quote_asset": quote_asset,
+        "participant_pubkeys": list(participant_pubkeys),
+        "now_epoch": int(state.get("now_epoch", 0)),
+        "clearing_price_epoch": int(state.get("clearing_price_epoch", 0)),
+        "clearing_price_e8": int(state.get("clearing_price_e8", 0)),
+        "index_price_e8": int(state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(state.get("oracle_last_update_epoch", 0)),
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
@@ -1117,10 +1147,28 @@ def _apply_ch2p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action"}
+        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
         unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
         if unknown is not None:
             return unknown
+        err = _require_oracle_adapter_bridge(
+            config,
+            data=data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_2p_v1",
+                quote_asset=ch2p_market.quote_asset,
+                state=ch2p_market.state,
+                participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
+            ),
+            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
+        if err is not None:
+            return err
         try:
             next_state, eff = _ch2p_step(ch2p_market.state, tag="settle_epoch", args={})
         except Exception as exc:
@@ -1383,10 +1431,32 @@ def _apply_ch3p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action"}
+        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
         unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
         if unknown is not None:
             return unknown
+        err = _require_oracle_adapter_bridge(
+            config,
+            data=data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_3p_transfer_v1",
+                quote_asset=ch3p_market.quote_asset,
+                state=ch3p_market.state,
+                participant_pubkeys=(
+                    ch3p_market.account_a_pubkey,
+                    ch3p_market.account_b_pubkey,
+                    ch3p_market.account_c_pubkey,
+                ),
+            ),
+            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
+        if err is not None:
+            return err
         try:
             next_state, eff = _ch3p_step(ch3p_market.state, tag="settle_epoch", args={})
         except Exception as exc:
@@ -1823,6 +1893,7 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
             action_kind="settle_epoch",
             market=market,
         ),
+        required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
     )
     if err is not None:
         return err
