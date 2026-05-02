@@ -124,11 +124,13 @@ different action, query, value hash, epoch, or policy.
 
 The aggregate-adapter bridge now checks the complete local path from admitted
 aggregate to aggregate-derived read bundle to concrete action/profile binding.
-Perps `settle_epoch` paths now have the first runtime hooks: when configured to
-require an Oracle bridge, isolated, 2-party clearinghouse, and 3-party transfer
-clearinghouse settlement reject missing, unverified, rejected, wrong-action, or
-wrong-runtime-action-ID aggregate-adapter bridges before state changes. Other
-consumers remain adapter-only until they get equivalent hooks.
+Perps `settle_epoch` paths and critical zUSD demo API commands now have the
+first runtime hooks. When configured to require an Oracle bridge, isolated,
+2-party clearinghouse, and 3-party transfer clearinghouse settlement reject
+missing, unverified, rejected, wrong-action, or wrong-runtime-action-ID
+aggregate-adapter bridges before state changes. The zUSD demo API applies the
+same pattern to `mint_zusd` and `liquidate`. Other consumers remain
+adapter-only until they get equivalent hooks.
 
 8. Token incentive lane
 
