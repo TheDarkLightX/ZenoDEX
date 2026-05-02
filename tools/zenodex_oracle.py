@@ -163,6 +163,37 @@ def _dependencies_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) 
                 errors.append(f"missing_dependency:{receipt_id}->{dep}")
 
 
+def _dependency_closure(
+    index: Mapping[str, Mapping[str, Any]],
+    terminal_ids: list[str],
+) -> set[str]:
+    reachable: set[str] = set()
+    stack = [receipt_id for receipt_id in terminal_ids if receipt_id in index]
+    while stack:
+        receipt_id = stack.pop()
+        if receipt_id in reachable:
+            continue
+        reachable.add(receipt_id)
+        deps = index[receipt_id].get("depends_on", [])
+        if not isinstance(deps, list):
+            continue
+        for dep in deps:
+            if isinstance(dep, str) and dep in index and dep not in reachable:
+                stack.append(dep)
+    return reachable
+
+
+def _no_unreachable_receipts(
+    index: Mapping[str, Mapping[str, Any]],
+    terminal_ids: list[str],
+    errors: list[str],
+) -> None:
+    reachable = _dependency_closure(index, terminal_ids)
+    for receipt_id in sorted(index):
+        if receipt_id not in reachable:
+            errors.append(f"unreachable_receipt:{receipt_id}")
+
+
 def _read_receipt_ok(read: Mapping[str, Any], errors: list[str]) -> tuple[str | None, str | None, str | None]:
     if read.get("type") != READ_TYPE:
         errors.append("read_receipt_type_mismatch")
@@ -229,6 +260,8 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     action_id = _get_hash(terminal or {}, "consumer_action_receipt_id", errors)
     index = _receipt_index(bundle.get("receipts"), errors)
     _dependencies_ok(index, errors)
+    terminal_ids = [receipt_id for receipt_id in (read_id, action_id) if receipt_id is not None]
+    _no_unreachable_receipts(index, terminal_ids, errors)
 
     read = index.get(read_id) if read_id is not None else None
     action = index.get(action_id) if action_id is not None else None

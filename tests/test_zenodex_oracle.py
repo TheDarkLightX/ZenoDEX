@@ -117,6 +117,27 @@ def test_zenodex_oracle_verify_rejects_action_without_read_dependency(tmp_path: 
     assert "consumer_action_must_depend_on_read_receipt" in result["errors"]
 
 
+def test_zenodex_oracle_verify_rejects_unreachable_receipt(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["receipts"].append(
+        {
+            "id": _h("stray"),
+            "type": "accepted_read_receipt",
+            "status": "accepted",
+            "query_id": _h("stray-query"),
+            "value_hash": _h("stray-value"),
+            "evidence_class": "O3",
+            "fresh": True,
+            "dispute_clear": True,
+            "uncertainty_accepted": True,
+            "depends_on": [],
+        }
+    )
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert any(error.startswith("unreachable_receipt:") for error in result["errors"])
+
+
 def test_zenodex_oracle_sample_bundle_cli_emits_verifiable_bundle(tmp_path: Path) -> None:
     bundle_path = tmp_path / "sample-bundle.json"
     sample_proc = subprocess.run(

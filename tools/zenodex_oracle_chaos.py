@@ -92,6 +92,26 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
             ["duplicate_receipt_id"],
         ),
         (
+            "stray_receipt_hides_unreachable_evidence",
+            _mutate(
+                lambda b: b["receipts"].append(
+                    {
+                        "id": sample_hash("stray-receipt"),
+                        "type": "accepted_read_receipt",
+                        "status": "accepted",
+                        "query_id": sample_hash("stray-query"),
+                        "value_hash": sample_hash("stray-value"),
+                        "evidence_class": "O3",
+                        "fresh": True,
+                        "dispute_clear": True,
+                        "uncertainty_accepted": True,
+                        "depends_on": [],
+                    }
+                )
+            ),
+            ["unreachable_receipt"],
+        ),
+        (
             "read_receipt_status_downgraded_after_terminal_binding",
             _mutate(lambda b: _read(b).__setitem__("status", "pending")),
             ["read_receipt_not_accepted"],
