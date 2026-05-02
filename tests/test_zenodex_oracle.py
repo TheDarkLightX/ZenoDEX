@@ -115,3 +115,28 @@ def test_zenodex_oracle_verify_rejects_action_without_read_dependency(tmp_path: 
     code, result = _run_verify(tmp_path, _bundle(include_dependency=False))
     assert code == 2
     assert "consumer_action_must_depend_on_read_receipt" in result["errors"]
+
+
+def test_zenodex_oracle_sample_bundle_cli_emits_verifiable_bundle(tmp_path: Path) -> None:
+    bundle_path = tmp_path / "sample-bundle.json"
+    sample_proc = subprocess.run(
+        [sys.executable, "tools/zenodex_oracle.py", "sample-bundle", "--output", str(bundle_path)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample_proc.returncode == 0, sample_proc.stderr
+    assert sample_proc.stdout == ""
+
+    verify_proc = subprocess.run(
+        [sys.executable, "tools/zenodex_oracle.py", "verify", str(bundle_path)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert verify_proc.returncode == 0, verify_proc.stderr
+    result = json.loads(verify_proc.stdout)
+    assert result["status"] == "accepted"
+    assert result["evidence_class"] == "O3"

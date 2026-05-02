@@ -208,6 +208,13 @@ The current public shell for that target is:
 python3 tools/zenodex_oracle.py verify <bundle>
 ```
 
+To generate a minimal local sample bundle:
+
+```text
+python3 tools/zenodex_oracle.py sample-bundle --output /tmp/oracle-bundle.json
+python3 tools/zenodex_oracle.py verify /tmp/oracle-bundle.json
+```
+
 It should verify a local receipt bundle and produce stable JSON:
 
 ```json

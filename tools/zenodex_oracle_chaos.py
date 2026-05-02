@@ -13,50 +13,11 @@ from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from zenodex_oracle import verify_bundle  # noqa: E402
-
-
-def _h(tag: str) -> str:
-    return "sha256:" + tag.encode("utf-8").hex().ljust(64, "0")[:64]
+from zenodex_oracle import sample_hash, sample_bundle, verify_bundle  # noqa: E402
 
 
 def base_bundle() -> dict[str, Any]:
-    query_id = _h("query")
-    value_hash = _h("value")
-    read_id = _h("read")
-    action_id = _h("action")
-    return {
-        "schema": "zenodex.oracle.receipt_bundle.v1",
-        "terminal": {
-            "read_receipt_id": read_id,
-            "consumer_action_receipt_id": action_id,
-        },
-        "receipts": [
-            {
-                "id": read_id,
-                "type": "accepted_read_receipt",
-                "status": "accepted",
-                "query_id": query_id,
-                "value_hash": value_hash,
-                "evidence_class": "O3",
-                "fresh": True,
-                "dispute_clear": True,
-                "uncertainty_accepted": True,
-                "depends_on": [],
-            },
-            {
-                "id": action_id,
-                "type": "consumer_action_receipt",
-                "status": "accepted",
-                "query_id": query_id,
-                "value_hash": value_hash,
-                "read_receipt_id": read_id,
-                "critical": True,
-                "emergency_oracle_bypass": False,
-                "depends_on": [read_id],
-            },
-        ],
-    }
+    return sample_bundle()
 
 
 def _mutate(mutator: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
@@ -97,12 +58,12 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
         ),
         (
             "consumer_action_borrows_other_query",
-            _mutate(lambda b: _action(b).__setitem__("query_id", _h("other-query"))),
+            _mutate(lambda b: _action(b).__setitem__("query_id", sample_hash("other-query"))),
             ["consumer_action_query_id_mismatch"],
         ),
         (
             "consumer_action_borrows_other_value",
-            _mutate(lambda b: _action(b).__setitem__("value_hash", _h("other-value"))),
+            _mutate(lambda b: _action(b).__setitem__("value_hash", sample_hash("other-value"))),
             ["consumer_action_value_hash_mismatch"],
         ),
         (
@@ -117,12 +78,12 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
         ),
         (
             "terminal_points_to_missing_read",
-            _mutate(lambda b: b["terminal"].__setitem__("read_receipt_id", _h("missing-read"))),
+            _mutate(lambda b: b["terminal"].__setitem__("read_receipt_id", sample_hash("missing-read"))),
             ["terminal_read_receipt_missing"],
         ),
         (
             "action_depends_on_missing_receipt",
-            _mutate(lambda b: _action(b).__setitem__("depends_on", [_h("missing-dependency")])),
+            _mutate(lambda b: _action(b).__setitem__("depends_on", [sample_hash("missing-dependency")])),
             ["missing_dependency"],
         ),
         (
