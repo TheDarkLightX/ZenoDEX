@@ -172,7 +172,7 @@ doctor_ok = true
 chaos_all_case_count = 283
 chaos_all_rejected_count = 283
 chaos_all_failed_count = 0
-269 passed
+271 passed
 ```
 
 The CI workflow `.github/workflows/zeno-oracle-mvp.yml` runs the same command
@@ -229,7 +229,9 @@ ReporterLifecycleAccepted -> ActiveReportersAreBonded and SlashesRequireDisputes
 Plain English: critical consumers must use accepted receipts, receipt IDs must
 commit to their content and bind the downstream action. The local CLI wrapper
 now exposes one entry point for discovering verifier surfaces, emitting sample
-feed/report artifacts, verifying those artifacts, and replaying chaos lanes.
+feed/report artifacts, verifying those artifacts, registering accepted feed
+registries into a local store, submitting accepted signed reports into a local
+store, and replaying chaos lanes.
 Median3 aggregates must
 commit to their content and bind the downstream action, signed reporter
 submissions must verify the BLS signature over the exact payload and preserve a

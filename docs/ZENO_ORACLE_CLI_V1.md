@@ -43,6 +43,12 @@ Verify it:
 python3 tools/zenodex_oracle_cli.py verify feed /tmp/zeno-oracle-feed-registry.json
 ```
 
+Register it into a local Oracle store:
+
+```bash
+python3 tools/zenodex_oracle_cli.py register-feed /tmp/zeno-oracle-feed-registry.json --store /tmp/zeno-oracle-store
+```
+
 `feed-registry` is accepted as an alias for `feed`.
 
 ## Reporter Signed Reports
@@ -57,6 +63,12 @@ Verify it:
 
 ```bash
 python3 tools/zenodex_oracle_cli.py verify signed-report /tmp/zeno-oracle-signed-report.json
+```
+
+Submit it into a local Oracle store:
+
+```bash
+python3 tools/zenodex_oracle_cli.py submit-report /tmp/zeno-oracle-signed-report.json --store /tmp/zeno-oracle-store
 ```
 
 The signed-report verifier still performs the same payload-hash, report-ID,
@@ -112,7 +124,8 @@ This CLI does not claim:
 - a live Oracle network exists;
 - a platform-native binary installer exists;
 - on-chain feed governance is live;
-- network submission is implemented;
+- network submission is implemented; local store submission is only a replayable
+  dev/test flow;
 - production ZenoDEX consumers are wired to Oracle reads.
 
 It is the first local runner for the public-testnet Oracle shell.

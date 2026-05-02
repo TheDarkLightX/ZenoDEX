@@ -107,6 +107,73 @@ def test_oracle_cli_runs_feed_registry_chaos() -> None:
     assert receipt["failed_case_count"] == 0
 
 
+def test_oracle_cli_registers_feed_registry_to_local_store(tmp_path: Path) -> None:
+    registry_path = tmp_path / "feed-registry.json"
+    store_path = tmp_path / "oracle-store"
+    receipt_path = tmp_path / "feed-registration-receipt.json"
+    sample = subprocess.run(
+        [*CLI, "sample", "feed", "--output", str(registry_path)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample.returncode == 0, sample.stderr
+
+    register = subprocess.run(
+        [
+            *CLI,
+            "register-feed",
+            str(registry_path),
+            "--store",
+            str(store_path),
+            "--receipt-output",
+            str(receipt_path),
+        ],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert register.returncode == 0, register.stderr
+    assert register.stdout == ""
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    assert receipt["schema"] == "zenodex.oracle.cli_feed_registration_receipt.v1"
+    assert receipt["status"] == "accepted"
+    stored = Path(receipt["stored_path"])
+    assert stored.is_file()
+    assert stored.parent == store_path / "feeds"
+
+
+def test_oracle_cli_submits_signed_report_to_local_store(tmp_path: Path) -> None:
+    submission_path = tmp_path / "signed-report.json"
+    store_path = tmp_path / "oracle-store"
+    sample = subprocess.run(
+        [*CLI, "sample", "signed-report", "--output", str(submission_path)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample.returncode == 0, sample.stderr
+
+    submit = subprocess.run(
+        [*CLI, "submit-report", str(submission_path), "--store", str(store_path)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert submit.returncode == 0, submit.stderr
+    receipt = json.loads(submit.stdout)
+    assert receipt["schema"] == "zenodex.oracle.cli_report_submission_receipt.v1"
+    assert receipt["status"] == "accepted"
+    assert receipt["report_count"] == 2
+    stored = Path(receipt["stored_path"])
+    assert stored.is_file()
+    assert stored.parent == store_path / "signed_reports"
+
+
 def test_oracle_cli_rejects_unknown_surface() -> None:
     proc = subprocess.run(
         [*CLI, "sample", "unknown-surface"],
