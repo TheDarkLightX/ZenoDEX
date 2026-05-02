@@ -17,6 +17,8 @@ The first concrete public token budget format is
 [ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md).
 The first concrete public reporter lifecycle format is
 [ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md).
+The first concrete public signed-report format is
+[ZENO_ORACLE_SIGNED_REPORT_V1.md](ZENO_ORACLE_SIGNED_REPORT_V1.md).
 The first concrete public aggregate format is
 [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md).
 The first concrete public source-diversity format is
@@ -63,7 +65,9 @@ receipts.
 3. Signed report lane
 
 Accepts reports only when schema, canonical hash, reporter signature, query
-binding, source timing, value type, and reporter sequence checks pass.
+binding, source timing, value type, and reporter sequence checks pass. The
+current shell verifies BLS signatures and a reporter-local previous-report
+chain before reports are eligible for aggregation.
 
 4. Aggregate receipt lane
 
@@ -164,6 +168,7 @@ unbounded rewards.
 - zero or malformed price is consumed;
 - reporter sequence replay is accepted;
 - signature verifies over the wrong payload;
+- signed report sequence skips or points at the wrong predecessor;
 - unauthorized or under-bonded reporter is accepted;
 - source evidence is borrowed across reports;
 - three source strings collapse to one operator, venue, data family,

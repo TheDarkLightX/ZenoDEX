@@ -39,6 +39,7 @@ Current public entry point:
 - `docs/ZENO_ORACLE_MVP_STATUS.md`
 - `docs/ZENO_ORACLE_MVP_DESIGN.md`
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md`
+- `docs/ZENO_ORACLE_SIGNED_REPORT_V1.md`
 - `docs/ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md`
 - `docs/ZENO_ORACLE_SOURCE_DIVERSITY_V1.md`
 - `docs/ZENO_ORACLE_QUERY_POLICY_V1.md`
@@ -179,6 +180,12 @@ The current local shell for reporter lifecycle sequencing is:
 python3 tools/zenodex_oracle_reporter_lifecycle.py verify <trace>
 ```
 
+The current local shell for signed report submissions is:
+
+```text
+python3 tools/zenodex_oracle_signed_report.py verify <submission>
+```
+
 The current local shell for the first aggregate policy is:
 
 ```text
@@ -264,6 +271,7 @@ Minimum required evidence:
 
 - replay verifier passes on fresh and historical receipt bundles;
 - stale, weak, disputed, malformed, and misbound bundles reject;
+- signed report payload, signature, sequence, and previous-link mutations reject;
 - source-correlation mutations reject before aggregates become accepted reads;
 - reporter binary can run from a clean install;
 - token budget, bond, reward, dispute, and slash accounting have replay tests;
