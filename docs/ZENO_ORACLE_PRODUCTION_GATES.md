@@ -205,6 +205,12 @@ The current local shell for aggregating only admitted reports is:
 python3 tools/zenodex_oracle_admitted_median3.py verify <aggregate>
 ```
 
+The current local shell for deriving accepted reads from admitted aggregates is:
+
+```text
+python3 tools/zenodex_oracle_aggregate_read.py verify <bridge>
+```
+
 The current local shell for the first source-diversity policy is:
 
 ```text
@@ -288,6 +294,8 @@ Minimum required evidence:
 - report admission rejects signed/lifecycle/source-diversity mismatches;
 - admitted-median3 rejects raw, duplicate, stale-window-mismatched, or
   admission-rejected aggregate inputs;
+- aggregate-read rejects read bundles whose query, value hash, epoch, expiry,
+  or freshness window does not match the admitted aggregate;
 - source-correlation mutations reject before aggregates become accepted reads;
 - reporter binary can run from a clean install;
 - token budget, bond, reward, dispute, and slash accounting have replay tests;
