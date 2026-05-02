@@ -53,6 +53,7 @@ deterministic single-axis mutations:
 | `action_depends_on_extra_reachable_read` | action imports extra reachable read evidence |
 | `action_duplicates_read_dependency` | action duplicates dependency edges |
 | `terminal_aliases_read_as_action` | terminal read ID is reused as action ID |
+| `receipt_id_forged_without_body_match` | receipt ID does not match its canonical body hash |
 | `read_receipt_status_downgraded_after_terminal_binding` | terminal read is no longer accepted |
 | `unknown_top_level_field_survives` | bundle carries undeclared top-level authority |
 | `unknown_terminal_field_survives` | terminal binding carries undeclared action data |
@@ -66,8 +67,8 @@ The receipt reports:
   "schema": "zenodex.oracle.chaos_replay.v1",
   "ok": true,
   "baseline_status": "accepted",
-  "case_count": 27,
-  "rejected_case_count": 27,
+  "case_count": 28,
+  "rejected_case_count": 28,
   "failed_case_count": 0
 }
 ```

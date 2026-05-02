@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from zenodex_oracle import sample_hash, sample_bundle, verify_bundle  # noqa: E402
+from zenodex_oracle import receipt_content_hash, sample_hash, sample_bundle, verify_bundle  # noqa: E402
 
 
 def base_bundle() -> dict[str, Any]:
@@ -40,6 +40,16 @@ def _action(bundle: dict[str, Any]) -> dict[str, Any]:
         for receipt in bundle["receipts"]
         if receipt.get("type") == "consumer_action_receipt"
     )
+
+
+def _forge_read_id_with_matching_action(bundle: dict[str, Any]) -> None:
+    forged_read_id = sample_hash("forged-read")
+    _read(bundle)["id"] = forged_read_id
+    bundle["terminal"]["read_receipt_id"] = forged_read_id
+    _action(bundle)["read_receipt_id"] = forged_read_id
+    _action(bundle)["depends_on"] = [forged_read_id]
+    _action(bundle)["id"] = receipt_content_hash(_action(bundle))
+    bundle["terminal"]["consumer_action_receipt_id"] = _action(bundle)["id"]
 
 
 def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
@@ -149,7 +159,7 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
                     ),
                     _action(b).__setitem__(
                         "depends_on",
-                        [sample_hash("zenodex-oracle-sample-read"), sample_hash("unsupported-receipt")],
+                        [_read(b)["id"], sample_hash("unsupported-receipt")],
                     ),
                 )
             ),
@@ -191,7 +201,7 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
                     ),
                     _action(b).__setitem__(
                         "depends_on",
-                        [sample_hash("zenodex-oracle-sample-read"), sample_hash("extra-read")],
+                        [_read(b)["id"], sample_hash("extra-read")],
                     ),
                 )
             ),
@@ -202,7 +212,7 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
             _mutate(
                 lambda b: _action(b).__setitem__(
                     "depends_on",
-                    [sample_hash("zenodex-oracle-sample-read"), sample_hash("zenodex-oracle-sample-read")],
+                    [_read(b)["id"], _read(b)["id"]],
                 )
             ),
             ["duplicate_dependency", "consumer_action_dependency_must_equal_read_receipt"],
@@ -216,6 +226,11 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
                 )
             ),
             ["terminal_receipts_must_be_distinct"],
+        ),
+        (
+            "receipt_id_forged_without_body_match",
+            _mutate(_forge_read_id_with_matching_action),
+            ["receipt_content_hash_mismatch"],
         ),
         (
             "read_receipt_status_downgraded_after_terminal_binding",

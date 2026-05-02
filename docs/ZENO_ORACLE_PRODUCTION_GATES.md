@@ -80,6 +80,8 @@ Required behavior:
 - fail closed on unknown top-level, terminal, read-receipt, or action-receipt
   fields;
 - fail closed on local bundles above the verifier input-size budget;
+- fail closed when a receipt ID does not match the canonical hash of the receipt
+  body;
 - fail closed on missing dependencies;
 - fail closed on unsupported receipt types;
 - fail closed on dependency order violations;
