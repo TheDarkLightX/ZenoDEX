@@ -100,8 +100,8 @@ Successful verification returns:
 
 The `not_claimed` list remains part of the receipt. The bridge itself is still
 a local artifact verifier. The first runtime consumer hook is documented in
-[ZENO_ORACLE_RUNTIME_BRIDGE_V1.md](ZENO_ORACLE_RUNTIME_BRIDGE_V1.md): isolated
-perps `settle_epoch` can require a verified aggregate-adapter bridge before
+[ZENO_ORACLE_RUNTIME_BRIDGE_V1.md](ZENO_ORACLE_RUNTIME_BRIDGE_V1.md): perps
+`settle_epoch` paths can require a verified aggregate-adapter bridge before
 settlement proceeds.
 
 ## Replay

@@ -888,6 +888,6 @@ rejects the envelope.
 
 1. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
    drift, root drift.
-2. Runtime adapter hooks beyond isolated perps settlement: clearinghouse perps,
-   zUSD, routing, liquidation, and trigger calls must reject raw oracle values
-   and wrong-profile receipt reuse.
+2. Runtime adapter hooks beyond perps settlement: zUSD, routing, liquidation,
+   and trigger calls must reject raw oracle values and wrong-profile receipt
+   reuse.
