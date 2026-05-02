@@ -19,6 +19,8 @@ is a status page, not a production launch claim.
 | Median3 aggregate chaos replay | `tools/zenodex_oracle_median3_chaos.py` | `python3 tools/zenodex_oracle_median3_chaos.py` |
 | Query-policy verifier | `tools/zenodex_oracle_query_policy.py` | `python3 tools/zenodex_oracle_query_policy.py verify <trace>` |
 | Query-policy chaos replay | `tools/zenodex_oracle_query_policy_chaos.py` | `python3 tools/zenodex_oracle_query_policy_chaos.py` |
+| ZenoDEX adapter verifier | `tools/zenodex_oracle_adapter.py` | `python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle>` |
+| ZenoDEX adapter chaos replay | `tools/zenodex_oracle_adapter_chaos.py` | `python3 tools/zenodex_oracle_adapter_chaos.py` |
 
 ## Current Replay Counts
 
@@ -42,6 +44,10 @@ median3_chaos_failed_count = 0
 query_policy_chaos_case_count = 19
 query_policy_chaos_rejected_count = 19
 query_policy_chaos_failed_count = 0
+
+adapter_chaos_case_count = 17
+adapter_chaos_rejected_count = 17
+adapter_chaos_failed_count = 0
 ```
 
 Plain English: the local receipt verifier rejects all currently named
@@ -53,7 +59,10 @@ named miscomputed aggregate, stale/future report, query mismatch, duplicate
 source/reporter, forged-hash, schema, and hidden-field mutations. The local
 query-policy verifier rejects all currently named silent downgrade, stale
 policy binding, schema drift, wrong-query, wrong-supersedes, version-skip,
-hash-forgery, and hidden-field mutations.
+hash-forgery, and hidden-field mutations. The local adapter verifier rejects all
+currently named receipt-borrowing, action/bundle mismatch, weak action policy,
+non-critical action, hidden-field, schema, missing-field, and type-confusion
+mutations.
 
 ## Current Test Command
 
@@ -68,13 +77,15 @@ pytest -q \
   tests/test_zenodex_oracle_median3.py \
   tests/test_zenodex_oracle_median3_chaos.py \
   tests/test_zenodex_oracle_query_policy.py \
-  tests/test_zenodex_oracle_query_policy_chaos.py
+  tests/test_zenodex_oracle_query_policy_chaos.py \
+  tests/test_zenodex_oracle_adapter.py \
+  tests/test_zenodex_oracle_adapter_chaos.py
 ```
 
 Current result on this branch:
 
 ```text
-90 passed
+109 passed
 ```
 
 ## Public Contract Documents
@@ -83,6 +94,7 @@ Current result on this branch:
 - [ZENO_ORACLE_RECEIPT_FORMAT_V1.md](ZENO_ORACLE_RECEIPT_FORMAT_V1.md)
 - [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md)
 - [ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md)
+- [ZENO_ORACLE_ADAPTER_V1.md](ZENO_ORACLE_ADAPTER_V1.md)
 - [ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md)
 - [ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md)
 - [ZENO_ORACLE_CHAOS_ENGINEERING.md](ZENO_ORACLE_CHAOS_ENGINEERING.md)
@@ -97,6 +109,7 @@ CriticalOracleUse -> AcceptedReadReceipt
 ReceiptAccepted -> ContentHashMatches and ConsumerActionBound
 Median3Accepted -> ExactMedian and DistinctSources and DeviationWithinPolicy
 QueryPolicyAccepted -> NoSilentDowngrade and CriticalConsumersBindLatestPolicy
+OracleUseOK(action, bundle) -> ActionFactsMatchAcceptedBundle
 BudgetAccepted -> Spend <= ExplicitEnvelope
 ReporterLifecycleAccepted -> ActiveReportersAreBonded and SlashesRequireDisputes
 ```
@@ -108,6 +121,9 @@ reports, and query-policy revisions must not silently weaken critical
 freshness, evidence, deviation, quorum, or schema requirements. Token movements
 must fit inside explicit budgets, bonds, or fees. Reporter traces must keep
 report submission, disputes, slashing, exit, and withdrawal in the safe order.
+The adapter then checks a downstream action against the accepted bundle facts so
+critical actions cannot borrow receipts from a different module, action, query,
+value, epoch, read receipt, or consumer-action receipt.
 
 ## Still Not Claimed
 
@@ -118,18 +134,14 @@ This branch does not claim:
 - a production Oracle token exists;
 - reporter sources are honest;
 - oracle values are true market prices;
-- ZenoDEX perps, zUSD, routing, or trigger execution are already wired to this
-  Oracle verifier;
+- ZenoDEX perps, zUSD, routing, or trigger execution are already runtime-wired
+  to this Oracle verifier;
 - the receipt or budget formats are final.
 
 ## Next Production Work
 
-1. Add a ZenoDEX adapter predicate:
-
-   ```text
-   OracleUseOK(action, receipt_bundle) -> bool
-   ```
-
+1. Wire the adapter predicate into concrete ZenoDEX consumers such as perps,
+   zUSD, routing, and trigger execution.
 2. Add higher-redundancy aggregate policies after `median_3` is stable.
 3. Add executable reporter CLI flows once the reporter and dispute objects are
    stable.

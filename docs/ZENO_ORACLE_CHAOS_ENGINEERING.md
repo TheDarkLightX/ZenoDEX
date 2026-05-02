@@ -311,8 +311,63 @@ Plain English: if a mutation weakens the policy envelope or binds a consumer to
 the wrong policy, the local verifier rejects the trace before a critical action
 can treat the weaker policy as authority.
 
+## Adapter Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_adapter_chaos.py
+```
+
+The replay starts with one accepted action/bundle pair, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `unaccepted_bundle_survives` | downstream action accepts a rejected Oracle bundle |
+| `consumer_module_mismatch_survives` | receipt is borrowed across consumer modules |
+| `action_kind_mismatch_survives` | receipt is borrowed across action kinds |
+| `action_id_mismatch_survives` | receipt is borrowed across action IDs |
+| `action_epoch_mismatch_survives` | receipt is borrowed across action epochs |
+| `query_mismatch_survives` | action asks one query but consumes another |
+| `value_mismatch_survives` | action consumes another value hash |
+| `read_receipt_id_mismatch_survives` | action names a different read receipt |
+| `consumer_action_receipt_id_mismatch_survives` | action names a different consumer-action receipt |
+| `evidence_below_action_floor_survives` | bundle evidence is below action requirement |
+| `freshness_window_exceeds_action_limit_survives` | bundle freshness window is looser than action limit |
+| `noncritical_action_descriptor_survives` | non-critical action descriptor is treated as critical |
+| `weak_required_evidence_floor_survives` | action declares a weak evidence floor |
+| `hidden_action_field_survives` | action carries unchecked authority/debug data |
+| `wrong_action_schema_survives` | action schema downgrade is accepted |
+| `missing_action_id_survives` | action omits the downstream action ID |
+| `boolean_action_epoch_survives` | boolean is accepted as action epoch |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.adapter_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 17,
+  "rejected_case_count": 17,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the first adapter boundary:
+
+```text
+ValidActionBundlePair + DangerousPerturbation -> RejectedOracleUse
+```
+
+Plain English: if a mutation lets a critical action borrow a receipt from the
+wrong bundle, action, query, value, epoch, evidence floor, or freshness policy,
+the local adapter rejects the attempted Oracle use.
+
 ## Next Chaos Lanes
 
 1. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
    drift, root drift.
-2. ZenoDEX adapter lifecycle: accepted read to perps/zUSD/trigger execution.
+2. Concrete ZenoDEX consumer lifecycle: accepted read to perps/zUSD/trigger
+   execution.
