@@ -94,14 +94,77 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
-The current public Oracle chaos lanes together cover `257` named disaster
+The current public Oracle chaos lanes together cover `283` named disaster
 shapes, all rejected in the latest local replay:
 
 ```text
-total_oracle_chaos_case_count = 257
-total_oracle_chaos_rejected_count = 257
+total_oracle_chaos_case_count = 283
+total_oracle_chaos_rejected_count = 283
 total_oracle_chaos_failed_count = 0
 ```
+
+## Feed Registry Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_feed_registry_chaos.py
+```
+
+The replay starts with one accepted `AGRS/ZDEX` feed registry, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `registry_hash_forgery_survives` | registry body changes without changing registry ID |
+| `feed_hash_forgery_survives` | feed body changes without changing feed ID |
+| `query_hash_forgery_survives` | query semantics change without changing query ID |
+| `aggregate_policy_hash_forgery_survives` | aggregate policy changes without changing policy ID |
+| `source_diversity_hash_forgery_survives` | source-diversity policy changes without changing source-set ID |
+| `duplicate_feed_id_survives` | two feeds share one feed ID |
+| `duplicate_query_id_survives` | two feeds claim one query ID |
+| `base_quote_same_survives` | a price feed aliases base and quote assets |
+| `weak_min_reporters_survives` | reporter quorum drops below three |
+| `weak_min_sources_survives` | source quorum drops below three |
+| `zero_freshness_survives` | feed accepts a zero freshness window |
+| `excessive_deviation_survives` | deviation policy exceeds the bps domain |
+| `weak_evidence_floor_survives` | critical evidence floor is downgraded |
+| `unsupported_aggregate_policy_survives` | feed switches away from admitted median3 |
+| `unsupported_report_schema_survives` | feed switches away from signed reports |
+| `source_query_mismatch_survives` | source policy binds a different query |
+| `source_operator_correlation_survives` | source set collapses distinct operators |
+| `future_created_feed_survives` | feed is created after current epoch |
+| `inactive_feed_survives` | inactive feed becomes admissible |
+| `hidden_registry_field_survives` | registry carries undeclared governance authority |
+| `hidden_feed_field_survives` | feed carries undeclared admin authority |
+| `hidden_query_field_survives` | query spec carries an unchecked semantic alias |
+| `hidden_policy_field_survives` | policy carries an unchecked bypass field |
+| `wrong_registry_schema_survives` | registry schema downgrade is accepted |
+| `feeds_as_object_survives` | feed list shape is replaced by an object |
+| `boolean_current_epoch_survives` | boolean is accepted as an epoch |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.feed_registry_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 26,
+  "rejected_case_count": 26,
+  "failed_case_count": 0
+}
+```
+
+This lane checks feed creation and registration before a query can enter the
+rest of the Oracle chain:
+
+```text
+ValidFeedRegistry + DangerousPerturbation -> RejectedRegistry
+```
+
+If a mutation weakens query semantics, source policy, aggregate policy,
+freshness, deviation, evidence, or uniqueness, the local verifier rejects it.
 
 ## Token Budget Replay Lane
 

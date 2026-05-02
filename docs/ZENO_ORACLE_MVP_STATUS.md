@@ -27,6 +27,8 @@ is a status page, not a production launch claim.
 | Aggregate-read bridge chaos replay | `tools/zenodex_oracle_aggregate_read_chaos.py` | `python3 tools/zenodex_oracle_aggregate_read_chaos.py` |
 | Aggregate-adapter bridge verifier | `tools/zenodex_oracle_aggregate_adapter.py` | `python3 tools/zenodex_oracle_aggregate_adapter.py verify <bridge>` |
 | Aggregate-adapter bridge chaos replay | `tools/zenodex_oracle_aggregate_adapter_chaos.py` | `python3 tools/zenodex_oracle_aggregate_adapter_chaos.py` |
+| Feed registry verifier | `tools/zenodex_oracle_feed_registry.py` | `python3 tools/zenodex_oracle_feed_registry.py verify <registry>` |
+| Feed registry chaos replay | `tools/zenodex_oracle_feed_registry_chaos.py` | `python3 tools/zenodex_oracle_feed_registry_chaos.py` |
 | Source diversity verifier | `tools/zenodex_oracle_source_diversity.py` | `python3 tools/zenodex_oracle_source_diversity.py verify <receipt>` |
 | Source diversity chaos replay | `tools/zenodex_oracle_source_diversity_chaos.py` | `python3 tools/zenodex_oracle_source_diversity_chaos.py` |
 | Query-policy verifier | `tools/zenodex_oracle_query_policy.py` | `python3 tools/zenodex_oracle_query_policy.py verify <trace>` |
@@ -77,6 +79,10 @@ aggregate_adapter_chaos_case_count = 16
 aggregate_adapter_chaos_rejected_count = 16
 aggregate_adapter_chaos_failed_count = 0
 
+feed_registry_chaos_case_count = 26
+feed_registry_chaos_rejected_count = 26
+feed_registry_chaos_failed_count = 0
+
 source_diversity_chaos_case_count = 16
 source_diversity_chaos_rejected_count = 16
 source_diversity_chaos_failed_count = 0
@@ -97,8 +103,8 @@ economic_security_chaos_case_count = 14
 economic_security_chaos_rejected_count = 14
 economic_security_chaos_failed_count = 0
 
-total_oracle_chaos_case_count = 257
-total_oracle_chaos_rejected_count = 257
+total_oracle_chaos_case_count = 283
+total_oracle_chaos_rejected_count = 283
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -128,12 +134,17 @@ hidden-field, schema, and type-confusion mutations. The local aggregate-adapter
 bridge verifier rejects all currently named aggregate-read rejection, action
 query/value/action/read/consumer-receipt mismatch, profile hash/mismatch,
 freshness weakening, non-critical action, missing-subobject, hidden-field, and
-schema mutations. The local source-diversity verifier rejects all currently named
-source-set hash, duplicate-source, operator, venue, data-family, transport,
-jurisdiction, hidden-field, schema, type-confusion, and malformed-source
-mutations. The local query-policy verifier rejects all currently named silent
-downgrade, stale policy binding, schema drift, wrong-query, wrong-supersedes,
-version-skip, hash-forgery, and hidden-field mutations. The local adapter
+schema mutations. The local feed-registry verifier rejects all currently named
+registry/feed/query/policy/source hash forgery, duplicate feed/query,
+base-quote aliasing, weak quorum/freshness/evidence/deviation, unsupported
+schema, source-query mismatch, source-correlation, future/inactive feed,
+hidden-field, schema, and type-confusion mutations. The local source-diversity
+verifier rejects all currently named source-set hash, duplicate-source,
+operator, venue, data-family, transport, jurisdiction, hidden-field, schema,
+type-confusion, and malformed-source mutations. The local query-policy verifier
+rejects all currently named silent downgrade, stale policy binding, schema
+drift, wrong-query, wrong-supersedes, version-skip, hash-forgery, and
+hidden-field mutations. The local adapter
 verifier rejects all currently named receipt-borrowing, action/bundle mismatch,
 weak action policy, consumer-profile mismatch, profile weakening, non-critical
 action, hidden-field, schema, missing-field, and type-confusion mutations.
@@ -168,6 +179,8 @@ pytest -q \
   tests/test_zenodex_oracle_aggregate_read_chaos.py \
   tests/test_zenodex_oracle_aggregate_adapter.py \
   tests/test_zenodex_oracle_aggregate_adapter_chaos.py \
+  tests/test_zenodex_oracle_feed_registry.py \
+  tests/test_zenodex_oracle_feed_registry_chaos.py \
   tests/test_zenodex_oracle_source_diversity.py \
   tests/test_zenodex_oracle_source_diversity_chaos.py \
   tests/test_zenodex_oracle_query_policy.py \
@@ -183,7 +196,7 @@ pytest -q \
 Current result on this branch:
 
 ```text
-244 passed
+264 passed
 ```
 
 ## Public Contract Documents
@@ -196,6 +209,7 @@ Current result on this branch:
 - [ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md](ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md)
 - [ZENO_ORACLE_AGGREGATE_READ_V1.md](ZENO_ORACLE_AGGREGATE_READ_V1.md)
 - [ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md](ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md)
+- [ZENO_ORACLE_FEED_REGISTRY_V1.md](ZENO_ORACLE_FEED_REGISTRY_V1.md)
 - [ZENO_ORACLE_SOURCE_DIVERSITY_V1.md](ZENO_ORACLE_SOURCE_DIVERSITY_V1.md)
 - [ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md)
 - [ZENO_ORACLE_ADAPTER_V1.md](ZENO_ORACLE_ADAPTER_V1.md)
@@ -219,6 +233,7 @@ Median3Accepted -> ExactMedian and SourceDiversityAccepted and DeviationWithinPo
 AdmittedMedian3Accepted -> ReportAdmissionAccepted and ExactMedian and DeviationWithinPolicy
 AggregateReadAccepted -> AdmittedMedian3Accepted and ReceiptBundleAccepted and ValueHashMatchesAggregate
 AggregateAdapterAccepted -> AggregateReadAccepted and AdapterAccepted(action, bundle, profile)
+FeedRegistryAccepted -> QuerySpecHashMatches and SourceDiversityAccepted and AggregatePolicyHashMatches
 SourceDiversityAccepted -> DistinctOperatorsVenuesFamiliesTransportsJurisdictions
 QueryPolicyAccepted -> NoSilentDowngrade and CriticalConsumersBindLatestPolicy
 OracleUseOK(action, bundle, profile) ->
@@ -246,6 +261,10 @@ derived from the admitted aggregate. The aggregate-adapter bridge then checks
 the concrete action/profile binding against that exact aggregate-derived
 bundle. That receipt checks declared operator, venue, data-family, transport,
 and jurisdiction diversity before the aggregate can pass.
+The feed registry now checks feed creation/registration objects before they can
+be treated as admissible query definitions, and it pins query semantics, source
+diversity, admitted-median3 aggregation, signed-report inputs, freshness,
+deviation, evidence, and uniqueness in content-addressed objects.
 Query-policy revisions must not silently weaken critical freshness, evidence,
 deviation, quorum, or schema requirements. Token movements must fit inside
 explicit budgets, bonds, or fees. Reporter traces must keep report submission,
@@ -266,6 +285,7 @@ and budget laws.
 This branch does not claim:
 
 - a live Zeno Oracle network exists;
+- feed governance or on-chain feed registration is live;
 - reporter registration, submission, rewards, disputes, or slashing are live;
 - a production Oracle token exists;
 - reporter sources are honest;
@@ -277,9 +297,11 @@ This branch does not claim:
 
 ## Next Production Work
 
-1. Wire the adapter predicate into concrete ZenoDEX consumers such as perps,
+1. Add a unified user-facing Oracle CLI/binary that wraps feed registration,
+   reporter submission, verification, and replay commands.
+2. Wire the adapter predicate into concrete ZenoDEX consumers such as perps,
    zUSD, routing, and trigger execution.
-2. Add higher-redundancy aggregate policies after `median_3` and source
+3. Add higher-redundancy aggregate policies after `median_3` and source
    diversity are stable.
-3. Add executable reporter CLI flows once the reporter and dispute objects are
+4. Add executable reporter CLI flows once the reporter and dispute objects are
    stable.

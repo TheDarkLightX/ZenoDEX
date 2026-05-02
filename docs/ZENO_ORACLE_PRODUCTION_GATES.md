@@ -47,6 +47,7 @@ Current public entry point:
 - `docs/ZENO_ORACLE_ADAPTER_V1.md`
 - `docs/ZENO_ORACLE_CONSUMER_PROFILES_V1.md`
 - `docs/ZENO_ORACLE_ECONOMIC_SECURITY_V1.md`
+- `docs/ZENO_ORACLE_FEED_REGISTRY_V1.md`
 - `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md`
 - `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md`
 
@@ -248,6 +249,13 @@ The current local shell for the first economic security envelope is:
 python3 tools/zenodex_oracle_economic_security.py verify <envelope>
 ```
 
+The current local shell for feed creation and registry admission is:
+
+```text
+python3 tools/zenodex_oracle_feed_registry.py sample --output /tmp/zeno-oracle-feed-registry.json
+python3 tools/zenodex_oracle_feed_registry.py verify /tmp/zeno-oracle-feed-registry.json
+```
+
 ## Gate 5: Critical ZenoDEX Adapter
 
 Purpose: connect the Oracle to ZenoDEX without letting a raw report leak into
@@ -305,6 +313,8 @@ Minimum required evidence:
   or freshness window does not match the admitted aggregate;
 - aggregate-adapter rejects concrete actions or profiles that do not match the
   aggregate-derived read bundle;
+- feed registry rejects hash-forged, duplicate, semantically aliased, weak, or
+  unsupported feed definitions;
 - source-correlation mutations reject before aggregates become accepted reads;
 - reporter binary can run from a clean install;
 - token budget, bond, reward, dispute, and slash accounting have replay tests;

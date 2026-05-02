@@ -39,6 +39,8 @@ The first concrete public consumer-profile catalog is
 [ZENO_ORACLE_CONSUMER_PROFILES_V1.md](ZENO_ORACLE_CONSUMER_PROFILES_V1.md).
 The first concrete public economic security envelope is
 [ZENO_ORACLE_ECONOMIC_SECURITY_V1.md](ZENO_ORACLE_ECONOMIC_SECURITY_V1.md).
+The first concrete public feed-registry format is
+[ZENO_ORACLE_FEED_REGISTRY_V1.md](ZENO_ORACLE_FEED_REGISTRY_V1.md).
 
 ```text
 CriticalOracleUse -> AcceptedReadReceipt
@@ -63,6 +65,11 @@ and uncertainty checks.
 Defines canonical query semantics: asset pair, unit, scale, source policy,
 reporter policy, aggregation policy, freshness policy, movement policy, dispute
 policy, source-diversity policy, token policy, and query ID.
+
+The first local feed-registry shell makes that query layer executable: it
+accepts feed definitions only when the query spec, source-diversity receipt,
+aggregate policy, freshness/deviation limits, evidence floor, and content
+hashes all agree.
 
 2. Reporter registry
 
@@ -193,6 +200,8 @@ unbounded rewards.
 - raw signed report feeds a critical action;
 - wrong query ID is consumed;
 - semantic aliasing changes query meaning;
+- feed registry admits duplicate or hash-forged feed definitions;
+- feed registry accepts a base/quote alias or unsupported aggregate policy;
 - stale or future report is accepted;
 - zero or malformed price is consumed;
 - reporter sequence replay is accepted;
