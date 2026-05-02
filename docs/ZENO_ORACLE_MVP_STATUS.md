@@ -17,6 +17,8 @@ is a status page, not a production launch claim.
 | Reporter lifecycle chaos replay | `tools/zenodex_oracle_reporter_lifecycle_chaos.py` | `python3 tools/zenodex_oracle_reporter_lifecycle_chaos.py` |
 | Median3 aggregate verifier | `tools/zenodex_oracle_median3.py` | `python3 tools/zenodex_oracle_median3.py verify <aggregate>` |
 | Median3 aggregate chaos replay | `tools/zenodex_oracle_median3_chaos.py` | `python3 tools/zenodex_oracle_median3_chaos.py` |
+| Query-policy verifier | `tools/zenodex_oracle_query_policy.py` | `python3 tools/zenodex_oracle_query_policy.py verify <trace>` |
+| Query-policy chaos replay | `tools/zenodex_oracle_query_policy_chaos.py` | `python3 tools/zenodex_oracle_query_policy_chaos.py` |
 
 ## Current Replay Counts
 
@@ -36,6 +38,10 @@ reporter_lifecycle_chaos_failed_count = 0
 median3_chaos_case_count = 18
 median3_chaos_rejected_count = 18
 median3_chaos_failed_count = 0
+
+query_policy_chaos_case_count = 19
+query_policy_chaos_rejected_count = 19
+query_policy_chaos_failed_count = 0
 ```
 
 Plain English: the local receipt verifier rejects all currently named
@@ -44,7 +50,10 @@ currently named overspend, hidden-field, and type-confusion mutations. The
 local reporter lifecycle verifier rejects all currently named unsafe reporter
 sequence mutations. The local median3 aggregate verifier rejects all currently
 named miscomputed aggregate, stale/future report, query mismatch, duplicate
-source/reporter, forged-hash, schema, and hidden-field mutations.
+source/reporter, forged-hash, schema, and hidden-field mutations. The local
+query-policy verifier rejects all currently named silent downgrade, stale
+policy binding, schema drift, wrong-query, wrong-supersedes, version-skip,
+hash-forgery, and hidden-field mutations.
 
 ## Current Test Command
 
@@ -57,13 +66,15 @@ pytest -q \
   tests/test_zenodex_oracle_reporter_lifecycle.py \
   tests/test_zenodex_oracle_reporter_lifecycle_chaos.py \
   tests/test_zenodex_oracle_median3.py \
-  tests/test_zenodex_oracle_median3_chaos.py
+  tests/test_zenodex_oracle_median3_chaos.py \
+  tests/test_zenodex_oracle_query_policy.py \
+  tests/test_zenodex_oracle_query_policy_chaos.py
 ```
 
 Current result on this branch:
 
 ```text
-68 passed
+90 passed
 ```
 
 ## Public Contract Documents
@@ -71,6 +82,7 @@ Current result on this branch:
 - [ZENO_ORACLE_MVP_DESIGN.md](ZENO_ORACLE_MVP_DESIGN.md)
 - [ZENO_ORACLE_RECEIPT_FORMAT_V1.md](ZENO_ORACLE_RECEIPT_FORMAT_V1.md)
 - [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md)
+- [ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md)
 - [ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md)
 - [ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md)
 - [ZENO_ORACLE_CHAOS_ENGINEERING.md](ZENO_ORACLE_CHAOS_ENGINEERING.md)
@@ -78,12 +90,13 @@ Current result on this branch:
 
 ## What Is Stronger Now
 
-The Oracle MVP shell has three important fail-closed properties already:
+The Oracle MVP shell has several important fail-closed properties already:
 
 ```text
 CriticalOracleUse -> AcceptedReadReceipt
 ReceiptAccepted -> ContentHashMatches and ConsumerActionBound
 Median3Accepted -> ExactMedian and DistinctSources and DeviationWithinPolicy
+QueryPolicyAccepted -> NoSilentDowngrade and CriticalConsumersBindLatestPolicy
 BudgetAccepted -> Spend <= ExplicitEnvelope
 ReporterLifecycleAccepted -> ActiveReportersAreBonded and SlashesRequireDisputes
 ```
@@ -91,9 +104,10 @@ ReporterLifecycleAccepted -> ActiveReportersAreBonded and SlashesRequireDisputes
 Plain English: critical consumers must use accepted receipts, receipt IDs must
 commit to their content and bind the downstream action, median3 aggregates must
 compute the stated median/confidence/deviation from exactly three distinct
-reports, and token movements must fit inside explicit budgets, bonds, or fees.
-Reporter traces must keep report submission, disputes, slashing, exit, and
-withdrawal in the safe order.
+reports, and query-policy revisions must not silently weaken critical
+freshness, evidence, deviation, quorum, or schema requirements. Token movements
+must fit inside explicit budgets, bonds, or fees. Reporter traces must keep
+report submission, disputes, slashing, exit, and withdrawal in the safe order.
 
 ## Still Not Claimed
 
@@ -110,14 +124,12 @@ This branch does not claim:
 
 ## Next Production Work
 
-1. Add query-policy versioning so consumers cannot silently downgrade freshness,
-   evidence, or uncertainty requirements after binding.
-2. Add a ZenoDEX adapter predicate:
+1. Add a ZenoDEX adapter predicate:
 
    ```text
    OracleUseOK(action, receipt_bundle) -> bool
    ```
 
-3. Add higher-redundancy aggregate policies after `median_3` is stable.
-4. Add executable reporter CLI flows once the reporter and dispute objects are
+2. Add higher-redundancy aggregate policies after `median_3` is stable.
+3. Add executable reporter CLI flows once the reporter and dispute objects are
    stable.

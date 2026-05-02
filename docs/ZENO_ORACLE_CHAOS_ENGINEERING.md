@@ -255,9 +255,64 @@ Plain English: if a mutation changes the median, confidence, deviation, source
 set, query binding, freshness, or content hash, the local verifier rejects the
 aggregate before it can become an accepted read.
 
+## Query-Policy Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_query_policy_chaos.py
+```
+
+The replay starts with one accepted query-policy trace, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `staleness_downgrade_survives` | later policy allows older reports |
+| `deviation_downgrade_survives` | later policy allows wider price dispersion |
+| `evidence_floor_downgrade_survives` | later policy lowers required evidence class |
+| `source_quorum_downgrade_survives` | later policy lowers source quorum |
+| `reporter_quorum_downgrade_survives` | later policy lowers reporter quorum |
+| `aggregation_schema_drift_survives` | later policy swaps aggregate schema |
+| `read_schema_drift_survives` | later policy swaps read-receipt schema |
+| `policy_content_hash_forgery_survives` | policy ID no longer matches policy body |
+| `policy_query_mismatch_survives` | policy for another query enters the trace |
+| `wrong_supersedes_survives` | policy update does not supersede active policy |
+| `version_skip_survives` | policy version jumps or skips |
+| `unknown_policy_binding_survives` | consumer binds an unknown policy ID |
+| `nonlatest_policy_binding_survives` | consumer binds an older policy after a newer one exists |
+| `noncritical_binding_survives` | critical policy shell accepts non-critical binding |
+| `action_before_binding_survives` | action claims policy before binding event |
+| `hidden_policy_field_survives` | policy carries unchecked authority/debug data |
+| `hidden_event_field_survives` | event carries unchecked authority/debug data |
+| `event_epoch_regression_survives` | policy lifecycle epochs move backward |
+| `wrong_schema_survives` | query-policy schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.query_policy_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 19,
+  "rejected_case_count": 19,
+  "failed_case_count": 0
+}
+```
+
+This lane checks query-policy versioning:
+
+```text
+ValidQueryPolicyTrace + DangerousPerturbation -> RejectedTrace
+```
+
+Plain English: if a mutation weakens the policy envelope or binds a consumer to
+the wrong policy, the local verifier rejects the trace before a critical action
+can treat the weaker policy as authority.
+
 ## Next Chaos Lanes
 
-1. Query-policy update lifecycle: no downgrade after critical consumers bind.
-2. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
+1. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
    drift, root drift.
-3. ZenoDEX adapter lifecycle: accepted read to perps/zUSD/trigger execution.
+2. ZenoDEX adapter lifecycle: accepted read to perps/zUSD/trigger execution.
