@@ -23,6 +23,8 @@ The first concrete public report-admission bridge format is
 [ZENO_ORACLE_REPORT_ADMISSION_V1.md](ZENO_ORACLE_REPORT_ADMISSION_V1.md).
 The first concrete public aggregate format is
 [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md).
+The first concrete public aggregate-from-admission format is
+[ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md](ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md).
 The first concrete public source-diversity format is
 [ZENO_ORACLE_SOURCE_DIVERSITY_V1.md](ZENO_ORACLE_SOURCE_DIVERSITY_V1.md).
 The first concrete public query-policy format is
@@ -85,6 +87,11 @@ kernel is an odd-cardinality median, with `median_3` as the first small,
 auditable target. The current `median_3` shell embeds a source-diversity
 receipt so source IDs are tied to operator, venue, data-family, transport, and
 jurisdiction classifications.
+
+The admitted-median3 shell tightens this lane by requiring each aggregate input
+to be an accepted report-admission bundle. It then recomputes the median,
+confidence radius, deviation bps, and observed epoch from exactly one admitted
+report per admission.
 
 6. Read receipt lane
 
@@ -180,6 +187,8 @@ unbounded rewards.
 - signed report sequence skips or points at the wrong predecessor;
 - lifecycle submit event does not match the signed report;
 - signed source is outside the declared source-diversity receipt;
+- aggregate uses reports that did not pass report admission;
+- duplicate admission/report/reporter/source is aggregated;
 - unauthorized or under-bonded reporter is accepted;
 - source evidence is borrowed across reports;
 - three source strings collapse to one operator, venue, data family,

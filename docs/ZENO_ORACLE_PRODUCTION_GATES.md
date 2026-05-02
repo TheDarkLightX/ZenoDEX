@@ -199,6 +199,12 @@ The current local shell for the first aggregate policy is:
 python3 tools/zenodex_oracle_median3.py verify <aggregate>
 ```
 
+The current local shell for aggregating only admitted reports is:
+
+```text
+python3 tools/zenodex_oracle_admitted_median3.py verify <aggregate>
+```
+
 The current local shell for the first source-diversity policy is:
 
 ```text
@@ -280,6 +286,8 @@ Minimum required evidence:
 - stale, weak, disputed, malformed, and misbound bundles reject;
 - signed report payload, signature, sequence, and previous-link mutations reject;
 - report admission rejects signed/lifecycle/source-diversity mismatches;
+- admitted-median3 rejects raw, duplicate, stale-window-mismatched, or
+  admission-rejected aggregate inputs;
 - source-correlation mutations reject before aggregates become accepted reads;
 - reporter binary can run from a clean install;
 - token budget, bond, reward, dispute, and slash accounting have replay tests;
@@ -288,7 +296,7 @@ Minimum required evidence:
 
 ## Current Next Build Target
 
-The next concrete implementation target is:
+The current concrete adapter shell is:
 
 ```text
 zenodex-oracle adapter verify --action <action> --bundle <bundle> --profile <profile>
