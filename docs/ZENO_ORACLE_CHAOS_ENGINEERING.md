@@ -94,12 +94,12 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
-The current public Oracle chaos lanes together cover `241` named disaster
+The current public Oracle chaos lanes together cover `257` named disaster
 shapes, all rejected in the latest local replay:
 
 ```text
-total_oracle_chaos_case_count = 241
-total_oracle_chaos_rejected_count = 241
+total_oracle_chaos_case_count = 257
+total_oracle_chaos_rejected_count = 257
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -485,6 +485,59 @@ ValidAggregateRead + DangerousPerturbation -> RejectedAggregateRead
 Plain English: if a mutation lets a read/action bundle point at the wrong
 query, value hash, epoch, expiry, freshness window, or weak evidence, the local
 verifier rejects it before the adapter sees it.
+
+## Aggregate-Adapter Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_aggregate_adapter_chaos.py
+```
+
+The replay starts with one accepted aggregate-adapter bridge, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `bridge_hash_forgery_survives` | bridge ID no longer matches bridge body |
+| `aggregate_read_rejection_survives` | rejected aggregate-read bridge still feeds the adapter |
+| `action_query_mismatch_survives` | concrete action query differs from aggregate-derived bundle |
+| `action_value_hash_mismatch_survives` | concrete action value hash differs from aggregate-derived bundle |
+| `action_id_mismatch_survives` | concrete action ID differs from bundle action ID |
+| `action_read_receipt_mismatch_survives` | concrete action points at a different read receipt |
+| `action_consumer_receipt_mismatch_survives` | concrete action points at a different consumer-action receipt |
+| `profile_hash_forgery_survives` | profile body changes without matching profile ID |
+| `profile_module_mismatch_survives` | profile belongs to a different consumer module |
+| `action_freshness_exceeds_profile_survives` | action allows a looser freshness window than profile |
+| `action_not_critical_survives` | action is not marked critical |
+| `missing_aggregate_read_survives` | bridge has no aggregate-read subobject |
+| `missing_action_survives` | bridge has no action subobject |
+| `missing_profile_survives` | bridge has no profile subobject |
+| `hidden_top_level_field_survives` | bridge carries unchecked authority/debug data |
+| `wrong_schema_survives` | aggregate-adapter schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.aggregate_adapter_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 16,
+  "rejected_case_count": 16,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the bridge from aggregate-derived read to concrete action:
+
+```text
+ValidAggregateAdapter + DangerousPerturbation -> RejectedAggregateAdapter
+```
+
+Plain English: if a mutation lets a concrete action or profile mismatch the
+aggregate-derived read bundle, the local verifier rejects it before claiming
+the action is Oracle-safe.
 
 ## Source Diversity Replay Lane
 

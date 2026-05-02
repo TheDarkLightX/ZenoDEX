@@ -211,6 +211,13 @@ The current local shell for deriving accepted reads from admitted aggregates is:
 python3 tools/zenodex_oracle_aggregate_read.py verify <bridge>
 ```
 
+The current local shell for checking aggregate-derived reads against concrete
+actions and profiles is:
+
+```text
+python3 tools/zenodex_oracle_aggregate_adapter.py verify <bridge>
+```
+
 The current local shell for the first source-diversity policy is:
 
 ```text
@@ -296,6 +303,8 @@ Minimum required evidence:
   admission-rejected aggregate inputs;
 - aggregate-read rejects read bundles whose query, value hash, epoch, expiry,
   or freshness window does not match the admitted aggregate;
+- aggregate-adapter rejects concrete actions or profiles that do not match the
+  aggregate-derived read bundle;
 - source-correlation mutations reject before aggregates become accepted reads;
 - reporter binary can run from a clean install;
 - token budget, bond, reward, dispute, and slash accounting have replay tests;
