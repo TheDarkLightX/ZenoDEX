@@ -94,12 +94,12 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
-The current public Oracle chaos lanes together cover `171` named disaster
+The current public Oracle chaos lanes together cover `189` named disaster
 shapes, all rejected in the latest local replay:
 
 ```text
-total_oracle_chaos_case_count = 171
-total_oracle_chaos_rejected_count = 171
+total_oracle_chaos_case_count = 189
+total_oracle_chaos_rejected_count = 189
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -208,6 +208,62 @@ ValidReporterLifecycle + DangerousPerturbation -> RejectedLifecycle
 Plain English: if a mutation lets a reporter skip registration, report
 under-bonded, slash outside an open dispute, or withdraw unsafely, the local
 verifier rejects it.
+
+## Signed Report Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_signed_report_chaos.py
+```
+
+The replay starts with one accepted BLS-signed report submission, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `submission_hash_forgery_survives` | submission ID no longer matches submission body |
+| `payload_mutation_survives_signature_check` | report payload changes while old signature is reused |
+| `payload_hash_forgery_survives` | payload hash no longer matches signed payload |
+| `signature_mutation_survives` | mutated BLS signature is accepted |
+| `report_id_forgery_survives` | report ID no longer matches report body |
+| `sequence_gap_survives` | reporter sequence skips a number |
+| `previous_report_chain_mismatch_survives` | report points at the wrong predecessor |
+| `first_previous_report_id_survives` | first report falsely claims a predecessor |
+| `duplicate_report_id_survives` | duplicate report ID enters the submission |
+| `hidden_submission_field_survives` | submission carries unchecked authority/debug data |
+| `hidden_report_field_survives` | report carries unchecked authority/debug data |
+| `wrong_submission_schema_survives` | submission schema downgrade is accepted |
+| `wrong_report_schema_survives` | report schema downgrade is accepted |
+| `bad_reporter_pubkey_survives` | malformed reporter public key is accepted |
+| `bad_signature_length_survives` | malformed signature length is accepted |
+| `boolean_value_survives` | boolean is accepted as a report value |
+| `reports_as_object_survives` | report list shape is replaced by an object |
+| `bad_source_token_survives` | malformed source identifier is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.signed_report_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 18,
+  "rejected_case_count": 18,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the signature and replay shell for reporter submissions:
+
+```text
+ValidSignedReportSubmission + DangerousPerturbation -> RejectedSubmission
+```
+
+Plain English: if a mutation changes a signed payload, reuses a signature,
+breaks the sequence chain, forges an ID, or hides authority in an unchecked
+field, the local verifier rejects the signed-report submission before it can be
+promoted into an aggregate.
 
 ## Median3 Aggregate Replay Lane
 

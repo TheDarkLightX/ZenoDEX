@@ -88,7 +88,7 @@ are tracked in [ZENO_ORACLE_CHAOS_ENGINEERING.md](ZENO_ORACLE_CHAOS_ENGINEERING.
 This verifier does not claim:
 
 - a live reporter registry exists;
-- reporter signatures are verified;
+- reporter signatures are verified by this lifecycle trace alone;
 - report values are true;
 - disputes are subjectively correct;
 - governance and appeals are finalized;
@@ -97,3 +97,5 @@ This verifier does not claim:
 The claim is narrower: this first lifecycle shell rejects reporter traces that
 try to report without active bond, slash without dispute, withdraw while active,
 withdraw during open disputes, or overdraw the reporter bond.
+Signed report payload and signature checks are covered separately in
+[ZENO_ORACLE_SIGNED_REPORT_V1.md](ZENO_ORACLE_SIGNED_REPORT_V1.md).
