@@ -103,6 +103,12 @@ total_oracle_chaos_rejected_count = 283
 total_oracle_chaos_failed_count = 0
 ```
 
+The unified local CLI can run the same aggregate replay:
+
+```bash
+python3 tools/zenodex_oracle_cli.py chaos all
+```
+
 ## Feed Registry Replay Lane
 
 Run:

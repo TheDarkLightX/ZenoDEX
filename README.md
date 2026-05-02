@@ -603,6 +603,7 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/ZDEX_TOKEN.md` — ZDEX tokenomics and spec references
 - `docs/ZENO_ORACLE_MVP_STATUS.md` — current Zeno Oracle MVP branch status
 - `docs/ZENO_ORACLE_MVP_DESIGN.md` — Zeno Oracle MVP design snapshot
+- `docs/ZENO_ORACLE_CLI_V1.md` — current local Zeno Oracle CLI wrapper
 - `docs/ZENO_ORACLE_PRODUCTION_GATES.md` — Zeno Oracle rollout and verifier gates
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md` — current local Oracle receipt-bundle format
 - `docs/ZENO_ORACLE_SIGNED_REPORT_V1.md` — current local Oracle signed-report format
