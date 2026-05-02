@@ -130,7 +130,10 @@ def run_audit(*, run_gate: bool) -> dict[str, Any]:
     ]
     docs_ok = all((ROOT / path).is_file() for path in docs)
     workflow_ok = (
-        _file_contains(".github/workflows/zeno-oracle-mvp.yml", "bash scripts/check_zeno_oracle_mvp.sh")
+        (
+            _file_contains(".github/workflows/zeno-oracle-mvp.yml", "bash scripts/check_zeno_oracle_mvp.sh")
+            or _file_contains(".github/workflows/zeno-oracle-mvp.yml", "bash scripts/check_zeno_oracle_devnet_alpha.sh")
+        )
         and _file_contains(".github/workflows/zeno-oracle-mvp.yml", "actions/upload-artifact@v4")
     )
     runtime_hooks_ok = all(
@@ -204,7 +207,7 @@ def run_audit(*, run_gate: bool) -> dict[str, Any]:
             8,
             "Oracle chaos lanes pass in CI",
             workflow_ok and ((not run_gate) or gate_ok),
-            ["CI workflow runs scripts/check_zeno_oracle_mvp.sh and uploads the RC artifact"]
+            ["CI workflow runs the MVP gate directly or through the stronger devnet-alpha gate and uploads the RC artifact"]
             + (["local full gate passed in this audit"] if run_gate and gate_ok else []),
             residual_limits=[] if run_gate else ["local full gate was not rerun by this audit; use --run-gate for that"],
         ),

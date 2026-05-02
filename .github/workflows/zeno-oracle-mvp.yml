@@ -28,17 +28,19 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
-      - name: Run Zeno Oracle MVP replay gate
-        run: bash scripts/check_zeno_oracle_mvp.sh
+      - name: Run Zeno Oracle MVP plus Devnet Alpha replay gate
+        run: bash scripts/check_zeno_oracle_devnet_alpha.sh
 
-      - name: Build Zeno Oracle MVP RC package
-        run: bash scripts/package_zeno_oracle_rc.sh
+      - name: Build Zeno Oracle Devnet Alpha RC package
+        run: bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1
 
-      - name: Upload Zeno Oracle MVP RC package
+      - name: Upload Zeno Oracle Devnet Alpha RC package
         uses: actions/upload-artifact@v4
         with:
-          name: zeno-oracle-mvp-rc1
+          name: zeno-oracle-devnet-alpha-rc1
           path: |
-            dist/zeno-oracle-mvp-rc1.tar.gz
-            dist/zeno-oracle-mvp-rc1/ZEN_ORACLE_RC_MANIFEST.json
+            dist/zeno-oracle-devnet-alpha-rc1.tar.gz
+            dist/zeno-oracle-devnet-alpha-rc1.receipt.json
+            dist/zeno-oracle-devnet-alpha-rc1.sig
+            dist/zeno-oracle-devnet-alpha-rc1/ZEN_ORACLE_RC_MANIFEST.json
           if-no-files-found: error
