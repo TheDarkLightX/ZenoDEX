@@ -25,6 +25,8 @@ The first concrete public adapter format is
 [ZENO_ORACLE_ADAPTER_V1.md](ZENO_ORACLE_ADAPTER_V1.md).
 The first concrete public consumer-profile catalog is
 [ZENO_ORACLE_CONSUMER_PROFILES_V1.md](ZENO_ORACLE_CONSUMER_PROFILES_V1.md).
+The first concrete public economic security envelope is
+[ZENO_ORACLE_ECONOMIC_SECURITY_V1.md](ZENO_ORACLE_ECONOMIC_SECURITY_V1.md).
 
 ```text
 CriticalOracleUse -> AcceptedReadReceipt

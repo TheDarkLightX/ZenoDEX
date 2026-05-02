@@ -609,6 +609,7 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/ZENO_ORACLE_QUERY_POLICY_V1.md` — current local Oracle query-policy versioning format
 - `docs/ZENO_ORACLE_ADAPTER_V1.md` — current local Oracle critical-action adapter format
 - `docs/ZENO_ORACLE_CONSUMER_PROFILES_V1.md` — current local Oracle critical consumer profile catalog
+- `docs/ZENO_ORACLE_ECONOMIC_SECURITY_V1.md` — current local Oracle economic security envelope
 - `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md` — current local Oracle token budget format
 - `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md` — current local Oracle reporter lifecycle format
 - `docs/ZENO_ORACLE_CHAOS_ENGINEERING.md` — Zeno Oracle disaster-shape replay lane
