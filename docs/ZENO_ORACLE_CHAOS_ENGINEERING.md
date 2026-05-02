@@ -94,12 +94,12 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
-The current public Oracle chaos lanes together cover `225` named disaster
+The current public Oracle chaos lanes together cover `241` named disaster
 shapes, all rejected in the latest local replay:
 
 ```text
-total_oracle_chaos_case_count = 225
-total_oracle_chaos_rejected_count = 225
+total_oracle_chaos_case_count = 241
+total_oracle_chaos_rejected_count = 241
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -432,6 +432,59 @@ ValidAdmittedMedian3 + DangerousPerturbation -> RejectedAdmittedMedian3
 Plain English: if a mutation lets a rejected, duplicated, query-mismatched, or
 freshness-mismatched admission enter the median, the local verifier rejects the
 aggregate before it can become an accepted read.
+
+## Aggregate-Read Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_aggregate_read_chaos.py
+```
+
+The replay starts with one accepted aggregate-read bridge, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `bridge_hash_forgery_survives` | bridge ID no longer matches bridge body |
+| `rejected_aggregate_survives` | rejected admitted aggregate still becomes a read |
+| `rejected_bundle_survives` | rejected receipt bundle still passes the bridge |
+| `query_mismatch_survives` | read bundle query differs from aggregate query |
+| `value_hash_mismatch_survives` | read value hash differs from aggregate result hash |
+| `observed_epoch_mismatch_survives` | read observed epoch differs from aggregate epoch |
+| `expiry_mismatch_survives` | read expiry differs from aggregate freshness policy |
+| `freshness_window_mismatch_survives` | action freshness window differs from bridge policy |
+| `missing_aggregate_survives` | bridge has no aggregate subobject |
+| `missing_receipt_bundle_survives` | bridge has no receipt bundle subobject |
+| `hidden_top_level_field_survives` | bridge carries unchecked authority/debug data |
+| `wrong_schema_survives` | aggregate-read schema downgrade is accepted |
+| `boolean_freshness_window_survives` | boolean is accepted as a freshness window |
+| `zero_freshness_window_survives` | zero freshness window is accepted |
+| `weakened_read_evidence_survives` | read evidence drops below the critical floor |
+| `read_expiry_before_observed_survives` | read expires before the aggregate observation |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.aggregate_read_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 16,
+  "rejected_case_count": 16,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the bridge from admitted aggregate to accepted read:
+
+```text
+ValidAggregateRead + DangerousPerturbation -> RejectedAggregateRead
+```
+
+Plain English: if a mutation lets a read/action bundle point at the wrong
+query, value hash, epoch, expiry, freshness window, or weak evidence, the local
+verifier rejects it before the adapter sees it.
 
 ## Source Diversity Replay Lane
 

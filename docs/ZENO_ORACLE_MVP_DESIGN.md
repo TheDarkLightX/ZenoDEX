@@ -25,6 +25,8 @@ The first concrete public aggregate format is
 [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md).
 The first concrete public aggregate-from-admission format is
 [ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md](ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md).
+The first concrete public aggregate-to-read bridge format is
+[ZENO_ORACLE_AGGREGATE_READ_V1.md](ZENO_ORACLE_AGGREGATE_READ_V1.md).
 The first concrete public source-diversity format is
 [ZENO_ORACLE_SOURCE_DIVERSITY_V1.md](ZENO_ORACLE_SOURCE_DIVERSITY_V1.md).
 The first concrete public query-policy format is
@@ -98,6 +100,10 @@ report per admission.
 Turns an aggregate into a consumer-specific accepted read. This is where
 freshness, evidence class, dispute status, price movement, uncertainty, and
 attack-cost constraints are checked.
+
+The aggregate-read bridge now binds the admitted aggregate value, confidence
+radius, deviation bps, observed epoch, report count, and admission count into
+the read `value_hash` consumed by the generic receipt bundle.
 
 7. Critical consumer action lane
 
@@ -189,6 +195,7 @@ unbounded rewards.
 - signed source is outside the declared source-diversity receipt;
 - aggregate uses reports that did not pass report admission;
 - duplicate admission/report/reporter/source is aggregated;
+- accepted read value hash does not match the admitted aggregate;
 - unauthorized or under-bonded reporter is accepted;
 - source evidence is borrowed across reports;
 - three source strings collapse to one operator, venue, data family,
