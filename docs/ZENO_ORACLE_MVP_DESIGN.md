@@ -23,6 +23,8 @@ The first concrete public query-policy format is
 [ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md).
 The first concrete public adapter format is
 [ZENO_ORACLE_ADAPTER_V1.md](ZENO_ORACLE_ADAPTER_V1.md).
+The first concrete public consumer-profile catalog is
+[ZENO_ORACLE_CONSUMER_PROFILES_V1.md](ZENO_ORACLE_CONSUMER_PROFILES_V1.md).
 
 ```text
 CriticalOracleUse -> AcceptedReadReceipt

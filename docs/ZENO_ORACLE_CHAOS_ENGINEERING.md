@@ -376,9 +376,59 @@ wrong bundle, action, query, value, epoch, evidence floor, or freshness policy,
 or lets a consumer profile silently weaken the action policy, the local adapter
 rejects the attempted Oracle use.
 
+## Consumer Profile Catalog Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_consumer_profiles_chaos.py
+```
+
+The replay starts with one accepted critical consumer profile catalog, then
+applies deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `missing_required_profile_survives` | a critical consumer profile is omitted |
+| `duplicate_profile_key_survives` | one module/action profile appears twice |
+| `duplicate_profile_id_survives` | two profiles share one content ID |
+| `profile_hash_forgery_survives` | profile ID no longer matches profile body |
+| `unsupported_profile_key_survives` | unsupported consumer/action enters the catalog |
+| `wrong_query_survives` | profile points at the wrong query |
+| `weak_evidence_floor_survives` | profile lowers evidence below the required floor |
+| `loose_freshness_survives` | profile loosens freshness beyond the required cap |
+| `noncritical_profile_survives` | non-critical profile enters critical catalog |
+| `hidden_profile_field_survives` | profile carries unchecked authority/debug data |
+| `wrong_catalog_schema_survives` | catalog schema downgrade is accepted |
+| `wrong_profile_schema_survives` | profile schema downgrade is accepted |
+| `boolean_freshness_survives` | boolean is accepted as freshness window |
+| `hidden_catalog_field_survives` | catalog carries unchecked authority/debug data |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.consumer_profile_catalog_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 14,
+  "rejected_case_count": 14,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the first concrete ZenoDEX consumer profile catalog:
+
+```text
+ValidConsumerProfileCatalog + DangerousPerturbation -> RejectedCatalog
+```
+
+Plain English: if a mutation removes, duplicates, weakens, misbinds, or hides
+authority in a critical consumer profile, the local verifier rejects the catalog.
+
 ## Next Chaos Lanes
 
 1. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
    drift, root drift.
-2. Concrete ZenoDEX consumer lifecycle: accepted read to perps/zUSD/trigger
-   execution.
+2. Runtime adapter hooks: concrete perps/zUSD/routing/trigger calls must reject
+   raw oracle values and wrong-profile receipt reuse.

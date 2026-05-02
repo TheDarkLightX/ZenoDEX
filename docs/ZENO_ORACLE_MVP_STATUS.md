@@ -21,6 +21,8 @@ is a status page, not a production launch claim.
 | Query-policy chaos replay | `tools/zenodex_oracle_query_policy_chaos.py` | `python3 tools/zenodex_oracle_query_policy_chaos.py` |
 | ZenoDEX adapter verifier | `tools/zenodex_oracle_adapter.py` | `python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle>` |
 | ZenoDEX adapter chaos replay | `tools/zenodex_oracle_adapter_chaos.py` | `python3 tools/zenodex_oracle_adapter_chaos.py` |
+| Consumer profile catalog verifier | `tools/zenodex_oracle_consumer_profiles.py` | `python3 tools/zenodex_oracle_consumer_profiles.py verify <catalog>` |
+| Consumer profile catalog chaos replay | `tools/zenodex_oracle_consumer_profiles_chaos.py` | `python3 tools/zenodex_oracle_consumer_profiles_chaos.py` |
 
 ## Current Replay Counts
 
@@ -48,6 +50,10 @@ query_policy_chaos_failed_count = 0
 adapter_chaos_case_count = 27
 adapter_chaos_rejected_count = 27
 adapter_chaos_failed_count = 0
+
+consumer_profile_catalog_chaos_case_count = 14
+consumer_profile_catalog_chaos_rejected_count = 14
+consumer_profile_catalog_chaos_failed_count = 0
 ```
 
 Plain English: the local receipt verifier rejects all currently named
@@ -63,6 +69,10 @@ hash-forgery, and hidden-field mutations. The local adapter verifier rejects all
 currently named receipt-borrowing, action/bundle mismatch, weak action policy,
 consumer-profile mismatch, profile weakening, non-critical action,
 hidden-field, schema, missing-field, and type-confusion mutations.
+The local consumer profile catalog verifier rejects all currently named missing
+profile, duplicate profile, forged hash, unsupported profile, wrong query, weak
+evidence, loose freshness, non-critical profile, hidden-field, schema, and
+type-confusion mutations.
 
 ## Current Test Command
 
@@ -79,13 +89,15 @@ pytest -q \
   tests/test_zenodex_oracle_query_policy.py \
   tests/test_zenodex_oracle_query_policy_chaos.py \
   tests/test_zenodex_oracle_adapter.py \
-  tests/test_zenodex_oracle_adapter_chaos.py
+  tests/test_zenodex_oracle_adapter_chaos.py \
+  tests/test_zenodex_oracle_consumer_profiles.py \
+  tests/test_zenodex_oracle_consumer_profiles_chaos.py
 ```
 
 Current result on this branch:
 
 ```text
-117 passed
+134 passed
 ```
 
 ## Public Contract Documents
@@ -95,6 +107,7 @@ Current result on this branch:
 - [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md)
 - [ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md)
 - [ZENO_ORACLE_ADAPTER_V1.md](ZENO_ORACLE_ADAPTER_V1.md)
+- [ZENO_ORACLE_CONSUMER_PROFILES_V1.md](ZENO_ORACLE_CONSUMER_PROFILES_V1.md)
 - [ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md)
 - [ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md)
 - [ZENO_ORACLE_CHAOS_ENGINEERING.md](ZENO_ORACLE_CHAOS_ENGINEERING.md)
@@ -111,6 +124,7 @@ Median3Accepted -> ExactMedian and DistinctSources and DeviationWithinPolicy
 QueryPolicyAccepted -> NoSilentDowngrade and CriticalConsumersBindLatestPolicy
 OracleUseOK(action, bundle, profile) ->
   ActionFactsMatchAcceptedBundle and ActionPolicyNoWeakerThanProfile
+ConsumerProfileCatalogAccepted -> CriticalProfilesPresent and NoProfileWeakening
 BudgetAccepted -> Spend <= ExplicitEnvelope
 ReporterLifecycleAccepted -> ActiveReportersAreBonded and SlashesRequireDisputes
 ```
@@ -126,7 +140,9 @@ The adapter then checks a downstream action against the accepted bundle facts so
 critical actions cannot borrow receipts from a different module, action, query,
 value, epoch, read receipt, or consumer-action receipt. When a consumer profile
 is supplied, the adapter also rejects self-declared action policies that are
-weaker than the module/action/query profile.
+weaker than the module/action/query profile. The consumer profile catalog pins
+the first critical perps, zUSD, routing, and trigger profiles so those modules
+cannot invent weaker profile requirements without a catalog version change.
 
 ## Still Not Claimed
 
