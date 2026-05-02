@@ -19,6 +19,8 @@ The first concrete public reporter lifecycle format is
 [ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md).
 The first concrete public signed-report format is
 [ZENO_ORACLE_SIGNED_REPORT_V1.md](ZENO_ORACLE_SIGNED_REPORT_V1.md).
+The first concrete public report-admission bridge format is
+[ZENO_ORACLE_REPORT_ADMISSION_V1.md](ZENO_ORACLE_REPORT_ADMISSION_V1.md).
 The first concrete public aggregate format is
 [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md).
 The first concrete public source-diversity format is
@@ -69,7 +71,14 @@ binding, source timing, value type, and reporter sequence checks pass. The
 current shell verifies BLS signatures and a reporter-local previous-report
 chain before reports are eligible for aggregation.
 
-4. Aggregate receipt lane
+4. Report admission lane
+
+Bridges signed reports to reporter lifecycle and source-diversity receipts. A
+report can be admitted only when the signed payload, lifecycle submit event,
+and declared source policy bind to the same reporter, query, report ID, source,
+payload hash, and freshness window.
+
+5. Aggregate receipt lane
 
 Builds deterministic aggregates from accepted reports. The first concrete MVP
 kernel is an odd-cardinality median, with `median_3` as the first small,
@@ -77,19 +86,19 @@ auditable target. The current `median_3` shell embeds a source-diversity
 receipt so source IDs are tied to operator, venue, data-family, transport, and
 jurisdiction classifications.
 
-5. Read receipt lane
+6. Read receipt lane
 
 Turns an aggregate into a consumer-specific accepted read. This is where
 freshness, evidence class, dispute status, price movement, uncertainty, and
 attack-cost constraints are checked.
 
-6. Critical consumer action lane
+7. Critical consumer action lane
 
 Binds the accepted read to the specific downstream action. A perps settlement,
 liquidation, zUSD mint, or trigger execution cannot borrow a receipt from a
 different action, query, value hash, epoch, or policy.
 
-7. Token incentive lane
+8. Token incentive lane
 
 Permissionless reporting needs on-protocol incentives. The MVP token surface
 includes reporter bonds, query reward budgets, reporter rewards, dispute bonds,
@@ -169,6 +178,8 @@ unbounded rewards.
 - reporter sequence replay is accepted;
 - signature verifies over the wrong payload;
 - signed report sequence skips or points at the wrong predecessor;
+- lifecycle submit event does not match the signed report;
+- signed source is outside the declared source-diversity receipt;
 - unauthorized or under-bonded reporter is accepted;
 - source evidence is borrowed across reports;
 - three source strings collapse to one operator, venue, data family,

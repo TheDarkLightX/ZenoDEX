@@ -94,12 +94,12 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
-The current public Oracle chaos lanes together cover `189` named disaster
+The current public Oracle chaos lanes together cover `207` named disaster
 shapes, all rejected in the latest local replay:
 
 ```text
-total_oracle_chaos_case_count = 189
-total_oracle_chaos_rejected_count = 189
+total_oracle_chaos_case_count = 207
+total_oracle_chaos_rejected_count = 207
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -264,6 +264,61 @@ Plain English: if a mutation changes a signed payload, reuses a signature,
 breaks the sequence chain, forges an ID, or hides authority in an unchecked
 field, the local verifier rejects the signed-report submission before it can be
 promoted into an aggregate.
+
+## Report Admission Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_report_admission_chaos.py
+```
+
+The replay starts with one accepted report admission bundle, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `admission_hash_forgery_survives` | admission ID no longer matches admission body |
+| `signed_payload_mutation_survives` | signed payload is mutated before admission |
+| `reporter_id_mismatch_survives` | lifecycle trace belongs to another reporter |
+| `missing_lifecycle_submit_survives` | signed report has no lifecycle submit event |
+| `lifecycle_query_mismatch_survives` | lifecycle submit event names another query |
+| `lifecycle_value_hash_mismatch_survives` | lifecycle submit event names another payload hash |
+| `extra_lifecycle_submit_survives` | lifecycle submits a report outside the signed submission |
+| `source_not_in_diversity_survives` | signed report uses a source outside the source-diversity set |
+| `source_diversity_query_mismatch_survives` | source policy belongs to another query |
+| `future_admitted_report_survives` | future-dated report is admitted |
+| `stale_admitted_report_survives` | stale report is admitted |
+| `underbonded_lifecycle_survives` | lifecycle trace admits under-bonded reporting |
+| `source_operator_correlation_survives` | source-diversity subreceipt is rejected but admission continues |
+| `hidden_admission_field_survives` | admission carries unchecked authority/debug data |
+| `hidden_signed_submission_field_survives` | signed-submission subreceipt carries unchecked authority/debug data |
+| `wrong_admission_schema_survives` | admission schema downgrade is accepted |
+| `boolean_current_epoch_survives` | boolean is accepted as current epoch |
+| `source_diversity_as_null_survives` | source-diversity subreceipt is missing |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.report_admission_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 18,
+  "rejected_case_count": 18,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the bridge from signed reports to aggregate eligibility:
+
+```text
+ValidReportAdmission + DangerousPerturbation -> RejectedAdmission
+```
+
+Plain English: if a mutation makes the signed report, lifecycle trace, or
+source-diversity receipt disagree, the local verifier rejects the report before
+it can be treated as aggregatable.
 
 ## Median3 Aggregate Replay Lane
 
