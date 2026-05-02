@@ -601,6 +601,7 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/SPECIFICATION.md` — Protocol specification overview
 - `docs/SECURITY_POSTURE.md` — Runtime hardening choices and operator-facing security posture
 - `docs/ZDEX_TOKEN.md` — ZDEX tokenomics and spec references
+- `docs/ZENO_ORACLE_MVP_DESIGN.md` — Zeno Oracle MVP design snapshot
 - `docs/ECOSYSTEM_STRATEGY.md` — Deflationary DAC ecosystem design
 - `docs/ECOSYSTEM_GRAPH.md` — Ecosystem module graph
 - `docs/TOKEN_VERSIONS.md` — Token spec hierarchy (V1–V8)
