@@ -9,6 +9,7 @@ is a status page, not a production launch claim.
 
 | Surface | Artifact | Replay |
 | --- | --- | --- |
+| Unified local CLI wrapper | `tools/zenodex_oracle_cli.py` | `python3 tools/zenodex_oracle_cli.py doctor` |
 | Critical read receipt verifier | `tools/zenodex_oracle.py` | `python3 tools/zenodex_oracle.py verify <bundle>` |
 | Receipt chaos replay | `tools/zenodex_oracle_chaos.py` | `python3 tools/zenodex_oracle_chaos.py` |
 | Token budget verifier | `tools/zenodex_oracle_budget.py` | `python3 tools/zenodex_oracle_budget.py verify <transition>` |
@@ -161,6 +162,7 @@ mutations.
 
 ```bash
 pytest -q \
+  tests/test_zenodex_oracle_cli.py \
   tests/test_zenodex_oracle.py \
   tests/test_zenodex_oracle_chaos.py \
   tests/test_zenodex_oracle_budget.py \
@@ -196,12 +198,13 @@ pytest -q \
 Current result on this branch:
 
 ```text
-264 passed
+269 passed
 ```
 
 ## Public Contract Documents
 
 - [ZENO_ORACLE_MVP_DESIGN.md](ZENO_ORACLE_MVP_DESIGN.md)
+- [ZENO_ORACLE_CLI_V1.md](ZENO_ORACLE_CLI_V1.md)
 - [ZENO_ORACLE_RECEIPT_FORMAT_V1.md](ZENO_ORACLE_RECEIPT_FORMAT_V1.md)
 - [ZENO_ORACLE_SIGNED_REPORT_V1.md](ZENO_ORACLE_SIGNED_REPORT_V1.md)
 - [ZENO_ORACLE_REPORT_ADMISSION_V1.md](ZENO_ORACLE_REPORT_ADMISSION_V1.md)
@@ -225,6 +228,7 @@ Current result on this branch:
 The Oracle MVP shell has several important fail-closed properties already:
 
 ```text
+OracleCLIReady -> LocalSamplesAndVerifiersDiscoverable
 CriticalOracleUse -> AcceptedReadReceipt
 ReceiptAccepted -> ContentHashMatches and ConsumerActionBound
 SignedReportAccepted -> PayloadHashMatches and SignatureValid and SequenceChainValid
@@ -245,7 +249,10 @@ ReporterLifecycleAccepted -> ActiveReportersAreBonded and SlashesRequireDisputes
 ```
 
 Plain English: critical consumers must use accepted receipts, receipt IDs must
-commit to their content and bind the downstream action, median3 aggregates must
+commit to their content and bind the downstream action. The local CLI wrapper
+now exposes one entry point for discovering verifier surfaces, emitting sample
+feed/report artifacts, verifying those artifacts, and replaying chaos lanes.
+Median3 aggregates must
 commit to their content and bind the downstream action, signed reporter
 submissions must verify the BLS signature over the exact payload and preserve a
 contiguous previous-report chain. The report-admission bridge then requires the
@@ -285,6 +292,7 @@ and budget laws.
 This branch does not claim:
 
 - a live Zeno Oracle network exists;
+- an installable release binary/package exists;
 - feed governance or on-chain feed registration is live;
 - reporter registration, submission, rewards, disputes, or slashing are live;
 - a production Oracle token exists;
@@ -297,8 +305,7 @@ This branch does not claim:
 
 ## Next Production Work
 
-1. Add a unified user-facing Oracle CLI/binary that wraps feed registration,
-   reporter submission, verification, and replay commands.
+1. Package the local CLI as a release candidate binary or installable archive.
 2. Wire the adapter predicate into concrete ZenoDEX consumers such as perps,
    zUSD, routing, and trigger execution.
 3. Add higher-redundancy aggregate policies after `median_3` and source

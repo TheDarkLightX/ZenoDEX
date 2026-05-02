@@ -38,6 +38,7 @@ Current public entry point:
 
 - `docs/ZENO_ORACLE_MVP_STATUS.md`
 - `docs/ZENO_ORACLE_MVP_DESIGN.md`
+- `docs/ZENO_ORACLE_CLI_V1.md`
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md`
 - `docs/ZENO_ORACLE_SIGNED_REPORT_V1.md`
 - `docs/ZENO_ORACLE_REPORT_ADMISSION_V1.md`
@@ -131,6 +132,16 @@ The first user-facing binary should support:
 - expected reward preview;
 - dispute/slash status display;
 - local dry-run mode.
+
+The current local CLI wrapper is not yet a release binary, but it gives users
+one command surface for local samples, verification, and chaos replay:
+
+```text
+python3 tools/zenodex_oracle_cli.py doctor
+python3 tools/zenodex_oracle_cli.py sample feed --output /tmp/zeno-oracle-feed-registry.json
+python3 tools/zenodex_oracle_cli.py verify feed /tmp/zeno-oracle-feed-registry.json
+python3 tools/zenodex_oracle_cli.py chaos all
+```
 
 The binary should never hide risk from the reporter. Before a reporter submits,
 it should display:

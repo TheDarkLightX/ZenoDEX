@@ -41,6 +41,8 @@ The first concrete public economic security envelope is
 [ZENO_ORACLE_ECONOMIC_SECURITY_V1.md](ZENO_ORACLE_ECONOMIC_SECURITY_V1.md).
 The first concrete public feed-registry format is
 [ZENO_ORACLE_FEED_REGISTRY_V1.md](ZENO_ORACLE_FEED_REGISTRY_V1.md).
+The first concrete public CLI wrapper is
+[ZENO_ORACLE_CLI_V1.md](ZENO_ORACLE_CLI_V1.md).
 
 ```text
 CriticalOracleUse -> AcceptedReadReceipt
