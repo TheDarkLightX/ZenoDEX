@@ -238,10 +238,17 @@ It should verify a local receipt bundle and produce stable JSON:
 {
   "status": "accepted",
   "query_id": "sha256:...",
+  "value_hash": "sha256:...",
   "read_receipt_id": "sha256:...",
   "consumer_action_receipt_id": "sha256:...",
   "evidence_class": "O3",
-  "checked_at_epoch": 123,
+  "consumer_module": "zenodex.oracle.sample",
+  "action_kind": "sample_critical_read",
+  "action_id": "sha256:...",
+  "observed_epoch": 100,
+  "expires_at_epoch": 104,
+  "action_epoch": 102,
+  "freshness_window_epochs": 4,
   "not_claimed": [
     "does_not_claim_true_market_price",
     "does_not_claim_source_honesty",
