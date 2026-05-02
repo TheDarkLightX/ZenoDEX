@@ -889,6 +889,6 @@ rejects the envelope.
 1. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
    drift, root drift.
 2. Runtime adapter hooks beyond perps settlement, the zUSD demo API, and
-   exact-in guarded routing quotes: production zUSD transaction execution,
-   additional routing endpoints, liquidation, and trigger calls must reject raw
-   oracle values and wrong-profile receipt reuse.
+   guarded routing quotes: production zUSD transaction execution, additional
+   routing endpoints, liquidation, and trigger calls must reject raw oracle
+   values and wrong-profile receipt reuse.

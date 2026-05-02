@@ -4,8 +4,8 @@ Status: first concrete ZenoDEX perps, zUSD, and routing consumer hooks.
 
 The Oracle receipt chain is useful only if runtime actions refuse to treat raw
 oracle-looking data as authority. The first runtime bridges are now wired into
-perps settlement paths, critical zUSD API actions, and the exact-in guarded
-routing quote API.
+perps settlement paths, critical zUSD API actions, and guarded routing quote
+APIs.
 
 ## Perps Settlement Hook
 
@@ -121,12 +121,15 @@ pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
 The zUSD hook does not claim that the zUSD API is the production chain
 transaction path; `src/integration/zusd_api.py` remains a demo/development API.
 
-## Routing Guarded-Quote Hook
+## Routing Guarded-Quote Hooks
 
-The DEX API now gates `/api/dex/quote_exact_in_route_guarded` when
+The DEX API now gates these endpoints when
 `DEX_ROUTING_ORACLE_ADAPTER_REQUIRED` is enabled, and also verifies any
-`oracle_adapter_bridge` supplied on that request even when the requirement flag
-is disabled.
+`oracle_adapter_bridge` supplied on those requests even when the requirement
+flag is disabled:
+
+- `/api/dex/quote_exact_in_route_guarded`
+- `/api/dex/quote_exact_out_many_pool_guarded`
 
 The verified bridge must bind to:
 
@@ -153,6 +156,25 @@ binding_ok
 pool_snapshot_hash
 ```
 
+For the exact-out many-pool guarded quote endpoint, the runtime action ID uses
+the same schema with:
+
+```text
+path = "/api/dex/quote_exact_out_many_pool_guarded"
+quote_kind = "exact_out_many_pool"
+asset_in
+asset_out
+amount_out_total
+max_legs
+max_candidate_pools
+max_candidates
+max_iters
+window
+brute_force_max
+max_enumerated_candidates
+pool_snapshot_hash
+```
+
 The pool snapshot hash commits to the ordered pool snapshots used by the
 request. This prevents a guarded quote request from borrowing a receipt for a
 different route query, asset pair, amount, route policy, binding flag, or pool
@@ -164,9 +186,9 @@ The Oracle MVP gate also runs:
 pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
 ```
 
-The routing hook is currently limited to the exact-in guarded quote endpoint.
-It does not claim every quote, packet-build, or exact-out routing endpoint is
-runtime-wired.
+The routing hooks are currently limited to the exact-in guarded quote endpoint
+and the exact-out many-pool guarded quote endpoint. They do not claim every
+quote, packet-build, advisory, or verification endpoint is runtime-wired.
 
 ## CI Coverage
 
@@ -201,6 +223,6 @@ This hook does not yet claim:
 - verifier callbacks are automatically configured by deployment tooling.
 
 The current claim is narrower: perps settlement, critical zUSD demo API actions,
-and the exact-in guarded routing quote API now have fail-closed runtime bridge
+and guarded routing quote APIs now have fail-closed runtime bridge
 points that can require an accepted aggregate-derived Oracle receipt before
 execution proceeds.
