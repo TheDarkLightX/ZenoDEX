@@ -39,6 +39,9 @@ deterministic single-axis mutations:
 | `consumer_action_borrows_other_value` | action consumes a value hash from another bundle |
 | `consumer_action_drops_read_dependency` | dependency closure is broken |
 | `emergency_oracle_bypass_flag_set` | bypass flag survives critical-action verification |
+| `consumer_action_replays_expired_read` | action executes after the read expires |
+| `consumer_action_precedes_read_observation` | action claims a read before it was observed |
+| `consumer_action_erases_consumer_identity` | action removes the downstream consumer binding |
 | `terminal_points_to_missing_read` | terminal read pointer is absent from the bundle |
 | `action_depends_on_missing_receipt` | dependency graph references missing evidence |
 | `duplicate_receipt_id_shadows_terminal` | duplicate IDs create ambiguous evidence |
@@ -63,8 +66,8 @@ The receipt reports:
   "schema": "zenodex.oracle.chaos_replay.v1",
   "ok": true,
   "baseline_status": "accepted",
-  "case_count": 24,
-  "rejected_case_count": 24,
+  "case_count": 27,
+  "rejected_case_count": 27,
   "failed_case_count": 0
 }
 ```

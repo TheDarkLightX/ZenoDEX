@@ -85,6 +85,21 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
             ["emergency_oracle_bypass_rejected"],
         ),
         (
+            "consumer_action_replays_expired_read",
+            _mutate(lambda b: _action(b).__setitem__("action_epoch", 105)),
+            ["consumer_action_after_read_expiry", "consumer_action_exceeds_freshness_window"],
+        ),
+        (
+            "consumer_action_precedes_read_observation",
+            _mutate(lambda b: _action(b).__setitem__("action_epoch", 99)),
+            ["consumer_action_before_read_observation"],
+        ),
+        (
+            "consumer_action_erases_consumer_identity",
+            _mutate(lambda b: _action(b).__setitem__("consumer_module", "")),
+            ["consumer_module_must_be_token"],
+        ),
+        (
             "terminal_points_to_missing_read",
             _mutate(lambda b: b["terminal"].__setitem__("read_receipt_id", sample_hash("missing-read"))),
             ["terminal_read_receipt_missing"],
