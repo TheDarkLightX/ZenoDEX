@@ -125,6 +125,24 @@ _ASCII_TOKEN_CHARS_MODULE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO
 _ASCII_TOKEN_CHARS_VERSION = frozenset("0123456789.")
 _ASCII_TOKEN_CHARS_ACTION = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 _ASCII_TOKEN_CHARS_MARKET_ID = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-")
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_PERPS_INDEX_QUERY_ID = (
+    "sha256:"
+    + hashlib.sha256("zenodex.oracle.query.perps.index_price_e8".encode("utf-8")).hexdigest()
+)
+_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID = "sha256:" + hashlib.sha256(
+    canonical_json_bytes(
+        {
+            "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "required_evidence_floor": "O3",
+            "max_freshness_window_epochs": 2,
+            "critical": True,
+        }
+    )
+).hexdigest()
 
 
 def _require_ascii_token(value: Any, *, name: str, max_len: int, allowed: frozenset[str]) -> str:
@@ -773,6 +791,8 @@ def _require_oracle_adapter_bridge(
     data: Mapping[str, Any],
     consumer_module: str,
     action_kind: str,
+    expected_query_id: Optional[str] = None,
+    expected_profile_id: Optional[str] = None,
     expected_action_id: Optional[str] = None,
     required: bool = False,
 ) -> Optional[str]:
@@ -800,6 +820,12 @@ def _require_oracle_adapter_bridge(
         return "oracle_adapter_bridge consumer mismatch"
     if result_action != action_kind:
         return "oracle_adapter_bridge action mismatch"
+    result_query_id = _oracle_adapter_result_get(result, "query_id")
+    if expected_query_id is not None and result_query_id != expected_query_id:
+        return "oracle_adapter_bridge query mismatch"
+    result_profile_id = _oracle_adapter_result_get(result, "profile_id")
+    if expected_profile_id is not None and result_profile_id != expected_profile_id:
+        return "oracle_adapter_bridge profile mismatch"
     result_action_id = _oracle_adapter_result_get(result, "action_id")
     if expected_action_id is not None and result_action_id != expected_action_id:
         return "oracle_adapter_bridge action_id mismatch"
@@ -1156,6 +1182,8 @@ def _apply_ch2p_op(
             data=data,
             consumer_module="zenodex.perps",
             action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
                 config,
                 market_id=market_id,
@@ -1440,6 +1468,8 @@ def _apply_ch3p_op(
             data=data,
             consumer_module="zenodex.perps",
             action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
                 config,
                 market_id=market_id,
@@ -1887,6 +1917,8 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
         data=data,
         consumer_module="zenodex.perps",
         action_kind="settle_epoch",
+        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
         expected_action_id=_perps_runtime_oracle_action_id(
             ctx.config,
             market_id=market_id,

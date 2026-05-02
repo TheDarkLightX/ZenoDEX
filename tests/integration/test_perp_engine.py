@@ -922,6 +922,8 @@ def test_settle_epoch_rejects_unverified_oracle_adapter_bridge() -> None:
 
 def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
     from src.integration.perp_engine import (
+        _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
         PerpEngineConfig,
         _perps_runtime_oracle_action_id,
         apply_perp_ops,
@@ -960,6 +962,8 @@ def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
             "errors": [],
             "consumer_module": "zenodex.perps",
             "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             "action_id": "sha256:" + "00" * 32,
         },
     )
@@ -982,6 +986,29 @@ def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
         market=state.perps.markets[market_id],
     )
 
+    cfg_wrong_profile = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": "sha256:" + "00" * 32,
+            "action_id": expected_action_id,
+        },
+    )
+    res_wrong_profile = apply_perp_ops(
+        config=cfg_wrong_profile,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res_wrong_profile.ok is False
+    assert res_wrong_profile.error == "oracle_adapter_bridge profile mismatch"
+
     def verifier(bridge: object) -> dict[str, object]:
         assert isinstance(bridge, dict)
         seen_bridge.update(bridge)
@@ -990,6 +1017,8 @@ def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
             "errors": [],
             "consumer_module": "zenodex.perps",
             "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             "action_id": expected_action_id,
         }
 

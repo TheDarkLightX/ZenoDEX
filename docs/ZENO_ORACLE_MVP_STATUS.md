@@ -269,13 +269,15 @@ guarded routing quote APIs. Isolated, 2-party clearinghouse, and 3-party
 transfer clearinghouse
 `settle_epoch` can require `oracle_adapter_bridge`, verify it before settlement
 state changes, and reject bridges that are missing, unchecked, rejected, bound
-to any action other than `zenodex.perps / settle_epoch`, or bound to a different
-market/epoch/price snapshot runtime action ID. The zUSD API can require the
-same bridge for `mint_zusd` and `liquidate`, bound to the zUSD mode, args, and
-active/pending oracle snapshot. The exact-in and exact-out guarded routing
-quote APIs can require the same bridge for `zenodex.routing / guarded_quote`,
-bound to the route request, route policy, routing reference-price query, and
-pool snapshot hash.
+to any action other than `zenodex.perps / settle_epoch`, bound to a different
+Oracle query, bound to a weaker or unrelated consumer profile, or bound to a
+different market/epoch/price snapshot runtime action ID. The zUSD API can
+require the same bridge for `mint_zusd` and `liquidate`, bound to the zUSD
+collateral-price query, official zUSD profile, mode, args, and active/pending
+oracle snapshot. The exact-in and exact-out guarded routing quote APIs can
+require the same bridge for `zenodex.routing / guarded_quote`, bound to the
+route request, route policy, official routing profile, routing reference-price
+query, and pool snapshot hash.
 The economic envelope then checks the declared attack-cost, honest-reward,
 slash-deterrence, dispute-budget, and fee-split numbers against integer margin
 and budget laws.

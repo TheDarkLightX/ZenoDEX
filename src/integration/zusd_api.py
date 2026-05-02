@@ -58,6 +58,32 @@ _ZUSD_ORACLE_ADAPTER_ACTIONS: Dict[str, str] = {
     "mint_zusd": "mint",
     "liquidate": "liquidate_vault",
 }
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_ZUSD_COLLATERAL_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.zusd.collateral_price_e8").hexdigest()
+)
+
+
+def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
+    payload = {
+        "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+        "consumer_module": "zenodex.zusd",
+        "action_kind": action_kind,
+        "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+        "required_evidence_floor": "O3",
+        "max_freshness_window_epochs": int(max_freshness_window_epochs),
+        "critical": True,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+_ZUSD_ORACLE_CONSUMER_PROFILE_IDS: Dict[str, str] = {
+    "mint": _oracle_consumer_profile_id(action_kind="mint", max_freshness_window_epochs=2),
+    "liquidate_vault": _oracle_consumer_profile_id(
+        action_kind="liquidate_vault",
+        max_freshness_window_epochs=1,
+    ),
+}
 
 
 def _bool_env(name: str, *, default: bool) -> bool:
@@ -333,6 +359,10 @@ def _check_zusd_oracle_adapter_bridge(
         return "oracle_adapter_bridge consumer mismatch"
     if _adapter_result_get(result, "action_kind") != action_kind:
         return "oracle_adapter_bridge action mismatch"
+    if _adapter_result_get(result, "query_id") != _ORACLE_ZUSD_COLLATERAL_QUERY_ID:
+        return "oracle_adapter_bridge query mismatch"
+    if _adapter_result_get(result, "profile_id") != _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]:
+        return "oracle_adapter_bridge profile mismatch"
     expected_action_id = _zusd_runtime_oracle_action_id(mode=mode, state=state, tag=tag, args=args)
     if _adapter_result_get(result, "action_id") != expected_action_id:
         return "oracle_adapter_bridge action_id mismatch"

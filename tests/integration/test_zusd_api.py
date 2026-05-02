@@ -11,7 +11,14 @@ import pytest
 import src.integration.zusd_tau_gate as zusd_tau_gate
 from src.core.zusd import E8, ZUSDState
 from src.integration import perps_api as perps_demo_api
-from src.integration.zusd_api import _tau_gate_config_from_env, _zusd_runtime_oracle_action_id, handle_zusd_request, reset_demo_state
+from src.integration.zusd_api import (
+    _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+    _ZUSD_ORACLE_CONSUMER_PROFILE_IDS,
+    _tau_gate_config_from_env,
+    _zusd_runtime_oracle_action_id,
+    handle_zusd_request,
+    reset_demo_state,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -100,6 +107,8 @@ class TestOracleAdapterBridge:
                 "errors": [],
                 "consumer_module": "zenodex.zusd",
                 "action_kind": "mint",
+                "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+                "profile_id": _ZUSD_ORACLE_CONSUMER_PROFILE_IDS["mint"],
                 "action_id": "sha256:" + "00" * 32,
             },
         )
@@ -117,6 +126,43 @@ class TestOracleAdapterBridge:
         assert status == 400
         assert body["ok"] is False
         assert body["detail"] == "oracle_adapter_bridge action_id mismatch"
+
+    def test_oracle_adapter_mint_rejects_wrong_profile(self, monkeypatch):
+        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
+        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
+        status_state, body_state = handle_zusd_request("GET", "/api/zusd/state", None)
+        assert status_state == 200
+        state = ZUSDState(**body_state["state"])
+        expected_action_id = _zusd_runtime_oracle_action_id(
+            mode="single",
+            state=state,
+            tag="mint_zusd",
+            args={"amount_e8": 100 * E8},
+        )
+        _install_fake_oracle_adapter(
+            monkeypatch,
+            {
+                "status": "accepted",
+                "errors": [],
+                "consumer_module": "zenodex.zusd",
+                "action_kind": "mint",
+                "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+                "profile_id": "sha256:" + "00" * 32,
+                "action_id": expected_action_id,
+            },
+        )
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "mint_zusd",
+                "args": {"amount_e8": 100 * E8},
+                "oracle_adapter_bridge": {"schema": "test"},
+            },
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "oracle_adapter_bridge profile mismatch"
 
     def test_oracle_adapter_mint_accepts_bound_bridge(self, monkeypatch):
         assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
@@ -137,6 +183,8 @@ class TestOracleAdapterBridge:
                 "errors": [],
                 "consumer_module": "zenodex.zusd",
                 "action_kind": "mint",
+                "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+                "profile_id": _ZUSD_ORACLE_CONSUMER_PROFILE_IDS["mint"],
                 "action_id": expected_action_id,
             },
         )

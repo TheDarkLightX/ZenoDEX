@@ -28,6 +28,8 @@ When a `settle_epoch` op carries `oracle_adapter_bridge`, the engine:
 ```text
 consumer_module = "zenodex.perps"
 action_kind     = "settle_epoch"
+query_id        = sha256("zenodex.oracle.query.perps.index_price_e8")
+profile_id      = published O3 / 2-epoch perps settle profile
 ```
 
 6. requires the verified bridge `action_id` to equal the deterministic runtime
@@ -75,9 +77,9 @@ perps. If the bridge is present but no verifier is configured, settlement is
 rejected even when the requirement flag is false.
 
 This prevents the wired perps settlement paths from accepting a receipt minted
-for a different consumer, action, market, market kind, participant set, epoch,
-clearing price, or oracle snapshot, or accepting a decorative bridge field that
-no runtime verifier checked.
+for a different consumer, action, query, profile policy, market, market kind,
+participant set, epoch, clearing price, or oracle snapshot, or accepting a
+decorative bridge field that no runtime verifier checked.
 
 ## zUSD API Hook
 
@@ -91,6 +93,8 @@ The verified bridge must bind to:
 ```text
 consumer_module = "zenodex.zusd"
 action_kind     = "mint" | "liquidate_vault"
+query_id        = sha256("zenodex.oracle.query.zusd.collateral_price_e8")
+profile_id      = published zUSD mint/liquidation profile
 ```
 
 The zUSD runtime action ID is the SHA-256 content hash of:
@@ -109,8 +113,8 @@ oracle_last_update_epoch
 ```
 
 This prevents a zUSD mint/liquidation request from borrowing a receipt for a
-different command, mode, argument set, active oracle price, pending oracle price,
-or oracle update epoch.
+different command, query, profile policy, mode, argument set, active oracle
+price, pending oracle price, or oracle update epoch.
 
 The Oracle MVP gate also runs:
 
@@ -137,6 +141,7 @@ The verified bridge must bind to:
 consumer_module = "zenodex.routing"
 action_kind     = "guarded_quote"
 query_id        = sha256("zenodex.oracle.query.routing.reference_price_e8")
+profile_id      = published O3 / 4-epoch routing guarded-quote profile
 ```
 
 The routing runtime action ID is the SHA-256 content hash of:
@@ -177,8 +182,8 @@ pool_snapshot_hash
 
 The pool snapshot hash commits to the ordered pool snapshots used by the
 request. This prevents a guarded quote request from borrowing a receipt for a
-different route query, asset pair, amount, route policy, binding flag, or pool
-snapshot.
+different route query, profile policy, asset pair, amount, route policy, binding
+flag, or pool snapshot.
 
 The Oracle MVP gate also runs:
 
