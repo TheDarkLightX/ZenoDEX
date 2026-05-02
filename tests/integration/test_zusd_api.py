@@ -9,9 +9,9 @@ import types
 import pytest
 
 import src.integration.zusd_tau_gate as zusd_tau_gate
-from src.core.zusd import E8
+from src.core.zusd import E8, ZUSDState
 from src.integration import perps_api as perps_demo_api
-from src.integration.zusd_api import _tau_gate_config_from_env, handle_zusd_request, reset_demo_state
+from src.integration.zusd_api import _tau_gate_config_from_env, _zusd_runtime_oracle_action_id, handle_zusd_request, reset_demo_state
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +25,7 @@ def _reset_state_and_env(monkeypatch):
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MAX_EPOCH_LAG", raising=False)
+    monkeypatch.delenv("ZUSD_ORACLE_ADAPTER_REQUIRED", raising=False)
     yield
     reset_demo_state()
     perps_demo_api.reset_demo_state()
@@ -33,6 +34,11 @@ def _reset_state_and_env(monkeypatch):
 def _post(path: str, body: dict) -> tuple[int, dict]:
     raw = json.dumps(body).encode("utf-8")
     return handle_zusd_request("POST", path, raw)
+
+
+def _install_fake_oracle_adapter(monkeypatch, result):
+    module = types.SimpleNamespace(verify_aggregate_adapter_bridge=lambda _bridge: result)
+    monkeypatch.setitem(sys.modules, "tools.zenodex_oracle_aggregate_adapter", module)
 
 
 class TestGetState:
@@ -73,6 +79,79 @@ class TestSingleFlow:
         assert status == 400
         assert body["ok"] is False
         assert body["error"] == "rejected"
+
+
+class TestOracleAdapterBridge:
+    def test_oracle_adapter_mint_requires_bridge_when_configured(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_ADAPTER_REQUIRED", "1")
+        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
+        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
+
+        status, body = _post("/api/zusd/step", {"tag": "mint_zusd", "args": {"amount_e8": 100 * E8}})
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "mint requires oracle_adapter_bridge"
+
+    def test_oracle_adapter_mint_rejects_wrong_bridge_action_id(self, monkeypatch):
+        _install_fake_oracle_adapter(
+            monkeypatch,
+            {
+                "status": "accepted",
+                "errors": [],
+                "consumer_module": "zenodex.zusd",
+                "action_kind": "mint",
+                "action_id": "sha256:" + "00" * 32,
+            },
+        )
+        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
+        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "mint_zusd",
+                "args": {"amount_e8": 100 * E8},
+                "oracle_adapter_bridge": {"schema": "test"},
+            },
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "oracle_adapter_bridge action_id mismatch"
+
+    def test_oracle_adapter_mint_accepts_bound_bridge(self, monkeypatch):
+        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
+        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
+        status_state, body_state = handle_zusd_request("GET", "/api/zusd/state", None)
+        assert status_state == 200
+        state = ZUSDState(**body_state["state"])
+        expected_action_id = _zusd_runtime_oracle_action_id(
+            mode="single",
+            state=state,
+            tag="mint_zusd",
+            args={"amount_e8": 100 * E8},
+        )
+        _install_fake_oracle_adapter(
+            monkeypatch,
+            {
+                "status": "accepted",
+                "errors": [],
+                "consumer_module": "zenodex.zusd",
+                "action_kind": "mint",
+                "action_id": expected_action_id,
+            },
+        )
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "mint_zusd",
+                "args": {"amount_e8": 100 * E8},
+                "oracle_adapter_bridge": {"schema": "test"},
+            },
+        )
+        assert status == 200
+        assert body["ok"] is True
+        assert body["state"]["debt_e8"] == 100 * E8
 
 
 class TestMultiFlow:
