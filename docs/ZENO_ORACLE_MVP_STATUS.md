@@ -265,16 +265,17 @@ weaker than the module/action/query profile. The consumer profile catalog pins
 the first critical perps, zUSD, routing, and trigger profiles so those modules
 cannot invent weaker profile requirements without a catalog version change.
 The first runtime hooks are wired into perps settlement, the zUSD demo API, and
-the exact-in guarded routing quote API. Isolated, 2-party clearinghouse, and
-3-party transfer clearinghouse
+guarded routing quote APIs. Isolated, 2-party clearinghouse, and 3-party
+transfer clearinghouse
 `settle_epoch` can require `oracle_adapter_bridge`, verify it before settlement
 state changes, and reject bridges that are missing, unchecked, rejected, bound
 to any action other than `zenodex.perps / settle_epoch`, or bound to a different
 market/epoch/price snapshot runtime action ID. The zUSD API can require the
 same bridge for `mint_zusd` and `liquidate`, bound to the zUSD mode, args, and
-active/pending oracle snapshot. The guarded routing quote API can require the
-same bridge for `zenodex.routing / guarded_quote`, bound to the route request,
-route policy, routing reference-price query, and pool snapshot hash.
+active/pending oracle snapshot. The exact-in and exact-out guarded routing
+quote APIs can require the same bridge for `zenodex.routing / guarded_quote`,
+bound to the route request, route policy, routing reference-price query, and
+pool snapshot hash.
 The economic envelope then checks the declared attack-cost, honest-reward,
 slash-deterrence, dispute-budget, and fee-split numbers against integer margin
 and budget laws.
@@ -299,8 +300,8 @@ This branch does not claim:
 
 1. Publish signed release assets for the local RC package.
 2. Extend runtime adapter hooks from perps settlement, the zUSD demo API, and
-   exact-in guarded routing quotes to production zUSD transaction execution,
-   additional routing endpoints, liquidation, and trigger execution.
+   guarded routing quotes to production zUSD transaction execution, additional
+   routing endpoints, liquidation, and trigger execution.
 3. Add higher-redundancy aggregate policies after `median_3` and source
    diversity are stable.
 4. Add executable reporter CLI flows once the reporter and dispute objects are
