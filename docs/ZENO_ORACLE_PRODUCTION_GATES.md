@@ -81,6 +81,9 @@ Required behavior:
 - fail closed on dependency order violations;
 - fail closed on receipts that are not reachable from the terminal read/action
   closure;
+- fail closed unless the first public shell contains exactly one independent
+  accepted-read receipt and one consumer-action receipt that depends only on
+  that read;
 - fail closed on stale or open disputes;
 - fail closed on weak evidence for critical consumers;
 - fail closed on mismatched query IDs, value hashes, or action IDs;

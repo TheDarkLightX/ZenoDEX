@@ -151,6 +151,58 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
             ["dependency_self_reference"],
         ),
         (
+            "read_receipt_depends_on_action_receipt",
+            _mutate(lambda b: _read(b).__setitem__("depends_on", [_action(b)["id"]])),
+            ["read_receipt_must_have_no_dependencies"],
+        ),
+        (
+            "action_depends_on_extra_reachable_read",
+            _mutate(
+                lambda b: (
+                    b["receipts"].insert(
+                        1,
+                        {
+                            "id": sample_hash("extra-read"),
+                            "type": "accepted_read_receipt",
+                            "status": "accepted",
+                            "query_id": sample_hash("zenodex-oracle-sample-query"),
+                            "value_hash": sample_hash("zenodex-oracle-sample-value"),
+                            "evidence_class": "O3",
+                            "fresh": True,
+                            "dispute_clear": True,
+                            "uncertainty_accepted": True,
+                            "depends_on": [],
+                        },
+                    ),
+                    _action(b).__setitem__(
+                        "depends_on",
+                        [sample_hash("zenodex-oracle-sample-read"), sample_hash("extra-read")],
+                    ),
+                )
+            ),
+            ["consumer_action_dependency_must_equal_read_receipt"],
+        ),
+        (
+            "action_duplicates_read_dependency",
+            _mutate(
+                lambda b: _action(b).__setitem__(
+                    "depends_on",
+                    [sample_hash("zenodex-oracle-sample-read"), sample_hash("zenodex-oracle-sample-read")],
+                )
+            ),
+            ["duplicate_dependency", "consumer_action_dependency_must_equal_read_receipt"],
+        ),
+        (
+            "terminal_aliases_read_as_action",
+            _mutate(
+                lambda b: b["terminal"].__setitem__(
+                    "consumer_action_receipt_id",
+                    b["terminal"]["read_receipt_id"],
+                )
+            ),
+            ["terminal_receipts_must_be_distinct"],
+        ),
+        (
             "read_receipt_status_downgraded_after_terminal_binding",
             _mutate(lambda b: _read(b).__setitem__("status", "pending")),
             ["read_receipt_not_accepted"],
