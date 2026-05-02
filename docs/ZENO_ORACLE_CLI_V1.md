@@ -110,7 +110,7 @@ The combined replay returns:
 This CLI does not claim:
 
 - a live Oracle network exists;
-- an installable release package exists;
+- a platform-native binary installer exists;
 - on-chain feed governance is live;
 - network submission is implemented;
 - production ZenoDEX consumers are wired to Oracle reads.
@@ -128,3 +128,21 @@ bash scripts/check_zeno_oracle_mvp.sh
 That script runs `doctor`, `chaos all`, and the full Oracle pytest slice. The
 GitHub Actions workflow `.github/workflows/zeno-oracle-mvp.yml` runs the same
 gate on pull requests and pushes to `main` or this Oracle MVP branch.
+
+## Release Candidate Package
+
+Build the local RC package:
+
+```bash
+bash scripts/package_zeno_oracle_rc.sh
+```
+
+The script writes:
+
+```text
+dist/zeno-oracle-mvp-rc1.tar.gz
+dist/zeno-oracle-mvp-rc1/ZEN_ORACLE_RC_MANIFEST.json
+```
+
+The manifest lists every packaged file with `size_bytes` and `sha256`. The CI
+workflow uploads the tarball and manifest as the `zeno-oracle-mvp-rc1` artifact.
