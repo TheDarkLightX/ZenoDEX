@@ -23,6 +23,8 @@ is a status page, not a production launch claim.
 | ZenoDEX adapter chaos replay | `tools/zenodex_oracle_adapter_chaos.py` | `python3 tools/zenodex_oracle_adapter_chaos.py` |
 | Consumer profile catalog verifier | `tools/zenodex_oracle_consumer_profiles.py` | `python3 tools/zenodex_oracle_consumer_profiles.py verify <catalog>` |
 | Consumer profile catalog chaos replay | `tools/zenodex_oracle_consumer_profiles_chaos.py` | `python3 tools/zenodex_oracle_consumer_profiles_chaos.py` |
+| Economic security verifier | `tools/zenodex_oracle_economic_security.py` | `python3 tools/zenodex_oracle_economic_security.py verify <envelope>` |
+| Economic security chaos replay | `tools/zenodex_oracle_economic_security_chaos.py` | `python3 tools/zenodex_oracle_economic_security_chaos.py` |
 
 ## Current Replay Counts
 
@@ -54,6 +56,10 @@ adapter_chaos_failed_count = 0
 consumer_profile_catalog_chaos_case_count = 14
 consumer_profile_catalog_chaos_rejected_count = 14
 consumer_profile_catalog_chaos_failed_count = 0
+
+economic_security_chaos_case_count = 14
+economic_security_chaos_rejected_count = 14
+economic_security_chaos_failed_count = 0
 ```
 
 Plain English: the local receipt verifier rejects all currently named
@@ -73,6 +79,10 @@ The local consumer profile catalog verifier rejects all currently named missing
 profile, duplicate profile, forged hash, unsupported profile, wrong query, weak
 evidence, loose freshness, non-critical profile, hidden-field, schema, and
 type-confusion mutations.
+The local economic security verifier rejects all currently named underpriced
+attack, underpaid reporter, reward-budget overspend, weak slash-deterrence,
+dispute-budget overspend, fee overspend, hidden-field, schema, and type-confusion
+mutations.
 
 ## Current Test Command
 
@@ -91,13 +101,15 @@ pytest -q \
   tests/test_zenodex_oracle_adapter.py \
   tests/test_zenodex_oracle_adapter_chaos.py \
   tests/test_zenodex_oracle_consumer_profiles.py \
-  tests/test_zenodex_oracle_consumer_profiles_chaos.py
+  tests/test_zenodex_oracle_consumer_profiles_chaos.py \
+  tests/test_zenodex_oracle_economic_security.py \
+  tests/test_zenodex_oracle_economic_security_chaos.py
 ```
 
 Current result on this branch:
 
 ```text
-134 passed
+150 passed
 ```
 
 ## Public Contract Documents
@@ -108,6 +120,7 @@ Current result on this branch:
 - [ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md)
 - [ZENO_ORACLE_ADAPTER_V1.md](ZENO_ORACLE_ADAPTER_V1.md)
 - [ZENO_ORACLE_CONSUMER_PROFILES_V1.md](ZENO_ORACLE_CONSUMER_PROFILES_V1.md)
+- [ZENO_ORACLE_ECONOMIC_SECURITY_V1.md](ZENO_ORACLE_ECONOMIC_SECURITY_V1.md)
 - [ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md)
 - [ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md)
 - [ZENO_ORACLE_CHAOS_ENGINEERING.md](ZENO_ORACLE_CHAOS_ENGINEERING.md)
@@ -125,6 +138,7 @@ QueryPolicyAccepted -> NoSilentDowngrade and CriticalConsumersBindLatestPolicy
 OracleUseOK(action, bundle, profile) ->
   ActionFactsMatchAcceptedBundle and ActionPolicyNoWeakerThanProfile
 ConsumerProfileCatalogAccepted -> CriticalProfilesPresent and NoProfileWeakening
+EconomicEnvelopeAccepted -> AttackCostMargin and BudgetSafety and SlashDeterrence
 BudgetAccepted -> Spend <= ExplicitEnvelope
 ReporterLifecycleAccepted -> ActiveReportersAreBonded and SlashesRequireDisputes
 ```
@@ -143,6 +157,9 @@ is supplied, the adapter also rejects self-declared action policies that are
 weaker than the module/action/query profile. The consumer profile catalog pins
 the first critical perps, zUSD, routing, and trigger profiles so those modules
 cannot invent weaker profile requirements without a catalog version change.
+The economic envelope then checks the declared attack-cost, honest-reward,
+slash-deterrence, dispute-budget, and fee-split numbers against integer margin
+and budget laws.
 
 ## Still Not Claimed
 

@@ -43,6 +43,7 @@ Current public entry point:
 - `docs/ZENO_ORACLE_QUERY_POLICY_V1.md`
 - `docs/ZENO_ORACLE_ADAPTER_V1.md`
 - `docs/ZENO_ORACLE_CONSUMER_PROFILES_V1.md`
+- `docs/ZENO_ORACLE_ECONOMIC_SECURITY_V1.md`
 - `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md`
 - `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md`
 
@@ -199,6 +200,12 @@ The current local shell for the critical consumer profile catalog is:
 
 ```text
 python3 tools/zenodex_oracle_consumer_profiles.py verify <catalog>
+```
+
+The current local shell for the first economic security envelope is:
+
+```text
+python3 tools/zenodex_oracle_economic_security.py verify <envelope>
 ```
 
 ## Gate 5: Critical ZenoDEX Adapter

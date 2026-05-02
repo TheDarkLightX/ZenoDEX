@@ -426,6 +426,57 @@ ValidConsumerProfileCatalog + DangerousPerturbation -> RejectedCatalog
 Plain English: if a mutation removes, duplicates, weakens, misbinds, or hides
 authority in a critical consumer profile, the local verifier rejects the catalog.
 
+## Economic Security Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_economic_security_chaos.py
+```
+
+The replay starts with one accepted economic security envelope, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `extractable_above_notional_survives` | extractable value exceeds protected notional |
+| `attack_cost_below_margin_survives` | attack cost is below extractable value plus margin |
+| `reward_below_honest_cost_survives` | reporter reward does not cover honest cost and risk |
+| `reporter_reward_budget_overspend_survives` | total reporter reward exceeds budget |
+| `cheat_gain_above_extractable_survives` | declared cheating gain exceeds extractable value |
+| `weak_slash_deterrence_survives` | slashable bond is below cheating gain plus margin |
+| `dispute_reward_budget_overspend_survives` | dispute reward exceeds dispute budget |
+| `fee_split_overspend_survives` | fee shares spend more than paid fees |
+| `hidden_mint_field_survives` | hidden mint-like field is accepted |
+| `boolean_attack_cost_survives` | boolean is accepted as amount |
+| `wrong_schema_survives` | economic envelope schema downgrade is accepted |
+| `zero_reporter_count_survives` | zero reporters are accepted |
+| `slash_fraction_over_100_percent_survives` | slash fraction above 100% is accepted |
+| `negative_fee_share_survives` | negative fee share enters accounting |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.economic_security_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 14,
+  "rejected_case_count": 14,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the first economic envelope:
+
+```text
+ValidEconomicEnvelope + DangerousPerturbation -> RejectedEnvelope
+```
+
+Plain English: if a mutation underprices manipulation, underpays honest
+reporters, weakens slash deterrence, or overspends a budget, the local verifier
+rejects the envelope.
+
 ## Next Chaos Lanes
 
 1. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
