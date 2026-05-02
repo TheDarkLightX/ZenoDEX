@@ -39,6 +39,7 @@ Current public entry point:
 - `docs/ZENO_ORACLE_MVP_STATUS.md`
 - `docs/ZENO_ORACLE_MVP_DESIGN.md`
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md`
+- `docs/ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md`
 - `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md`
 - `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md`
 
@@ -171,6 +172,12 @@ The current local shell for reporter lifecycle sequencing is:
 
 ```text
 python3 tools/zenodex_oracle_reporter_lifecycle.py verify <trace>
+```
+
+The current local shell for the first aggregate policy is:
+
+```text
+python3 tools/zenodex_oracle_median3.py verify <aggregate>
 ```
 
 ## Gate 5: Critical ZenoDEX Adapter

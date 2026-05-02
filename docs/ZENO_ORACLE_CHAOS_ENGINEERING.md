@@ -200,8 +200,64 @@ Plain English: if a mutation lets a reporter skip registration, report
 under-bonded, slash outside an open dispute, or withdraw unsafely, the local
 verifier rejects it.
 
+## Median3 Aggregate Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_median3_chaos.py
+```
+
+The replay starts with one accepted `median_3` aggregate, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `aggregate_value_not_median` | aggregate value is not the median of included reports |
+| `aggregate_confidence_mismatch` | confidence radius is understated or miscomputed |
+| `aggregate_deviation_mismatch` | deviation bps is understated or miscomputed |
+| `aggregate_observed_epoch_mismatch` | aggregate observation epoch does not match report epochs |
+| `report_query_id_mismatch` | report for a different query enters the aggregate |
+| `stale_report_survives` | stale report remains aggregatable |
+| `future_report_survives` | future-dated report remains aggregatable |
+| `duplicate_reporter_survives` | one reporter counts as multiple reporters |
+| `duplicate_source_survives` | one source counts as multiple independent sources |
+| `too_few_reports_survive` | aggregate is accepted below the median_3 quorum |
+| `too_many_reports_survive` | extra reports enter an exactly-three policy |
+| `forged_report_id_survives` | report ID does not match report body |
+| `forged_aggregate_id_survives` | aggregate ID does not match aggregate body |
+| `deviation_policy_exceeded` | high-deviation aggregate passes policy |
+| `nonpositive_report_value_survives` | zero price enters aggregation |
+| `hidden_report_field_survives` | report carries unchecked authority/debug data |
+| `hidden_aggregate_field_survives` | aggregate carries unchecked authority/debug data |
+| `wrong_schema_survives` | aggregate schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.median3_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 18,
+  "rejected_case_count": 18,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the first aggregate policy:
+
+```text
+ValidMedian3Aggregate + DangerousPerturbation -> RejectedAggregate
+```
+
+Plain English: if a mutation changes the median, confidence, deviation, source
+set, query binding, freshness, or content hash, the local verifier rejects the
+aggregate before it can become an accepted read.
+
 ## Next Chaos Lanes
 
 1. Query-policy update lifecycle: no downgrade after critical consumers bind.
-2. Aggregation lifecycle: reporter-set drift, source-family drift, root drift.
+2. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
+   drift, root drift.
 3. ZenoDEX adapter lifecycle: accepted read to perps/zUSD/trigger execution.
