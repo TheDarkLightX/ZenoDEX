@@ -341,6 +341,16 @@ deterministic single-axis mutations:
 | `wrong_action_schema_survives` | action schema downgrade is accepted |
 | `missing_action_id_survives` | action omits the downstream action ID |
 | `boolean_action_epoch_survives` | boolean is accepted as action epoch |
+| `profile_content_hash_forgery_survives` | profile ID no longer matches profile body |
+| `profile_consumer_module_mismatch_survives` | profile for another consumer module is accepted |
+| `profile_action_kind_mismatch_survives` | profile for another action kind is accepted |
+| `profile_query_mismatch_survives` | profile for another query is accepted |
+| `action_evidence_floor_below_profile_survives` | action evidence floor is weaker than profile |
+| `action_freshness_window_exceeds_profile_survives` | action freshness window is looser than profile |
+| `noncritical_profile_survives` | non-critical profile is accepted for critical adapter use |
+| `hidden_profile_field_survives` | profile carries unchecked authority/debug data |
+| `weak_profile_evidence_floor_survives` | profile declares weak evidence for critical use |
+| `wrong_profile_schema_survives` | profile schema downgrade is accepted |
 
 The receipt reports:
 
@@ -349,8 +359,8 @@ The receipt reports:
   "schema": "zenodex.oracle.adapter_chaos_replay.v1",
   "ok": true,
   "baseline_status": "accepted",
-  "case_count": 17,
-  "rejected_case_count": 17,
+  "case_count": 27,
+  "rejected_case_count": 27,
   "failed_case_count": 0
 }
 ```
@@ -363,7 +373,8 @@ ValidActionBundlePair + DangerousPerturbation -> RejectedOracleUse
 
 Plain English: if a mutation lets a critical action borrow a receipt from the
 wrong bundle, action, query, value, epoch, evidence floor, or freshness policy,
-the local adapter rejects the attempted Oracle use.
+or lets a consumer profile silently weaken the action policy, the local adapter
+rejects the attempted Oracle use.
 
 ## Next Chaos Lanes
 

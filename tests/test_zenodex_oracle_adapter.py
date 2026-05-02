@@ -10,7 +10,11 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
 from zenodex_oracle import sample_hash  # noqa: E402
-from zenodex_oracle_adapter import sample_action_and_bundle  # noqa: E402
+from zenodex_oracle_adapter import (  # noqa: E402
+    profile_content_hash,
+    sample_action_and_bundle,
+    sample_action_bundle_profile,
+)
 
 
 def _run_verify(tmp_path: Path, action: dict, bundle: dict) -> tuple[int, dict]:
@@ -37,6 +41,34 @@ def _run_verify(tmp_path: Path, action: dict, bundle: dict) -> tuple[int, dict]:
     return proc.returncode, json.loads(proc.stdout)
 
 
+def _run_verify_with_profile(tmp_path: Path, action: dict, bundle: dict, profile: dict) -> tuple[int, dict]:
+    action_path = tmp_path / "action.json"
+    bundle_path = tmp_path / "bundle.json"
+    profile_path = tmp_path / "profile.json"
+    action_path.write_text(json.dumps(action, indent=2, sort_keys=True), encoding="utf-8")
+    bundle_path.write_text(json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
+    profile_path.write_text(json.dumps(profile, indent=2, sort_keys=True), encoding="utf-8")
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "tools/zenodex_oracle_adapter.py",
+            "verify",
+            "--action",
+            str(action_path),
+            "--bundle",
+            str(bundle_path),
+            "--profile",
+            str(profile_path),
+        ],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.stderr == ""
+    return proc.returncode, json.loads(proc.stdout)
+
+
 def test_oracle_adapter_accepts_matching_action_and_bundle(tmp_path: Path) -> None:
     action, bundle = sample_action_and_bundle()
     code, result = _run_verify(tmp_path, action, bundle)
@@ -50,6 +82,18 @@ def test_oracle_adapter_accepts_matching_action_and_bundle(tmp_path: Path) -> No
     assert result["value_hash"] == action["value_hash"]
     assert result["evidence_class"] == "O3"
     assert result["required_evidence_floor"] == "O3"
+    assert result["errors"] == []
+
+
+def test_oracle_adapter_accepts_matching_action_bundle_and_profile(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 0
+    assert result["ok"] is True
+    assert result["status"] == "accepted"
+    assert result["profile_id"] == profile["profile_id"]
+    assert result["profile_required_evidence_floor"] == "O3"
+    assert result["profile_max_freshness_window_epochs"] == 4
     assert result["errors"] == []
 
 
@@ -166,6 +210,69 @@ def test_oracle_adapter_rejects_hidden_action_field(tmp_path: Path) -> None:
     assert "unknown_action_field:admin_override" in result["errors"]
 
 
+def test_oracle_adapter_rejects_profile_content_hash_mismatch(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    forged_profile_id = profile["profile_id"]
+    profile["max_freshness_window_epochs"] = 3
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert f"profile_content_hash_mismatch:{forged_profile_id}" in result["errors"]
+
+
+def test_oracle_adapter_rejects_profile_consumer_module_mismatch(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["consumer_module"] = "zenodex.perps"
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "profile_consumer_module_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_profile_action_kind_mismatch(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["action_kind"] = "settle_epoch"
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "profile_action_kind_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_profile_query_mismatch(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["query_id"] = sample_hash("other-query")
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "profile_query_id_mismatch" in result["errors"]
+
+
+def test_oracle_adapter_rejects_action_evidence_floor_below_profile(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["required_evidence_floor"] = "O4"
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "action_evidence_floor_below_profile" in result["errors"]
+
+
+def test_oracle_adapter_rejects_action_freshness_window_above_profile(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["max_freshness_window_epochs"] = 3
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "action_freshness_window_exceeds_profile" in result["errors"]
+
+
+def test_oracle_adapter_rejects_noncritical_profile(tmp_path: Path) -> None:
+    action, bundle, profile = sample_action_bundle_profile()
+    profile["critical"] = False
+    profile["profile_id"] = profile_content_hash(profile)
+    code, result = _run_verify_with_profile(tmp_path, action, bundle, profile)
+    assert code == 2
+    assert "profile_must_be_critical" in result["errors"]
+
+
 def test_oracle_adapter_verify_inconclusive_on_oversized_action(tmp_path: Path) -> None:
     action_path = tmp_path / "oversized-action.json"
     bundle_path = tmp_path / "bundle.json"
@@ -197,6 +304,7 @@ def test_oracle_adapter_verify_inconclusive_on_oversized_action(tmp_path: Path) 
 def test_oracle_adapter_sample_cli_emits_verifiable_action_and_bundle(tmp_path: Path) -> None:
     action_path = tmp_path / "sample-action.json"
     bundle_path = tmp_path / "sample-bundle.json"
+    profile_path = tmp_path / "sample-profile.json"
     sample = subprocess.run(
         [
             sys.executable,
@@ -206,6 +314,8 @@ def test_oracle_adapter_sample_cli_emits_verifiable_action_and_bundle(tmp_path: 
             str(action_path),
             "--bundle-output",
             str(bundle_path),
+            "--profile-output",
+            str(profile_path),
         ],
         cwd=REPO,
         check=False,
@@ -224,6 +334,8 @@ def test_oracle_adapter_sample_cli_emits_verifiable_action_and_bundle(tmp_path: 
             str(action_path),
             "--bundle",
             str(bundle_path),
+            "--profile",
+            str(profile_path),
         ],
         cwd=REPO,
         check=False,
