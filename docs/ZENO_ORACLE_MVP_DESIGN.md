@@ -11,6 +11,9 @@ liquidation, minting, trigger execution, or guarded routing.
 The public MVP target is permissionless-human reporting. An internal devnet may
 start with allowlisted reporters, but that is not the full market MVP.
 
+The first concrete public receipt format is
+[ZENO_ORACLE_RECEIPT_FORMAT_V1.md](ZENO_ORACLE_RECEIPT_FORMAT_V1.md).
+
 ```text
 CriticalOracleUse -> AcceptedReadReceipt
 AcceptedReadReceipt :=
