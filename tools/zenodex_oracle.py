@@ -136,9 +136,17 @@ class VerifyResult:
     status: str
     errors: list[str]
     query_id: str | None = None
+    value_hash: str | None = None
     read_receipt_id: str | None = None
     consumer_action_receipt_id: str | None = None
     evidence_class: str | None = None
+    consumer_module: str | None = None
+    action_kind: str | None = None
+    action_id: str | None = None
+    observed_epoch: int | None = None
+    expires_at_epoch: int | None = None
+    action_epoch: int | None = None
+    freshness_window_epochs: int | None = None
 
     def to_json_obj(self) -> dict[str, Any]:
         return {
@@ -146,9 +154,17 @@ class VerifyResult:
             "ok": self.status == "accepted",
             "status": self.status,
             "query_id": self.query_id,
+            "value_hash": self.value_hash,
             "read_receipt_id": self.read_receipt_id,
             "consumer_action_receipt_id": self.consumer_action_receipt_id,
             "evidence_class": self.evidence_class,
+            "consumer_module": self.consumer_module,
+            "action_kind": self.action_kind,
+            "action_id": self.action_id,
+            "observed_epoch": self.observed_epoch,
+            "expires_at_epoch": self.expires_at_epoch,
+            "action_epoch": self.action_epoch,
+            "freshness_window_epochs": self.freshness_window_epochs,
             "errors": list(self.errors),
             "not_claimed": NOT_CLAIMED,
         }
@@ -406,15 +422,15 @@ def _action_receipt_ok(
     read_observed_epoch: int | None,
     read_expires_at_epoch: int | None,
     errors: list[str],
-) -> str | None:
+) -> tuple[str | None, str | None, str | None, str | None, int | None, int | None]:
     if action.get("type") != ACTION_TYPE:
         errors.append("consumer_action_type_mismatch")
     if action.get("status") != "accepted":
         errors.append("consumer_action_not_accepted")
 
-    _get_token(action, "consumer_module", errors)
-    _get_token(action, "action_kind", errors)
-    _get_hash(action, "action_id", errors)
+    consumer_module = _get_token(action, "consumer_module", errors)
+    action_kind = _get_token(action, "action_kind", errors)
+    downstream_action_id = _get_hash(action, "action_id", errors)
     action_epoch = _get_int_ge(action, "action_epoch", errors)
     freshness_window_epochs = _get_int_ge(action, "freshness_window_epochs", errors)
     action_query_id = _get_hash(action, "query_id", errors)
@@ -456,7 +472,14 @@ def _action_receipt_ok(
         errors.append("consumer_action_must_depend_on_read_receipt")
     if isinstance(deps, list) and deps != [read_id]:
         errors.append("consumer_action_dependency_must_equal_read_receipt")
-    return action_query_id
+    return (
+        action_query_id,
+        consumer_module,
+        action_kind,
+        downstream_action_id,
+        action_epoch,
+        freshness_window_epochs,
+    )
 
 
 def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
@@ -495,10 +518,22 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     value_hash: str | None = None
     observed_epoch: int | None = None
     expires_at_epoch: int | None = None
+    consumer_module: str | None = None
+    action_kind: str | None = None
+    downstream_action_id: str | None = None
+    action_epoch: int | None = None
+    freshness_window_epochs: int | None = None
     if read is not None:
         query_id, value_hash, evidence_class, observed_epoch, expires_at_epoch = _read_receipt_ok(read, errors)
     if action is not None and read_id is not None:
-        action_query_id = _action_receipt_ok(
+        (
+            action_query_id,
+            consumer_module,
+            action_kind,
+            downstream_action_id,
+            action_epoch,
+            freshness_window_epochs,
+        ) = _action_receipt_ok(
             action=action,
             read_id=read_id,
             read_query_id=query_id,
@@ -513,9 +548,17 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
         status="rejected" if errors else "accepted",
         errors=errors,
         query_id=query_id,
+        value_hash=value_hash,
         read_receipt_id=read_id,
         consumer_action_receipt_id=action_id,
         evidence_class=evidence_class,
+        consumer_module=consumer_module,
+        action_kind=action_kind,
+        action_id=downstream_action_id,
+        observed_epoch=observed_epoch,
+        expires_at_epoch=expires_at_epoch,
+        action_epoch=action_epoch,
+        freshness_window_epochs=freshness_window_epochs,
     )
 
 

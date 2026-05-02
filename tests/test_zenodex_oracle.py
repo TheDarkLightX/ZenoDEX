@@ -107,6 +107,13 @@ def test_zenodex_oracle_verify_accepts_minimal_o3_bundle(tmp_path: Path) -> None
     assert result["ok"] is True
     assert result["status"] == "accepted"
     assert result["evidence_class"] == "O3"
+    assert result["consumer_module"] == "zenodex.oracle.sample"
+    assert result["action_kind"] == "sample_critical_read"
+    assert result["observed_epoch"] == 100
+    assert result["expires_at_epoch"] == 104
+    assert result["action_epoch"] == 102
+    assert result["freshness_window_epochs"] == 4
+    assert result["value_hash"] == _h("value")
     assert result["errors"] == []
     assert "does_not_claim_true_market_price" in result["not_claimed"]
 
@@ -354,3 +361,5 @@ def test_zenodex_oracle_sample_bundle_cli_emits_verifiable_bundle(tmp_path: Path
     result = json.loads(verify_proc.stdout)
     assert result["status"] == "accepted"
     assert result["evidence_class"] == "O3"
+    assert result["consumer_module"] == "zenodex.oracle.sample"
+    assert result["action_kind"] == "sample_critical_read"
