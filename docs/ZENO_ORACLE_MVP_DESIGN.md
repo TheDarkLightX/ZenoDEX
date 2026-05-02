@@ -19,6 +19,8 @@ The first concrete public reporter lifecycle format is
 [ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md).
 The first concrete public aggregate format is
 [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md).
+The first concrete public source-diversity format is
+[ZENO_ORACLE_SOURCE_DIVERSITY_V1.md](ZENO_ORACLE_SOURCE_DIVERSITY_V1.md).
 The first concrete public query-policy format is
 [ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md).
 The first concrete public adapter format is
@@ -50,7 +52,7 @@ and uncertainty checks.
 
 Defines canonical query semantics: asset pair, unit, scale, source policy,
 reporter policy, aggregation policy, freshness policy, movement policy, dispute
-policy, token policy, and query ID.
+policy, source-diversity policy, token policy, and query ID.
 
 2. Reporter registry
 
@@ -67,7 +69,9 @@ binding, source timing, value type, and reporter sequence checks pass.
 
 Builds deterministic aggregates from accepted reports. The first concrete MVP
 kernel is an odd-cardinality median, with `median_3` as the first small,
-auditable target.
+auditable target. The current `median_3` shell embeds a source-diversity
+receipt so source IDs are tied to operator, venue, data-family, transport, and
+jurisdiction classifications.
 
 5. Read receipt lane
 
@@ -162,6 +166,8 @@ unbounded rewards.
 - signature verifies over the wrong payload;
 - unauthorized or under-bonded reporter is accepted;
 - source evidence is borrowed across reports;
+- three source strings collapse to one operator, venue, data family,
+  transport, or jurisdiction bucket;
 - aggregate is accepted without quorum;
 - aggregate value is borrowed from another report set;
 - open or unresolved dispute feeds a critical read;
@@ -182,6 +188,7 @@ This document is a design snapshot. It does not claim that:
 - the oracle token economics are finalized;
 - subjective disputes are fully solved;
 - every source is honest or independent;
+- declared source classifications are externally audited;
 - median price equals true market price;
 - every future consumer action is already integrated.
 

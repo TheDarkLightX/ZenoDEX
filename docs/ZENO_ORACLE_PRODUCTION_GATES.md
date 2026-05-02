@@ -40,6 +40,7 @@ Current public entry point:
 - `docs/ZENO_ORACLE_MVP_DESIGN.md`
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md`
 - `docs/ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md`
+- `docs/ZENO_ORACLE_SOURCE_DIVERSITY_V1.md`
 - `docs/ZENO_ORACLE_QUERY_POLICY_V1.md`
 - `docs/ZENO_ORACLE_ADAPTER_V1.md`
 - `docs/ZENO_ORACLE_CONSUMER_PROFILES_V1.md`
@@ -184,6 +185,12 @@ The current local shell for the first aggregate policy is:
 python3 tools/zenodex_oracle_median3.py verify <aggregate>
 ```
 
+The current local shell for the first source-diversity policy is:
+
+```text
+python3 tools/zenodex_oracle_source_diversity.py verify <receipt>
+```
+
 The current local shell for query-policy versioning is:
 
 ```text
@@ -238,7 +245,8 @@ Purpose: run the first live-but-limited oracle economy.
 Required properties:
 
 - at least three independent reporter identities for `median_3`;
-- documented source policy for the first pair;
+- documented source policy for the first pair, including accepted source
+  diversity across operator, venue, data family, transport, and jurisdiction;
 - bounded query reward budgets;
 - live dispute window;
 - public replay verifier;
@@ -256,6 +264,7 @@ Minimum required evidence:
 
 - replay verifier passes on fresh and historical receipt bundles;
 - stale, weak, disputed, malformed, and misbound bundles reject;
+- source-correlation mutations reject before aggregates become accepted reads;
 - reporter binary can run from a clean install;
 - token budget, bond, reward, dispute, and slash accounting have replay tests;
 - ZenoDEX critical adapter rejects raw values and wrong-receipt reuse;

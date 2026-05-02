@@ -12,6 +12,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from zenodex_oracle_source_diversity import (  # noqa: E402
+    verify_source_diversity,
+    sample_source_diversity,
+)
+
 
 AGGREGATE_SCHEMA = "zenodex.oracle.median3_aggregate.v1"
 RESULT_SCHEMA = "zenodex.oracle.median3_verify_result.v1"
@@ -27,6 +32,7 @@ TOP_LEVEL_KEYS = {
     "max_staleness_epochs",
     "max_deviation_bps",
     "min_distinct_sources",
+    "source_diversity",
     "reports",
     "aggregate",
 }
@@ -48,7 +54,7 @@ AGGREGATE_KEYS = {
 NOT_CLAIMED = [
     "does_not_claim_true_market_price",
     "does_not_claim_reporter_honesty",
-    "does_not_claim_source_independence_beyond_distinct_ids",
+    "does_not_claim_real_world_source_independence_beyond_declared_source_classification",
     "does_not_claim_production_oracle_network_live",
 ]
 
@@ -141,25 +147,27 @@ def _build_report(
 
 
 def sample_aggregate() -> dict[str, Any]:
-    query_id = sample_hash("zenodex-oracle-median3-query")
+    source_diversity = sample_source_diversity()
+    query_id = str(source_diversity["query_id"])
+    source_ids = [str(source["source_id"]) for source in source_diversity["sources"]]
     reports = [
         _build_report(
             reporter_id="reporter.alpha",
-            source_id="source.alpha",
+            source_id=source_ids[0],
             query_id=query_id,
             value_e8=100_000_000,
             observed_epoch=100,
         ),
         _build_report(
             reporter_id="reporter.beta",
-            source_id="source.beta",
+            source_id=source_ids[1],
             query_id=query_id,
             value_e8=101_000_000,
             observed_epoch=101,
         ),
         _build_report(
             reporter_id="reporter.gamma",
-            source_id="source.gamma",
+            source_id=source_ids[2],
             query_id=query_id,
             value_e8=99_500_000,
             observed_epoch=102,
@@ -176,6 +184,7 @@ def sample_aggregate() -> dict[str, Any]:
         "max_staleness_epochs": 10,
         "max_deviation_bps": 200,
         "min_distinct_sources": 3,
+        "source_diversity": source_diversity,
         "reports": reports,
         "aggregate": {
             "value_e8": median,
@@ -264,6 +273,14 @@ def _aggregate(obj: Mapping[str, Any], errors: list[str]) -> Mapping[str, Any] |
     return raw
 
 
+def _source_diversity(obj: Mapping[str, Any], errors: list[str]) -> Mapping[str, Any] | None:
+    raw = obj.get("source_diversity")
+    if not isinstance(raw, Mapping):
+        errors.append("source_diversity_must_be_object")
+        return None
+    return raw
+
+
 def verify_median3_aggregate(obj: Mapping[str, Any]) -> Median3VerifyResult:
     errors: list[str] = []
     _unknown_fields(obj, allowed=TOP_LEVEL_KEYS, label="median3", errors=errors)
@@ -285,8 +302,27 @@ def verify_median3_aggregate(obj: Mapping[str, Any]) -> Median3VerifyResult:
     max_staleness_epochs = _int_between(obj, "max_staleness_epochs", errors)
     max_deviation_bps = _int_between(obj, "max_deviation_bps", errors, maximum=10_000)
     min_distinct_sources = _int_between(obj, "min_distinct_sources", errors, minimum=1, maximum=3)
+    source_diversity = _source_diversity(obj, errors)
     reports = _reports(obj, errors)
     aggregate = _aggregate(obj, errors)
+
+    source_diversity_source_ids: set[str] = set()
+    if source_diversity is not None:
+        diversity_result = verify_source_diversity(source_diversity)
+        if diversity_result.status != "accepted":
+            for error in diversity_result.errors:
+                errors.append(f"source_diversity_rejected:{error}")
+        if (
+            query_id is not None
+            and diversity_result.query_id is not None
+            and diversity_result.query_id != query_id
+        ):
+            errors.append("source_diversity_query_id_mismatch")
+        raw_sources = source_diversity.get("sources")
+        if isinstance(raw_sources, list):
+            for source in raw_sources:
+                if isinstance(source, Mapping) and isinstance(source.get("source_id"), str):
+                    source_diversity_source_ids.add(str(source["source_id"]))
 
     values: list[int] = []
     observed_epochs: list[int] = []
@@ -340,6 +376,12 @@ def verify_median3_aggregate(obj: Mapping[str, Any]) -> Median3VerifyResult:
         errors.append(f"duplicate_report_id:{report_id}")
     if min_distinct_sources is not None and len(set(source_ids)) < min_distinct_sources:
         errors.append("not_enough_distinct_sources")
+    if (
+        len(source_ids) == 3
+        and source_diversity_source_ids
+        and set(source_ids) != source_diversity_source_ids
+    ):
+        errors.append("source_diversity_report_source_set_mismatch")
 
     median: int | None = None
     confidence: int | None = None

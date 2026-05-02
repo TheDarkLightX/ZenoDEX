@@ -23,6 +23,7 @@ market price.
   "max_staleness_epochs": 10,
   "max_deviation_bps": 200,
   "min_distinct_sources": 3,
+  "source_diversity": {},
   "reports": [],
   "aggregate": {
     "value_e8": 100000000,
@@ -43,6 +44,7 @@ Allowed top-level fields are exactly:
 - `max_staleness_epochs`
 - `max_deviation_bps`
 - `min_distinct_sources`
+- `source_diversity`
 - `reports`
 - `aggregate`
 
@@ -130,11 +132,17 @@ report.observed_epoch <= current_epoch
 current_epoch - report.observed_epoch <= max_staleness_epochs
 distinct_reporters = 3
 distinct_sources >= min_distinct_sources
+SourceDiversityAccepted
+report_source_ids = source_diversity_source_ids
 ```
 
 Plain English: all reports must answer the same query, no report may come from
 the future, every report must fit the staleness window, and the first shell does
-not let one reporter or source masquerade as three independent reports.
+not let one reporter or source masquerade as three independent reports. The
+aggregate also embeds a source-diversity receipt, so report source IDs must
+match a content-addressed classification of operator, venue, data family,
+transport, and jurisdiction diversity. The source-diversity format is described
+in [ZENO_ORACLE_SOURCE_DIVERSITY_V1.md](ZENO_ORACLE_SOURCE_DIVERSITY_V1.md).
 
 ## Result Shape
 
@@ -183,9 +191,9 @@ Run deterministic aggregate chaos replay:
 python3 tools/zenodex_oracle_median3_chaos.py
 ```
 
-The current median_3 chaos lane covers `18` named median, confidence,
-deviation, query, freshness, source, reporter, hash, schema, and hidden-field
-disaster shapes. Details are tracked in
+The current median_3 chaos lane covers `21` named median, confidence,
+deviation, query, freshness, source, reporter, source-diversity binding, hash,
+schema, and hidden-field disaster shapes. Details are tracked in
 [ZENO_ORACLE_CHAOS_ENGINEERING.md](ZENO_ORACLE_CHAOS_ENGINEERING.md).
 
 ## Non-Claims
@@ -194,7 +202,7 @@ This verifier does not claim:
 
 - the median is the true market price;
 - reporters are honest;
-- distinct reporter/source IDs prove real-world independence;
+- declared source-diversity fields prove real-world independence;
 - signatures and on-chain reporter identity are implemented in this shell;
 - a production Zeno Oracle network is live;
 - higher-redundancy aggregation policies are finalized.
