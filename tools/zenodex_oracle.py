@@ -177,6 +177,7 @@ def _dependencies_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) 
         if not isinstance(deps, list):
             errors.append(f"depends_on_must_be_list:{receipt_id}")
             continue
+        seen_deps: set[str] = set()
         for dep in deps:
             if not _is_hash(dep):
                 errors.append(f"dependency_id_must_be_sha256:{receipt_id}")
@@ -184,6 +185,10 @@ def _dependencies_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) 
                 errors.append(f"missing_dependency:{receipt_id}->{dep}")
             elif dep == receipt_id:
                 errors.append(f"dependency_self_reference:{receipt_id}")
+            elif dep in seen_deps:
+                errors.append(f"duplicate_dependency:{receipt_id}->{dep}")
+            if isinstance(dep, str):
+                seen_deps.add(dep)
 
 
 def _dependency_order_ok(
@@ -253,6 +258,10 @@ def _read_receipt_ok(read: Mapping[str, Any], errors: list[str]) -> tuple[str | 
         if not _get_bool(read, key, errors):
             errors.append(f"read_{key}_required")
 
+    deps = read.get("depends_on", [])
+    if isinstance(deps, list) and deps:
+        errors.append("read_receipt_must_have_no_dependencies")
+
     return query_id, value_hash, evidence_class
 
 
@@ -287,6 +296,8 @@ def _action_receipt_ok(
     deps = action.get("depends_on", [])
     if isinstance(deps, list) and read_id not in deps:
         errors.append("consumer_action_must_depend_on_read_receipt")
+    if isinstance(deps, list) and deps != [read_id]:
+        errors.append("consumer_action_dependency_must_equal_read_receipt")
     return action_query_id
 
 
@@ -298,6 +309,8 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     terminal = _get_mapping(bundle, "terminal", errors)
     read_id = _get_hash(terminal or {}, "read_receipt_id", errors)
     action_id = _get_hash(terminal or {}, "consumer_action_receipt_id", errors)
+    if read_id is not None and action_id is not None and read_id == action_id:
+        errors.append("terminal_receipts_must_be_distinct")
     receipts_raw = bundle.get("receipts")
     index = _receipt_index(receipts_raw, errors)
     positions = _receipt_positions(receipts_raw)

@@ -172,6 +172,56 @@ def test_zenodex_oracle_verify_rejects_dependency_self_reference(tmp_path: Path)
     assert any(error.startswith("dependency_self_reference:") for error in result["errors"])
 
 
+def test_zenodex_oracle_verify_rejects_read_dependencies(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["receipts"][0]["depends_on"] = [bundle["receipts"][1]["id"]]
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert "read_receipt_must_have_no_dependencies" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_extra_action_dependency(tmp_path: Path) -> None:
+    bundle = _bundle()
+    extra_id = _h("extra-read")
+    bundle["receipts"].insert(
+        1,
+        {
+            "id": extra_id,
+            "type": "accepted_read_receipt",
+            "status": "accepted",
+            "query_id": _h("query"),
+            "value_hash": _h("value"),
+            "evidence_class": "O3",
+            "fresh": True,
+            "dispute_clear": True,
+            "uncertainty_accepted": True,
+            "depends_on": [],
+        },
+    )
+    bundle["receipts"][2]["depends_on"] = [bundle["receipts"][0]["id"], extra_id]
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert "consumer_action_dependency_must_equal_read_receipt" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_duplicate_action_dependency(tmp_path: Path) -> None:
+    bundle = _bundle()
+    read_id = bundle["receipts"][0]["id"]
+    bundle["receipts"][1]["depends_on"] = [read_id, read_id]
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert any(error.startswith("duplicate_dependency:") for error in result["errors"])
+    assert "consumer_action_dependency_must_equal_read_receipt" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_terminal_id_aliasing(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["terminal"]["consumer_action_receipt_id"] = bundle["terminal"]["read_receipt_id"]
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert "terminal_receipts_must_be_distinct" in result["errors"]
+
+
 def test_zenodex_oracle_sample_bundle_cli_emits_verifiable_bundle(tmp_path: Path) -> None:
     bundle_path = tmp_path / "sample-bundle.json"
     sample_proc = subprocess.run(
