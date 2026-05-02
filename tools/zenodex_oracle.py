@@ -10,6 +10,7 @@ treated as an accepted critical-read receipt bundle by downstream tooling.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -29,6 +30,49 @@ NOT_CLAIMED = [
     "does_not_claim_source_honesty",
     "does_not_claim_production_network_live",
 ]
+
+
+def sample_hash(tag: str) -> str:
+    return "sha256:" + hashlib.sha256(tag.encode("utf-8")).hexdigest()
+
+
+def sample_bundle() -> dict[str, Any]:
+    query_id = sample_hash("zenodex-oracle-sample-query")
+    value_hash = sample_hash("zenodex-oracle-sample-value")
+    read_id = sample_hash("zenodex-oracle-sample-read")
+    action_id = sample_hash("zenodex-oracle-sample-action")
+    return {
+        "schema": BUNDLE_SCHEMA,
+        "terminal": {
+            "read_receipt_id": read_id,
+            "consumer_action_receipt_id": action_id,
+        },
+        "receipts": [
+            {
+                "id": read_id,
+                "type": READ_TYPE,
+                "status": "accepted",
+                "query_id": query_id,
+                "value_hash": value_hash,
+                "evidence_class": "O3",
+                "fresh": True,
+                "dispute_clear": True,
+                "uncertainty_accepted": True,
+                "depends_on": [],
+            },
+            {
+                "id": action_id,
+                "type": ACTION_TYPE,
+                "status": "accepted",
+                "query_id": query_id,
+                "value_hash": value_hash,
+                "read_receipt_id": read_id,
+                "critical": True,
+                "emergency_oracle_bypass": False,
+                "depends_on": [read_id],
+            },
+        ],
+    }
 
 
 @dataclass(frozen=True)
@@ -247,6 +291,15 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0 if result.status == "accepted" else 2
 
 
+def cmd_sample_bundle(args: argparse.Namespace) -> int:
+    text = json.dumps(sample_bundle(), indent=2, sort_keys=True) + "\n"
+    if args.output:
+        Path(args.output).write_text(text, encoding="utf-8")
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -255,6 +308,10 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("bundle", help="path to a receipt bundle JSON file")
     verify.add_argument("--output", help="optional output path for the verifier result JSON")
     verify.set_defaults(func=cmd_verify)
+
+    sample = subparsers.add_parser("sample-bundle", help="emit a minimal accepted Oracle receipt bundle")
+    sample.add_argument("--output", help="optional output path for the sample bundle JSON")
+    sample.set_defaults(func=cmd_sample_bundle)
     return parser
 
 
