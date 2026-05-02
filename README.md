@@ -612,6 +612,7 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md` — current local Oracle admitted-report median3 aggregate format
 - `docs/ZENO_ORACLE_AGGREGATE_READ_V1.md` — current local Oracle aggregate-to-read bridge format
 - `docs/ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md` — current local Oracle aggregate-to-action adapter bridge format
+- `docs/ZENO_ORACLE_RUNTIME_BRIDGE_V1.md` — first runtime Oracle bridge hook for isolated perps settlement
 - `docs/ZENO_ORACLE_FEED_REGISTRY_V1.md` — current local Oracle feed creation and registry admission format
 - `docs/ZENO_ORACLE_SOURCE_DIVERSITY_V1.md` — current local Oracle source-diversity format
 - `docs/ZENO_ORACLE_QUERY_POLICY_V1.md` — current local Oracle query-policy versioning format

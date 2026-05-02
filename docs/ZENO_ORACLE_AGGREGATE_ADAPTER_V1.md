@@ -98,9 +98,11 @@ Successful verification returns:
 }
 ```
 
-The `not_claimed` list remains part of the receipt. In particular, this bridge
-does not claim that the downstream module is already runtime-integrated. It
-only checks the local artifact chain.
+The `not_claimed` list remains part of the receipt. The bridge itself is still
+a local artifact verifier. The first runtime consumer hook is documented in
+[ZENO_ORACLE_RUNTIME_BRIDGE_V1.md](ZENO_ORACLE_RUNTIME_BRIDGE_V1.md): isolated
+perps `settle_epoch` can require a verified aggregate-adapter bridge before
+settlement proceeds.
 
 ## Replay
 
@@ -128,6 +130,6 @@ action, missing subobject, hidden-field, and schema-downgrade disaster shapes.
 This V1 shell does not yet claim:
 
 - the production Oracle network is live;
-- the downstream ZenoDEX modules are runtime-wired to this verifier;
+- every downstream ZenoDEX module is runtime-wired to this verifier;
 - profile catalogs are automatically loaded by production consumers;
 - the median is the true market price.

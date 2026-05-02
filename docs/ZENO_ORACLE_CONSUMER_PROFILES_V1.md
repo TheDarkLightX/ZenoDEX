@@ -126,7 +126,7 @@ type-confusion disaster shapes. Details are tracked in
 
 This verifier does not claim:
 
-- the runtime perps, zUSD, routing, or trigger modules are wired to the adapter;
+- every runtime perps, zUSD, routing, or trigger module is wired to the adapter;
 - the query registry is final;
 - the chosen freshness windows are production-final;
 - a live production Oracle network exists;

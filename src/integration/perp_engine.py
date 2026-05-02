@@ -42,7 +42,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from ..core.dex import DexState
 from ..core.perp_epoch import (
@@ -100,6 +100,7 @@ except Exception:  # pragma: no cover - optional dependency
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 _U32_MAX = 0xFFFFFFFF
 _BPS_SCALE = 10_000
+OracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
 
 
 def _safe_error_str(exc: Exception) -> str:
@@ -492,6 +493,13 @@ class PerpEngineConfig:
     oracle_spot_fee_bps: int = 30
     oracle_spot_reward_bps: int = 0
     oracle_spot_reward_safety_margin_bps: int = 1
+    # Optional ZenoOracle aggregate-adapter verifier. If an isolated
+    # settle_epoch op carries `oracle_adapter_bridge`, the engine verifies that
+    # bridge and checks that it binds to zenodex.perps / settle_epoch before any
+    # settlement state changes. Production can require the bridge on every
+    # isolated settlement with the boolean gate below.
+    oracle_adapter_bridge_verifier: Optional[OracleAdapterBridgeVerifier] = None
+    require_oracle_adapter_for_isolated_settle_epoch: bool = False
     # Anti-bounty-farming posture guard:
     # require a non-trivial minimum collectible liquidation penalty for bounty-eligible notional.
     min_collectible_liquidation_penalty_quote: int = 1_000
@@ -737,6 +745,87 @@ def _require_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> Opt
 
 def _is_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> bool:
     return _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
+
+
+def _oracle_adapter_result_get(result: Any, key: str) -> Any:
+    if isinstance(result, Mapping):
+        return result.get(key)
+    return getattr(result, key, None)
+
+
+def _oracle_adapter_error_summary(result: Any) -> str:
+    errors = _oracle_adapter_result_get(result, "errors")
+    if isinstance(errors, list):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    if isinstance(errors, tuple):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    return "bridge verifier rejected"
+
+
+def _require_oracle_adapter_bridge(
+    config: PerpEngineConfig,
+    *,
+    data: Mapping[str, Any],
+    consumer_module: str,
+    action_kind: str,
+    expected_action_id: Optional[str] = None,
+) -> Optional[str]:
+    if "oracle_adapter_bridge" not in data:
+        if config.require_oracle_adapter_for_isolated_settle_epoch:
+            return f"{action_kind} requires oracle_adapter_bridge"
+        return None
+
+    bridge = data.get("oracle_adapter_bridge")
+    if not isinstance(bridge, Mapping):
+        return "oracle_adapter_bridge must be an object"
+    verifier = config.oracle_adapter_bridge_verifier
+    if verifier is None:
+        return "oracle_adapter_bridge verifier not configured"
+    try:
+        result = verifier(bridge)
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier error: {_safe_error_str(exc)}"
+
+    if _oracle_adapter_result_get(result, "status") != "accepted":
+        return f"oracle_adapter_bridge rejected: {_oracle_adapter_error_summary(result)}"
+    result_consumer = _oracle_adapter_result_get(result, "consumer_module")
+    result_action = _oracle_adapter_result_get(result, "action_kind")
+    if result_consumer != consumer_module:
+        return "oracle_adapter_bridge consumer mismatch"
+    if result_action != action_kind:
+        return "oracle_adapter_bridge action mismatch"
+    result_action_id = _oracle_adapter_result_get(result, "action_id")
+    if expected_action_id is not None and result_action_id != expected_action_id:
+        return "oracle_adapter_bridge action_id mismatch"
+    return None
+
+
+def _perps_runtime_oracle_action_id(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    action_kind: str,
+    market: PerpMarketState,
+) -> str:
+    global_state = market.global_state
+    payload = {
+        "schema": "zenodex.oracle.perps_runtime_action_id.v1",
+        "chain_id": config.chain_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": action_kind,
+        "market_id": market_id,
+        "quote_asset": market.quote_asset,
+        "now_epoch": int(global_state.get("now_epoch", 0)),
+        "clearing_price_epoch": int(global_state.get("clearing_price_epoch", 0)),
+        "clearing_price_e8": int(global_state.get("clearing_price_e8", 0)),
+        "index_price_e8": int(global_state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
 def _oracle_reward_posture_error(config: PerpEngineConfig) -> Optional[str]:
@@ -1719,10 +1808,24 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
     if err is not None:
         return err
-    allowed = {"module", "version", "market_id", "action"}
+    allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
     unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
     if unknown is not None:
         return unknown
+    err = _require_oracle_adapter_bridge(
+        ctx.config,
+        data=data,
+        consumer_module="zenodex.perps",
+        action_kind="settle_epoch",
+        expected_action_id=_perps_runtime_oracle_action_id(
+            ctx.config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market=market,
+        ),
+    )
+    if err is not None:
+        return err
 
     pre_market = market
     pre_fee_pool = int(pre_market.global_state.get("fee_pool_quote", 0))

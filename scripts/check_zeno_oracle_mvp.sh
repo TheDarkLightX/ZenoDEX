@@ -36,3 +36,5 @@ pytest -q \
   tests/test_zenodex_oracle_consumer_profiles_chaos.py \
   tests/test_zenodex_oracle_economic_security.py \
   tests/test_zenodex_oracle_economic_security_chaos.py
+
+pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
