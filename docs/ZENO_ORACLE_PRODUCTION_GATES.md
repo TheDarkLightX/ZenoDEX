@@ -38,6 +38,7 @@ Current public entry point:
 
 - `docs/ZENO_ORACLE_MVP_DESIGN.md`
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md`
+- `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md`
 
 ## Gate 1: Canonical Object Format
 
@@ -157,6 +158,12 @@ ReporterShare + TreasuryShare + BurnShare <= FeePaid
 
 These are budget laws, not token-price promises. They prevent the oracle from
 creating liabilities larger than verified balances.
+
+The current local shell for these laws is:
+
+```text
+python3 tools/zenodex_oracle_budget.py verify <transition>
+```
 
 ## Gate 5: Critical ZenoDEX Adapter
 
