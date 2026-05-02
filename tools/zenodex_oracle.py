@@ -24,8 +24,34 @@ RESULT_SCHEMA = "zenodex.oracle.verify_result.v1"
 READ_TYPE = "accepted_read_receipt"
 ACTION_TYPE = "consumer_action_receipt"
 SUPPORTED_RECEIPT_TYPES = {READ_TYPE, ACTION_TYPE}
+MAX_BUNDLE_BYTES = 1_000_000
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+BUNDLE_KEYS = {"schema", "terminal", "receipts"}
+TERMINAL_KEYS = {"read_receipt_id", "consumer_action_receipt_id"}
+READ_RECEIPT_KEYS = {
+    "id",
+    "type",
+    "status",
+    "query_id",
+    "value_hash",
+    "evidence_class",
+    "fresh",
+    "dispute_clear",
+    "uncertainty_accepted",
+    "depends_on",
+}
+ACTION_RECEIPT_KEYS = {
+    "id",
+    "type",
+    "status",
+    "query_id",
+    "value_hash",
+    "read_receipt_id",
+    "critical",
+    "emergency_oracle_bypass",
+    "depends_on",
+}
 NOT_CLAIMED = [
     "does_not_claim_true_market_price",
     "does_not_claim_source_honesty",
@@ -127,6 +153,20 @@ def _get_hash(obj: Mapping[str, Any], key: str, errors: list[str]) -> str | None
     return str(value)
 
 
+def _unknown_fields(
+    obj: Mapping[str, Any],
+    *,
+    allowed: set[str],
+    label: str,
+    errors: list[str],
+) -> None:
+    for key in obj.keys():
+        if not isinstance(key, str):
+            errors.append(f"{label}_field_must_be_string")
+        elif key not in allowed:
+            errors.append(f"unknown_{label}_field:{key}")
+
+
 def _receipt_index(receipts_raw: object, errors: list[str]) -> dict[str, Mapping[str, Any]]:
     if not isinstance(receipts_raw, list):
         errors.append("receipts_must_be_list")
@@ -167,6 +207,25 @@ def _receipt_types_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str])
     for receipt_id, receipt in index.items():
         if receipt.get("type") not in SUPPORTED_RECEIPT_TYPES:
             errors.append(f"unsupported_receipt_type:{receipt_id}")
+
+
+def _receipt_shapes_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
+    for receipt in index.values():
+        receipt_type = receipt.get("type")
+        if receipt_type == READ_TYPE:
+            _unknown_fields(
+                receipt,
+                allowed=READ_RECEIPT_KEYS,
+                label="read_receipt",
+                errors=errors,
+            )
+        elif receipt_type == ACTION_TYPE:
+            _unknown_fields(
+                receipt,
+                allowed=ACTION_RECEIPT_KEYS,
+                label="consumer_action_receipt",
+                errors=errors,
+            )
 
 
 def _dependencies_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
@@ -303,10 +362,13 @@ def _action_receipt_ok(
 
 def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     errors: list[str] = []
+    _unknown_fields(bundle, allowed=BUNDLE_KEYS, label="bundle", errors=errors)
     if bundle.get("schema") != BUNDLE_SCHEMA:
         errors.append("bundle_schema_mismatch")
 
     terminal = _get_mapping(bundle, "terminal", errors)
+    if terminal is not None:
+        _unknown_fields(terminal, allowed=TERMINAL_KEYS, label="terminal", errors=errors)
     read_id = _get_hash(terminal or {}, "read_receipt_id", errors)
     action_id = _get_hash(terminal or {}, "consumer_action_receipt_id", errors)
     if read_id is not None and action_id is not None and read_id == action_id:
@@ -314,6 +376,7 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     receipts_raw = bundle.get("receipts")
     index = _receipt_index(receipts_raw, errors)
     positions = _receipt_positions(receipts_raw)
+    _receipt_shapes_ok(index, errors)
     _receipt_types_ok(index, errors)
     _dependencies_ok(index, errors)
     _dependency_order_ok(index, positions, errors)
@@ -353,6 +416,9 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
 
 
 def _load_json(path: Path) -> Mapping[str, Any]:
+    size = path.stat().st_size
+    if size > MAX_BUNDLE_BYTES:
+        raise ValueError(f"bundle_file_too_large:{size}>{MAX_BUNDLE_BYTES}")
     with path.open("r", encoding="utf-8") as handle:
         obj = json.load(handle)
     if not isinstance(obj, Mapping):
