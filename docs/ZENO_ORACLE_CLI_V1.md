@@ -116,3 +116,15 @@ This CLI does not claim:
 - production ZenoDEX consumers are wired to Oracle reads.
 
 It is the first local runner for the public-testnet Oracle shell.
+
+## CI Gate
+
+The local release gate is:
+
+```bash
+bash scripts/check_zeno_oracle_mvp.sh
+```
+
+That script runs `doctor`, `chaos all`, and the full Oracle pytest slice. The
+GitHub Actions workflow `.github/workflows/zeno-oracle-mvp.yml` runs the same
+gate on pull requests and pushes to `main` or this Oracle MVP branch.
