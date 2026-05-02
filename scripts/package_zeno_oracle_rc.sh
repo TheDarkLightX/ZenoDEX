@@ -7,8 +7,9 @@ dist_dir="${root}/dist"
 stage="${dist_dir}/${version}"
 
 rm -rf "${stage}"
-mkdir -p "${stage}/tools" "${stage}/docs" "${stage}/scripts"
+mkdir -p "${stage}/bin" "${stage}/tools" "${stage}/docs" "${stage}/scripts"
 
+cp "${root}/bin/zenodex-oracle" "${stage}/bin/zenodex-oracle"
 cp "${root}/README.md" "${stage}/README.md"
 cp "${root}/requirements-core.txt" "${stage}/requirements-core.txt"
 cp "${root}/requirements-dev.txt" "${stage}/requirements-dev.txt"
@@ -24,6 +25,7 @@ find "${root}/docs" -maxdepth 1 -type f -name 'ZENO_ORACLE*.md' -print0 |
   xargs -0 -I{} cp "{}" "${stage}/docs/"
 
 chmod +x "${stage}/tools/zenodex_oracle_cli.py"
+chmod +x "${stage}/bin/zenodex-oracle"
 chmod +x "${stage}/scripts/check_zeno_oracle_mvp.sh"
 chmod +x "${stage}/scripts/package_zeno_oracle_rc.sh"
 
@@ -62,7 +64,8 @@ manifest = {
     "version": version,
     "source_commit": commit,
     "created_utc": created_utc,
-    "entrypoint": "tools/zenodex_oracle_cli.py",
+    "entrypoint": "bin/zenodex-oracle",
+    "python_entrypoint": "tools/zenodex_oracle_cli.py",
     "local_gate": "scripts/check_zeno_oracle_mvp.sh",
     "file_count": len(files),
     "files": files,

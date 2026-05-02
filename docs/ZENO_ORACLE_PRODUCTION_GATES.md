@@ -133,10 +133,13 @@ The first user-facing binary should support:
 - dispute/slash status display;
 - local dry-run mode.
 
-The current local CLI wrapper is not yet a release binary, but it gives users
-one command surface for local samples, verification, and chaos replay:
+The current local CLI wrapper is not yet a platform-native release binary, but
+the RC package now includes `bin/zenodex-oracle` as an executable launcher. It
+gives users one command surface for local samples, verification, and chaos
+replay:
 
 ```text
+bin/zenodex-oracle doctor
 python3 tools/zenodex_oracle_cli.py doctor
 python3 tools/zenodex_oracle_cli.py sample feed --output /tmp/zeno-oracle-feed-registry.json
 python3 tools/zenodex_oracle_cli.py verify feed /tmp/zeno-oracle-feed-registry.json

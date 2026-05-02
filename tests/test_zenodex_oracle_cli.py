@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 CLI = [sys.executable, "tools/zenodex_oracle_cli.py"]
+WRAPPER = [str(REPO / "bin" / "zenodex-oracle")]
 
 
 def test_oracle_cli_doctor_and_list() -> None:
@@ -37,6 +38,42 @@ def test_oracle_cli_doctor_and_list() -> None:
     assert "feed" in listing["surfaces"]
     assert "signed-report" in listing["surfaces"]
     assert listing["aliases"]["feed-registry"] == "feed"
+
+
+def test_oracle_cli_packaged_wrapper_runs_doctor() -> None:
+    doctor = subprocess.run(
+        [*WRAPPER, "doctor"],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert doctor.returncode == 0, doctor.stderr
+    receipt = json.loads(doctor.stdout)
+    assert receipt["ok"] is True
+    assert receipt["surface_count"] >= 15
+
+
+def test_oracle_rc_package_exposes_bin_entrypoint() -> None:
+    version = "zeno-oracle-pytest-rc"
+    proc = subprocess.run(
+        ["bash", "scripts/package_zeno_oracle_rc.sh", version],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+    stage = REPO / "dist" / version
+    manifest_path = stage / "ZEN_ORACLE_RC_MANIFEST.json"
+    wrapper_path = stage / "bin" / "zenodex-oracle"
+    assert wrapper_path.is_file()
+    assert wrapper_path.stat().st_mode & 0o111
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["entrypoint"] == "bin/zenodex-oracle"
+    assert manifest["python_entrypoint"] == "tools/zenodex_oracle_cli.py"
+    assert any(item["path"] == "bin/zenodex-oracle" for item in manifest["files"])
 
 
 def test_oracle_cli_creates_and_verifies_feed_registry(tmp_path: Path) -> None:
