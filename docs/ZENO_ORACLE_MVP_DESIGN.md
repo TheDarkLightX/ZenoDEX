@@ -15,6 +15,8 @@ The first concrete public receipt format is
 [ZENO_ORACLE_RECEIPT_FORMAT_V1.md](ZENO_ORACLE_RECEIPT_FORMAT_V1.md).
 The first concrete public token budget format is
 [ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md).
+The first concrete public reporter lifecycle format is
+[ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md).
 
 ```text
 CriticalOracleUse -> AcceptedReadReceipt

@@ -40,6 +40,7 @@ Current public entry point:
 - `docs/ZENO_ORACLE_MVP_DESIGN.md`
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md`
 - `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md`
+- `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md`
 
 ## Gate 1: Canonical Object Format
 
@@ -164,6 +165,12 @@ The current local shell for these laws is:
 
 ```text
 python3 tools/zenodex_oracle_budget.py verify <transition>
+```
+
+The current local shell for reporter lifecycle sequencing is:
+
+```text
+python3 tools/zenodex_oracle_reporter_lifecycle.py verify <trace>
 ```
 
 ## Gate 5: Critical ZenoDEX Adapter
