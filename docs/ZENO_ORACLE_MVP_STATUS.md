@@ -21,6 +21,8 @@ is a status page, not a production launch claim.
 | Report admission chaos replay | `tools/zenodex_oracle_report_admission_chaos.py` | `python3 tools/zenodex_oracle_report_admission_chaos.py` |
 | Median3 aggregate verifier | `tools/zenodex_oracle_median3.py` | `python3 tools/zenodex_oracle_median3.py verify <aggregate>` |
 | Median3 aggregate chaos replay | `tools/zenodex_oracle_median3_chaos.py` | `python3 tools/zenodex_oracle_median3_chaos.py` |
+| Admitted median3 verifier | `tools/zenodex_oracle_admitted_median3.py` | `python3 tools/zenodex_oracle_admitted_median3.py verify <aggregate>` |
+| Admitted median3 chaos replay | `tools/zenodex_oracle_admitted_median3_chaos.py` | `python3 tools/zenodex_oracle_admitted_median3_chaos.py` |
 | Source diversity verifier | `tools/zenodex_oracle_source_diversity.py` | `python3 tools/zenodex_oracle_source_diversity.py verify <receipt>` |
 | Source diversity chaos replay | `tools/zenodex_oracle_source_diversity_chaos.py` | `python3 tools/zenodex_oracle_source_diversity_chaos.py` |
 | Query-policy verifier | `tools/zenodex_oracle_query_policy.py` | `python3 tools/zenodex_oracle_query_policy.py verify <trace>` |
@@ -59,6 +61,10 @@ median3_chaos_case_count = 21
 median3_chaos_rejected_count = 21
 median3_chaos_failed_count = 0
 
+admitted_median3_chaos_case_count = 18
+admitted_median3_chaos_rejected_count = 18
+admitted_median3_chaos_failed_count = 0
+
 source_diversity_chaos_case_count = 16
 source_diversity_chaos_rejected_count = 16
 source_diversity_chaos_failed_count = 0
@@ -79,8 +85,8 @@ economic_security_chaos_case_count = 14
 economic_security_chaos_rejected_count = 14
 economic_security_chaos_failed_count = 0
 
-total_oracle_chaos_case_count = 207
-total_oracle_chaos_rejected_count = 207
+total_oracle_chaos_case_count = 225
+total_oracle_chaos_rejected_count = 225
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -97,8 +103,13 @@ events, source-policy mismatches, stale/future admission, hidden-field, schema,
 type-confusion, and malformed-subreceipt mutations. The local median3 aggregate
 verifier rejects all currently named miscomputed aggregate, stale/future report,
 query mismatch, duplicate source/reporter, source-diversity binding,
-forged-hash, schema, and hidden-field mutations. The local source-diversity
-verifier rejects all currently named
+forged-hash, schema, and hidden-field mutations. The local admitted-median3
+verifier rejects all currently named aggregate-from-admission hash, median,
+confidence, deviation, observed-epoch, admission-count, admission-rejection,
+duplicate-admission, duplicate-reporter, duplicate-source, query mismatch,
+freshness-window mismatch, multi-report admission, deviation-policy,
+hidden-field, and schema mutations. The local source-diversity verifier rejects
+all currently named
 source-set hash, duplicate-source, operator, venue, data-family, transport,
 jurisdiction, hidden-field, schema, type-confusion, and malformed-source
 mutations. The local query-policy verifier rejects all currently named silent
@@ -132,6 +143,8 @@ pytest -q \
   tests/test_zenodex_oracle_report_admission_chaos.py \
   tests/test_zenodex_oracle_median3.py \
   tests/test_zenodex_oracle_median3_chaos.py \
+  tests/test_zenodex_oracle_admitted_median3.py \
+  tests/test_zenodex_oracle_admitted_median3_chaos.py \
   tests/test_zenodex_oracle_source_diversity.py \
   tests/test_zenodex_oracle_source_diversity_chaos.py \
   tests/test_zenodex_oracle_query_policy.py \
@@ -147,7 +160,7 @@ pytest -q \
 Current result on this branch:
 
 ```text
-208 passed
+220 passed
 ```
 
 ## Public Contract Documents
@@ -157,6 +170,7 @@ Current result on this branch:
 - [ZENO_ORACLE_SIGNED_REPORT_V1.md](ZENO_ORACLE_SIGNED_REPORT_V1.md)
 - [ZENO_ORACLE_REPORT_ADMISSION_V1.md](ZENO_ORACLE_REPORT_ADMISSION_V1.md)
 - [ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md)
+- [ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md](ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md)
 - [ZENO_ORACLE_SOURCE_DIVERSITY_V1.md](ZENO_ORACLE_SOURCE_DIVERSITY_V1.md)
 - [ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md)
 - [ZENO_ORACLE_ADAPTER_V1.md](ZENO_ORACLE_ADAPTER_V1.md)
@@ -177,6 +191,7 @@ ReceiptAccepted -> ContentHashMatches and ConsumerActionBound
 SignedReportAccepted -> PayloadHashMatches and SignatureValid and SequenceChainValid
 ReportAdmissionAccepted -> SignedReportAccepted and LifecycleSubmitMatches and SourcePolicyMatches
 Median3Accepted -> ExactMedian and SourceDiversityAccepted and DeviationWithinPolicy
+AdmittedMedian3Accepted -> ReportAdmissionAccepted and ExactMedian and DeviationWithinPolicy
 SourceDiversityAccepted -> DistinctOperatorsVenuesFamiliesTransportsJurisdictions
 QueryPolicyAccepted -> NoSilentDowngrade and CriticalConsumersBindLatestPolicy
 OracleUseOK(action, bundle, profile) ->
@@ -194,14 +209,16 @@ submissions must verify the BLS signature over the exact payload and preserve a
 contiguous previous-report chain. The report-admission bridge then requires the
 signed report, lifecycle submit event, and source-diversity policy to describe
 the same reporter, report, query, source, payload hash, and freshness window.
-Median3 aggregates must compute the stated median/confidence/deviation from
-exactly three reports, and the report source IDs must match an accepted
-source-diversity receipt. That receipt checks declared operator, venue,
-data-family, transport, and jurisdiction diversity before the aggregate can
-pass. Query-policy revisions must not silently weaken critical freshness,
-evidence, deviation, quorum, or schema requirements. Token movements must fit
-inside explicit budgets, bonds, or fees. Reporter traces must keep report
-submission, disputes, slashing, exit, and withdrawal in the safe order.
+Plain median3 aggregates must compute the stated median/confidence/deviation
+from exactly three reports, and the report source IDs must match an accepted
+source-diversity receipt. The admitted-median3 bridge tightens this by requiring
+each aggregate input to be an accepted report-admission bundle before median
+computation. That receipt checks declared operator, venue, data-family,
+transport, and jurisdiction diversity before the aggregate can pass.
+Query-policy revisions must not silently weaken critical freshness, evidence,
+deviation, quorum, or schema requirements. Token movements must fit inside
+explicit budgets, bonds, or fees. Reporter traces must keep report submission,
+disputes, slashing, exit, and withdrawal in the safe order.
 The adapter then checks a downstream action against the accepted bundle facts so
 critical actions cannot borrow receipts from a different module, action, query,
 value, epoch, read receipt, or consumer-action receipt. When a consumer profile

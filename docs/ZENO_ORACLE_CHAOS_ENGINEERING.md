@@ -94,12 +94,12 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
-The current public Oracle chaos lanes together cover `207` named disaster
+The current public Oracle chaos lanes together cover `225` named disaster
 shapes, all rejected in the latest local replay:
 
 ```text
-total_oracle_chaos_case_count = 207
-total_oracle_chaos_rejected_count = 207
+total_oracle_chaos_case_count = 225
+total_oracle_chaos_rejected_count = 225
 total_oracle_chaos_failed_count = 0
 ```
 
@@ -376,6 +376,61 @@ ValidMedian3Aggregate + DangerousPerturbation -> RejectedAggregate
 
 Plain English: if a mutation changes the median, confidence, deviation, source
 set, query binding, freshness, or content hash, the local verifier rejects the
+aggregate before it can become an accepted read.
+
+## Admitted Median3 Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_admitted_median3_chaos.py
+```
+
+The replay starts with one accepted admitted-median3 aggregate, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `aggregate_hash_forgery_survives` | aggregate ID no longer matches aggregate body |
+| `wrong_median_value_survives` | aggregate value is not the median of admitted reports |
+| `wrong_confidence_survives` | confidence radius is understated or miscomputed |
+| `wrong_deviation_survives` | deviation bps is understated or miscomputed |
+| `wrong_observed_epoch_survives` | aggregate observation epoch does not match admitted report epochs |
+| `too_few_admissions_survive` | aggregate is accepted below the three-admission quorum |
+| `admission_rejection_survives` | rejected report admission remains aggregatable |
+| `duplicate_admission_survives` | one admission counts as multiple independent admissions |
+| `duplicate_reporter_survives` | one reporter counts as multiple reporters |
+| `duplicate_source_survives` | one source counts as multiple independent sources |
+| `admission_query_mismatch_survives` | admission policy disagrees with aggregate query |
+| `admission_epoch_mismatch_survives` | admission freshness epoch disagrees with aggregate epoch |
+| `admission_staleness_mismatch_survives` | admission staleness window disagrees with aggregate policy |
+| `multi_report_admission_survives` | aggregate input hides selection inside a multi-report admission |
+| `deviation_policy_exceeded_survives` | high-deviation aggregate passes policy |
+| `hidden_top_level_field_survives` | aggregate carries unchecked authority/debug data |
+| `hidden_aggregate_field_survives` | aggregate result carries unchecked authority/debug data |
+| `wrong_schema_survives` | admitted-median3 schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.admitted_median3_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 18,
+  "rejected_case_count": 18,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the bridge from report admission to aggregate construction:
+
+```text
+ValidAdmittedMedian3 + DangerousPerturbation -> RejectedAdmittedMedian3
+```
+
+Plain English: if a mutation lets a rejected, duplicated, query-mismatched, or
+freshness-mismatched admission enter the median, the local verifier rejects the
 aggregate before it can become an accepted read.
 
 ## Source Diversity Replay Lane
