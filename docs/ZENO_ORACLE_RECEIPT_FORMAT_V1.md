@@ -47,6 +47,24 @@ Allowed terminal fields are exactly:
 
 Both must be lowercase `sha256:<64 hex chars>` IDs, and they must be distinct.
 
+## Receipt IDs
+
+Every receipt ID is content-addressed:
+
+```text
+receipt.id := sha256(canonical_json(receipt without id))
+```
+
+Plain English: the ID commits to the receipt body. If a field changes but the
+ID stays the same, the verifier rejects the receipt.
+
+The current canonical JSON rule is:
+
+- remove only the `id` field from the receipt object;
+- encode UTF-8 JSON with sorted object keys;
+- use compact separators, with no extra whitespace;
+- reject values that cannot be encoded as strict JSON.
+
 ## Accepted Read Receipt
 
 ```json
@@ -157,6 +175,7 @@ and one valid freshness window.
 The first public shell accepts only one independent read receipt and one action
 receipt depending on that read. The verifier rejects:
 
+- receipt IDs that do not equal the canonical body hash;
 - missing dependencies;
 - duplicate receipt IDs;
 - duplicate dependency edges;

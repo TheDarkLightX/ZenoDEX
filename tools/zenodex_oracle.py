@@ -71,49 +71,63 @@ def sample_hash(tag: str) -> str:
     return "sha256:" + hashlib.sha256(tag.encode("utf-8")).hexdigest()
 
 
+def _canonical_json_bytes(obj: Mapping[str, Any]) -> bytes:
+    return json.dumps(
+        obj,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def receipt_content_hash(receipt: Mapping[str, Any]) -> str:
+    body = {key: value for key, value in receipt.items() if key != "id"}
+    return "sha256:" + hashlib.sha256(_canonical_json_bytes(body)).hexdigest()
+
+
 def sample_bundle() -> dict[str, Any]:
     query_id = sample_hash("zenodex-oracle-sample-query")
     value_hash = sample_hash("zenodex-oracle-sample-value")
-    read_id = sample_hash("zenodex-oracle-sample-read")
-    action_id = sample_hash("zenodex-oracle-sample-action")
+    read = {
+        "type": READ_TYPE,
+        "status": "accepted",
+        "query_id": query_id,
+        "value_hash": value_hash,
+        "evidence_class": "O3",
+        "fresh": True,
+        "observed_epoch": 100,
+        "expires_at_epoch": 104,
+        "dispute_clear": True,
+        "uncertainty_accepted": True,
+        "depends_on": [],
+    }
+    read_id = receipt_content_hash(read)
+    read["id"] = read_id
+    action = {
+        "type": ACTION_TYPE,
+        "status": "accepted",
+        "consumer_module": "zenodex.oracle.sample",
+        "action_kind": "sample_critical_read",
+        "action_id": sample_hash("zenodex-oracle-sample-downstream-action"),
+        "action_epoch": 102,
+        "freshness_window_epochs": 4,
+        "query_id": query_id,
+        "value_hash": value_hash,
+        "read_receipt_id": read_id,
+        "critical": True,
+        "emergency_oracle_bypass": False,
+        "depends_on": [read_id],
+    }
+    action_id = receipt_content_hash(action)
+    action["id"] = action_id
     return {
         "schema": BUNDLE_SCHEMA,
         "terminal": {
             "read_receipt_id": read_id,
             "consumer_action_receipt_id": action_id,
         },
-        "receipts": [
-            {
-                "id": read_id,
-                "type": READ_TYPE,
-                "status": "accepted",
-                "query_id": query_id,
-                "value_hash": value_hash,
-                "evidence_class": "O3",
-                "fresh": True,
-                "observed_epoch": 100,
-                "expires_at_epoch": 104,
-                "dispute_clear": True,
-                "uncertainty_accepted": True,
-                "depends_on": [],
-            },
-            {
-                "id": action_id,
-                "type": ACTION_TYPE,
-                "status": "accepted",
-                "consumer_module": "zenodex.oracle.sample",
-                "action_kind": "sample_critical_read",
-                "action_id": sample_hash("zenodex-oracle-sample-downstream-action"),
-                "action_epoch": 102,
-                "freshness_window_epochs": 4,
-                "query_id": query_id,
-                "value_hash": value_hash,
-                "read_receipt_id": read_id,
-                "critical": True,
-                "emergency_oracle_bypass": False,
-                "depends_on": [read_id],
-            },
-        ],
+        "receipts": [read, action],
     }
 
 
@@ -244,6 +258,17 @@ def _receipt_types_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str])
     for receipt_id, receipt in index.items():
         if receipt.get("type") not in SUPPORTED_RECEIPT_TYPES:
             errors.append(f"unsupported_receipt_type:{receipt_id}")
+
+
+def _receipt_content_hashes_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
+    for receipt_id, receipt in index.items():
+        try:
+            expected = receipt_content_hash(receipt)
+        except (TypeError, ValueError):
+            errors.append(f"receipt_content_hash_unencodable:{receipt_id}")
+            continue
+        if receipt_id != expected:
+            errors.append(f"receipt_content_hash_mismatch:{receipt_id}")
 
 
 def _receipt_shapes_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
@@ -450,6 +475,7 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     receipts_raw = bundle.get("receipts")
     index = _receipt_index(receipts_raw, errors)
     positions = _receipt_positions(receipts_raw)
+    _receipt_content_hashes_ok(index, errors)
     _receipt_shapes_ok(index, errors)
     _receipt_types_ok(index, errors)
     _dependencies_ok(index, errors)

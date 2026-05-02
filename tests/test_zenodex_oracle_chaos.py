@@ -21,8 +21,8 @@ def test_zenodex_oracle_chaos_replay_rejects_all_mutants() -> None:
     receipt = json.loads(proc.stdout)
     assert receipt["ok"] is True
     assert receipt["baseline_status"] == "accepted"
-    assert receipt["case_count"] == 27
-    assert receipt["rejected_case_count"] == 27
+    assert receipt["case_count"] == 28
+    assert receipt["rejected_case_count"] == 28
     assert receipt["failed_case_count"] == 0
 
     names = {case["name"] for case in receipt["cases"]}
@@ -44,6 +44,7 @@ def test_zenodex_oracle_chaos_replay_rejects_all_mutants() -> None:
     assert "consumer_action_replays_expired_read" in names
     assert "consumer_action_precedes_read_observation" in names
     assert "consumer_action_erases_consumer_identity" in names
+    assert "receipt_id_forged_without_body_match" in names
 
 
 def test_zenodex_oracle_chaos_writes_output_receipt(tmp_path: Path) -> None:

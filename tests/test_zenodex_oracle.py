@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -11,6 +12,18 @@ REPO = Path(__file__).resolve().parents[1]
 
 def _h(tag: str) -> str:
     return "sha256:" + tag.encode("utf-8").hex().ljust(64, "0")[:64]
+
+
+def _receipt_content_hash(receipt: dict) -> str:
+    body = {key: value for key, value in receipt.items() if key != "id"}
+    payload = json.dumps(
+        body,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
 
 
 def _bundle(
@@ -32,46 +45,45 @@ def _bundle(
 ) -> dict:
     query_id = _h("query")
     value_hash = _h("value")
-    read_id = _h("read")
-    action_id = _h("action")
+    read = {
+        "type": "accepted_read_receipt",
+        "status": "accepted",
+        "query_id": query_id,
+        "value_hash": value_hash,
+        "evidence_class": evidence_class,
+        "fresh": fresh,
+        "observed_epoch": observed_epoch,
+        "expires_at_epoch": expires_at_epoch,
+        "dispute_clear": dispute_clear,
+        "uncertainty_accepted": uncertainty_accepted,
+        "depends_on": [],
+    }
+    read_id = _receipt_content_hash(read)
+    read["id"] = read_id
+    action = {
+        "type": "consumer_action_receipt",
+        "status": "accepted",
+        "consumer_module": consumer_module,
+        "action_kind": action_kind,
+        "action_id": _h("downstream-action"),
+        "action_epoch": action_epoch,
+        "freshness_window_epochs": freshness_window_epochs,
+        "query_id": action_query_id or query_id,
+        "value_hash": action_value_hash or value_hash,
+        "read_receipt_id": read_id,
+        "critical": True,
+        "emergency_oracle_bypass": emergency_bypass,
+        "depends_on": [read_id] if include_dependency else [],
+    }
+    action_id = _receipt_content_hash(action)
+    action["id"] = action_id
     return {
         "schema": "zenodex.oracle.receipt_bundle.v1",
         "terminal": {
             "read_receipt_id": read_id,
             "consumer_action_receipt_id": action_id,
         },
-        "receipts": [
-            {
-                "id": read_id,
-                "type": "accepted_read_receipt",
-                "status": "accepted",
-                "query_id": query_id,
-                "value_hash": value_hash,
-                "evidence_class": evidence_class,
-                "fresh": fresh,
-                "observed_epoch": observed_epoch,
-                "expires_at_epoch": expires_at_epoch,
-                "dispute_clear": dispute_clear,
-                "uncertainty_accepted": uncertainty_accepted,
-                "depends_on": [],
-            },
-            {
-                "id": action_id,
-                "type": "consumer_action_receipt",
-                "status": "accepted",
-                "consumer_module": consumer_module,
-                "action_kind": action_kind,
-                "action_id": _h("downstream-action"),
-                "action_epoch": action_epoch,
-                "freshness_window_epochs": freshness_window_epochs,
-                "query_id": action_query_id or query_id,
-                "value_hash": action_value_hash or value_hash,
-                "read_receipt_id": read_id,
-                "critical": True,
-                "emergency_oracle_bypass": emergency_bypass,
-                "depends_on": [read_id] if include_dependency else [],
-            },
-        ],
+        "receipts": [read, action],
     }
 
 
@@ -252,6 +264,22 @@ def test_zenodex_oracle_verify_rejects_terminal_id_aliasing(tmp_path: Path) -> N
     code, result = _run_verify(tmp_path, bundle)
     assert code == 2
     assert "terminal_receipts_must_be_distinct" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_forged_receipt_content_hash(tmp_path: Path) -> None:
+    bundle = _bundle()
+    forged_read_id = _h("forged-read")
+    read = bundle["receipts"][0]
+    action = bundle["receipts"][1]
+    read["id"] = forged_read_id
+    bundle["terminal"]["read_receipt_id"] = forged_read_id
+    action["read_receipt_id"] = forged_read_id
+    action["depends_on"] = [forged_read_id]
+    action["id"] = _receipt_content_hash(action)
+    bundle["terminal"]["consumer_action_receipt_id"] = action["id"]
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert f"receipt_content_hash_mismatch:{forged_read_id}" in result["errors"]
 
 
 def test_zenodex_oracle_verify_rejects_unknown_top_level_field(tmp_path: Path) -> None:
