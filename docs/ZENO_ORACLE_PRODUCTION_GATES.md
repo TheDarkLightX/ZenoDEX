@@ -143,6 +143,12 @@ python3 tools/zenodex_oracle_cli.py verify feed /tmp/zeno-oracle-feed-registry.j
 python3 tools/zenodex_oracle_cli.py chaos all
 ```
 
+The CI/local replay gate is:
+
+```text
+bash scripts/check_zeno_oracle_mvp.sh
+```
+
 The binary should never hide risk from the reporter. Before a reporter submits,
 it should display:
 
@@ -315,6 +321,7 @@ Purpose: decide when a critical consumer can safely depend on Zeno Oracle.
 Minimum required evidence:
 
 - replay verifier passes on fresh and historical receipt bundles;
+- `.github/workflows/zeno-oracle-mvp.yml` runs the Oracle replay gate in CI;
 - stale, weak, disputed, malformed, and misbound bundles reject;
 - signed report payload, signature, sequence, and previous-link mutations reject;
 - report admission rejects signed/lifecycle/source-diversity mismatches;

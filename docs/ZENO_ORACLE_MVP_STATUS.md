@@ -161,45 +161,21 @@ mutations.
 ## Current Test Command
 
 ```bash
-pytest -q \
-  tests/test_zenodex_oracle_cli.py \
-  tests/test_zenodex_oracle.py \
-  tests/test_zenodex_oracle_chaos.py \
-  tests/test_zenodex_oracle_budget.py \
-  tests/test_zenodex_oracle_budget_chaos.py \
-  tests/test_zenodex_oracle_reporter_lifecycle.py \
-  tests/test_zenodex_oracle_reporter_lifecycle_chaos.py \
-  tests/test_zenodex_oracle_signed_report.py \
-  tests/test_zenodex_oracle_signed_report_chaos.py \
-  tests/test_zenodex_oracle_report_admission.py \
-  tests/test_zenodex_oracle_report_admission_chaos.py \
-  tests/test_zenodex_oracle_median3.py \
-  tests/test_zenodex_oracle_median3_chaos.py \
-  tests/test_zenodex_oracle_admitted_median3.py \
-  tests/test_zenodex_oracle_admitted_median3_chaos.py \
-  tests/test_zenodex_oracle_aggregate_read.py \
-  tests/test_zenodex_oracle_aggregate_read_chaos.py \
-  tests/test_zenodex_oracle_aggregate_adapter.py \
-  tests/test_zenodex_oracle_aggregate_adapter_chaos.py \
-  tests/test_zenodex_oracle_feed_registry.py \
-  tests/test_zenodex_oracle_feed_registry_chaos.py \
-  tests/test_zenodex_oracle_source_diversity.py \
-  tests/test_zenodex_oracle_source_diversity_chaos.py \
-  tests/test_zenodex_oracle_query_policy.py \
-  tests/test_zenodex_oracle_query_policy_chaos.py \
-  tests/test_zenodex_oracle_adapter.py \
-  tests/test_zenodex_oracle_adapter_chaos.py \
-  tests/test_zenodex_oracle_consumer_profiles.py \
-  tests/test_zenodex_oracle_consumer_profiles_chaos.py \
-  tests/test_zenodex_oracle_economic_security.py \
-  tests/test_zenodex_oracle_economic_security_chaos.py
+bash scripts/check_zeno_oracle_mvp.sh
 ```
 
 Current result on this branch:
 
 ```text
+doctor_ok = true
+chaos_all_case_count = 283
+chaos_all_rejected_count = 283
+chaos_all_failed_count = 0
 269 passed
 ```
+
+The CI workflow `.github/workflows/zeno-oracle-mvp.yml` runs the same command
+on pull requests and pushes to `main` or `docs/zeno-oracle-mvp-design`.
 
 ## Public Contract Documents
 
