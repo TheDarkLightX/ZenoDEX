@@ -41,6 +41,7 @@ Current public entry point:
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md`
 - `docs/ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md`
 - `docs/ZENO_ORACLE_QUERY_POLICY_V1.md`
+- `docs/ZENO_ORACLE_ADAPTER_V1.md`
 - `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md`
 - `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md`
 
@@ -187,6 +188,12 @@ The current local shell for query-policy versioning is:
 python3 tools/zenodex_oracle_query_policy.py verify <trace>
 ```
 
+The current local shell for critical-action adapter binding is:
+
+```text
+python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle>
+```
+
 ## Gate 5: Critical ZenoDEX Adapter
 
 Purpose: connect the Oracle to ZenoDEX without letting a raw report leak into
@@ -245,43 +252,45 @@ Minimum required evidence:
 The next concrete implementation target is:
 
 ```text
-zenodex-oracle verify <bundle>
+zenodex-oracle adapter verify --action <action> --bundle <bundle>
 ```
 
 The current public shell for that target is:
 
 ```text
-python3 tools/zenodex_oracle.py verify <bundle>
+python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle>
 ```
 
-To generate a minimal local sample bundle:
+To generate a minimal local sample action/bundle pair:
 
 ```text
-python3 tools/zenodex_oracle.py sample-bundle --output /tmp/oracle-bundle.json
-python3 tools/zenodex_oracle.py verify /tmp/oracle-bundle.json
+python3 tools/zenodex_oracle_adapter.py sample --action-output /tmp/oracle-action.json --bundle-output /tmp/oracle-bundle.json
+python3 tools/zenodex_oracle_adapter.py verify --action /tmp/oracle-action.json --bundle /tmp/oracle-bundle.json
 ```
 
-It should verify a local receipt bundle and produce stable JSON:
+It should verify a local critical-action binding against a receipt bundle and
+produce stable JSON:
 
 ```json
 {
   "status": "accepted",
-  "query_id": "sha256:...",
-  "value_hash": "sha256:...",
-  "read_receipt_id": "sha256:...",
-  "consumer_action_receipt_id": "sha256:...",
-  "evidence_class": "O3",
   "consumer_module": "zenodex.oracle.sample",
   "action_kind": "sample_critical_read",
   "action_id": "sha256:...",
-  "observed_epoch": 100,
-  "expires_at_epoch": 104,
+  "query_id": "sha256:...",
+  "value_hash": "sha256:...",
+  "evidence_class": "O3",
+  "required_evidence_floor": "O3",
+  "read_receipt_id": "sha256:...",
+  "consumer_action_receipt_id": "sha256:...",
   "action_epoch": 102,
   "freshness_window_epochs": 4,
+  "max_freshness_window_epochs": 4,
   "not_claimed": [
     "does_not_claim_true_market_price",
-    "does_not_claim_source_honesty",
-    "does_not_claim_production_network_live"
+    "does_not_claim_reporter_honesty",
+    "does_not_claim_production_oracle_network_live",
+    "does_not_claim_downstream_module_integrated"
   ]
 }
 ```
