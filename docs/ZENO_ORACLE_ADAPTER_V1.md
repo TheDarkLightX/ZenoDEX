@@ -9,6 +9,12 @@ This document describes the narrow adapter currently accepted by:
 python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle>
 ```
 
+It can also verify an action against a consumer profile:
+
+```text
+python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle> --profile <profile>
+```
+
 The adapter is the first local shell for:
 
 ```text
@@ -57,6 +63,42 @@ Unknown fields reject. Local action files above `250_000` bytes are treated as
 `inconclusive` before JSON parsing. Local bundle files above `1_000_000` bytes
 are also treated as `inconclusive`.
 
+## Consumer Profile Shape
+
+```json
+{
+  "schema": "zenodex.oracle.consumer_profile.v1",
+  "profile_id": "sha256:...",
+  "consumer_module": "zenodex.oracle.sample",
+  "action_kind": "sample_critical_read",
+  "query_id": "sha256:...",
+  "required_evidence_floor": "O3",
+  "max_freshness_window_epochs": 4,
+  "critical": true
+}
+```
+
+Allowed profile fields are exactly:
+
+- `schema`
+- `profile_id`
+- `consumer_module`
+- `action_kind`
+- `query_id`
+- `required_evidence_floor`
+- `max_freshness_window_epochs`
+- `critical`
+
+Every profile ID is content-addressed:
+
+```text
+profile_id := sha256(canonical_json(profile without profile_id))
+```
+
+Plain English: the profile commits to the module/action/query policy. If a
+consumer changes its required evidence floor or freshness limit, the profile ID
+must change.
+
 ## Adapter Law
 
 The adapter first verifies the receipt bundle using
@@ -84,6 +126,21 @@ kind, action ID, query, value, epoch, read receipt, or consumer-action receipt.
 It also cannot accept weaker evidence or a looser freshness window than the
 action itself declares.
 
+When a profile is supplied, the action must also satisfy:
+
+```text
+ProfileBoundAction(action, profile) ->
+  profile.critical = true
+  and action.consumer_module = profile.consumer_module
+  and action.action_kind = profile.action_kind
+  and action.query_id = profile.query_id
+  and action.required_evidence_floor >= profile.required_evidence_floor
+  and action.max_freshness_window_epochs <= profile.max_freshness_window_epochs
+```
+
+Plain English: the action cannot set its own weaker policy. It must be at least
+as strict as the published profile for that module, action kind, and query.
+
 ## Result Shape
 
 Verification returns:
@@ -105,6 +162,9 @@ Verification returns:
   "max_freshness_window_epochs": 4,
   "read_receipt_id": "sha256:...",
   "consumer_action_receipt_id": "sha256:...",
+  "profile_id": "sha256:...",
+  "profile_required_evidence_floor": "O3",
+  "profile_max_freshness_window_epochs": 4,
   "errors": []
 }
 ```
@@ -125,10 +185,12 @@ Generate and verify a minimal accepted action/bundle pair:
 tmp=$(mktemp -d)
 python3 tools/zenodex_oracle_adapter.py sample \
   --action-output "$tmp/action.json" \
-  --bundle-output "$tmp/bundle.json"
+  --bundle-output "$tmp/bundle.json" \
+  --profile-output "$tmp/profile.json"
 python3 tools/zenodex_oracle_adapter.py verify \
   --action "$tmp/action.json" \
-  --bundle "$tmp/bundle.json"
+  --bundle "$tmp/bundle.json" \
+  --profile "$tmp/profile.json"
 rm -rf "$tmp"
 ```
 
@@ -138,10 +200,10 @@ Run deterministic adapter chaos replay:
 python3 tools/zenodex_oracle_adapter_chaos.py
 ```
 
-The current adapter chaos lane covers `17` named unaccepted-bundle,
-module/action/query/value/receipt mismatch, evidence-floor, freshness-window,
-non-critical, hidden-field, schema, missing-field, and type-confusion disaster
-shapes. Details are tracked in
+The current adapter chaos lane covers `27` named unaccepted-bundle,
+module/action/query/value/receipt mismatch, action evidence/freshness,
+consumer-profile mismatch, profile weakening, non-critical, hidden-field,
+schema, missing-field, and type-confusion disaster shapes. Details are tracked in
 [ZENO_ORACLE_CHAOS_ENGINEERING.md](ZENO_ORACLE_CHAOS_ENGINEERING.md).
 
 ## Non-Claims

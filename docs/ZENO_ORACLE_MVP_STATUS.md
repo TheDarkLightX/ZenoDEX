@@ -45,8 +45,8 @@ query_policy_chaos_case_count = 19
 query_policy_chaos_rejected_count = 19
 query_policy_chaos_failed_count = 0
 
-adapter_chaos_case_count = 17
-adapter_chaos_rejected_count = 17
+adapter_chaos_case_count = 27
+adapter_chaos_rejected_count = 27
 adapter_chaos_failed_count = 0
 ```
 
@@ -61,8 +61,8 @@ query-policy verifier rejects all currently named silent downgrade, stale
 policy binding, schema drift, wrong-query, wrong-supersedes, version-skip,
 hash-forgery, and hidden-field mutations. The local adapter verifier rejects all
 currently named receipt-borrowing, action/bundle mismatch, weak action policy,
-non-critical action, hidden-field, schema, missing-field, and type-confusion
-mutations.
+consumer-profile mismatch, profile weakening, non-critical action,
+hidden-field, schema, missing-field, and type-confusion mutations.
 
 ## Current Test Command
 
@@ -85,7 +85,7 @@ pytest -q \
 Current result on this branch:
 
 ```text
-109 passed
+117 passed
 ```
 
 ## Public Contract Documents
@@ -109,7 +109,8 @@ CriticalOracleUse -> AcceptedReadReceipt
 ReceiptAccepted -> ContentHashMatches and ConsumerActionBound
 Median3Accepted -> ExactMedian and DistinctSources and DeviationWithinPolicy
 QueryPolicyAccepted -> NoSilentDowngrade and CriticalConsumersBindLatestPolicy
-OracleUseOK(action, bundle) -> ActionFactsMatchAcceptedBundle
+OracleUseOK(action, bundle, profile) ->
+  ActionFactsMatchAcceptedBundle and ActionPolicyNoWeakerThanProfile
 BudgetAccepted -> Spend <= ExplicitEnvelope
 ReporterLifecycleAccepted -> ActiveReportersAreBonded and SlashesRequireDisputes
 ```
@@ -123,7 +124,9 @@ must fit inside explicit budgets, bonds, or fees. Reporter traces must keep
 report submission, disputes, slashing, exit, and withdrawal in the safe order.
 The adapter then checks a downstream action against the accepted bundle facts so
 critical actions cannot borrow receipts from a different module, action, query,
-value, epoch, read receipt, or consumer-action receipt.
+value, epoch, read receipt, or consumer-action receipt. When a consumer profile
+is supplied, the adapter also rejects self-declared action policies that are
+weaker than the module/action/query profile.
 
 ## Still Not Claimed
 

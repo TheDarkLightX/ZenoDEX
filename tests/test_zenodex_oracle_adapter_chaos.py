@@ -21,8 +21,8 @@ def test_zenodex_oracle_adapter_chaos_rejects_all_mutants() -> None:
     receipt = json.loads(proc.stdout)
     assert receipt["ok"] is True
     assert receipt["baseline_status"] == "accepted"
-    assert receipt["case_count"] == 17
-    assert receipt["rejected_case_count"] == 17
+    assert receipt["case_count"] == 27
+    assert receipt["rejected_case_count"] == 27
     assert receipt["failed_case_count"] == 0
 
     names = {case["name"] for case in receipt["cases"]}
@@ -43,6 +43,16 @@ def test_zenodex_oracle_adapter_chaos_rejects_all_mutants() -> None:
     assert "wrong_action_schema_survives" in names
     assert "missing_action_id_survives" in names
     assert "boolean_action_epoch_survives" in names
+    assert "profile_content_hash_forgery_survives" in names
+    assert "profile_consumer_module_mismatch_survives" in names
+    assert "profile_action_kind_mismatch_survives" in names
+    assert "profile_query_mismatch_survives" in names
+    assert "action_evidence_floor_below_profile_survives" in names
+    assert "action_freshness_window_exceeds_profile_survives" in names
+    assert "noncritical_profile_survives" in names
+    assert "hidden_profile_field_survives" in names
+    assert "weak_profile_evidence_floor_survives" in names
+    assert "wrong_profile_schema_survives" in names
 
 
 def test_zenodex_oracle_adapter_chaos_writes_output_receipt(tmp_path: Path) -> None:

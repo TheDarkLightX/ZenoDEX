@@ -14,11 +14,20 @@ from typing import Any, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from zenodex_oracle import sample_hash  # noqa: E402
-from zenodex_oracle_adapter import sample_action_and_bundle, verify_oracle_use  # noqa: E402
+from zenodex_oracle_adapter import (  # noqa: E402
+    profile_content_hash,
+    sample_action_and_bundle,
+    sample_action_bundle_profile,
+    verify_oracle_use,
+)
 
 
 def base_pair() -> tuple[dict[str, Any], dict[str, Any]]:
     return sample_action_and_bundle()
+
+
+def base_triple() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    return sample_action_bundle_profile()
 
 
 def _mutate(
@@ -31,92 +40,219 @@ def _mutate(
     return action, bundle
 
 
-def adapter_chaos_cases() -> list[tuple[str, dict[str, Any], dict[str, Any], list[str]]]:
+def _mutate_profile(
+    mutator: Callable[[dict[str, Any], dict[str, Any], dict[str, Any]], None]
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    action, bundle, profile = base_triple()
+    action = copy.deepcopy(action)
+    bundle = copy.deepcopy(bundle)
+    profile = copy.deepcopy(profile)
+    mutator(action, bundle, profile)
+    return action, bundle, profile
+
+
+def _refresh_profile_id(profile: dict[str, Any]) -> None:
+    profile["profile_id"] = profile_content_hash(profile)
+
+
+def adapter_chaos_cases() -> list[tuple[str, dict[str, Any], dict[str, Any], dict[str, Any] | None, list[str]]]:
     return [
         (
             "unaccepted_bundle_survives",
             *_mutate(lambda _a, b: b["receipts"][0].__setitem__("fresh", False)),
+            None,
             ["oracle_bundle_not_accepted", "bundle:"],
         ),
         (
             "consumer_module_mismatch_survives",
             *_mutate(lambda a, _b: a.__setitem__("consumer_module", "zenodex.perps")),
+            None,
             ["adapter_consumer_module_mismatch"],
         ),
         (
             "action_kind_mismatch_survives",
             *_mutate(lambda a, _b: a.__setitem__("action_kind", "settle_epoch")),
+            None,
             ["adapter_action_kind_mismatch"],
         ),
         (
             "action_id_mismatch_survives",
             *_mutate(lambda a, _b: a.__setitem__("action_id", sample_hash("other-action"))),
+            None,
             ["adapter_action_id_mismatch"],
         ),
         (
             "action_epoch_mismatch_survives",
             *_mutate(lambda a, _b: a.__setitem__("action_epoch", a["action_epoch"] + 1)),
+            None,
             ["adapter_action_epoch_mismatch"],
         ),
         (
             "query_mismatch_survives",
             *_mutate(lambda a, _b: a.__setitem__("query_id", sample_hash("other-query"))),
+            None,
             ["adapter_query_id_mismatch"],
         ),
         (
             "value_mismatch_survives",
             *_mutate(lambda a, _b: a.__setitem__("value_hash", sample_hash("other-value"))),
+            None,
             ["adapter_value_hash_mismatch"],
         ),
         (
             "read_receipt_id_mismatch_survives",
             *_mutate(lambda a, _b: a.__setitem__("read_receipt_id", sample_hash("other-read"))),
+            None,
             ["adapter_read_receipt_id_mismatch"],
         ),
         (
             "consumer_action_receipt_id_mismatch_survives",
             *_mutate(lambda a, _b: a.__setitem__("consumer_action_receipt_id", sample_hash("other-action-receipt"))),
+            None,
             ["adapter_consumer_action_receipt_id_mismatch"],
         ),
         (
             "evidence_below_action_floor_survives",
             *_mutate(lambda a, _b: a.__setitem__("required_evidence_floor", "O4")),
+            None,
             ["adapter_evidence_below_required_floor"],
         ),
         (
             "freshness_window_exceeds_action_limit_survives",
             *_mutate(lambda a, _b: a.__setitem__("max_freshness_window_epochs", 3)),
+            None,
             ["adapter_freshness_window_exceeds_action_limit"],
         ),
         (
             "noncritical_action_descriptor_survives",
             *_mutate(lambda a, _b: a.__setitem__("critical", False)),
+            None,
             ["action_must_be_critical"],
         ),
         (
             "weak_required_evidence_floor_survives",
             *_mutate(lambda a, _b: a.__setitem__("required_evidence_floor", "O2")),
+            None,
             ["required_evidence_floor_below_critical_minimum"],
         ),
         (
             "hidden_action_field_survives",
             *_mutate(lambda a, _b: a.__setitem__("admin_override", True)),
+            None,
             ["unknown_action_field:admin_override"],
         ),
         (
             "wrong_action_schema_survives",
             *_mutate(lambda a, _b: a.__setitem__("schema", "zenodex.oracle.consumer_action_binding.v0")),
+            None,
             ["action_schema_mismatch"],
         ),
         (
             "missing_action_id_survives",
             *_mutate(lambda a, _b: a.pop("action_id")),
+            None,
             ["action_id_must_be_sha256"],
         ),
         (
             "boolean_action_epoch_survives",
             *_mutate(lambda a, _b: a.__setitem__("action_epoch", True)),
+            None,
             ["action_epoch_must_be_int_ge_0"],
+        ),
+        (
+            "profile_content_hash_forgery_survives",
+            *_mutate_profile(lambda _a, _b, p: p.__setitem__("max_freshness_window_epochs", 3)),
+            ["profile_content_hash_mismatch"],
+        ),
+        (
+            "profile_consumer_module_mismatch_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("consumer_module", "zenodex.perps"),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["profile_consumer_module_mismatch"],
+        ),
+        (
+            "profile_action_kind_mismatch_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("action_kind", "settle_epoch"),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["profile_action_kind_mismatch"],
+        ),
+        (
+            "profile_query_mismatch_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("query_id", sample_hash("other-query")),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["profile_query_id_mismatch"],
+        ),
+        (
+            "action_evidence_floor_below_profile_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("required_evidence_floor", "O4"),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["action_evidence_floor_below_profile"],
+        ),
+        (
+            "action_freshness_window_exceeds_profile_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("max_freshness_window_epochs", 3),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["action_freshness_window_exceeds_profile"],
+        ),
+        (
+            "noncritical_profile_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("critical", False),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["profile_must_be_critical"],
+        ),
+        (
+            "hidden_profile_field_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("admin_override", True),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["unknown_profile_field:admin_override"],
+        ),
+        (
+            "weak_profile_evidence_floor_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("required_evidence_floor", "O2"),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["profile_required_evidence_floor_below_critical_minimum"],
+        ),
+        (
+            "wrong_profile_schema_survives",
+            *_mutate_profile(
+                lambda _a, _b, p: (
+                    p.__setitem__("schema", "zenodex.oracle.consumer_profile.v0"),
+                    _refresh_profile_id(p),
+                )
+            ),
+            ["profile_schema_mismatch"],
         ),
     ]
 
@@ -135,8 +271,8 @@ def run_adapter_chaos() -> dict[str, Any]:
     baseline_action, baseline_bundle = base_pair()
     baseline = verify_oracle_use(baseline_action, baseline_bundle)
     results: list[AdapterChaosCaseResult] = []
-    for name, action, bundle, expected_fragments in adapter_chaos_cases():
-        result = verify_oracle_use(action, bundle)
+    for name, action, bundle, profile, expected_fragments in adapter_chaos_cases():
+        result = verify_oracle_use(action, bundle, profile)
         actual_errors = list(result.errors)
         passed = result.status == "rejected" and all(
             any(fragment in error for error in actual_errors)

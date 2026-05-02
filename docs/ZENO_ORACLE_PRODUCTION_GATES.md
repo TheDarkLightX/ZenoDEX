@@ -191,7 +191,7 @@ python3 tools/zenodex_oracle_query_policy.py verify <trace>
 The current local shell for critical-action adapter binding is:
 
 ```text
-python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle>
+python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle> --profile <profile>
 ```
 
 ## Gate 5: Critical ZenoDEX Adapter
@@ -252,20 +252,20 @@ Minimum required evidence:
 The next concrete implementation target is:
 
 ```text
-zenodex-oracle adapter verify --action <action> --bundle <bundle>
+zenodex-oracle adapter verify --action <action> --bundle <bundle> --profile <profile>
 ```
 
 The current public shell for that target is:
 
 ```text
-python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle>
+python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle> --profile <profile>
 ```
 
 To generate a minimal local sample action/bundle pair:
 
 ```text
-python3 tools/zenodex_oracle_adapter.py sample --action-output /tmp/oracle-action.json --bundle-output /tmp/oracle-bundle.json
-python3 tools/zenodex_oracle_adapter.py verify --action /tmp/oracle-action.json --bundle /tmp/oracle-bundle.json
+python3 tools/zenodex_oracle_adapter.py sample --action-output /tmp/oracle-action.json --bundle-output /tmp/oracle-bundle.json --profile-output /tmp/oracle-profile.json
+python3 tools/zenodex_oracle_adapter.py verify --action /tmp/oracle-action.json --bundle /tmp/oracle-bundle.json --profile /tmp/oracle-profile.json
 ```
 
 It should verify a local critical-action binding against a receipt bundle and
@@ -286,6 +286,9 @@ produce stable JSON:
   "action_epoch": 102,
   "freshness_window_epochs": 4,
   "max_freshness_window_epochs": 4,
+  "profile_id": "sha256:...",
+  "profile_required_evidence_floor": "O3",
+  "profile_max_freshness_window_epochs": 4,
   "not_claimed": [
     "does_not_claim_true_market_price",
     "does_not_claim_reporter_honesty",
