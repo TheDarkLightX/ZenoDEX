@@ -59,6 +59,29 @@ def _with_oracle_snapshot(
     return replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
 
 
+def _settle_ready_state(*, market_id: str, quote_asset: str, operator: str) -> DexState:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _with_oracle_snapshot(state, market_id=market_id, price_e8=100_000_000)
+    return _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+
+
 def test_publish_clearing_price_rejects_unsafe_oracle_reward_posture() -> None:
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
@@ -831,6 +854,160 @@ def test_settle_epoch_rejects_missing_oracle_snapshot() -> None:
     )
     assert res.ok is False
     assert res.error == "guard"
+
+
+def test_settle_epoch_requires_oracle_adapter_bridge_when_configured() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-bridge-required"
+    quote_asset = "0x" + "5a" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_adapter_for_isolated_settle_epoch=True,
+    )
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch")]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error == "settle_epoch requires oracle_adapter_bridge"
+
+
+def test_settle_epoch_rejects_unverified_oracle_adapter_bridge() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-bridge-unverified"
+    quote_asset = "0x" + "5b" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+
+    cfg = PerpEngineConfig(operator_pubkey=operator, allow_isolated_markets=True)
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error == "oracle_adapter_bridge verifier not configured"
+
+    cfg_rejecting = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "rejected",
+            "errors": ["aggregate_read_not_accepted"],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+        },
+    )
+    res_rejected = apply_perp_ops(
+        config=cfg_rejecting,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res_rejected.ok is False
+    assert res_rejected.error == "oracle_adapter_bridge rejected: aggregate_read_not_accepted"
+
+
+def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
+    from src.integration.perp_engine import (
+        PerpEngineConfig,
+        _perps_runtime_oracle_action_id,
+        apply_perp_ops,
+    )
+
+    market_id = "perp:oracle-bridge-bound"
+    quote_asset = "0x" + "5c" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+
+    cfg_wrong_action = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "liquidate_account",
+        },
+    )
+    res_wrong_action = apply_perp_ops(
+        config=cfg_wrong_action,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res_wrong_action.ok is False
+    assert res_wrong_action.error == "oracle_adapter_bridge action mismatch"
+
+    cfg_wrong_action_id = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "action_id": "sha256:" + "00" * 32,
+        },
+    )
+    res_wrong_action_id = apply_perp_ops(
+        config=cfg_wrong_action_id,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res_wrong_action_id.ok is False
+    assert res_wrong_action_id.error == "oracle_adapter_bridge action_id mismatch"
+
+    seen_bridge: dict[str, object] = {}
+    assert state.perps is not None
+    expected_action_id = _perps_runtime_oracle_action_id(
+        PerpEngineConfig(operator_pubkey=operator, allow_isolated_markets=True),
+        market_id=market_id,
+        action_kind="settle_epoch",
+        market=state.perps.markets[market_id],
+    )
+
+    def verifier(bridge: object) -> dict[str, object]:
+        assert isinstance(bridge, dict)
+        seen_bridge.update(bridge)
+        return {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "action_id": expected_action_id,
+        }
+
+    cfg_accepting = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        oracle_adapter_bridge_verifier=verifier,
+        require_oracle_adapter_for_isolated_settle_epoch=True,
+    )
+    res = apply_perp_ops(
+        config=cfg_accepting,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is True, res.error
+    assert seen_bridge == {"schema": "test"}
 
 
 def test_publish_clearing_price_rejects_zero_price() -> None:

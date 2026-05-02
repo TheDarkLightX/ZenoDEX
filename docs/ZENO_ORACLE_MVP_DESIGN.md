@@ -124,8 +124,11 @@ different action, query, value hash, epoch, or policy.
 
 The aggregate-adapter bridge now checks the complete local path from admitted
 aggregate to aggregate-derived read bundle to concrete action/profile binding.
-This is still a local artifact verifier, not runtime wiring into the consumer
-modules.
+The isolated perps `settle_epoch` path now has the first runtime hook: when
+configured to require an Oracle bridge, settlement rejects missing, unverified,
+rejected, wrong-action, or wrong-runtime-action-ID aggregate-adapter bridges
+before state changes. Other consumers remain adapter-only until they get
+equivalent hooks.
 
 8. Token incentive lane
 
