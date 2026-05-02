@@ -27,6 +27,8 @@ The first concrete public aggregate-from-admission format is
 [ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md](ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md).
 The first concrete public aggregate-to-read bridge format is
 [ZENO_ORACLE_AGGREGATE_READ_V1.md](ZENO_ORACLE_AGGREGATE_READ_V1.md).
+The first concrete public aggregate-to-action adapter bridge format is
+[ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md](ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md).
 The first concrete public source-diversity format is
 [ZENO_ORACLE_SOURCE_DIVERSITY_V1.md](ZENO_ORACLE_SOURCE_DIVERSITY_V1.md).
 The first concrete public query-policy format is
@@ -110,6 +112,11 @@ the read `value_hash` consumed by the generic receipt bundle.
 Binds the accepted read to the specific downstream action. A perps settlement,
 liquidation, zUSD mint, or trigger execution cannot borrow a receipt from a
 different action, query, value hash, epoch, or policy.
+
+The aggregate-adapter bridge now checks the complete local path from admitted
+aggregate to aggregate-derived read bundle to concrete action/profile binding.
+This is still a local artifact verifier, not runtime wiring into the consumer
+modules.
 
 8. Token incentive lane
 
@@ -196,6 +203,7 @@ unbounded rewards.
 - aggregate uses reports that did not pass report admission;
 - duplicate admission/report/reporter/source is aggregated;
 - accepted read value hash does not match the admitted aggregate;
+- concrete action/profile binding does not match the aggregate-derived read;
 - unauthorized or under-bonded reporter is accepted;
 - source evidence is borrowed across reports;
 - three source strings collapse to one operator, venue, data family,
