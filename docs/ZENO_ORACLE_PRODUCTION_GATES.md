@@ -153,6 +153,12 @@ The CI/local replay gate is:
 bash scripts/check_zeno_oracle_mvp.sh
 ```
 
+The ten-criterion local completion audit is:
+
+```text
+python3 tools/zenodex_oracle_mvp_completion_audit.py
+```
+
 The local RC package builder is:
 
 ```text

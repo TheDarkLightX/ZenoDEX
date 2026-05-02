@@ -12,6 +12,7 @@ is a status page, not a production launch claim.
 | Unified local CLI wrapper | `tools/zenodex_oracle_cli.py` | `python3 tools/zenodex_oracle_cli.py doctor` |
 | Packaged executable launcher | `bin/zenodex-oracle` | `bin/zenodex-oracle doctor` |
 | Local MVP dry-run flow | `tools/zenodex_oracle_cli.py dry-run` | `bin/zenodex-oracle dry-run --workdir /tmp/zeno-oracle-dry-run` |
+| MVP completion audit | `tools/zenodex_oracle_mvp_completion_audit.py` | `python3 tools/zenodex_oracle_mvp_completion_audit.py` |
 | Release-candidate package builder | `scripts/package_zeno_oracle_rc.sh` | `bash scripts/package_zeno_oracle_rc.sh` |
 | Critical read receipt verifier | `tools/zenodex_oracle.py` | `python3 tools/zenodex_oracle.py verify <bundle>` |
 | Receipt chaos replay | `tools/zenodex_oracle_chaos.py` | `python3 tools/zenodex_oracle_chaos.py` |
