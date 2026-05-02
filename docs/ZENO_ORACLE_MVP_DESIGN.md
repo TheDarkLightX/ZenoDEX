@@ -17,6 +17,8 @@ The first concrete public token budget format is
 [ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md).
 The first concrete public reporter lifecycle format is
 [ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md).
+The first concrete public aggregate format is
+[ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md).
 
 ```text
 CriticalOracleUse -> AcceptedReadReceipt
