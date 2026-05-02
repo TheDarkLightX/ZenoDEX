@@ -42,6 +42,7 @@ Current public entry point:
 - `docs/ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md`
 - `docs/ZENO_ORACLE_QUERY_POLICY_V1.md`
 - `docs/ZENO_ORACLE_ADAPTER_V1.md`
+- `docs/ZENO_ORACLE_CONSUMER_PROFILES_V1.md`
 - `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md`
 - `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md`
 
@@ -192,6 +193,12 @@ The current local shell for critical-action adapter binding is:
 
 ```text
 python3 tools/zenodex_oracle_adapter.py verify --action <action> --bundle <bundle> --profile <profile>
+```
+
+The current local shell for the critical consumer profile catalog is:
+
+```text
+python3 tools/zenodex_oracle_consumer_profiles.py verify <catalog>
 ```
 
 ## Gate 5: Critical ZenoDEX Adapter
