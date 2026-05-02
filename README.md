@@ -606,6 +606,7 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/ZENO_ORACLE_PRODUCTION_GATES.md` — Zeno Oracle rollout and verifier gates
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md` — current local Oracle receipt-bundle format
 - `docs/ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md` — current local Oracle median3 aggregate format
+- `docs/ZENO_ORACLE_SOURCE_DIVERSITY_V1.md` — current local Oracle source-diversity format
 - `docs/ZENO_ORACLE_QUERY_POLICY_V1.md` — current local Oracle query-policy versioning format
 - `docs/ZENO_ORACLE_ADAPTER_V1.md` — current local Oracle critical-action adapter format
 - `docs/ZENO_ORACLE_CONSUMER_PROFILES_V1.md` — current local Oracle critical consumer profile catalog

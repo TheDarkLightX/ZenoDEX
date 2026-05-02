@@ -10,6 +10,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
 from zenodex_oracle_median3 import content_hash, sample_aggregate, sample_hash  # noqa: E402
+from zenodex_oracle_source_diversity import source_set_content_hash  # noqa: E402
 
 
 def _refresh_report_id(aggregate: dict, index: int) -> None:
@@ -19,6 +20,10 @@ def _refresh_report_id(aggregate: dict, index: int) -> None:
 
 def _refresh_aggregate_id(aggregate: dict) -> None:
     aggregate["aggregate_id"] = content_hash(aggregate, omit_key="aggregate_id")
+
+
+def _refresh_source_diversity_id(aggregate: dict) -> None:
+    aggregate["source_diversity"]["source_set_id"] = source_set_content_hash(aggregate["source_diversity"])
 
 
 def _run_verify(tmp_path: Path, obj: dict) -> tuple[int, dict]:
@@ -154,6 +159,39 @@ def test_median3_rejects_wrong_report_count(tmp_path: Path) -> None:
     code, result = _run_verify(tmp_path, aggregate)
     assert code == 2
     assert "median3_requires_exactly_3_reports:2" in result["errors"]
+
+
+def test_median3_rejects_source_diversity_report_source_mismatch(tmp_path: Path) -> None:
+    aggregate = sample_aggregate()
+    aggregate["source_diversity"]["sources"][0]["source_id"] = "source.unused.alt"
+    _refresh_source_diversity_id(aggregate)
+    _refresh_aggregate_id(aggregate)
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert "source_diversity_report_source_set_mismatch" in result["errors"]
+
+
+def test_median3_rejects_source_diversity_correlation(tmp_path: Path) -> None:
+    aggregate = sample_aggregate()
+    aggregate["source_diversity"]["sources"][1]["operator_id"] = (
+        aggregate["source_diversity"]["sources"][0]["operator_id"]
+    )
+    _refresh_source_diversity_id(aggregate)
+    _refresh_aggregate_id(aggregate)
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert "source_diversity_rejected:not_enough_distinct_operators" in result["errors"]
+    assert "source_diversity_rejected:operator_concentration_exceeds_policy" in result["errors"]
+
+
+def test_median3_rejects_source_diversity_query_mismatch(tmp_path: Path) -> None:
+    aggregate = sample_aggregate()
+    aggregate["source_diversity"]["query_id"] = sample_hash("other-source-diversity-query")
+    _refresh_source_diversity_id(aggregate)
+    _refresh_aggregate_id(aggregate)
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert "source_diversity_query_id_mismatch" in result["errors"]
 
 
 def test_median3_rejects_unknown_report_field(tmp_path: Path) -> None:

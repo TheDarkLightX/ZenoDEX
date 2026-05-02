@@ -94,6 +94,15 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
+The current public Oracle chaos lanes together cover `171` named disaster
+shapes, all rejected in the latest local replay:
+
+```text
+total_oracle_chaos_case_count = 171
+total_oracle_chaos_rejected_count = 171
+total_oracle_chaos_failed_count = 0
+```
+
 ## Token Budget Replay Lane
 
 Run:
@@ -227,6 +236,9 @@ deterministic single-axis mutations:
 | `forged_report_id_survives` | report ID does not match report body |
 | `forged_aggregate_id_survives` | aggregate ID does not match aggregate body |
 | `deviation_policy_exceeded` | high-deviation aggregate passes policy |
+| `source_diversity_report_source_mismatch_survives` | aggregate reports do not match the declared source set |
+| `source_diversity_operator_correlation_survives` | source set collapses to one operator |
+| `source_diversity_query_mismatch_survives` | aggregate borrows source policy from another query |
 | `nonpositive_report_value_survives` | zero price enters aggregation |
 | `hidden_report_field_survives` | report carries unchecked authority/debug data |
 | `hidden_aggregate_field_survives` | aggregate carries unchecked authority/debug data |
@@ -239,8 +251,8 @@ The receipt reports:
   "schema": "zenodex.oracle.median3_chaos_replay.v1",
   "ok": true,
   "baseline_status": "accepted",
-  "case_count": 18,
-  "rejected_case_count": 18,
+  "case_count": 21,
+  "rejected_case_count": 21,
   "failed_case_count": 0
 }
 ```
@@ -254,6 +266,60 @@ ValidMedian3Aggregate + DangerousPerturbation -> RejectedAggregate
 Plain English: if a mutation changes the median, confidence, deviation, source
 set, query binding, freshness, or content hash, the local verifier rejects the
 aggregate before it can become an accepted read.
+
+## Source Diversity Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_source_diversity_chaos.py
+```
+
+The replay starts with one accepted source-diversity receipt, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `source_set_hash_forgery_survives` | source-set ID does not match the source policy body |
+| `duplicate_source_id_survives` | one source counts as multiple sources |
+| `too_few_sources_survives` | source set drops below the declared quorum |
+| `operator_correlation_survives` | multiple sources share one operator |
+| `venue_correlation_survives` | multiple sources share one venue |
+| `data_family_correlation_survives` | multiple sources share one data family |
+| `transport_correlation_survives` | multiple sources share one transport |
+| `jurisdiction_correlation_survives` | multiple sources share one jurisdiction bucket |
+| `hidden_top_level_override_survives` | source set carries unchecked top-level authority data |
+| `hidden_source_weight_survives` | source carries unchecked weight/authority data |
+| `wrong_schema_survives` | source-diversity schema downgrade is accepted |
+| `boolean_min_sources_survives` | boolean is accepted as a source threshold |
+| `zero_max_same_operator_survives` | impossible concentration cap is accepted |
+| `bad_operator_token_survives` | malformed operator identifier is accepted |
+| `sources_as_object_survives` | source list shape is replaced by an object |
+| `min_jurisdictions_unmet_survives` | jurisdiction minimum is silently unmet |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.source_diversity_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 16,
+  "rejected_case_count": 16,
+  "failed_case_count": 0
+}
+```
+
+This lane checks declared source independence before the aggregate shell trusts
+source IDs:
+
+```text
+ValidSourceDiversity + DangerousPerturbation -> RejectedSourceDiversity
+```
+
+Plain English: if a mutation collapses three source names into one operator,
+venue, data family, transport, or jurisdiction bucket, the local verifier
+rejects the source set before it can back a `median_3` aggregate.
 
 ## Query-Policy Replay Lane
 

@@ -21,8 +21,8 @@ def test_zenodex_oracle_median3_chaos_rejects_all_mutants() -> None:
     receipt = json.loads(proc.stdout)
     assert receipt["ok"] is True
     assert receipt["baseline_status"] == "accepted"
-    assert receipt["case_count"] == 18
-    assert receipt["rejected_case_count"] == 18
+    assert receipt["case_count"] == 21
+    assert receipt["rejected_case_count"] == 21
     assert receipt["failed_case_count"] == 0
 
     names = {case["name"] for case in receipt["cases"]}
@@ -40,6 +40,9 @@ def test_zenodex_oracle_median3_chaos_rejects_all_mutants() -> None:
     assert "forged_report_id_survives" in names
     assert "forged_aggregate_id_survives" in names
     assert "deviation_policy_exceeded" in names
+    assert "source_diversity_report_source_mismatch_survives" in names
+    assert "source_diversity_operator_correlation_survives" in names
+    assert "source_diversity_query_mismatch_survives" in names
     assert "nonpositive_report_value_survives" in names
     assert "hidden_report_field_survives" in names
     assert "hidden_aggregate_field_survives" in names

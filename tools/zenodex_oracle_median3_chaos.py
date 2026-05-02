@@ -19,6 +19,7 @@ from zenodex_oracle_median3 import (  # noqa: E402
     sample_hash,
     verify_median3_aggregate,
 )
+from zenodex_oracle_source_diversity import source_set_content_hash  # noqa: E402
 
 
 def base_aggregate() -> dict[str, Any]:
@@ -32,6 +33,10 @@ def _refresh_report_id(aggregate: dict[str, Any], index: int) -> None:
 
 def _refresh_aggregate_id(aggregate: dict[str, Any]) -> None:
     aggregate["aggregate_id"] = content_hash(aggregate, omit_key="aggregate_id")
+
+
+def _refresh_source_diversity_id(aggregate: dict[str, Any]) -> None:
+    aggregate["source_diversity"]["source_set_id"] = source_set_content_hash(aggregate["source_diversity"])
 
 
 def _mutate(mutator: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
@@ -97,6 +102,26 @@ def _forged_aggregate_id(aggregate: dict[str, Any]) -> None:
 
 def _too_many_reports(aggregate: dict[str, Any]) -> None:
     aggregate["reports"].append(copy.deepcopy(aggregate["reports"][0]))
+    _refresh_aggregate_id(aggregate)
+
+
+def _source_diversity_source_mismatch(aggregate: dict[str, Any]) -> None:
+    aggregate["source_diversity"]["sources"][0]["source_id"] = "source.unused.alt"
+    _refresh_source_diversity_id(aggregate)
+    _refresh_aggregate_id(aggregate)
+
+
+def _source_diversity_operator_correlation(aggregate: dict[str, Any]) -> None:
+    aggregate["source_diversity"]["sources"][1]["operator_id"] = (
+        aggregate["source_diversity"]["sources"][0]["operator_id"]
+    )
+    _refresh_source_diversity_id(aggregate)
+    _refresh_aggregate_id(aggregate)
+
+
+def _source_diversity_query_mismatch(aggregate: dict[str, Any]) -> None:
+    aggregate["source_diversity"]["query_id"] = sample_hash("other-source-diversity-query")
+    _refresh_source_diversity_id(aggregate)
     _refresh_aggregate_id(aggregate)
 
 
@@ -189,6 +214,21 @@ def median3_chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
             "deviation_policy_exceeded",
             _mutate(_refreshing(lambda a: a.__setitem__("max_deviation_bps", 99))),
             ["aggregate_deviation_exceeds_policy"],
+        ),
+        (
+            "source_diversity_report_source_mismatch_survives",
+            _mutate(_source_diversity_source_mismatch),
+            ["source_diversity_report_source_set_mismatch"],
+        ),
+        (
+            "source_diversity_operator_correlation_survives",
+            _mutate(_source_diversity_operator_correlation),
+            ["source_diversity_rejected:not_enough_distinct_operators"],
+        ),
+        (
+            "source_diversity_query_mismatch_survives",
+            _mutate(_source_diversity_query_mismatch),
+            ["source_diversity_query_id_mismatch"],
         ),
         (
             "nonpositive_report_value_survives",
