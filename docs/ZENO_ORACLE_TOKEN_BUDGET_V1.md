@@ -100,6 +100,16 @@ python3 tools/zenodex_oracle_budget.py verify "$tmp/budget.json"
 rm -rf "$tmp"
 ```
 
+Run deterministic budget chaos replay:
+
+```bash
+python3 tools/zenodex_oracle_budget_chaos.py
+```
+
+The current budget chaos lane covers `12` named overspend, hidden-field, and
+type-confusion disaster shapes. Details are tracked in
+[ZENO_ORACLE_CHAOS_ENGINEERING.md](ZENO_ORACLE_CHAOS_ENGINEERING.md).
+
 ## Non-Claims
 
 This verifier does not claim:

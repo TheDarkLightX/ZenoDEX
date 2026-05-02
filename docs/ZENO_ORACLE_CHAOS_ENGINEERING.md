@@ -3,9 +3,9 @@
 Status: public chaos-test plan and first replay lane.
 
 Chaos engineering is useful for Zeno Oracle when it is treated as a bounded
-receipt-mutation discipline, not as random breakage. A valid receipt bundle is
-the baseline. Each chaos case changes one semantic axis and expects the verifier
-to fail closed.
+receipt- and budget-mutation discipline, not as random breakage. A valid
+receipt bundle or budget transition is the baseline. Each chaos case changes
+one semantic axis and expects the verifier to fail closed.
 
 ## Target Shape
 
@@ -99,5 +99,53 @@ governance need their own chaos lanes.
 1. Reporter lifecycle: registration, bond, report, dispute, slash, withdrawal.
 2. Query-policy update lifecycle: no downgrade after critical consumers bind.
 3. Aggregation lifecycle: reporter-set drift, source-family drift, root drift.
-4. Token budget lifecycle: fee split, reward payout, budget transition, slash.
-5. ZenoDEX adapter lifecycle: accepted read to perps/zUSD/trigger execution.
+4. ZenoDEX adapter lifecycle: accepted read to perps/zUSD/trigger execution.
+
+## Token Budget Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_budget_chaos.py
+```
+
+The replay starts with one accepted budget transition, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `query_reward_exceeds_remaining_budget` | reporter reward exceeds query budget |
+| `query_reward_from_zero_budget` | reward is paid from an empty query budget |
+| `reporter_slash_exceeds_available_bond` | reporter slash payout exceeds bond |
+| `dispute_slash_exceeds_available_bond` | dispute slash payout exceeds dispute bond |
+| `fee_split_spends_more_than_fee` | fee split spends more than paid fees |
+| `fee_split_spends_from_zero_fee` | fee share is paid from an empty fee envelope |
+| `hidden_mint_field_survives` | hidden mint-like field is accepted |
+| `negative_reward_amount_survives` | negative reward amount enters accounting |
+| `boolean_burn_share_survives` | boolean value is accepted as an amount |
+| `missing_fee_share_survives` | required fee share is omitted |
+| `wrong_schema_survives` | budget schema downgrade is accepted |
+| `string_budget_amount_survives` | string amount is accepted as a budget |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.budget_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 12,
+  "rejected_case_count": 12,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the token surface behind the Oracle MVP:
+
+```text
+ValidBudgetTransition + DangerousPerturbation -> RejectedTransition
+```
+
+Plain English: if a mutation creates a reward, slash, burn, treasury, or fee
+share that exceeds the explicit budget/bond/fee envelope, the local verifier
+rejects it.
