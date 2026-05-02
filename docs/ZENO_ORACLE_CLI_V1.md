@@ -87,6 +87,26 @@ The signed-report verifier still performs the same payload-hash, report-ID,
 sequence, previous-link, duplicate, key-format, and BLS signature checks as the
 underlying `tools/zenodex_oracle_signed_report.py` script.
 
+## Local MVP Dry Run
+
+Run the local happy path from one command:
+
+```bash
+bin/zenodex-oracle dry-run --workdir /tmp/zeno-oracle-dry-run
+```
+
+The same command through Python is:
+
+```bash
+python3 tools/zenodex_oracle_cli.py dry-run --workdir /tmp/zeno-oracle-dry-run
+```
+
+The dry run generates and verifies a sample feed registry, signed report,
+reporter lifecycle trace, token budget transition, admitted median aggregate,
+aggregate read, aggregate adapter, and consumer adapter bundle. It also stores
+the accepted feed and signed report under the local Oracle store. This is still
+a local replay path, not network broadcast.
+
 ## Other Surfaces
 
 The same shape works for the other local surfaces:
