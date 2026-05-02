@@ -42,6 +42,7 @@ deterministic single-axis mutations:
 | `terminal_points_to_missing_read` | terminal read pointer is absent from the bundle |
 | `action_depends_on_missing_receipt` | dependency graph references missing evidence |
 | `duplicate_receipt_id_shadows_terminal` | duplicate IDs create ambiguous evidence |
+| `stray_receipt_hides_unreachable_evidence` | unrelated evidence is present but not in terminal closure |
 | `read_receipt_status_downgraded_after_terminal_binding` | terminal read is no longer accepted |
 
 The receipt reports:
@@ -51,8 +52,8 @@ The receipt reports:
   "schema": "zenodex.oracle.chaos_replay.v1",
   "ok": true,
   "baseline_status": "accepted",
-  "case_count": 12,
-  "rejected_case_count": 12,
+  "case_count": 13,
+  "rejected_case_count": 13,
   "failed_case_count": 0
 }
 ```
