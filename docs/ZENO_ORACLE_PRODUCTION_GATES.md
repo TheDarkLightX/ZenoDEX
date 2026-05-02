@@ -77,6 +77,10 @@ The verifier should accept a receipt bundle and return one of:
 Required behavior:
 
 - fail closed on missing dependencies;
+- fail closed on unsupported receipt types;
+- fail closed on dependency order violations;
+- fail closed on receipts that are not reachable from the terminal read/action
+  closure;
 - fail closed on stale or open disputes;
 - fail closed on weak evidence for critical consumers;
 - fail closed on mismatched query IDs, value hashes, or action IDs;

@@ -43,6 +43,9 @@ deterministic single-axis mutations:
 | `action_depends_on_missing_receipt` | dependency graph references missing evidence |
 | `duplicate_receipt_id_shadows_terminal` | duplicate IDs create ambiguous evidence |
 | `stray_receipt_hides_unreachable_evidence` | unrelated evidence is present but not in terminal closure |
+| `unsupported_receipt_type_in_terminal_closure` | unknown receipt type enters the replay closure |
+| `dependency_consumed_before_it_appears` | bundle is not in dependency-before-consumer order |
+| `read_receipt_depends_on_itself` | receipt graph contains a self-cycle |
 | `read_receipt_status_downgraded_after_terminal_binding` | terminal read is no longer accepted |
 
 The receipt reports:
@@ -52,8 +55,8 @@ The receipt reports:
   "schema": "zenodex.oracle.chaos_replay.v1",
   "ok": true,
   "baseline_status": "accepted",
-  "case_count": 13,
-  "rejected_case_count": 13,
+  "case_count": 16,
+  "rejected_case_count": 16,
   "failed_case_count": 0
 }
 ```

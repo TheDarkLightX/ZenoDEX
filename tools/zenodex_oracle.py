@@ -23,6 +23,7 @@ BUNDLE_SCHEMA = "zenodex.oracle.receipt_bundle.v1"
 RESULT_SCHEMA = "zenodex.oracle.verify_result.v1"
 READ_TYPE = "accepted_read_receipt"
 ACTION_TYPE = "consumer_action_receipt"
+SUPPORTED_RECEIPT_TYPES = {READ_TYPE, ACTION_TYPE}
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 NOT_CLAIMED = [
@@ -148,6 +149,26 @@ def _receipt_index(receipts_raw: object, errors: list[str]) -> dict[str, Mapping
     return index
 
 
+def _receipt_positions(receipts_raw: object) -> dict[str, int]:
+    if not isinstance(receipts_raw, list):
+        return {}
+
+    positions: dict[str, int] = {}
+    for pos, receipt in enumerate(receipts_raw):
+        if not isinstance(receipt, Mapping):
+            continue
+        receipt_id = receipt.get("id")
+        if _is_hash(receipt_id) and str(receipt_id) not in positions:
+            positions[str(receipt_id)] = int(pos)
+    return positions
+
+
+def _receipt_types_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
+    for receipt_id, receipt in index.items():
+        if receipt.get("type") not in SUPPORTED_RECEIPT_TYPES:
+            errors.append(f"unsupported_receipt_type:{receipt_id}")
+
+
 def _dependencies_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
     for receipt_id, receipt in index.items():
         deps = receipt.get("depends_on", [])
@@ -161,6 +182,25 @@ def _dependencies_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) 
                 errors.append(f"dependency_id_must_be_sha256:{receipt_id}")
             elif dep not in index:
                 errors.append(f"missing_dependency:{receipt_id}->{dep}")
+            elif dep == receipt_id:
+                errors.append(f"dependency_self_reference:{receipt_id}")
+
+
+def _dependency_order_ok(
+    index: Mapping[str, Mapping[str, Any]],
+    positions: Mapping[str, int],
+    errors: list[str],
+) -> None:
+    for receipt_id, receipt in index.items():
+        deps = receipt.get("depends_on", [])
+        if not isinstance(deps, list):
+            continue
+        receipt_pos = positions.get(receipt_id)
+        if receipt_pos is None:
+            continue
+        for dep in deps:
+            if isinstance(dep, str) and dep in positions and positions[dep] > receipt_pos:
+                errors.append(f"dependency_order_violation:{receipt_id}->{dep}")
 
 
 def _dependency_closure(
@@ -258,8 +298,12 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     terminal = _get_mapping(bundle, "terminal", errors)
     read_id = _get_hash(terminal or {}, "read_receipt_id", errors)
     action_id = _get_hash(terminal or {}, "consumer_action_receipt_id", errors)
-    index = _receipt_index(bundle.get("receipts"), errors)
+    receipts_raw = bundle.get("receipts")
+    index = _receipt_index(receipts_raw, errors)
+    positions = _receipt_positions(receipts_raw)
+    _receipt_types_ok(index, errors)
     _dependencies_ok(index, errors)
+    _dependency_order_ok(index, positions, errors)
     terminal_ids = [receipt_id for receipt_id in (read_id, action_id) if receipt_id is not None]
     _no_unreachable_receipts(index, terminal_ids, errors)
 
