@@ -8,6 +8,12 @@ The Oracle MVP now has one local entry point:
 python3 tools/zenodex_oracle_cli.py
 ```
 
+The RC package also includes an executable launcher:
+
+```bash
+bin/zenodex-oracle
+```
+
 This wrapper does not replace the individual verifiers. It routes to them so a
 user can discover, generate, verify, and replay Oracle artifacts without knowing
 every script name.
@@ -24,6 +30,12 @@ Check that the local verifier shell is present:
 
 ```bash
 python3 tools/zenodex_oracle_cli.py doctor
+```
+
+In an unpacked RC package, the equivalent command is:
+
+```bash
+bin/zenodex-oracle doctor
 ```
 
 The doctor command returns a JSON receipt with `ok`, `surface_count`,
@@ -157,5 +169,6 @@ dist/zeno-oracle-mvp-rc1.tar.gz
 dist/zeno-oracle-mvp-rc1/ZEN_ORACLE_RC_MANIFEST.json
 ```
 
-The manifest lists every packaged file with `size_bytes` and `sha256`. The CI
-workflow uploads the tarball and manifest as the `zeno-oracle-mvp-rc1` artifact.
+The manifest lists every packaged file with `size_bytes` and `sha256`, and sets
+`bin/zenodex-oracle` as the package entrypoint. The CI workflow uploads the
+tarball and manifest as the `zeno-oracle-mvp-rc1` artifact.
