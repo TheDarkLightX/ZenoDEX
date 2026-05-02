@@ -487,6 +487,8 @@ def test_settle_epoch_3p_oracle_adapter_bridge_is_required_when_configured() -> 
 
 def test_settle_epoch_3p_oracle_adapter_bridge_binds_runtime_action_id() -> None:
     from src.integration.perp_engine import (
+        _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
         PerpEngineConfig,
         _perps_clearinghouse_runtime_oracle_action_id,
     )
@@ -508,6 +510,8 @@ def test_settle_epoch_3p_oracle_adapter_bridge_binds_runtime_action_id() -> None
             "errors": [],
             "consumer_module": "zenodex.perps",
             "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             "action_id": "sha256:" + "00" * 32,
         },
     )
@@ -537,6 +541,8 @@ def test_settle_epoch_3p_oracle_adapter_bridge_binds_runtime_action_id() -> None
             "errors": [],
             "consumer_module": "zenodex.perps",
             "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             "action_id": expected_action_id,
         }
 

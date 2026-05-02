@@ -176,6 +176,20 @@ DEX_ROUTING_REFERENCE_QUERY_ID = (
     "sha256:"
     + hashlib.sha256("zenodex.oracle.query.routing.reference_price_e8".encode("utf-8")).hexdigest()
 )
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID = "sha256:" + hashlib.sha256(
+    canonical_json_bytes(
+        {
+            "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+            "consumer_module": "zenodex.routing",
+            "action_kind": "guarded_quote",
+            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
+            "required_evidence_floor": "O3",
+            "max_freshness_window_epochs": 4,
+            "critical": True,
+        }
+    )
+).hexdigest()
 
 
 def _dex_api_int_limit_error(
@@ -697,6 +711,8 @@ def _check_routing_oracle_adapter_bridge_for_action(
         return "oracle_adapter_bridge action mismatch"
     if _adapter_result_get(result, "query_id") != DEX_ROUTING_REFERENCE_QUERY_ID:
         return "oracle_adapter_bridge query mismatch"
+    if _adapter_result_get(result, "profile_id") != DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID:
+        return "oracle_adapter_bridge profile mismatch"
     if _adapter_result_get(result, "action_id") != expected_action_id:
         return "oracle_adapter_bridge action_id mismatch"
     return None

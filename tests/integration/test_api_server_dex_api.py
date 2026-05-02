@@ -924,6 +924,63 @@ def test_api_server_oracle_adapter_guarded_quote_rejects_wrong_query(monkeypatch
 
 
 def test_api_server_oracle_adapter_guarded_quote_accepts_bound_bridge(monkeypatch) -> None:
+    from src.integration.api_server import (
+        DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
+        DEX_ROUTING_REFERENCE_QUERY_ID,
+        _routing_guarded_quote_oracle_action_id,
+    )
+
+    pools = [
+        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+        _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+        _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+    ]
+    expected_action_id = _routing_guarded_quote_oracle_action_id(
+        path="/api/dex/quote_exact_in_route_guarded",
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+        split_search_profile="adaptive_v6",
+        enable_mixed_direct_twohop_split=False,
+        binding_ok=1,
+        pools_raw=pools,
+    )
+    _install_fake_oracle_adapter(
+        monkeypatch,
+        {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.routing",
+            "action_kind": "guarded_quote",
+            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
+            "action_id": expected_action_id,
+            "profile_id": DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
+        },
+    )
+
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_in_route_guarded",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "pools": pools,
+                "oracle_adapter_bridge": {"schema": "test"},
+            },
+        )
+        assert status == 200
+        assert body["ok"] is True
+        assert body["error"] is None
+        assert body["quote"] == body["contract"]["runtime_quote"]
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_adapter_guarded_quote_rejects_wrong_profile(monkeypatch) -> None:
     from src.integration.api_server import DEX_ROUTING_REFERENCE_QUERY_ID, _routing_guarded_quote_oracle_action_id
 
     pools = [
@@ -950,6 +1007,7 @@ def test_api_server_oracle_adapter_guarded_quote_accepts_bound_bridge(monkeypatc
             "action_kind": "guarded_quote",
             "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
             "action_id": expected_action_id,
+            "profile_id": "sha256:" + "00" * 32,
         },
     )
 
@@ -967,10 +1025,9 @@ def test_api_server_oracle_adapter_guarded_quote_accepts_bound_bridge(monkeypatc
                 "oracle_adapter_bridge": {"schema": "test"},
             },
         )
-        assert status == 200
-        assert body["ok"] is True
-        assert body["error"] is None
-        assert body["quote"] == body["contract"]["runtime_quote"]
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "oracle_adapter_bridge profile mismatch"
     finally:
         _stop_test_server(httpd, t)
 
@@ -5729,7 +5786,7 @@ def test_api_server_oracle_adapter_exact_out_guarded_quote_requires_bridge_when_
 
 
 def test_api_server_oracle_adapter_exact_out_guarded_quote_rejects_wrong_action_id(monkeypatch) -> None:
-    from src.integration.api_server import DEX_ROUTING_REFERENCE_QUERY_ID
+    from src.integration.api_server import DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID, DEX_ROUTING_REFERENCE_QUERY_ID
 
     pools = [
         _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
@@ -5745,6 +5802,7 @@ def test_api_server_oracle_adapter_exact_out_guarded_quote_rejects_wrong_action_
             "action_kind": "guarded_quote",
             "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
             "action_id": "sha256:" + "00" * 32,
+            "profile_id": DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
         },
     )
 
@@ -5767,6 +5825,7 @@ def test_api_server_oracle_adapter_exact_out_guarded_quote_rejects_wrong_action_
 
 def test_api_server_oracle_adapter_exact_out_guarded_quote_accepts_bound_bridge(monkeypatch) -> None:
     from src.integration.api_server import (
+        DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
         DEX_ROUTING_REFERENCE_QUERY_ID,
         _routing_guarded_exact_out_quote_oracle_action_id,
     )
@@ -5799,6 +5858,7 @@ def test_api_server_oracle_adapter_exact_out_guarded_quote_accepts_bound_bridge(
             "action_kind": "guarded_quote",
             "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
             "action_id": expected_action_id,
+            "profile_id": DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
         },
     )
 
