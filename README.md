@@ -606,6 +606,7 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/ZENO_ORACLE_PRODUCTION_GATES.md` — Zeno Oracle rollout and verifier gates
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md` — current local Oracle receipt-bundle format
 - `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md` — current local Oracle token budget format
+- `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md` — current local Oracle reporter lifecycle format
 - `docs/ZENO_ORACLE_CHAOS_ENGINEERING.md` — Zeno Oracle disaster-shape replay lane
 - `docs/ECOSYSTEM_STRATEGY.md` — Deflationary DAC ecosystem design
 - `docs/ECOSYSTEM_GRAPH.md` — Ecosystem module graph

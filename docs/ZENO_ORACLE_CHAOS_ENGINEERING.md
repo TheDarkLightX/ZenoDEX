@@ -94,13 +94,6 @@ for named disaster shapes. New consumers, new evidence classes, larger
 aggregate families, live network submission, reporter economics, and dispute
 governance need their own chaos lanes.
 
-## Next Chaos Lanes
-
-1. Reporter lifecycle: registration, bond, report, dispute, slash, withdrawal.
-2. Query-policy update lifecycle: no downgrade after critical consumers bind.
-3. Aggregation lifecycle: reporter-set drift, source-family drift, root drift.
-4. ZenoDEX adapter lifecycle: accepted read to perps/zUSD/trigger execution.
-
 ## Token Budget Replay Lane
 
 Run:
@@ -149,3 +142,66 @@ ValidBudgetTransition + DangerousPerturbation -> RejectedTransition
 Plain English: if a mutation creates a reward, slash, burn, treasury, or fee
 share that exceeds the explicit budget/bond/fee envelope, the local verifier
 rejects it.
+
+## Reporter Lifecycle Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_reporter_lifecycle_chaos.py
+```
+
+The replay starts with one accepted reporter lifecycle trace, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `duplicate_reporter_registration` | reporter registers twice |
+| `bond_deposit_before_registration` | bond appears before reporter registration |
+| `report_before_registration` | report is submitted by inactive reporter |
+| `report_under_required_bond` | report is submitted below required bond |
+| `duplicate_report_id_survives` | same report ID is submitted twice |
+| `dispute_for_unknown_report` | dispute targets unknown report |
+| `zero_dispute_bond_survives` | dispute opens with no challenger bond |
+| `slash_without_open_dispute` | slash executes without open dispute |
+| `slash_exceeds_reporter_bond` | slash exceeds available reporter bond |
+| `double_slash_same_dispute` | same dispute slashes twice |
+| `resolve_unknown_dispute` | resolver closes unknown dispute |
+| `unregister_with_open_dispute` | reporter exits with open dispute |
+| `withdraw_while_active` | reporter withdraws while active |
+| `withdraw_with_open_dispute` | reporter withdraws while dispute is open |
+| `withdraw_exceeds_bond` | withdrawal exceeds remaining bond |
+| `event_epoch_regression` | lifecycle epochs move backward |
+| `hidden_event_field_survives` | hidden event authority field is accepted |
+| `unknown_event_type_survives` | unsupported event type is accepted |
+| `boolean_bond_amount_survives` | boolean is accepted as amount |
+| `too_many_events_survive` | trace exceeds event-count budget |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.reporter_lifecycle_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 20,
+  "rejected_case_count": 20,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the permissionless reporter sequence:
+
+```text
+ValidReporterLifecycle + DangerousPerturbation -> RejectedLifecycle
+```
+
+Plain English: if a mutation lets a reporter skip registration, report
+under-bonded, slash outside an open dispute, or withdraw unsafely, the local
+verifier rejects it.
+
+## Next Chaos Lanes
+
+1. Query-policy update lifecycle: no downgrade after critical consumers bind.
+2. Aggregation lifecycle: reporter-set drift, source-family drift, root drift.
+3. ZenoDEX adapter lifecycle: accepted read to perps/zUSD/trigger execution.
