@@ -8,6 +8,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -115,6 +116,46 @@ def _write_json(obj: dict[str, Any], output: Path | None) -> None:
     else:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text, encoding="utf-8")
+
+
+def _result_ok(obj: dict[str, Any] | None) -> bool:
+    if obj is None:
+        return False
+    status = obj.get("status")
+    if status is not None:
+        return status == "accepted"
+    return obj.get("ok") is True
+
+
+def _summarize_result(obj: dict[str, Any] | None) -> dict[str, Any]:
+    if obj is None:
+        return {}
+    summary: dict[str, Any] = {}
+    for key in (
+        "schema",
+        "ok",
+        "status",
+        "registry_id",
+        "submission_id",
+        "aggregate_receipt_id",
+        "read_receipt_id",
+        "consumer_action_receipt_id",
+        "profile_id",
+        "reporter_id",
+        "errors",
+    ):
+        if key in obj:
+            summary[key] = obj[key]
+    return summary
+
+
+def _dry_run_root(workdir: str | None) -> tuple[Path, tempfile.TemporaryDirectory[str] | None]:
+    if workdir:
+        root = Path(workdir)
+        root.mkdir(parents=True, exist_ok=True)
+        return root, None
+    temp = tempfile.TemporaryDirectory(prefix="zeno-oracle-dry-run-")
+    return Path(temp.name), temp
 
 
 def _hash_to_filename(value: str) -> str:
@@ -263,6 +304,149 @@ def cmd_submit_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dry_run(args: argparse.Namespace) -> int:
+    root, temp = _dry_run_root(args.workdir)
+    steps: list[dict[str, Any]] = []
+
+    def add_step(
+        name: str,
+        *,
+        code: int,
+        path: Path | None = None,
+        result: dict[str, Any] | None = None,
+        error: str = "",
+    ) -> bool:
+        ok = code == 0 and (result is None or _result_ok(result))
+        item: dict[str, Any] = {
+            "name": name,
+            "ok": ok,
+            "returncode": int(code),
+        }
+        if path is not None:
+            item["path"] = str(path)
+        if result is not None:
+            item["result"] = _summarize_result(result)
+        if error:
+            item["error"] = error
+        steps.append(item)
+        return ok
+
+    try:
+        store = root / "store"
+        feed_path = root / "feed-registry.json"
+        feed_receipt_path = root / "feed-registration-receipt.json"
+        report_path = root / "signed-report.json"
+        report_receipt_path = root / "report-submission-receipt.json"
+        lifecycle_path = root / "reporter-lifecycle.json"
+        budget_path = root / "token-budget-transition.json"
+        admitted_path = root / "admitted-median3.json"
+        read_path = root / "aggregate-read.json"
+        aggregate_adapter_path = root / "aggregate-adapter.json"
+        adapter_action_path = root / "adapter-action.json"
+        adapter_bundle_path = root / "adapter-bundle.json"
+        adapter_profile_path = root / "adapter-profile.json"
+
+        sample_plan = [
+            ("sample_feed", "feed", feed_path),
+            ("sample_signed_report", "signed-report", report_path),
+            ("sample_reporter_lifecycle", "reporter-lifecycle", lifecycle_path),
+            ("sample_token_budget", "budget", budget_path),
+            ("sample_admitted_median3", "admitted-median3", admitted_path),
+            ("sample_aggregate_read", "aggregate-read", read_path),
+            ("sample_aggregate_adapter", "aggregate-adapter", aggregate_adapter_path),
+        ]
+        for name, surface, path in sample_plan:
+            add_step(
+                name,
+                code=_run_script(SURFACES[surface], ["sample", "--output", str(path)]),
+                path=path,
+            )
+
+        code = _run_script(
+            SURFACES["adapter"],
+            [
+                "sample",
+                "--action-output",
+                str(adapter_action_path),
+                "--bundle-output",
+                str(adapter_bundle_path),
+                "--profile-output",
+                str(adapter_profile_path),
+            ],
+        )
+        add_step("sample_adapter_bundle", code=code, path=adapter_bundle_path)
+
+        verify_plan = [
+            ("verify_feed", "feed", feed_path),
+            ("verify_signed_report", "signed-report", report_path),
+            ("verify_reporter_lifecycle", "reporter-lifecycle", lifecycle_path),
+            ("verify_token_budget", "budget", budget_path),
+            ("verify_admitted_median3", "admitted-median3", admitted_path),
+            ("verify_aggregate_read", "aggregate-read", read_path),
+            ("verify_aggregate_adapter", "aggregate-adapter", aggregate_adapter_path),
+        ]
+        for name, surface, path in verify_plan:
+            code, result, err = _run_script_json(SURFACES[surface], ["verify", str(path)])
+            add_step(name, code=code, path=path, result=result, error=err)
+
+        code, result, err = _run_script_json(
+            SURFACES["adapter"],
+            [
+                "verify",
+                "--action",
+                str(adapter_action_path),
+                "--bundle",
+                str(adapter_bundle_path),
+                "--profile",
+                str(adapter_profile_path),
+            ],
+        )
+        add_step("verify_adapter_bundle", code=code, path=adapter_bundle_path, result=result, error=err)
+
+        register_code = cmd_register_feed(
+            argparse.Namespace(
+                registry=str(feed_path),
+                store=str(store),
+                receipt_output=str(feed_receipt_path),
+            )
+        )
+        register_result = json.loads(feed_receipt_path.read_text(encoding="utf-8")) if feed_receipt_path.exists() else None
+        add_step("register_feed_to_local_store", code=register_code, path=feed_receipt_path, result=register_result)
+
+        submit_code = cmd_submit_report(
+            argparse.Namespace(
+                submission=str(report_path),
+                store=str(store),
+                receipt_output=str(report_receipt_path),
+            )
+        )
+        submit_result = json.loads(report_receipt_path.read_text(encoding="utf-8")) if report_receipt_path.exists() else None
+        add_step("submit_report_to_local_store", code=submit_code, path=report_receipt_path, result=submit_result)
+
+        ok = all(bool(step["ok"]) for step in steps)
+        receipt = {
+            "schema": "zenodex.oracle.cli_dry_run_receipt.v1",
+            "ok": ok,
+            "status": "accepted" if ok else "rejected",
+            "step_count": len(steps),
+            "accepted_step_count": sum(1 for step in steps if step["ok"]),
+            "artifact_dir": str(root) if args.workdir else None,
+            "artifacts_persisted": bool(args.workdir),
+            "local_store": str(store) if args.workdir else None,
+            "steps": steps,
+            "not_claimed": [
+                "does_not_claim_network_broadcast",
+                "does_not_claim_onchain_feed_governance",
+                "does_not_claim_live_reporter_registry",
+            ],
+        }
+        _write_json(receipt, Path(args.output) if args.output else None)
+        return 0 if ok else 2
+    finally:
+        if temp is not None:
+            temp.cleanup()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -299,6 +483,11 @@ def build_parser() -> argparse.ArgumentParser:
     submit_report.add_argument("--store", required=True, help="local Oracle store directory")
     submit_report.add_argument("--receipt-output", help="optional output path for the submission receipt")
     submit_report.set_defaults(func=cmd_submit_report)
+
+    dry_run = subparsers.add_parser("dry-run", help="run a complete local Oracle MVP happy path")
+    dry_run.add_argument("--workdir", help="optional directory where generated artifacts are kept")
+    dry_run.add_argument("--output", help="optional output path for the dry-run receipt")
+    dry_run.set_defaults(func=cmd_dry_run)
     return parser
 
 

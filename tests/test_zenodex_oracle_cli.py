@@ -211,6 +211,28 @@ def test_oracle_cli_submits_signed_report_to_local_store(tmp_path: Path) -> None
     assert stored.parent == store_path / "signed_reports"
 
 
+def test_oracle_cli_dry_run_exercises_local_mvp_flow(tmp_path: Path) -> None:
+    workdir = tmp_path / "dry-run"
+    proc = subprocess.run(
+        [*CLI, "dry-run", "--workdir", str(workdir)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    receipt = json.loads(proc.stdout)
+    assert receipt["schema"] == "zenodex.oracle.cli_dry_run_receipt.v1"
+    assert receipt["status"] == "accepted"
+    assert receipt["step_count"] == receipt["accepted_step_count"]
+    step_names = {step["name"] for step in receipt["steps"]}
+    assert "register_feed_to_local_store" in step_names
+    assert "submit_report_to_local_store" in step_names
+    assert "verify_adapter_bundle" in step_names
+    assert (workdir / "store" / "feeds").is_dir()
+    assert (workdir / "store" / "signed_reports").is_dir()
+
+
 def test_oracle_cli_rejects_unknown_surface() -> None:
     proc = subprocess.run(
         [*CLI, "sample", "unknown-surface"],
