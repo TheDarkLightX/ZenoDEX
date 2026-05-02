@@ -90,6 +90,10 @@ Required behavior:
 - fail closed on stale or open disputes;
 - fail closed on weak evidence for critical consumers;
 - fail closed on mismatched query IDs, value hashes, or action IDs;
+- fail closed when the consumer action omits its module, action kind, action
+  ID, action epoch, or freshness window;
+- fail closed when the consumer action occurs before observation, after read
+  expiry, or beyond the declared freshness window;
 - preserve raw machine-readable failure reasons.
 
 Non-goal: the replay verifier does not decide whether a market price is

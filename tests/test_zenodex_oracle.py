@@ -19,6 +19,12 @@ def _bundle(
     fresh: bool = True,
     dispute_clear: bool = True,
     uncertainty_accepted: bool = True,
+    observed_epoch: int = 100,
+    expires_at_epoch: int = 104,
+    consumer_module: str = "zenodex.oracle.sample",
+    action_kind: str = "sample_critical_read",
+    action_epoch: int = 102,
+    freshness_window_epochs: int = 4,
     action_query_id: str | None = None,
     action_value_hash: str | None = None,
     emergency_bypass: bool = False,
@@ -43,6 +49,8 @@ def _bundle(
                 "value_hash": value_hash,
                 "evidence_class": evidence_class,
                 "fresh": fresh,
+                "observed_epoch": observed_epoch,
+                "expires_at_epoch": expires_at_epoch,
                 "dispute_clear": dispute_clear,
                 "uncertainty_accepted": uncertainty_accepted,
                 "depends_on": [],
@@ -51,6 +59,11 @@ def _bundle(
                 "id": action_id,
                 "type": "consumer_action_receipt",
                 "status": "accepted",
+                "consumer_module": consumer_module,
+                "action_kind": action_kind,
+                "action_id": _h("downstream-action"),
+                "action_epoch": action_epoch,
+                "freshness_window_epochs": freshness_window_epochs,
                 "query_id": action_query_id or query_id,
                 "value_hash": action_value_hash or value_hash,
                 "read_receipt_id": read_id,
@@ -109,6 +122,25 @@ def test_zenodex_oracle_verify_rejects_emergency_bypass(tmp_path: Path) -> None:
     code, result = _run_verify(tmp_path, _bundle(emergency_bypass=True))
     assert code == 2
     assert "emergency_oracle_bypass_rejected" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_expired_read_for_action(tmp_path: Path) -> None:
+    code, result = _run_verify(tmp_path, _bundle(action_epoch=105))
+    assert code == 2
+    assert "consumer_action_after_read_expiry" in result["errors"]
+    assert "consumer_action_exceeds_freshness_window" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_action_before_observation(tmp_path: Path) -> None:
+    code, result = _run_verify(tmp_path, _bundle(action_epoch=99))
+    assert code == 2
+    assert "consumer_action_before_read_observation" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_missing_consumer_identity(tmp_path: Path) -> None:
+    code, result = _run_verify(tmp_path, _bundle(consumer_module=""))
+    assert code == 2
+    assert "consumer_module_must_be_token" in result["errors"]
 
 
 def test_zenodex_oracle_verify_rejects_action_without_read_dependency(tmp_path: Path) -> None:
