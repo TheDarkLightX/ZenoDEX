@@ -202,6 +202,12 @@ The next concrete implementation target is:
 zenodex-oracle verify <bundle>
 ```
 
+The current public shell for that target is:
+
+```text
+python3 tools/zenodex_oracle.py verify <bundle>
+```
+
 It should verify a local receipt bundle and produce stable JSON:
 
 ```json
