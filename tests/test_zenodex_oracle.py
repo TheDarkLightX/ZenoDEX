@@ -138,6 +138,40 @@ def test_zenodex_oracle_verify_rejects_unreachable_receipt(tmp_path: Path) -> No
     assert any(error.startswith("unreachable_receipt:") for error in result["errors"])
 
 
+def test_zenodex_oracle_verify_rejects_unsupported_receipt_type(tmp_path: Path) -> None:
+    bundle = _bundle()
+    support_id = _h("support")
+    bundle["receipts"].insert(
+        0,
+        {
+            "id": support_id,
+            "type": "unsupported_source_receipt",
+            "status": "accepted",
+            "depends_on": [],
+        },
+    )
+    bundle["receipts"][2]["depends_on"].append(support_id)
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert f"unsupported_receipt_type:{support_id}" in result["errors"]
+
+
+def test_zenodex_oracle_verify_rejects_dependency_order_violation(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["receipts"] = [bundle["receipts"][1], bundle["receipts"][0]]
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert any(error.startswith("dependency_order_violation:") for error in result["errors"])
+
+
+def test_zenodex_oracle_verify_rejects_dependency_self_reference(tmp_path: Path) -> None:
+    bundle = _bundle()
+    bundle["receipts"][0]["depends_on"] = [bundle["receipts"][0]["id"]]
+    code, result = _run_verify(tmp_path, bundle)
+    assert code == 2
+    assert any(error.startswith("dependency_self_reference:") for error in result["errors"])
+
+
 def test_zenodex_oracle_sample_bundle_cli_emits_verifiable_bundle(tmp_path: Path) -> None:
     bundle_path = tmp_path / "sample-bundle.json"
     sample_proc = subprocess.run(

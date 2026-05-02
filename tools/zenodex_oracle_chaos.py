@@ -27,11 +27,19 @@ def _mutate(mutator: Callable[[dict[str, Any]], None]) -> dict[str, Any]:
 
 
 def _read(bundle: dict[str, Any]) -> dict[str, Any]:
-    return bundle["receipts"][0]
+    return next(
+        receipt
+        for receipt in bundle["receipts"]
+        if receipt.get("type") == "accepted_read_receipt"
+    )
 
 
 def _action(bundle: dict[str, Any]) -> dict[str, Any]:
-    return bundle["receipts"][1]
+    return next(
+        receipt
+        for receipt in bundle["receipts"]
+        if receipt.get("type") == "consumer_action_receipt"
+    )
 
 
 def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
@@ -110,6 +118,37 @@ def chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
                 )
             ),
             ["unreachable_receipt"],
+        ),
+        (
+            "unsupported_receipt_type_in_terminal_closure",
+            _mutate(
+                lambda b: (
+                    b["receipts"].insert(
+                        0,
+                        {
+                            "id": sample_hash("unsupported-receipt"),
+                            "type": "unsupported_source_receipt",
+                            "status": "accepted",
+                            "depends_on": [],
+                        },
+                    ),
+                    _action(b).__setitem__(
+                        "depends_on",
+                        [sample_hash("zenodex-oracle-sample-read"), sample_hash("unsupported-receipt")],
+                    ),
+                )
+            ),
+            ["unsupported_receipt_type"],
+        ),
+        (
+            "dependency_consumed_before_it_appears",
+            _mutate(lambda b: b["receipts"].reverse()),
+            ["dependency_order_violation"],
+        ),
+        (
+            "read_receipt_depends_on_itself",
+            _mutate(lambda b: _read(b).__setitem__("depends_on", [_read(b)["id"]])),
+            ["dependency_self_reference"],
         ),
         (
             "read_receipt_status_downgraded_after_terminal_binding",
