@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
+import types
 from http.client import HTTPConnection
 
 from tests.integration._attestation_policy_helper import (
@@ -49,6 +51,11 @@ def _post_json(host: str, port: int, path: str, payload: dict) -> tuple[int, dic
         return int(resp.status), body
     finally:
         conn.close()
+
+
+def _install_fake_oracle_adapter(monkeypatch, result: dict) -> None:
+    module = types.SimpleNamespace(verify_aggregate_adapter_bridge=lambda _bridge: result)
+    monkeypatch.setitem(sys.modules, "tools.zenodex_oracle_aggregate_adapter", module)
 
 
 def _pool_dict(
@@ -818,6 +825,136 @@ def test_api_server_quote_exact_in_route_guarded() -> None:
         assert body["error"] is None
         assert body["quote"] == body["contract"]["runtime_quote"]
         assert body["contract"]["runtime_matches_canonical"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_adapter_guarded_quote_requires_bridge_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "1")
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_in_route_guarded",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "guarded_quote requires oracle_adapter_bridge"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_adapter_guarded_quote_rejects_wrong_query(monkeypatch) -> None:
+    from src.integration.api_server import _routing_guarded_quote_oracle_action_id
+
+    pools = [
+        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+        _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+        _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+    ]
+    expected_action_id = _routing_guarded_quote_oracle_action_id(
+        path="/api/dex/quote_exact_in_route_guarded",
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+        split_search_profile="adaptive_v6",
+        enable_mixed_direct_twohop_split=False,
+        binding_ok=1,
+        pools_raw=pools,
+    )
+    _install_fake_oracle_adapter(
+        monkeypatch,
+        {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.routing",
+            "action_kind": "guarded_quote",
+            "query_id": "sha256:" + "00" * 32,
+            "action_id": expected_action_id,
+        },
+    )
+
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_in_route_guarded",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "pools": pools,
+                "oracle_adapter_bridge": {"schema": "test"},
+            },
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "oracle_adapter_bridge query mismatch"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_adapter_guarded_quote_accepts_bound_bridge(monkeypatch) -> None:
+    from src.integration.api_server import DEX_ROUTING_REFERENCE_QUERY_ID, _routing_guarded_quote_oracle_action_id
+
+    pools = [
+        _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+        _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+        _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+    ]
+    expected_action_id = _routing_guarded_quote_oracle_action_id(
+        path="/api/dex/quote_exact_in_route_guarded",
+        asset_in="A",
+        asset_out="B",
+        amount_in=10,
+        split_search_profile="adaptive_v6",
+        enable_mixed_direct_twohop_split=False,
+        binding_ok=1,
+        pools_raw=pools,
+    )
+    _install_fake_oracle_adapter(
+        monkeypatch,
+        {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.routing",
+            "action_kind": "guarded_quote",
+            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
+            "action_id": expected_action_id,
+        },
+    )
+
+    httpd, t, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_in_route_guarded",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "pools": pools,
+                "oracle_adapter_bridge": {"schema": "test"},
+            },
+        )
+        assert status == 200
+        assert body["ok"] is True
+        assert body["error"] is None
+        assert body["quote"] == body["contract"]["runtime_quote"]
     finally:
         _stop_test_server(httpd, t)
 

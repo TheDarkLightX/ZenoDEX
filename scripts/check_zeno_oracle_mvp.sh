@@ -41,3 +41,4 @@ pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
+pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter

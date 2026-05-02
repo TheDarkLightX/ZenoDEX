@@ -1,10 +1,11 @@
 # Zeno Oracle Runtime Bridge V1
 
-Status: first concrete ZenoDEX perps and zUSD consumer hooks.
+Status: first concrete ZenoDEX perps, zUSD, and routing consumer hooks.
 
 The Oracle receipt chain is useful only if runtime actions refuse to treat raw
 oracle-looking data as authority. The first runtime bridges are now wired into
-perps settlement paths and critical zUSD API actions.
+perps settlement paths, critical zUSD API actions, and the exact-in guarded
+routing quote API.
 
 ## Perps Settlement Hook
 
@@ -120,6 +121,53 @@ pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
 The zUSD hook does not claim that the zUSD API is the production chain
 transaction path; `src/integration/zusd_api.py` remains a demo/development API.
 
+## Routing Guarded-Quote Hook
+
+The DEX API now gates `/api/dex/quote_exact_in_route_guarded` when
+`DEX_ROUTING_ORACLE_ADAPTER_REQUIRED` is enabled, and also verifies any
+`oracle_adapter_bridge` supplied on that request even when the requirement flag
+is disabled.
+
+The verified bridge must bind to:
+
+```text
+consumer_module = "zenodex.routing"
+action_kind     = "guarded_quote"
+query_id        = sha256("zenodex.oracle.query.routing.reference_price_e8")
+```
+
+The routing runtime action ID is the SHA-256 content hash of:
+
+```text
+schema = "zenodex.oracle.routing_runtime_action_id.v1"
+consumer_module = "zenodex.routing"
+action_kind = "guarded_quote"
+path = "/api/dex/quote_exact_in_route_guarded"
+quote_kind = "exact_in"
+asset_in
+asset_out
+amount_in
+split_search_profile
+enable_mixed_direct_twohop_split
+binding_ok
+pool_snapshot_hash
+```
+
+The pool snapshot hash commits to the ordered pool snapshots used by the
+request. This prevents a guarded quote request from borrowing a receipt for a
+different route query, asset pair, amount, route policy, binding flag, or pool
+snapshot.
+
+The Oracle MVP gate also runs:
+
+```bash
+pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
+```
+
+The routing hook is currently limited to the exact-in guarded quote endpoint.
+It does not claim every quote, packet-build, or exact-out routing endpoint is
+runtime-wired.
+
 ## CI Coverage
 
 The Oracle MVP gate runs:
@@ -129,6 +177,7 @@ pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
+pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
 ```
 
 Those tests cover:
@@ -137,6 +186,7 @@ Those tests cover:
 - bridge present with no verifier;
 - verifier rejection;
 - accepted bridge for the wrong action;
+- accepted bridge for the wrong query;
 - accepted bridge for the wrong runtime action ID;
 - accepted bridge bound to the intended consumer/action.
 
@@ -144,11 +194,13 @@ Those tests cover:
 
 This hook does not yet claim:
 
-- routing or trigger consumers are runtime-wired;
+- trigger consumers are runtime-wired;
+- every routing endpoint is runtime-wired;
 - the zUSD demo API is the production chain transaction path;
 - the external Oracle network is live;
 - verifier callbacks are automatically configured by deployment tooling.
 
-The current claim is narrower: perps settlement and critical zUSD demo API
-actions now have fail-closed runtime bridge points that can require an accepted
-aggregate-derived Oracle receipt before execution proceeds.
+The current claim is narrower: perps settlement, critical zUSD demo API actions,
+and the exact-in guarded routing quote API now have fail-closed runtime bridge
+points that can require an accepted aggregate-derived Oracle receipt before
+execution proceeds.

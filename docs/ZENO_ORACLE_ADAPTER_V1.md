@@ -210,8 +210,8 @@ schema, missing-field, and type-confusion disaster shapes. Details are tracked i
 
 This verifier does not claim:
 
-- perps, zUSD, routing, or trigger execution are already runtime-wired to the
-  adapter;
+- all perps, production zUSD, routing, or trigger execution paths are already
+  runtime-wired to the adapter;
 - a live production Oracle network exists;
 - reporter sources are honest;
 - oracle values are true market prices;
