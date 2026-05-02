@@ -14,6 +14,7 @@ cp "${root}/README.md" "${stage}/README.md"
 cp "${root}/requirements-core.txt" "${stage}/requirements-core.txt"
 cp "${root}/requirements-dev.txt" "${stage}/requirements-dev.txt"
 cp "${root}/scripts/check_zeno_oracle_mvp.sh" "${stage}/scripts/check_zeno_oracle_mvp.sh"
+cp "${root}/scripts/check_zeno_oracle_devnet_alpha.sh" "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"
 cp "${root}/scripts/package_zeno_oracle_rc.sh" "${stage}/scripts/package_zeno_oracle_rc.sh"
 
 find "${root}/tools" -maxdepth 1 -type f -name 'zenodex_oracle*.py' -print0 |
@@ -27,6 +28,7 @@ find "${root}/docs" -maxdepth 1 -type f -name 'ZENO_ORACLE*.md' -print0 |
 chmod +x "${stage}/tools/zenodex_oracle_cli.py"
 chmod +x "${stage}/bin/zenodex-oracle"
 chmod +x "${stage}/scripts/check_zeno_oracle_mvp.sh"
+chmod +x "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"
 chmod +x "${stage}/scripts/package_zeno_oracle_rc.sh"
 
 commit="$(git -C "${root}" rev-parse HEAD 2>/dev/null || printf 'unknown')"
@@ -67,12 +69,14 @@ manifest = {
     "entrypoint": "bin/zenodex-oracle",
     "python_entrypoint": "tools/zenodex_oracle_cli.py",
     "local_gate": "scripts/check_zeno_oracle_mvp.sh",
+    "devnet_alpha_gate": "scripts/check_zeno_oracle_devnet_alpha.sh",
     "file_count": len(files),
     "files": files,
     "not_claimed": [
-        "does_not_claim_live_oracle_network",
+        "does_not_claim_production_oracle_network",
         "does_not_claim_onchain_feed_governance",
         "does_not_claim_platform_native_binary",
+        "does_not_claim_production_code_signing",
     ],
 }
 text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
@@ -82,7 +86,7 @@ PY
 tarball="${dist_dir}/${version}.tar.gz"
 rm -f "${tarball}"
 tar -C "${dist_dir}" -czf "${tarball}" "${version}"
-python3 - "$tarball" <<'PY'
+python3 - "$tarball" "${dist_dir}/${version}.receipt.json" "${dist_dir}/${version}.sig" <<'PY'
 from __future__ import annotations
 
 import hashlib
@@ -91,12 +95,23 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+receipt_path = Path(sys.argv[2])
+signature_path = Path(sys.argv[3])
 data = path.read_bytes()
+sha256 = hashlib.sha256(data).hexdigest()
+signature_payload = f"zenodex-oracle-devnet-alpha-rc:{sha256}".encode("utf-8")
+signature = hashlib.sha256(signature_payload).hexdigest()
 receipt = {
     "schema": "zenodex.oracle.rc_package_receipt.v1",
     "path": str(path),
     "size_bytes": len(data),
-    "sha256": hashlib.sha256(data).hexdigest(),
+    "sha256": sha256,
+    "signature_schema": "zenodex.oracle.devnet_package_signature.v1",
+    "signature": signature,
+    "signature_note": "devnet integrity signature, not production code signing",
 }
-print(json.dumps(receipt, indent=2, sort_keys=True))
+text = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+receipt_path.write_text(text, encoding="utf-8")
+signature_path.write_text(signature + "\n", encoding="utf-8")
+print(text, end="")
 PY

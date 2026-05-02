@@ -447,6 +447,18 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
             temp.cleanup()
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    from zenodex_oracle_devnet_service import cmd_serve as service_cmd_serve  # pylint: disable=import-outside-toplevel
+
+    return int(service_cmd_serve(args))
+
+
+def cmd_replay(args: argparse.Namespace) -> int:
+    from zenodex_oracle_devnet_service import cmd_replay as service_cmd_replay  # pylint: disable=import-outside-toplevel
+
+    return int(service_cmd_replay(args))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -488,6 +500,17 @@ def build_parser() -> argparse.ArgumentParser:
     dry_run.add_argument("--workdir", help="optional directory where generated artifacts are kept")
     dry_run.add_argument("--output", help="optional output path for the dry-run receipt")
     dry_run.set_defaults(func=cmd_dry_run)
+
+    serve = subparsers.add_parser("serve", help="run the local Zeno Oracle devnet HTTP service")
+    serve.add_argument("--store", required=True, help="devnet receipt store directory")
+    serve.add_argument("--host", default="127.0.0.1", help="bind host")
+    serve.add_argument("--port", default=8008, type=int, help="bind port; use 0 for an ephemeral port")
+    serve.set_defaults(func=cmd_serve)
+
+    replay = subparsers.add_parser("replay", help="reconstruct devnet state from stored receipt events")
+    replay.add_argument("--store", required=True, help="devnet receipt store directory")
+    replay.add_argument("--output", help="optional replay receipt output path")
+    replay.set_defaults(func=cmd_replay)
     return parser
 
 

@@ -12,6 +12,8 @@ is a status page, not a production launch claim.
 | Unified local CLI wrapper | `tools/zenodex_oracle_cli.py` | `python3 tools/zenodex_oracle_cli.py doctor` |
 | Packaged executable launcher | `bin/zenodex-oracle` | `bin/zenodex-oracle doctor` |
 | Local MVP dry-run flow | `tools/zenodex_oracle_cli.py dry-run` | `bin/zenodex-oracle dry-run --workdir /tmp/zeno-oracle-dry-run` |
+| Local devnet alpha service | `tools/zenodex_oracle_devnet_service.py` | `bin/zenodex-oracle serve --store /tmp/zeno-oracle-devnet` |
+| Local devnet replay | `tools/zenodex_oracle_devnet_service.py replay` | `bin/zenodex-oracle replay --store /tmp/zeno-oracle-devnet` |
 | MVP completion audit | `tools/zenodex_oracle_mvp_completion_audit.py` | `python3 tools/zenodex_oracle_mvp_completion_audit.py` |
 | Release-candidate package builder | `scripts/package_zeno_oracle_rc.sh` | `bash scripts/package_zeno_oracle_rc.sh` |
 | Critical read receipt verifier | `tools/zenodex_oracle.py` | `python3 tools/zenodex_oracle.py verify <bundle>` |
@@ -285,14 +287,33 @@ The economic envelope then checks the declared attack-cost, honest-reward,
 slash-deterrence, dispute-budget, and fee-split numbers against integer margin
 and budget laws.
 
+## Devnet Alpha Layer
+
+The devnet alpha adds local HTTP transport and a replayable store around the
+accepted MVP verifier objects. It supports reporter key registration, feed
+registry registration, signed report submission, admitted median3 aggregate
+production, accepted read APIs, ZenoDEX aggregate-adapter bridge APIs, economic
+event receipts, and replay from `events.jsonl`.
+
+```text
+HTTP artifact accepted -> existing verifier accepted -> artifact persisted -> event receipt appended
+```
+
+That keeps the network-facing path aligned with the local verifier shell. A
+read returned by `/reads/latest` or `/adapter/latest` is an accepted verifier
+artifact, not an unchecked service-side assertion.
+
+Details are in [ZENO_ORACLE_DEVNET_ALPHA.md](ZENO_ORACLE_DEVNET_ALPHA.md).
+
 ## Still Not Claimed
 
 This branch does not claim:
 
-- a live Zeno Oracle network exists;
+- a production Zeno Oracle network exists;
 - a platform-native binary installer exists;
 - feed governance or on-chain feed registration is live;
-- reporter registration, submission, rewards, disputes, or slashing are live;
+- reporter registration, submission, rewards, disputes, or slashing are live
+  beyond the local devnet receipt service;
 - a production Oracle token exists;
 - reporter sources are honest;
 - declared source classifications prove real-world independence;
@@ -303,11 +324,11 @@ This branch does not claim:
 
 ## Next Production Work
 
-1. Publish signed release assets for the local RC package.
+1. Replace the devnet integrity signature with production code signing.
 2. Extend runtime adapter hooks from perps settlement, the zUSD demo API, and
    guarded routing quotes to production zUSD transaction execution, additional
    routing endpoints, liquidation, and trigger execution.
 3. Add higher-redundancy aggregate policies after `median_3` and source
    diversity are stable.
-4. Add executable reporter CLI flows once the reporter and dispute objects are
-   stable.
+4. Add production reporter CLI flows, public testnet deployment config, and
+   external monitoring once the reporter and dispute objects are stable.

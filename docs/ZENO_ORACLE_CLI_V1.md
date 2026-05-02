@@ -107,6 +107,27 @@ aggregate read, aggregate adapter, and consumer adapter bundle. It also stores
 the accepted feed and signed report under the local Oracle store. This is still
 a local replay path, not network broadcast.
 
+## Devnet Alpha Service
+
+Start a local devnet node:
+
+```bash
+bin/zenodex-oracle serve --store /tmp/zeno-oracle-devnet --host 127.0.0.1 --port 8008
+```
+
+The service exposes HTTP endpoints for reporter registration, feed registry
+registration, signed report submission, aggregate production, latest accepted
+reads, ZenoDEX adapter bridges, economic event receipts, and replay.
+
+Reconstruct the store from persisted receipts:
+
+```bash
+bin/zenodex-oracle replay --store /tmp/zeno-oracle-devnet
+```
+
+See [ZENO_ORACLE_DEVNET_ALPHA.md](ZENO_ORACLE_DEVNET_ALPHA.md) for endpoint
+details and the devnet-alpha limits.
+
 ## Other Surfaces
 
 The same shape works for the other local surfaces:
@@ -170,8 +191,8 @@ This CLI does not claim:
 - a live Oracle network exists;
 - a platform-native binary installer exists;
 - on-chain feed governance is live;
-- network submission is implemented; local store submission is only a replayable
-  dev/test flow;
+- production network submission is implemented; devnet HTTP submission is local
+  test infrastructure;
 - production ZenoDEX consumers are wired to Oracle reads.
 
 It is the first local runner for the public-testnet Oracle shell.
