@@ -13,6 +13,8 @@ start with allowlisted reporters, but that is not the full market MVP.
 
 The first concrete public receipt format is
 [ZENO_ORACLE_RECEIPT_FORMAT_V1.md](ZENO_ORACLE_RECEIPT_FORMAT_V1.md).
+The first concrete public token budget format is
+[ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md).
 
 ```text
 CriticalOracleUse -> AcceptedReadReceipt
