@@ -37,6 +37,7 @@ Required before moving on:
 Current public entry point:
 
 - `docs/ZENO_ORACLE_MVP_DESIGN.md`
+- `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md`
 
 ## Gate 1: Canonical Object Format
 
