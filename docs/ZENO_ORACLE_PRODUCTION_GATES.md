@@ -149,6 +149,12 @@ The CI/local replay gate is:
 bash scripts/check_zeno_oracle_mvp.sh
 ```
 
+The local RC package builder is:
+
+```text
+bash scripts/package_zeno_oracle_rc.sh
+```
+
 The binary should never hide risk from the reporter. Before a reporter submits,
 it should display:
 
@@ -322,6 +328,7 @@ Minimum required evidence:
 
 - replay verifier passes on fresh and historical receipt bundles;
 - `.github/workflows/zeno-oracle-mvp.yml` runs the Oracle replay gate in CI;
+- CI uploads `dist/zeno-oracle-mvp-rc1.tar.gz` and its manifest as an artifact;
 - stale, weak, disputed, malformed, and misbound bundles reject;
 - signed report payload, signature, sequence, and previous-link mutations reject;
 - report admission rejects signed/lifecycle/source-diversity mismatches;

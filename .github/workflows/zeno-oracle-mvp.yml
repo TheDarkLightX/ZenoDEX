@@ -30,3 +30,15 @@ jobs:
 
       - name: Run Zeno Oracle MVP replay gate
         run: bash scripts/check_zeno_oracle_mvp.sh
+
+      - name: Build Zeno Oracle MVP RC package
+        run: bash scripts/package_zeno_oracle_rc.sh
+
+      - name: Upload Zeno Oracle MVP RC package
+        uses: actions/upload-artifact@v4
+        with:
+          name: zeno-oracle-mvp-rc1
+          path: |
+            dist/zeno-oracle-mvp-rc1.tar.gz
+            dist/zeno-oracle-mvp-rc1/ZEN_ORACLE_RC_MANIFEST.json
+          if-no-files-found: error

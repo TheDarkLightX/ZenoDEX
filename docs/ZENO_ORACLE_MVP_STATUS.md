@@ -10,6 +10,7 @@ is a status page, not a production launch claim.
 | Surface | Artifact | Replay |
 | --- | --- | --- |
 | Unified local CLI wrapper | `tools/zenodex_oracle_cli.py` | `python3 tools/zenodex_oracle_cli.py doctor` |
+| Release-candidate package builder | `scripts/package_zeno_oracle_rc.sh` | `bash scripts/package_zeno_oracle_rc.sh` |
 | Critical read receipt verifier | `tools/zenodex_oracle.py` | `python3 tools/zenodex_oracle.py verify <bundle>` |
 | Receipt chaos replay | `tools/zenodex_oracle_chaos.py` | `python3 tools/zenodex_oracle_chaos.py` |
 | Token budget verifier | `tools/zenodex_oracle_budget.py` | `python3 tools/zenodex_oracle_budget.py verify <transition>` |
@@ -175,7 +176,8 @@ chaos_all_failed_count = 0
 ```
 
 The CI workflow `.github/workflows/zeno-oracle-mvp.yml` runs the same command
-on pull requests and pushes to `main` or `docs/zeno-oracle-mvp-design`.
+on pull requests and pushes to `main` or `docs/zeno-oracle-mvp-design`, then
+builds and uploads the `zeno-oracle-mvp-rc1` package artifact.
 
 ## Public Contract Documents
 
@@ -268,7 +270,7 @@ and budget laws.
 This branch does not claim:
 
 - a live Zeno Oracle network exists;
-- an installable release binary/package exists;
+- a platform-native binary installer exists;
 - feed governance or on-chain feed registration is live;
 - reporter registration, submission, rewards, disputes, or slashing are live;
 - a production Oracle token exists;
@@ -281,7 +283,7 @@ This branch does not claim:
 
 ## Next Production Work
 
-1. Package the local CLI as a release candidate binary or installable archive.
+1. Publish signed release assets for the local RC package.
 2. Wire the adapter predicate into concrete ZenoDEX consumers such as perps,
    zUSD, routing, and trigger execution.
 3. Add higher-redundancy aggregate policies after `median_3` and source
