@@ -605,6 +605,8 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/ZENO_ORACLE_MVP_DESIGN.md` — Zeno Oracle MVP design snapshot
 - `docs/ZENO_ORACLE_CLI_V1.md` — current local Zeno Oracle CLI wrapper
 - `docs/ZENO_ORACLE_DEVNET_ALPHA.md` — local Zeno Oracle devnet service, replay store, and API boundary
+- `docs/papers/zeno-oracle-whitepaper/main.pdf` — academic-style Zeno Oracle whitepaper by Dana Edwards
+- `docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md` — next ZenoOracle/ZenoDEX disaster-state minimization goal
 - `docs/ZENO_ORACLE_PRODUCTION_GATES.md` — Zeno Oracle rollout and verifier gates
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md` — current local Oracle receipt-bundle format
 - `docs/ZENO_ORACLE_SIGNED_REPORT_V1.md` — current local Oracle signed-report format

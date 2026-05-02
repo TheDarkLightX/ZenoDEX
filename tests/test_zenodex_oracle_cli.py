@@ -73,9 +73,16 @@ def test_oracle_rc_package_exposes_bin_entrypoint() -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["entrypoint"] == "bin/zenodex-oracle"
     assert manifest["python_entrypoint"] == "tools/zenodex_oracle_cli.py"
+    assert manifest["product_name"] == "Zeno Oracle"
+    assert manifest["branding"]["icon_256"] == "assets/branding/zeno-oracle/zeno_oracle_icon_256.png"
+    assert manifest["whitepaper"] == "docs/papers/zeno-oracle-whitepaper/main.pdf"
+    assert manifest["whitepaper_author"] == "Dana Edwards"
     assert manifest["devnet_alpha_gate"] == "scripts/check_zeno_oracle_devnet_alpha.sh"
     assert any(item["path"] == "bin/zenodex-oracle" for item in manifest["files"])
     assert any(item["path"] == "tools/zenodex_oracle_devnet_service.py" for item in manifest["files"])
+    assert any(item["path"] == "assets/branding/zeno-oracle/zeno_oracle_icon_256.png" for item in manifest["files"])
+    assert any(item["path"] == "docs/papers/zeno-oracle-whitepaper/main.pdf" for item in manifest["files"])
+    assert any(item["path"] == "docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md" for item in manifest["files"])
     assert (REPO / "dist" / f"{version}.receipt.json").is_file()
     assert (REPO / "dist" / f"{version}.sig").is_file()
 
