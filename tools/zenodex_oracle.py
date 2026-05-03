@@ -24,8 +24,42 @@ RESULT_SCHEMA = "zenodex.oracle.verify_result.v1"
 READ_TYPE = "accepted_read_receipt"
 ACTION_TYPE = "consumer_action_receipt"
 SUPPORTED_RECEIPT_TYPES = {READ_TYPE, ACTION_TYPE}
+MAX_BUNDLE_BYTES = 1_000_000
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+TOKEN_RE = re.compile(r"^[a-z][a-z0-9_.:-]{0,95}$")
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+BUNDLE_KEYS = {"schema", "terminal", "receipts"}
+TERMINAL_KEYS = {"read_receipt_id", "consumer_action_receipt_id"}
+READ_RECEIPT_KEYS = {
+    "id",
+    "type",
+    "status",
+    "query_id",
+    "value_hash",
+    "evidence_class",
+    "fresh",
+    "observed_epoch",
+    "expires_at_epoch",
+    "dispute_clear",
+    "uncertainty_accepted",
+    "depends_on",
+}
+ACTION_RECEIPT_KEYS = {
+    "id",
+    "type",
+    "status",
+    "consumer_module",
+    "action_kind",
+    "action_id",
+    "action_epoch",
+    "freshness_window_epochs",
+    "query_id",
+    "value_hash",
+    "read_receipt_id",
+    "critical",
+    "emergency_oracle_bypass",
+    "depends_on",
+}
 NOT_CLAIMED = [
     "does_not_claim_true_market_price",
     "does_not_claim_source_honesty",
@@ -37,42 +71,63 @@ def sample_hash(tag: str) -> str:
     return "sha256:" + hashlib.sha256(tag.encode("utf-8")).hexdigest()
 
 
+def _canonical_json_bytes(obj: Mapping[str, Any]) -> bytes:
+    return json.dumps(
+        obj,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def receipt_content_hash(receipt: Mapping[str, Any]) -> str:
+    body = {key: value for key, value in receipt.items() if key != "id"}
+    return "sha256:" + hashlib.sha256(_canonical_json_bytes(body)).hexdigest()
+
+
 def sample_bundle() -> dict[str, Any]:
     query_id = sample_hash("zenodex-oracle-sample-query")
     value_hash = sample_hash("zenodex-oracle-sample-value")
-    read_id = sample_hash("zenodex-oracle-sample-read")
-    action_id = sample_hash("zenodex-oracle-sample-action")
+    read = {
+        "type": READ_TYPE,
+        "status": "accepted",
+        "query_id": query_id,
+        "value_hash": value_hash,
+        "evidence_class": "O3",
+        "fresh": True,
+        "observed_epoch": 100,
+        "expires_at_epoch": 104,
+        "dispute_clear": True,
+        "uncertainty_accepted": True,
+        "depends_on": [],
+    }
+    read_id = receipt_content_hash(read)
+    read["id"] = read_id
+    action = {
+        "type": ACTION_TYPE,
+        "status": "accepted",
+        "consumer_module": "zenodex.oracle.sample",
+        "action_kind": "sample_critical_read",
+        "action_id": sample_hash("zenodex-oracle-sample-downstream-action"),
+        "action_epoch": 102,
+        "freshness_window_epochs": 4,
+        "query_id": query_id,
+        "value_hash": value_hash,
+        "read_receipt_id": read_id,
+        "critical": True,
+        "emergency_oracle_bypass": False,
+        "depends_on": [read_id],
+    }
+    action_id = receipt_content_hash(action)
+    action["id"] = action_id
     return {
         "schema": BUNDLE_SCHEMA,
         "terminal": {
             "read_receipt_id": read_id,
             "consumer_action_receipt_id": action_id,
         },
-        "receipts": [
-            {
-                "id": read_id,
-                "type": READ_TYPE,
-                "status": "accepted",
-                "query_id": query_id,
-                "value_hash": value_hash,
-                "evidence_class": "O3",
-                "fresh": True,
-                "dispute_clear": True,
-                "uncertainty_accepted": True,
-                "depends_on": [],
-            },
-            {
-                "id": action_id,
-                "type": ACTION_TYPE,
-                "status": "accepted",
-                "query_id": query_id,
-                "value_hash": value_hash,
-                "read_receipt_id": read_id,
-                "critical": True,
-                "emergency_oracle_bypass": False,
-                "depends_on": [read_id],
-            },
-        ],
+        "receipts": [read, action],
     }
 
 
@@ -81,9 +136,17 @@ class VerifyResult:
     status: str
     errors: list[str]
     query_id: str | None = None
+    value_hash: str | None = None
     read_receipt_id: str | None = None
     consumer_action_receipt_id: str | None = None
     evidence_class: str | None = None
+    consumer_module: str | None = None
+    action_kind: str | None = None
+    action_id: str | None = None
+    observed_epoch: int | None = None
+    expires_at_epoch: int | None = None
+    action_epoch: int | None = None
+    freshness_window_epochs: int | None = None
 
     def to_json_obj(self) -> dict[str, Any]:
         return {
@@ -91,9 +154,17 @@ class VerifyResult:
             "ok": self.status == "accepted",
             "status": self.status,
             "query_id": self.query_id,
+            "value_hash": self.value_hash,
             "read_receipt_id": self.read_receipt_id,
             "consumer_action_receipt_id": self.consumer_action_receipt_id,
             "evidence_class": self.evidence_class,
+            "consumer_module": self.consumer_module,
+            "action_kind": self.action_kind,
+            "action_id": self.action_id,
+            "observed_epoch": self.observed_epoch,
+            "expires_at_epoch": self.expires_at_epoch,
+            "action_epoch": self.action_epoch,
+            "freshness_window_epochs": self.freshness_window_epochs,
             "errors": list(self.errors),
             "not_claimed": NOT_CLAIMED,
         }
@@ -125,6 +196,42 @@ def _get_hash(obj: Mapping[str, Any], key: str, errors: list[str]) -> str | None
         errors.append(f"{key}_must_be_sha256")
         return None
     return str(value)
+
+
+def _get_token(obj: Mapping[str, Any], key: str, errors: list[str]) -> str | None:
+    value = obj.get(key)
+    if not isinstance(value, str) or not TOKEN_RE.match(value):
+        errors.append(f"{key}_must_be_token")
+        return None
+    return str(value)
+
+
+def _get_int_ge(
+    obj: Mapping[str, Any],
+    key: str,
+    errors: list[str],
+    *,
+    minimum: int = 0,
+) -> int | None:
+    value = obj.get(key)
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+        errors.append(f"{key}_must_be_int_ge_{minimum}")
+        return None
+    return int(value)
+
+
+def _unknown_fields(
+    obj: Mapping[str, Any],
+    *,
+    allowed: set[str],
+    label: str,
+    errors: list[str],
+) -> None:
+    for key in obj.keys():
+        if not isinstance(key, str):
+            errors.append(f"{label}_field_must_be_string")
+        elif key not in allowed:
+            errors.append(f"unknown_{label}_field:{key}")
 
 
 def _receipt_index(receipts_raw: object, errors: list[str]) -> dict[str, Mapping[str, Any]]:
@@ -167,6 +274,36 @@ def _receipt_types_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str])
     for receipt_id, receipt in index.items():
         if receipt.get("type") not in SUPPORTED_RECEIPT_TYPES:
             errors.append(f"unsupported_receipt_type:{receipt_id}")
+
+
+def _receipt_content_hashes_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
+    for receipt_id, receipt in index.items():
+        try:
+            expected = receipt_content_hash(receipt)
+        except (TypeError, ValueError):
+            errors.append(f"receipt_content_hash_unencodable:{receipt_id}")
+            continue
+        if receipt_id != expected:
+            errors.append(f"receipt_content_hash_mismatch:{receipt_id}")
+
+
+def _receipt_shapes_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
+    for receipt in index.values():
+        receipt_type = receipt.get("type")
+        if receipt_type == READ_TYPE:
+            _unknown_fields(
+                receipt,
+                allowed=READ_RECEIPT_KEYS,
+                label="read_receipt",
+                errors=errors,
+            )
+        elif receipt_type == ACTION_TYPE:
+            _unknown_fields(
+                receipt,
+                allowed=ACTION_RECEIPT_KEYS,
+                label="consumer_action_receipt",
+                errors=errors,
+            )
 
 
 def _dependencies_ok(index: Mapping[str, Mapping[str, Any]], errors: list[str]) -> None:
@@ -239,7 +376,10 @@ def _no_unreachable_receipts(
             errors.append(f"unreachable_receipt:{receipt_id}")
 
 
-def _read_receipt_ok(read: Mapping[str, Any], errors: list[str]) -> tuple[str | None, str | None, str | None]:
+def _read_receipt_ok(
+    read: Mapping[str, Any],
+    errors: list[str],
+) -> tuple[str | None, str | None, str | None, int | None, int | None]:
     if read.get("type") != READ_TYPE:
         errors.append("read_receipt_type_mismatch")
     if read.get("status") != "accepted":
@@ -247,6 +387,14 @@ def _read_receipt_ok(read: Mapping[str, Any], errors: list[str]) -> tuple[str | 
 
     query_id = _get_hash(read, "query_id", errors)
     value_hash = _get_hash(read, "value_hash", errors)
+    observed_epoch = _get_int_ge(read, "observed_epoch", errors)
+    expires_at_epoch = _get_int_ge(read, "expires_at_epoch", errors)
+    if (
+        observed_epoch is not None
+        and expires_at_epoch is not None
+        and expires_at_epoch < observed_epoch
+    ):
+        errors.append("read_expires_before_observed")
     evidence_class_raw = read.get("evidence_class")
     evidence_class = evidence_class_raw if isinstance(evidence_class_raw, str) else None
     if evidence_class not in EVIDENCE_RANK:
@@ -262,7 +410,7 @@ def _read_receipt_ok(read: Mapping[str, Any], errors: list[str]) -> tuple[str | 
     if isinstance(deps, list) and deps:
         errors.append("read_receipt_must_have_no_dependencies")
 
-    return query_id, value_hash, evidence_class
+    return query_id, value_hash, evidence_class, observed_epoch, expires_at_epoch
 
 
 def _action_receipt_ok(
@@ -271,13 +419,20 @@ def _action_receipt_ok(
     read_id: str,
     read_query_id: str | None,
     read_value_hash: str | None,
+    read_observed_epoch: int | None,
+    read_expires_at_epoch: int | None,
     errors: list[str],
-) -> str | None:
+) -> tuple[str | None, str | None, str | None, str | None, int | None, int | None]:
     if action.get("type") != ACTION_TYPE:
         errors.append("consumer_action_type_mismatch")
     if action.get("status") != "accepted":
         errors.append("consumer_action_not_accepted")
 
+    consumer_module = _get_token(action, "consumer_module", errors)
+    action_kind = _get_token(action, "action_kind", errors)
+    downstream_action_id = _get_hash(action, "action_id", errors)
+    action_epoch = _get_int_ge(action, "action_epoch", errors)
+    freshness_window_epochs = _get_int_ge(action, "freshness_window_epochs", errors)
     action_query_id = _get_hash(action, "query_id", errors)
     action_value_hash = _get_hash(action, "value_hash", errors)
     action_read_id = _get_hash(action, "read_receipt_id", errors)
@@ -287,6 +442,25 @@ def _action_receipt_ok(
         errors.append("consumer_action_query_id_mismatch")
     if read_value_hash is not None and action_value_hash is not None and action_value_hash != read_value_hash:
         errors.append("consumer_action_value_hash_mismatch")
+    if (
+        action_epoch is not None
+        and read_observed_epoch is not None
+        and action_epoch < read_observed_epoch
+    ):
+        errors.append("consumer_action_before_read_observation")
+    if (
+        action_epoch is not None
+        and read_expires_at_epoch is not None
+        and action_epoch > read_expires_at_epoch
+    ):
+        errors.append("consumer_action_after_read_expiry")
+    if (
+        action_epoch is not None
+        and read_observed_epoch is not None
+        and freshness_window_epochs is not None
+        and action_epoch - read_observed_epoch > freshness_window_epochs
+    ):
+        errors.append("consumer_action_exceeds_freshness_window")
 
     if not _get_bool(action, "critical", errors):
         errors.append("consumer_action_must_be_critical")
@@ -298,15 +472,25 @@ def _action_receipt_ok(
         errors.append("consumer_action_must_depend_on_read_receipt")
     if isinstance(deps, list) and deps != [read_id]:
         errors.append("consumer_action_dependency_must_equal_read_receipt")
-    return action_query_id
+    return (
+        action_query_id,
+        consumer_module,
+        action_kind,
+        downstream_action_id,
+        action_epoch,
+        freshness_window_epochs,
+    )
 
 
 def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     errors: list[str] = []
+    _unknown_fields(bundle, allowed=BUNDLE_KEYS, label="bundle", errors=errors)
     if bundle.get("schema") != BUNDLE_SCHEMA:
         errors.append("bundle_schema_mismatch")
 
     terminal = _get_mapping(bundle, "terminal", errors)
+    if terminal is not None:
+        _unknown_fields(terminal, allowed=TERMINAL_KEYS, label="terminal", errors=errors)
     read_id = _get_hash(terminal or {}, "read_receipt_id", errors)
     action_id = _get_hash(terminal or {}, "consumer_action_receipt_id", errors)
     if read_id is not None and action_id is not None and read_id == action_id:
@@ -314,6 +498,8 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     receipts_raw = bundle.get("receipts")
     index = _receipt_index(receipts_raw, errors)
     positions = _receipt_positions(receipts_raw)
+    _receipt_content_hashes_ok(index, errors)
+    _receipt_shapes_ok(index, errors)
     _receipt_types_ok(index, errors)
     _dependencies_ok(index, errors)
     _dependency_order_ok(index, positions, errors)
@@ -330,14 +516,30 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     query_id: str | None = None
     evidence_class: str | None = None
     value_hash: str | None = None
+    observed_epoch: int | None = None
+    expires_at_epoch: int | None = None
+    consumer_module: str | None = None
+    action_kind: str | None = None
+    downstream_action_id: str | None = None
+    action_epoch: int | None = None
+    freshness_window_epochs: int | None = None
     if read is not None:
-        query_id, value_hash, evidence_class = _read_receipt_ok(read, errors)
+        query_id, value_hash, evidence_class, observed_epoch, expires_at_epoch = _read_receipt_ok(read, errors)
     if action is not None and read_id is not None:
-        action_query_id = _action_receipt_ok(
+        (
+            action_query_id,
+            consumer_module,
+            action_kind,
+            downstream_action_id,
+            action_epoch,
+            freshness_window_epochs,
+        ) = _action_receipt_ok(
             action=action,
             read_id=read_id,
             read_query_id=query_id,
             read_value_hash=value_hash,
+            read_observed_epoch=observed_epoch,
+            read_expires_at_epoch=expires_at_epoch,
             errors=errors,
         )
         query_id = query_id or action_query_id
@@ -346,13 +548,24 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
         status="rejected" if errors else "accepted",
         errors=errors,
         query_id=query_id,
+        value_hash=value_hash,
         read_receipt_id=read_id,
         consumer_action_receipt_id=action_id,
         evidence_class=evidence_class,
+        consumer_module=consumer_module,
+        action_kind=action_kind,
+        action_id=downstream_action_id,
+        observed_epoch=observed_epoch,
+        expires_at_epoch=expires_at_epoch,
+        action_epoch=action_epoch,
+        freshness_window_epochs=freshness_window_epochs,
     )
 
 
 def _load_json(path: Path) -> Mapping[str, Any]:
+    size = path.stat().st_size
+    if size > MAX_BUNDLE_BYTES:
+        raise ValueError(f"bundle_file_too_large:{size}>{MAX_BUNDLE_BYTES}")
     with path.open("r", encoding="utf-8") as handle:
         obj = json.load(handle)
     if not isinstance(obj, Mapping):

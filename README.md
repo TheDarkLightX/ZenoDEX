@@ -208,6 +208,30 @@ the current search inventory. The same workflow also checks critical Lean proof
 artifacts for active placeholders and keeps the deployment posture tests on the
 default API/resource-safety boundary.
 
+The ZenoOracle devnet branch also has a separate local disaster harness:
+
+```bash
+python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
+```
+
+It currently covers `17` promoted Oracle devnet disaster states with
+`17` unreachable, `0` failed, and `0` inconclusive under the local verifier
+shell. These include missing/tampered replay artifacts, duplicate/reordered
+events, partial event writes, unregistered reporter admission, high-uncertainty
+aggregate rejection, receipt borrowing, missing consumer profiles, and budget
+overspend rejection. The detailed list is in
+[docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
+
+The Oracle critical-action map is also checked against runtime wiring:
+
+```bash
+python3 tools/check_zeno_oracle_critical_action_map.py
+```
+
+It currently verifies four runtime-wired surfaces and separates two design-only
+backlog profiles. The detailed map is in
+[docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md](docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md).
+
 If you want to review that claim directly, start with:
 
 - `src/core/split_routing_dispatch.py`
@@ -601,8 +625,30 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/SPECIFICATION.md` — Protocol specification overview
 - `docs/SECURITY_POSTURE.md` — Runtime hardening choices and operator-facing security posture
 - `docs/ZDEX_TOKEN.md` — ZDEX tokenomics and spec references
+- `docs/ZENO_ORACLE_MVP_STATUS.md` — current Zeno Oracle MVP branch status
 - `docs/ZENO_ORACLE_MVP_DESIGN.md` — Zeno Oracle MVP design snapshot
+- `docs/ZENO_ORACLE_CLI_V1.md` — current local Zeno Oracle CLI wrapper
+- `docs/ZENO_ORACLE_DEVNET_ALPHA.md` — local Zeno Oracle devnet service, replay store, and API boundary
+- `docs/papers/zeno-oracle-whitepaper/main.pdf` — academic-style Zeno Oracle whitepaper by Dana Edwards
+- `docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md` — next ZenoOracle/ZenoDEX disaster-state minimization goal
+- `docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md` — current Oracle critical-action runtime wiring map
 - `docs/ZENO_ORACLE_PRODUCTION_GATES.md` — Zeno Oracle rollout and verifier gates
+- `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md` — current local Oracle receipt-bundle format
+- `docs/ZENO_ORACLE_SIGNED_REPORT_V1.md` — current local Oracle signed-report format
+- `docs/ZENO_ORACLE_REPORT_ADMISSION_V1.md` — current local Oracle report-admission bridge format
+- `docs/ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md` — current local Oracle median3 aggregate format
+- `docs/ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md` — current local Oracle admitted-report median3 aggregate format
+- `docs/ZENO_ORACLE_AGGREGATE_READ_V1.md` — current local Oracle aggregate-to-read bridge format
+- `docs/ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md` — current local Oracle aggregate-to-action adapter bridge format
+- `docs/ZENO_ORACLE_RUNTIME_BRIDGE_V1.md` — runtime Oracle bridge hooks for perps settlement, zUSD demo API actions, and guarded routing quotes
+- `docs/ZENO_ORACLE_FEED_REGISTRY_V1.md` — current local Oracle feed creation and registry admission format
+- `docs/ZENO_ORACLE_SOURCE_DIVERSITY_V1.md` — current local Oracle source-diversity format
+- `docs/ZENO_ORACLE_QUERY_POLICY_V1.md` — current local Oracle query-policy versioning format
+- `docs/ZENO_ORACLE_ADAPTER_V1.md` — current local Oracle critical-action adapter format
+- `docs/ZENO_ORACLE_CONSUMER_PROFILES_V1.md` — current local Oracle critical consumer profile catalog
+- `docs/ZENO_ORACLE_ECONOMIC_SECURITY_V1.md` — current local Oracle economic security envelope
+- `docs/ZENO_ORACLE_TOKEN_BUDGET_V1.md` — current local Oracle token budget format
+- `docs/ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md` — current local Oracle reporter lifecycle format
 - `docs/ZENO_ORACLE_CHAOS_ENGINEERING.md` — Zeno Oracle disaster-shape replay lane
 - `docs/ECOSYSTEM_STRATEGY.md` — Deflationary DAC ecosystem design
 - `docs/ECOSYSTEM_GRAPH.md` — Ecosystem module graph

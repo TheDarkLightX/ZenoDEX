@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 from src.core.dex import DexState
 from src.core.perps import PerpClearinghouse3pTransferMarketState
@@ -42,10 +43,18 @@ def _apply_result(
     ops: list[dict[str, object]],
     block_timestamp: int = _BLOCK_TIMESTAMP,
     operator_pubkey: str | None = None,
+    oracle_adapter_bridge_verifier: Any = None,
+    require_oracle_adapter_for_clearinghouse_settle_epoch: bool = False,
 ):
     from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 
-    cfg = PerpEngineConfig(chain_id=_CHAIN_ID, oracle_pubkey=_ORACLE_PUBKEY, operator_pubkey=operator_pubkey)
+    cfg = PerpEngineConfig(
+        chain_id=_CHAIN_ID,
+        oracle_pubkey=_ORACLE_PUBKEY,
+        operator_pubkey=operator_pubkey,
+        oracle_adapter_bridge_verifier=oracle_adapter_bridge_verifier,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=require_oracle_adapter_for_clearinghouse_settle_epoch,
+    )
     return apply_perp_ops(
         config=cfg,
         state=state,
@@ -62,6 +71,8 @@ def _apply(
     ops: list[dict[str, object]],
     block_timestamp: int = _BLOCK_TIMESTAMP,
     operator_pubkey: str | None = None,
+    oracle_adapter_bridge_verifier: Any = None,
+    require_oracle_adapter_for_clearinghouse_settle_epoch: bool = False,
 ) -> DexState:
     res = _apply_result(
         state=state,
@@ -69,6 +80,8 @@ def _apply(
         ops=ops,
         block_timestamp=block_timestamp,
         operator_pubkey=operator_pubkey,
+        oracle_adapter_bridge_verifier=oracle_adapter_bridge_verifier,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=require_oracle_adapter_for_clearinghouse_settle_epoch,
     )
     assert res.ok is True, res.error
     assert res.state is not None
@@ -142,6 +155,34 @@ def _signed_publish_price(*, market_id: str, price_e8: int, oracle_nonce: int, d
     )
     base["oracle_sig"] = _sign(base, signer_privkey=_ORACLE_SK, signer_pubkey=_ORACLE_PUBKEY, nonce=oracle_nonce)
     return base
+
+
+def _settle_ready_state_3p(*, market_id: str, quote_asset: str, relayer: str) -> DexState:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[
+            _signed_init_market_3p(
+                market_id=market_id,
+                quote_asset=quote_asset,
+                nonce_a=1,
+                nonce_b=1,
+                nonce_c=1,
+                deadline=_DEADLINE,
+            )
+        ],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_op(market_id, "advance_epoch", version="1.1", delta=1)],
+    )
+    return _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1, deadline=_DEADLINE)],
+    )
 
 
 def test_init_market_3p_is_strict_about_prefix_and_signatures() -> None:
@@ -426,6 +467,94 @@ def test_settle_epoch_3p_can_transfer_distressed_side_and_preserve_conservation(
         + int(m.state["fee_pool_e8"])
         == int(m.state["net_deposited_e8"])
     )
+
+
+def test_settle_epoch_3p_oracle_adapter_bridge_is_required_when_configured() -> None:
+    market_id = "perp:ch3p:oracle_bridge_required"
+    quote_asset = "0x" + "5a" * 32
+    relayer = "ff" * 48
+    state = _settle_ready_state_3p(market_id=market_id, quote_asset=quote_asset, relayer=relayer)
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_op(market_id, "settle_epoch", version="1.1")],
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+    )
+    assert res.ok is False
+    assert res.error == "settle_epoch requires oracle_adapter_bridge"
+
+
+def test_settle_epoch_3p_oracle_adapter_bridge_binds_runtime_action_id() -> None:
+    from src.integration.perp_engine import (
+        _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        PerpEngineConfig,
+        _perps_clearinghouse_runtime_oracle_action_id,
+    )
+
+    market_id = "perp:ch3p:oracle_bridge_bound"
+    quote_asset = "0x" + "5b" * 32
+    relayer = "ff" * 48
+    state = _settle_ready_state_3p(market_id=market_id, quote_asset=quote_asset, relayer=relayer)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    assert isinstance(market, PerpClearinghouse3pTransferMarketState)
+
+    res_wrong = _apply_result(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_op(market_id, "settle_epoch", version="1.1", oracle_adapter_bridge={"schema": "test"})],
+        oracle_adapter_bridge_verifier=lambda _bridge: {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": "sha256:" + "00" * 32,
+        },
+    )
+    assert res_wrong.ok is False
+    assert res_wrong.error == "oracle_adapter_bridge action_id mismatch"
+
+    expected_action_id = _perps_clearinghouse_runtime_oracle_action_id(
+        PerpEngineConfig(chain_id=_CHAIN_ID),
+        market_id=market_id,
+        action_kind="settle_epoch",
+        market_kind="clearinghouse_3p_transfer_v1",
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=(
+            market.account_a_pubkey,
+            market.account_b_pubkey,
+            market.account_c_pubkey,
+        ),
+    )
+    seen_bridge: dict[str, object] = {}
+
+    def verifier(bridge: object) -> dict[str, object]:
+        assert isinstance(bridge, dict)
+        seen_bridge.update(bridge)
+        return {
+            "status": "accepted",
+            "errors": [],
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": expected_action_id,
+        }
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_op(market_id, "settle_epoch", version="1.1", oracle_adapter_bridge={"schema": "test"})],
+        oracle_adapter_bridge_verifier=verifier,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+    )
+    assert res.ok is True, res.error
+    assert seen_bridge == {"schema": "test"}
 
 
 def test_set_market_params_3p_rejects_penalty_increase_with_open_positions() -> None:

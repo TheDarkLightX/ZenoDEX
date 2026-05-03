@@ -15,6 +15,7 @@ Security posture:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import hmac
 import os
@@ -23,7 +24,9 @@ import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from math import comb
-from typing import Any, Optional, Sequence, Set
+from typing import Any, Mapping, Optional, Sequence, Set
+
+from src.state.canonical import canonical_json_bytes
 
 # Prewarm the expensive attestation / LP-aware settlement modules at server
 # startup so their first request does not pay import latency inside the 2s API
@@ -169,6 +172,24 @@ DEX_API_EXACT_IN_ROUTE_SEARCH_PATHS = {
     "/api/dex/build_exact_in_route_rank_projection_packet",
     "/api/dex/build_exact_in_route_true_key_interpretation_packet",
 }
+DEX_ROUTING_REFERENCE_QUERY_ID = (
+    "sha256:"
+    + hashlib.sha256("zenodex.oracle.query.routing.reference_price_e8".encode("utf-8")).hexdigest()
+)
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID = "sha256:" + hashlib.sha256(
+    canonical_json_bytes(
+        {
+            "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+            "consumer_module": "zenodex.routing",
+            "action_kind": "guarded_quote",
+            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
+            "required_evidence_floor": "O3",
+            "max_freshness_window_epochs": 4,
+            "critical": True,
+        }
+    )
+).hexdigest()
 
 
 def _dex_api_int_limit_error(
@@ -538,6 +559,239 @@ def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]
             return err
 
     return None
+
+
+def _env_bool(name: str, *, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return bool(default)
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _adapter_result_get(result: Any, key: str) -> Any:
+    if isinstance(result, Mapping):
+        return result.get(key)
+    return getattr(result, key, None)
+
+
+def _adapter_error_summary(result: Any) -> str:
+    errors = _adapter_result_get(result, "errors")
+    if isinstance(errors, (list, tuple)):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    return "bridge verifier rejected"
+
+
+def _canonical_routing_pool_snapshots(pools_raw: object) -> list[dict[str, Any]]:
+    if not isinstance(pools_raw, list):
+        raise ValueError("pools_must_be_list")
+    snapshots: list[dict[str, Any]] = []
+    for row in pools_raw:
+        if not isinstance(row, Mapping):
+            raise ValueError("pool_must_be_object")
+        snapshots.append(
+            {
+                "pool_id": str(row.get("pool_id", "")),
+                "asset0": str(row.get("asset0", "")),
+                "asset1": str(row.get("asset1", "")),
+                "reserve0": int(row.get("reserve0", 0)),
+                "reserve1": int(row.get("reserve1", 0)),
+                "fee_bps": int(row.get("fee_bps", 0)),
+                "lp_supply": int(row.get("lp_supply", 1)),
+                "status": str(row.get("status", "ACTIVE")).strip().upper(),
+                "created_at": int(row.get("created_at", 0)),
+                "curve_tag": str(row.get("curve_tag", "CPMM")),
+                "curve_params": row.get("curve_params", ""),
+            }
+        )
+    return snapshots
+
+
+def _routing_guarded_quote_oracle_action_id(
+    *,
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_in: int,
+    split_search_profile: str,
+    enable_mixed_direct_twohop_split: bool,
+    binding_ok: int,
+    pools_raw: object,
+) -> str:
+    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
+    pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
+    payload = {
+        "schema": "zenodex.oracle.routing_runtime_action_id.v1",
+        "consumer_module": "zenodex.routing",
+        "action_kind": "guarded_quote",
+        "path": path,
+        "quote_kind": "exact_in",
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_in": int(amount_in),
+        "split_search_profile": split_search_profile,
+        "enable_mixed_direct_twohop_split": bool(enable_mixed_direct_twohop_split),
+        "binding_ok": int(binding_ok),
+        "pool_snapshot_hash": pool_snapshot_hash,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _routing_guarded_exact_out_quote_oracle_action_id(
+    *,
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int,
+    max_candidate_pools: int,
+    max_candidates: int,
+    max_iters: int,
+    window: int,
+    brute_force_max: int,
+    max_enumerated_candidates: int,
+    pools_raw: object,
+) -> str:
+    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
+    pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
+    payload = {
+        "schema": "zenodex.oracle.routing_runtime_action_id.v1",
+        "consumer_module": "zenodex.routing",
+        "action_kind": "guarded_quote",
+        "path": path,
+        "quote_kind": "exact_out_many_pool",
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_out_total": int(amount_out_total),
+        "max_legs": int(max_legs),
+        "max_candidate_pools": int(max_candidate_pools),
+        "max_candidates": int(max_candidates),
+        "max_iters": int(max_iters),
+        "window": int(window),
+        "brute_force_max": int(brute_force_max),
+        "max_enumerated_candidates": int(max_enumerated_candidates),
+        "pool_snapshot_hash": pool_snapshot_hash,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _check_routing_oracle_adapter_bridge_for_action(
+    *,
+    body: Mapping[str, Any],
+    expected_action_id: str,
+) -> Optional[str]:
+    required = _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
+    if "oracle_adapter_bridge" not in body:
+        if required:
+            return "guarded_quote requires oracle_adapter_bridge"
+        return None
+
+    bridge = body.get("oracle_adapter_bridge")
+    if not isinstance(bridge, Mapping):
+        return "oracle_adapter_bridge must be an object"
+
+    try:
+        from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
+            verify_aggregate_adapter_bridge,
+        )
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier unavailable: {type(exc).__name__}"
+
+    try:
+        result = verify_aggregate_adapter_bridge(bridge)
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier error: {type(exc).__name__}"
+
+    if _adapter_result_get(result, "status") != "accepted":
+        return f"oracle_adapter_bridge rejected: {_adapter_error_summary(result)}"
+    if _adapter_result_get(result, "consumer_module") != "zenodex.routing":
+        return "oracle_adapter_bridge consumer mismatch"
+    if _adapter_result_get(result, "action_kind") != "guarded_quote":
+        return "oracle_adapter_bridge action mismatch"
+    if _adapter_result_get(result, "query_id") != DEX_ROUTING_REFERENCE_QUERY_ID:
+        return "oracle_adapter_bridge query mismatch"
+    if _adapter_result_get(result, "profile_id") != DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID:
+        return "oracle_adapter_bridge profile mismatch"
+    if _adapter_result_get(result, "action_id") != expected_action_id:
+        return "oracle_adapter_bridge action_id mismatch"
+    return None
+
+
+def _check_routing_oracle_adapter_bridge(
+    *,
+    body: Mapping[str, Any],
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_in: int,
+    split_search_profile: str,
+    enable_mixed_direct_twohop_split: bool,
+    binding_ok: int,
+) -> Optional[str]:
+    if "oracle_adapter_bridge" not in body:
+        if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
+            return "guarded_quote requires oracle_adapter_bridge"
+        return None
+    try:
+        expected_action_id = _routing_guarded_quote_oracle_action_id(
+            path=path,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in=int(amount_in),
+            split_search_profile=split_search_profile,
+            enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
+            binding_ok=int(binding_ok),
+            pools_raw=body.get("pools"),
+        )
+    except (TypeError, ValueError):
+        return "oracle_adapter_bridge action_id unavailable"
+    return _check_routing_oracle_adapter_bridge_for_action(
+        body=body,
+        expected_action_id=expected_action_id,
+    )
+
+
+def _check_routing_exact_out_oracle_adapter_bridge(
+    *,
+    body: Mapping[str, Any],
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int,
+    max_candidate_pools: int,
+    max_candidates: int,
+    max_iters: int,
+    window: int,
+    brute_force_max: int,
+    max_enumerated_candidates: int,
+) -> Optional[str]:
+    if "oracle_adapter_bridge" not in body:
+        if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
+            return "guarded_quote requires oracle_adapter_bridge"
+        return None
+    try:
+        expected_action_id = _routing_guarded_exact_out_quote_oracle_action_id(
+            path=path,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_out_total=int(amount_out_total),
+            max_legs=int(max_legs),
+            max_candidate_pools=int(max_candidate_pools),
+            max_candidates=int(max_candidates),
+            max_iters=int(max_iters),
+            window=int(window),
+            brute_force_max=int(brute_force_max),
+            max_enumerated_candidates=int(max_enumerated_candidates),
+            pools_raw=body.get("pools"),
+        )
+    except (TypeError, ValueError):
+        return "oracle_adapter_bridge action_id unavailable"
+    return _check_routing_oracle_adapter_bridge_for_action(
+        body=body,
+        expected_action_id=expected_action_id,
+    )
 
 
 @dataclass
@@ -1638,6 +1892,28 @@ class _Handler(BaseHTTPRequestHandler):
                     return True
                 if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
                     self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
+                    return True
+
+                bridge_err = _check_routing_oracle_adapter_bridge(
+                    body=obj,
+                    path=path,
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_in=int(amount_in),
+                    split_search_profile=split_search_profile,
+                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
+                    binding_ok=int(binding_ok),
+                )
+                if bridge_err is not None:
+                    self._write_json(
+                        400,
+                        {
+                            "ok": False,
+                            "error": "rejected",
+                            "detail": bridge_err,
+                        },
+                        cors_origin=cors_origin,
+                    )
                     return True
 
                 from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
@@ -5305,6 +5581,32 @@ class _Handler(BaseHTTPRequestHandler):
                     if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
                         self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
                         return True
+
+                bridge_err = _check_routing_exact_out_oracle_adapter_bridge(
+                    body=obj,
+                    path=path,
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_out_total=int(amount_out_total),
+                    max_legs=int(max_legs),
+                    max_candidate_pools=int(max_candidate_pools),
+                    max_candidates=int(max_candidates),
+                    max_iters=int(max_iters),
+                    window=int(window),
+                    brute_force_max=int(brute_force_max),
+                    max_enumerated_candidates=int(max_enumerated_candidates),
+                )
+                if bridge_err is not None:
+                    self._write_json(
+                        400,
+                        {
+                            "ok": False,
+                            "error": "rejected",
+                            "detail": bridge_err,
+                        },
+                        cors_origin=cors_origin,
+                    )
+                    return True
 
                 from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
                     EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
