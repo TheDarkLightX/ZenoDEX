@@ -180,6 +180,11 @@ def test_oracle_devnet_service_replays_http_pipeline(tmp_path: Path) -> None:
         assert replay["status"] == "accepted"
         assert replay["accepted_event_count"] >= 13
         assert replay["missing_artifacts"] == []
+        assert replay["artifact_hash_mismatches"] == []
+        assert replay["duplicate_event_ids"] == []
+        assert replay["duplicate_event_sequences"] == []
+        assert replay["event_sequence_errors"] == []
+        assert replay["malformed_events"] == []
     finally:
         proc.terminate()
         try:
@@ -204,3 +209,8 @@ def test_oracle_devnet_replay_cli_reads_receipt_store(tmp_path: Path) -> None:
     assert receipt["schema"] == "zenodex.oracle.devnet_replay_receipt.v1"
     assert receipt["status"] == "accepted"
     assert receipt["event_count"] == 0
+    assert receipt["artifact_hash_mismatches"] == []
+    assert receipt["duplicate_event_ids"] == []
+    assert receipt["duplicate_event_sequences"] == []
+    assert receipt["event_sequence_errors"] == []
+    assert receipt["malformed_events"] == []

@@ -95,3 +95,30 @@ guaranteed-unreachable state.
 Start with the ZenoOracle stateful HTTP/replay harness because it is the newest
 multi-step surface and already has deterministic devnet APIs. Then lift the
 same method into the ZenoDEX critical-action map.
+
+## Current ZenoOracle Devnet Slice
+
+The first promoted devnet slice is implemented by:
+
+```bash
+python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
+```
+
+Current expected receipt:
+
+```text
+selected_disaster_state_count = 17
+unreachable_count = 17
+failed_count = 0
+inconclusive_count = 0
+```
+
+The harness covers accepted-read/adapter preconditions, unregistered reporter
+admission, high-uncertainty aggregate rejection, policy downgrade rejection,
+receipt borrowing, missing consumer profiles, replay/live-state agreement,
+missing and tampered artifacts, duplicate and reordered events, partial event
+writes, and budget overspend cases for rewards, slashes, and fee splits.
+
+This is bounded evidence for the local devnet verifier shell. It is not a claim
+that the production oracle network exists, that reporters are honest, or that
+the broader ZenoDEX/ZenoOracle disaster-state map is exhausted.

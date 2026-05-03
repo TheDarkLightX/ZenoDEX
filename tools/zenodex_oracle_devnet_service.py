@@ -88,6 +88,14 @@ def _content_hash(obj: Mapping[str, Any], *, omit_key: str | None = None) -> str
     return "sha256:" + hashlib.sha256(canonical_json_bytes(body)).hexdigest()
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return "sha256:" + digest.hexdigest()
+
+
 def _hash_to_filename(value: str) -> str:
     if not isinstance(value, str) or not value.startswith("sha256:"):
         raise ValueError(f"expected sha256 id, got {value!r}")
@@ -159,6 +167,9 @@ class OracleDevnetStore:
                 "status": status,
                 "artifact_id": artifact_id,
                 "artifact_path": None if artifact_path is None else str(artifact_path.relative_to(self.root)),
+                "artifact_sha256": None
+                if artifact_path is None or not artifact_path.is_file()
+                else _file_sha256(artifact_path),
                 "receipt": dict(receipt),
                 "created_at_ms": _now_ms(),
             }
@@ -697,15 +708,51 @@ def replay_store(store: OracleDevnetStore) -> dict[str, Any]:
     rejected_count = 0
     event_type_counts: dict[str, int] = {}
     missing_artifacts: list[str] = []
+    artifact_hash_mismatches: list[str] = []
+    malformed_events: list[str] = []
+    duplicate_event_ids: list[str] = []
+    duplicate_event_sequences: list[str] = []
+    event_sequence_errors: list[str] = []
     latest_by_type: dict[str, str] = {}
+    seen_event_ids: set[str] = set()
+    seen_event_sequences: set[int] = set()
+    expected_event_seq = 0
     if store.events_path.exists():
         with store.events_path.open("r", encoding="utf-8") as handle:
             for line_no, line in enumerate(handle, start=1):
                 if not line.strip():
                     continue
                 event_count += 1
-                event = json.loads(line)
-                event_type = str(event.get("event_type"))
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    malformed_events.append(f"line_{line_no}:json_invalid:{exc.msg}")
+                    continue
+                if not isinstance(event, dict):
+                    malformed_events.append(f"line_{line_no}:event_must_be_object")
+                    continue
+
+                event_id = event.get("event_id")
+                if not isinstance(event_id, str):
+                    malformed_events.append(f"line_{line_no}:event_id_missing_or_malformed")
+                elif event_id in seen_event_ids:
+                    duplicate_event_ids.append(f"line_{line_no}:{event_id}")
+                else:
+                    seen_event_ids.add(event_id)
+
+                event_seq = event.get("event_seq")
+                if not isinstance(event_seq, int) or isinstance(event_seq, bool) or event_seq < 0:
+                    malformed_events.append(f"line_{line_no}:event_seq_missing_or_malformed")
+                else:
+                    if event_seq in seen_event_sequences:
+                        duplicate_event_sequences.append(f"line_{line_no}:{event_seq}")
+                    seen_event_sequences.add(event_seq)
+                    if event_seq != expected_event_seq:
+                        event_sequence_errors.append(f"line_{line_no}:expected_{expected_event_seq}:got_{event_seq}")
+                    expected_event_seq += 1
+
+                event_type_raw = event.get("event_type")
+                event_type = event_type_raw if isinstance(event_type_raw, str) else "unknown"
                 event_type_counts[event_type] = event_type_counts.get(event_type, 0) + 1
                 if event.get("status") == "accepted":
                     accepted_count += 1
@@ -715,12 +762,30 @@ def replay_store(store: OracleDevnetStore) -> dict[str, Any]:
                 if isinstance(artifact_id, str):
                     latest_by_type[event_type] = artifact_id
                 artifact_path = event.get("artifact_path")
-                if isinstance(artifact_path, str) and not (store.root / artifact_path).is_file():
-                    missing_artifacts.append(f"line_{line_no}:{artifact_path}")
+                if isinstance(artifact_path, str):
+                    full_artifact_path = store.root / artifact_path
+                    if not full_artifact_path.is_file():
+                        missing_artifacts.append(f"line_{line_no}:{artifact_path}")
+                        continue
+                    expected_sha256 = event.get("artifact_sha256")
+                    if isinstance(expected_sha256, str):
+                        actual_sha256 = _file_sha256(full_artifact_path)
+                        if actual_sha256 != expected_sha256:
+                            artifact_hash_mismatches.append(
+                                f"line_{line_no}:{artifact_path}:expected_{expected_sha256}:got_{actual_sha256}"
+                            )
+    ok = not (
+        missing_artifacts
+        or artifact_hash_mismatches
+        or malformed_events
+        or duplicate_event_ids
+        or duplicate_event_sequences
+        or event_sequence_errors
+    )
     receipt = {
         "schema": REPLAY_SCHEMA,
-        "ok": not missing_artifacts,
-        "status": "accepted" if not missing_artifacts else "rejected",
+        "ok": ok,
+        "status": "accepted" if ok else "rejected",
         "store": str(store.root),
         "event_count": event_count,
         "accepted_event_count": accepted_count,
@@ -728,6 +793,11 @@ def replay_store(store: OracleDevnetStore) -> dict[str, Any]:
         "event_type_counts": event_type_counts,
         "latest_by_type": latest_by_type,
         "missing_artifacts": missing_artifacts,
+        "artifact_hash_mismatches": artifact_hash_mismatches,
+        "malformed_events": malformed_events,
+        "duplicate_event_ids": duplicate_event_ids,
+        "duplicate_event_sequences": duplicate_event_sequences,
+        "event_sequence_errors": event_sequence_errors,
         "not_claimed": [
             "does_not_claim_production_oracle_network_live",
             "does_not_claim_true_market_price",

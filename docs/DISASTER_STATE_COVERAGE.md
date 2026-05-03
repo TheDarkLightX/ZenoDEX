@@ -27,6 +27,53 @@ stay in backlog until their replay commands are refreshed, their skipped lanes
 are split out, or their checks are promoted into Lean, ESSO, Tau, TLA, or
 another replayable certificate lane.
 
+## ZenoOracle Devnet Stateful Slice
+
+The current branch adds a separate ZenoOracle devnet replay harness:
+
+```bash
+python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
+```
+
+Current expected output:
+
+```text
+selected_disaster_state_count = 17
+unreachable_count = 17
+failed_count = 0
+inconclusive_count = 0
+```
+
+This slice is intentionally scoped to the local devnet verifier shell. It is
+not merged into the historical `29` ZenoDEX closed-axis count above, because it
+uses a different harness and a newer Oracle service surface.
+
+The promoted ZenoOracle devnet disaster states are:
+
+1. `accepted_read_without_accepted_aggregate`
+2. `adapter_bridge_without_matching_read`
+3. `revoked_or_unregistered_reporter_admitted`
+4. `accepted_read_without_accepted_aggregate.need_three_admissions`
+5. `high_uncertainty_price_used_by_critical_action`
+6. `policy_downgrade_changes_existing_query_semantics`
+7. `receipt_borrowed_across_consumer_action`
+8. `critical_action_without_consumer_profile`
+9. `replay_state_differs_from_live_state`
+10. `missing_artifact_survives_replay`
+11. `tampered_artifact_survives_replay`
+12. `duplicate_event_changes_balance_or_reward`
+13. `reordered_event_survives_replay`
+14. `partial_event_write_survives_replay`
+15. `reward_exceeds_verified_budget`
+16. `slash_exceeds_bond`
+17. `fee_split_exceeds_fee_paid`
+
+The devnet replay receipt now rejects malformed event lines, non-monotonic event
+sequences, duplicate event IDs, duplicate event sequences, missing artifacts,
+and artifact byte-hash mismatches. That moves the Oracle journal from a
+"file exists" replay check toward a crash-consistency receipt for the promoted
+devnet slice.
+
 ## Proof Layer Added For Future Promotion
 
 The current branch adds reusable Lean theorem schemas and adapters that
