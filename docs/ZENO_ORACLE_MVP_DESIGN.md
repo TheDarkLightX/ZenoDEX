@@ -11,6 +11,39 @@ liquidation, minting, trigger execution, or guarded routing.
 The public MVP target is permissionless-human reporting. An internal devnet may
 start with allowlisted reporters, but that is not the full market MVP.
 
+The first concrete public receipt format is
+[ZENO_ORACLE_RECEIPT_FORMAT_V1.md](ZENO_ORACLE_RECEIPT_FORMAT_V1.md).
+The first concrete public token budget format is
+[ZENO_ORACLE_TOKEN_BUDGET_V1.md](ZENO_ORACLE_TOKEN_BUDGET_V1.md).
+The first concrete public reporter lifecycle format is
+[ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md](ZENO_ORACLE_REPORTER_LIFECYCLE_V1.md).
+The first concrete public signed-report format is
+[ZENO_ORACLE_SIGNED_REPORT_V1.md](ZENO_ORACLE_SIGNED_REPORT_V1.md).
+The first concrete public report-admission bridge format is
+[ZENO_ORACLE_REPORT_ADMISSION_V1.md](ZENO_ORACLE_REPORT_ADMISSION_V1.md).
+The first concrete public aggregate format is
+[ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md](ZENO_ORACLE_MEDIAN3_AGGREGATE_V1.md).
+The first concrete public aggregate-from-admission format is
+[ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md](ZENO_ORACLE_ADMITTED_MEDIAN3_V1.md).
+The first concrete public aggregate-to-read bridge format is
+[ZENO_ORACLE_AGGREGATE_READ_V1.md](ZENO_ORACLE_AGGREGATE_READ_V1.md).
+The first concrete public aggregate-to-action adapter bridge format is
+[ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md](ZENO_ORACLE_AGGREGATE_ADAPTER_V1.md).
+The first concrete public source-diversity format is
+[ZENO_ORACLE_SOURCE_DIVERSITY_V1.md](ZENO_ORACLE_SOURCE_DIVERSITY_V1.md).
+The first concrete public query-policy format is
+[ZENO_ORACLE_QUERY_POLICY_V1.md](ZENO_ORACLE_QUERY_POLICY_V1.md).
+The first concrete public adapter format is
+[ZENO_ORACLE_ADAPTER_V1.md](ZENO_ORACLE_ADAPTER_V1.md).
+The first concrete public consumer-profile catalog is
+[ZENO_ORACLE_CONSUMER_PROFILES_V1.md](ZENO_ORACLE_CONSUMER_PROFILES_V1.md).
+The first concrete public economic security envelope is
+[ZENO_ORACLE_ECONOMIC_SECURITY_V1.md](ZENO_ORACLE_ECONOMIC_SECURITY_V1.md).
+The first concrete public feed-registry format is
+[ZENO_ORACLE_FEED_REGISTRY_V1.md](ZENO_ORACLE_FEED_REGISTRY_V1.md).
+The first concrete public CLI wrapper is
+[ZENO_ORACLE_CLI_V1.md](ZENO_ORACLE_CLI_V1.md).
+
 ```text
 CriticalOracleUse -> AcceptedReadReceipt
 AcceptedReadReceipt :=
@@ -33,7 +66,12 @@ and uncertainty checks.
 
 Defines canonical query semantics: asset pair, unit, scale, source policy,
 reporter policy, aggregation policy, freshness policy, movement policy, dispute
-policy, token policy, and query ID.
+policy, source-diversity policy, token policy, and query ID.
+
+The first local feed-registry shell makes that query layer executable: it
+accepts feed definitions only when the query spec, source-diversity receipt,
+aggregate policy, freshness/deviation limits, evidence floor, and content
+hashes all agree.
 
 2. Reporter registry
 
@@ -44,27 +82,62 @@ receipts.
 3. Signed report lane
 
 Accepts reports only when schema, canonical hash, reporter signature, query
-binding, source timing, value type, and reporter sequence checks pass.
+binding, source timing, value type, and reporter sequence checks pass. The
+current shell verifies BLS signatures and a reporter-local previous-report
+chain before reports are eligible for aggregation.
 
-4. Aggregate receipt lane
+4. Report admission lane
+
+Bridges signed reports to reporter lifecycle and source-diversity receipts. A
+report can be admitted only when the signed payload, lifecycle submit event,
+and declared source policy bind to the same reporter, query, report ID, source,
+payload hash, and freshness window.
+
+5. Aggregate receipt lane
 
 Builds deterministic aggregates from accepted reports. The first concrete MVP
 kernel is an odd-cardinality median, with `median_3` as the first small,
-auditable target.
+auditable target. The current `median_3` shell embeds a source-diversity
+receipt so source IDs are tied to operator, venue, data-family, transport, and
+jurisdiction classifications.
 
-5. Read receipt lane
+The admitted-median3 shell tightens this lane by requiring each aggregate input
+to be an accepted report-admission bundle. It then recomputes the median,
+confidence radius, deviation bps, and observed epoch from exactly one admitted
+report per admission.
+
+6. Read receipt lane
 
 Turns an aggregate into a consumer-specific accepted read. This is where
 freshness, evidence class, dispute status, price movement, uncertainty, and
 attack-cost constraints are checked.
 
-6. Critical consumer action lane
+The aggregate-read bridge now binds the admitted aggregate value, confidence
+radius, deviation bps, observed epoch, report count, and admission count into
+the read `value_hash` consumed by the generic receipt bundle.
+
+7. Critical consumer action lane
 
 Binds the accepted read to the specific downstream action. A perps settlement,
 liquidation, zUSD mint, or trigger execution cannot borrow a receipt from a
 different action, query, value hash, epoch, or policy.
 
-7. Token incentive lane
+The aggregate-adapter bridge now checks the complete local path from admitted
+aggregate to aggregate-derived read bundle to concrete action/profile binding.
+Perps `settle_epoch` paths, critical zUSD demo API commands, and guarded
+routing quote APIs now have the first runtime hooks. When configured to require
+an Oracle bridge, isolated,
+2-party clearinghouse, and 3-party transfer clearinghouse settlement reject
+missing, unverified, rejected, wrong-query, wrong-profile, wrong-action, or
+wrong-runtime-action-ID aggregate-adapter bridges before state changes. The zUSD
+demo API applies the same pattern to `mint_zusd` and `liquidate`, including the
+official collateral-price query and consumer profile. The exact-in and exact-out
+guarded routing quote APIs apply it to `zenodex.routing / guarded_quote`,
+including the route request, route policy, routing reference-price query,
+official routing profile, and pool snapshot hash. Trigger, production zUSD, and
+remaining routing consumers remain adapter-only until they get equivalent hooks.
+
+8. Token incentive lane
 
 Permissionless reporting needs on-protocol incentives. The MVP token surface
 includes reporter bonds, query reward budgets, reporter rewards, dispute bonds,
@@ -139,12 +212,23 @@ unbounded rewards.
 - raw signed report feeds a critical action;
 - wrong query ID is consumed;
 - semantic aliasing changes query meaning;
+- feed registry admits duplicate or hash-forged feed definitions;
+- feed registry accepts a base/quote alias or unsupported aggregate policy;
 - stale or future report is accepted;
 - zero or malformed price is consumed;
 - reporter sequence replay is accepted;
 - signature verifies over the wrong payload;
+- signed report sequence skips or points at the wrong predecessor;
+- lifecycle submit event does not match the signed report;
+- signed source is outside the declared source-diversity receipt;
+- aggregate uses reports that did not pass report admission;
+- duplicate admission/report/reporter/source is aggregated;
+- accepted read value hash does not match the admitted aggregate;
+- concrete action/profile binding does not match the aggregate-derived read;
 - unauthorized or under-bonded reporter is accepted;
 - source evidence is borrowed across reports;
+- three source strings collapse to one operator, venue, data family,
+  transport, or jurisdiction bucket;
 - aggregate is accepted without quorum;
 - aggregate value is borrowed from another report set;
 - open or unresolved dispute feeds a critical read;
@@ -165,6 +249,7 @@ This document is a design snapshot. It does not claim that:
 - the oracle token economics are finalized;
 - subjective disputes are fully solved;
 - every source is honest or independent;
+- declared source classifications are externally audited;
 - median price equals true market price;
 - every future consumer action is already integrated.
 
