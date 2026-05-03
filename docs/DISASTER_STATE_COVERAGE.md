@@ -74,6 +74,39 @@ and artifact byte-hash mismatches. That moves the Oracle journal from a
 "file exists" replay check toward a crash-consistency receipt for the promoted
 devnet slice.
 
+## ZenoOracle Critical-Action Map Slice
+
+The current branch also checks the Oracle consumer-profile catalog against the
+runtime modules that enforce adapter bridges:
+
+```bash
+python3 tools/check_zeno_oracle_critical_action_map.py
+```
+
+Current expected result:
+
+```text
+catalog_profile_count = 6
+runtime_wired_count = 4
+design_only_backlog_count = 2
+status = accepted
+```
+
+The runtime-wired surfaces are:
+
+1. `zenodex.perps:settle_epoch`
+2. `zenodex.zusd:mint`
+3. `zenodex.zusd:liquidate_vault`
+4. `zenodex.routing:guarded_quote`
+
+The explicit design-only backlog profiles are:
+
+1. `zenodex.perps:liquidate_account`
+2. `zenodex.trigger:execute_trigger`
+
+This keeps profile/catalog drift visible while avoiding a stronger claim that
+the design-only profiles are already wired into runtime modules.
+
 ## Proof Layer Added For Future Promotion
 
 The current branch adds reusable Lean theorem schemas and adapters that
