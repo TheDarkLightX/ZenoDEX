@@ -222,6 +222,16 @@ aggregate rejection, receipt borrowing, missing consumer profiles, and budget
 overspend rejection. The detailed list is in
 [docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
 
+The Oracle critical-action map is also checked against runtime wiring:
+
+```bash
+python3 tools/check_zeno_oracle_critical_action_map.py
+```
+
+It currently verifies four runtime-wired surfaces and separates two design-only
+backlog profiles. The detailed map is in
+[docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md](docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md).
+
 If you want to review that claim directly, start with:
 
 - `src/core/split_routing_dispatch.py`
@@ -621,6 +631,7 @@ bash tests/tau/test_specs_syntax.sh
 - `docs/ZENO_ORACLE_DEVNET_ALPHA.md` — local Zeno Oracle devnet service, replay store, and API boundary
 - `docs/papers/zeno-oracle-whitepaper/main.pdf` — academic-style Zeno Oracle whitepaper by Dana Edwards
 - `docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md` — next ZenoOracle/ZenoDEX disaster-state minimization goal
+- `docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md` — current Oracle critical-action runtime wiring map
 - `docs/ZENO_ORACLE_PRODUCTION_GATES.md` — Zeno Oracle rollout and verifier gates
 - `docs/ZENO_ORACLE_RECEIPT_FORMAT_V1.md` — current local Oracle receipt-bundle format
 - `docs/ZENO_ORACLE_SIGNED_REPORT_V1.md` — current local Oracle signed-report format

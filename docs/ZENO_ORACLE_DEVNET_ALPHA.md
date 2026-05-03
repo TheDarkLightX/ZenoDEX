@@ -96,8 +96,24 @@ bash scripts/check_zeno_oracle_devnet_alpha.sh
 ```
 
 It runs the full local MVP gate, the service-level HTTP integration tests, the
-deterministic devnet disaster-state harness, and the devnet alpha audit. The
-GitHub workflow builds a devnet alpha RC package after the gate passes.
+critical-action map checker, the deterministic devnet disaster-state harness,
+and the devnet alpha audit. The GitHub workflow builds a devnet alpha RC
+package after the gate passes.
+
+The critical-action map can be checked directly:
+
+```bash
+python3 tools/check_zeno_oracle_critical_action_map.py
+```
+
+Current expected receipt:
+
+```text
+catalog_profile_count = 6
+runtime_wired_count = 4
+design_only_backlog_count = 2
+status = accepted
+```
 
 The promoted disaster harness can also be replayed directly:
 

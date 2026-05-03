@@ -17,6 +17,7 @@ cp "${root}/scripts/check_zeno_oracle_mvp.sh" "${stage}/scripts/check_zeno_oracl
 cp "${root}/scripts/check_zeno_oracle_devnet_alpha.sh" "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"
 cp "${root}/scripts/package_zeno_oracle_rc.sh" "${stage}/scripts/package_zeno_oracle_rc.sh"
 cp -R "${root}/assets/branding/zeno-oracle" "${stage}/assets/branding/zeno-oracle"
+cp "${root}/tools/check_zeno_oracle_critical_action_map.py" "${stage}/tools/check_zeno_oracle_critical_action_map.py"
 
 find "${root}/tools" -maxdepth 1 -type f -name 'zenodex_oracle*.py' -print0 |
   sort -z |
@@ -32,6 +33,7 @@ cp -R "${root}/docs/papers/zeno-oracle-whitepaper" "${stage}/docs/papers/zeno-or
 
 chmod +x "${stage}/tools/zenodex_oracle_cli.py"
 chmod +x "${stage}/tools/zenodex_oracle_devnet_disaster_harness.py"
+chmod +x "${stage}/tools/check_zeno_oracle_critical_action_map.py"
 chmod +x "${stage}/bin/zenodex-oracle"
 chmod +x "${stage}/scripts/check_zeno_oracle_mvp.sh"
 chmod +x "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"

@@ -122,3 +122,27 @@ writes, and budget overspend cases for rewards, slashes, and fee splits.
 This is bounded evidence for the local devnet verifier shell. It is not a claim
 that the production oracle network exists, that reporters are honest, or that
 the broader ZenoDEX/ZenoOracle disaster-state map is exhausted.
+
+## Current Critical-Action Map Slice
+
+The first runtime-wiring map is implemented by:
+
+```bash
+python3 tools/check_zeno_oracle_critical_action_map.py
+```
+
+Current expected receipt:
+
+```text
+catalog_profile_count = 6
+runtime_wired_count = 4
+design_only_backlog_count = 2
+status = accepted
+```
+
+The current runtime-wired profiles are perps `settle_epoch`, zUSD `mint`, zUSD
+`liquidate_vault`, and routing `guarded_quote`. The design-only backlog
+profiles are perps `liquidate_account` and trigger `execute_trigger`.
+
+Details are in
+[ZENO_ORACLE_CRITICAL_ACTION_MAP.md](ZENO_ORACLE_CRITICAL_ACTION_MAP.md).

@@ -116,6 +116,7 @@ def _workflow_ok() -> bool:
         and "zeno-oracle-devnet-alpha-rc1" in workflow
         and "actions/upload-artifact@v4" in workflow
         and "tools/zenodex_oracle_devnet_disaster_harness.py" in gate
+        and "tools/check_zeno_oracle_critical_action_map.py" in gate
     )
 
 
@@ -303,9 +304,13 @@ def run_audit() -> dict[str, Any]:
             ),
             _criterion(
                 10,
-                "CI runs the local MVP gate, service tests, and devnet disaster harness",
+                "CI runs the local MVP gate, critical-action map, service tests, and devnet disaster harness",
                 _workflow_ok() and (ROOT / "scripts/check_zeno_oracle_devnet_alpha.sh").is_file(),
-                ["scripts/check_zeno_oracle_devnet_alpha.sh", "tools/zenodex_oracle_devnet_disaster_harness.py"],
+                [
+                    "scripts/check_zeno_oracle_devnet_alpha.sh",
+                    "tools/check_zeno_oracle_critical_action_map.py",
+                    "tools/zenodex_oracle_devnet_disaster_harness.py",
+                ],
             ),
             _criterion(
                 11,
