@@ -8,7 +8,7 @@ verifiers. A report, feed, aggregate, read, adapter bridge, or budget event only
 becomes visible after the corresponding verifier accepts it.
 
 The academic-style whitepaper is published as
-[docs/papers/zeno-oracle-whitepaper/main.pdf](papers/zeno-oracle-whitepaper/main.pdf),
+[docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf](papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf),
 authored by Dana Edwards. The package branding assets live under
 `assets/branding/zeno-oracle/`.
 
@@ -149,7 +149,7 @@ dist/zeno-oracle-devnet-alpha-rc1.receipt.json
 dist/zeno-oracle-devnet-alpha-rc1.sig
 dist/zeno-oracle-devnet-alpha-rc1/ZEN_ORACLE_RC_MANIFEST.json
 dist/zeno-oracle-devnet-alpha-rc1/assets/branding/zeno-oracle/
-dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/main.pdf
+dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf
 ```
 
 The `.sig` file is a devnet integrity signature derived from the package hash.
