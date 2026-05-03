@@ -208,6 +208,20 @@ the current search inventory. The same workflow also checks critical Lean proof
 artifacts for active placeholders and keeps the deployment posture tests on the
 default API/resource-safety boundary.
 
+The ZenoOracle devnet branch also has a separate local disaster harness:
+
+```bash
+python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
+```
+
+It currently covers `17` promoted Oracle devnet disaster states with
+`17` unreachable, `0` failed, and `0` inconclusive under the local verifier
+shell. These include missing/tampered replay artifacts, duplicate/reordered
+events, partial event writes, unregistered reporter admission, high-uncertainty
+aggregate rejection, receipt borrowing, missing consumer profiles, and budget
+overspend rejection. The detailed list is in
+[docs/DISASTER_STATE_COVERAGE.md](docs/DISASTER_STATE_COVERAGE.md).
+
 If you want to review that claim directly, start with:
 
 - `src/core/split_routing_dispatch.py`

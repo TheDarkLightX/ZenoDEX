@@ -110,10 +110,12 @@ def _run_package(version: str) -> tuple[bool, dict[str, Any] | None, str]:
 
 def _workflow_ok() -> bool:
     workflow = (ROOT / ".github/workflows/zeno-oracle-mvp.yml").read_text(encoding="utf-8")
+    gate = (ROOT / "scripts/check_zeno_oracle_devnet_alpha.sh").read_text(encoding="utf-8")
     return (
         "bash scripts/check_zeno_oracle_devnet_alpha.sh" in workflow
         and "zeno-oracle-devnet-alpha-rc1" in workflow
         and "actions/upload-artifact@v4" in workflow
+        and "tools/zenodex_oracle_devnet_disaster_harness.py" in gate
     )
 
 
@@ -301,9 +303,9 @@ def run_audit() -> dict[str, Any]:
             ),
             _criterion(
                 10,
-                "CI runs the local MVP gate plus service-level integration tests",
+                "CI runs the local MVP gate, service tests, and devnet disaster harness",
                 _workflow_ok() and (ROOT / "scripts/check_zeno_oracle_devnet_alpha.sh").is_file(),
-                ["scripts/check_zeno_oracle_devnet_alpha.sh"],
+                ["scripts/check_zeno_oracle_devnet_alpha.sh", "tools/zenodex_oracle_devnet_disaster_harness.py"],
             ),
             _criterion(
                 11,

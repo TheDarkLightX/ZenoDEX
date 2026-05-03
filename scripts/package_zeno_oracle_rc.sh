@@ -31,6 +31,7 @@ mkdir -p "${stage}/docs/papers"
 cp -R "${root}/docs/papers/zeno-oracle-whitepaper" "${stage}/docs/papers/zeno-oracle-whitepaper"
 
 chmod +x "${stage}/tools/zenodex_oracle_cli.py"
+chmod +x "${stage}/tools/zenodex_oracle_devnet_disaster_harness.py"
 chmod +x "${stage}/bin/zenodex-oracle"
 chmod +x "${stage}/scripts/check_zeno_oracle_mvp.sh"
 chmod +x "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"

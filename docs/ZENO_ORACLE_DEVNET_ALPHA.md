@@ -46,7 +46,9 @@ bin/zenodex-oracle replay --store /tmp/zeno-oracle-devnet
 ```
 
 The replay receipt reports accepted and rejected event counts, event-type
-counts, latest artifact IDs by event type, and missing artifact references.
+counts, latest artifact IDs by event type, missing artifact references, event
+sequence errors, duplicate event IDs/sequences, malformed journal lines, and
+artifact byte-hash mismatches.
 
 ## Fail-Closed Service Boundary
 
@@ -93,8 +95,27 @@ The devnet alpha gate is:
 bash scripts/check_zeno_oracle_devnet_alpha.sh
 ```
 
-It runs the full local MVP gate and the service-level HTTP integration tests.
-The GitHub workflow builds a devnet alpha RC package after the gate passes.
+It runs the full local MVP gate, the service-level HTTP integration tests, the
+deterministic devnet disaster-state harness, and the devnet alpha audit. The
+GitHub workflow builds a devnet alpha RC package after the gate passes.
+
+The promoted disaster harness can also be replayed directly:
+
+```bash
+python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
+```
+
+Current expected receipt:
+
+```text
+selected_disaster_state_count = 17
+unreachable_count = 17
+failed_count = 0
+inconclusive_count = 0
+```
+
+This is bounded devnet evidence. It does not claim a production oracle network
+is live or that all future Oracle disaster states are exhausted.
 
 ## RC Package
 
