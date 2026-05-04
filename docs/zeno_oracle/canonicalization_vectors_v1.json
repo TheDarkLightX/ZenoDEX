@@ -1,0 +1,617 @@
+{
+  "canonical_json_rule": "json.dumps(sort_keys=True,separators=(comma,colon),ensure_ascii=True)",
+  "hash_rule": "sha256(domain || NUL || canonical_json_utf8)",
+  "schema": "zenodex.oracle.canonicalization_vectors.v1",
+  "vectors": [
+    {
+      "canonical_json": "{\"observed_epoch\":42,\"query_id\":\"query:AGRS/ZDEX\",\"value_e8\":123456789}",
+      "domain": "zenodex.oracle.value.v1",
+      "expected_hash": "sha256:c0ea36e0cad8ef73627ff9b4c25bf9f6de47bf7bc200c59886e43f0649055a81",
+      "id": "oracle_value_agrs_zdex_v1",
+      "payload": {
+        "observed_epoch": 42,
+        "query_id": "query:AGRS/ZDEX",
+        "value_e8": 123456789
+      }
+    },
+    {
+      "canonical_json": "{\"action_kind\":\"mint\",\"consumer_module\":\"zenodex.zusd\",\"mint_amount_e8\":50000000,\"pre_state_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"price_e8\":123456789,\"query_id\":\"query:AGRS/ZDEX\",\"vault_id\":\"vault:7\"}",
+      "domain": "zenodex.zusd.mint.facts.v1",
+      "expected_hash": "sha256:76b623a667d74d15d2f58cef3627079e5c39a312a1f9436a506d296ffaf86b9d",
+      "id": "authorization_action_facts_v1",
+      "payload": {
+        "action_kind": "mint",
+        "consumer_module": "zenodex.zusd",
+        "mint_amount_e8": 50000000,
+        "pre_state_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "price_e8": 123456789,
+        "query_id": "query:AGRS/ZDEX",
+        "vault_id": "vault:7"
+      }
+    },
+    {
+      "canonical_json": "{\"aggregate_evidence_class\":\"O3\",\"aggregate_id\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"confidence_e8\":1000,\"deviation_bps\":12,\"dispute_state_root\":\"sha256:5c36eda06e3d4f49909c692c1d76739db2dedc24fcf6d0632af8a49db80fe74d\",\"disputed_report_ids\":[],\"expires_at_epoch\":45,\"feed_registry_root\":\"sha256:8888888888888888888888888888888888888888888888888888888888888888\",\"included_report_ids\":[\"sha256:4444444444444444444444444444444444444444444444444444444444444444\",\"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\"sha256:6666666666666666666666666666666666666666666666666666666666666666\"],\"included_source_ids\":[\"source:a\",\"source:b\",\"source:c\"],\"min_reporters\":3,\"observed_epoch\":42,\"query_id\":\"query:AGRS/ZDEX\",\"query_policy_root\":\"sha256:9999999999999999999999999999999999999999999999999999999999999999\",\"read_evidence_class\":\"O3\",\"read_id\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"report_leaf_commitments\":[{\"active\":true,\"bond_e8\":1000,\"control_group_id\":\"operator:1\",\"price_e8\":123456790,\"query_id\":\"query:AGRS/ZDEX\",\"report_id\":\"sha256:4444444444444444444444444444444444444444444444444444444444444444\",\"reported_epoch\":42,\"reporter_id\":\"reporter:zeno1\",\"required_bond_e8\":1000,\"sequence\":1,\"signature\":\"local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000001\",\"signing_payload_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000001\",\"slash_state\":\"clear\",\"source_id\":\"source:a\",\"source_observed_epoch\":42},{\"active\":true,\"bond_e8\":1000,\"control_group_id\":\"operator:2\",\"price_e8\":123456791,\"query_id\":\"query:AGRS/ZDEX\",\"report_id\":\"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\"reported_epoch\":42,\"reporter_id\":\"reporter:zeno2\",\"required_bond_e8\":1000,\"sequence\":2,\"signature\":\"local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000002\",\"signing_payload_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000002\",\"slash_state\":\"clear\",\"source_id\":\"source:b\",\"source_observed_epoch\":42},{\"active\":true,\"bond_e8\":1000,\"control_group_id\":\"operator:3\",\"price_e8\":123456792,\"query_id\":\"query:AGRS/ZDEX\",\"report_id\":\"sha256:6666666666666666666666666666666666666666666666666666666666666666\",\"reported_epoch\":42,\"reporter_id\":\"reporter:zeno3\",\"required_bond_e8\":1000,\"sequence\":3,\"signature\":\"local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000003\",\"signing_payload_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000003\",\"slash_state\":\"clear\",\"source_id\":\"source:c\",\"source_observed_epoch\":42}],\"report_leaf_root\":\"sha256:4056342993b42e72e3e1c4ffef1a06eeeb870b3207ed10fc30c8eb6fa0fbab64\",\"reporter_control_group_count\":3,\"reporter_count\":3,\"reporter_registry_root\":\"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"schema\":\"zeno_oracle.receipt_graph.v1\",\"source_count\":3,\"source_policy_id\":\"source-policy:declared-diverse-v1\",\"source_registry_root\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"value_e8\":123456789,\"value_hash\":\"sha256:3333333333333333333333333333333333333333333333333333333333333333\"}",
+      "domain": "zeno_oracle.receipt_graph.v1",
+      "expected_hash": "sha256:bb07435992daaea904b19297fb9354b55d3bb4605292117afa94d984d555287b",
+      "id": "receipt_graph_terminal_v1",
+      "payload": {
+        "aggregate_evidence_class": "O3",
+        "aggregate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "confidence_e8": 1000,
+        "deviation_bps": 12,
+        "dispute_state_root": "sha256:5c36eda06e3d4f49909c692c1d76739db2dedc24fcf6d0632af8a49db80fe74d",
+        "disputed_report_ids": [],
+        "expires_at_epoch": 45,
+        "feed_registry_root": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+        "included_report_ids": [
+          "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+          "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+          "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+        ],
+        "included_source_ids": [
+          "source:a",
+          "source:b",
+          "source:c"
+        ],
+        "min_reporters": 3,
+        "observed_epoch": 42,
+        "query_id": "query:AGRS/ZDEX",
+        "query_policy_root": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+        "read_evidence_class": "O3",
+        "read_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "report_leaf_commitments": [
+          {
+            "active": true,
+            "bond_e8": 1000,
+            "control_group_id": "operator:1",
+            "price_e8": 123456790,
+            "query_id": "query:AGRS/ZDEX",
+            "report_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+            "reported_epoch": 42,
+            "reporter_id": "reporter:zeno1",
+            "required_bond_e8": 1000,
+            "sequence": 1,
+            "signature": "local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000001",
+            "signing_payload_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+            "slash_state": "clear",
+            "source_id": "source:a",
+            "source_observed_epoch": 42
+          },
+          {
+            "active": true,
+            "bond_e8": 1000,
+            "control_group_id": "operator:2",
+            "price_e8": 123456791,
+            "query_id": "query:AGRS/ZDEX",
+            "report_id": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+            "reported_epoch": 42,
+            "reporter_id": "reporter:zeno2",
+            "required_bond_e8": 1000,
+            "sequence": 2,
+            "signature": "local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000002",
+            "signing_payload_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+            "slash_state": "clear",
+            "source_id": "source:b",
+            "source_observed_epoch": 42
+          },
+          {
+            "active": true,
+            "bond_e8": 1000,
+            "control_group_id": "operator:3",
+            "price_e8": 123456792,
+            "query_id": "query:AGRS/ZDEX",
+            "report_id": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+            "reported_epoch": 42,
+            "reporter_id": "reporter:zeno3",
+            "required_bond_e8": 1000,
+            "sequence": 3,
+            "signature": "local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000003",
+            "signing_payload_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+            "slash_state": "clear",
+            "source_id": "source:c",
+            "source_observed_epoch": 42
+          }
+        ],
+        "report_leaf_root": "sha256:4056342993b42e72e3e1c4ffef1a06eeeb870b3207ed10fc30c8eb6fa0fbab64",
+        "reporter_control_group_count": 3,
+        "reporter_count": 3,
+        "reporter_registry_root": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "schema": "zeno_oracle.receipt_graph.v1",
+        "source_count": 3,
+        "source_policy_id": "source-policy:declared-diverse-v1",
+        "source_registry_root": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "value_e8": 123456789,
+        "value_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+      }
+    },
+    {
+      "canonical_json": "{\"price_e8\":145230000,\"query_id\":\"query:AGRS/ZDEX\",\"reported_epoch\":701,\"reporter_id\":\"reporter:zeno1-alpha\",\"schema\":\"zeno_oracle.report.v1\",\"sequence\":9,\"source_id\":\"source:cex-a\",\"source_observed_epoch\":700,\"value_kind\":\"price_e8\"}",
+      "domain": "zeno_oracle.report_signing_payload.v1",
+      "expected_hash": "sha256:cdfdc19095aa7d8bfed974a229a28ce701c082956e181599fd11878ff609c3e7",
+      "id": "report_signing_payload_price_e8_v1",
+      "payload": {
+        "price_e8": 145230000,
+        "query_id": "query:AGRS/ZDEX",
+        "reported_epoch": 701,
+        "reporter_id": "reporter:zeno1-alpha",
+        "schema": "zeno_oracle.report.v1",
+        "sequence": 9,
+        "source_id": "source:cex-a",
+        "source_observed_epoch": 700,
+        "value_kind": "price_e8"
+      }
+    },
+    {
+      "canonical_json": "{\"price_e8\":145230000,\"query_id\":\"query:AGRS/ZDEX\",\"reported_epoch\":701,\"reporter_id\":\"reporter:zeno1-alpha\",\"schema\":\"zeno_oracle.report.v1\",\"sequence\":9,\"signing_payload_hash\":\"sha256:cdfdc19095aa7d8bfed974a229a28ce701c082956e181599fd11878ff609c3e7\",\"source_id\":\"source:cex-a\",\"source_observed_epoch\":700,\"value_kind\":\"price_e8\"}",
+      "domain": "zeno_oracle.report.v1",
+      "expected_hash": "sha256:cf02f15b2128193b845819865d19b28458fb8867df895d1c20d9c343e6bd0fc7",
+      "id": "signed_report_id_price_e8_v1",
+      "payload": {
+        "price_e8": 145230000,
+        "query_id": "query:AGRS/ZDEX",
+        "reported_epoch": 701,
+        "reporter_id": "reporter:zeno1-alpha",
+        "schema": "zeno_oracle.report.v1",
+        "sequence": 9,
+        "signing_payload_hash": "sha256:cdfdc19095aa7d8bfed974a229a28ce701c082956e181599fd11878ff609c3e7",
+        "source_id": "source:cex-a",
+        "source_observed_epoch": 700,
+        "value_kind": "price_e8"
+      }
+    },
+    {
+      "canonical_json": "{\"aggregate_epoch\":702,\"aggregate_kind\":\"median_latest_distinct_reporters_distinct_sources\",\"confidence_e8\":10000,\"deviation_bps\":2,\"evidence_class\":\"O3\",\"feed_registry_root\":\"sha256:8888888888888888888888888888888888888888888888888888888888888888\",\"included_report_ids\":[\"sha256:97f09fed2d1f44627fba2c475419922d49b28a02d951584b5d015fd4f07d4568\",\"sha256:ced99c9887d0fa8cbabb27c9adb88cf329145df5c4138a59daec826d3542893e\",\"sha256:cf02f15b2128193b845819865d19b28458fb8867df895d1c20d9c343e6bd0fc7\"],\"included_source_ids\":[\"source:cex-a\",\"source:dex-b\",\"source:twap-c\"],\"min_reporters\":3,\"observed_epoch\":700,\"production_authority\":false,\"query_id\":\"query:AGRS/ZDEX\",\"query_policy_root\":\"sha256:9999999999999999999999999999999999999999999999999999999999999999\",\"reporter_control_group_count\":3,\"reporter_count\":3,\"reporter_registry_root\":\"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"schema\":\"zeno_oracle.aggregate.v1\",\"source_count\":3,\"source_policy_id\":\"source-policy:declared-diverse-v1\",\"source_registry_root\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"value_e8\":145240000}",
+      "domain": "zeno_oracle.aggregate.v1",
+      "expected_hash": "sha256:323dcda2ccce3d1a7b5e1d44956116744c2511f331d95b967769df878e799e10",
+      "id": "aggregate_median_distinct_sources_v1",
+      "payload": {
+        "aggregate_epoch": 702,
+        "aggregate_kind": "median_latest_distinct_reporters_distinct_sources",
+        "confidence_e8": 10000,
+        "deviation_bps": 2,
+        "evidence_class": "O3",
+        "feed_registry_root": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+        "included_report_ids": [
+          "sha256:97f09fed2d1f44627fba2c475419922d49b28a02d951584b5d015fd4f07d4568",
+          "sha256:ced99c9887d0fa8cbabb27c9adb88cf329145df5c4138a59daec826d3542893e",
+          "sha256:cf02f15b2128193b845819865d19b28458fb8867df895d1c20d9c343e6bd0fc7"
+        ],
+        "included_source_ids": [
+          "source:cex-a",
+          "source:dex-b",
+          "source:twap-c"
+        ],
+        "min_reporters": 3,
+        "observed_epoch": 700,
+        "production_authority": false,
+        "query_id": "query:AGRS/ZDEX",
+        "query_policy_root": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+        "reporter_control_group_count": 3,
+        "reporter_count": 3,
+        "reporter_registry_root": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "schema": "zeno_oracle.aggregate.v1",
+        "source_count": 3,
+        "source_policy_id": "source-policy:declared-diverse-v1",
+        "source_registry_root": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "value_e8": 145240000
+      }
+    },
+    {
+      "canonical_json": "{\"aggregate_id\":\"sha256:3fae85c4808323c4bb211a715a409df4c1efebe89b18cd661c03232c3606212f\",\"confidence_e8\":10000,\"consumer_module\":\"zenodex.zusd\",\"deviation_bps\":2,\"evidence_class\":\"O3\",\"expires_at_epoch\":703,\"observed_epoch\":700,\"production_authority\":false,\"profile_id\":\"profile:zusd-critical-o3-v1\",\"query_id\":\"query:AGRS/ZDEX\",\"schema\":\"zeno_oracle.accepted_read.v1\",\"value_e8\":145240000,\"value_hash\":\"sha256:fe965fa97968ba4113ad25d8a665acc4b7a8a0471e7aca50686ac0c5bedcfb9c\"}",
+      "domain": "zeno_oracle.accepted_read.v1",
+      "expected_hash": "sha256:8e47b9e76c2e518a0ac80dae9b07040481d59201a5b00097c1be94d079083022",
+      "id": "accepted_read_o3_zusd_v1",
+      "payload": {
+        "aggregate_id": "sha256:3fae85c4808323c4bb211a715a409df4c1efebe89b18cd661c03232c3606212f",
+        "confidence_e8": 10000,
+        "consumer_module": "zenodex.zusd",
+        "deviation_bps": 2,
+        "evidence_class": "O3",
+        "expires_at_epoch": 703,
+        "observed_epoch": 700,
+        "production_authority": false,
+        "profile_id": "profile:zusd-critical-o3-v1",
+        "query_id": "query:AGRS/ZDEX",
+        "schema": "zeno_oracle.accepted_read.v1",
+        "value_e8": 145240000,
+        "value_hash": "sha256:fe965fa97968ba4113ad25d8a665acc4b7a8a0471e7aca50686ac0c5bedcfb9c"
+      }
+    },
+    {
+      "canonical_json": "{\"bond_e8\":10000000,\"opened_epoch\":704,\"reason\":\"source timestamp inconsistent with venue receipt\",\"report_id\":\"sha256:cf02f15b2128193b845819865d19b28458fb8867df895d1c20d9c343e6bd0fc7\",\"reporter_id\":\"reporter:zeno1-alpha\",\"schema\":\"zeno_oracle.local_dispute.v1\",\"status\":\"open\"}",
+      "domain": "zeno_oracle.dispute.v1",
+      "expected_hash": "sha256:011b45a5a81d24b1416f8d642ed2cd16dbb5adca47c8d3be323e6dc419528afe",
+      "id": "dispute_open_report_timestamp_v1",
+      "payload": {
+        "bond_e8": 10000000,
+        "opened_epoch": 704,
+        "reason": "source timestamp inconsistent with venue receipt",
+        "report_id": "sha256:cf02f15b2128193b845819865d19b28458fb8867df895d1c20d9c343e6bd0fc7",
+        "reporter_id": "reporter:zeno1-alpha",
+        "schema": "zeno_oracle.local_dispute.v1",
+        "status": "open"
+      }
+    },
+    {
+      "canonical_json": "{\"action_facts_hash\":\"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"action_id\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"action_kind\":\"mint\",\"confidence_e8\":10000,\"consumer_module\":\"zenodex.zusd\",\"deviation_bps\":2,\"economic_envelope_id\":\"env:zusd-mint-small-notional:v1\",\"evidence_class\":\"O3\",\"expires_at_epoch\":703,\"feed_id\":\"feed:agrs-zdex:v1\",\"feed_registry_root\":\"sha256:8888888888888888888888888888888888888888888888888888888888888888\",\"observed_epoch\":700,\"pre_state_hash\":\"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"profile_id\":\"profile:zusd-critical-o3-v1\",\"query_id\":\"query:AGRS/ZDEX\",\"query_policy_root\":\"sha256:9999999999999999999999999999999999999999999999999999999999999999\",\"receipt_graph_root\":\"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"reporter_registry_root\":\"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"source_registry_root\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"value_e8\":145240000,\"value_hash\":\"sha256:fe965fa97968ba4113ad25d8a665acc4b7a8a0471e7aca50686ac0c5bedcfb9c\"}",
+      "domain": "zeno_oracle.oracle_authorization.v1",
+      "expected_hash": "sha256:84613218bd0102740917fce3ad1bf7273e326e8e08aa325f63c5f8005df0be94",
+      "id": "typed_oracle_authorization_zusd_mint_v1",
+      "payload": {
+        "action_facts_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "action_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "action_kind": "mint",
+        "confidence_e8": 10000,
+        "consumer_module": "zenodex.zusd",
+        "deviation_bps": 2,
+        "economic_envelope_id": "env:zusd-mint-small-notional:v1",
+        "evidence_class": "O3",
+        "expires_at_epoch": 703,
+        "feed_id": "feed:agrs-zdex:v1",
+        "feed_registry_root": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+        "observed_epoch": 700,
+        "pre_state_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "profile_id": "profile:zusd-critical-o3-v1",
+        "query_id": "query:AGRS/ZDEX",
+        "query_policy_root": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+        "receipt_graph_root": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "reporter_registry_root": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "source_registry_root": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "value_e8": 145240000,
+        "value_hash": "sha256:fe965fa97968ba4113ad25d8a665acc4b7a8a0471e7aca50686ac0c5bedcfb9c"
+      }
+    },
+    {
+      "canonical_json": "{\"authorization\":{\"action_facts_hash\":\"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"action_id\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"action_kind\":\"mint\",\"confidence_e8\":1000,\"consumer_module\":\"zenodex.zusd\",\"deviation_bps\":12,\"economic_envelope_id\":\"env:zusd-mint-small-notional:v1\",\"evidence_class\":\"O3\",\"expires_at_epoch\":45,\"feed_id\":\"feed:agrs-zdex:v1\",\"feed_registry_root\":\"sha256:8888888888888888888888888888888888888888888888888888888888888888\",\"observed_epoch\":42,\"pre_state_hash\":\"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"profile_id\":\"critical-zusd-v1\",\"query_id\":\"query:AGRS/ZDEX\",\"query_policy_root\":\"sha256:9999999999999999999999999999999999999999999999999999999999999999\",\"receipt_graph_root\":\"sha256:bb07435992daaea904b19297fb9354b55d3bb4605292117afa94d984d555287b\",\"reporter_registry_root\":\"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"source_registry_root\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"value_e8\":123456789,\"value_hash\":\"sha256:3333333333333333333333333333333333333333333333333333333333333333\"},\"authorization_id\":\"sha256:08c8cc9b1d68d4f66bd227ef30ce99daeb17e63ba58522dd7b36f39c6b09295f\",\"production_authority\":false,\"receipt_graph\":{\"aggregate_evidence_class\":\"O3\",\"aggregate_id\":\"sha256:2222222222222222222222222222222222222222222222222222222222222222\",\"confidence_e8\":1000,\"deviation_bps\":12,\"dispute_state_root\":\"sha256:5c36eda06e3d4f49909c692c1d76739db2dedc24fcf6d0632af8a49db80fe74d\",\"disputed_report_ids\":[],\"expires_at_epoch\":45,\"feed_registry_root\":\"sha256:8888888888888888888888888888888888888888888888888888888888888888\",\"included_report_ids\":[\"sha256:4444444444444444444444444444444444444444444444444444444444444444\",\"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\"sha256:6666666666666666666666666666666666666666666666666666666666666666\"],\"included_source_ids\":[\"source:a\",\"source:b\",\"source:c\"],\"min_reporters\":3,\"observed_epoch\":42,\"query_id\":\"query:AGRS/ZDEX\",\"query_policy_root\":\"sha256:9999999999999999999999999999999999999999999999999999999999999999\",\"read_evidence_class\":\"O3\",\"read_id\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"receipt_graph_root\":\"sha256:bb07435992daaea904b19297fb9354b55d3bb4605292117afa94d984d555287b\",\"report_leaf_commitments\":[{\"active\":true,\"bond_e8\":1000,\"control_group_id\":\"operator:1\",\"price_e8\":123456790,\"query_id\":\"query:AGRS/ZDEX\",\"report_id\":\"sha256:4444444444444444444444444444444444444444444444444444444444444444\",\"reported_epoch\":42,\"reporter_id\":\"reporter:zeno1\",\"required_bond_e8\":1000,\"sequence\":1,\"signature\":\"local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000001\",\"signing_payload_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000001\",\"slash_state\":\"clear\",\"source_id\":\"source:a\",\"source_observed_epoch\":42},{\"active\":true,\"bond_e8\":1000,\"control_group_id\":\"operator:2\",\"price_e8\":123456791,\"query_id\":\"query:AGRS/ZDEX\",\"report_id\":\"sha256:5555555555555555555555555555555555555555555555555555555555555555\",\"reported_epoch\":42,\"reporter_id\":\"reporter:zeno2\",\"required_bond_e8\":1000,\"sequence\":2,\"signature\":\"local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000002\",\"signing_payload_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000002\",\"slash_state\":\"clear\",\"source_id\":\"source:b\",\"source_observed_epoch\":42},{\"active\":true,\"bond_e8\":1000,\"control_group_id\":\"operator:3\",\"price_e8\":123456792,\"query_id\":\"query:AGRS/ZDEX\",\"report_id\":\"sha256:6666666666666666666666666666666666666666666666666666666666666666\",\"reported_epoch\":42,\"reporter_id\":\"reporter:zeno3\",\"required_bond_e8\":1000,\"sequence\":3,\"signature\":\"local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000003\",\"signing_payload_hash\":\"sha256:0000000000000000000000000000000000000000000000000000000000000003\",\"slash_state\":\"clear\",\"source_id\":\"source:c\",\"source_observed_epoch\":42}],\"report_leaf_root\":\"sha256:4056342993b42e72e3e1c4ffef1a06eeeb870b3207ed10fc30c8eb6fa0fbab64\",\"reporter_control_group_count\":3,\"reporter_count\":3,\"reporter_registry_root\":\"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"schema\":\"zeno_oracle.receipt_graph.v1\",\"source_count\":3,\"source_policy_id\":\"source-policy:declared-diverse-v1\",\"source_registry_root\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"value_e8\":123456789,\"value_hash\":\"sha256:3333333333333333333333333333333333333333333333333333333333333333\"},\"runtime_action\":{\"action_facts_hash\":\"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"action_id\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"action_kind\":\"mint\",\"consumer_module\":\"zenodex.zusd\",\"now_epoch\":42,\"pre_state_hash\":\"sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"profile_id\":\"critical-zusd-v1\",\"query_id\":\"query:AGRS/ZDEX\",\"runtime_value_e8\":123456789},\"schema\":\"zeno_oracle.oracle_authorization_bundle.v1\"}",
+      "domain": "zeno_oracle.oracle_authorization_bundle.v1",
+      "expected_hash": "sha256:4cb5bfe8ef34cfa9b3f477747c11cc79359473b2f27548f0963e36f85c0cd649",
+      "id": "oracle_authorization_bundle_terminal_graph_v1",
+      "payload": {
+        "authorization": {
+          "action_facts_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "action_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "action_kind": "mint",
+          "confidence_e8": 1000,
+          "consumer_module": "zenodex.zusd",
+          "deviation_bps": 12,
+          "economic_envelope_id": "env:zusd-mint-small-notional:v1",
+          "evidence_class": "O3",
+          "expires_at_epoch": 45,
+          "feed_id": "feed:agrs-zdex:v1",
+          "feed_registry_root": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+          "observed_epoch": 42,
+          "pre_state_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "profile_id": "critical-zusd-v1",
+          "query_id": "query:AGRS/ZDEX",
+          "query_policy_root": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+          "receipt_graph_root": "sha256:bb07435992daaea904b19297fb9354b55d3bb4605292117afa94d984d555287b",
+          "reporter_registry_root": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "source_registry_root": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "value_e8": 123456789,
+          "value_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        "authorization_id": "sha256:08c8cc9b1d68d4f66bd227ef30ce99daeb17e63ba58522dd7b36f39c6b09295f",
+        "production_authority": false,
+        "receipt_graph": {
+          "aggregate_evidence_class": "O3",
+          "aggregate_id": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+          "confidence_e8": 1000,
+          "deviation_bps": 12,
+          "dispute_state_root": "sha256:5c36eda06e3d4f49909c692c1d76739db2dedc24fcf6d0632af8a49db80fe74d",
+          "disputed_report_ids": [],
+          "expires_at_epoch": 45,
+          "feed_registry_root": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+          "included_report_ids": [
+            "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+            "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+            "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+          ],
+          "included_source_ids": [
+            "source:a",
+            "source:b",
+            "source:c"
+          ],
+          "min_reporters": 3,
+          "observed_epoch": 42,
+          "query_id": "query:AGRS/ZDEX",
+          "query_policy_root": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+          "read_evidence_class": "O3",
+          "read_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "receipt_graph_root": "sha256:bb07435992daaea904b19297fb9354b55d3bb4605292117afa94d984d555287b",
+          "report_leaf_commitments": [
+            {
+              "active": true,
+              "bond_e8": 1000,
+              "control_group_id": "operator:1",
+              "price_e8": 123456790,
+              "query_id": "query:AGRS/ZDEX",
+              "report_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+              "reported_epoch": 42,
+              "reporter_id": "reporter:zeno1",
+              "required_bond_e8": 1000,
+              "sequence": 1,
+              "signature": "local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000001",
+              "signing_payload_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000001",
+              "slash_state": "clear",
+              "source_id": "source:a",
+              "source_observed_epoch": 42
+            },
+            {
+              "active": true,
+              "bond_e8": 1000,
+              "control_group_id": "operator:2",
+              "price_e8": 123456791,
+              "query_id": "query:AGRS/ZDEX",
+              "report_id": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+              "reported_epoch": 42,
+              "reporter_id": "reporter:zeno2",
+              "required_bond_e8": 1000,
+              "sequence": 2,
+              "signature": "local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000002",
+              "signing_payload_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000002",
+              "slash_state": "clear",
+              "source_id": "source:b",
+              "source_observed_epoch": 42
+            },
+            {
+              "active": true,
+              "bond_e8": 1000,
+              "control_group_id": "operator:3",
+              "price_e8": 123456792,
+              "query_id": "query:AGRS/ZDEX",
+              "report_id": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+              "reported_epoch": 42,
+              "reporter_id": "reporter:zeno3",
+              "required_bond_e8": 1000,
+              "sequence": 3,
+              "signature": "local-dev-sha256:0000000000000000000000000000000000000000000000000000000000000003",
+              "signing_payload_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000003",
+              "slash_state": "clear",
+              "source_id": "source:c",
+              "source_observed_epoch": 42
+            }
+          ],
+          "report_leaf_root": "sha256:4056342993b42e72e3e1c4ffef1a06eeeb870b3207ed10fc30c8eb6fa0fbab64",
+          "reporter_control_group_count": 3,
+          "reporter_count": 3,
+          "reporter_registry_root": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "schema": "zeno_oracle.receipt_graph.v1",
+          "source_count": 3,
+          "source_policy_id": "source-policy:declared-diverse-v1",
+          "source_registry_root": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "value_e8": 123456789,
+          "value_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        "runtime_action": {
+          "action_facts_hash": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "action_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+          "action_kind": "mint",
+          "consumer_module": "zenodex.zusd",
+          "now_epoch": 42,
+          "pre_state_hash": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "profile_id": "critical-zusd-v1",
+          "query_id": "query:AGRS/ZDEX",
+          "runtime_value_e8": 123456789
+        },
+        "schema": "zeno_oracle.oracle_authorization_bundle.v1"
+      }
+    },
+    {
+      "canonical_json": "{\"accepted_report_count\":9,\"paid_rewards_e8\":250000,\"pending_rewards_e8\":170000,\"query_id\":\"query:AGRS/ZDEX\",\"reporter_id\":\"reporter:zeno1-alpha\",\"reward_asset\":\"ZORACLE\",\"schema\":\"zeno_oracle.reward_ledger_entry.v1\",\"slash_debt_e8\":0,\"slashed_rewards_e8\":0}",
+      "domain": "zeno_oracle.reward_ledger_entry.v1",
+      "expected_hash": "sha256:640afe365e250d79d6ca6a81fc2a2c7d7810070d0fde403b8b6fa3c10436a8f8",
+      "id": "reward_ledger_entry_v1",
+      "payload": {
+        "accepted_report_count": 9,
+        "paid_rewards_e8": 250000,
+        "pending_rewards_e8": 170000,
+        "query_id": "query:AGRS/ZDEX",
+        "reporter_id": "reporter:zeno1-alpha",
+        "reward_asset": "ZORACLE",
+        "schema": "zeno_oracle.reward_ledger_entry.v1",
+        "slash_debt_e8": 0,
+        "slashed_rewards_e8": 0
+      }
+    },
+    {
+      "canonical_json": "{\"bond_slashed_e8\":100000000,\"dispute_id\":\"sha256:011b45a5a81d24b1416f8d642ed2cd16dbb5adca47c8d3be323e6dc419528afe\",\"pending_reward_slashed_e8\":170000,\"post_slash_state\":\"slashed\",\"reporter_id\":\"reporter:zeno1-alpha\",\"schema\":\"zeno_oracle.slash_settlement.v1\",\"slash_debt_e8\":19830000,\"slash_e8\":120000000}",
+      "domain": "zeno_oracle.slash_settlement.v1",
+      "expected_hash": "sha256:87d0862005e7582b6f9a804dca54a4ce7599ca6e0f4a0ecf9a0a441f8f111396",
+      "id": "slash_settlement_v1",
+      "payload": {
+        "bond_slashed_e8": 100000000,
+        "dispute_id": "sha256:011b45a5a81d24b1416f8d642ed2cd16dbb5adca47c8d3be323e6dc419528afe",
+        "pending_reward_slashed_e8": 170000,
+        "post_slash_state": "slashed",
+        "reporter_id": "reporter:zeno1-alpha",
+        "schema": "zeno_oracle.slash_settlement.v1",
+        "slash_debt_e8": 19830000,
+        "slash_e8": 120000000
+      }
+    },
+    {
+      "canonical_json": "{\"accepted_report_count\":9,\"paid_rewards_e8\":50000,\"pending_rewards_e8\":120000,\"production_authority\":false,\"reporter_id\":\"reporter:zeno1-alpha\",\"schema\":\"zeno_oracle.reward_ledger_entry.v1\",\"slash_debt_e8\":0,\"slashed_rewards_e8\":0}",
+      "domain": "zeno_oracle.reward_ledger_entry.v1",
+      "expected_hash": "sha256:8228d3f19db32afd56ab918011b5fc1e0e87f39c64a9e0a6b500eef79677dd61",
+      "id": "reward_ledger_entry_emitted_receipt_v1",
+      "payload": {
+        "accepted_report_count": 9,
+        "paid_rewards_e8": 50000,
+        "pending_rewards_e8": 120000,
+        "production_authority": false,
+        "reporter_id": "reporter:zeno1-alpha",
+        "schema": "zeno_oracle.reward_ledger_entry.v1",
+        "slash_debt_e8": 0,
+        "slashed_rewards_e8": 0
+      }
+    },
+    {
+      "canonical_json": "{\"bond_slashed_e8\":100000000,\"dispute_id\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\",\"pending_reward_slashed_e8\":170000,\"production_authority\":false,\"reporter_id\":\"reporter:zeno1-alpha\",\"resolved_epoch\":44,\"schema\":\"zeno_oracle.slash_settlement.v1\",\"slash_debt_e8\":19830000,\"slash_e8\":120000000}",
+      "domain": "zeno_oracle.slash_settlement.v1",
+      "expected_hash": "sha256:6d51a9b16da3153351986928be6b140687ec1b208a7fdc6ca4653d231a90ebfd",
+      "id": "slash_settlement_emitted_receipt_v1",
+      "payload": {
+        "bond_slashed_e8": 100000000,
+        "dispute_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "pending_reward_slashed_e8": 170000,
+        "production_authority": false,
+        "reporter_id": "reporter:zeno1-alpha",
+        "resolved_epoch": 44,
+        "schema": "zeno_oracle.slash_settlement.v1",
+        "slash_debt_e8": 19830000,
+        "slash_e8": 120000000
+      }
+    },
+    {
+      "canonical_json": "{\"asset_class\":\"equity\",\"base_asset\":\"AAPL\",\"default_slash_e8\":100000000,\"dispute_bond_e8\":10000000,\"evidence_floor\":\"O3\",\"feed_id\":\"feed:AAPL-USD:settlement:v1\",\"freshness_window_epochs\":3,\"high_uncertainty_confidence_e8\":1000000,\"jurisdiction\":\"US\",\"market_hours_policy_id\":\"nasdaq-regular-hours-v1\",\"max_deviation_bps\":100,\"min_reporters\":3,\"query_id\":\"query:AAPL/USD:settlement:v1\",\"query_type\":\"settlement_price\",\"quote_asset\":\"USD\",\"report_reward_e8\":10000,\"scale\":100000000,\"schema\":\"zeno_oracle.query.v1\",\"source_policy_id\":\"source-policy:declared-diverse-v1\",\"status\":\"active\",\"valuation_policy_id\":\"official-close-v1\"}",
+      "domain": "zeno_oracle.query_policy_root.v1",
+      "expected_hash": "sha256:d9e0bf3162047f3cf655f996e6de3f8d2e309ca8da835e9ac52be0bb5dd722a0",
+      "id": "query_policy_equity_settlement_v1",
+      "payload": {
+        "asset_class": "equity",
+        "base_asset": "AAPL",
+        "default_slash_e8": 100000000,
+        "dispute_bond_e8": 10000000,
+        "evidence_floor": "O3",
+        "feed_id": "feed:AAPL-USD:settlement:v1",
+        "freshness_window_epochs": 3,
+        "high_uncertainty_confidence_e8": 1000000,
+        "jurisdiction": "US",
+        "market_hours_policy_id": "nasdaq-regular-hours-v1",
+        "max_deviation_bps": 100,
+        "min_reporters": 3,
+        "query_id": "query:AAPL/USD:settlement:v1",
+        "query_type": "settlement_price",
+        "quote_asset": "USD",
+        "report_reward_e8": 10000,
+        "scale": 100000000,
+        "schema": "zeno_oracle.query.v1",
+        "source_policy_id": "source-policy:declared-diverse-v1",
+        "status": "active",
+        "valuation_policy_id": "official-close-v1"
+      }
+    },
+    {
+      "canonical_json": "{\"sources\":[{\"active\":true,\"asset_classes\":[\"crypto\"],\"assurance_class\":\"S3\",\"data_family_id\":\"price:cex-last-trade\",\"jurisdiction\":\"global\",\"operator_id\":\"operator:cex-a\",\"query_ids\":[\"query:AGRS/ZDEX\"],\"registered_epoch\":700,\"source_control_group_id\":\"control:cex-a\",\"source_id\":\"source:cex-a\",\"source_kind\":\"cex\",\"transport_id\":\"api:https:cex-a\",\"venue_id\":\"venue:cex-a\"},{\"active\":true,\"asset_classes\":[\"crypto\"],\"assurance_class\":\"S3\",\"data_family_id\":\"price:dex-twap\",\"jurisdiction\":\"global\",\"operator_id\":\"operator:dex-b\",\"query_ids\":[\"query:AGRS/ZDEX\"],\"registered_epoch\":700,\"source_control_group_id\":\"control:dex-b\",\"source_id\":\"source:dex-b\",\"source_kind\":\"dex\",\"transport_id\":\"api:https:dex-b\",\"venue_id\":\"venue:dex-b\"}]}",
+      "domain": "zeno_oracle.source_registry_root.v1",
+      "expected_hash": "sha256:724b090fefb8d0b572e7fabd69af38de428a9aeed327df347159133b80011585",
+      "id": "source_registry_root_registered_sources_v1",
+      "payload": {
+        "sources": [
+          {
+            "active": true,
+            "asset_classes": [
+              "crypto"
+            ],
+            "assurance_class": "S3",
+            "data_family_id": "price:cex-last-trade",
+            "jurisdiction": "global",
+            "operator_id": "operator:cex-a",
+            "query_ids": [
+              "query:AGRS/ZDEX"
+            ],
+            "registered_epoch": 700,
+            "source_control_group_id": "control:cex-a",
+            "source_id": "source:cex-a",
+            "source_kind": "cex",
+            "transport_id": "api:https:cex-a",
+            "venue_id": "venue:cex-a"
+          },
+          {
+            "active": true,
+            "asset_classes": [
+              "crypto"
+            ],
+            "assurance_class": "S3",
+            "data_family_id": "price:dex-twap",
+            "jurisdiction": "global",
+            "operator_id": "operator:dex-b",
+            "query_ids": [
+              "query:AGRS/ZDEX"
+            ],
+            "registered_epoch": 700,
+            "source_control_group_id": "control:dex-b",
+            "source_id": "source:dex-b",
+            "source_kind": "dex",
+            "transport_id": "api:https:dex-b",
+            "venue_id": "venue:dex-b"
+          }
+        ]
+      }
+    },
+    {
+      "canonical_json": "{\"snapshot\":{\"active\":true,\"bond_amount_e8\":100000000,\"control_group_id\":\"operator:zeno1-alpha\",\"query_ids\":[\"query:AGRS/ZDEX\"],\"required_bond_e8\":100000000,\"slash_state\":\"clear\"}}",
+      "domain": "zeno_oracle.reporter_state_at_submit.v1",
+      "expected_hash": "sha256:4c3ff4b740088ea428f7c6438d05ca1d694c5a8447796c138e10df424047548f",
+      "id": "reporter_state_at_submit_commitment_v1",
+      "payload": {
+        "snapshot": {
+          "active": true,
+          "bond_amount_e8": 100000000,
+          "control_group_id": "operator:zeno1-alpha",
+          "query_ids": [
+            "query:AGRS/ZDEX"
+          ],
+          "required_bond_e8": 100000000,
+          "slash_state": "clear"
+        }
+      }
+    },
+    {
+      "canonical_json": "{\"snapshot\":{\"active\":true,\"asset_classes\":[\"crypto\"],\"assurance_class\":\"S3\",\"data_family_id\":\"price:cex-last-trade\",\"jurisdiction\":\"global\",\"operator_id\":\"operator:cex-a\",\"query_ids\":[\"query:AGRS/ZDEX\"],\"registered_epoch\":700,\"source_control_group_id\":\"control:cex-a\",\"source_id\":\"source:cex-a\",\"source_kind\":\"cex\",\"transport_id\":\"api:https:cex-a\",\"venue_id\":\"venue:cex-a\"}}",
+      "domain": "zeno_oracle.source_state_at_submit.v1",
+      "expected_hash": "sha256:a15ba491a7fa6cdafa77b6e4defca0a37bcc439ec34fbfd57044548fa9b3b666",
+      "id": "source_state_at_submit_commitment_v1",
+      "payload": {
+        "snapshot": {
+          "active": true,
+          "asset_classes": [
+            "crypto"
+          ],
+          "assurance_class": "S3",
+          "data_family_id": "price:cex-last-trade",
+          "jurisdiction": "global",
+          "operator_id": "operator:cex-a",
+          "query_ids": [
+            "query:AGRS/ZDEX"
+          ],
+          "registered_epoch": 700,
+          "source_control_group_id": "control:cex-a",
+          "source_id": "source:cex-a",
+          "source_kind": "cex",
+          "transport_id": "api:https:cex-a",
+          "venue_id": "venue:cex-a"
+        }
+      }
+    },
+    {
+      "canonical_json": "{\"asset_class\":\"crypto\",\"base_asset\":\"AGRS\",\"default_slash_e8\":100000000,\"dispute_bond_e8\":10000000,\"evidence_floor\":\"O3\",\"feed_id\":\"feed:AGRS-ZDEX:independent:v1\",\"freshness_window_epochs\":2,\"high_uncertainty_confidence_e8\":1000000,\"jurisdiction\":\"global\",\"market_hours_policy_id\":\"always-open-v1\",\"max_deviation_bps\":80,\"min_reporters\":3,\"query_id\":\"query:AGRS/ZDEX:independent:v1\",\"query_type\":\"spot_price\",\"quote_asset\":\"ZDEX\",\"report_reward_e8\":10000,\"scale\":100000000,\"schema\":\"zeno_oracle.query.v1\",\"source_policy_id\":\"source-policy:registered-independent-v1\",\"status\":\"active\",\"valuation_policy_id\":\"spot-observed-v1\"}",
+      "domain": "zeno_oracle.query_policy_root.v1",
+      "expected_hash": "sha256:3fd90830415f55e5b781869775f6a59304317188933c421c13d55105d2a5de54",
+      "id": "query_policy_registered_independent_agrs_zdex_v1",
+      "payload": {
+        "asset_class": "crypto",
+        "base_asset": "AGRS",
+        "default_slash_e8": 100000000,
+        "dispute_bond_e8": 10000000,
+        "evidence_floor": "O3",
+        "feed_id": "feed:AGRS-ZDEX:independent:v1",
+        "freshness_window_epochs": 2,
+        "high_uncertainty_confidence_e8": 1000000,
+        "jurisdiction": "global",
+        "market_hours_policy_id": "always-open-v1",
+        "max_deviation_bps": 80,
+        "min_reporters": 3,
+        "query_id": "query:AGRS/ZDEX:independent:v1",
+        "query_type": "spot_price",
+        "quote_asset": "ZDEX",
+        "report_reward_e8": 10000,
+        "scale": 100000000,
+        "schema": "zeno_oracle.query.v1",
+        "source_policy_id": "source-policy:registered-independent-v1",
+        "status": "active",
+        "valuation_policy_id": "spot-observed-v1"
+      }
+    }
+  ]
+}

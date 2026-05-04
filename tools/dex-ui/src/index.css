@@ -4,14 +4,21 @@
 /* App Layout */
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  background-color: #0f0f12;
+  background: var(--gradient-bg);
 }
 
 .app-container {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background-color: #0f0f12;
+  background: var(--gradient-bg);
 }
 
 /* Header */
@@ -35,51 +42,13 @@
   gap: var(--space-sm);
 }
 
-/* Zenith-inspired Z lightning bolt logo */
 .logo-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
   border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
+  display: block;
+  object-fit: cover;
   box-shadow: 0 0 20px rgba(76, 201, 240, 0.3);
-}
-
-.logo-z {
-  color: #fff;
-  font-size: 22px;
-  font-weight: 900;
-  font-style: italic;
-  transform: skewX(-8deg);
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.logo-icon::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(45deg,
-      transparent 40%,
-      rgba(255, 255, 255, 0.15) 50%,
-      transparent 60%);
-  animation: logo-shine 3s infinite;
-}
-
-@keyframes logo-shine {
-  0% {
-    transform: translateX(-100%) rotate(45deg);
-  }
-
-  100% {
-    transform: translateX(100%) rotate(45deg);
-  }
 }
 
 .logo-text {
@@ -112,12 +81,29 @@
   background: transparent;
   white-space: nowrap;
   transition: all var(--transition-fast);
+  position: relative;
 }
 
-.nav-link:hover,
-.nav-link.active {
+.nav-link:hover {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-link.active {
+  color: var(--text-primary);
+  background: rgba(76, 201, 240, 0.06);
+}
+
+.nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: var(--gradient-accent);
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(76, 201, 240, 0.5);
 }
 
 /* Main Content */
@@ -127,6 +113,12 @@
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+}
+
+.main-oracle {
+  max-width: none;
+  padding: var(--space-lg) var(--space-lg) calc(var(--space-lg) + 120px);
+  min-height: calc(100vh + 120px);
 }
 
 /* Swap Container */
@@ -154,23 +146,45 @@
   font-weight: 600;
 }
 
+.footer-version {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(76, 201, 240, 0.08);
+  border: 1px solid rgba(76, 201, 240, 0.2);
+  border-radius: var(--radius-full);
+  color: var(--accent-cyan);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  margin-left: var(--space-sm);
+  letter-spacing: 0.3px;
+}
+
+/* Wallet Status Dot */
+.wallet-status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
 @media (max-width: 980px) {
   .header {
     flex-wrap: wrap;
     padding: var(--space-md);
   }
 
-  .header > .logo {
+  .header>.logo {
     order: 1;
   }
 
-  .header > .wallet-container,
-  .header > .wallet-connect-btn {
+  .header>.wallet-container,
+  .header>.wallet-connect-btn {
     order: 2;
     margin-left: auto;
   }
 
-  .header > .nav {
+  .header>.nav {
     order: 3;
     width: 100%;
     justify-content: flex-start;
@@ -187,5 +201,19 @@
 
   .main {
     padding: var(--space-md);
+  }
+}
+
+@media (max-width: 520px) {
+  .header>.wallet-container,
+  .header>.wallet-connect-btn {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    justify-content: center;
+  }
+
+  .header>.nav {
+    order: 2;
   }
 }
