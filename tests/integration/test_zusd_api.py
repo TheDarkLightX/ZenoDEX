@@ -9,13 +9,15 @@ import types
 import pytest
 
 import src.integration.zusd_tau_gate as zusd_tau_gate
-from src.core.zusd import E8
+from src.core.zusd import E8, ZUSDState
 from src.integration import perps_api as perps_demo_api
 from src.integration.zusd_api import (
+    _zusd_oracle_runtime_facts,
     _tau_gate_config_from_env,
     handle_zusd_request,
     reset_demo_state,
 )
+from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 
 
 @pytest.fixture(autouse=True)
@@ -25,6 +27,7 @@ def _reset_state_and_env(monkeypatch):
     monkeypatch.setenv("ZUSD_TAU_GATE_ENABLED", "0")
     monkeypatch.delenv("ZUSD_TAU_BIN", raising=False)
     monkeypatch.delenv("ZUSD_TAU_ALLOW_PATH_LOOKUP", raising=False)
+    monkeypatch.delenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_ENABLED", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MARKET_ID", raising=False)
     monkeypatch.delenv("ZUSD_PERP_ORACLE_SYNC_MAX_DIVERGENCE_BPS", raising=False)
@@ -37,6 +40,50 @@ def _reset_state_and_env(monkeypatch):
 def _post(path: str, body: dict) -> tuple[int, dict]:
     raw = json.dumps(body).encode("utf-8")
     return handle_zusd_request("POST", path, raw)
+
+
+def _hash(domain: str, name: str) -> str:
+    return semantic_hash(domain, {"name": name})
+
+
+def _zusd_bootstrap_authorization(*, price_e8: int, query_id: str = "query:ZUSD/PRICE") -> dict:
+    status, body = handle_zusd_request("GET", "/api/zusd/state", None)
+    assert status == 200
+    runtime = _zusd_oracle_runtime_facts(
+        mode="single",
+        state=ZUSDState(**body["state"]),
+        tag="bootstrap_oracle",
+        query_id=query_id,
+        runtime_value_e8=price_e8,
+    )
+    authorization = {
+        "consumer_module": runtime.consumer_module,
+        "action_kind": runtime.action_kind,
+        "action_id": runtime.action_id,
+        "action_facts_hash": runtime.action_facts_hash,
+        "pre_state_hash": runtime.pre_state_hash,
+        "profile_id": runtime.profile_id,
+        "query_id": runtime.query_id,
+        "value_e8": price_e8,
+        "value_hash": oracle_value_hash(
+            query_id=runtime.query_id,
+            value_e8=price_e8,
+            observed_epoch=runtime.now_epoch,
+        ),
+        "confidence_e8": 0,
+        "deviation_bps": 0,
+        "observed_epoch": runtime.now_epoch,
+        "expires_at_epoch": runtime.now_epoch,
+        "feed_id": "feed:zusd-price:v1",
+        "feed_registry_root": _hash("zenodex.feed_registry.v1", "zusd"),
+        "query_policy_root": _hash("zenodex.query_policy.v1", "zusd"),
+        "source_registry_root": _hash("zenodex.source_registry.v1", "zusd"),
+        "reporter_registry_root": _hash("zenodex.reporter_registry.v1", "zusd"),
+        "evidence_class": "O3",
+        "economic_envelope_id": "econ:zusd-bootstrap-v1",
+        "receipt_graph_root": _hash("zenodex.receipt_graph.v1", "zusd"),
+    }
+    return {"authorization": authorization}
 
 
 class TestGetState:
@@ -77,6 +124,86 @@ class TestSingleFlow:
         assert status == 400
         assert body["ok"] is False
         assert body["error"] == "rejected"
+
+
+class TestOracleAuthorizationGate:
+    def test_required_typed_oracle_authorization_accepts_matching_bootstrap(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+        price_e8 = 100 * E8
+        authorization = _zusd_bootstrap_authorization(price_e8=price_e8)
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": price_e8,
+                    "oracle_authorization": authorization,
+                },
+            },
+        )
+
+        assert status == 200
+        assert body["ok"] is True
+        assert body["state"]["price_e8"] == price_e8
+
+    def test_required_typed_oracle_authorization_rejects_missing_bundle(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": 100 * E8,
+                    "auth_ok": True,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert body["detail"] == "oracle_authorization_required"
+
+    def test_required_typed_oracle_authorization_rejects_runtime_price_mismatch(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "1")
+        authorization = _zusd_bootstrap_authorization(price_e8=100 * E8)
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": 101 * E8,
+                    "oracle_authorization": authorization,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "runtime_value_e8 mismatch" in body["detail"]
+
+    def test_required_typed_oracle_authorization_invalid_env_fails_closed(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", "tru")
+
+        status, body = _post(
+            "/api/zusd/step",
+            {
+                "tag": "bootstrap_oracle",
+                "args": {
+                    "price_e8": 100 * E8,
+                    "auth_ok": True,
+                },
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert "oracle_authorization_config_error" in body["detail"]
 
 
 class TestMultiFlow:
