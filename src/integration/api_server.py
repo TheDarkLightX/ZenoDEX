@@ -23,6 +23,7 @@ import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Optional, Sequence, Set
+from urllib.parse import urlsplit
 
 # Prewarm the expensive attestation / LP-aware settlement modules at server
 # startup so their first request does not pay import latency inside the 2s API
@@ -68,6 +69,37 @@ def _env_str(name: str, default: str) -> str:
     return v if v else default
 
 
+def _safe_http_header_value(value: object) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+        return None
+    try:
+        value.encode("latin-1")
+    except UnicodeEncodeError:
+        return None
+    return value
+
+
+def _safe_cors_origin(value: object) -> Optional[str]:
+    raw = _safe_http_header_value(value)
+    if raw is None:
+        return None
+    origin = raw.strip()
+    if not origin:
+        return None
+    parsed = urlsplit(origin)
+    if parsed.scheme not in ("http", "https"):
+        return None
+    if not parsed.netloc or parsed.username or parsed.password:
+        return None
+    if parsed.query or parsed.fragment:
+        return None
+    if parsed.path not in ("", "/"):
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 def _parse_cors_origins(value: str) -> Set[str]:
     """
     Parse CORS origins list. Supports comma-separated values.
@@ -80,8 +112,8 @@ def _parse_cors_origins(value: str) -> Set[str]:
     if not s:
         return out
     for item in s.split(","):
-        origin = item.strip()
-        if not origin:
+        origin = _safe_cors_origin(item)
+        if origin is None:
             continue
         if origin == "*":
             # Explicitly refuse wildcard; force operators to list trusted origins.
@@ -164,10 +196,11 @@ class _Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if not isinstance(origin, str) or not origin:
             return None
-        return origin
+        return _safe_cors_origin(origin)
 
     def _write_json(self, status: int, obj: object, *, cors_origin: Optional[str]) -> None:
         body = json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        safe_cors_origin = _safe_cors_origin(cors_origin) if cors_origin is not None else None
         self.send_response(int(status))
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -176,8 +209,8 @@ class _Handler(BaseHTTPRequestHandler):
             # Hint for clients and intermediaries (even though we don't use Basic auth).
             self.send_header("WWW-Authenticate", "Bearer")
         self.send_header("Content-Length", str(len(body)))
-        if cors_origin is not None:
-            self.send_header("Access-Control-Allow-Origin", cors_origin)
+        if safe_cors_origin is not None and "\r" not in safe_cors_origin and "\n" not in safe_cors_origin:
+            self.send_header("Access-Control-Allow-Origin", safe_cors_origin)
             self.send_header("Vary", "Origin")
         self.end_headers()
         self.wfile.write(body)
@@ -191,7 +224,10 @@ class _Handler(BaseHTTPRequestHandler):
         origin = self._cors_origin()
         if origin is None:
             return None
-        return origin if origin in allowed else None
+        for allowed_origin in allowed:
+            if origin == allowed_origin:
+                return allowed_origin
+        return None
 
     def _demo_auth_ok(self) -> bool:
         """Optional bearer token auth for demo/dev routes.
@@ -5713,8 +5749,14 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
+        safe_cors_origin = _safe_cors_origin(cors_origin)
+        if safe_cors_origin is None:
+            self.send_response(204)
+            self.end_headers()
+            return
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", cors_origin)
+        if "\r" not in safe_cors_origin and "\n" not in safe_cors_origin:
+            self.send_header("Access-Control-Allow-Origin", safe_cors_origin)
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Access-Control-Max-Age", "600")
@@ -5790,15 +5832,16 @@ class _Handler(BaseHTTPRequestHandler):
         self._write_json(404, {"ok": False, "error": "not_found"}, cors_origin=cors_origin)
 
     def log_message(self, fmt: str, *args: object) -> None:
-        # Keep logs minimal and deterministic (avoid leaking headers/query strings).
-        # Default implementation prints client IP + full request line.
-        msg = fmt % args if args else fmt
-        safe_path = (self.path or "").split("?", 1)[0]
-        safe_path = "".join(ch if 0x20 <= ord(ch) < 0x7F else "?" for ch in safe_path)
-        if len(safe_path) > 2048:
-            safe_path = safe_path[:2048] + "..."
-        line = f"{self.command} {safe_path} => {msg}"
-        print(line)
+        # BaseHTTPRequestHandler's default message can include the full request
+        # line. Avoid formatting request-derived values into clear-text logs.
+        _ = (fmt, args)
+        print("zenodex-api request event")
+
+    def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
+        # Keep access logs useful without recording paths, queries, or headers.
+        safe_code = str(code) if str(code).isdigit() else "-"
+        safe_size = str(size) if str(size).isdigit() else "-"
+        print(f"zenodex-api request status={safe_code} size={safe_size}")
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
