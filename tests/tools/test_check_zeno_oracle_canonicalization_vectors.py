@@ -24,7 +24,7 @@ def test_zeno_oracle_canonicalization_vectors_check() -> None:
 
     assert proc.returncode == 0, proc.stderr
     assert data["ok"] is True
-    assert data["vector_count"] >= 19
+    assert data["vector_count"] >= 33
 
     vectors = json.loads(VECTORS.read_text(encoding="utf-8"))["vectors"]
     vector_ids = {vector["id"] for vector in vectors}
@@ -45,6 +45,20 @@ def test_zeno_oracle_canonicalization_vectors_check() -> None:
         "slash_settlement_v1",
         "reward_ledger_entry_emitted_receipt_v1",
         "slash_settlement_emitted_receipt_v1",
+        "zusd_pre_state_single_oracle_commit_v1",
+        "zusd_action_facts_oracle_commit_v1",
+        "zusd_action_id_oracle_commit_v1",
+        "perps_isolated_pre_state_settle_v1",
+        "perps_settle_epoch_action_facts_v1",
+        "perps_settle_epoch_action_id_v1",
+        "routing_protected_swap_pre_state_v1",
+        "routing_protected_swap_action_facts_v1",
+        "routing_protected_swap_action_id_v1",
+        "critical_settlement_action_facts_v1",
+        "critical_settlement_action_id_v1",
+        "trigger_execute_pre_state_v1",
+        "trigger_execute_action_facts_v1",
+        "trigger_execute_action_id_v1",
     }.issubset(vector_ids)
 
 

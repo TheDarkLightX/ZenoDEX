@@ -612,6 +612,283 @@
         "status": "active",
         "valuation_policy_id": "spot-observed-v1"
       }
+    },
+    {
+      "canonical_json": "{\"mode\":\"single\",\"state\":{\"base_rate_borrow_bump_bps\":0,\"base_rate_bps\":0,\"base_rate_decay_per_epoch_bps\":0,\"base_rate_last_epoch\":0,\"base_rate_redeem_bump_bps\":0,\"borrow_fee_floor_bps\":0,\"borrow_fee_max_bps\":1000,\"ccr_bps\":15000,\"collateral_e8\":25000000000,\"debt_e8\":10000000000,\"free_debt_e8\":10000000000,\"max_debt_e8\":1000000000000000,\"max_debt_supply_e8\":2000000000000000,\"max_oracle_staleness_epochs\":100,\"max_protocol_coll_e8\":2000000000000000,\"max_sp_coll_e8\":2000000000000000,\"mcr_bps\":11000,\"min_debt_open_e8\":10000000000,\"now_epoch\":42,\"oracle_last_update_epoch\":40,\"oracle_seen\":true,\"price_e8\":145240000,\"price_pending_e8\":145250000,\"protocol_collateral_e8\":0,\"protocol_revenue_zusd_cum_e8\":0,\"redemption_fee_floor_bps\":0,\"redemption_fee_max_bps\":1000,\"sp_coll_e8\":0,\"sp_debt_e8\":0}}",
+      "domain": "zenodex.zusd.pre_state.v1",
+      "expected_hash": "sha256:74b48a2a567de5e72158eef1477168dc5a299bf6e0242f80d0f5cc2a666d23f3",
+      "id": "zusd_pre_state_single_oracle_commit_v1",
+      "payload": {
+        "mode": "single",
+        "state": {
+          "base_rate_borrow_bump_bps": 0,
+          "base_rate_bps": 0,
+          "base_rate_decay_per_epoch_bps": 0,
+          "base_rate_last_epoch": 0,
+          "base_rate_redeem_bump_bps": 0,
+          "borrow_fee_floor_bps": 0,
+          "borrow_fee_max_bps": 1000,
+          "ccr_bps": 15000,
+          "collateral_e8": 25000000000,
+          "debt_e8": 10000000000,
+          "free_debt_e8": 10000000000,
+          "max_debt_e8": 1000000000000000,
+          "max_debt_supply_e8": 2000000000000000,
+          "max_oracle_staleness_epochs": 100,
+          "max_protocol_coll_e8": 2000000000000000,
+          "max_sp_coll_e8": 2000000000000000,
+          "mcr_bps": 11000,
+          "min_debt_open_e8": 10000000000,
+          "now_epoch": 42,
+          "oracle_last_update_epoch": 40,
+          "oracle_seen": true,
+          "price_e8": 145240000,
+          "price_pending_e8": 145250000,
+          "protocol_collateral_e8": 0,
+          "protocol_revenue_zusd_cum_e8": 0,
+          "redemption_fee_floor_bps": 0,
+          "redemption_fee_max_bps": 1000,
+          "sp_coll_e8": 0,
+          "sp_debt_e8": 0
+        }
+      }
+    },
+    {
+      "canonical_json": "{\"mode\":\"single\",\"now_epoch\":42,\"query_id\":\"query:AGRS/ZDEX\",\"runtime_value_e8\":145250000,\"tag\":\"oracle_commit\"}",
+      "domain": "zenodex.zusd.action_facts.v1",
+      "expected_hash": "sha256:686527c0a0ddb7852a6930704de1a71c2362af9e437943b7928b81977e8b4e7d",
+      "id": "zusd_action_facts_oracle_commit_v1",
+      "payload": {
+        "mode": "single",
+        "now_epoch": 42,
+        "query_id": "query:AGRS/ZDEX",
+        "runtime_value_e8": 145250000,
+        "tag": "oracle_commit"
+      }
+    },
+    {
+      "canonical_json": "{\"action_facts_hash\":\"sha256:686527c0a0ddb7852a6930704de1a71c2362af9e437943b7928b81977e8b4e7d\",\"pre_state_hash\":\"sha256:74b48a2a567de5e72158eef1477168dc5a299bf6e0242f80d0f5cc2a666d23f3\",\"query_id\":\"query:AGRS/ZDEX\",\"runtime_value_e8\":145250000}",
+      "domain": "zenodex.zusd.action_id.v1",
+      "expected_hash": "sha256:19213bfab734c9de85ee76bb3cec19e02f23fccde4633d3a9c2dd95b99bb9988",
+      "id": "zusd_action_id_oracle_commit_v1",
+      "payload": {
+        "action_facts_hash": "sha256:686527c0a0ddb7852a6930704de1a71c2362af9e437943b7928b81977e8b4e7d",
+        "pre_state_hash": "sha256:74b48a2a567de5e72158eef1477168dc5a299bf6e0242f80d0f5cc2a666d23f3",
+        "query_id": "query:AGRS/ZDEX",
+        "runtime_value_e8": 145250000
+      }
+    },
+    {
+      "canonical_json": "{\"accounts\":{\"pk:alice\":{\"collateral_quote\":2000000000,\"entry_price_e8\":145240000,\"position_base\":100000000},\"pk:bob\":{\"collateral_quote\":2100000000,\"entry_price_e8\":145240000,\"position_base\":-100000000}},\"global_state\":{\"clearing_price_e8\":145260000,\"clearing_price_epoch\":77,\"clearing_price_seen\":true,\"index_price_e8\":145250000,\"max_oracle_move_bps\":50,\"max_oracle_staleness_epochs\":3,\"now_epoch\":77,\"oracle_last_update_epoch\":76,\"oracle_seen\":true},\"kind\":\"isolated\",\"market_id\":\"perp:AGRS-ZDEX\",\"quote_asset\":\"ZDEX\"}",
+      "domain": "zenodex.perps.isolated.pre_state.v1",
+      "expected_hash": "sha256:6e38522ff2808a5b5c67d800d8b23e9b486e642ad17c52a70188e8bc22d5c06a",
+      "id": "perps_isolated_pre_state_settle_v1",
+      "payload": {
+        "accounts": {
+          "pk:alice": {
+            "collateral_quote": 2000000000,
+            "entry_price_e8": 145240000,
+            "position_base": 100000000
+          },
+          "pk:bob": {
+            "collateral_quote": 2100000000,
+            "entry_price_e8": 145240000,
+            "position_base": -100000000
+          }
+        },
+        "global_state": {
+          "clearing_price_e8": 145260000,
+          "clearing_price_epoch": 77,
+          "clearing_price_seen": true,
+          "index_price_e8": 145250000,
+          "max_oracle_move_bps": 50,
+          "max_oracle_staleness_epochs": 3,
+          "now_epoch": 77,
+          "oracle_last_update_epoch": 76,
+          "oracle_seen": true
+        },
+        "kind": "isolated",
+        "market_id": "perp:AGRS-ZDEX",
+        "quote_asset": "ZDEX"
+      }
+    },
+    {
+      "canonical_json": "{\"action_kind\":\"settle_epoch\",\"clearing_price_e8\":145260000,\"clearing_price_epoch\":77,\"clearing_price_seen\":true,\"consumer_module\":\"zenodex.perps\",\"index_price_e8\":145250000,\"market_id\":\"perp:AGRS-ZDEX\",\"max_oracle_move_bps\":50,\"max_oracle_staleness_epochs\":3,\"now_epoch\":77,\"oracle_last_update_epoch\":76,\"oracle_seen\":true,\"pre_state_hash\":\"sha256:6e38522ff2808a5b5c67d800d8b23e9b486e642ad17c52a70188e8bc22d5c06a\",\"query_id\":\"zenodex.perps.perp:AGRS-ZDEX.index_price_e8\",\"quote_asset\":\"ZDEX\"}",
+      "domain": "zenodex.perps.settle_epoch.facts.v1",
+      "expected_hash": "sha256:d7692d8046860e15f5b835836e9e45fb98660be2dfbdf539a01c5a20c20821eb",
+      "id": "perps_settle_epoch_action_facts_v1",
+      "payload": {
+        "action_kind": "settle_epoch",
+        "clearing_price_e8": 145260000,
+        "clearing_price_epoch": 77,
+        "clearing_price_seen": true,
+        "consumer_module": "zenodex.perps",
+        "index_price_e8": 145250000,
+        "market_id": "perp:AGRS-ZDEX",
+        "max_oracle_move_bps": 50,
+        "max_oracle_staleness_epochs": 3,
+        "now_epoch": 77,
+        "oracle_last_update_epoch": 76,
+        "oracle_seen": true,
+        "pre_state_hash": "sha256:6e38522ff2808a5b5c67d800d8b23e9b486e642ad17c52a70188e8bc22d5c06a",
+        "query_id": "zenodex.perps.perp:AGRS-ZDEX.index_price_e8",
+        "quote_asset": "ZDEX"
+      }
+    },
+    {
+      "canonical_json": "{\"action_facts_hash\":\"sha256:d7692d8046860e15f5b835836e9e45fb98660be2dfbdf539a01c5a20c20821eb\",\"market_id\":\"perp:AGRS-ZDEX\"}",
+      "domain": "zenodex.perps.settle_epoch.action.v1",
+      "expected_hash": "sha256:cdde7ae865f5ed36fbc383164f36950798f36a0c5197b5659cf6d4f3a553027e",
+      "id": "perps_settle_epoch_action_id_v1",
+      "payload": {
+        "action_facts_hash": "sha256:d7692d8046860e15f5b835836e9e45fb98660be2dfbdf539a01c5a20c20821eb",
+        "market_id": "perp:AGRS-ZDEX"
+      }
+    },
+    {
+      "canonical_json": "{\"pool_fingerprints\":{\"pool:AGRS-ZDEX\":{\"asset_a\":\"AGRS\",\"asset_b\":\"ZDEX\",\"fee_bps\":30,\"reserve_a\":500000000000,\"reserve_b\":725000000000}},\"quote_epoch\":88,\"receipt_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "domain": "zenodex.routing.protected_swap.pre_state.v1",
+      "expected_hash": "sha256:f3964d8ab58d66e4daf2c3f5f58f68536ee5f09583d98f8eb002b531ab7a9e6e",
+      "id": "routing_protected_swap_pre_state_v1",
+      "payload": {
+        "pool_fingerprints": {
+          "pool:AGRS-ZDEX": {
+            "asset_a": "AGRS",
+            "asset_b": "ZDEX",
+            "fee_bps": 30,
+            "reserve_a": 500000000000,
+            "reserve_b": 725000000000
+          }
+        },
+        "quote_epoch": 88,
+        "receipt_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "canonical_json": "{\"action_kind\":\"protected_swap\",\"amount_in\":100000000,\"asset_in\":\"AGRS\",\"asset_out\":\"ZDEX\",\"consumer_module\":\"zenodex.routing\",\"intent_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"kind\":\"exact_in\",\"leg\":{\"amount_in\":100000000,\"amount_out\":144500000,\"index\":0},\"min_amount_out\":144000000,\"pool_id\":\"pool:AGRS-ZDEX\",\"pre_state_hash\":\"sha256:f3964d8ab58d66e4daf2c3f5f58f68536ee5f09583d98f8eb002b531ab7a9e6e\",\"query_id\":\"zenodex.routing.exact_in.AGRS.ZDEX.amount_out\",\"quote_receipt_hash\":\"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sender_pubkey\":\"pk:alice\"}",
+      "domain": "zenodex.routing.protected_swap.facts.v1",
+      "expected_hash": "sha256:92810b6aabed13fae1e63cab7664f3f594c338456e99f1c00ad84cb8f4f1ee71",
+      "id": "routing_protected_swap_action_facts_v1",
+      "payload": {
+        "action_kind": "protected_swap",
+        "amount_in": 100000000,
+        "asset_in": "AGRS",
+        "asset_out": "ZDEX",
+        "consumer_module": "zenodex.routing",
+        "intent_id": "0x1111111111111111111111111111111111111111111111111111111111111111",
+        "kind": "exact_in",
+        "leg": {
+          "amount_in": 100000000,
+          "amount_out": 144500000,
+          "index": 0
+        },
+        "min_amount_out": 144000000,
+        "pool_id": "pool:AGRS-ZDEX",
+        "pre_state_hash": "sha256:f3964d8ab58d66e4daf2c3f5f58f68536ee5f09583d98f8eb002b531ab7a9e6e",
+        "query_id": "zenodex.routing.exact_in.AGRS.ZDEX.amount_out",
+        "quote_receipt_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sender_pubkey": "pk:alice"
+      }
+    },
+    {
+      "canonical_json": "{\"action_facts_hash\":\"sha256:92810b6aabed13fae1e63cab7664f3f594c338456e99f1c00ad84cb8f4f1ee71\",\"intent_id\":\"0x1111111111111111111111111111111111111111111111111111111111111111\"}",
+      "domain": "zenodex.routing.protected_swap.action.v1",
+      "expected_hash": "sha256:c789e8fecd67b010eb24202d4f7f9051b3391d0331bd9b1ff90b4d1523fad571",
+      "id": "routing_protected_swap_action_id_v1",
+      "payload": {
+        "action_facts_hash": "sha256:92810b6aabed13fae1e63cab7664f3f594c338456e99f1c00ad84cb8f4f1ee71",
+        "intent_id": "0x1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "canonical_json": "{\"action_kind\":\"critical_settlement\",\"consumer_module\":\"zenodex.settlement\",\"included_intent_ids\":[\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"0x2222222222222222222222222222222222222222222222222222222222222222\",\"0x3333333333333333333333333333333333333333333333333333333333333333\",\"0x4444444444444444444444444444444444444444444444444444444444444444\"],\"pre_state_hash\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"price_curr\":145250000,\"price_pp\":145200000,\"price_prev\":145230000,\"query_id\":\"zenodex.settlement.price_curr_e8\",\"settlement_hash\":\"sha256:30de0fd9aa6862e69f6e4ed7065bee0740b78ecea284f685a52195179a6ec8fe\"}",
+      "domain": "zenodex.settlement.critical_settlement.facts.v1",
+      "expected_hash": "sha256:627132e756ac5a785b99c6cb3f3003c10b71bf9c209e43de87ec3c19bcb8233f",
+      "id": "critical_settlement_action_facts_v1",
+      "payload": {
+        "action_kind": "critical_settlement",
+        "consumer_module": "zenodex.settlement",
+        "included_intent_ids": [
+          "0x1111111111111111111111111111111111111111111111111111111111111111",
+          "0x2222222222222222222222222222222222222222222222222222222222222222",
+          "0x3333333333333333333333333333333333333333333333333333333333333333",
+          "0x4444444444444444444444444444444444444444444444444444444444444444"
+        ],
+        "pre_state_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "price_curr": 145250000,
+        "price_pp": 145200000,
+        "price_prev": 145230000,
+        "query_id": "zenodex.settlement.price_curr_e8",
+        "settlement_hash": "sha256:30de0fd9aa6862e69f6e4ed7065bee0740b78ecea284f685a52195179a6ec8fe"
+      }
+    },
+    {
+      "canonical_json": "{\"action_facts_hash\":\"sha256:627132e756ac5a785b99c6cb3f3003c10b71bf9c209e43de87ec3c19bcb8233f\",\"settlement_hash\":\"sha256:30de0fd9aa6862e69f6e4ed7065bee0740b78ecea284f685a52195179a6ec8fe\"}",
+      "domain": "zenodex.settlement.critical_settlement.action.v1",
+      "expected_hash": "sha256:7c1192990c00243f14e1e6e0829d89facd48f0fc9ebd8c9e680b5b92b3f9d8e5",
+      "id": "critical_settlement_action_id_v1",
+      "payload": {
+        "action_facts_hash": "sha256:627132e756ac5a785b99c6cb3f3003c10b71bf9c209e43de87ec3c19bcb8233f",
+        "settlement_hash": "sha256:30de0fd9aa6862e69f6e4ed7065bee0740b78ecea284f685a52195179a6ec8fe"
+      }
+    },
+    {
+      "canonical_json": "{\"action_kind\":\"execute\",\"asset_in\":\"AGRS\",\"asset_out\":\"ZDEX\",\"condition\":\"gte\",\"consumer_module\":\"zenodex.trigger\",\"current_epoch\":91,\"max_oracle_staleness_epochs\":3,\"observed_value_e8\":145300000,\"order_amount\":100000000,\"owner_pubkey\":\"pk:alice\",\"pre_state_hash\":null,\"query_id\":\"query:AGRS/ZDEX\",\"trigger_id\":\"trigger:AGRS-ZDEX-gte-1453\",\"trigger_price_e8\":145300000,\"valid_from_epoch\":90,\"valid_until_epoch\":95}",
+      "domain": "zenodex.trigger.execute.pre_state.v1",
+      "expected_hash": "sha256:d02541357a3520599c32ca6c51141905fcf3880577bfc18ce288f81d9d580672",
+      "id": "trigger_execute_pre_state_v1",
+      "payload": {
+        "action_kind": "execute",
+        "asset_in": "AGRS",
+        "asset_out": "ZDEX",
+        "condition": "gte",
+        "consumer_module": "zenodex.trigger",
+        "current_epoch": 91,
+        "max_oracle_staleness_epochs": 3,
+        "observed_value_e8": 145300000,
+        "order_amount": 100000000,
+        "owner_pubkey": "pk:alice",
+        "pre_state_hash": null,
+        "query_id": "query:AGRS/ZDEX",
+        "trigger_id": "trigger:AGRS-ZDEX-gte-1453",
+        "trigger_price_e8": 145300000,
+        "valid_from_epoch": 90,
+        "valid_until_epoch": 95
+      }
+    },
+    {
+      "canonical_json": "{\"action_kind\":\"execute\",\"asset_in\":\"AGRS\",\"asset_out\":\"ZDEX\",\"condition\":\"gte\",\"consumer_module\":\"zenodex.trigger\",\"current_epoch\":91,\"max_oracle_staleness_epochs\":3,\"observed_value_e8\":145300000,\"order_amount\":100000000,\"owner_pubkey\":\"pk:alice\",\"pre_state_hash\":\"sha256:d02541357a3520599c32ca6c51141905fcf3880577bfc18ce288f81d9d580672\",\"query_id\":\"query:AGRS/ZDEX\",\"trigger_id\":\"trigger:AGRS-ZDEX-gte-1453\",\"trigger_price_e8\":145300000,\"valid_from_epoch\":90,\"valid_until_epoch\":95}",
+      "domain": "zenodex.trigger.execute.facts.v1",
+      "expected_hash": "sha256:e57edbb94b6fbaf66aa986859541d0845f0a3880c61d2b295dab3e4f08488f13",
+      "id": "trigger_execute_action_facts_v1",
+      "payload": {
+        "action_kind": "execute",
+        "asset_in": "AGRS",
+        "asset_out": "ZDEX",
+        "condition": "gte",
+        "consumer_module": "zenodex.trigger",
+        "current_epoch": 91,
+        "max_oracle_staleness_epochs": 3,
+        "observed_value_e8": 145300000,
+        "order_amount": 100000000,
+        "owner_pubkey": "pk:alice",
+        "pre_state_hash": "sha256:d02541357a3520599c32ca6c51141905fcf3880577bfc18ce288f81d9d580672",
+        "query_id": "query:AGRS/ZDEX",
+        "trigger_id": "trigger:AGRS-ZDEX-gte-1453",
+        "trigger_price_e8": 145300000,
+        "valid_from_epoch": 90,
+        "valid_until_epoch": 95
+      }
+    },
+    {
+      "canonical_json": "{\"action_facts_hash\":\"sha256:e57edbb94b6fbaf66aa986859541d0845f0a3880c61d2b295dab3e4f08488f13\",\"trigger_id\":\"trigger:AGRS-ZDEX-gte-1453\"}",
+      "domain": "zenodex.trigger.execute.action.v1",
+      "expected_hash": "sha256:6f501b8f59c387f9bf711b14304f31f972464d6fa1b5d6f072e9e44eab3f085c",
+      "id": "trigger_execute_action_id_v1",
+      "payload": {
+        "action_facts_hash": "sha256:e57edbb94b6fbaf66aa986859541d0845f0a3880c61d2b295dab3e4f08488f13",
+        "trigger_id": "trigger:AGRS-ZDEX-gte-1453"
+      }
     }
   ]
 }
