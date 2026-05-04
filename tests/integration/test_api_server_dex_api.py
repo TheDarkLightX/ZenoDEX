@@ -872,6 +872,35 @@ def test_api_server_oracle_adapter_guarded_quote_requires_bridge_when_configured
         _stop_test_server(httpd, t)
 
 
+def test_api_server_oracle_adapter_guarded_quote_invalid_required_config_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "tru")
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_in_route_guarded",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"].startswith(
+            "oracle_adapter_bridge config error: DEX_ROUTING_ORACLE_ADAPTER_REQUIRED must be one of:"
+        )
+    finally:
+        _stop_test_server(httpd, t)
+
+
 def test_api_server_oracle_adapter_guarded_quote_rejects_wrong_query(monkeypatch) -> None:
     from src.integration.api_server import _routing_guarded_quote_oracle_action_id
 
@@ -5781,6 +5810,30 @@ def test_api_server_oracle_adapter_exact_out_guarded_quote_requires_bridge_when_
         assert status == 400
         assert body["ok"] is False
         assert body["detail"] == "guarded_quote requires oracle_adapter_bridge"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_adapter_exact_out_guarded_quote_invalid_required_config_fails_closed(monkeypatch) -> None:
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "tru")
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_out_many_pool_guarded",
+            _exact_out_guarded_quote_payload(pools),
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"].startswith(
+            "oracle_adapter_bridge config error: DEX_ROUTING_ORACLE_ADAPTER_REQUIRED must be one of:"
+        )
     finally:
         _stop_test_server(httpd, t)
 
