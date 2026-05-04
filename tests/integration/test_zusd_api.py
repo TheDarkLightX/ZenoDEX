@@ -18,6 +18,7 @@ from src.integration.zusd_api import (
     reset_demo_state,
 )
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 @pytest.fixture(autouse=True)
@@ -83,7 +84,7 @@ def _zusd_bootstrap_authorization(*, price_e8: int, query_id: str = "query:ZUSD/
         "economic_envelope_id": "econ:zusd-bootstrap-v1",
         "receipt_graph_root": _hash("zenodex.receipt_graph.v1", "zusd"),
     }
-    return {"authorization": authorization}
+    return authorization_bundle(authorization)
 
 
 class TestGetState:

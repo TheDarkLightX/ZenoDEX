@@ -9,6 +9,7 @@ from src.integration.zeno_oracle_trigger_authorization import (
     trigger_execute_runtime_facts,
     trigger_execution_facts_from_obj,
 )
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _facts() -> TriggerExecutionFacts:
@@ -34,7 +35,7 @@ def _authorization_for(runtime: dict[str, object], *, value_e8: int | None = Non
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
     query_id = str(runtime["query_id"])
     observed_epoch = int(runtime["now_epoch"])
-    return {
+    auth = {
         "consumer_module": "zenodex.trigger",
         "action_kind": "execute",
         "action_id": str(runtime["action_id"]),
@@ -57,6 +58,7 @@ def _authorization_for(runtime: dict[str, object], *, value_e8: int | None = Non
         "economic_envelope_id": "trigger-critical-envelope",
         "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "trigger"}),
     }
+    return authorization_bundle(auth)
 
 
 def test_trigger_execute_accepts_matching_typed_oracle_authorization() -> None:
@@ -84,7 +86,7 @@ def test_trigger_execute_rejects_wrong_pre_state_context() -> None:
     facts = _facts()
     runtime = trigger_execute_runtime_facts(facts)
     auth = _authorization_for(runtime)
-    auth["pre_state_hash"] = semantic_hash("test.wrong-trigger-state", {"trigger_id": facts.trigger_id})
+    auth["authorization"]["pre_state_hash"] = semantic_hash("test.wrong-trigger-state", {"trigger_id": facts.trigger_id})
 
     result = check_trigger_execute_oracle_authorization(authorization_payload=auth, facts=facts)
 

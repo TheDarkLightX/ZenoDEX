@@ -18,6 +18,7 @@ from tools.check_oracle_authorization_semantic_binding import (
     verify_opaque_authorization,
     verify_typed_authorization,
 )
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _hash(domain: str, name: str) -> str:
@@ -219,6 +220,7 @@ def test_runtime_adapter_uses_actual_runtime_facts_not_bundle_claims() -> None:
     bundle = {
         "authorization": asdict(authorization),
         "runtime_action": asdict(bundled_runtime),
+        **authorization_bundle(asdict(authorization)),
     }
 
     bundle_result = check_authorization_payload(bundle)
@@ -233,7 +235,7 @@ def test_runtime_adapter_uses_actual_runtime_facts_not_bundle_claims() -> None:
 def test_critical_consumer_wrapper_accepts_zusd_mint_and_rejects_wrong_profile() -> None:
     authorization, runtime = _valid_pair()
     accepted = check_critical_consumer_authorization(
-        asdict(authorization),
+        authorization_bundle(asdict(authorization)),
         consumer_module="zenodex.zusd",
         action_kind="mint",
         action_id=runtime.action_id,
@@ -245,7 +247,7 @@ def test_critical_consumer_wrapper_accepts_zusd_mint_and_rejects_wrong_profile()
     )
     wrong_profile = replace(authorization, profile_id="critical-perps-v1")
     rejected = check_critical_consumer_authorization(
-        asdict(wrong_profile),
+        authorization_bundle(asdict(wrong_profile)),
         consumer_module="zenodex.zusd",
         action_kind="mint",
         action_id=runtime.action_id,
@@ -288,7 +290,7 @@ def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
         )
 
         result = check_critical_consumer_authorization(
-            asdict(surface_auth),
+            authorization_bundle(asdict(surface_auth)),
             consumer_module=consumer_module,
             action_kind=action_kind,
             action_id=surface_runtime.action_id,
@@ -300,4 +302,47 @@ def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
         )
 
         assert result["typed_ok"] is True
+        assert result["receipt_graph_ok"] is True
         assert result["critical_consumer_profile"] == profile_id
+
+
+def test_critical_consumer_requires_terminal_receipt_graph() -> None:
+    authorization, runtime = _valid_pair()
+
+    result = check_critical_consumer_authorization(
+        asdict(authorization),
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph required" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_terminal_graph_value_mismatch() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["receipt_graph"]["value_e8"] = int(authorization.value_e8) + 1
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph value_e8 does not match authorization" in result["receipt_graph_errors"]

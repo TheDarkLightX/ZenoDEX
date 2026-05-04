@@ -10,6 +10,7 @@ from src.integration.zeno_oracle_routing_authorization import protected_swap_run
 from src.state import BalanceTable, LPTable
 from src.core.dex import DexState
 from src.state.pools import PoolState, PoolStatus
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _pool() -> PoolState:
@@ -50,7 +51,7 @@ def _state_and_intent(*, sender: str, block_timestamp: int = 42):
 def _authorization_for(runtime: dict[str, object], *, observed_epoch: int = 1, value_e8: int | None = None) -> dict[str, object]:
     query_id = str(runtime["query_id"])
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
-    return {
+    auth = {
         "consumer_module": "zenodex.routing",
         "action_kind": "protected_swap",
         "action_id": str(runtime["action_id"]),
@@ -73,6 +74,7 @@ def _authorization_for(runtime: dict[str, object], *, observed_epoch: int = 1, v
         "economic_envelope_id": "routing-critical-envelope",
         "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "routing"}),
     }
+    return authorization_bundle(auth)
 
 
 def test_protected_swap_requires_oracle_authorization_when_configured() -> None:
@@ -145,7 +147,7 @@ def test_protected_swap_rejects_authorization_for_wrong_receipt_context() -> Non
     sender = "0x" + "aa" * 48
     state, intent, receipt, runtime = _state_and_intent(sender=sender)
     auth = _authorization_for(runtime)
-    auth["pre_state_hash"] = semantic_hash("test.wrong-routing-pre-state", {"intent_id": intent.intent_id})
+    auth["authorization"]["pre_state_hash"] = semantic_hash("test.wrong-routing-pre-state", {"intent_id": intent.intent_id})
     intent.set_field("oracle_authorization", auth)
     ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
 

@@ -9,6 +9,7 @@ from src.integration.perp_engine import (
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _op(market_id: str, action: str, **kwargs: object) -> dict[str, object]:
@@ -97,7 +98,7 @@ def _ready_market(*, market_id: str, operator: str, price_e8: int = 100_000_000)
 def _authorization_for(runtime: dict[str, object], *, observed_epoch: int, value_e8: int | None = None) -> dict[str, object]:
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
     query_id = str(runtime["query_id"])
-    return {
+    auth = {
         "consumer_module": "zenodex.perps",
         "action_kind": "settle_epoch",
         "action_id": str(runtime["action_id"]),
@@ -120,6 +121,7 @@ def _authorization_for(runtime: dict[str, object], *, observed_epoch: int, value
         "economic_envelope_id": "perps-critical-envelope",
         "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "perps"}),
     }
+    return authorization_bundle(auth)
 
 
 def test_isolated_settle_requires_oracle_authorization_when_configured() -> None:
@@ -193,7 +195,7 @@ def test_isolated_settle_rejects_authorization_for_different_pre_state() -> None
     market = state.perps.markets[market_id]
     runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
     auth = _authorization_for(runtime, observed_epoch=int(market.global_state["oracle_last_update_epoch"]))
-    auth["pre_state_hash"] = semantic_hash("test.wrong-pre-state", {"market_id": market_id})
+    auth["authorization"]["pre_state_hash"] = semantic_hash("test.wrong-pre-state", {"market_id": market_id})
 
     res = _apply_result(
         state=state,

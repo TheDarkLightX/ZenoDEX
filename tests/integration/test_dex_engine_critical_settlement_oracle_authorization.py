@@ -9,6 +9,7 @@ from src.integration.zeno_oracle_authorization import oracle_value_hash, semanti
 from src.integration.zeno_oracle_settlement_authorization import critical_settlement_runtime_facts
 from src.state import BalanceTable, LPTable
 from src.state.state_root import compute_state_root
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 PRICE_HISTORY = (100, 110, 120)
@@ -70,7 +71,7 @@ def _state_intent_and_settlement() -> tuple[DexState, list[dict], dict, dict[str
 def _authorization_for(runtime: dict[str, object], *, value_e8: int | None = None, observed_epoch: int = 41) -> dict[str, object]:
     query_id = str(runtime["query_id"])
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
-    return {
+    auth = {
         "consumer_module": "zenodex.settlement",
         "action_kind": "critical_settlement",
         "action_id": str(runtime["action_id"]),
@@ -93,6 +94,7 @@ def _authorization_for(runtime: dict[str, object], *, value_e8: int | None = Non
         "economic_envelope_id": "settlement-critical-envelope",
         "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "settlement"}),
     }
+    return authorization_bundle(auth)
 
 
 def test_critical_settlement_requires_oracle_authorization_when_configured() -> None:
@@ -160,7 +162,7 @@ def test_critical_settlement_rejects_authorization_for_wrong_price_curr() -> Non
 def test_critical_settlement_rejects_authorization_for_wrong_pre_state() -> None:
     state, intent_dicts, settlement_op, runtime = _state_intent_and_settlement()
     auth = _authorization_for(runtime)
-    auth["pre_state_hash"] = semantic_hash("test.wrong-critical-settlement-pre-state", {"case": 1})
+    auth["authorization"]["pre_state_hash"] = semantic_hash("test.wrong-critical-settlement-pre-state", {"case": 1})
     settlement_op["oracle_authorization"] = auth
 
     res = apply_ops(
