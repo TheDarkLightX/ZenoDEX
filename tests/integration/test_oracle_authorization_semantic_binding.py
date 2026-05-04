@@ -385,3 +385,106 @@ def test_critical_consumer_rejects_terminal_graph_fake_control_group_diversity()
         in result["receipt_graph_errors"]
     )
     assert "receipt_graph distinct control groups below min_reporters" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_terminal_graph_policy_root_mixing() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["receipt_graph"]["query_policy_root"] = _hash("zenodex.query_policy.v1", "downgraded-policy")
+    _refresh_terminal_graph_roots(bundle)
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph query_policy_root does not match authorization" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_devnet_o2_terminal_graph_leakage() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["receipt_graph"]["read_evidence_class"] = "O2"
+    bundle["receipt_graph"]["aggregate_evidence_class"] = "O2"
+    _refresh_terminal_graph_roots(bundle)
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph read_evidence_class below O3" in result["receipt_graph_errors"]
+    assert "receipt_graph aggregate_evidence_class below O3" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_terminal_graph_source_sybil_collapse() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    for leaf in bundle["receipt_graph"]["report_leaf_commitments"]:
+        leaf["source_id"] = "source:shared"
+    bundle["receipt_graph"]["included_source_ids"] = ["source:shared", "source:shared", "source:shared"]
+    _refresh_terminal_graph_roots(bundle)
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph included_source_ids must be distinct" in result["receipt_graph_errors"]
+    assert "receipt_graph source_count does not match distinct report leaf sources" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_terminal_graph_dead_reporter_leaf() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    leaf = bundle["receipt_graph"]["report_leaf_commitments"][0]
+    report_id = leaf["report_id"]
+    leaf["active"] = False
+    leaf["slash_state"] = "slashed"
+    leaf["bond_e8"] = int(leaf["required_bond_e8"]) - 1
+    _refresh_terminal_graph_roots(bundle)
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert f"receipt_graph report leaf {report_id} reporter inactive" in result["receipt_graph_errors"]
+    assert f"receipt_graph report leaf {report_id} slash_state not clear" in result["receipt_graph_errors"]
+    assert f"receipt_graph report leaf {report_id} bond below required" in result["receipt_graph_errors"]
