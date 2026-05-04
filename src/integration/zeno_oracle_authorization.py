@@ -116,6 +116,18 @@ def _non_negative_graph_int(graph: Mapping[str, Any], key: str, errors: list[str
     return out
 
 
+def _non_negative_leaf_int(leaf: Mapping[str, Any], key: str, errors: list[str], *, report_id: str) -> int:
+    value = leaf.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(f"receipt_graph report leaf {report_id} {key} must be a non-negative int")
+        return 0
+    out = int(value)
+    if out < 0:
+        errors.append(f"receipt_graph report leaf {report_id} {key} must be a non-negative int")
+        return 0
+    return out
+
+
 def verify_receipt_graph_binding(
     authorization: OracleAuthorization,
     receipt_graph: Mapping[str, Any] | None,
@@ -222,20 +234,24 @@ def verify_receipt_graph_binding(
     else:
         leaf_report_ids: list[str] = []
         leaf_source_ids: list[str] = []
+        leaf_control_group_ids: list[str] = []
         for index, leaf in enumerate(report_leaf_commitments):
             if not isinstance(leaf, Mapping):
                 errors.append(f"receipt_graph report_leaf_commitments[{index}] must be an object")
                 continue
             report_id = str(leaf.get("report_id", ""))
             source_id = str(leaf.get("source_id", ""))
+            control_group_id = str(leaf.get("control_group_id", leaf.get("reporter_id", "")))
             leaf_report_ids.append(report_id)
             leaf_source_ids.append(source_id)
+            leaf_control_group_ids.append(control_group_id)
             if not bool(leaf.get("active", False)):
                 errors.append(f"receipt_graph report leaf {report_id} reporter inactive")
             if str(leaf.get("slash_state", "")) != "clear":
                 errors.append(f"receipt_graph report leaf {report_id} slash_state not clear")
-            bond_e8 = int(leaf.get("bond_e8", leaf.get("bond_amount_e8", 0)) or 0)
-            required_bond_e8 = int(leaf.get("required_bond_e8", 0) or 0)
+            bond_key = "bond_e8" if "bond_e8" in leaf else "bond_amount_e8"
+            bond_e8 = _non_negative_leaf_int(leaf, bond_key, errors, report_id=report_id)
+            required_bond_e8 = _non_negative_leaf_int(leaf, "required_bond_e8", errors, report_id=report_id)
             if bond_e8 < required_bond_e8:
                 errors.append(f"receipt_graph report leaf {report_id} bond below required")
         if leaf_report_ids != sorted(leaf_report_ids):
@@ -244,6 +260,14 @@ def verify_receipt_graph_binding(
             errors.append("receipt_graph report_leaf_commitments must match included_report_ids")
         if isinstance(included_source_ids, list) and {str(item) for item in included_source_ids} != set(leaf_source_ids):
             errors.append("receipt_graph report_leaf_commitments must match included_source_ids")
+        if len(leaf_report_ids) != reporter_count:
+            errors.append("receipt_graph reporter_count does not match report_leaf_commitments")
+        if len(set(leaf_source_ids)) != source_count:
+            errors.append("receipt_graph source_count does not match distinct report leaf sources")
+        if len(set(leaf_control_group_ids)) != control_group_count:
+            errors.append("receipt_graph reporter_control_group_count does not match distinct report leaf control groups")
+        if len(set(leaf_control_group_ids)) < min_reporters:
+            errors.append("receipt_graph distinct control groups below min_reporters")
         expected_report_leaf_root = semantic_hash(
             "zeno_oracle.report_leaf_root.v1",
             {"reports": report_leaf_commitments},

@@ -25,6 +25,17 @@ def _hash(domain: str, name: str) -> str:
     return semantic_hash(domain, {"name": name})
 
 
+def _refresh_terminal_graph_roots(bundle: dict) -> None:
+    graph = bundle["receipt_graph"]
+    graph["report_leaf_root"] = semantic_hash(
+        "zeno_oracle.report_leaf_root.v1",
+        {"reports": graph["report_leaf_commitments"]},
+    )
+    body = {key: value for key, value in graph.items() if key != "receipt_graph_root"}
+    graph["receipt_graph_root"] = semantic_hash("zeno_oracle.receipt_graph.v1", body)
+    bundle["authorization"]["receipt_graph_root"] = graph["receipt_graph_root"]
+
+
 def _valid_pair() -> tuple[OracleAuthorization, RuntimeActionFacts]:
     query_id = "query:AGRS/ZDEX"
     value_e8 = 123_456_789
@@ -346,3 +357,31 @@ def test_critical_consumer_rejects_terminal_graph_value_mismatch() -> None:
     assert result["typed_ok"] is False
     assert result["receipt_graph_ok"] is False
     assert "receipt_graph value_e8 does not match authorization" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_terminal_graph_fake_control_group_diversity() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    for leaf in bundle["receipt_graph"]["report_leaf_commitments"]:
+        leaf["control_group_id"] = "operator:shared-control"
+    _refresh_terminal_graph_roots(bundle)
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert (
+        "receipt_graph reporter_control_group_count does not match distinct report leaf control groups"
+        in result["receipt_graph_errors"]
+    )
+    assert "receipt_graph distinct control groups below min_reporters" in result["receipt_graph_errors"]
