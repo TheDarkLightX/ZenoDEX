@@ -713,10 +713,109 @@ def replay_store(store: OracleDevnetStore) -> dict[str, Any]:
     duplicate_event_ids: list[str] = []
     duplicate_event_sequences: list[str] = []
     event_sequence_errors: list[str] = []
+    reporter_sequence_errors: list[str] = []
+    economic_state_errors: list[str] = []
     latest_by_type: dict[str, str] = {}
+    reporter_states: dict[str, dict[str, Any]] = {}
+    economic_summary: dict[str, dict[str, int]] = {}
     seen_event_ids: set[str] = set()
     seen_event_sequences: set[int] = set()
     expected_event_seq = 0
+
+    def reporter_state(reporter_id: str) -> dict[str, Any]:
+        return reporter_states.setdefault(
+            reporter_id,
+            {
+                "active": False,
+                "reporter_pubkey": None,
+                "required_bond": 0,
+                "bond_available": 0,
+                "registered_bond_amount": 0,
+                "reports_submitted": 0,
+                "last_sequence": None,
+                "last_report_id": None,
+                "slash_state": "clear",
+            },
+        )
+
+    def economics(reporter_id: str) -> dict[str, int]:
+        return economic_summary.setdefault(
+            reporter_id,
+            {
+                "bond_total": 0,
+                "reward_total": 0,
+                "dispute_bond_total": 0,
+                "slash_total": 0,
+                "event_count": 0,
+            },
+        )
+
+    def apply_reporter_registration(obj: Mapping[str, Any]) -> None:
+        reporter_id = obj.get("reporter_id")
+        if not isinstance(reporter_id, str):
+            return
+        state = reporter_state(reporter_id)
+        state["active"] = True
+        state["reporter_pubkey"] = obj.get("reporter_pubkey")
+        state["required_bond"] = int(obj.get("required_bond", 0) or 0)
+        state["registered_bond_amount"] = int(obj.get("bond_amount", 0) or 0)
+        state["bond_available"] = int(obj.get("bond_amount", 0) or 0)
+        state["slash_state"] = "clear"
+
+    def apply_report_submission(obj: Mapping[str, Any], *, line_no: int) -> None:
+        reporter_id = obj.get("reporter_id")
+        if not isinstance(reporter_id, str):
+            return
+        state = reporter_state(reporter_id)
+        if not state.get("active"):
+            reporter_sequence_errors.append(f"line_{line_no}:{reporter_id}:reporter_not_registered")
+        reports = obj.get("reports")
+        if not isinstance(reports, list):
+            return
+        for report in reports:
+            if not isinstance(report, Mapping):
+                continue
+            sequence = report.get("sequence")
+            if not isinstance(sequence, int) or isinstance(sequence, bool):
+                continue
+            last_sequence = state.get("last_sequence")
+            if isinstance(last_sequence, int) and sequence <= last_sequence:
+                reporter_sequence_errors.append(
+                    f"line_{line_no}:{reporter_id}:sequence_replay:{sequence}<=last_{last_sequence}"
+                )
+            state["last_sequence"] = sequence
+            state["last_report_id"] = report.get("report_id")
+            state["reports_submitted"] = int(state.get("reports_submitted", 0)) + 1
+
+    def apply_economic_event(obj: Mapping[str, Any], *, line_no: int) -> None:
+        reporter_id = obj.get("reporter_id")
+        if not isinstance(reporter_id, str):
+            return
+        event_kind = obj.get("event_kind")
+        amount = obj.get("amount", 0)
+        if not isinstance(amount, int) or isinstance(amount, bool):
+            amount = 0
+        state = reporter_state(reporter_id)
+        bucket = economics(reporter_id)
+        bucket["event_count"] += 1
+        if event_kind == "bond":
+            bucket["bond_total"] += int(amount)
+            state["bond_available"] = int(state.get("bond_available", 0)) + int(amount)
+        elif event_kind == "reward":
+            bucket["reward_total"] += int(amount)
+        elif event_kind == "dispute":
+            bucket["dispute_bond_total"] += int(amount)
+        elif event_kind == "slash":
+            bucket["slash_total"] += int(amount)
+            current_bond = int(state.get("bond_available", 0))
+            if int(amount) > current_bond:
+                economic_state_errors.append(f"line_{line_no}:{reporter_id}:slash_exceeds_replayed_bond")
+                state["bond_available"] = 0
+            else:
+                state["bond_available"] = current_bond - int(amount)
+            if int(amount) > 0:
+                state["slash_state"] = "slashed"
+
     if store.events_path.exists():
         with store.events_path.open("r", encoding="utf-8") as handle:
             for line_no, line in enumerate(handle, start=1):
@@ -774,6 +873,19 @@ def replay_store(store: OracleDevnetStore) -> dict[str, Any]:
                             artifact_hash_mismatches.append(
                                 f"line_{line_no}:{artifact_path}:expected_{expected_sha256}:got_{actual_sha256}"
                             )
+                            continue
+                    if event.get("status") == "accepted":
+                        try:
+                            artifact_obj = _load_json_file(full_artifact_path)
+                        except Exception as exc:
+                            malformed_events.append(f"line_{line_no}:artifact_json_invalid:{exc}")
+                            continue
+                        if event_type == "reporter.register":
+                            apply_reporter_registration(artifact_obj)
+                        elif event_type == "report.submit":
+                            apply_report_submission(artifact_obj, line_no=line_no)
+                        elif event_type == "economic.event":
+                            apply_economic_event(artifact_obj, line_no=line_no)
     ok = not (
         missing_artifacts
         or artifact_hash_mismatches
@@ -781,6 +893,8 @@ def replay_store(store: OracleDevnetStore) -> dict[str, Any]:
         or duplicate_event_ids
         or duplicate_event_sequences
         or event_sequence_errors
+        or reporter_sequence_errors
+        or economic_state_errors
     )
     receipt = {
         "schema": REPLAY_SCHEMA,
@@ -792,12 +906,17 @@ def replay_store(store: OracleDevnetStore) -> dict[str, Any]:
         "rejected_event_count": rejected_count,
         "event_type_counts": event_type_counts,
         "latest_by_type": latest_by_type,
+        "reporter_state_count": len(reporter_states),
+        "reporter_states": reporter_states,
+        "economic_summary": economic_summary,
         "missing_artifacts": missing_artifacts,
         "artifact_hash_mismatches": artifact_hash_mismatches,
         "malformed_events": malformed_events,
         "duplicate_event_ids": duplicate_event_ids,
         "duplicate_event_sequences": duplicate_event_sequences,
         "event_sequence_errors": event_sequence_errors,
+        "reporter_sequence_errors": reporter_sequence_errors,
+        "economic_state_errors": economic_state_errors,
         "not_claimed": [
             "does_not_claim_production_oracle_network_live",
             "does_not_claim_true_market_price",
