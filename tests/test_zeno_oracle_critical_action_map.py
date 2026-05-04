@@ -31,6 +31,17 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
         "zenodex.zusd:liquidate_vault",
         "zenodex.routing:guarded_quote",
     }
+    surfaces = {surface["key"]: surface for surface in receipt["runtime_surfaces"]}
+    assert "require_oracle_authorization_for_isolated_settle_epoch" in surfaces[
+        "zenodex.perps:settle_epoch"
+    ]["details"]["required_controls"]
+    assert "ZUSD_ORACLE_AUTHORIZATION_REQUIRED" in surfaces["zenodex.zusd:mint"]["details"]["required_controls"]
+    assert "ZUSD_ORACLE_AUTHORIZATION_REQUIRED" in surfaces[
+        "zenodex.zusd:liquidate_vault"
+    ]["details"]["required_controls"]
+    assert "DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED" in surfaces[
+        "zenodex.routing:guarded_quote"
+    ]["details"]["required_controls"]
     backlog_keys = {item["key"] for item in receipt["design_only_backlog"]}
     assert backlog_keys == {
         "zenodex.perps:liquidate_account",

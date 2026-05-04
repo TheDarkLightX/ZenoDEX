@@ -71,6 +71,7 @@ from ..core.perps import (
 from ..state.balances import BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
 from ..state.nonces import NonceTable
+from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 
 PERP_OP_MODULE = "TauPerp"
@@ -519,6 +520,7 @@ class PerpEngineConfig:
     oracle_adapter_bridge_verifier: Optional[OracleAdapterBridgeVerifier] = None
     require_oracle_adapter_for_isolated_settle_epoch: bool = False
     require_oracle_adapter_for_clearinghouse_settle_epoch: bool = False
+    require_oracle_authorization_for_isolated_settle_epoch: bool = False
     # Anti-bounty-farming posture guard:
     # require a non-trivial minimum collectible liquidation penalty for bounty-eligible notional.
     min_collectible_liquidation_penalty_quote: int = 1_000
@@ -854,6 +856,104 @@ def _perps_runtime_oracle_action_id(
         "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _perps_runtime_oracle_pre_state_hash(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    market: PerpMarketState,
+) -> str:
+    return semantic_hash(
+        "zenodex.perps.pre_state.v1",
+        {
+            "chain_id": config.chain_id,
+            "market_id": market_id,
+            "quote_asset": market.quote_asset,
+            "global_state": dict(market.global_state),
+            "accounts": {key: value.to_kernel_state() for key, value in sorted(market.accounts.items())},
+        },
+    )
+
+
+def _perps_runtime_oracle_action_facts_hash(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    action_kind: str,
+    market: PerpMarketState,
+) -> str:
+    global_state = market.global_state
+    runtime_value_e8 = int(global_state.get("index_price_e8", 0))
+    return semantic_hash(
+        "zenodex.perps.action_facts.v1",
+        {
+            "action_kind": action_kind,
+            "chain_id": config.chain_id,
+            "clearing_price_e8": int(global_state.get("clearing_price_e8", 0)),
+            "clearing_price_epoch": int(global_state.get("clearing_price_epoch", 0)),
+            "consumer_module": "zenodex.perps",
+            "index_price_e8": runtime_value_e8,
+            "market_id": market_id,
+            "now_epoch": int(global_state.get("now_epoch", 0)),
+            "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "quote_asset": market.quote_asset,
+            "runtime_value_e8": runtime_value_e8,
+        },
+    )
+
+
+def _perps_runtime_oracle_value_e8(market: PerpMarketState) -> int:
+    return int(market.global_state.get("index_price_e8", 0))
+
+
+def _require_perps_oracle_authorization(
+    config: PerpEngineConfig,
+    *,
+    data: Mapping[str, Any],
+    market_id: str,
+    market: PerpMarketState,
+    required: bool = False,
+) -> Optional[str]:
+    if "oracle_authorization" not in data:
+        if required:
+            return "settle_epoch requires oracle_authorization"
+        return None
+    authorization = data.get("oracle_authorization")
+    if not isinstance(authorization, Mapping):
+        return "oracle_authorization must be an object"
+    try:
+        result = check_critical_consumer_authorization(
+            authorization,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            action_id=_perps_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market=market,
+            ),
+            action_facts_hash=_perps_runtime_oracle_action_facts_hash(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market=market,
+            ),
+            pre_state_hash=_perps_runtime_oracle_pre_state_hash(config, market_id=market_id, market=market),
+            profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            runtime_value_e8=_perps_runtime_oracle_value_e8(market),
+            now_epoch=int(market.global_state.get("now_epoch", 0)),
+        )
+    except Exception as exc:
+        return f"oracle_authorization verifier error: {_safe_error_str(exc)}"
+    if not result.get("typed_ok"):
+        errors = result.get("typed_errors")
+        if isinstance(errors, list) and errors:
+            return "oracle_authorization rejected: " + "; ".join(str(error) for error in errors[:3])
+        return "oracle_authorization rejected"
+    return None
 
 
 def _perps_clearinghouse_runtime_oracle_action_id(
@@ -1908,7 +2008,7 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
     if err is not None:
         return err
-    allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
+    allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge", "oracle_authorization"}
     unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
     if unknown is not None:
         return unknown
@@ -1926,6 +2026,15 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
             market=market,
         ),
         required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
+    )
+    if err is not None:
+        return err
+    err = _require_perps_oracle_authorization(
+        ctx.config,
+        data=data,
+        market_id=market_id,
+        market=market,
+        required=ctx.config.require_oracle_authorization_for_isolated_settle_epoch,
     )
     if err is not None:
         return err
