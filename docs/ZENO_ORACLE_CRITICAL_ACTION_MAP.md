@@ -5,7 +5,8 @@ branch.
 
 The consumer-profile catalog defines six first-shell critical profiles. The
 runtime checker compares that catalog against the integration modules that
-currently consume Oracle adapter bridges:
+currently consume Oracle adapter bridges and typed `OracleAuthorization`
+bundles:
 
 ```bash
 python3 tools/check_zeno_oracle_critical_action_map.py
@@ -24,16 +25,19 @@ status = accepted
 
 | Consumer | Action | Runtime path | Required control |
 | --- | --- | --- | --- |
-| `zenodex.perps` | `settle_epoch` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_settle_epoch`, `require_oracle_adapter_for_clearinghouse_settle_epoch` |
-| `zenodex.zusd` | `mint` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED` |
-| `zenodex.zusd` | `liquidate_vault` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED` |
-| `zenodex.routing` | `guarded_quote` | `src/integration/api_server.py` | `DEX_ROUTING_ORACLE_ADAPTER_REQUIRED` |
+| `zenodex.perps` | `settle_epoch` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_settle_epoch`, `require_oracle_adapter_for_clearinghouse_settle_epoch`, `require_oracle_authorization_for_isolated_settle_epoch` |
+| `zenodex.zusd` | `mint` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED`, `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` |
+| `zenodex.zusd` | `liquidate_vault` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED`, `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` |
+| `zenodex.routing` | `guarded_quote` | `src/integration/api_server.py` | `DEX_ROUTING_ORACLE_ADAPTER_REQUIRED`, `DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED` |
 
 The checker verifies that each runtime-wired surface still agrees with the
 catalog query ID, catalog profile ID, expected consumer module, expected action
 kind, and runtime action-ID binding. For routing it checks both exact-in and
 exact-out guarded quote paths. For perps it checks isolated settlement plus the
-two clearinghouse settlement variants.
+two clearinghouse settlement variants. It also ratchets the typed authorization
+wiring for the currently implemented adapters: zUSD, guarded routing quotes,
+and isolated perps settlement must bind action facts, pre-state, and the
+runtime oracle value consumed by the action.
 
 ## Design-Only Backlog Profiles
 
