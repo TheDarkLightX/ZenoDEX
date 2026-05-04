@@ -98,6 +98,18 @@ def _bool_env(name: str, *, default: bool) -> bool:
     return bool(default)
 
 
+def _strict_bool_env(name: str, *, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return bool(default)
+    v = raw.strip().lower()
+    if v in {"1", "true", "yes", "on"}:
+        return True
+    if v in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be one of: 1, true, yes, on, 0, false, no, off")
+
+
 def _float_env(name: str, default: float, *, lo: float, hi: float) -> float:
     raw = os.environ.get(name)
     if raw is None or not raw.strip():
@@ -331,7 +343,10 @@ def _check_zusd_oracle_adapter_bridge(
     if action_kind is None:
         return None
 
-    required = _bool_env("ZUSD_ORACLE_ADAPTER_REQUIRED", default=False)
+    try:
+        required = _strict_bool_env("ZUSD_ORACLE_ADAPTER_REQUIRED", default=False)
+    except ValueError as exc:
+        return f"oracle_adapter_bridge config error: {exc}"
     if "oracle_adapter_bridge" not in body:
         if required:
             return f"{action_kind} requires oracle_adapter_bridge"

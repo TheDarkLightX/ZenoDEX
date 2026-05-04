@@ -568,6 +568,18 @@ def _env_bool(name: str, *, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_bool_strict(name: str, *, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return bool(default)
+    v = raw.strip().lower()
+    if v in {"1", "true", "yes", "on"}:
+        return True
+    if v in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be one of: 1, true, yes, on, 0, false, no, off")
+
+
 def _adapter_result_get(result: Any, key: str) -> Any:
     if isinstance(result, Mapping):
         return result.get(key)
@@ -681,7 +693,10 @@ def _check_routing_oracle_adapter_bridge_for_action(
     body: Mapping[str, Any],
     expected_action_id: str,
 ) -> Optional[str]:
-    required = _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
+    try:
+        required = _env_bool_strict("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
+    except ValueError as exc:
+        return f"oracle_adapter_bridge config error: {exc}"
     if "oracle_adapter_bridge" not in body:
         if required:
             return "guarded_quote requires oracle_adapter_bridge"
@@ -730,7 +745,11 @@ def _check_routing_oracle_adapter_bridge(
     binding_ok: int,
 ) -> Optional[str]:
     if "oracle_adapter_bridge" not in body:
-        if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
+        try:
+            required = _env_bool_strict("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
+        except ValueError as exc:
+            return f"oracle_adapter_bridge config error: {exc}"
+        if required:
             return "guarded_quote requires oracle_adapter_bridge"
         return None
     try:
@@ -768,7 +787,11 @@ def _check_routing_exact_out_oracle_adapter_bridge(
     max_enumerated_candidates: int,
 ) -> Optional[str]:
     if "oracle_adapter_bridge" not in body:
-        if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
+        try:
+            required = _env_bool_strict("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
+        except ValueError as exc:
+            return f"oracle_adapter_bridge config error: {exc}"
+        if required:
             return "guarded_quote requires oracle_adapter_bridge"
         return None
     try:

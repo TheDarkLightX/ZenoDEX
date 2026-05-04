@@ -99,6 +99,18 @@ class TestOracleAdapterBridge:
         assert body["ok"] is False
         assert body["detail"] == "mint requires oracle_adapter_bridge"
 
+    def test_oracle_adapter_invalid_required_config_fails_closed(self, monkeypatch):
+        monkeypatch.setenv("ZUSD_ORACLE_ADAPTER_REQUIRED", "tru")
+        assert _post("/api/zusd/step", {"tag": "bootstrap_oracle", "args": {"price_e8": 100 * E8, "auth_ok": True}})[0] == 200
+        assert _post("/api/zusd/step", {"tag": "deposit_collateral", "args": {"amount_e8": 2 * E8}})[0] == 200
+
+        status, body = _post("/api/zusd/step", {"tag": "mint_zusd", "args": {"amount_e8": 100 * E8}})
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"].startswith(
+            "oracle_adapter_bridge config error: ZUSD_ORACLE_ADAPTER_REQUIRED must be one of:"
+        )
+
     def test_oracle_adapter_mint_rejects_wrong_bridge_action_id(self, monkeypatch):
         _install_fake_oracle_adapter(
             monkeypatch,
