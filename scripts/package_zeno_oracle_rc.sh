@@ -84,7 +84,7 @@ manifest = {
         "vector_icon": "assets/branding/zeno-oracle/zeno_oracle_icon_embedded.svg",
         "transparent_logo": "assets/branding/zeno-oracle/zeno_oracle_full_transparent_1024.png"
     },
-    "whitepaper": "docs/papers/zeno-oracle-whitepaper/main.pdf",
+    "whitepaper": "docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf",
     "whitepaper_author": "Dana Edwards",
     "local_gate": "scripts/check_zeno_oracle_mvp.sh",
     "devnet_alpha_gate": "scripts/check_zeno_oracle_devnet_alpha.sh",
