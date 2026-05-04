@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict, replace
 
 
 from src.core.dex import DexState
@@ -80,6 +80,62 @@ def _settle_ready_state(*, market_id: str, quote_asset: str, operator: str) -> D
         operator_pubkey=operator,
         ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
     )
+
+
+def _perps_oracle_authorization_bundle(config: object, state: DexState, market_id: str, *, value_e8: int | None = None) -> dict[str, object]:
+    from src.integration.perp_engine import (
+        _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        _perps_runtime_oracle_action_facts_hash,
+        _perps_runtime_oracle_action_id,
+        _perps_runtime_oracle_pre_state_hash,
+    )
+    from src.integration.zeno_oracle_authorization import OracleAuthorization, oracle_value_hash, semantic_hash
+    from tests.integration.oracle_authorization_test_helpers import authorization_bundle
+
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    observed_epoch = int(market.global_state.get("oracle_last_update_epoch", 0))
+    now_epoch = int(market.global_state.get("now_epoch", 0))
+    authorized_value_e8 = int(market.global_state.get("index_price_e8", 0) if value_e8 is None else value_e8)
+    authorization = OracleAuthorization(
+        consumer_module="zenodex.perps",
+        action_kind="settle_epoch",
+        action_id=_perps_runtime_oracle_action_id(
+            config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market=market,
+        ),
+        action_facts_hash=_perps_runtime_oracle_action_facts_hash(
+            config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market=market,
+        ),
+        pre_state_hash=_perps_runtime_oracle_pre_state_hash(config, market_id=market_id, market=market),
+        profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        value_e8=authorized_value_e8,
+        value_hash=oracle_value_hash(
+            query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            value_e8=authorized_value_e8,
+            observed_epoch=observed_epoch,
+        ),
+        confidence_e8=1,
+        deviation_bps=0,
+        observed_epoch=observed_epoch,
+        expires_at_epoch=now_epoch + 2,
+        feed_id="feed:perps-index:v1",
+        feed_registry_root=semantic_hash("test.perps.feed_registry", {"name": "r1"}),
+        query_policy_root=semantic_hash("test.perps.query_policy", {"name": "q1"}),
+        source_registry_root=semantic_hash("test.perps.source_registry", {"name": "s1"}),
+        reporter_registry_root=semantic_hash("test.perps.reporter_registry", {"name": "p1"}),
+        evidence_class="O3",
+        economic_envelope_id="econ:perps-small-v1",
+        receipt_graph_root=semantic_hash("test.perps.receipt_graph", {"name": "placeholder"}),
+    )
+    return authorization_bundle(asdict(authorization))
 
 
 def test_publish_clearing_price_rejects_unsafe_oracle_reward_posture() -> None:
@@ -1037,6 +1093,101 @@ def test_settle_epoch_binds_oracle_adapter_bridge_to_perps_settlement() -> None:
     )
     assert res.ok is True, res.error
     assert seen_bridge == {"schema": "test"}
+
+
+def test_settle_epoch_requires_oracle_authorization_when_configured() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-auth-required"
+    quote_asset = "0x" + "5d" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch")]},
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error == "settle_epoch requires oracle_authorization"
+
+
+def test_settle_epoch_accepts_bound_oracle_authorization() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-auth-bound"
+    quote_asset = "0x" + "5e" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    oracle_authorization=_perps_oracle_authorization_bundle(cfg, state, market_id),
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is True, res.error
+
+
+def test_settle_epoch_rejects_wrong_oracle_authorization_value() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:oracle-auth-wrong-value"
+    quote_asset = "0x" + "5f" * 32
+    operator = "00" * 48
+    state = _settle_ready_state(market_id=market_id, quote_asset=quote_asset, operator=operator)
+    assert state.perps is not None
+    runtime_value_e8 = int(state.perps.markets[market_id].global_state["index_price_e8"])
+    cfg = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+        require_oracle_authorization_for_isolated_settle_epoch=True,
+    )
+
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    oracle_authorization=_perps_oracle_authorization_bundle(
+                        cfg,
+                        state,
+                        market_id,
+                        value_e8=runtime_value_e8 + 1,
+                    ),
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+    assert res.ok is False
+    assert res.error is not None
+    assert "runtime_value_e8 mismatch" in res.error
 
 
 def test_publish_clearing_price_rejects_zero_price() -> None:
