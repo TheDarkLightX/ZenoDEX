@@ -27,6 +27,7 @@ from math import comb
 from typing import Any, Mapping, Optional, Sequence, Set
 
 from src.state.canonical import canonical_json_bytes
+from src.integration.zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 # Prewarm the expensive attestation / LP-aware settlement modules at server
 # startup so their first request does not pay import latency inside the 2s API
@@ -620,6 +621,17 @@ def _canonical_routing_pool_snapshots(pools_raw: object) -> list[dict[str, Any]]
     return snapshots
 
 
+def _routing_pool_snapshot_hash(pools_raw: object) -> str:
+    return "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": _canonical_routing_pool_snapshots(pools_raw)})).hexdigest()
+
+
+def _routing_pre_state_hash(*, pools_raw: object) -> str:
+    return semantic_hash(
+        "zenodex.routing.pre_state.v1",
+        {"pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw)},
+    )
+
+
 def _routing_guarded_quote_oracle_action_id(
     *,
     path: str,
@@ -631,8 +643,6 @@ def _routing_guarded_quote_oracle_action_id(
     binding_ok: int,
     pools_raw: object,
 ) -> str:
-    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
-    pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
     payload = {
         "schema": "zenodex.oracle.routing_runtime_action_id.v1",
         "consumer_module": "zenodex.routing",
@@ -645,9 +655,44 @@ def _routing_guarded_quote_oracle_action_id(
         "split_search_profile": split_search_profile,
         "enable_mixed_direct_twohop_split": bool(enable_mixed_direct_twohop_split),
         "binding_ok": int(binding_ok),
-        "pool_snapshot_hash": pool_snapshot_hash,
+        "pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw),
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _routing_guarded_quote_oracle_action_facts_hash(
+    *,
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_in: int,
+    split_search_profile: str,
+    enable_mixed_direct_twohop_split: bool,
+    binding_ok: int,
+    pools_raw: object,
+    runtime_quote: Mapping[str, Any],
+    action_epoch: int,
+) -> str:
+    return semantic_hash(
+        "zenodex.routing.action_facts.v1",
+        {
+            "action_kind": "guarded_quote",
+            "action_epoch": int(action_epoch),
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "amount_in": int(amount_in),
+            "binding_ok": int(binding_ok),
+            "consumer_module": "zenodex.routing",
+            "enable_mixed_direct_twohop_split": bool(enable_mixed_direct_twohop_split),
+            "path": path,
+            "pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw),
+            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
+            "quote_kind": "exact_in",
+            "runtime_quote": dict(runtime_quote),
+            "runtime_value_e8": int(runtime_quote.get("amount_out", 0)),
+            "split_search_profile": split_search_profile,
+        },
+    )
 
 
 def _routing_guarded_exact_out_quote_oracle_action_id(
@@ -665,8 +710,6 @@ def _routing_guarded_exact_out_quote_oracle_action_id(
     max_enumerated_candidates: int,
     pools_raw: object,
 ) -> str:
-    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
-    pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
     payload = {
         "schema": "zenodex.oracle.routing_runtime_action_id.v1",
         "consumer_module": "zenodex.routing",
@@ -683,9 +726,103 @@ def _routing_guarded_exact_out_quote_oracle_action_id(
         "window": int(window),
         "brute_force_max": int(brute_force_max),
         "max_enumerated_candidates": int(max_enumerated_candidates),
-        "pool_snapshot_hash": pool_snapshot_hash,
+        "pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw),
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _routing_guarded_exact_out_quote_oracle_action_facts_hash(
+    *,
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int,
+    max_candidate_pools: int,
+    max_candidates: int,
+    max_iters: int,
+    window: int,
+    brute_force_max: int,
+    max_enumerated_candidates: int,
+    pools_raw: object,
+    runtime_quote: Mapping[str, Any],
+    action_epoch: int,
+) -> str:
+    return semantic_hash(
+        "zenodex.routing.action_facts.v1",
+        {
+            "action_kind": "guarded_quote",
+            "action_epoch": int(action_epoch),
+            "amount_out_total": int(amount_out_total),
+            "asset_in": asset_in,
+            "asset_out": asset_out,
+            "brute_force_max": int(brute_force_max),
+            "consumer_module": "zenodex.routing",
+            "max_candidate_pools": int(max_candidate_pools),
+            "max_candidates": int(max_candidates),
+            "max_enumerated_candidates": int(max_enumerated_candidates),
+            "max_iters": int(max_iters),
+            "max_legs": int(max_legs),
+            "path": path,
+            "pool_snapshot_hash": _routing_pool_snapshot_hash(pools_raw),
+            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
+            "quote_kind": "exact_out_many_pool",
+            "runtime_quote": dict(runtime_quote),
+            "runtime_value_e8": int(runtime_quote.get("amount_in_total", 0)),
+            "window": int(window),
+        },
+    )
+
+
+def _routing_oracle_action_epoch(body: Mapping[str, Any]) -> tuple[int, Optional[str]]:
+    raw = body.get("oracle_action_epoch", 0)
+    if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
+        return 0, "oracle_action_epoch must be a non-negative int"
+    return int(raw), None
+
+
+def _check_routing_oracle_authorization(
+    *,
+    body: Mapping[str, Any],
+    action_id: str,
+    action_facts_hash: str,
+    pre_state_hash: str,
+    runtime_value_e8: int,
+    action_epoch: int,
+) -> Optional[str]:
+    try:
+        required = _env_bool_strict("DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED", default=False)
+    except ValueError as exc:
+        return f"oracle_authorization config error: {exc}"
+
+    if "oracle_authorization" not in body:
+        if required:
+            return "guarded_quote requires oracle_authorization"
+        return None
+    authorization = body.get("oracle_authorization")
+    if not isinstance(authorization, Mapping):
+        return "oracle_authorization must be an object"
+    try:
+        result = check_critical_consumer_authorization(
+            authorization,
+            consumer_module="zenodex.routing",
+            action_kind="guarded_quote",
+            action_id=action_id,
+            action_facts_hash=action_facts_hash,
+            pre_state_hash=pre_state_hash,
+            profile_id=DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
+            query_id=DEX_ROUTING_REFERENCE_QUERY_ID,
+            runtime_value_e8=int(runtime_value_e8),
+            now_epoch=int(action_epoch),
+        )
+    except Exception as exc:
+        return f"oracle_authorization verifier error: {type(exc).__name__}"
+    if not result.get("typed_ok"):
+        errors = result.get("typed_errors")
+        if isinstance(errors, list) and errors:
+            return "oracle_authorization rejected: " + "; ".join(str(error) for error in errors[:3])
+        return "oracle_authorization rejected"
+    return None
 
 
 def _check_routing_oracle_adapter_bridge_for_action(
@@ -1916,6 +2053,10 @@ class _Handler(BaseHTTPRequestHandler):
                 if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
                     self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
                     return True
+                action_epoch, action_epoch_err = _routing_oracle_action_epoch(obj)
+                if action_epoch_err is not None:
+                    self._write_json(400, {"ok": False, "error": "bad_oracle_action_epoch"}, cors_origin=cors_origin)
+                    return True
 
                 bridge_err = _check_routing_oracle_adapter_bridge(
                     body=obj,
@@ -1952,9 +2093,50 @@ class _Handler(BaseHTTPRequestHandler):
                     enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
                     binding_ok=int(binding_ok),
                 )
-                response = {"ok": quote is not None, "contract": contract.to_dict(), "error": err}
+                contract_dict = contract.to_dict()
+                response = {"ok": quote is not None, "contract": contract_dict, "error": err}
                 if quote is not None:
-                    response["quote"] = contract.to_dict()["runtime_quote"]
+                    runtime_quote = contract_dict["runtime_quote"]
+                    authorization_err = _check_routing_oracle_authorization(
+                        body=obj,
+                        action_id=_routing_guarded_quote_oracle_action_id(
+                            path=path,
+                            asset_in=asset_in,
+                            asset_out=asset_out,
+                            amount_in=int(amount_in),
+                            split_search_profile=split_search_profile,
+                            enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
+                            binding_ok=int(binding_ok),
+                            pools_raw=obj.get("pools"),
+                        ),
+                        action_facts_hash=_routing_guarded_quote_oracle_action_facts_hash(
+                            path=path,
+                            asset_in=asset_in,
+                            asset_out=asset_out,
+                            amount_in=int(amount_in),
+                            split_search_profile=split_search_profile,
+                            enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
+                            binding_ok=int(binding_ok),
+                            pools_raw=obj.get("pools"),
+                            runtime_quote=runtime_quote,
+                            action_epoch=action_epoch,
+                        ),
+                        pre_state_hash=_routing_pre_state_hash(pools_raw=obj.get("pools")),
+                        runtime_value_e8=int(runtime_quote["amount_out"]),
+                        action_epoch=action_epoch,
+                    )
+                    if authorization_err is not None:
+                        self._write_json(
+                            400,
+                            {
+                                "ok": False,
+                                "error": "rejected",
+                                "detail": authorization_err,
+                            },
+                            cors_origin=cors_origin,
+                        )
+                        return True
+                    response["quote"] = runtime_quote
                 self._write_json(200, response, cors_origin=cors_origin)
                 return True
             except Exception as exc:
@@ -5604,6 +5786,10 @@ class _Handler(BaseHTTPRequestHandler):
                     if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
                         self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
                         return True
+                action_epoch, action_epoch_err = _routing_oracle_action_epoch(obj)
+                if action_epoch_err is not None:
+                    self._write_json(400, {"ok": False, "error": "bad_oracle_action_epoch"}, cors_origin=cors_origin)
+                    return True
 
                 bridge_err = _check_routing_exact_out_oracle_adapter_bridge(
                     body=obj,
@@ -5653,11 +5839,59 @@ class _Handler(BaseHTTPRequestHandler):
                 contract_dict = contract.to_dict()
                 audit_payload = contract_dict["audit"]
                 if quote is not None:
+                    runtime_quote = dict(contract_dict["audit"]["runtime_quote"])
+                    authorization_err = _check_routing_oracle_authorization(
+                        body=obj,
+                        action_id=_routing_guarded_exact_out_quote_oracle_action_id(
+                            path=path,
+                            asset_in=asset_in,
+                            asset_out=asset_out,
+                            amount_out_total=int(amount_out_total),
+                            max_legs=int(max_legs),
+                            max_candidate_pools=int(max_candidate_pools),
+                            max_candidates=int(max_candidates),
+                            max_iters=int(max_iters),
+                            window=int(window),
+                            brute_force_max=int(brute_force_max),
+                            max_enumerated_candidates=int(max_enumerated_candidates),
+                            pools_raw=obj.get("pools"),
+                        ),
+                        action_facts_hash=_routing_guarded_exact_out_quote_oracle_action_facts_hash(
+                            path=path,
+                            asset_in=asset_in,
+                            asset_out=asset_out,
+                            amount_out_total=int(amount_out_total),
+                            max_legs=int(max_legs),
+                            max_candidate_pools=int(max_candidate_pools),
+                            max_candidates=int(max_candidates),
+                            max_iters=int(max_iters),
+                            window=int(window),
+                            brute_force_max=int(brute_force_max),
+                            max_enumerated_candidates=int(max_enumerated_candidates),
+                            pools_raw=obj.get("pools"),
+                            runtime_quote=runtime_quote,
+                            action_epoch=action_epoch,
+                        ),
+                        pre_state_hash=_routing_pre_state_hash(pools_raw=obj.get("pools")),
+                        runtime_value_e8=int(runtime_quote["amount_in_total"]),
+                        action_epoch=action_epoch,
+                    )
+                    if authorization_err is not None:
+                        self._write_json(
+                            400,
+                            {
+                                "ok": False,
+                                "error": "rejected",
+                                "detail": authorization_err,
+                            },
+                            cors_origin=cors_origin,
+                        )
+                        return True
                     self._write_json(
                         200,
                         {
                             "ok": True,
-                            "quote": dict(contract_dict["audit"]["runtime_quote"]),
+                            "quote": runtime_quote,
                             "contract": contract_dict,
                             "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                             "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,

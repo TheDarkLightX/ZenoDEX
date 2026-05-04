@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 import json
 import sys
 import threading
@@ -12,6 +13,8 @@ from tests.integration._attestation_policy_helper import (
     make_attestation_registry_snapshot_payload,
 )
 from src.integration.settlement_price_attestation import settlement_spot_price_attestation_signer_pubkey_from_privkey
+from src.integration.zeno_oracle_authorization import OracleAuthorization, oracle_value_hash, semantic_hash
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _start_test_server(*, dex_enabled: bool = True):
@@ -102,6 +105,99 @@ def _pool_dict(
         "curve_tag": curve_tag,
         "curve_params": curve_params,
     }
+
+
+def _routing_oracle_authorization_bundle(payload: dict, runtime_quote: dict, *, value_e8: int | None = None) -> dict:
+    from src.integration import api_server
+
+    action_epoch = int(payload.get("oracle_action_epoch", 0))
+    if "amount_in" in payload:
+        action_id = api_server._routing_guarded_quote_oracle_action_id(
+            path="/api/dex/quote_exact_in_route_guarded",
+            asset_in=str(payload["asset_in"]),
+            asset_out=str(payload["asset_out"]),
+            amount_in=int(payload["amount_in"]),
+            split_search_profile=str(payload.get("split_search_profile", "adaptive_v6")),
+            enable_mixed_direct_twohop_split=bool(payload.get("enable_mixed_direct_twohop_split", False)),
+            binding_ok=int(payload.get("binding_ok", 1)),
+            pools_raw=payload.get("pools"),
+        )
+        action_facts_hash = api_server._routing_guarded_quote_oracle_action_facts_hash(
+            path="/api/dex/quote_exact_in_route_guarded",
+            asset_in=str(payload["asset_in"]),
+            asset_out=str(payload["asset_out"]),
+            amount_in=int(payload["amount_in"]),
+            split_search_profile=str(payload.get("split_search_profile", "adaptive_v6")),
+            enable_mixed_direct_twohop_split=bool(payload.get("enable_mixed_direct_twohop_split", False)),
+            binding_ok=int(payload.get("binding_ok", 1)),
+            pools_raw=payload.get("pools"),
+            runtime_quote=runtime_quote,
+            action_epoch=action_epoch,
+        )
+        runtime_value_e8 = int(runtime_quote["amount_out"])
+    else:
+        action_id = api_server._routing_guarded_exact_out_quote_oracle_action_id(
+            path="/api/dex/quote_exact_out_many_pool_guarded",
+            asset_in=str(payload["asset_in"]),
+            asset_out=str(payload["asset_out"]),
+            amount_out_total=int(payload["amount_out_total"]),
+            max_legs=int(payload.get("max_legs", 3)),
+            max_candidate_pools=int(payload.get("max_candidate_pools", 5)),
+            max_candidates=int(payload.get("max_candidates", 12)),
+            max_iters=int(payload.get("max_iters", 4096)),
+            window=int(payload.get("window", 64)),
+            brute_force_max=int(payload.get("brute_force_max", 512)),
+            max_enumerated_candidates=int(payload.get("max_enumerated_candidates", 20_000)),
+            pools_raw=payload.get("pools"),
+        )
+        action_facts_hash = api_server._routing_guarded_exact_out_quote_oracle_action_facts_hash(
+            path="/api/dex/quote_exact_out_many_pool_guarded",
+            asset_in=str(payload["asset_in"]),
+            asset_out=str(payload["asset_out"]),
+            amount_out_total=int(payload["amount_out_total"]),
+            max_legs=int(payload.get("max_legs", 3)),
+            max_candidate_pools=int(payload.get("max_candidate_pools", 5)),
+            max_candidates=int(payload.get("max_candidates", 12)),
+            max_iters=int(payload.get("max_iters", 4096)),
+            window=int(payload.get("window", 64)),
+            brute_force_max=int(payload.get("brute_force_max", 512)),
+            max_enumerated_candidates=int(payload.get("max_enumerated_candidates", 20_000)),
+            pools_raw=payload.get("pools"),
+            runtime_quote=runtime_quote,
+            action_epoch=action_epoch,
+        )
+        runtime_value_e8 = int(runtime_quote["amount_in_total"])
+
+    observed_epoch = 0
+    authorized_value_e8 = runtime_value_e8 if value_e8 is None else int(value_e8)
+    authorization = OracleAuthorization(
+        consumer_module="zenodex.routing",
+        action_kind="guarded_quote",
+        action_id=action_id,
+        action_facts_hash=action_facts_hash,
+        pre_state_hash=api_server._routing_pre_state_hash(pools_raw=payload.get("pools")),
+        profile_id=api_server.DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
+        query_id=api_server.DEX_ROUTING_REFERENCE_QUERY_ID,
+        value_e8=authorized_value_e8,
+        value_hash=oracle_value_hash(
+            query_id=api_server.DEX_ROUTING_REFERENCE_QUERY_ID,
+            value_e8=authorized_value_e8,
+            observed_epoch=observed_epoch,
+        ),
+        confidence_e8=1,
+        deviation_bps=0,
+        observed_epoch=observed_epoch,
+        expires_at_epoch=action_epoch + 10,
+        feed_id="feed:routing-reference:v1",
+        feed_registry_root=semantic_hash("test.routing.feed_registry", {"name": "r1"}),
+        query_policy_root=semantic_hash("test.routing.query_policy", {"name": "q1"}),
+        source_registry_root=semantic_hash("test.routing.source_registry", {"name": "s1"}),
+        reporter_registry_root=semantic_hash("test.routing.reporter_registry", {"name": "p1"}),
+        evidence_class="O3",
+        economic_envelope_id="econ:routing-small-v1",
+        receipt_graph_root=semantic_hash("test.routing.receipt_graph", {"name": "placeholder"}),
+    )
+    return authorization_bundle(asdict(authorization))
 
 
 def _spot_settlement_request() -> tuple[dict, dict[str, int]]:
@@ -897,6 +993,95 @@ def test_api_server_oracle_adapter_guarded_quote_invalid_required_config_fails_c
         assert body["detail"].startswith(
             "oracle_adapter_bridge config error: DEX_ROUTING_ORACLE_ADAPTER_REQUIRED must be one of:"
         )
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_authorization_guarded_quote_requires_authorization_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED", "1")
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_in_route_guarded",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "oracle_action_epoch": 0,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "guarded_quote requires oracle_authorization"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_authorization_guarded_quote_accepts_bound_authorization() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        payload = {
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 10,
+            "oracle_action_epoch": 0,
+            "pools": pools,
+        }
+        status_preview, preview = _post_json(host, port, "/api/dex/quote_exact_in_route_guarded", payload)
+        assert status_preview == 200
+        assert preview["ok"] is True
+        payload["oracle_authorization"] = _routing_oracle_authorization_bundle(payload, preview["quote"])
+
+        status, body = _post_json(host, port, "/api/dex/quote_exact_in_route_guarded", payload)
+
+        assert status == 200
+        assert body["ok"] is True
+        assert body["quote"] == preview["quote"]
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_authorization_guarded_quote_rejects_wrong_runtime_value() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+        payload = {
+            "asset_in": "A",
+            "asset_out": "B",
+            "amount_in": 10,
+            "oracle_action_epoch": 0,
+            "pools": pools,
+        }
+        status_preview, preview = _post_json(host, port, "/api/dex/quote_exact_in_route_guarded", payload)
+        assert status_preview == 200
+        payload["oracle_authorization"] = _routing_oracle_authorization_bundle(
+            payload,
+            preview["quote"],
+            value_e8=int(preview["quote"]["amount_out"]) + 1,
+        )
+
+        status, body = _post_json(host, port, "/api/dex/quote_exact_in_route_guarded", payload)
+
+        assert status == 400
+        assert body["ok"] is False
+        assert "runtime_value_e8 mismatch" in body["detail"]
     finally:
         _stop_test_server(httpd, t)
 
@@ -5834,6 +6019,51 @@ def test_api_server_oracle_adapter_exact_out_guarded_quote_invalid_required_conf
         assert body["detail"].startswith(
             "oracle_adapter_bridge config error: DEX_ROUTING_ORACLE_ADAPTER_REQUIRED must be one of:"
         )
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_authorization_exact_out_guarded_quote_requires_authorization_when_configured(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED", "1")
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        payload = _exact_out_guarded_quote_payload(pools)
+        payload["oracle_action_epoch"] = 0
+        status, body = _post_json(host, port, "/api/dex/quote_exact_out_many_pool_guarded", payload)
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "guarded_quote requires oracle_authorization"
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_authorization_exact_out_guarded_quote_accepts_bound_authorization() -> None:
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="pool_b", a0="A", a1="B", r0=100, r1=34, fee_bps=0),
+            _pool_dict(pid="pool_a", a0="A", a1="B", r0=120, r1=40, fee_bps=0),
+            _pool_dict(pid="pool_c", a0="A", a1="B", r0=160, r1=60, fee_bps=0),
+        ]
+        payload = _exact_out_guarded_quote_payload(pools)
+        payload["oracle_action_epoch"] = 0
+        status_preview, preview = _post_json(host, port, "/api/dex/quote_exact_out_many_pool_guarded", payload)
+        assert status_preview == 200
+        assert preview["ok"] is True
+        payload["oracle_authorization"] = _routing_oracle_authorization_bundle(payload, preview["quote"])
+
+        status, body = _post_json(host, port, "/api/dex/quote_exact_out_many_pool_guarded", payload)
+
+        assert status == 200
+        assert body["ok"] is True
+        assert body["quote"] == preview["quote"]
     finally:
         _stop_test_server(httpd, t)
 
