@@ -1,0 +1,533 @@
+"""Typed ZenoOracle authorization checks for critical runtime consumers."""
+
+from __future__ import annotations
+
+import hashlib
+from dataclasses import asdict, dataclass
+from typing import Any, Mapping
+
+from ..state.canonical import canonical_json_bytes
+
+
+SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
+EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+
+CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
+    ("zenodex.zusd", "bootstrap_oracle"): "critical-zusd-v1",
+    ("zenodex.zusd", "oracle_report"): "critical-zusd-v1",
+    ("zenodex.zusd", "oracle_commit"): "critical-zusd-v1",
+    ("zenodex.zusd", "mint"): "critical-zusd-v1",
+    ("zenodex.zusd", "liquidate"): "critical-zusd-v1",
+    ("zenodex.perps", "settle_epoch"): "critical-perps-v1",
+    ("zenodex.perps", "liquidate"): "critical-perps-v1",
+    ("zenodex.routing", "protected_swap"): "critical-routing-v1",
+    ("zenodex.trigger", "execute"): "critical-trigger-v1",
+    ("zenodex.settlement", "critical_settlement"): "critical-settlement-v1",
+}
+
+
+@dataclass(frozen=True)
+class OracleAuthorization:
+    consumer_module: str
+    action_kind: str
+    action_id: str
+    action_facts_hash: str
+    pre_state_hash: str
+    profile_id: str
+    query_id: str
+    value_e8: int
+    value_hash: str
+    confidence_e8: int
+    deviation_bps: int
+    observed_epoch: int
+    expires_at_epoch: int
+    feed_id: str
+    feed_registry_root: str
+    query_policy_root: str
+    source_registry_root: str
+    reporter_registry_root: str
+    evidence_class: str
+    economic_envelope_id: str
+    receipt_graph_root: str
+
+
+@dataclass(frozen=True)
+class RuntimeActionFacts:
+    consumer_module: str
+    action_kind: str
+    action_id: str
+    action_facts_hash: str
+    pre_state_hash: str
+    profile_id: str
+    query_id: str
+    runtime_value_e8: int
+    now_epoch: int
+
+
+def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
+    return canonical_json_bytes(dict(payload))
+
+
+def semantic_hash(domain: str, payload: Mapping[str, Any]) -> str:
+    digest = hashlib.sha256(domain.encode("utf-8") + b"\x00" + _canonical_bytes(payload)).hexdigest()
+    return f"sha256:{digest}"
+
+
+def oracle_value_hash(*, query_id: str, value_e8: int, observed_epoch: int) -> str:
+    return semantic_hash(
+        "zenodex.oracle.value.v1",
+        {
+            "observed_epoch": int(observed_epoch),
+            "query_id": str(query_id),
+            "value_e8": int(value_e8),
+        },
+    )
+
+
+def _is_sha256_ref(value: str) -> bool:
+    if not isinstance(value, str) or not value.startswith("sha256:") or len(value) != 71:
+        return False
+    try:
+        int(value.removeprefix("sha256:"), 16)
+    except ValueError:
+        return False
+    return True
+
+
+def _rank_at_least(actual: Any, minimum: str) -> bool:
+    return EVIDENCE_RANK.get(str(actual), -1) >= EVIDENCE_RANK[minimum]
+
+
+def _graph_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    maybe_graph = payload.get("receipt_graph")
+    if isinstance(maybe_graph, Mapping):
+        return maybe_graph
+    return None
+
+
+def _non_negative_graph_int(graph: Mapping[str, Any], key: str, errors: list[str]) -> int:
+    value = graph.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(f"receipt_graph {key} must be a non-negative int")
+        return 0
+    out = int(value)
+    if out < 0:
+        errors.append(f"receipt_graph {key} must be a non-negative int")
+        return 0
+    return out
+
+
+def _non_negative_leaf_int(leaf: Mapping[str, Any], key: str, errors: list[str], *, report_id: str) -> int:
+    value = leaf.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(f"receipt_graph report leaf {report_id} {key} must be a non-negative int")
+        return 0
+    out = int(value)
+    if out < 0:
+        errors.append(f"receipt_graph report leaf {report_id} {key} must be a non-negative int")
+        return 0
+    return out
+
+
+def verify_receipt_graph_binding(
+    authorization: OracleAuthorization,
+    receipt_graph: Mapping[str, Any] | None,
+) -> tuple[bool, tuple[str, ...]]:
+    """Check that a terminal receipt graph closes over the authorization.
+
+    This is intentionally a structural verifier, not a live oracle replay. It
+    proves that the runtime-consumed authorization is bound to a terminal graph
+    carrying the same value, roots, uncertainty, freshness, and O3-or-better
+    evidence. The CLI/local-state replay remains responsible for reconstructing
+    the full graph from persisted reports.
+    """
+
+    errors: list[str] = []
+    if receipt_graph is None:
+        return False, ("receipt_graph required",)
+    if receipt_graph.get("schema") != "zeno_oracle.receipt_graph.v1":
+        errors.append("receipt_graph schema must be zeno_oracle.receipt_graph.v1")
+
+    for key in (
+        "read_id",
+        "aggregate_id",
+        "value_hash",
+        "report_leaf_root",
+        "dispute_state_root",
+        "feed_registry_root",
+        "query_policy_root",
+        "source_registry_root",
+        "reporter_registry_root",
+        "receipt_graph_root",
+    ):
+        if not _is_sha256_ref(str(receipt_graph.get(key, ""))):
+            errors.append(f"receipt_graph {key} must be a sha256 reference")
+
+    for key in (
+        "feed_registry_root",
+        "query_policy_root",
+        "source_registry_root",
+        "reporter_registry_root",
+        "receipt_graph_root",
+    ):
+        if getattr(authorization, key) != receipt_graph.get(key):
+            errors.append(f"receipt_graph {key} does not match authorization")
+
+    for auth_key, graph_key in (
+        ("query_id", "query_id"),
+        ("value_e8", "value_e8"),
+        ("value_hash", "value_hash"),
+        ("confidence_e8", "confidence_e8"),
+        ("deviation_bps", "deviation_bps"),
+        ("observed_epoch", "observed_epoch"),
+        ("expires_at_epoch", "expires_at_epoch"),
+        ("evidence_class", "read_evidence_class"),
+    ):
+        if getattr(authorization, auth_key) != receipt_graph.get(graph_key):
+            errors.append(f"receipt_graph {graph_key} does not match authorization")
+
+    observed_epoch = _non_negative_graph_int(receipt_graph, "observed_epoch", errors)
+    expires_at_epoch = _non_negative_graph_int(receipt_graph, "expires_at_epoch", errors)
+    reporter_count = _non_negative_graph_int(receipt_graph, "reporter_count", errors)
+    min_reporters = _non_negative_graph_int(receipt_graph, "min_reporters", errors)
+    source_count = _non_negative_graph_int(receipt_graph, "source_count", errors)
+    control_group_count = _non_negative_graph_int(receipt_graph, "reporter_control_group_count", errors)
+    _non_negative_graph_int(receipt_graph, "confidence_e8", errors)
+    deviation_bps = _non_negative_graph_int(receipt_graph, "deviation_bps", errors)
+    if expires_at_epoch < observed_epoch:
+        errors.append("receipt_graph expires before observed epoch")
+    if deviation_bps > 10_000:
+        errors.append("receipt_graph deviation_bps must be in [0, 10000]")
+    if reporter_count < min_reporters:
+        errors.append("receipt_graph reporter_count below min_reporters")
+    if source_count < min_reporters:
+        errors.append("receipt_graph source_count below min_reporters")
+    if control_group_count < min_reporters:
+        errors.append("receipt_graph reporter_control_group_count below min_reporters")
+    if not _rank_at_least(receipt_graph.get("read_evidence_class"), "O3"):
+        errors.append("receipt_graph read_evidence_class below O3")
+    if not _rank_at_least(receipt_graph.get("aggregate_evidence_class"), "O3"):
+        errors.append("receipt_graph aggregate_evidence_class below O3")
+
+    included_report_ids = receipt_graph.get("included_report_ids")
+    if not isinstance(included_report_ids, list) or not included_report_ids:
+        errors.append("receipt_graph included_report_ids must be a non-empty list")
+        included_report_set: set[str] = set()
+    else:
+        included_report_set = {str(item) for item in included_report_ids}
+        if len(included_report_set) != len(included_report_ids):
+            errors.append("receipt_graph included_report_ids must be distinct")
+    included_source_ids = receipt_graph.get("included_source_ids")
+    if not isinstance(included_source_ids, list) or not included_source_ids:
+        errors.append("receipt_graph included_source_ids must be a non-empty list")
+    elif len({str(item) for item in included_source_ids}) != len(included_source_ids):
+        errors.append("receipt_graph included_source_ids must be distinct")
+
+    disputed_report_ids = receipt_graph.get("disputed_report_ids")
+    if not isinstance(disputed_report_ids, list):
+        errors.append("receipt_graph disputed_report_ids must be a list")
+    elif disputed_report_ids:
+        errors.append("receipt_graph must not include disputed reports")
+
+    report_leaf_commitments = receipt_graph.get("report_leaf_commitments")
+    if not isinstance(report_leaf_commitments, list) or not report_leaf_commitments:
+        errors.append("receipt_graph report_leaf_commitments must be a non-empty list")
+    else:
+        leaf_report_ids: list[str] = []
+        leaf_source_ids: list[str] = []
+        leaf_control_group_ids: list[str] = []
+        for index, leaf in enumerate(report_leaf_commitments):
+            if not isinstance(leaf, Mapping):
+                errors.append(f"receipt_graph report_leaf_commitments[{index}] must be an object")
+                continue
+            report_id = str(leaf.get("report_id", ""))
+            source_id = str(leaf.get("source_id", ""))
+            control_group_id = str(leaf.get("control_group_id", leaf.get("reporter_id", "")))
+            leaf_report_ids.append(report_id)
+            leaf_source_ids.append(source_id)
+            leaf_control_group_ids.append(control_group_id)
+            if not bool(leaf.get("active", False)):
+                errors.append(f"receipt_graph report leaf {report_id} reporter inactive")
+            if str(leaf.get("slash_state", "")) != "clear":
+                errors.append(f"receipt_graph report leaf {report_id} slash_state not clear")
+            bond_key = "bond_e8" if "bond_e8" in leaf else "bond_amount_e8"
+            bond_e8 = _non_negative_leaf_int(leaf, bond_key, errors, report_id=report_id)
+            required_bond_e8 = _non_negative_leaf_int(leaf, "required_bond_e8", errors, report_id=report_id)
+            if bond_e8 < required_bond_e8:
+                errors.append(f"receipt_graph report leaf {report_id} bond below required")
+        if leaf_report_ids != sorted(leaf_report_ids):
+            errors.append("receipt_graph report_leaf_commitments must be sorted by report_id")
+        if included_report_set and set(leaf_report_ids) != included_report_set:
+            errors.append("receipt_graph report_leaf_commitments must match included_report_ids")
+        if isinstance(included_source_ids, list) and {str(item) for item in included_source_ids} != set(leaf_source_ids):
+            errors.append("receipt_graph report_leaf_commitments must match included_source_ids")
+        if len(leaf_report_ids) != reporter_count:
+            errors.append("receipt_graph reporter_count does not match report_leaf_commitments")
+        if len(set(leaf_source_ids)) != source_count:
+            errors.append("receipt_graph source_count does not match distinct report leaf sources")
+        if len(set(leaf_control_group_ids)) != control_group_count:
+            errors.append("receipt_graph reporter_control_group_count does not match distinct report leaf control groups")
+        if len(set(leaf_control_group_ids)) < min_reporters:
+            errors.append("receipt_graph distinct control groups below min_reporters")
+        expected_report_leaf_root = semantic_hash(
+            "zeno_oracle.report_leaf_root.v1",
+            {"reports": report_leaf_commitments},
+        )
+        if receipt_graph.get("report_leaf_root") != expected_report_leaf_root:
+            errors.append("receipt_graph report_leaf_root mismatch")
+
+    body = dict(receipt_graph)
+    receipt_graph_root = body.pop("receipt_graph_root", None)
+    expected_receipt_graph_root = semantic_hash("zeno_oracle.receipt_graph.v1", body)
+    if receipt_graph_root != expected_receipt_graph_root:
+        errors.append("receipt_graph_root mismatch")
+    if authorization.receipt_graph_root != expected_receipt_graph_root:
+        errors.append("authorization receipt_graph_root does not match terminal graph")
+    return not errors, tuple(errors)
+
+
+def verify_opaque_authorization(
+    authorization: OracleAuthorization,
+    runtime: RuntimeActionFacts,
+) -> tuple[bool, tuple[str, ...]]:
+    """Legacy comparison model: match opaque identifiers but not typed semantics."""
+
+    errors: list[str] = []
+    if authorization.consumer_module != runtime.consumer_module:
+        errors.append("consumer_module mismatch")
+    if authorization.action_kind != runtime.action_kind:
+        errors.append("action_kind mismatch")
+    if authorization.action_id != runtime.action_id:
+        errors.append("action_id mismatch")
+    if authorization.profile_id != runtime.profile_id:
+        errors.append("profile_id mismatch")
+    if authorization.query_id != runtime.query_id:
+        errors.append("query_id mismatch")
+    if runtime.now_epoch > authorization.expires_at_epoch:
+        errors.append("authorization expired")
+    return not errors, tuple(errors)
+
+
+def verify_typed_authorization(
+    authorization: OracleAuthorization,
+    runtime: RuntimeActionFacts,
+) -> tuple[bool, tuple[str, ...]]:
+    """Typed comparison required for critical Oracle consumers."""
+
+    ok, opaque_errors = verify_opaque_authorization(authorization, runtime)
+    errors = list(opaque_errors)
+    if int(runtime.now_epoch) < 0:
+        errors.append("runtime now_epoch must be non-negative")
+    if int(authorization.observed_epoch) < 0:
+        errors.append("observed_epoch must be non-negative")
+    if int(authorization.expires_at_epoch) < 0:
+        errors.append("expires_at_epoch must be non-negative")
+    if int(authorization.observed_epoch) > int(authorization.expires_at_epoch):
+        errors.append("observed_epoch after expires_at_epoch")
+    if int(authorization.observed_epoch) > int(runtime.now_epoch):
+        errors.append("authorization observed in the future")
+    if int(authorization.confidence_e8) < 0:
+        errors.append("confidence_e8 must be non-negative")
+    if int(authorization.deviation_bps) < 0 or int(authorization.deviation_bps) > 10_000:
+        errors.append("deviation_bps must be in [0, 10000]")
+    evidence_rank = EVIDENCE_RANK.get(authorization.evidence_class)
+    if evidence_rank is None:
+        errors.append("evidence_class must be one of O0..O5")
+    elif evidence_rank < EVIDENCE_RANK["O3"]:
+        errors.append("evidence_class below required O3")
+    if authorization.action_facts_hash != runtime.action_facts_hash:
+        errors.append("action_facts_hash mismatch")
+    if authorization.pre_state_hash != runtime.pre_state_hash:
+        errors.append("pre_state_hash mismatch")
+    if int(authorization.value_e8) != int(runtime.runtime_value_e8):
+        errors.append("runtime_value_e8 mismatch")
+    expected_value_hash = oracle_value_hash(
+        query_id=authorization.query_id,
+        value_e8=authorization.value_e8,
+        observed_epoch=authorization.observed_epoch,
+    )
+    if authorization.value_hash != expected_value_hash:
+        errors.append("value_hash does not bind query_id/value_e8/observed_epoch")
+    for key, value in (
+        ("action_id", authorization.action_id),
+        ("action_facts_hash", authorization.action_facts_hash),
+        ("value_hash", authorization.value_hash),
+        ("feed_registry_root", authorization.feed_registry_root),
+        ("query_policy_root", authorization.query_policy_root),
+        ("source_registry_root", authorization.source_registry_root),
+        ("reporter_registry_root", authorization.reporter_registry_root),
+        ("receipt_graph_root", authorization.receipt_graph_root),
+    ):
+        if not _is_sha256_ref(value):
+            errors.append(f"{key} must be a sha256 reference")
+    return bool(ok and not errors), tuple(errors)
+
+
+def _require_str(obj: Mapping[str, Any], key: str) -> str:
+    value = obj.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{key} must be a non-empty string")
+    return value
+
+
+def _require_int(obj: Mapping[str, Any], key: str) -> int:
+    value = obj.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{key} must be an int")
+    return int(value)
+
+
+def authorization_from_obj(obj: Mapping[str, Any]) -> OracleAuthorization:
+    return OracleAuthorization(
+        consumer_module=_require_str(obj, "consumer_module"),
+        action_kind=_require_str(obj, "action_kind"),
+        action_id=_require_str(obj, "action_id"),
+        action_facts_hash=_require_str(obj, "action_facts_hash"),
+        pre_state_hash=_require_str(obj, "pre_state_hash"),
+        profile_id=_require_str(obj, "profile_id"),
+        query_id=_require_str(obj, "query_id"),
+        value_e8=_require_int(obj, "value_e8"),
+        value_hash=_require_str(obj, "value_hash"),
+        confidence_e8=_require_int(obj, "confidence_e8"),
+        deviation_bps=_require_int(obj, "deviation_bps"),
+        observed_epoch=_require_int(obj, "observed_epoch"),
+        expires_at_epoch=_require_int(obj, "expires_at_epoch"),
+        feed_id=_require_str(obj, "feed_id"),
+        feed_registry_root=_require_str(obj, "feed_registry_root"),
+        query_policy_root=_require_str(obj, "query_policy_root"),
+        source_registry_root=_require_str(obj, "source_registry_root"),
+        reporter_registry_root=_require_str(obj, "reporter_registry_root"),
+        evidence_class=_require_str(obj, "evidence_class"),
+        economic_envelope_id=_require_str(obj, "economic_envelope_id"),
+        receipt_graph_root=_require_str(obj, "receipt_graph_root"),
+    )
+
+
+def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
+    return RuntimeActionFacts(
+        consumer_module=_require_str(obj, "consumer_module"),
+        action_kind=_require_str(obj, "action_kind"),
+        action_id=_require_str(obj, "action_id"),
+        action_facts_hash=_require_str(obj, "action_facts_hash"),
+        pre_state_hash=_require_str(obj, "pre_state_hash"),
+        profile_id=_require_str(obj, "profile_id"),
+        query_id=_require_str(obj, "query_id"),
+        runtime_value_e8=_require_int(obj, "runtime_value_e8"),
+        now_epoch=_require_int(obj, "now_epoch"),
+    )
+
+
+def _authorization_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    maybe_nested = payload.get("authorization")
+    if isinstance(maybe_nested, Mapping):
+        return maybe_nested
+    return payload
+
+
+def check_authorization_for_runtime(
+    authorization_payload: Mapping[str, Any],
+    runtime: RuntimeActionFacts,
+    *,
+    require_receipt_graph: bool = False,
+) -> dict[str, Any]:
+    """Check one authorization against runtime facts supplied by the consumer.
+
+    Critical adapters should use this shape instead of trusting a bundle's
+    embedded `runtime_action`, because the adapter must compare against the
+    action facts it is actually about to execute.
+    """
+
+    authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
+    opaque_ok, opaque_errors = verify_opaque_authorization(authorization, runtime)
+    typed_ok, typed_errors = verify_typed_authorization(authorization, runtime)
+    receipt_graph = _graph_obj_from_payload(authorization_payload)
+    graph_ok = True
+    graph_errors: tuple[str, ...] = ()
+    if require_receipt_graph or receipt_graph is not None:
+        graph_ok, graph_errors = verify_receipt_graph_binding(authorization, receipt_graph)
+        typed_errors = tuple(list(typed_errors) + list(graph_errors))
+        typed_ok = bool(typed_ok and graph_ok)
+    return {
+        "schema": SCHEMA,
+        "opaque_ok": bool(opaque_ok),
+        "typed_ok": bool(typed_ok),
+        "receipt_graph_ok": bool(graph_ok),
+        "opaque_errors": list(opaque_errors),
+        "typed_errors": list(typed_errors),
+        "receipt_graph_errors": list(graph_errors),
+        "authorization": asdict(authorization),
+        "runtime_action": asdict(runtime),
+    }
+
+
+def check_authorization_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    auth_obj = payload.get("authorization")
+    runtime_obj = payload.get("runtime_action")
+    if not isinstance(auth_obj, Mapping):
+        raise ValueError("authorization must be an object")
+    if not isinstance(runtime_obj, Mapping):
+        raise ValueError("runtime_action must be an object")
+    return check_authorization_for_runtime(auth_obj, runtime_from_obj(runtime_obj))
+
+
+def check_critical_consumer_authorization(
+    authorization_payload: Mapping[str, Any],
+    *,
+    consumer_module: str,
+    action_kind: str,
+    action_id: str,
+    action_facts_hash: str,
+    pre_state_hash: str,
+    query_id: str,
+    runtime_value_e8: int,
+    now_epoch: int,
+    profile_id: str | None = None,
+    require_receipt_graph: bool = True,
+) -> dict[str, Any]:
+    expected_profile = profile_id or CRITICAL_CONSUMER_PROFILES.get((consumer_module, action_kind))
+    if expected_profile is None:
+        return {
+            "schema": SCHEMA,
+            "opaque_ok": False,
+            "typed_ok": False,
+            "receipt_graph_ok": False,
+            "opaque_errors": ["unsupported critical consumer/action"],
+            "typed_errors": ["unsupported critical consumer/action"],
+            "receipt_graph_errors": ["unsupported critical consumer/action"],
+            "authorization": dict(_authorization_obj_from_payload(authorization_payload)),
+            "runtime_action": {
+                "consumer_module": consumer_module,
+                "action_kind": action_kind,
+                "action_id": action_id,
+                "action_facts_hash": action_facts_hash,
+                "pre_state_hash": pre_state_hash,
+                "profile_id": profile_id,
+                "query_id": query_id,
+                "runtime_value_e8": runtime_value_e8,
+                "now_epoch": now_epoch,
+            },
+        }
+    runtime = RuntimeActionFacts(
+        consumer_module=consumer_module,
+        action_kind=action_kind,
+        action_id=action_id,
+        action_facts_hash=action_facts_hash,
+        pre_state_hash=pre_state_hash,
+        profile_id=expected_profile,
+        query_id=query_id,
+        runtime_value_e8=int(runtime_value_e8),
+        now_epoch=int(now_epoch),
+    )
+    result = check_authorization_for_runtime(
+        authorization_payload,
+        runtime,
+        require_receipt_graph=require_receipt_graph,
+    )
+    authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
+    typed_errors = list(result["typed_errors"])
+    if authorization.profile_id != expected_profile:
+        typed_errors.append("critical profile mismatch")
+    result["typed_errors"] = typed_errors
+    result["typed_ok"] = bool(result["typed_ok"] and not typed_errors)
+    result["critical_consumer_profile"] = expected_profile
+    return result

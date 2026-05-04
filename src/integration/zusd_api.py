@@ -27,6 +27,7 @@ from ..core.zusd import (
 )
 from .zusd_tau_gate import ZUSDTauGateConfig, step_multi_with_tau, step_with_tau
 from ..state.canonical import canonical_json_bytes
+from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 MAX_POST_BODY: int = 65_536
 
@@ -96,6 +97,18 @@ def _bool_env(name: str, *, default: bool) -> bool:
     if v in {"0", "false", "no", "off"}:
         return False
     return bool(default)
+
+
+def _strict_bool_env(name: str, *, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return bool(default)
+    v = raw.strip().lower()
+    if v in {"1", "true", "yes", "on"}:
+        return True
+    if v in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be one of: 1, true, yes, on, 0, false, no, off")
 
 
 def _float_env(name: str, default: float, *, lo: float, hi: float) -> float:
@@ -319,6 +332,40 @@ def _zusd_runtime_oracle_action_id(
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
+def _zusd_runtime_oracle_pre_state_hash(*, mode: str, state: ZUSDState | ZUSDMultiState) -> str:
+    state_payload = _single_state_payload(state) if isinstance(state, ZUSDState) else _multi_state_payload(state)
+    return semantic_hash(
+        "zenodex.zusd.pre_state.v1",
+        {
+            "mode": mode,
+            "state": state_payload,
+        },
+    )
+
+
+def _zusd_runtime_oracle_action_facts_hash(
+    *,
+    mode: str,
+    state: ZUSDState | ZUSDMultiState,
+    tag: str,
+    args: Mapping[str, Any],
+) -> str:
+    action_kind = _ZUSD_ORACLE_ADAPTER_ACTIONS[tag]
+    return semantic_hash(
+        "zenodex.zusd.action_facts.v1",
+        {
+            "args": dict(args),
+            "consumer_module": "zenodex.zusd",
+            "action_kind": action_kind,
+            "mode": mode,
+            "now_epoch": int(state.now_epoch),
+            "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+            "runtime_value_e8": int(state.price_e8),
+            "tag": tag,
+        },
+    )
+
+
 def _check_zusd_oracle_adapter_bridge(
     *,
     body: Mapping[str, Any],
@@ -331,7 +378,10 @@ def _check_zusd_oracle_adapter_bridge(
     if action_kind is None:
         return None
 
-    required = _bool_env("ZUSD_ORACLE_ADAPTER_REQUIRED", default=False)
+    try:
+        required = _strict_bool_env("ZUSD_ORACLE_ADAPTER_REQUIRED", default=False)
+    except ValueError as exc:
+        return f"oracle_adapter_bridge config error: {exc}"
     if "oracle_adapter_bridge" not in body:
         if required:
             return f"{action_kind} requires oracle_adapter_bridge"
@@ -366,6 +416,56 @@ def _check_zusd_oracle_adapter_bridge(
     expected_action_id = _zusd_runtime_oracle_action_id(mode=mode, state=state, tag=tag, args=args)
     if _adapter_result_get(result, "action_id") != expected_action_id:
         return "oracle_adapter_bridge action_id mismatch"
+    return None
+
+
+def _check_zusd_oracle_authorization(
+    *,
+    body: Mapping[str, Any],
+    mode: str,
+    state: ZUSDState | ZUSDMultiState,
+    tag: str,
+    args: Mapping[str, Any],
+) -> Optional[str]:
+    action_kind = _ZUSD_ORACLE_ADAPTER_ACTIONS.get(tag)
+    if action_kind is None:
+        return None
+
+    try:
+        required = _strict_bool_env("ZUSD_ORACLE_AUTHORIZATION_REQUIRED", default=False)
+    except ValueError as exc:
+        return f"oracle_authorization config error: {exc}"
+
+    if "oracle_authorization" not in body:
+        if required:
+            return f"{action_kind} requires oracle_authorization"
+        return None
+
+    authorization = body.get("oracle_authorization")
+    if not isinstance(authorization, Mapping):
+        return "oracle_authorization must be an object"
+
+    try:
+        result = check_critical_consumer_authorization(
+            authorization,
+            consumer_module="zenodex.zusd",
+            action_kind=action_kind,
+            action_id=_zusd_runtime_oracle_action_id(mode=mode, state=state, tag=tag, args=args),
+            action_facts_hash=_zusd_runtime_oracle_action_facts_hash(mode=mode, state=state, tag=tag, args=args),
+            pre_state_hash=_zusd_runtime_oracle_pre_state_hash(mode=mode, state=state),
+            profile_id=_ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind],
+            query_id=_ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+            runtime_value_e8=int(state.price_e8),
+            now_epoch=int(state.now_epoch),
+        )
+    except Exception as exc:
+        return f"oracle_authorization verifier error: {type(exc).__name__}"
+
+    if not result.get("typed_ok"):
+        errors = result.get("typed_errors")
+        if isinstance(errors, list) and errors:
+            return "oracle_authorization rejected: " + "; ".join(str(error) for error in errors[:3])
+        return "oracle_authorization rejected"
     return None
 
 
@@ -442,6 +542,31 @@ def _handle_post(
                 },
             )
 
+        authorization_err = _check_zusd_oracle_authorization(
+            body=parsed,
+            mode="single",
+            state=single,
+            tag=tag,
+            args=args,
+        )
+        if authorization_err is not None:
+            new_history = _history_with_entry(
+                history,
+                mode="single",
+                tag=tag,
+                args=args,
+                ok=False,
+                error=authorization_err,
+            )
+            return single, multi, new_history, (
+                400,
+                {
+                    "ok": False,
+                    "error": "rejected",
+                    "detail": authorization_err,
+                },
+            )
+
         sync_target = _planned_single_oracle_sync_target(state=single, tag=tag, args=args)
         if sync_target is not None:
             sync_err = _check_perp_oracle_sync(price_e8=sync_target[0], epoch=sync_target[1])
@@ -511,6 +636,31 @@ def _handle_post(
                 "ok": False,
                 "error": "rejected",
                 "detail": bridge_err_multi,
+            },
+        )
+
+    authorization_err_multi = _check_zusd_oracle_authorization(
+        body=parsed,
+        mode="multi",
+        state=multi,
+        tag=tag,
+        args=args,
+    )
+    if authorization_err_multi is not None:
+        new_history = _history_with_entry(
+            history,
+            mode="multi",
+            tag=tag,
+            args=args,
+            ok=False,
+            error=authorization_err_multi,
+        )
+        return single, multi, new_history, (
+            400,
+            {
+                "ok": False,
+                "error": "rejected",
+                "detail": authorization_err_multi,
             },
         )
 

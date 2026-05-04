@@ -3,7 +3,8 @@
 
 The consumer-profile catalog is the design-level map. This checker compares
 that catalog against the runtime modules that currently consume Oracle adapter
-bridges, and reports any catalog/runtime drift.
+bridges and typed OracleAuthorization bundles, and reports any catalog/runtime
+drift.
 """
 
 from __future__ import annotations
@@ -116,6 +117,8 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
     )
     for needle in (
         "_require_oracle_adapter_bridge(",
+        "_require_perps_oracle_authorization(",
+        "check_critical_consumer_authorization(",
         'consumer_module="zenodex.perps"',
         'action_kind="settle_epoch"',
         "expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID",
@@ -124,6 +127,10 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
         "expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(",
         "required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch",
         "required=config.require_oracle_adapter_for_clearinghouse_settle_epoch",
+        "required=ctx.config.require_oracle_authorization_for_isolated_settle_epoch",
+        "action_facts_hash=_perps_runtime_oracle_action_facts_hash(",
+        "pre_state_hash=_perps_runtime_oracle_pre_state_hash(",
+        "runtime_value_e8=_perps_runtime_oracle_value_e8(market)",
     ):
         _expect(needle in source, errors, f"perps_settle_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -136,6 +143,10 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
             "required_controls": [
                 "require_oracle_adapter_for_isolated_settle_epoch",
                 "require_oracle_adapter_for_clearinghouse_settle_epoch",
+                "require_oracle_authorization_for_isolated_settle_epoch",
+            ],
+            "typed_authorization_controls": [
+                "require_oracle_authorization_for_isolated_settle_epoch",
             ],
             "covered_runtime_actions": [
                 "isolated_settle_epoch",
@@ -177,10 +188,15 @@ def _check_zusd_action(
     )
     for needle in (
         "_check_zusd_oracle_adapter_bridge(",
+        "_check_zusd_oracle_authorization(",
         "ZUSD_ORACLE_ADAPTER_REQUIRED",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
         'consumer_module": "zenodex.zusd"',
         'if _adapter_result_get(result, "profile_id") != _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]',
         'if _adapter_result_get(result, "action_id") != expected_action_id',
+        "action_facts_hash=_zusd_runtime_oracle_action_facts_hash(",
+        "pre_state_hash=_zusd_runtime_oracle_pre_state_hash(",
+        "runtime_value_e8=int(state.price_e8)",
     ):
         _expect(needle in source, errors, f"zusd_{action_kind}_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -190,7 +206,10 @@ def _check_zusd_action(
         details={
             "query_id": profile["query_id"],
             "profile_id": profile["profile_id"],
-            "required_control": "ZUSD_ORACLE_ADAPTER_REQUIRED",
+            "required_controls": [
+                "ZUSD_ORACLE_ADAPTER_REQUIRED",
+                "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+            ],
             "runtime_tag": expected_tag,
         },
         errors=errors,
@@ -225,11 +244,18 @@ def _check_routing_guarded_quote(profiles: Mapping[tuple[str, str], Mapping[str,
     for needle in (
         "_check_routing_oracle_adapter_bridge(",
         "_check_routing_exact_out_oracle_adapter_bridge(",
+        "_check_routing_oracle_authorization(",
         "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
+        "DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED",
         "expected_action_id = _routing_guarded_quote_oracle_action_id(",
         "expected_action_id = _routing_guarded_exact_out_quote_oracle_action_id(",
         'if _adapter_result_get(result, "profile_id") != DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID',
         'if _adapter_result_get(result, "action_id") != expected_action_id',
+        "action_facts_hash=_routing_guarded_quote_oracle_action_facts_hash(",
+        "action_facts_hash=_routing_guarded_exact_out_quote_oracle_action_facts_hash(",
+        "pre_state_hash=_routing_pre_state_hash(",
+        'runtime_value_e8=int(runtime_quote["amount_out"])',
+        'runtime_value_e8=int(runtime_quote["amount_in_total"])',
     ):
         _expect(needle in source, errors, f"routing_guarded_quote_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -239,7 +265,10 @@ def _check_routing_guarded_quote(profiles: Mapping[tuple[str, str], Mapping[str,
         details={
             "query_id": profile["query_id"],
             "profile_id": profile["profile_id"],
-            "required_control": "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
+            "required_controls": [
+                "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
+                "DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED",
+            ],
             "covered_runtime_actions": [
                 "exact_in_guarded_quote",
                 "exact_out_many_pool_guarded_quote",
