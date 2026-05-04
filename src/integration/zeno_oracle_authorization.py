@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
+
+from ..state.canonical import canonical_json_bytes
 
 
 SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
@@ -64,7 +65,7 @@ class RuntimeActionFacts:
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return canonical_json_bytes(dict(payload))
 
 
 def semantic_hash(domain: str, payload: Mapping[str, Any]) -> str:
