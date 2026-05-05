@@ -1672,6 +1672,36 @@ claims:
         - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
         - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
 
+  - id: py:zeno_oracle:production_disaster_frontier_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoOracle production-disaster frontier checker cross-checks the
+      public devnet disaster harness, named disaster-class corpus, and
+      obligation-antichain manifest against a production-candidate frontier
+      catalog. The current catalog tracks 28 families: 23 are closed by
+      public/devnet evidence, and 5 remain explicit blocker or backlog families
+      covering usable perps oracle snapshots, cross-domain finality, live escrow
+      payout safety, live governance timelock execution, and public reporter
+      soak/operator independence. The checker rejects missing replay evidence,
+      hidden fields, duplicate families, missing non-claims, and any new
+      obligation atom that is promoted without an explicit blocker. This is a
+      frontier-accounting claim; it does not claim exhaustive production safety.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zeno_oracle_disaster_frontier.py --format text
+        - cmd: pytest -q tests/test_check_zeno_oracle_disaster_frontier.py
+      files:
+        - tools/check_zeno_oracle_disaster_frontier.py
+        - tests/test_check_zeno_oracle_disaster_frontier.py
+        - tools/zenodex_oracle_devnet_disaster_harness.py
+        - tools/zeno_oracle_disaster_class_corpus.py
+        - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+        - tools/check_disaster_obligation_certificate.py
+        - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
   - id: julia:zeno_oracle:first_shell_math_witness_sweep_v1
     status: supported
     layer: assurance

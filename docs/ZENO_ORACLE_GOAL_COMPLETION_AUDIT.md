@@ -33,7 +33,7 @@ registry/verifier layer for O4/O5 claims.
 | O3 receipt flow | `tools/zeno_oracle_o3_receipt_flow_replay.py` replays the focused local path from feed registry through reporter lifecycle, signed report, admission, admitted median3, accepted read, action adapter, and terminal DAG replay with `8/8` accepted stages. Devnet service tools and `bash scripts/check_zeno_oracle_devnet_alpha.sh` provide broader shell coverage. `tools/check_zeno_oracle_production_network_config.py` adds the first fail-closed production-candidate network config gate, while deployment and public soak remain open. | Devnet complete plus config gate |
 | Critical consumers | `tools/check_zeno_oracle_critical_action_map.py` reports `catalog_profile_count = 7`, `runtime_wired_count = 7`, and `design_only_backlog_count = 0`, covering zUSD, perps settlement/liquidation, routing, triggers, and critical settlement. | Devnet complete |
 | Reporter economics | `tools/zenodex_oracle_reporter_economics_replay.py` and tests cover bonds, rewards, disputes, slashing, withdrawals, fee splits, and budget rejection. `tools/check_zeno_oracle_live_economics_policy.py` binds that replay to a production-candidate token, escrow, governance receipt, fee-split, dispute-bond, slash-cap, and withdrawal-delay policy. Live chain receipt replay and funded escrow verification remain open. | Replay plus policy gate |
-| Disaster corpus | `tools/zenodex_oracle_devnet_disaster_harness.py` reports 17 selected states unreachable; `tools/zeno_oracle_disaster_class_corpus.py` reports 8 named families closed, including O5 independence-spoofing and proof-timeout fail-closed behavior. | First shell complete |
+| Disaster corpus | `tools/zenodex_oracle_devnet_disaster_harness.py` reports 17 selected states unreachable; `tools/zeno_oracle_disaster_class_corpus.py` reports 8 named families closed, including O5 independence-spoofing and proof-timeout fail-closed behavior. `tools/check_zeno_oracle_disaster_frontier.py` tracks 28 production-candidate disaster families: 23 closed by public/devnet evidence and 5 left as explicit blocker/backlog families. | First shell plus frontier gate |
 | Obligation antichain | `tools/check_disaster_obligation_certificate.py` validates `tools/zeno_oracle_disaster_obligation_certificate_manifest.json`; the current certificate compresses 23 axes into 15 antichain classes and includes `proof_independence` as a required obligation atom. | First shell complete |
 | Julia math lane | `tools/zeno_oracle_math_witness_sweep.jl` checks bounded witnesses for median deviation, source cartel, dispute griefing, reward conservation, split-brain, and O5 independence-witness cases. | Bounded witness |
 | Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides a first witness anchor for bounded arithmetic plus Prop-level O4/O5 binding and O5 independence-witness projections. General median, deviation, economics, executable DAG closure, sync, and typed binding theorems remain open. | Partial |
@@ -58,6 +58,7 @@ python3 tools/check_claims_registry.py
 python3 tools/check_zeno_oracle_goal_completion_audit.py --format text --expect-blocked
 python3 tools/check_zeno_oracle_production_network_config.py --format text
 python3 tools/check_zeno_oracle_live_economics_policy.py --format text
+python3 tools/check_zeno_oracle_disaster_frontier.py --format text
 ```
 
 ## Remaining Work Before Goal Closure
@@ -72,8 +73,9 @@ python3 tools/check_zeno_oracle_live_economics_policy.py --format text
 3. Live economics: promote the production-candidate economics policy into live
    token settlement with on-chain escrow funding, governance execution,
    receipt replay, and public reporting soak evidence.
-4. Broader disaster search: expand beyond the first-shell selected corpus and
-   maintain public evidence for every newly promoted disaster family.
+4. Broader disaster search: close the five explicit frontier blockers currently
+   reported by `tools/check_zeno_oracle_disaster_frontier.py`, then keep the
+   frontier catalog aligned with every newly promoted disaster family.
 5. General formal math: lift current Julia/Lean witnesses into generalized
    theorems for median/deviation, economics, DAG closure, synchronization, and
    typed Oracle binding.
@@ -86,7 +88,8 @@ python3 tools/check_zeno_oracle_live_economics_policy.py --format text
 ## Completion Decision
 
 The active goal is not complete. The workspace now has strong devnet and local
-v0 evidence, including O5 independence-witness checking and a
-production-candidate live economics policy gate, but production network, live
-settlement, broader disaster search, generalized formal proofs, and final branch
-integration remain open.
+v0 evidence, including O5 independence-witness checking, a
+production-candidate live economics policy gate, and an explicit
+production-disaster frontier catalog, but production network, live settlement,
+broader disaster search, generalized formal proofs, and final branch integration
+remain open.

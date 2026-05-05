@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+from tools.check_zeno_oracle_disaster_frontier import (
+    _build_live_inputs,
+    check_frontier,
+    frontier_content_hash,
+    sample_frontier,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = ROOT / "tools" / "zeno_oracle_disaster_obligation_certificate_manifest.json"
+
+
+def _refresh_id(frontier: dict[str, object]) -> None:
+    frontier["frontier_id"] = frontier_content_hash(frontier)
+
+
+def _fake_receipts(frontier: dict[str, object]) -> tuple[dict[str, object], dict[str, object]]:
+    families = frontier["families"]
+    assert isinstance(families, list)
+    devnet_cases = []
+    corpus_cases = []
+    for family in families:
+        assert isinstance(family, dict)
+        if family.get("devnet_disaster_state"):
+            devnet_cases.append({"disaster_state": family["devnet_disaster_state"], "ok": True})
+        if family.get("corpus_class_id"):
+            corpus_cases.append({"class_id": family["corpus_class_id"], "ok": True})
+    return {"cases": corpus_cases}, {"cases": devnet_cases}
+
+
+def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None:
+    manifest, corpus_receipt, harness_receipt = _build_live_inputs(MANIFEST)
+
+    result = check_frontier(
+        sample_frontier(),
+        manifest=manifest,
+        corpus_receipt=corpus_receipt,
+        harness_receipt=harness_receipt,
+    )
+
+    assert result["schema"] == "zenodex.oracle.production_disaster_frontier_check.v1"
+    assert result["status"] == "accepted"
+    assert result["frontier_family_count"] == 28
+    assert result["closed_family_count"] == 23
+    assert result["blocked_or_backlog_count"] == 5
+    assert result["new_obligation_family_count"] == 1
+    assert result["error_count"] == 0
+    blockers = {item["family_id"] for item in result["closure_blockers"]}
+    assert "cross_domain_finality_reorg_feeds_oracle_read" in blockers
+    assert "does_not_claim_exhaustive_production_disaster_search" in result["not_claimed"]
+
+
+def test_disaster_frontier_rejects_closed_family_without_devnet_evidence() -> None:
+    frontier = sample_frontier()
+    families = frontier["families"]
+    assert isinstance(families, list)
+    first = families[0]
+    assert isinstance(first, dict)
+    first["devnet_disaster_state"] = "missing_state"
+    _refresh_id(frontier)
+    corpus_receipt, harness_receipt = _fake_receipts(frontier)
+    harness_receipt["cases"] = []
+
+    result = check_frontier(
+        frontier,
+        manifest=json.loads(MANIFEST.read_text(encoding="utf-8")),
+        corpus_receipt=corpus_receipt,
+        harness_receipt=harness_receipt,
+    )
+
+    assert result["status"] == "rejected"
+    assert "missing_devnet_disaster_state:accepted_read_without_accepted_aggregate:missing_state" in result["errors"]
+
+
+def test_disaster_frontier_rejects_closed_family_with_unblocked_new_obligation() -> None:
+    frontier = sample_frontier()
+    families = frontier["families"]
+    assert isinstance(families, list)
+    first = families[0]
+    assert isinstance(first, dict)
+    obligations = first["manifest_obligations"]
+    assert isinstance(obligations, list)
+    obligations.append("cross_domain_finality")
+    _refresh_id(frontier)
+    corpus_receipt, harness_receipt = _fake_receipts(frontier)
+
+    result = check_frontier(
+        frontier,
+        manifest=json.loads(MANIFEST.read_text(encoding="utf-8")),
+        corpus_receipt=corpus_receipt,
+        harness_receipt=harness_receipt,
+    )
+
+    assert result["status"] == "rejected"
+    assert (
+        "new_obligation_without_blocker:accepted_read_without_accepted_aggregate:cross_domain_finality"
+        in result["errors"]
+    )
+
+
+def test_disaster_frontier_cli_sample_and_require_closed(tmp_path: Path) -> None:
+    sample = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zeno_oracle_disaster_frontier.py",
+            "--sample-frontier",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample.returncode == 0
+    frontier_path = tmp_path / "disaster-frontier.json"
+    frontier_path.write_text(sample.stdout, encoding="utf-8")
+
+    accepted = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zeno_oracle_disaster_frontier.py",
+            "--frontier",
+            str(frontier_path),
+            "--format",
+            "text",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+    assert "status = accepted" in accepted.stdout
+    assert "blocked_or_backlog_count = 5" in accepted.stdout
+
+    require_closed = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zeno_oracle_disaster_frontier.py",
+            "--frontier",
+            str(frontier_path),
+            "--require-closed",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert require_closed.returncode == 1
+    receipt = json.loads(require_closed.stdout)
+    assert receipt["status"] == "rejected"
+    assert "frontier_blockers_present" in receipt["errors"]
