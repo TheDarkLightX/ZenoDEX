@@ -1617,6 +1617,31 @@ claims:
         - tests/test_zenodex_oracle_reporter_economics_replay.py
         - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
 
+  - id: py:zeno_oracle:live_economics_policy_gate_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The production-candidate ZenoOracle live economics policy checker accepts
+      only a policy that binds the reporter economics replay to production token,
+      escrow, governance, receipt, fee-split, dispute-bond, slash-cap, and
+      withdrawal-delay controls with explicit non-claims. The checker rejects
+      malformed settlement controls, missing non-claims, fee-split drift, low
+      dispute bonds, slash amounts above policy cap, early withdrawals, hidden
+      policy fields, and remaining live-deployment blockers under `--require-live`.
+      This is a production-candidate policy gate only; it does not claim that
+      escrow is funded on-chain, governance has executed, live receipts have
+      been replayed against chain state, or reporter honesty is established.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zeno_oracle_live_economics_policy.py --format text
+        - cmd: pytest -q tests/test_check_zeno_oracle_live_economics_policy.py
+      files:
+        - tools/check_zeno_oracle_live_economics_policy.py
+        - tests/test_check_zeno_oracle_live_economics_policy.py
+        - tools/zenodex_oracle_reporter_economics_replay.py
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
   - id: py:zeno_oracle:named_disaster_class_corpus_v1
     status: supported
     layer: assurance
