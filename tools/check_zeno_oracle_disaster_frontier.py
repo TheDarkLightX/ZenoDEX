@@ -360,7 +360,12 @@ def sample_frontier() -> dict[str, Any]:
             manifest_axis="reward_budget_overdraft",
             manifest_obligations=["budget_conservation", "economic_margin", "schema_total"],
             replay_commands=[policy_command],
-            blockers=["escrow_funding_receipt_not_verified_onchain", "live_token_settlement_not_replayed"],
+            blockers=[
+                "live_economics_settlement_gate_is_local_receipt_replay_not_live",
+                "escrow_funding_receipt_not_verified_onchain",
+                "settlement_execution_receipt_not_verified_onchain",
+                "live_token_settlement_not_replayed_against_chain",
+            ],
         ),
         _family(
             "onchain_governance_timelock_bypass",

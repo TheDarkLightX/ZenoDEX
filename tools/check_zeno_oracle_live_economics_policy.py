@@ -44,6 +44,7 @@ GO_LIVE_BLOCKERS = [
     "onchain_receipts_not_replayed_against_live_chain_state",
     "escrow_funding_receipt_not_verified_onchain",
     "governance_execution_not_verified_onchain",
+    "settlement_execution_receipt_not_verified_onchain",
     "settlement_contract_deployment_not_verified_by_this_checker",
     "public_reporting_soak_not_completed",
 ]
@@ -60,6 +61,7 @@ TOP_LEVEL_KEYS = {
     "governance_approval_receipt",
     "governance_execution_receipt",
     "escrow_funding_receipt",
+    "settlement_execution_receipt",
     "live_token_settlement_enabled",
     "required_reporter_bond_e8",
     "max_report_reward_e8",
@@ -99,7 +101,7 @@ RECEIPT_KEYS = {
     "log_index",
     "payload",
 }
-REQUIRED_RECEIPT_KINDS = {"governance_approval", "governance_execution", "escrow_funding"}
+REQUIRED_RECEIPT_KINDS = {"governance_approval", "governance_execution", "escrow_funding", "settlement_execution"}
 RECEIPT_NOT_CLAIMS = {
     "does_not_claim_receipts_verified_against_live_rpc",
     "does_not_claim_contract_code_verified_onchain",
@@ -123,6 +125,7 @@ def policy_static_hash(policy: Mapping[str, Any]) -> str:
         "governance_approval_receipt",
         "governance_execution_receipt",
         "escrow_funding_receipt",
+        "settlement_execution_receipt",
         "not_claimed",
     ):
         payload.pop(key, None)
@@ -224,6 +227,44 @@ def minimum_escrow_floor_e8(replay: Mapping[str, Any]) -> int:
     return floor
 
 
+def settlement_execution_totals(replay: Mapping[str, Any]) -> dict[str, int]:
+    totals = {
+        "report_reward_paid_e8": 0,
+        "dispute_reward_paid_e8": 0,
+        "bond_withdrawn_e8": 0,
+        "slashed_e8": 0,
+        "fee_paid_e8": 0,
+        "treasury_delta_e8": 0,
+        "burn_delta_e8": 0,
+    }
+    for event in replay.get("events", []) if isinstance(replay.get("events"), list) else []:
+        if not isinstance(event, Mapping):
+            continue
+        event_type = event.get("type")
+        if event_type == "submit_report":
+            reward = event.get("reward_e8")
+            if isinstance(reward, int) and not isinstance(reward, bool):
+                totals["report_reward_paid_e8"] += max(0, int(reward))
+        elif event_type == "pay_dispute_reward":
+            amount = event.get("amount_e8")
+            if isinstance(amount, int) and not isinstance(amount, bool):
+                totals["dispute_reward_paid_e8"] += max(0, int(amount))
+        elif event_type == "withdraw_bond":
+            amount = event.get("amount_e8")
+            if isinstance(amount, int) and not isinstance(amount, bool):
+                totals["bond_withdrawn_e8"] += max(0, int(amount))
+        elif event_type == "slash_reporter":
+            amount = event.get("amount_e8")
+            if isinstance(amount, int) and not isinstance(amount, bool):
+                totals["slashed_e8"] += max(0, int(amount))
+        elif event_type == "fee_split":
+            for key in ("fee_paid_e8", "treasury_delta_e8", "burn_delta_e8"):
+                amount = event.get(key)
+                if isinstance(amount, int) and not isinstance(amount, bool):
+                    totals[key] += max(0, int(amount))
+    return totals
+
+
 def _receipt(
     *,
     kind: str,
@@ -260,6 +301,7 @@ def _sample_receipts_for_policy(policy: Mapping[str, Any], replay: Mapping[str, 
     executable_after = queued_at + timelock_seconds
     executed_at = executable_after
     required_floor = minimum_escrow_floor_e8(replay)
+    settlement_totals = settlement_execution_totals(replay)
     return [
         _receipt(
             kind="governance_approval",
@@ -313,6 +355,31 @@ def _sample_receipts_for_policy(policy: Mapping[str, Any], replay: Mapping[str, 
                 "token_contract": str(policy.get("token_contract")),
             },
         ),
+        _receipt(
+            kind="settlement_execution",
+            chain_id=chain_id,
+            contract_address=str(policy.get("escrow_contract")),
+            tx_hash=_tx("zenodex.oracle.live_economics.settlement_execution"),
+            block_number=1_300,
+            block_hash=_sha("zenodex.oracle.live_economics.block.1300"),
+            log_index=0,
+            payload={
+                "bond_withdrawn_e8": settlement_totals["bond_withdrawn_e8"],
+                "burn_delta_e8": settlement_totals["burn_delta_e8"],
+                "dispute_reward_paid_e8": settlement_totals["dispute_reward_paid_e8"],
+                "escrow_contract": str(policy.get("escrow_contract")),
+                "executed": True,
+                "fee_paid_e8": settlement_totals["fee_paid_e8"],
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "query_id": replay.get("query_id"),
+                "report_reward_paid_e8": settlement_totals["report_reward_paid_e8"],
+                "settlement_asset": policy.get("settlement_asset"),
+                "slashed_e8": settlement_totals["slashed_e8"],
+                "token_contract": str(policy.get("token_contract")),
+                "treasury_delta_e8": settlement_totals["treasury_delta_e8"],
+            },
+        ),
     ]
 
 
@@ -323,6 +390,7 @@ def _sample_receipt_refs(policy: Mapping[str, Any], replay: Mapping[str, Any]) -
         "governance_approval_receipt": by_kind["governance_approval"],
         "governance_execution_receipt": by_kind["governance_execution"],
         "escrow_funding_receipt": by_kind["escrow_funding"],
+        "settlement_execution_receipt": by_kind["settlement_execution"],
     }
 
 
@@ -340,8 +408,8 @@ def sample_receipt_bundle(
         "policy_id": policy.get("policy_id"),
         "policy_name": policy.get("policy_name"),
         "chain_id": "zenodex.oracle.mainnet-candidate-1",
-        "observed_block_number": 1_200,
-        "observed_block_hash": _sha("zenodex.oracle.live_economics.block.1200"),
+        "observed_block_number": 1_300,
+        "observed_block_hash": _sha("zenodex.oracle.live_economics.block.1300"),
         "receipts": receipts,
         "not_claimed": sorted(RECEIPT_NOT_CLAIMS),
     }
@@ -433,11 +501,13 @@ def check_receipt_bundle(
         "governance_approval": policy.get("governance_contract"),
         "governance_execution": policy.get("governance_contract"),
         "escrow_funding": policy.get("escrow_contract"),
+        "settlement_execution": policy.get("escrow_contract"),
     }
     expected_receipt_id_by_kind = {
         "governance_approval": policy.get("governance_approval_receipt"),
         "governance_execution": policy.get("governance_execution_receipt"),
         "escrow_funding": policy.get("escrow_funding_receipt"),
+        "settlement_execution": policy.get("settlement_execution_receipt"),
     }
 
     for idx, receipt in enumerate(raw_receipts):
@@ -490,9 +560,13 @@ def check_receipt_bundle(
     approval = by_kind.get("governance_approval")
     execution = by_kind.get("governance_execution")
     funding = by_kind.get("escrow_funding")
+    settlement = by_kind.get("settlement_execution")
     approval_payload = approval.get("payload") if isinstance(approval, Mapping) and isinstance(approval.get("payload"), Mapping) else {}
     execution_payload = execution.get("payload") if isinstance(execution, Mapping) and isinstance(execution.get("payload"), Mapping) else {}
     funding_payload = funding.get("payload") if isinstance(funding, Mapping) and isinstance(funding.get("payload"), Mapping) else {}
+    settlement_payload = (
+        settlement.get("payload") if isinstance(settlement, Mapping) and isinstance(settlement.get("payload"), Mapping) else {}
+    )
 
     governance = policy.get("governance") if isinstance(policy.get("governance"), Mapping) else {}
     timelock_seconds = governance.get("timelock_seconds")
@@ -547,6 +621,22 @@ def check_receipt_bundle(
         elif balance < required_floor:
             errors.append("escrow_funding_below_replay_floor")
 
+    if settlement_payload:
+        if settlement_payload.get("executed") is not True:
+            errors.append("settlement_execution_not_true")
+        if settlement_payload.get("token_contract") != policy.get("token_contract"):
+            errors.append("settlement_execution_token_contract_mismatch")
+        if settlement_payload.get("escrow_contract") != policy.get("escrow_contract"):
+            errors.append("settlement_execution_escrow_contract_mismatch")
+        if settlement_payload.get("settlement_asset") != policy.get("settlement_asset"):
+            errors.append("settlement_execution_asset_mismatch")
+        if settlement_payload.get("query_id") != replay.get("query_id"):
+            errors.append("settlement_execution_query_id_mismatch")
+        totals = settlement_execution_totals(replay)
+        for key, expected in sorted(totals.items()):
+            if settlement_payload.get(key) != expected:
+                errors.append(f"settlement_execution_{key}_mismatch")
+
     status = "accepted" if not errors else "rejected"
     return {
         "schema": RECEIPT_BUNDLE_SCHEMA,
@@ -579,7 +669,12 @@ def check_policy(
     for key in ("token_contract", "escrow_contract", "governance_contract"):
         if not _is_address(policy.get(key)):
             errors.append(f"{key}_invalid")
-    for key in ("governance_approval_receipt", "governance_execution_receipt", "escrow_funding_receipt"):
+    for key in (
+        "governance_approval_receipt",
+        "governance_execution_receipt",
+        "escrow_funding_receipt",
+        "settlement_execution_receipt",
+    ):
         if not _is_sha(policy.get(key)):
             errors.append(f"{key}_must_be_sha256")
     _bool_true(policy, "live_token_settlement_enabled", errors)
@@ -714,6 +809,7 @@ def check_policy(
             "governance_approval_receipt": policy.get("governance_approval_receipt"),
             "governance_execution_receipt": policy.get("governance_execution_receipt"),
             "escrow_funding_receipt": policy.get("escrow_funding_receipt"),
+            "settlement_execution_receipt": policy.get("settlement_execution_receipt"),
         },
         "go_live_blockers": list(GO_LIVE_BLOCKERS),
         "deployment_blockers": list(GO_LIVE_BLOCKERS),
