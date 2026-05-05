@@ -166,10 +166,11 @@ def build_audit() -> dict[str, Any]:
             blockers=[
                 "live_economics_policy_gate_is_production_candidate_only",
                 "onchain_economics_receipts_not_replayed_against_live_chain_state",
-                "escrow_funding_and_governance_execution_not_verified_onchain",
+                "escrow_funding_governance_and_settlement_execution_not_verified_onchain",
+                "settlement_execution_receipt_not_verified_onchain",
             ],
             limits=[
-                "local replay validates accounting transitions and local receipt bundles only",
+                "local replay validates accounting transitions and local receipt bundles, including settlement-execution totals, only",
                 "policy checker binds replay to production-candidate controls but does not prove live chain settlement",
             ],
         ),

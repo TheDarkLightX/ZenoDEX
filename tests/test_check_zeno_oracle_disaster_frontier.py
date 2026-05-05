@@ -76,6 +76,11 @@ def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None
     )
     assert "python3 tools/check_zeno_oracle_production_network_config.py --format text" in governance_family["replay_commands"]
     assert "feed_governance_execution_gate_is_local_receipt_replay_not_live" in governance_family["blockers"]
+    live_escrow_family = next(
+        family for family in frontier["families"] if family["family_id"] == "live_escrow_shortfall_blocks_reporter_payout"
+    )
+    assert "python3 tools/check_zeno_oracle_live_economics_policy.py --format text" in live_escrow_family["replay_commands"]
+    assert "settlement_execution_receipt_not_verified_onchain" in live_escrow_family["blockers"]
 
 
 def test_disaster_frontier_rejects_closed_family_without_devnet_evidence() -> None:

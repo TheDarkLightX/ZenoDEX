@@ -1632,15 +1632,17 @@ claims:
       The production-candidate ZenoOracle live economics policy checker accepts
       only a policy that binds the reporter economics replay to production token,
       escrow, governance approval/execution receipts, escrow-funding receipt,
-      fee-split, dispute-bond, slash-cap, and withdrawal-delay controls with
-      explicit non-claims. The checker rejects malformed settlement controls,
-      missing non-claims, missing receipt bundles, early governance execution,
-      escrow balances below the replay-derived floor, fee-split drift, low
-      dispute bonds, slash amounts above policy cap, early withdrawals, hidden
-      policy fields, and remaining live-deployment blockers under `--require-live`.
-      This is a production-candidate policy gate only; it does not claim that
-      escrow is funded on-chain, governance has executed, live receipts have
-      been replayed against chain state, or reporter honesty is established.
+      settlement-execution receipt, fee-split, dispute-bond, slash-cap, and
+      withdrawal-delay controls with explicit non-claims. The checker rejects
+      malformed settlement controls, missing non-claims, missing receipt
+      bundles, early governance execution, escrow balances below the
+      replay-derived floor, settlement execution total drift, fee-split drift,
+      low dispute bonds, slash amounts above policy cap, early withdrawals,
+      hidden policy fields, and remaining live-deployment blockers under
+      `--require-live`. This is a production-candidate policy gate only; it
+      does not claim that escrow is funded on-chain, governance has executed,
+      settlement executed on-chain, live receipts have been replayed against
+      chain state, or reporter honesty is established.
     evidence:
       kind: python
       check:

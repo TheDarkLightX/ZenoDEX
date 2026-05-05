@@ -211,6 +211,17 @@ cross-domain finality, live escrow payout safety, live governance timelock
 execution, and public reporter soak/operator independence. `--require-closed`
 intentionally rejects while those families remain open.
 
+The live escrow payout family now has local economics receipt replay through:
+
+```bash
+python3 tools/check_zeno_oracle_live_economics_policy.py --format text
+```
+
+That gate checks governance approval/execution, escrow funding against the
+replay-derived floor, and settlement execution totals against the reporter
+economics replay. `--require-live` intentionally rejects until the receipts are
+verified against live chain state.
+
 The usable perps oracle snapshot family now has bounded replay evidence through
 `tools/check_zeno_oracle_perps_snapshot_gate.py`. That gate checks snapshot
 roundtrip preservation for isolated perps settlement runtime facts, adapter

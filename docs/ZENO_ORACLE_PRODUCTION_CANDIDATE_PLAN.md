@@ -99,6 +99,11 @@ The active workspace now has:
   approval/execution, signed release artifact, and runtime-control attestation
   receipts while keeping live chain and public soak verification outside the
   claim.
+- a production-candidate live economics policy gate at
+  `tools/check_zeno_oracle_live_economics_policy.py` that binds reporter
+  economics replay to token, escrow, governance approval/execution, escrow
+  funding, and settlement execution receipts while keeping live chain
+  settlement outside the claim.
 
 Current public gate evidence:
 
@@ -115,6 +120,7 @@ python3 tools/zenoproof_reward_payout_replay.py --format text
 bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1
 python3 tools/check_zeno_oracle_rc_package.py --package-dir dist/zeno-oracle-devnet-alpha-rc1 --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json --sig dist/zeno-oracle-devnet-alpha-rc1.sig
 python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
+python3 tools/check_zeno_oracle_live_economics_policy.py --format text
 python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
 julia tools/zeno_oracle_math_witness_sweep.jl
@@ -242,10 +248,14 @@ streams:
 ```bash
 python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
 pytest -q tests/test_zenodex_oracle_reporter_economics_replay.py
+python3 tools/check_zeno_oracle_live_economics_policy.py --format text
+pytest -q tests/test_check_zeno_oracle_live_economics_policy.py
 ```
 
-Production token settlement can follow once governance, signing, and deployment
-surfaces are stable.
+The production-candidate policy gate binds the replay to local governance
+approval/execution, escrow funding, and settlement execution receipts. Live
+token settlement can follow once governance, signing, deployment, and on-chain
+receipt replay surfaces are stable.
 
 ### 5. Disaster-State Antichain
 

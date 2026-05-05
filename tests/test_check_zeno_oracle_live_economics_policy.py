@@ -52,7 +52,9 @@ def test_live_economics_policy_accepts_sample_candidate() -> None:
     assert result["error_count"] == 0
     assert result["receipt_bundle_status"] == "accepted"
     assert result["settlement_controls"]["governance_execution_receipt"] == policy["governance_execution_receipt"]
+    assert result["settlement_controls"]["settlement_execution_receipt"] == policy["settlement_execution_receipt"]
     assert "escrow_funding_receipt_not_verified_onchain" in result["go_live_blockers"]
+    assert "settlement_execution_receipt_not_verified_onchain" in result["go_live_blockers"]
     assert "does_not_claim_onchain_settlement_executed" in result["not_claimed"]
 
 
@@ -166,6 +168,38 @@ def test_live_economics_policy_rejects_escrow_funding_below_replay_floor() -> No
 
     assert result["status"] == "rejected"
     assert "receipt:escrow_funding_below_replay_floor" in result["errors"]
+
+
+def test_live_economics_policy_rejects_settlement_execution_total_drift() -> None:
+    policy = sample_policy()
+    replay = sample_replay()
+    bundle = sample_receipt_bundle(policy, replay)
+    settlement = _receipt(bundle, "settlement_execution")
+    payload = settlement["payload"]
+    assert isinstance(payload, dict)
+    payload["report_reward_paid_e8"] = int(payload["report_reward_paid_e8"]) - 1
+    settlement["receipt_id"] = receipt_content_hash(settlement)
+
+    result = check_policy(policy, replay, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:settlement_execution_report_reward_paid_e8_mismatch" in result["errors"]
+
+
+def test_live_economics_policy_rejects_settlement_execution_query_drift() -> None:
+    policy = sample_policy()
+    replay = sample_replay()
+    bundle = sample_receipt_bundle(policy, replay)
+    settlement = _receipt(bundle, "settlement_execution")
+    payload = settlement["payload"]
+    assert isinstance(payload, dict)
+    payload["query_id"] = "sha256:" + "4" * 64
+    settlement["receipt_id"] = receipt_content_hash(settlement)
+
+    result = check_policy(policy, replay, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:settlement_execution_query_id_mismatch" in result["errors"]
 
 
 def test_live_economics_policy_cli_sample_and_require_live(tmp_path: Path) -> None:
