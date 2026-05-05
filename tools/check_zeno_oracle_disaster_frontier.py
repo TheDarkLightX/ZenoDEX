@@ -123,6 +123,7 @@ def sample_frontier() -> dict[str, Any]:
     policy_command = "python3 tools/check_zeno_oracle_live_economics_policy.py --format text"
     perps_snapshot_command = "python3 tools/check_zeno_oracle_perps_snapshot_gate.py --format text"
     finality_command = "python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --format text"
+    reporter_soak_command = "python3 tools/check_zeno_oracle_reporter_soak_gate.py --format text"
     families = [
         _family(
             "accepted_read_without_accepted_aggregate",
@@ -376,7 +377,12 @@ def sample_frontier() -> dict[str, Any]:
             status="research_backlog",
             manifest_axis="source_cartel_collapses_quorum",
             manifest_obligations=["evidence_floor_o3", "reporter_independence", "schema_total", "source_diversity"],
-            blockers=["public_soak_not_completed", "reporter_honesty_and_operator_independence_not_proven"],
+            replay_commands=[reporter_soak_command],
+            blockers=[
+                "reporter_soak_gate_is_local_observation_replay_not_public_soak",
+                "public_soak_not_completed",
+                "reporter_honesty_and_operator_independence_not_proven",
+            ],
         ),
     ]
     frontier: dict[str, Any] = {
