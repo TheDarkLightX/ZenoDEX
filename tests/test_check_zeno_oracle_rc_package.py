@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+from typing import Any
+
+from tools.check_zeno_oracle_rc_package import check_package
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _build_package(version: str) -> tuple[Path, Path, Path]:
+    proc = subprocess.run(
+        ["bash", "scripts/package_zeno_oracle_rc.sh", version],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+    return (
+        ROOT / "dist" / version,
+        ROOT / "dist" / f"{version}.receipt.json",
+        ROOT / "dist" / f"{version}.sig",
+    )
+
+
+def test_check_zeno_oracle_rc_package_accepts_built_devnet_bundle() -> None:
+    package_dir, receipt_path, sig_path = _build_package("zeno-oracle-package-check-pytest-rc")
+
+    report = check_package(package_dir=package_dir, receipt_path=receipt_path, sig_path=sig_path)
+
+    assert report["schema"] == "zenodex.oracle.rc_package_check.v1"
+    assert report["status"] == "accepted"
+    assert report["ok"] is True
+    assert report["manifest"]["entrypoint"] == "bin/zenodex-oracle"
+    assert report["manifest"]["required_file_count"] >= 10
+    assert report["receipt_checked"] is True
+    assert report["signature_checked"] is True
+    assert report["errors"] == []
+    assert (package_dir / "tools" / "check_zeno_oracle_rc_package.py").is_file()
+    assert (package_dir / "tools" / "check_disaster_obligation_certificate.py").is_file()
+    assert (package_dir / "tools" / "zeno_oracle_o3_receipt_flow_replay.py").is_file()
+    assert (package_dir / "tools" / "zeno_oracle_disaster_obligation_certificate_manifest.json").is_file()
+    assert (package_dir / "tools" / "zenodex_oracle_reporter_economics_replay.py").is_file()
+
+
+def test_check_zeno_oracle_rc_package_rejects_manifest_hash_drift(tmp_path: Path) -> None:
+    package_dir, receipt_path, sig_path = _build_package("zeno-oracle-package-drift-pytest-rc")
+    copied = tmp_path / "package"
+    subprocess.run(["cp", "-R", str(package_dir), str(copied)], check=True)
+    manifest_path = copied / "ZEN_ORACLE_RC_MANIFEST.json"
+    manifest: dict[str, Any] = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for row in manifest["files"]:
+        if row["path"] == "docs/ZENO_ORACLE_DEVNET_ALPHA.md":
+            row["sha256"] = "0" * 64
+            break
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    report = check_package(package_dir=copied, receipt_path=receipt_path, sig_path=sig_path)
+
+    assert report["status"] == "rejected"
+    assert "manifest_file_sha256_mismatch:docs/ZENO_ORACLE_DEVNET_ALPHA.md" in report["errors"]

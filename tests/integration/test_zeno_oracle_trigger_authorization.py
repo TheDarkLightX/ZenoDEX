@@ -4,7 +4,10 @@ import pytest
 
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 from src.integration.zeno_oracle_trigger_authorization import (
+    _ORACLE_TRIGGER_EXECUTE_PROFILE_ID,
+    _ORACLE_TRIGGER_REFERENCE_QUERY_ID,
     TriggerExecutionFacts,
+    check_trigger_execute_oracle_adapter_bridge,
     check_trigger_execute_oracle_authorization,
     trigger_execute_runtime_facts,
     trigger_execution_facts_from_obj,
@@ -17,7 +20,7 @@ def _facts() -> TriggerExecutionFacts:
         trigger_id="trigger:take-profit:1",
         owner_pubkey="0x" + "aa" * 48,
         action_kind="execute",
-        query_id="zenodex.oracle.AGRS/ZDEX.price_e8",
+        query_id=_ORACLE_TRIGGER_REFERENCE_QUERY_ID,
         observed_value_e8=125_000_000,
         trigger_price_e8=120_000_000,
         condition="gte",
@@ -31,7 +34,13 @@ def _facts() -> TriggerExecutionFacts:
     )
 
 
-def _authorization_for(runtime: dict[str, object], *, value_e8: int | None = None) -> dict[str, object]:
+def _authorization_for(
+    runtime: dict[str, object],
+    *,
+    value_e8: int | None = None,
+    evidence_class: str = "O3",
+    expires_at_epoch: int | None = None,
+) -> dict[str, object]:
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
     query_id = str(runtime["query_id"])
     observed_epoch = int(runtime["now_epoch"])
@@ -48,13 +57,13 @@ def _authorization_for(runtime: dict[str, object], *, value_e8: int | None = Non
         "confidence_e8": 2_000,
         "deviation_bps": 15,
         "observed_epoch": observed_epoch,
-        "expires_at_epoch": observed_epoch,
+        "expires_at_epoch": observed_epoch if expires_at_epoch is None else int(expires_at_epoch),
         "feed_id": "feed:agrs-zdex",
         "feed_registry_root": semantic_hash("test.feed-root", {"surface": "trigger"}),
         "query_policy_root": semantic_hash("test.query-policy-root", {"surface": "trigger"}),
         "source_registry_root": semantic_hash("test.source-root", {"surface": "trigger"}),
         "reporter_registry_root": semantic_hash("test.reporter-root", {"surface": "trigger"}),
-        "evidence_class": "O3",
+        "evidence_class": evidence_class,
         "economic_envelope_id": "trigger-critical-envelope",
         "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "trigger"}),
     }
@@ -94,6 +103,28 @@ def test_trigger_execute_rejects_wrong_pre_state_context() -> None:
     assert "pre_state_hash mismatch" in result["typed_errors"]
 
 
+def test_trigger_execute_rejects_below_o3_authorization_evidence() -> None:
+    facts = _facts()
+    runtime = trigger_execute_runtime_facts(facts)
+    auth = _authorization_for(runtime, evidence_class="O2")
+
+    result = check_trigger_execute_oracle_authorization(authorization_payload=auth, facts=facts)
+
+    assert result["typed_ok"] is False
+    assert "evidence_class below required O3" in result["typed_errors"]
+
+
+def test_trigger_execute_rejects_expired_authorization() -> None:
+    facts = _facts()
+    runtime = trigger_execute_runtime_facts(facts)
+    auth = _authorization_for(runtime, expires_at_epoch=int(runtime["now_epoch"]) - 1)
+
+    result = check_trigger_execute_oracle_authorization(authorization_payload=auth, facts=facts)
+
+    assert result["typed_ok"] is False
+    assert "authorization expired" in result["typed_errors"]
+
+
 def test_trigger_execute_rejects_unsatisfied_trigger_condition() -> None:
     facts = TriggerExecutionFacts(
         **{
@@ -111,3 +142,81 @@ def test_trigger_execution_facts_from_obj_normalizes_mapping_input() -> None:
     facts = trigger_execution_facts_from_obj(_facts().__dict__)
 
     assert facts == _facts()
+
+
+def test_trigger_execute_oracle_adapter_bridge_accepts_matching_runtime_action() -> None:
+    facts = _facts()
+    runtime = trigger_execute_runtime_facts(facts)
+
+    def verifier(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "consumer_module": "zenodex.trigger",
+            "action_kind": "execute_trigger",
+            "query_id": _ORACLE_TRIGGER_REFERENCE_QUERY_ID,
+            "profile_id": _ORACLE_TRIGGER_EXECUTE_PROFILE_ID,
+            "action_id": runtime["action_id"],
+            "errors": [],
+        }
+
+    error = check_trigger_execute_oracle_adapter_bridge(
+        bridge={"schema": "test.bridge"},
+        facts=facts,
+        required=True,
+        bridge_verifier=verifier,
+    )
+
+    assert error is None
+
+
+def test_trigger_execute_oracle_adapter_bridge_rejects_missing_required_bridge() -> None:
+    error = check_trigger_execute_oracle_adapter_bridge(
+        bridge=None,
+        facts=_facts(),
+        required=True,
+        bridge_verifier=lambda _bridge: {"status": "accepted"},
+    )
+
+    assert error == "execute_trigger requires oracle_adapter_bridge"
+
+
+def test_trigger_execute_oracle_adapter_bridge_rejects_wrong_action_id() -> None:
+    facts = _facts()
+
+    def verifier(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "consumer_module": "zenodex.trigger",
+            "action_kind": "execute_trigger",
+            "query_id": _ORACLE_TRIGGER_REFERENCE_QUERY_ID,
+            "profile_id": _ORACLE_TRIGGER_EXECUTE_PROFILE_ID,
+            "action_id": semantic_hash("test.wrong-trigger-action", {"trigger_id": facts.trigger_id}),
+            "errors": [],
+        }
+
+    error = check_trigger_execute_oracle_adapter_bridge(
+        bridge={"schema": "test.bridge"},
+        facts=facts,
+        required=True,
+        bridge_verifier=verifier,
+    )
+
+    assert error == "oracle_adapter_bridge action_id mismatch"
+
+
+def test_trigger_execute_oracle_adapter_bridge_rejects_wrong_query_facts() -> None:
+    facts = TriggerExecutionFacts(
+        **{
+            **_facts().__dict__,
+            "query_id": semantic_hash("test.wrong-trigger-query", {"trigger_id": "x"}),
+        }
+    )
+
+    error = check_trigger_execute_oracle_adapter_bridge(
+        bridge={"schema": "test.bridge"},
+        facts=facts,
+        required=True,
+        bridge_verifier=lambda _bridge: {"status": "accepted"},
+    )
+
+    assert error == "trigger facts query mismatch"

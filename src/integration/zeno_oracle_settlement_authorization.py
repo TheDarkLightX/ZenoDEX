@@ -2,16 +2,37 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Mapping
 
 from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
+from ..state.canonical import canonical_json_bytes
 from .operations import create_settlement_operation
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_CRITICAL_SETTLEMENT_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.settlement.price_curr_e8").hexdigest()
+)
+
+
 def critical_settlement_query_id() -> str:
-    return "zenodex.settlement.price_curr_e8"
+    return _CRITICAL_SETTLEMENT_QUERY_ID
+
+
+def critical_settlement_profile_id() -> str:
+    payload = {
+        "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+        "consumer_module": "zenodex.settlement",
+        "action_kind": "critical_settlement",
+        "query_id": _CRITICAL_SETTLEMENT_QUERY_ID,
+        "required_evidence_floor": "O3",
+        "max_freshness_window_epochs": 1,
+        "critical": True,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
 def normalized_settlement_hash(settlement: Settlement) -> str:
@@ -99,6 +120,7 @@ def check_critical_settlement_oracle_authorization(
         action_id=str(runtime["action_id"]),
         action_facts_hash=str(runtime["action_facts_hash"]),
         pre_state_hash=str(runtime["pre_state_hash"]),
+        profile_id=critical_settlement_profile_id(),
         query_id=str(runtime["query_id"]),
         runtime_value_e8=int(runtime["runtime_value_e8"]),
         now_epoch=int(runtime["now_epoch"]),

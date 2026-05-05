@@ -13,11 +13,13 @@ from tools.check_oracle_authorization_semantic_binding import (
     check_critical_consumer_authorization,
     check_authorization_for_runtime,
     check_authorization_payload,
+    economic_envelope_hash,
     oracle_value_hash,
     semantic_hash,
     verify_opaque_authorization,
     verify_typed_authorization,
 )
+from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
@@ -87,6 +89,43 @@ def _valid_pair() -> tuple[OracleAuthorization, RuntimeActionFacts]:
     return authorization, runtime
 
 
+def _economic_envelope_for(
+    authorization: OracleAuthorization,
+    *,
+    notional_value_e8: int = 1_000,
+    max_extractable_value_e8: int = 100,
+    action_kind: str | None = None,
+) -> dict:
+    return {
+        "schema": "zenodex.oracle.economic_security_envelope.v1",
+        "query_id": authorization.query_id,
+        "consumer_module": authorization.consumer_module,
+        "action_kind": action_kind or authorization.action_kind,
+        "notional_value_e8": notional_value_e8,
+        "max_extractable_value_e8": max_extractable_value_e8,
+    }
+
+
+def _check_with_runtime(
+    authorization_payload: dict,
+    runtime: RuntimeActionFacts,
+    *,
+    runtime_notional_value_e8: int | None = None,
+) -> dict:
+    return check_critical_consumer_authorization(
+        authorization_payload,
+        consumer_module=runtime.consumer_module,
+        action_kind=runtime.action_kind,
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        runtime_notional_value_e8=runtime_notional_value_e8,
+    )
+
+
 def test_typed_authorization_accepts_matching_runtime_facts() -> None:
     authorization, runtime = _valid_pair()
 
@@ -97,6 +136,62 @@ def test_typed_authorization_accepts_matching_runtime_facts() -> None:
     assert opaque_errors == ()
     assert typed_ok is True
     assert typed_errors == ()
+
+
+def test_typed_authorization_accepts_bound_economic_envelope() -> None:
+    authorization, runtime = _valid_pair()
+    envelope = _economic_envelope_for(authorization, notional_value_e8=1_000)
+    authorization = replace(authorization, economic_envelope_id=economic_envelope_hash(envelope))
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["economic_envelope"] = envelope
+
+    result = _check_with_runtime(bundle, runtime, runtime_notional_value_e8=999)
+
+    assert result["typed_ok"] is True
+    assert result["economic_envelope_ok"] is True
+    assert result["economic_envelope_errors"] == []
+
+
+def test_typed_authorization_rejects_runtime_notional_above_economic_envelope() -> None:
+    authorization, runtime = _valid_pair()
+    envelope = _economic_envelope_for(authorization, notional_value_e8=1_000)
+    authorization = replace(authorization, economic_envelope_id=economic_envelope_hash(envelope))
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["economic_envelope"] = envelope
+
+    result = _check_with_runtime(bundle, runtime, runtime_notional_value_e8=1_001)
+
+    assert result["typed_ok"] is False
+    assert result["economic_envelope_ok"] is False
+    assert "runtime_notional_value_e8 exceeds economic envelope" in result["economic_envelope_errors"]
+
+
+def test_typed_authorization_rejects_unbound_economic_envelope_id() -> None:
+    authorization, runtime = _valid_pair()
+    envelope = _economic_envelope_for(authorization, notional_value_e8=1_000)
+    authorization = replace(authorization, economic_envelope_id="econ:small-notional-v1")
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["economic_envelope"] = envelope
+
+    result = _check_with_runtime(bundle, runtime, runtime_notional_value_e8=999)
+
+    assert result["typed_ok"] is False
+    assert result["economic_envelope_ok"] is False
+    assert "economic_envelope_id does not bind economic_envelope" in result["economic_envelope_errors"]
+
+
+def test_typed_authorization_rejects_economic_envelope_action_mismatch() -> None:
+    authorization, runtime = _valid_pair()
+    envelope = _economic_envelope_for(authorization, action_kind="liquidate")
+    authorization = replace(authorization, economic_envelope_id=economic_envelope_hash(envelope))
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["economic_envelope"] = envelope
+
+    result = _check_with_runtime(bundle, runtime, runtime_notional_value_e8=999)
+
+    assert result["typed_ok"] is False
+    assert result["economic_envelope_ok"] is False
+    assert "economic_envelope action_kind does not match authorization" in result["economic_envelope_errors"]
 
 
 def test_opaque_action_id_does_not_prove_runtime_value_matches() -> None:
@@ -284,7 +379,7 @@ def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
         ("zenodex.perps", "liquidate", "critical-perps-v1"),
         ("zenodex.routing", "protected_swap", "critical-routing-v1"),
         ("zenodex.trigger", "execute", "critical-trigger-v1"),
-        ("zenodex.settlement", "critical_settlement", "critical-settlement-v1"),
+        ("zenodex.settlement", "critical_settlement", critical_settlement_profile_id()),
     ]
     for consumer_module, action_kind, profile_id in surfaces:
         surface_auth = replace(

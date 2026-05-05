@@ -9,6 +9,7 @@ production transaction path.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -38,6 +39,7 @@ from .zusd_oracle_recovery_lifecycle import (
     verify_zusd_oracle_recovery_lifecycle_packet_payload,
 )
 from .zusd_tau_gate import ZUSDTauGateConfig, step_multi_with_tau, step_with_tau
+from ..state.canonical import canonical_json_bytes
 from .zeno_oracle_authorization import (
     RuntimeActionFacts,
     check_critical_consumer_authorization,
@@ -70,6 +72,36 @@ _VALID_ZUSD_TAGS: frozenset[str] = frozenset(
         "liquidate",
     }
 )
+_ZUSD_ORACLE_ADAPTER_ACTIONS: Dict[str, str] = {
+    "mint_zusd": "mint",
+    "liquidate": "liquidate_vault",
+}
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_ZUSD_COLLATERAL_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.zusd.collateral_price_e8").hexdigest()
+)
+
+
+def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
+    payload = {
+        "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+        "consumer_module": "zenodex.zusd",
+        "action_kind": action_kind,
+        "query_id": _ORACLE_ZUSD_COLLATERAL_QUERY_ID,
+        "required_evidence_floor": "O3",
+        "max_freshness_window_epochs": int(max_freshness_window_epochs),
+        "critical": True,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+_ZUSD_ORACLE_CONSUMER_PROFILE_IDS: Dict[str, str] = {
+    "mint": _oracle_consumer_profile_id(action_kind="mint", max_freshness_window_epochs=2),
+    "liquidate_vault": _oracle_consumer_profile_id(
+        action_kind="liquidate_vault",
+        max_freshness_window_epochs=1,
+    ),
+}
 
 
 def _bool_env(name: str, *, default: bool) -> bool:
@@ -273,6 +305,98 @@ def _check_zusd_oracle_authorization(
         return None
     errors = result.get("typed_errors")
     return "oracle_authorization_rejected:" + ",".join(str(error) for error in errors)
+
+
+def _adapter_result_get(result: Any, key: str) -> Any:
+    if isinstance(result, Mapping):
+        return result.get(key)
+    return getattr(result, key, None)
+
+
+def _adapter_error_summary(result: Any) -> str:
+    errors = _adapter_result_get(result, "errors")
+    if isinstance(errors, list):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    if isinstance(errors, tuple):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    return "bridge verifier rejected"
+
+
+def _zusd_runtime_oracle_action_id(
+    *,
+    mode: str,
+    state: ZUSDState | ZUSDMultiState,
+    tag: str,
+    args: Mapping[str, Any],
+) -> str:
+    action_kind = _ZUSD_ORACLE_ADAPTER_ACTIONS[tag]
+    payload = {
+        "schema": "zenodex.oracle.zusd_runtime_action_id.v1",
+        "consumer_module": "zenodex.zusd",
+        "action_kind": action_kind,
+        "mode": mode,
+        "tag": tag,
+        "args": dict(args),
+        "now_epoch": int(state.now_epoch),
+        "price_e8": int(state.price_e8),
+        "price_pending_e8": int(state.price_pending_e8),
+        "oracle_last_update_epoch": int(state.oracle_last_update_epoch),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _check_zusd_oracle_adapter_bridge(
+    *,
+    body: Mapping[str, Any],
+    mode: str,
+    state: ZUSDState | ZUSDMultiState,
+    tag: str,
+    args: Mapping[str, Any],
+) -> Optional[str]:
+    action_kind = _ZUSD_ORACLE_ADAPTER_ACTIONS.get(tag)
+    if action_kind is None:
+        return None
+
+    required = _bool_env("ZUSD_ORACLE_ADAPTER_REQUIRED", default=False)
+    if "oracle_adapter_bridge" not in body:
+        if required:
+            return f"{action_kind} requires oracle_adapter_bridge"
+        return None
+
+    bridge = body.get("oracle_adapter_bridge")
+    if not isinstance(bridge, Mapping):
+        return "oracle_adapter_bridge must be an object"
+
+    try:
+        from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
+            verify_aggregate_adapter_bridge,
+        )
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier unavailable: {type(exc).__name__}"
+
+    try:
+        result = verify_aggregate_adapter_bridge(bridge)
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier error: {type(exc).__name__}"
+
+    if _adapter_result_get(result, "status") != "accepted":
+        return f"oracle_adapter_bridge rejected: {_adapter_error_summary(result)}"
+    if _adapter_result_get(result, "consumer_module") != "zenodex.zusd":
+        return "oracle_adapter_bridge consumer mismatch"
+    if _adapter_result_get(result, "action_kind") != action_kind:
+        return "oracle_adapter_bridge action mismatch"
+    if _adapter_result_get(result, "query_id") != _ORACLE_ZUSD_COLLATERAL_QUERY_ID:
+        return "oracle_adapter_bridge query mismatch"
+    if _adapter_result_get(result, "profile_id") != _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]:
+        return "oracle_adapter_bridge profile mismatch"
+    expected_action_id = _zusd_runtime_oracle_action_id(mode=mode, state=state, tag=tag, args=args)
+    if _adapter_result_get(result, "action_id") != expected_action_id:
+        return "oracle_adapter_bridge action_id mismatch"
+    return None
 
 
 def _check_perp_oracle_sync(*, price_e8: int, epoch: int) -> Optional[str]:
@@ -594,6 +718,30 @@ def _handle_post(
     tau_cfg = _tau_gate_config_from_env()
 
     if rest == ["step"]:
+        bridge_err = _check_zusd_oracle_adapter_bridge(
+            body=parsed,
+            mode="single",
+            state=single,
+            tag=tag,
+            args=args,
+        )
+        if bridge_err is not None:
+            new_history = _history_with_entry(
+                history,
+                mode="single",
+                tag=tag,
+                args=args,
+                ok=False,
+                error=bridge_err,
+            )
+            return single, multi, new_history, (
+                400,
+                {
+                    "ok": False,
+                    "error": "rejected",
+                    "detail": bridge_err,
+                },
+            )
         auth_value = _planned_single_oracle_authorization_value(state=single, tag=tag, args=args)
         auth_present_or_required = isinstance(args.get("oracle_authorization"), Mapping) or _bool_env(
             "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
@@ -672,6 +820,30 @@ def _handle_post(
             },
         )
 
+    bridge_err_multi = _check_zusd_oracle_adapter_bridge(
+        body=parsed,
+        mode="multi",
+        state=multi,
+        tag=tag,
+        args=args,
+    )
+    if bridge_err_multi is not None:
+        new_history = _history_with_entry(
+            history,
+            mode="multi",
+            tag=tag,
+            args=args,
+            ok=False,
+            error=bridge_err_multi,
+        )
+        return single, multi, new_history, (
+            400,
+            {
+                "ok": False,
+                "error": "rejected",
+                "detail": bridge_err_multi,
+            },
+        )
     auth_value_multi = _planned_multi_oracle_authorization_value(state=multi, tag=tag, args=args)
     auth_present_or_required_multi = isinstance(args.get("oracle_authorization"), Mapping) or _bool_env(
         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",

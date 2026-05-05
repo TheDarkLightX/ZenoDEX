@@ -6,7 +6,7 @@ from src.core.liquidity import create_pool
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
-from src.integration.zeno_oracle_settlement_authorization import critical_settlement_runtime_facts
+from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id, critical_settlement_runtime_facts
 from src.state import BalanceTable, LPTable
 from src.state.state_root import compute_state_root
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
@@ -68,7 +68,14 @@ def _state_intent_and_settlement() -> tuple[DexState, list[dict], dict, dict[str
     return state, [intent_dict], settlement_op, runtime
 
 
-def _authorization_for(runtime: dict[str, object], *, value_e8: int | None = None, observed_epoch: int = 41) -> dict[str, object]:
+def _authorization_for(
+    runtime: dict[str, object],
+    *,
+    value_e8: int | None = None,
+    observed_epoch: int = 41,
+    evidence_class: str = "O3",
+    expires_at_epoch: int | None = None,
+) -> dict[str, object]:
     query_id = str(runtime["query_id"])
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
     auth = {
@@ -77,20 +84,20 @@ def _authorization_for(runtime: dict[str, object], *, value_e8: int | None = Non
         "action_id": str(runtime["action_id"]),
         "action_facts_hash": str(runtime["action_facts_hash"]),
         "pre_state_hash": str(runtime["pre_state_hash"]),
-        "profile_id": "critical-settlement-v1",
+        "profile_id": critical_settlement_profile_id(),
         "query_id": query_id,
         "value_e8": value,
         "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed_epoch),
         "confidence_e8": 1,
         "deviation_bps": 1,
         "observed_epoch": int(observed_epoch),
-        "expires_at_epoch": int(runtime["now_epoch"]),
+        "expires_at_epoch": int(runtime["now_epoch"] if expires_at_epoch is None else expires_at_epoch),
         "feed_id": "feed:settlement:price-curr",
         "feed_registry_root": semantic_hash("test.feed-root", {"surface": "settlement"}),
         "query_policy_root": semantic_hash("test.query-policy-root", {"surface": "settlement"}),
         "source_registry_root": semantic_hash("test.source-root", {"surface": "settlement"}),
         "reporter_registry_root": semantic_hash("test.reporter-root", {"surface": "settlement"}),
-        "evidence_class": "O3",
+        "evidence_class": evidence_class,
         "economic_envelope_id": "settlement-critical-envelope",
         "receipt_graph_root": semantic_hash("test.receipt-graph-root", {"surface": "settlement"}),
     }
@@ -180,6 +187,48 @@ def test_critical_settlement_rejects_authorization_for_wrong_pre_state() -> None
     assert res.ok is False
     assert res.error is not None
     assert "pre_state_hash mismatch" in res.error
+
+
+def test_critical_settlement_rejects_below_o3_authorization_evidence() -> None:
+    state, intent_dicts, settlement_op, runtime = _state_intent_and_settlement()
+    settlement_op["oracle_authorization"] = _authorization_for(runtime, evidence_class="O2")
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            require_intent_signatures=False,
+            settlement_certificate_price_history=PRICE_HISTORY,
+            require_oracle_authorization_for_critical_settlements=True,
+        ),
+        state=state,
+        operations={"2": intent_dicts, "3": settlement_op},
+        block_timestamp=42,
+        tx_sender_pubkey=intent_dicts[0]["sender_pubkey"],
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "evidence_class below required O3" in res.error
+
+
+def test_critical_settlement_rejects_expired_authorization() -> None:
+    state, intent_dicts, settlement_op, runtime = _state_intent_and_settlement()
+    settlement_op["oracle_authorization"] = _authorization_for(runtime, expires_at_epoch=41)
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            require_intent_signatures=False,
+            settlement_certificate_price_history=PRICE_HISTORY,
+            require_oracle_authorization_for_critical_settlements=True,
+        ),
+        state=state,
+        operations={"2": intent_dicts, "3": settlement_op},
+        block_timestamp=42,
+        tx_sender_pubkey=intent_dicts[0]["sender_pubkey"],
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "authorization expired" in res.error
 
 
 def test_critical_settlement_rejects_authorization_without_price_history() -> None:

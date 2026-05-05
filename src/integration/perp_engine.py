@@ -38,10 +38,11 @@ from __future__ import annotations
 from dataclasses import dataclass, fields, replace
 from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
+import hashlib
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from ..core.dex import DexState
 from ..core.perp_clearinghouse_market_params_guard import (
@@ -118,7 +119,7 @@ from ..core.perp_submission_auth_gate import (
     perp_submission_auth_gate_error,
 )
 from ..state.balances import BalanceTable
-from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x
+from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.nonces import NonceTable
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
@@ -150,6 +151,7 @@ except Exception:  # pragma: no cover - optional dependency
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 _U32_MAX = 0xFFFFFFFF
 _BPS_SCALE = 10_000
+OracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
 
 
 def _safe_error_str(exc: Exception) -> str:
@@ -174,6 +176,37 @@ _ASCII_TOKEN_CHARS_MODULE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO
 _ASCII_TOKEN_CHARS_VERSION = frozenset("0123456789.")
 _ASCII_TOKEN_CHARS_ACTION = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 _ASCII_TOKEN_CHARS_MARKET_ID = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-")
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_PERPS_INDEX_QUERY_ID = (
+    "sha256:"
+    + hashlib.sha256("zenodex.oracle.query.perps.index_price_e8".encode("utf-8")).hexdigest()
+)
+
+
+def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
+    return "sha256:" + hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+                "consumer_module": "zenodex.perps",
+                "action_kind": action_kind,
+                "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+                "required_evidence_floor": "O3",
+                "max_freshness_window_epochs": int(max_freshness_window_epochs),
+                "critical": True,
+            }
+        )
+    ).hexdigest()
+
+
+_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID = _oracle_consumer_profile_id(
+    action_kind="settle_epoch",
+    max_freshness_window_epochs=2,
+)
+_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID = _oracle_consumer_profile_id(
+    action_kind="liquidate_account",
+    max_freshness_window_epochs=1,
+)
 
 
 def _require_ascii_token(value: Any, *, name: str, max_len: int, allowed: frozenset[str]) -> str:
@@ -539,6 +572,13 @@ class PerpEngineConfig:
     oracle_spot_fee_bps: int = 30
     oracle_spot_reward_bps: int = 0
     oracle_spot_reward_safety_margin_bps: int = 1
+    # Optional ZenoOracle aggregate-adapter verifier. If a settle_epoch op
+    # carries `oracle_adapter_bridge`, the engine verifies that bridge before
+    # settlement and checks that it binds to zenodex.perps / settle_epoch.
+    oracle_adapter_bridge_verifier: Optional[OracleAdapterBridgeVerifier] = None
+    require_oracle_adapter_for_isolated_settle_epoch: bool = False
+    require_oracle_adapter_for_isolated_partial_liquidate: bool = False
+    require_oracle_adapter_for_clearinghouse_settle_epoch: bool = False
     # Scientist-derived anti-bounty-farming posture guard:
     # require a non-trivial minimum collectible liquidation penalty for bounty-eligible notional.
     min_collectible_liquidation_penalty_quote: int = 1_000
@@ -893,6 +933,154 @@ def _require_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> Opt
 
 def _is_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> bool:
     return _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
+
+
+def _oracle_adapter_result_get(result: Any, key: str) -> Any:
+    if isinstance(result, Mapping):
+        return result.get(key)
+    return getattr(result, key, None)
+
+
+def _oracle_adapter_error_summary(result: Any) -> str:
+    errors = _oracle_adapter_result_get(result, "errors")
+    if isinstance(errors, list):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    if isinstance(errors, tuple):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    return "bridge verifier rejected"
+
+
+def _require_oracle_adapter_bridge(
+    config: PerpEngineConfig,
+    *,
+    data: Mapping[str, Any],
+    consumer_module: str,
+    action_kind: str,
+    expected_query_id: Optional[str] = None,
+    expected_profile_id: Optional[str] = None,
+    expected_action_id: Optional[str] = None,
+    required: bool = False,
+) -> Optional[str]:
+    if "oracle_adapter_bridge" not in data:
+        if required:
+            return f"{action_kind} requires oracle_adapter_bridge"
+        return None
+
+    bridge = data.get("oracle_adapter_bridge")
+    if not isinstance(bridge, Mapping):
+        return "oracle_adapter_bridge must be an object"
+    verifier = config.oracle_adapter_bridge_verifier
+    if verifier is None:
+        return "oracle_adapter_bridge verifier not configured"
+    try:
+        result = verifier(bridge)
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier error: {_safe_error_str(exc)}"
+
+    if _oracle_adapter_result_get(result, "status") != "accepted":
+        return f"oracle_adapter_bridge rejected: {_oracle_adapter_error_summary(result)}"
+    result_consumer = _oracle_adapter_result_get(result, "consumer_module")
+    result_action = _oracle_adapter_result_get(result, "action_kind")
+    if result_consumer != consumer_module:
+        return "oracle_adapter_bridge consumer mismatch"
+    if result_action != action_kind:
+        return "oracle_adapter_bridge action mismatch"
+    result_query_id = _oracle_adapter_result_get(result, "query_id")
+    if expected_query_id is not None and result_query_id != expected_query_id:
+        return "oracle_adapter_bridge query mismatch"
+    result_profile_id = _oracle_adapter_result_get(result, "profile_id")
+    if expected_profile_id is not None and result_profile_id != expected_profile_id:
+        return "oracle_adapter_bridge profile mismatch"
+    result_action_id = _oracle_adapter_result_get(result, "action_id")
+    if expected_action_id is not None and result_action_id != expected_action_id:
+        return "oracle_adapter_bridge action_id mismatch"
+    return None
+
+
+def _perps_runtime_oracle_action_id(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    action_kind: str,
+    market: PerpMarketState,
+) -> str:
+    global_state = market.global_state
+    payload = {
+        "schema": "zenodex.oracle.perps_runtime_action_id.v1",
+        "chain_id": config.chain_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": action_kind,
+        "market_id": market_id,
+        "quote_asset": market.quote_asset,
+        "now_epoch": int(global_state.get("now_epoch", 0)),
+        "clearing_price_epoch": int(global_state.get("clearing_price_epoch", 0)),
+        "clearing_price_e8": int(global_state.get("clearing_price_e8", 0)),
+        "index_price_e8": int(global_state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _perps_liquidate_account_runtime_oracle_action_id(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    market: PerpMarketState,
+    account_pubkey: str,
+    fraction_bps: int,
+) -> str:
+    global_state = market.global_state
+    acct = market.accounts.get(account_pubkey) or _kernel_initial_account_state()
+    payload = {
+        "schema": "zenodex.oracle.perps_runtime_action_id.v1",
+        "chain_id": config.chain_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": "liquidate_account",
+        "market_id": market_id,
+        "quote_asset": market.quote_asset,
+        "account_pubkey": str(account_pubkey),
+        "fraction_bps": int(fraction_bps),
+        "now_epoch": int(global_state.get("now_epoch", 0)),
+        "index_price_e8": int(global_state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
+        "position_base": int(acct.position_base),
+        "entry_price_e8": int(acct.entry_price_e8),
+        "collateral_quote": int(acct.collateral_quote),
+        "liquidated_this_step": bool(acct.liquidated_this_step),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _perps_clearinghouse_runtime_oracle_action_id(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    action_kind: str,
+    market_kind: str,
+    quote_asset: str,
+    state: Mapping[str, Any],
+    participant_pubkeys: tuple[str, ...],
+) -> str:
+    payload = {
+        "schema": "zenodex.oracle.perps_clearinghouse_runtime_action_id.v1",
+        "chain_id": config.chain_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": action_kind,
+        "market_kind": market_kind,
+        "market_id": market_id,
+        "quote_asset": quote_asset,
+        "participant_pubkeys": list(participant_pubkeys),
+        "now_epoch": int(state.get("now_epoch", 0)),
+        "clearing_price_epoch": int(state.get("clearing_price_epoch", 0)),
+        "clearing_price_e8": int(state.get("clearing_price_e8", 0)),
+        "index_price_e8": int(state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(state.get("oracle_last_update_epoch", 0)),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
 def _oracle_reward_posture_error(config: PerpEngineConfig) -> Optional[str]:
@@ -1276,10 +1464,30 @@ def _apply_ch2p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action"}
+        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
         unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
         if unknown is not None:
             return unknown
+        err = _require_oracle_adapter_bridge(
+            config,
+            data=data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_2p_v1",
+                quote_asset=ch2p_market.quote_asset,
+                state=ch2p_market.state,
+                participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
+            ),
+            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
+        if err is not None:
+            return err
         try:
             next_state, eff = _ch2p_step(ch2p_market.state, tag="settle_epoch", args={})
         except Exception as exc:
@@ -1603,10 +1811,34 @@ def _apply_ch3p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action"}
+        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
         unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
         if unknown is not None:
             return unknown
+        err = _require_oracle_adapter_bridge(
+            config,
+            data=data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_3p_transfer_v1",
+                quote_asset=ch3p_market.quote_asset,
+                state=ch3p_market.state,
+                participant_pubkeys=(
+                    ch3p_market.account_a_pubkey,
+                    ch3p_market.account_b_pubkey,
+                    ch3p_market.account_c_pubkey,
+                ),
+            ),
+            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
+        if err is not None:
+            return err
         try:
             next_state, eff = _ch3p_step(ch3p_market.state, tag="settle_epoch", args={})
         except Exception as exc:
@@ -2068,7 +2300,7 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     market_id = op.market_id
     data = op.data
 
-    allowed = {"module", "version", "market_id", "action", "oracle_authorization"}
+    allowed = {"module", "version", "market_id", "action", "oracle_authorization", "oracle_adapter_bridge"}
     gate_error = _operator_gate_error(
         action_kind=RUNTIME_ACTION_SETTLE_EPOCH,
         action=action,
@@ -2077,6 +2309,23 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     )
     if gate_error is not None:
         return gate_error
+    err = _require_oracle_adapter_bridge(
+        ctx.config,
+        data=data,
+        consumer_module="zenodex.perps",
+        action_kind="settle_epoch",
+        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        expected_action_id=_perps_runtime_oracle_action_id(
+            ctx.config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market=market,
+        ),
+        required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
+    )
+    if err is not None:
+        return err
     oracle_auth_error = _check_isolated_settle_oracle_authorization(ctx=ctx, op=op, market=market)
     if oracle_auth_error is not None:
         return oracle_auth_error
@@ -2464,7 +2713,15 @@ def _apply_isolated_partial_liquidate(
     market_id = op.market_id
     data = op.data
 
-    allowed = {"module", "version", "market_id", "action", "account_pubkey", "fraction_bps"}
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "account_pubkey",
+        "fraction_bps",
+        "oracle_adapter_bridge",
+    }
     unknown_fields_ok = not (set(data.keys()) - allowed)
     gate_error = _sender_gate_error(
         action_kind=RUNTIME_ACTION_PARTIAL_LIQUIDATE,
@@ -2493,6 +2750,24 @@ def _apply_isolated_partial_liquidate(
     acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
 
     fraction_bps = _require_int(data.get("fraction_bps", 0), name="fraction_bps", non_negative=True)
+    err = _require_oracle_adapter_bridge(
+        ctx.config,
+        data=data,
+        consumer_module="zenodex.perps",
+        action_kind="liquidate_account",
+        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        expected_profile_id=_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+        expected_action_id=_perps_liquidate_account_runtime_oracle_action_id(
+            ctx.config,
+            market_id=market_id,
+            market=market,
+            account_pubkey=account_pubkey,
+            fraction_bps=fraction_bps,
+        ),
+        required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
+    )
+    if err is not None:
+        return err
     res = perp_epoch_isolated_default_apply(
         state=market.kernel_state_for_account(acct),
         action="partial_liquidate",

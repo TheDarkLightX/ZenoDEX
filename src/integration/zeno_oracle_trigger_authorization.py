@@ -2,10 +2,39 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, asdict
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
+from ..state.canonical import canonical_json_bytes
 from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
+
+
+TriggerOracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
+
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_TRIGGER_REFERENCE_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.trigger.reference_price_e8").hexdigest()
+)
+
+
+def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
+    payload = {
+        "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+        "consumer_module": "zenodex.trigger",
+        "action_kind": action_kind,
+        "query_id": _ORACLE_TRIGGER_REFERENCE_QUERY_ID,
+        "required_evidence_floor": "O3",
+        "max_freshness_window_epochs": int(max_freshness_window_epochs),
+        "critical": True,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+_ORACLE_TRIGGER_EXECUTE_PROFILE_ID = _oracle_consumer_profile_id(
+    action_kind="execute_trigger",
+    max_freshness_window_epochs=2,
+)
 
 
 @dataclass(frozen=True)
@@ -113,6 +142,71 @@ def trigger_execute_runtime_facts(facts: TriggerExecutionFacts) -> dict[str, Any
         "query_id": facts.query_id,
         "runtime_value_e8": int(facts.observed_value_e8),
     }
+
+
+def _adapter_result_get(result: Any, key: str) -> Any:
+    if isinstance(result, Mapping):
+        return result.get(key)
+    to_json = getattr(result, "to_json_obj", None)
+    if callable(to_json):
+        obj = to_json()
+        if isinstance(obj, Mapping):
+            return obj.get(key)
+    return getattr(result, key, None)
+
+
+def _adapter_error_summary(result: Any) -> str:
+    errors = _adapter_result_get(result, "errors")
+    if isinstance(errors, list) and errors:
+        return "; ".join(str(item) for item in errors[:5])
+    status = _adapter_result_get(result, "status")
+    return str(status or "unknown")
+
+
+def _default_oracle_adapter_bridge_verifier(bridge: Mapping[str, Any]) -> Any:
+    from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
+        verify_aggregate_adapter_bridge,
+    )
+
+    return verify_aggregate_adapter_bridge(bridge)
+
+
+def check_trigger_execute_oracle_adapter_bridge(
+    *,
+    bridge: Mapping[str, Any] | None,
+    facts: TriggerExecutionFacts,
+    required: bool = True,
+    bridge_verifier: TriggerOracleAdapterBridgeVerifier | None = None,
+) -> str | None:
+    if bridge is None:
+        if required:
+            return "execute_trigger requires oracle_adapter_bridge"
+        return None
+    if not isinstance(bridge, Mapping):
+        return "oracle_adapter_bridge must be an object"
+    if facts.query_id != _ORACLE_TRIGGER_REFERENCE_QUERY_ID:
+        return "trigger facts query mismatch"
+
+    verifier = bridge_verifier or _default_oracle_adapter_bridge_verifier
+    try:
+        result = verifier(bridge)
+    except Exception as exc:  # pragma: no cover - defensive fail-closed boundary
+        return f"oracle_adapter_bridge verifier error: {type(exc).__name__}"
+
+    if _adapter_result_get(result, "status") != "accepted":
+        return f"oracle_adapter_bridge rejected: {_adapter_error_summary(result)}"
+    if _adapter_result_get(result, "consumer_module") != "zenodex.trigger":
+        return "oracle_adapter_bridge consumer mismatch"
+    if _adapter_result_get(result, "action_kind") != "execute_trigger":
+        return "oracle_adapter_bridge action mismatch"
+    if _adapter_result_get(result, "query_id") != _ORACLE_TRIGGER_REFERENCE_QUERY_ID:
+        return "oracle_adapter_bridge query mismatch"
+    if _adapter_result_get(result, "profile_id") != _ORACLE_TRIGGER_EXECUTE_PROFILE_ID:
+        return "oracle_adapter_bridge profile mismatch"
+    expected_action_id = str(trigger_execute_runtime_facts(facts)["action_id"])
+    if _adapter_result_get(result, "action_id") != expected_action_id:
+        return "oracle_adapter_bridge action_id mismatch"
+    return None
 
 
 def check_trigger_execute_oracle_authorization(

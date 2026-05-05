@@ -48,7 +48,13 @@ def _state_and_intent(*, sender: str, block_timestamp: int = 42):
     return state, intent, receipt, runtime
 
 
-def _authorization_for(runtime: dict[str, object], *, observed_epoch: int = 1, value_e8: int | None = None) -> dict[str, object]:
+def _authorization_for(
+    runtime: dict[str, object],
+    *,
+    observed_epoch: int = 1,
+    value_e8: int | None = None,
+    expires_at_epoch: int | None = None,
+) -> dict[str, object]:
     query_id = str(runtime["query_id"])
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
     auth = {
@@ -64,7 +70,7 @@ def _authorization_for(runtime: dict[str, object], *, observed_epoch: int = 1, v
         "confidence_e8": 1,
         "deviation_bps": 1,
         "observed_epoch": int(observed_epoch),
-        "expires_at_epoch": int(runtime["now_epoch"]),
+        "expires_at_epoch": int(runtime["now_epoch"] if expires_at_epoch is None else expires_at_epoch),
         "feed_id": "feed:routing:protected-swap",
         "feed_registry_root": semantic_hash("test.feed-root", {"surface": "routing"}),
         "query_policy_root": semantic_hash("test.query-policy-root", {"surface": "routing"}),
@@ -166,3 +172,26 @@ def test_protected_swap_rejects_authorization_for_wrong_receipt_context() -> Non
     assert res.ok is False
     assert res.error is not None
     assert "pre_state_hash mismatch" in res.error
+
+
+def test_protected_swap_rejects_expired_authorization() -> None:
+    sender = "0x" + "aa" * 48
+    state, intent, receipt, runtime = _state_and_intent(sender=sender)
+    intent.set_field("oracle_authorization", _authorization_for(runtime, expires_at_epoch=1))
+    ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+            require_oracle_authorization_for_protected_swaps=True,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=42,
+        tx_sender_pubkey=sender,
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "authorization expired" in res.error

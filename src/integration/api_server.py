@@ -10,19 +10,21 @@ Security posture:
 - Default-deny CORS (no wildcard by default)
 - Basic rate limiting (per-IP, token bucket)
 - Tight request parsing and bounded request sizes
-- Optional bearer-token auth for demo/dev routes (DEMO_API_TOKEN)
+- Demo bearer-token auth for explicitly approved demo/dev routes (DEMO_API_TOKEN)
 """
 
 from __future__ import annotations
 
 import json
 import hmac
+import hashlib
 import os
 import threading
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Optional, Sequence, Set
+from math import comb
+from typing import Any, Mapping, Optional, Sequence, Set
 from urllib.parse import urlsplit
 
 # Prewarm the expensive attestation / LP-aware settlement modules at server
@@ -67,6 +69,13 @@ def _env_str(name: str, default: str) -> str:
         return default
     v = raw.strip()
     return v if v else default
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return bool(default)
+    return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
 def _safe_http_header_value(value: object) -> Optional[str]:
@@ -127,11 +136,679 @@ from src.integration.api_server_settlement_parsers import (
     _parse_settlement_feature_extension_inputs_payload,
     _parse_settlement_proof_flags_payload,
 )
+from src.state.canonical import canonical_json_bytes
+
+
+DEX_API_MAX_ROUTE_AMOUNT_IN = 50_000
+DEX_API_MAX_TWO_POOL_AUDIT_AMOUNT_OUT_TOTAL = 512
+DEX_API_MAX_SANDWICH_ATTACKER_AMOUNT_IN = 50_000
+DEX_API_MAX_SLIPPAGE_OPTIONS = 64
+DEX_API_MAX_POOLS = 64
+DEX_API_MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN = 5_000
+DEX_API_MAX_FAST_TOPK = 4_096
+DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET = 4_096
+DEX_API_EXACT_OUT_SEARCH_CAPS = {
+    "amount_out_total": (1, DEX_API_MAX_ROUTE_AMOUNT_IN),
+    "max_legs": (1, 3),
+    "max_candidate_pools": (1, 5),
+    "max_candidates": (1, 12),
+    "max_iters": (1, 4_096),
+    "window": (0, 64),
+    "brute_force_max": (0, 512),
+    "max_full_domain_pools": (1, 16),
+    "max_enumerated_candidates": (1, 50_000),
+}
+DEX_API_EXACT_IN_ROUTE_SEARCH_PATHS = {
+    "/api/dex/build_exact_in_route_oracle_contract",
+    "/api/dex/guard_exact_in_route_canonicality",
+    "/api/dex/quote_exact_in_route_guarded",
+    "/api/dex/build_exact_in_route_guarded_quote_packet",
+    "/api/dex/build_exact_in_route_rank_projection_packet",
+    "/api/dex/build_exact_in_route_true_key_interpretation_packet",
+}
+DEX_ROUTING_REFERENCE_QUERY_ID = (
+    "sha256:"
+    + hashlib.sha256("zenodex.oracle.query.routing.reference_price_e8".encode("utf-8")).hexdigest()
+)
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID = "sha256:" + hashlib.sha256(
+    canonical_json_bytes(
+        {
+            "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+            "consumer_module": "zenodex.routing",
+            "action_kind": "guarded_quote",
+            "query_id": DEX_ROUTING_REFERENCE_QUERY_ID,
+            "required_evidence_floor": "O3",
+            "max_freshness_window_epochs": 4,
+            "critical": True,
+        }
+    )
+).hexdigest()
 
 
 def _is_loopback_host(host: str) -> bool:
     h = (host or "").strip().lower()
     return h in ("127.0.0.1", "localhost", "::1")
+
+
+def _dex_api_int_limit_error(
+    obj: dict[str, Any],
+    *,
+    field: str,
+    min_value: int,
+    max_value: int,
+) -> Optional[str]:
+    if field not in obj:
+        return None
+    value = obj.get(field)
+    if not isinstance(value, int) or isinstance(value, bool):
+        return f"bad_{field}"
+    if int(value) < int(min_value) or int(value) > int(max_value):
+        return f"bad_{field}"
+    return None
+
+
+def _dex_api_list_length_error(
+    obj: dict[str, Any],
+    *,
+    field: str,
+    max_len: int,
+) -> Optional[str]:
+    if field not in obj:
+        return None
+    value = obj.get(field)
+    if isinstance(value, list) and len(value) > int(max_len):
+        return f"bad_{field}"
+    return None
+
+
+def _dex_api_nested_int_limit_error(
+    value: Any,
+    *,
+    field: str,
+    min_value: int,
+    max_value: int,
+    max_depth: int = 32,
+) -> Optional[str]:
+    if max_depth < 0:
+        return "bad_request_depth"
+    if isinstance(value, dict):
+        if field in value:
+            raw = value.get(field)
+            if not isinstance(raw, int) or isinstance(raw, bool):
+                return f"bad_{field}"
+            if int(raw) < int(min_value) or int(raw) > int(max_value):
+                return f"bad_{field}"
+        for child in value.values():
+            err = _dex_api_nested_int_limit_error(
+                child,
+                field=field,
+                min_value=min_value,
+                max_value=max_value,
+                max_depth=max_depth - 1,
+            )
+            if err is not None:
+                return err
+    elif isinstance(value, list):
+        for child in value:
+            err = _dex_api_nested_int_limit_error(
+                child,
+                field=field,
+                min_value=min_value,
+                max_value=max_value,
+                max_depth=max_depth - 1,
+            )
+            if err is not None:
+                return err
+    return None
+
+
+def _dex_api_nested_list_length_error(
+    value: Any,
+    *,
+    field: str,
+    max_len: int,
+    max_depth: int = 32,
+) -> Optional[str]:
+    if max_depth < 0:
+        return "bad_request_depth"
+    if isinstance(value, dict):
+        raw = value.get(field)
+        if isinstance(raw, list) and len(raw) > int(max_len):
+            return f"bad_{field}"
+        for child in value.values():
+            err = _dex_api_nested_list_length_error(
+                child,
+                field=field,
+                max_len=max_len,
+                max_depth=max_depth - 1,
+            )
+            if err is not None:
+                return err
+    elif isinstance(value, list):
+        for child in value:
+            err = _dex_api_nested_list_length_error(
+                child,
+                field=field,
+                max_len=max_len,
+                max_depth=max_depth - 1,
+            )
+            if err is not None:
+                return err
+    return None
+
+
+def _dex_api_mixed_exact_in_split_limit_error(params: dict[str, Any]) -> Optional[str]:
+    if params.get("enable_mixed_direct_twohop_split") is not True:
+        return None
+    amount_in = params.get("amount_in")
+    if not isinstance(amount_in, int) or isinstance(amount_in, bool):
+        return "bad_amount_in"
+    if int(amount_in) > DEX_API_MAX_MIXED_DIRECT_TWOHOP_SPLIT_AMOUNT_IN:
+        return "bad_amount_in"
+    return None
+
+
+def _dex_api_nested_mixed_exact_in_split_limit_error(value: Any, *, max_depth: int = 32) -> Optional[str]:
+    if max_depth < 0:
+        return "bad_request_depth"
+    if isinstance(value, dict):
+        err = _dex_api_mixed_exact_in_split_limit_error(value)
+        if err is not None:
+            return err
+        for child in value.values():
+            err = _dex_api_nested_mixed_exact_in_split_limit_error(child, max_depth=max_depth - 1)
+            if err is not None:
+                return err
+    elif isinstance(value, list):
+        for child in value:
+            err = _dex_api_nested_mixed_exact_in_split_limit_error(child, max_depth=max_depth - 1)
+            if err is not None:
+                return err
+    return None
+
+
+def _dex_api_exact_out_candidate_space_upper_bound(
+    *,
+    amount_out_total: int,
+    max_candidate_pools: int,
+    max_legs: int,
+    stop_after: int,
+) -> int:
+    total = 0
+    amount = int(amount_out_total)
+    pools = int(max_candidate_pools)
+    legs = min(int(max_legs), pools, amount)
+    if amount <= 0 or pools <= 0 or legs <= 0:
+        return 0
+    for k in range(1, legs + 1):
+        total += int(comb(pools, k)) * int(comb(amount - 1, k - 1))
+        if total > int(stop_after):
+            return int(total)
+    return int(total)
+
+
+def _dex_api_exact_out_search_budget_error(params: dict[str, Any]) -> Optional[str]:
+    amount_out_total = params.get("amount_out_total")
+    if not isinstance(amount_out_total, int) or isinstance(amount_out_total, bool):
+        return None
+    max_candidate_pools = params.get("max_candidate_pools", 5)
+    max_legs = params.get("max_legs", 3)
+    max_enumerated_candidates = params.get("max_enumerated_candidates", 20_000)
+    for raw in (max_candidate_pools, max_legs, max_enumerated_candidates):
+        if not isinstance(raw, int) or isinstance(raw, bool):
+            return None
+    candidate_space = _dex_api_exact_out_candidate_space_upper_bound(
+        amount_out_total=int(amount_out_total),
+        max_candidate_pools=int(max_candidate_pools),
+        max_legs=int(max_legs),
+        stop_after=max(
+            DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET,
+            int(max_enumerated_candidates),
+        ),
+    )
+    if candidate_space > int(max_enumerated_candidates):
+        return "bad_exact_out_search_budget"
+    effective_budget = min(int(max_enumerated_candidates), int(candidate_space))
+    if effective_budget > DEX_API_EXACT_OUT_CANDIDATE_EVAL_BUDGET:
+        return "bad_exact_out_search_budget"
+    return None
+
+
+def _dex_api_nested_exact_out_search_budget_error(value: Any, *, max_depth: int = 32) -> Optional[str]:
+    if max_depth < 0:
+        return "bad_request_depth"
+    if isinstance(value, dict):
+        has_search_shape = "amount_out_total" in value and (
+            "max_enumerated_candidates" in value or "max_candidate_pools" in value or "max_legs" in value
+        )
+        if has_search_shape:
+            err = _dex_api_exact_out_search_budget_error(value)
+            if err is not None:
+                return err
+        for child in value.values():
+            err = _dex_api_nested_exact_out_search_budget_error(child, max_depth=max_depth - 1)
+            if err is not None:
+                return err
+    elif isinstance(value, list):
+        for child in value:
+            err = _dex_api_nested_exact_out_search_budget_error(child, max_depth=max_depth - 1)
+            if err is not None:
+                return err
+    return None
+
+
+def _is_exact_out_many_pool_search_path(path: str) -> bool:
+    return (
+        path.startswith("/api/dex/quote_exact_out_many_pool")
+        or path.startswith("/api/dex/build_exact_out_many_pool")
+        or path in {
+            "/api/dex/audit_exact_out_many_pool_canonicality",
+            "/api/dex/guard_exact_out_many_pool_canonicality",
+        }
+    )
+
+
+def _is_exact_out_many_pool_verify_path(path: str) -> bool:
+    return path.startswith("/api/dex/verify_exact_out_many_pool_")
+
+
+def _is_exact_in_route_verify_path(path: str) -> bool:
+    return path.startswith("/api/dex/verify_exact_in_route_")
+
+
+def _dex_api_search_limit_error(path: str, obj: dict[str, Any]) -> Optional[str]:
+    err = _dex_api_list_length_error(
+        obj,
+        field="pools",
+        max_len=DEX_API_MAX_POOLS,
+    )
+    if err is not None:
+        return err
+
+    if path in {"/api/dex/impact_preview", "/api/dex/slippage_advice"}:
+        err = _dex_api_int_limit_error(
+            obj,
+            field="amount_in",
+            min_value=0,
+            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+
+    if path in {
+        "/api/dex/slippage_advice",
+        "/api/dex/pokayoke_swap_suggest",
+        "/api/dex/pokayoke_swap_suggest_heavy",
+    }:
+        err = _dex_api_int_limit_error(
+            obj,
+            field="max_attacker_amount_in",
+            min_value=0,
+            max_value=DEX_API_MAX_SANDWICH_ATTACKER_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_list_length_error(
+            obj,
+            field="slippage_options_bps",
+            max_len=DEX_API_MAX_SLIPPAGE_OPTIONS,
+        )
+        if err is not None:
+            return err
+        if path in {"/api/dex/pokayoke_swap_suggest", "/api/dex/pokayoke_swap_suggest_heavy"}:
+            err = _dex_api_int_limit_error(
+                obj,
+                field="amount_in",
+                min_value=1,
+                max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+            )
+            if err is not None:
+                return err
+
+    if path == "/api/dex/quote":
+        kind = str(obj.get("kind", "")).strip().lower()
+        if kind == "exact_in":
+            err = _dex_api_int_limit_error(
+                obj,
+                field="amount_in",
+                min_value=1,
+                max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+            )
+            if err is not None:
+                return err
+        elif kind == "exact_out":
+            err = _dex_api_int_limit_error(
+                obj,
+                field="amount_out",
+                min_value=1,
+                max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+            )
+            if err is not None:
+                return err
+        if str(obj.get("routing_mode", "exact")).strip().lower() == "fast_v1":
+            err = _dex_api_int_limit_error(
+                obj,
+                field="fast_topk_max",
+                min_value=1,
+                max_value=DEX_API_MAX_FAST_TOPK,
+            )
+            if err is not None:
+                return err
+
+    if path in DEX_API_EXACT_IN_ROUTE_SEARCH_PATHS:
+        err = _dex_api_int_limit_error(
+            obj,
+            field="amount_in",
+            min_value=1,
+            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_mixed_exact_in_split_limit_error(obj)
+        if err is not None:
+            return err
+
+    if path == "/api/dex/audit_exact_out_two_pool_canonicality":
+        err = _dex_api_int_limit_error(
+            obj,
+            field="amount_out_total",
+            min_value=1,
+            max_value=DEX_API_MAX_TWO_POOL_AUDIT_AMOUNT_OUT_TOTAL,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_int_limit_error(
+            obj,
+            field="brute_force_max",
+            min_value=0,
+            max_value=DEX_API_MAX_TWO_POOL_AUDIT_AMOUNT_OUT_TOTAL,
+        )
+        if err is not None:
+            return err
+
+    if _is_exact_in_route_verify_path(path):
+        err = _dex_api_nested_list_length_error(
+            obj,
+            field="pool_snapshots",
+            max_len=DEX_API_MAX_POOLS,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_nested_int_limit_error(
+            obj,
+            field="amount_in",
+            min_value=1,
+            max_value=DEX_API_MAX_ROUTE_AMOUNT_IN,
+        )
+        if err is not None:
+            return err
+        err = _dex_api_nested_mixed_exact_in_split_limit_error(obj)
+        if err is not None:
+            return err
+
+    if _is_exact_out_many_pool_verify_path(path):
+        err = _dex_api_nested_list_length_error(
+            obj,
+            field="pool_snapshots",
+            max_len=DEX_API_MAX_POOLS,
+        )
+        if err is not None:
+            return err
+        for field, (min_value, max_value) in DEX_API_EXACT_OUT_SEARCH_CAPS.items():
+            err = _dex_api_nested_int_limit_error(
+                obj,
+                field=field,
+                min_value=int(min_value),
+                max_value=int(max_value),
+            )
+            if err is not None:
+                return err
+        err = _dex_api_nested_exact_out_search_budget_error(obj)
+        if err is not None:
+            return err
+
+    if _is_exact_out_many_pool_search_path(path):
+        for field, (min_value, max_value) in DEX_API_EXACT_OUT_SEARCH_CAPS.items():
+            err = _dex_api_int_limit_error(
+                obj,
+                field=field,
+                min_value=int(min_value),
+                max_value=int(max_value),
+            )
+            if err is not None:
+                return err
+        err = _dex_api_exact_out_search_budget_error(obj)
+        if err is not None:
+            return err
+
+    return None
+
+
+def _adapter_result_get(result: Any, key: str) -> Any:
+    if isinstance(result, Mapping):
+        return result.get(key)
+    return getattr(result, key, None)
+
+
+def _adapter_error_summary(result: Any) -> str:
+    errors = _adapter_result_get(result, "errors")
+    if isinstance(errors, (list, tuple)):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    return "bridge verifier rejected"
+
+
+def _canonical_routing_pool_snapshots(pools_raw: object) -> list[dict[str, Any]]:
+    if not isinstance(pools_raw, list):
+        raise ValueError("pools_must_be_list")
+    snapshots: list[dict[str, Any]] = []
+    for row in pools_raw:
+        if not isinstance(row, Mapping):
+            raise ValueError("pool_must_be_object")
+        snapshots.append(
+            {
+                "pool_id": str(row.get("pool_id", "")),
+                "asset0": str(row.get("asset0", "")),
+                "asset1": str(row.get("asset1", "")),
+                "reserve0": int(row.get("reserve0", 0)),
+                "reserve1": int(row.get("reserve1", 0)),
+                "fee_bps": int(row.get("fee_bps", 0)),
+                "lp_supply": int(row.get("lp_supply", 1)),
+                "status": str(row.get("status", "ACTIVE")).strip().upper(),
+                "created_at": int(row.get("created_at", 0)),
+                "curve_tag": str(row.get("curve_tag", "CPMM")),
+                "curve_params": row.get("curve_params", ""),
+            }
+        )
+    return snapshots
+
+
+def _routing_guarded_quote_oracle_action_id(
+    *,
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_in: int,
+    split_search_profile: str,
+    enable_mixed_direct_twohop_split: bool,
+    binding_ok: int,
+    pools_raw: object,
+) -> str:
+    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
+    pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
+    payload = {
+        "schema": "zenodex.oracle.routing_runtime_action_id.v1",
+        "consumer_module": "zenodex.routing",
+        "action_kind": "guarded_quote",
+        "path": path,
+        "quote_kind": "exact_in",
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_in": int(amount_in),
+        "split_search_profile": split_search_profile,
+        "enable_mixed_direct_twohop_split": bool(enable_mixed_direct_twohop_split),
+        "binding_ok": int(binding_ok),
+        "pool_snapshot_hash": pool_snapshot_hash,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _routing_guarded_exact_out_quote_oracle_action_id(
+    *,
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int,
+    max_candidate_pools: int,
+    max_candidates: int,
+    max_iters: int,
+    window: int,
+    brute_force_max: int,
+    max_enumerated_candidates: int,
+    pools_raw: object,
+) -> str:
+    pool_snapshots = _canonical_routing_pool_snapshots(pools_raw)
+    pool_snapshot_hash = "sha256:" + hashlib.sha256(canonical_json_bytes({"pools": pool_snapshots})).hexdigest()
+    payload = {
+        "schema": "zenodex.oracle.routing_runtime_action_id.v1",
+        "consumer_module": "zenodex.routing",
+        "action_kind": "guarded_quote",
+        "path": path,
+        "quote_kind": "exact_out_many_pool",
+        "asset_in": asset_in,
+        "asset_out": asset_out,
+        "amount_out_total": int(amount_out_total),
+        "max_legs": int(max_legs),
+        "max_candidate_pools": int(max_candidate_pools),
+        "max_candidates": int(max_candidates),
+        "max_iters": int(max_iters),
+        "window": int(window),
+        "brute_force_max": int(brute_force_max),
+        "max_enumerated_candidates": int(max_enumerated_candidates),
+        "pool_snapshot_hash": pool_snapshot_hash,
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _check_routing_oracle_adapter_bridge_for_action(
+    *,
+    body: Mapping[str, Any],
+    expected_action_id: str,
+) -> Optional[str]:
+    required = _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False)
+    if "oracle_adapter_bridge" not in body:
+        if required:
+            return "guarded_quote requires oracle_adapter_bridge"
+        return None
+
+    bridge = body.get("oracle_adapter_bridge")
+    if not isinstance(bridge, Mapping):
+        return "oracle_adapter_bridge must be an object"
+
+    try:
+        from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
+            verify_aggregate_adapter_bridge,
+        )
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier unavailable: {type(exc).__name__}"
+
+    try:
+        result = verify_aggregate_adapter_bridge(bridge)
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier error: {type(exc).__name__}"
+
+    if _adapter_result_get(result, "status") != "accepted":
+        return f"oracle_adapter_bridge rejected: {_adapter_error_summary(result)}"
+    if _adapter_result_get(result, "consumer_module") != "zenodex.routing":
+        return "oracle_adapter_bridge consumer mismatch"
+    if _adapter_result_get(result, "action_kind") != "guarded_quote":
+        return "oracle_adapter_bridge action mismatch"
+    if _adapter_result_get(result, "query_id") != DEX_ROUTING_REFERENCE_QUERY_ID:
+        return "oracle_adapter_bridge query mismatch"
+    if _adapter_result_get(result, "profile_id") != DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID:
+        return "oracle_adapter_bridge profile mismatch"
+    if _adapter_result_get(result, "action_id") != expected_action_id:
+        return "oracle_adapter_bridge action_id mismatch"
+    return None
+
+
+def _check_routing_oracle_adapter_bridge(
+    *,
+    body: Mapping[str, Any],
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_in: int,
+    split_search_profile: str,
+    enable_mixed_direct_twohop_split: bool,
+    binding_ok: int,
+) -> Optional[str]:
+    if "oracle_adapter_bridge" not in body:
+        if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
+            return "guarded_quote requires oracle_adapter_bridge"
+        return None
+    try:
+        expected_action_id = _routing_guarded_quote_oracle_action_id(
+            path=path,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_in=int(amount_in),
+            split_search_profile=split_search_profile,
+            enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
+            binding_ok=int(binding_ok),
+            pools_raw=body.get("pools"),
+        )
+    except (TypeError, ValueError):
+        return "oracle_adapter_bridge action_id unavailable"
+    return _check_routing_oracle_adapter_bridge_for_action(
+        body=body,
+        expected_action_id=expected_action_id,
+    )
+
+
+def _check_routing_exact_out_oracle_adapter_bridge(
+    *,
+    body: Mapping[str, Any],
+    path: str,
+    asset_in: str,
+    asset_out: str,
+    amount_out_total: int,
+    max_legs: int,
+    max_candidate_pools: int,
+    max_candidates: int,
+    max_iters: int,
+    window: int,
+    brute_force_max: int,
+    max_enumerated_candidates: int,
+) -> Optional[str]:
+    if "oracle_adapter_bridge" not in body:
+        if _env_bool("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", default=False):
+            return "guarded_quote requires oracle_adapter_bridge"
+        return None
+    try:
+        expected_action_id = _routing_guarded_exact_out_quote_oracle_action_id(
+            path=path,
+            asset_in=asset_in,
+            asset_out=asset_out,
+            amount_out_total=int(amount_out_total),
+            max_legs=int(max_legs),
+            max_candidate_pools=int(max_candidate_pools),
+            max_candidates=int(max_candidates),
+            max_iters=int(max_iters),
+            window=int(window),
+            brute_force_max=int(brute_force_max),
+            max_enumerated_candidates=int(max_enumerated_candidates),
+            pools_raw=body.get("pools"),
+        )
+    except (TypeError, ValueError):
+        return "oracle_adapter_bridge action_id unavailable"
+    return _check_routing_oracle_adapter_bridge_for_action(
+        body=body,
+        expected_action_id=expected_action_id,
+    )
 
 
 @dataclass
@@ -232,7 +909,9 @@ class _Handler(BaseHTTPRequestHandler):
     def _demo_auth_ok(self) -> bool:
         """Optional bearer token auth for demo/dev routes.
 
-        If no token is configured, auth is not enforced.
+        If no token is configured, auth is not enforced by the handler. main()
+        refuses that configuration for enabled sensitive APIs unless an external
+        auth boundary is explicitly declared.
         """
         token = getattr(self.server, "demo_api_token", "")  # type: ignore[attr-defined]
         if not isinstance(token, str) or not token:
@@ -354,6 +1033,10 @@ class _Handler(BaseHTTPRequestHandler):
         if not isinstance(obj, dict):
             self._write_json(400, {"ok": False, "error": "bad_body"}, cors_origin=cors_origin)
             return True
+        search_limit_error = _dex_api_search_limit_error(path, obj)
+        if search_limit_error is not None:
+            self._write_json(400, {"ok": False, "error": search_limit_error}, cors_origin=cors_origin)
+            return True
 
         if path == "/api/dex/impact_preview":
             try:
@@ -399,7 +1082,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "impact_preview_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "impact_preview_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -526,7 +1209,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "slippage_advice_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "slippage_advice_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -641,7 +1324,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "pokayoke_swap_suggest_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "pokayoke_swap_suggest_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -737,7 +1420,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "pokayoke_swap_suggest_heavy_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -787,7 +1470,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "proof_mining_status_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "proof_mining_status_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1070,7 +1753,7 @@ class _Handler(BaseHTTPRequestHandler):
                 return True
             except Exception as exc:
                 err = "bad_pools" if "pools" in str(exc).lower() else "quote_error"
-                self._write_json(400, {"ok": False, "error": err, "details": str(exc)[:200]}, cors_origin=cors_origin)
+                self._write_json(400, {"ok": False, "error": err, "details": "request failed"}, cors_origin=cors_origin)
                 return True
 
         if path == "/api/dex/verify_quote_receipt":
@@ -1086,7 +1769,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self._write_json(200, {"ok": bool(ok), "error": str(err)}, cors_origin=cors_origin)
                 return True
             except Exception as exc:
-                self._write_json(400, {"ok": False, "error": "verify_error", "details": str(exc)[:200]}, cors_origin=cors_origin)
+                self._write_json(400, {"ok": False, "error": "verify_error", "details": "request failed"}, cors_origin=cors_origin)
                 return True
 
         if path == "/api/dex/build_exact_in_route_oracle_contract":
@@ -1145,7 +1828,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_in_route_oracle_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_in_route_oracle_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1166,7 +1849,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_in_route_oracle_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_in_route_oracle_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1219,7 +1902,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "guard_exact_in_route_canonicality_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "guard_exact_in_route_canonicality_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1252,6 +1935,23 @@ class _Handler(BaseHTTPRequestHandler):
                 if not isinstance(binding_ok, int) or isinstance(binding_ok, bool) or binding_ok not in {0, 1}:
                     self._write_json(400, {"ok": False, "error": "bad_binding_ok"}, cors_origin=cors_origin)
                     return True
+                bridge_err = _check_routing_oracle_adapter_bridge(
+                    body=obj,
+                    path=path,
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_in=int(amount_in),
+                    split_search_profile=split_search_profile,
+                    enable_mixed_direct_twohop_split=bool(enable_mixed_direct_twohop_split),
+                    binding_ok=int(binding_ok),
+                )
+                if bridge_err is not None:
+                    self._write_json(
+                        400,
+                        {"ok": False, "error": "rejected", "detail": bridge_err},
+                        cors_origin=cors_origin,
+                    )
+                    return True
 
                 from src.integration.exact_in_route_certificate import (  # pylint: disable=import-outside-toplevel
                     quote_exact_in_route_guarded,
@@ -1274,7 +1974,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "quote_exact_in_route_guarded_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "quote_exact_in_route_guarded_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1336,7 +2036,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_in_route_guarded_quote_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_in_route_guarded_quote_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1357,7 +2057,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_in_route_guarded_quote_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_in_route_guarded_quote_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1416,7 +2116,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_in_route_rank_projection_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_in_route_rank_projection_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1437,7 +2137,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_in_route_rank_projection_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_in_route_rank_projection_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1496,7 +2196,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_in_route_true_key_interpretation_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_in_route_true_key_interpretation_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1520,7 +2220,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_in_route_true_key_interpretation_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -1617,7 +2317,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_spot_value_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_spot_value_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1712,7 +2412,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_spot_value_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_spot_value_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1824,7 +2524,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_lp_value_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_lp_value_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -1935,7 +2635,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_lp_value_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_lp_value_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2028,7 +2728,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_value_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_value_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2119,7 +2819,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_value_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_value_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2201,7 +2901,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_endogenous_lp_value_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_endogenous_lp_value_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2277,7 +2977,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_endogenous_lp_value_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_endogenous_lp_value_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2298,7 +2998,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_feature_extension_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_feature_extension_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2323,7 +3023,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_feature_extension_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_feature_extension_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2441,7 +3141,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_end_to_end_certificate_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_end_to_end_certificate_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2548,7 +3248,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_end_to_end_certificate_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_end_to_end_certificate_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2609,7 +3309,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_spot_price_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_spot_price_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2630,7 +3330,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_spot_price_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_spot_price_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2662,7 +3362,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_settlement_spot_price_attestation_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_settlement_spot_price_attestation_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2704,7 +3404,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_settlement_spot_price_attestation_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2726,7 +3426,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "bad_exact_out_certificate_request", "details": str(exc)[:200]},
+                    {"ok": False, "error": "bad_exact_out_certificate_request", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2771,7 +3471,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "audit_exact_out_two_pool_canonicality_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "audit_exact_out_two_pool_canonicality_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2832,7 +3532,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "audit_exact_out_many_pool_canonicality_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "audit_exact_out_many_pool_canonicality_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -2891,7 +3591,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_candidate_domain_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -2948,7 +3648,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_prefilter_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3011,7 +3711,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_prefilter_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3087,7 +3787,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_selected_domain_oracle_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3187,7 +3887,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_repaired_selected_domain_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3294,7 +3994,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_repaired_advisory_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3377,7 +4077,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_repaired_full_domain_certified_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3522,7 +4222,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_bounded_advisory_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3671,7 +4371,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3771,7 +4471,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_adaptive_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3919,7 +4619,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "quote_exact_out_many_pool_certified_advisory_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -3994,7 +4694,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_advisory_quote_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4069,7 +4769,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_full_domain_certified_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4144,7 +4844,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_key_cover_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4221,7 +4921,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4295,7 +4995,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_bounded_advisory_quote_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4369,7 +5069,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_certified_advisory_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4444,7 +5144,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_repaired_replacement_shadow_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4519,7 +5219,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_default_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4594,7 +5294,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_bounded_workaround_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4663,7 +5363,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_out_many_pool_oracle_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_out_many_pool_oracle_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -4737,7 +5437,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_audited_bounds_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4814,7 +5514,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "build_exact_out_many_pool_adaptive_liveness_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -4894,7 +5594,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "guard_exact_out_many_pool_canonicality_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "guard_exact_out_many_pool_canonicality_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -4929,6 +5629,27 @@ class _Handler(BaseHTTPRequestHandler):
                     if not isinstance(value, int) or isinstance(value, bool) or value < int(min_value):
                         self._write_json(400, {"ok": False, "error": f"bad_{field_name}"}, cors_origin=cors_origin)
                         return True
+                bridge_err = _check_routing_exact_out_oracle_adapter_bridge(
+                    body=obj,
+                    path=path,
+                    asset_in=asset_in,
+                    asset_out=asset_out,
+                    amount_out_total=int(amount_out_total),
+                    max_legs=int(max_legs),
+                    max_candidate_pools=int(max_candidate_pools),
+                    max_candidates=int(max_candidates),
+                    max_iters=int(max_iters),
+                    window=int(window),
+                    brute_force_max=int(brute_force_max),
+                    max_enumerated_candidates=int(max_enumerated_candidates),
+                )
+                if bridge_err is not None:
+                    self._write_json(
+                        400,
+                        {"ok": False, "error": "rejected", "detail": bridge_err},
+                        cors_origin=cors_origin,
+                    )
+                    return True
 
                 from src.integration.exact_out_route_certificate import (  # pylint: disable=import-outside-toplevel
                     EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
@@ -5003,7 +5724,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "quote_exact_out_many_pool_guarded_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "quote_exact_out_many_pool_guarded_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5072,7 +5793,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_out_many_pool_guarded_quote_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_out_many_pool_guarded_quote_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5096,7 +5817,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_guarded_quote_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_out_many_pool_guarded_quote_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5166,7 +5887,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "build_exact_out_many_pool_certified_winner_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "build_exact_out_many_pool_certified_winner_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5190,7 +5911,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_certified_winner_packet_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_out_many_pool_certified_winner_packet_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5221,7 +5942,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_advisory_quote_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5257,7 +5978,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_full_domain_certified_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5289,7 +6010,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_key_cover_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5329,7 +6050,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_key_cover_interpretation_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5361,7 +6082,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_certified_advisory_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5393,7 +6114,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_replacement_shadow_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5425,7 +6146,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_default_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5457,7 +6178,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_bounded_advisory_quote_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5489,7 +6210,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_bounded_workaround_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5525,7 +6246,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_selected_domain_oracle_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5557,7 +6278,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_candidate_domain_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5589,7 +6310,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_prefilter_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5621,7 +6342,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_repaired_prefilter_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5646,7 +6367,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_out_many_pool_oracle_contract_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_out_many_pool_oracle_contract_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5677,7 +6398,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_audited_bounds_contract_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5713,7 +6434,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {
                         "ok": False,
                         "error": "verify_exact_out_many_pool_adaptive_liveness_packet_error",
-                        "details": str(exc)[:200],
+                        "details": "request failed",
                     },
                     cors_origin=cors_origin,
                 )
@@ -5735,7 +6456,7 @@ class _Handler(BaseHTTPRequestHandler):
             except Exception as exc:
                 self._write_json(
                     400,
-                    {"ok": False, "error": "verify_exact_out_certificate_error", "details": str(exc)[:200]},
+                    {"ok": False, "error": "verify_exact_out_certificate_error", "details": "request failed"},
                     cors_origin=cors_origin,
                 )
                 return True
@@ -5859,10 +6580,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     from src.integration.confidential_feature_status import load_confidential_feature_status_from_env  # pylint: disable=import-outside-toplevel
     confidential_feature_status = load_confidential_feature_status_from_env().to_public_dict()
 
-    if (perps_enabled or zusd_enabled or dex_enabled) and (not demo_api_token) and (not _is_loopback_host(host)):
+    sensitive_api_enabled = bool(perps_enabled or zusd_enabled or dex_enabled)
+    runtime_env = _env_str("ZENODEX_ENV", _env_str("APP_ENV", "production")).lower()
+    production_mode = runtime_env not in ("dev", "development", "test", "local")
+    external_auth_enforced = _env_bool("ZENODEX_EXTERNAL_AUTH_ENFORCED", False)
+    allow_demo_token_auth = _env_bool("ALLOW_DEMO_TOKEN_AUTH", False)
+
+    if sensitive_api_enabled and not external_auth_enforced and not demo_api_token:
         print(
-            "Refusing to start: demo APIs enabled on non-loopback host without DEMO_API_TOKEN "
+            "Refusing to start: sensitive APIs enabled without external auth or DEMO_API_TOKEN "
             f"(host={host!r}, perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled})"
+        )
+        return 2
+    if sensitive_api_enabled and not external_auth_enforced and demo_api_token and production_mode and not allow_demo_token_auth:
+        print(
+            "Refusing to start: DEMO_API_TOKEN is demo/dev auth only. "
+            "Set ZENODEX_EXTERNAL_AUTH_ENFORCED=1 for a real auth gateway, or "
+            "ALLOW_DEMO_TOKEN_AUTH=1 only for a controlled demo."
+        )
+        return 2
+    if (
+        sensitive_api_enabled
+        and not external_auth_enforced
+        and demo_api_token
+        and not _is_loopback_host(host)
+        and not allow_demo_token_auth
+    ):
+        print(
+            "Refusing to start: demo-token auth on a non-loopback bind requires "
+            "ALLOW_DEMO_TOKEN_AUTH=1 for an explicitly scoped demo."
         )
         return 2
 
@@ -5880,7 +6626,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"zenodex-api listening on http://{host}:{port} "
         f"(cors_origins={sorted(cors_origins)}, rpm={rpm}, max_buckets={max_buckets}, "
         f"perps_api={perps_enabled}, zusd_api={zusd_enabled}, dex_api={dex_enabled}, "
-        f"confidential_stage={confidential_feature_status.get('stage')}, demo_api_token_set={bool(demo_api_token)})"
+        f"confidential_stage={confidential_feature_status.get('stage')}, "
+        f"external_auth_enforced={external_auth_enforced}, demo_api_token_set={bool(demo_api_token)}, "
+        f"demo_token_auth_allowed={allow_demo_token_auth})"
     )
     httpd.serve_forever(poll_interval=0.25)
     return 0
