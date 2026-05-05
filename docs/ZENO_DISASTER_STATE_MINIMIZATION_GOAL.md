@@ -183,17 +183,19 @@ python3 tools/check_zeno_oracle_disaster_frontier.py --format text
 Current expected receipt:
 
 ```text
+status = accepted
 frontier_family_count = 28
 closed_family_count = 23
 blocked_or_backlog_count = 5
-new_obligation_family_count = 1
-status = accepted
+new_obligation_family_count = 0
 ```
 
 The frontier gate cross-checks the devnet disaster harness, named
 disaster-class corpus, and obligation-antichain manifest. It rejects silent
 coverage drift: a family must have public replay evidence, or it must remain an
-explicit blocker/backlog item.
+explicit blocker/backlog item. Cross-domain finality is now represented as a
+manifest obligation atom; live finality adapter receipts remain outside the
+closed evidence set.
 
 The current open frontier families are usable perps oracle snapshots,
 cross-domain finality, live escrow payout safety, live governance timelock

@@ -342,9 +342,9 @@ def sample_frontier() -> dict[str, Any]:
             "cross_domain_finality_reorg_feeds_oracle_read",
             source="production-frontier-seed",
             status="production_blocked",
-            manifest_axis="terminal_dag_missing_dependency",
+            manifest_axis="cross_domain_finality_reorg_feeds_oracle_read",
             manifest_obligations=["cross_domain_finality", "dependency_order", "receipt_dag_closed", "schema_total"],
-            blockers=["cross_domain_finality_obligation_atom_not_in_manifest", "no_live_finality_adapter_receipts"],
+            blockers=["no_live_finality_adapter_receipts"],
         ),
         _family(
             "live_escrow_shortfall_blocks_reporter_payout",

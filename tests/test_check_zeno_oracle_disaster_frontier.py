@@ -50,7 +50,7 @@ def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None
     assert result["frontier_family_count"] == 28
     assert result["closed_family_count"] == 23
     assert result["blocked_or_backlog_count"] == 5
-    assert result["new_obligation_family_count"] == 1
+    assert result["new_obligation_family_count"] == 0
     assert result["error_count"] == 0
     blockers = {item["family_id"] for item in result["closure_blockers"]}
     assert "cross_domain_finality_reorg_feeds_oracle_read" in blockers
@@ -87,7 +87,7 @@ def test_disaster_frontier_rejects_closed_family_with_unblocked_new_obligation()
     assert isinstance(first, dict)
     obligations = first["manifest_obligations"]
     assert isinstance(obligations, list)
-    obligations.append("cross_domain_finality")
+    obligations.append("bridge_attestation")
     _refresh_id(frontier)
     corpus_receipt, harness_receipt = _fake_receipts(frontier)
 
@@ -100,7 +100,7 @@ def test_disaster_frontier_rejects_closed_family_with_unblocked_new_obligation()
 
     assert result["status"] == "rejected"
     assert (
-        "new_obligation_without_blocker:accepted_read_without_accepted_aggregate:cross_domain_finality"
+        "new_obligation_without_blocker:accepted_read_without_accepted_aggregate:bridge_attestation"
         in result["errors"]
     )
 

@@ -197,7 +197,7 @@ def build_audit() -> dict[str, Any]:
             status="first_shell_complete",
             blockers=[
                 "production_disaster_frontier_has_explicit_blockers",
-                "cross_domain_finality_obligation_atom_not_in_manifest",
+                "cross_domain_finality_requires_live_adapter_receipts",
                 "public_reporter_soak_and_live_governance_disaster_search_not_complete",
             ],
             limits=[

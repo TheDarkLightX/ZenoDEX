@@ -252,10 +252,10 @@ python3 tools/check_disaster_obligation_certificate.py \
 
 Current manifest scope:
 
-- `23` Oracle disaster axes;
-- `20` quotient classes;
-- `15` antichain representatives;
-- `9` selected guard families;
+- `24` Oracle disaster axes;
+- `21` quotient classes;
+- `16` antichain representatives;
+- `10` selected guard families;
 - private-obligation witnesses for every selected guard.
 
 New axes must be classified as existing, dominated, incomparable, dominating,

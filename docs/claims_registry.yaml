@@ -1685,8 +1685,11 @@ claims:
       payout safety, live governance timelock execution, and public reporter
       soak/operator independence. The checker rejects missing replay evidence,
       hidden fields, duplicate families, missing non-claims, and any new
-      obligation atom that is promoted without an explicit blocker. This is a
-      frontier-accounting claim; it does not claim exhaustive production safety.
+      obligation atom that is promoted without an explicit blocker. The current
+      cross-domain finality family is mapped to a manifest obligation atom but
+      remains production-blocked until live finality adapter receipts exist.
+      This is a frontier-accounting claim; it does not claim exhaustive
+      production safety.
     evidence:
       kind: python
       check:
