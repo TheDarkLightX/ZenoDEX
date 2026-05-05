@@ -8,7 +8,9 @@ from pathlib import Path
 from tools.check_zenoproof_production_governance_policy import (
     check_policy,
     policy_content_hash,
+    receipt_content_hash,
     sample_policy,
+    sample_receipt_bundle,
 )
 
 
@@ -25,15 +27,32 @@ def _refresh(policy: dict[str, object]) -> None:
     policy["policy_id"] = policy_content_hash(policy)
 
 
+def _receipt(bundle: dict[str, object], kind: str) -> dict[str, object]:
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    for receipt in receipts:
+        assert isinstance(receipt, dict)
+        if receipt.get("kind") == kind:
+            return receipt
+    raise AssertionError(f"missing receipt: {kind}")
+
+
+def _check(policy: dict[str, object], registry: dict[str, object]) -> dict[str, object]:
+    return check_policy(policy, registry, ACCEPTED_REWARD_STATUS, sample_receipt_bundle(policy, registry))
+
+
 def test_zenoproof_production_governance_policy_accepts_sample_candidate() -> None:
     registry = _registry()
-    result = check_policy(sample_policy(registry), registry, ACCEPTED_REWARD_STATUS)
+    policy = sample_policy(registry)
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, sample_receipt_bundle(policy, registry))
 
     assert result["schema"] == "zenodex.zenoproof.production_governance_policy_check.v1"
     assert result["status"] == "accepted"
     assert result["error_count"] == 0
     assert result["registry_error_count"] == 0
     assert result["reward_payout_status"] == "accepted"
+    assert result["receipt_bundle_status"] == "accepted"
+    assert result["receipt_bundle_kind_count"] == 6
     assert result["production_enabled_verifier_count"] == 8
     assert result["devnet_only_verifier_count"] == 2
     assert "live_proof_mining_token_settlement_not_enabled" in result["go_live_blockers"]
@@ -46,7 +65,7 @@ def test_zenoproof_production_governance_policy_rejects_static_verifier_not_quar
     policy["verifier_policy"]["devnet_only_verifier_ids"] = []
     _refresh(policy)
 
-    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS)
+    result = _check(policy, registry)
 
     assert result["status"] == "rejected"
     assert any(error.startswith("static_verifier_not_marked_devnet_only:") for error in result["errors"])
@@ -59,7 +78,7 @@ def test_zenoproof_production_governance_policy_rejects_devnet_verifier_enabled_
     policy["verifier_policy"]["production_enabled_verifier_ids"].append(devnet_id)
     _refresh(policy)
 
-    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS)
+    result = _check(policy, registry)
 
     assert result["status"] == "rejected"
     assert "devnet_only_verifier_enabled_for_production" in result["errors"]
@@ -75,7 +94,7 @@ def test_zenoproof_production_governance_policy_rejects_weak_bridge_and_sandbox_
     policy["sandbox"]["max_timeout_ms"] = 120_001
     _refresh(policy)
 
-    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS)
+    result = _check(policy, registry)
 
     assert result["status"] == "rejected"
     assert "o3_receipt_required_must_be_true" in result["errors"]
@@ -93,7 +112,7 @@ def test_zenoproof_production_governance_policy_rejects_bad_governance_and_rewar
     policy["not_claimed"] = ["does_not_claim_live_proof_network"]
     _refresh(policy)
 
-    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS)
+    result = _check(policy, registry)
 
     assert result["status"] == "rejected"
     assert "timelock_seconds_below_min:86400" in result["errors"]
@@ -108,11 +127,54 @@ def test_zenoproof_production_governance_policy_rejects_reward_replay_failure() 
         sample_policy(registry),
         registry,
         {"status": "rejected", "errors": ["proof_mining_payout_mismatch"]},
+        sample_receipt_bundle(sample_policy(registry), registry),
     )
 
     assert result["status"] == "rejected"
     assert "reward_payout_replay_rejected" in result["errors"]
     assert "reward_payout:proof_mining_payout_mismatch" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_missing_receipt_bundle() -> None:
+    registry = _registry()
+    result = check_policy(sample_policy(registry), registry, ACCEPTED_REWARD_STATUS, None)
+
+    assert result["status"] == "rejected"
+    assert result["receipt_bundle_status"] == "rejected"
+    assert "receipt_bundle_rejected" in result["errors"]
+    assert "receipt:receipt_bundle_required" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_early_governance_execution_receipt() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    execution = _receipt(bundle, "governance_execution")
+    payload = execution["payload"]
+    assert isinstance(payload, dict)
+    payload["executed_at_timestamp"] = int(payload["executable_after_timestamp"]) - 1
+    execution["receipt_id"] = receipt_content_hash(execution)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:governance_execution_before_timelock" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_sandbox_attestation_drift() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    sandbox = _receipt(bundle, "sandbox_attestation")
+    payload = sandbox["payload"]
+    assert isinstance(payload, dict)
+    payload["network_disabled"] = False
+    sandbox["receipt_id"] = receipt_content_hash(sandbox)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:sandbox_attestation_network_disabled_mismatch" in result["errors"]
 
 
 def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_path: Path) -> None:
@@ -130,6 +192,38 @@ def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_
     assert sample.returncode == 0
     policy_path = tmp_path / "zenoproof-production-governance-policy.json"
     policy_path.write_text(sample.stdout, encoding="utf-8")
+    sample_receipts = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zenoproof_production_governance_policy.py",
+            "--sample-receipts",
+            "--policy",
+            str(policy_path),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample_receipts.returncode == 0
+    receipts_path = tmp_path / "zenoproof-production-governance-receipts.json"
+    receipts_path.write_text(sample_receipts.stdout, encoding="utf-8")
+
+    missing_receipts = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zenoproof_production_governance_policy.py",
+            "--policy",
+            str(policy_path),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert missing_receipts.returncode == 1
+    missing_receipts_obj = json.loads(missing_receipts.stdout)
+    assert "receipt:receipt_bundle_required" in missing_receipts_obj["errors"]
 
     accepted = subprocess.run(
         [
@@ -137,6 +231,8 @@ def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_
             "tools/check_zenoproof_production_governance_policy.py",
             "--policy",
             str(policy_path),
+            "--receipts",
+            str(receipts_path),
             "--format",
             "text",
         ],
@@ -147,6 +243,7 @@ def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_
     )
     assert accepted.returncode == 0, accepted.stdout + accepted.stderr
     assert "status = accepted" in accepted.stdout
+    assert "receipt_bundle_status = accepted" in accepted.stdout
 
     require_live = subprocess.run(
         [
@@ -154,6 +251,8 @@ def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_
             "tools/check_zenoproof_production_governance_policy.py",
             "--policy",
             str(policy_path),
+            "--receipts",
+            str(receipts_path),
             "--require-live",
         ],
         cwd=ROOT,

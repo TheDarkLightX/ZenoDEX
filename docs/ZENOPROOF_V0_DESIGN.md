@@ -173,7 +173,10 @@ registry manifest structurally, quarantines `local_static_accept` verifiers as
 devnet-only, enables only subprocess/public-replay verifier IDs for the
 candidate production set, checks distinct proof-kind coverage, and binds the
 registry to governance, code-signing, sandbox, revocation, O4/O5 bridge, and
-reward-settlement controls.
+reward-settlement controls. It also verifies a local governance receipt bundle
+for policy approval/execution, revocation list/drill, code-signing attestation,
+and sandbox attestation. These receipts are content-hashed and bound to the
+policy static hash plus the registry manifest id.
 
 ```bash
 python3 tools/check_zenoproof_production_governance_policy.py --format text
@@ -184,6 +187,7 @@ Current expected receipt:
 ```text
 status = accepted
 error_count = 0
+receipt_bundle_status = accepted
 go_live_blocker_count = 7
 production_enabled_verifier_count = 8
 distinct_proof_kind_count = 8

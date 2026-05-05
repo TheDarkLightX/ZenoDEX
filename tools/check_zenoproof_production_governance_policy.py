@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import re
@@ -29,8 +30,11 @@ from zenoproof_verify import (  # noqa: E402
 
 POLICY_SCHEMA = "zenodex.zenoproof.production_governance_policy.v1"
 REPORT_SCHEMA = "zenodex.zenoproof.production_governance_policy_check.v1"
+RECEIPT_BUNDLE_SCHEMA = "zenodex.zenoproof.production_governance_receipt_bundle.v1"
+RECEIPT_SCHEMA = "zenodex.zenoproof.production_governance_receipt.v1"
 DEFAULT_REGISTRY = ROOT / "tools" / "zenoproof_registry_manifest.json"
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+TX_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 SHA_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 TOP_LEVEL_KEYS = {
     "schema",
@@ -103,6 +107,42 @@ REWARD_SETTLEMENT_KEYS = {
     "reward_payout_replay_required",
     "token_settlement_policy_id",
 }
+RECEIPT_BUNDLE_KEYS = {
+    "schema",
+    "policy_id",
+    "policy_name",
+    "registry_manifest_id",
+    "chain_id",
+    "observed_block_number",
+    "observed_block_hash",
+    "receipts",
+    "not_claimed",
+}
+RECEIPT_KEYS = {
+    "schema",
+    "receipt_id",
+    "kind",
+    "chain_id",
+    "contract_address",
+    "tx_hash",
+    "block_number",
+    "block_hash",
+    "log_index",
+    "payload",
+}
+REQUIRED_RECEIPT_KINDS = {
+    "code_signing_attestation",
+    "governance_approval",
+    "governance_execution",
+    "revocation_drill",
+    "revocation_list",
+    "sandbox_attestation",
+}
+RECEIPT_NOT_CLAIMS = {
+    "does_not_claim_receipts_verified_against_live_rpc",
+    "does_not_claim_contract_code_verified_onchain",
+    "does_not_claim_public_proof_network_soak",
+}
 REQUIRED_NOT_CLAIMS = {
     "does_not_claim_live_proof_network",
     "does_not_claim_governance_revocation_live",
@@ -131,8 +171,33 @@ def policy_content_hash(policy: Mapping[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(_canonical_bytes(payload)).hexdigest()
 
 
+def policy_static_hash(policy: Mapping[str, Any]) -> str:
+    payload = copy.deepcopy(dict(policy))
+    payload.pop("policy_id", None)
+    payload.pop("not_claimed", None)
+    governance = payload.get("governance")
+    if isinstance(governance, dict):
+        governance.pop("governance_approval_receipt", None)
+        governance.pop("governance_execution_receipt", None)
+    revocation = payload.get("revocation")
+    if isinstance(revocation, dict):
+        revocation.pop("revocation_list_receipt", None)
+        revocation.pop("revocation_drill_receipt", None)
+    return "sha256:" + hashlib.sha256(_canonical_bytes(payload)).hexdigest()
+
+
+def receipt_content_hash(receipt: Mapping[str, Any]) -> str:
+    payload = dict(receipt)
+    payload.pop("receipt_id", None)
+    return "sha256:" + hashlib.sha256(_canonical_bytes(payload)).hexdigest()
+
+
 def _sha(label: str) -> str:
     return "sha256:" + hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def _tx(label: str) -> str:
+    return "0x" + hashlib.sha256(label.encode("utf-8")).hexdigest()
 
 
 def _load_json(path: Path) -> Mapping[str, Any]:
@@ -148,6 +213,10 @@ def _is_sha(value: Any) -> bool:
 
 def _is_address(value: Any) -> bool:
     return isinstance(value, str) and ADDRESS_RE.fullmatch(value) is not None
+
+
+def _is_tx(value: Any) -> bool:
+    return isinstance(value, str) and TX_RE.fullmatch(value) is not None
 
 
 def _unknown_fields(obj: Mapping[str, Any], *, allowed: set[str], label: str, errors: list[str]) -> None:
@@ -222,6 +291,206 @@ def _sample_registry() -> Mapping[str, Any]:
     return _load_json(DEFAULT_REGISTRY)
 
 
+def _receipt(
+    *,
+    kind: str,
+    chain_id: str,
+    contract_address: str,
+    tx_hash: str,
+    block_number: int,
+    block_hash: str,
+    log_index: int,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    receipt: dict[str, Any] = {
+        "schema": RECEIPT_SCHEMA,
+        "kind": kind,
+        "chain_id": chain_id,
+        "contract_address": contract_address,
+        "tx_hash": tx_hash,
+        "block_number": int(block_number),
+        "block_hash": block_hash,
+        "log_index": int(log_index),
+        "payload": dict(payload),
+    }
+    receipt["receipt_id"] = receipt_content_hash(receipt)
+    return receipt
+
+
+def _sample_receipts_for_policy(policy: Mapping[str, Any], registry: Mapping[str, Any]) -> list[dict[str, Any]]:
+    chain_id = "zenoproof.mainnet-candidate-1"
+    static_hash = policy_static_hash(policy)
+    governance = policy.get("governance") if isinstance(policy.get("governance"), Mapping) else {}
+    code_signing = policy.get("code_signing") if isinstance(policy.get("code_signing"), Mapping) else {}
+    sandbox = policy.get("sandbox") if isinstance(policy.get("sandbox"), Mapping) else {}
+    revocation = policy.get("revocation") if isinstance(policy.get("revocation"), Mapping) else {}
+    registry_id = _registry_id(registry)
+    proposal_id = _sha(f"zenoproof.production_governance.proposal.{static_hash}.{registry_id}")
+    queued_at = 1_900_000_000
+    timelock_seconds = int(governance.get("timelock_seconds", 172_800))
+    executable_after = queued_at + timelock_seconds
+    executed_at = executable_after
+    governance_contract = str(governance.get("contract_address"))
+    policy_epoch = int(governance.get("policy_epoch", registry.get("policy_epoch", 0)))
+    revocation_delay = int(revocation.get("max_revocation_delay_seconds", 86_400))
+    drill_requested_at = executed_at + 1_000
+    drill_executed_at = drill_requested_at + revocation_delay
+    return [
+        _receipt(
+            kind="governance_approval",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zenoproof.production_governance.approval"),
+            block_number=2_000,
+            block_hash=_sha("zenoproof.production_governance.block.2000"),
+            log_index=0,
+            payload={
+                "approved": True,
+                "executable_after_timestamp": executable_after,
+                "policy_epoch": policy_epoch,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "proposal_id": proposal_id,
+                "queued_at_timestamp": queued_at,
+                "registry_manifest_id": registry_id,
+                "timelock_seconds": timelock_seconds,
+            },
+        ),
+        _receipt(
+            kind="governance_execution",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zenoproof.production_governance.execution"),
+            block_number=2_100,
+            block_hash=_sha("zenoproof.production_governance.block.2100"),
+            log_index=0,
+            payload={
+                "executed": True,
+                "executed_at_timestamp": executed_at,
+                "executable_after_timestamp": executable_after,
+                "policy_epoch": policy_epoch,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "proposal_id": proposal_id,
+                "registry_manifest_id": registry_id,
+            },
+        ),
+        _receipt(
+            kind="revocation_list",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zenoproof.production_governance.revocation_list"),
+            block_number=2_200,
+            block_hash=_sha("zenoproof.production_governance.block.2200"),
+            log_index=0,
+            payload={
+                "policy_epoch": policy_epoch,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "registry_manifest_id": registry_id,
+                "revocation_enabled": True,
+                "revoked_verifier_ids": [],
+            },
+        ),
+        _receipt(
+            kind="revocation_drill",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zenoproof.production_governance.revocation_drill"),
+            block_number=2_300,
+            block_hash=_sha("zenoproof.production_governance.block.2300"),
+            log_index=0,
+            payload={
+                "drill_executed": True,
+                "executed_at_timestamp": drill_executed_at,
+                "max_revocation_delay_seconds": revocation_delay,
+                "policy_epoch": policy_epoch,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "registry_manifest_id": registry_id,
+                "requested_at_timestamp": drill_requested_at,
+            },
+        ),
+        _receipt(
+            kind="code_signing_attestation",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zenoproof.production_governance.code_signing_attestation"),
+            block_number=2_400,
+            block_hash=_sha("zenoproof.production_governance.block.2400"),
+            log_index=0,
+            payload={
+                "artifact_digest_alg": code_signing.get("artifact_digest_alg"),
+                "policy_bundle_digest": code_signing.get("policy_bundle_digest"),
+                "policy_epoch": policy_epoch,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "registry_manifest_id": registry_id,
+                "release_signer_identity": code_signing.get("release_signer_identity"),
+                "scheme": code_signing.get("scheme"),
+                "verified": True,
+            },
+        ),
+        _receipt(
+            kind="sandbox_attestation",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zenoproof.production_governance.sandbox_attestation"),
+            block_number=2_500,
+            block_hash=_sha("zenoproof.production_governance.block.2500"),
+            log_index=0,
+            payload={
+                "deterministic_worker_image_digest": sandbox.get("deterministic_worker_image_digest"),
+                "filesystem_readonly": sandbox.get("filesystem_readonly"),
+                "max_input_bytes": sandbox.get("max_input_bytes"),
+                "max_timeout_ms": sandbox.get("max_timeout_ms"),
+                "network_disabled": sandbox.get("network_disabled"),
+                "policy_epoch": policy_epoch,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "registry_manifest_id": registry_id,
+                "seccomp_profile_digest": sandbox.get("seccomp_profile_digest"),
+                "verified": True,
+            },
+        ),
+    ]
+
+
+def _sample_receipt_refs(policy: Mapping[str, Any], registry: Mapping[str, Any]) -> dict[str, dict[str, str]]:
+    receipts = _sample_receipts_for_policy(policy, registry)
+    by_kind = {str(receipt["kind"]): str(receipt["receipt_id"]) for receipt in receipts}
+    return {
+        "governance": {
+            "governance_approval_receipt": by_kind["governance_approval"],
+            "governance_execution_receipt": by_kind["governance_execution"],
+        },
+        "revocation": {
+            "revocation_list_receipt": by_kind["revocation_list"],
+            "revocation_drill_receipt": by_kind["revocation_drill"],
+        },
+    }
+
+
+def sample_receipt_bundle(
+    policy: Mapping[str, Any] | None = None,
+    registry: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    active_registry = dict(registry or _sample_registry())
+    active_policy = policy or sample_policy(active_registry)
+    receipts = _sample_receipts_for_policy(active_policy, active_registry)
+    return {
+        "schema": RECEIPT_BUNDLE_SCHEMA,
+        "policy_id": active_policy.get("policy_id"),
+        "policy_name": active_policy.get("policy_name"),
+        "registry_manifest_id": _registry_id(active_registry),
+        "chain_id": "zenoproof.mainnet-candidate-1",
+        "observed_block_number": 2_500,
+        "observed_block_hash": _sha("zenoproof.production_governance.block.2500"),
+        "receipts": receipts,
+        "not_claimed": sorted(RECEIPT_NOT_CLAIMS),
+    }
+
+
 def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
     active_registry = dict(registry or _sample_registry())
     verifiers = _registry_verifiers(active_registry)
@@ -248,8 +517,6 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
             "verifier_onboarding_quorum": 4,
             "verifier_revocation_quorum": 3,
             "emergency_pause_role": "zenoproof-governance-guardian-1",
-            "governance_approval_receipt": _sha("zenoproof.production_governance.approval"),
-            "governance_execution_receipt": _sha("zenoproof.production_governance.execution.pending"),
         },
         "code_signing": {
             "required": True,
@@ -269,9 +536,7 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
         },
         "revocation": {
             "enabled": True,
-            "revocation_list_receipt": _sha("zenoproof.production_governance.revocation_list"),
             "emergency_revocation_enabled": True,
-            "revocation_drill_receipt": _sha("zenoproof.production_governance.revocation_drill.pending"),
             "max_revocation_delay_seconds": 86_400,
         },
         "verifier_policy": {
@@ -298,14 +563,264 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
         },
         "not_claimed": sorted(REQUIRED_NOT_CLAIMS),
     }
+    refs = _sample_receipt_refs(policy, active_registry)
+    policy["governance"].update(refs["governance"])
+    policy["revocation"].update(refs["revocation"])
     policy["policy_id"] = policy_content_hash(policy)
     return policy
+
+
+def check_receipt_bundle(
+    policy: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    receipt_bundle: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    if receipt_bundle is None:
+        return {
+            "schema": RECEIPT_BUNDLE_SCHEMA,
+            "ok": False,
+            "status": "rejected",
+            "error_count": 1,
+            "errors": ["receipt_bundle_required"],
+            "receipt_count": 0,
+            "receipt_kinds": [],
+        }
+
+    _unknown_fields(receipt_bundle, allowed=RECEIPT_BUNDLE_KEYS, label="receipt_bundle", errors=errors)
+    if receipt_bundle.get("schema") != RECEIPT_BUNDLE_SCHEMA:
+        errors.append("receipt_bundle_schema_mismatch")
+    if receipt_bundle.get("policy_id") != policy.get("policy_id"):
+        errors.append("receipt_bundle_policy_id_mismatch")
+    if receipt_bundle.get("policy_name") != policy.get("policy_name"):
+        errors.append("receipt_bundle_policy_name_mismatch")
+    registry_id = _registry_id(registry)
+    if receipt_bundle.get("registry_manifest_id") != registry_id:
+        errors.append("receipt_bundle_registry_manifest_id_mismatch")
+    chain_id = receipt_bundle.get("chain_id")
+    if not isinstance(chain_id, str) or not chain_id.strip():
+        errors.append("receipt_bundle_chain_id_required")
+    observed_block_number = receipt_bundle.get("observed_block_number")
+    if not isinstance(observed_block_number, int) or isinstance(observed_block_number, bool) or observed_block_number <= 0:
+        errors.append("observed_block_number_must_be_positive_int")
+        observed_block_number = 0
+    if not _is_sha(receipt_bundle.get("observed_block_hash")):
+        errors.append("observed_block_hash_must_be_sha256")
+
+    not_claimed = receipt_bundle.get("not_claimed")
+    if not isinstance(not_claimed, list):
+        errors.append("receipt_bundle_not_claimed_must_be_list")
+    else:
+        values = {str(item) for item in not_claimed if isinstance(item, str)}
+        errors.extend(f"missing_receipt_not_claim:{item}" for item in sorted(RECEIPT_NOT_CLAIMS - values))
+
+    raw_receipts = receipt_bundle.get("receipts")
+    if not isinstance(raw_receipts, list):
+        errors.append("receipts_must_be_list")
+        raw_receipts = []
+
+    governance = policy.get("governance") if isinstance(policy.get("governance"), Mapping) else {}
+    code_signing = policy.get("code_signing") if isinstance(policy.get("code_signing"), Mapping) else {}
+    sandbox = policy.get("sandbox") if isinstance(policy.get("sandbox"), Mapping) else {}
+    revocation = policy.get("revocation") if isinstance(policy.get("revocation"), Mapping) else {}
+    verifier_policy = policy.get("verifier_policy") if isinstance(policy.get("verifier_policy"), Mapping) else {}
+    static_hash = policy_static_hash(policy)
+    governance_contract = governance.get("contract_address")
+    expected_receipt_id_by_kind = {
+        "governance_approval": governance.get("governance_approval_receipt"),
+        "governance_execution": governance.get("governance_execution_receipt"),
+        "revocation_list": revocation.get("revocation_list_receipt"),
+        "revocation_drill": revocation.get("revocation_drill_receipt"),
+    }
+    by_kind: dict[str, Mapping[str, Any]] = {}
+
+    for idx, receipt in enumerate(raw_receipts):
+        if not isinstance(receipt, Mapping):
+            errors.append(f"receipt_{idx}_must_be_object")
+            continue
+        _unknown_fields(receipt, allowed=RECEIPT_KEYS, label=f"receipt_{idx}", errors=errors)
+        if receipt.get("schema") != RECEIPT_SCHEMA:
+            errors.append(f"receipt_{idx}_schema_mismatch")
+        kind = receipt.get("kind")
+        if not isinstance(kind, str) or kind not in REQUIRED_RECEIPT_KINDS:
+            errors.append(f"receipt_{idx}_kind_invalid")
+            continue
+        if kind in by_kind:
+            errors.append(f"duplicate_receipt_kind:{kind}")
+        else:
+            by_kind[kind] = receipt
+        if receipt.get("receipt_id") != receipt_content_hash(receipt):
+            errors.append(f"receipt_id_mismatch:{kind}")
+        expected_receipt_id = expected_receipt_id_by_kind.get(kind)
+        if expected_receipt_id is not None and receipt.get("receipt_id") != expected_receipt_id:
+            errors.append(f"policy_receipt_id_mismatch:{kind}")
+        if receipt.get("chain_id") != chain_id:
+            errors.append(f"receipt_chain_id_mismatch:{kind}")
+        if receipt.get("contract_address") != governance_contract:
+            errors.append(f"receipt_contract_mismatch:{kind}")
+        if not _is_tx(receipt.get("tx_hash")):
+            errors.append(f"receipt_tx_hash_invalid:{kind}")
+        if not _is_sha(receipt.get("block_hash")):
+            errors.append(f"receipt_block_hash_invalid:{kind}")
+        block_number = receipt.get("block_number")
+        if not isinstance(block_number, int) or isinstance(block_number, bool) or block_number <= 0:
+            errors.append(f"receipt_block_number_invalid:{kind}")
+        elif isinstance(observed_block_number, int) and observed_block_number > 0 and block_number > observed_block_number:
+            errors.append(f"receipt_after_observed_block:{kind}")
+        log_index = receipt.get("log_index")
+        if not isinstance(log_index, int) or isinstance(log_index, bool) or log_index < 0:
+            errors.append(f"receipt_log_index_invalid:{kind}")
+        payload = receipt.get("payload")
+        if not isinstance(payload, Mapping):
+            errors.append(f"receipt_payload_must_be_object:{kind}")
+            continue
+        if payload.get("policy_name") != policy.get("policy_name"):
+            errors.append(f"receipt_policy_name_mismatch:{kind}")
+        if payload.get("policy_static_hash") != static_hash:
+            errors.append(f"receipt_policy_static_hash_mismatch:{kind}")
+        if payload.get("registry_manifest_id") != registry_id:
+            errors.append(f"receipt_registry_manifest_id_mismatch:{kind}")
+        if payload.get("policy_epoch") != governance.get("policy_epoch"):
+            errors.append(f"receipt_policy_epoch_mismatch:{kind}")
+
+    for kind in sorted(REQUIRED_RECEIPT_KINDS - set(by_kind)):
+        errors.append(f"missing_receipt_kind:{kind}")
+
+    approval_payload = (
+        by_kind["governance_approval"].get("payload")
+        if "governance_approval" in by_kind and isinstance(by_kind["governance_approval"].get("payload"), Mapping)
+        else {}
+    )
+    execution_payload = (
+        by_kind["governance_execution"].get("payload")
+        if "governance_execution" in by_kind and isinstance(by_kind["governance_execution"].get("payload"), Mapping)
+        else {}
+    )
+    revocation_list_payload = (
+        by_kind["revocation_list"].get("payload")
+        if "revocation_list" in by_kind and isinstance(by_kind["revocation_list"].get("payload"), Mapping)
+        else {}
+    )
+    revocation_drill_payload = (
+        by_kind["revocation_drill"].get("payload")
+        if "revocation_drill" in by_kind and isinstance(by_kind["revocation_drill"].get("payload"), Mapping)
+        else {}
+    )
+    code_signing_payload = (
+        by_kind["code_signing_attestation"].get("payload")
+        if "code_signing_attestation" in by_kind and isinstance(by_kind["code_signing_attestation"].get("payload"), Mapping)
+        else {}
+    )
+    sandbox_payload = (
+        by_kind["sandbox_attestation"].get("payload")
+        if "sandbox_attestation" in by_kind and isinstance(by_kind["sandbox_attestation"].get("payload"), Mapping)
+        else {}
+    )
+
+    timelock_seconds = governance.get("timelock_seconds")
+    if approval_payload:
+        if approval_payload.get("approved") is not True:
+            errors.append("governance_approval_not_true")
+        if approval_payload.get("timelock_seconds") != timelock_seconds:
+            errors.append("governance_approval_timelock_mismatch")
+        queued_at = approval_payload.get("queued_at_timestamp")
+        executable_after = approval_payload.get("executable_after_timestamp")
+        if (
+            isinstance(queued_at, int)
+            and not isinstance(queued_at, bool)
+            and isinstance(executable_after, int)
+            and not isinstance(executable_after, bool)
+            and isinstance(timelock_seconds, int)
+            and not isinstance(timelock_seconds, bool)
+        ):
+            if executable_after - queued_at < timelock_seconds:
+                errors.append("governance_timelock_not_satisfied")
+        else:
+            errors.append("governance_approval_timestamps_invalid")
+    if execution_payload:
+        if execution_payload.get("executed") is not True:
+            errors.append("governance_execution_not_true")
+        if execution_payload.get("proposal_id") != approval_payload.get("proposal_id"):
+            errors.append("governance_execution_proposal_mismatch")
+        executed_at = execution_payload.get("executed_at_timestamp")
+        executable_after = approval_payload.get("executable_after_timestamp")
+        if (
+            isinstance(executed_at, int)
+            and not isinstance(executed_at, bool)
+            and isinstance(executable_after, int)
+            and not isinstance(executable_after, bool)
+        ):
+            if executed_at < executable_after:
+                errors.append("governance_execution_before_timelock")
+        else:
+            errors.append("governance_execution_timestamp_invalid")
+
+    if revocation_list_payload:
+        if revocation_list_payload.get("revocation_enabled") is not True:
+            errors.append("revocation_list_not_enabled")
+        revoked_ids = revocation_list_payload.get("revoked_verifier_ids")
+        if not isinstance(revoked_ids, list):
+            errors.append("revoked_verifier_ids_must_be_list")
+    if revocation_drill_payload:
+        if revocation_drill_payload.get("drill_executed") is not True:
+            errors.append("revocation_drill_not_executed")
+        requested_at = revocation_drill_payload.get("requested_at_timestamp")
+        executed_at = revocation_drill_payload.get("executed_at_timestamp")
+        max_delay = revocation.get("max_revocation_delay_seconds")
+        if (
+            isinstance(requested_at, int)
+            and not isinstance(requested_at, bool)
+            and isinstance(executed_at, int)
+            and not isinstance(executed_at, bool)
+            and isinstance(max_delay, int)
+            and not isinstance(max_delay, bool)
+        ):
+            if executed_at - requested_at > max_delay:
+                errors.append("revocation_drill_exceeds_policy_delay")
+        else:
+            errors.append("revocation_drill_timestamps_invalid")
+
+    if code_signing_payload:
+        if code_signing_payload.get("verified") is not True:
+            errors.append("code_signing_attestation_not_verified")
+        for key in ("artifact_digest_alg", "policy_bundle_digest", "release_signer_identity", "scheme"):
+            if code_signing_payload.get(key) != code_signing.get(key):
+                errors.append(f"code_signing_attestation_{key}_mismatch")
+    if sandbox_payload:
+        if sandbox_payload.get("verified") is not True:
+            errors.append("sandbox_attestation_not_verified")
+        for key in (
+            "deterministic_worker_image_digest",
+            "filesystem_readonly",
+            "max_input_bytes",
+            "max_timeout_ms",
+            "network_disabled",
+            "seccomp_profile_digest",
+        ):
+            if sandbox_payload.get(key) != sandbox.get(key):
+                errors.append(f"sandbox_attestation_{key}_mismatch")
+
+    production_enabled_ids = verifier_policy.get("production_enabled_verifier_ids")
+    if isinstance(production_enabled_ids, list) and len(production_enabled_ids) == 0:
+        errors.append("receipt_bundle_no_production_verifiers")
+
+    status = "accepted" if not errors else "rejected"
+    return {
+        "schema": RECEIPT_BUNDLE_SCHEMA,
+        "ok": status == "accepted",
+        "status": status,
+        "error_count": len(errors),
+        "errors": errors,
+        "receipt_count": len(raw_receipts),
+        "receipt_kinds": sorted(by_kind),
+    }
 
 
 def check_policy(
     policy: Mapping[str, Any],
     registry: Mapping[str, Any],
     reward_payout_status: Mapping[str, Any] | None = None,
+    receipt_bundle: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors: list[str] = []
     go_live_blockers = list(BASE_GO_LIVE_BLOCKERS)
@@ -468,6 +983,11 @@ def check_policy(
         errors.append("reward_payout_replay_rejected")
         errors.extend(f"reward_payout:{error}" for error in active_reward_status.get("errors", []))
 
+    receipt_result = check_receipt_bundle(policy, registry, receipt_bundle)
+    if receipt_result["status"] != "accepted":
+        errors.append("receipt_bundle_rejected")
+        errors.extend(f"receipt:{error}" for error in receipt_result.get("errors", []))
+
     not_claimed = policy.get("not_claimed")
     if not isinstance(not_claimed, list):
         errors.append("not_claimed_must_be_list")
@@ -485,6 +1005,8 @@ def check_policy(
         "registry_manifest_id": _registry_id(registry),
         "registry_error_count": len(registry_errors),
         "reward_payout_status": active_reward_status.get("status"),
+        "receipt_bundle_status": receipt_result["status"],
+        "receipt_bundle_kind_count": len(receipt_result.get("receipt_kinds", [])),
         "production_enabled_verifier_count": len(production_enabled_ids),
         "devnet_only_verifier_count": len(devnet_only_ids),
         "distinct_proof_kind_count": len(distinct_proof_kinds),
@@ -500,7 +1022,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--policy", type=Path, help="policy JSON; defaults to built-in sample policy")
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    parser.add_argument("--receipts", type=Path, help="receipt bundle JSON; required when policy/registry is custom")
     parser.add_argument("--sample-policy", action="store_true", help="emit the built-in sample policy")
+    parser.add_argument("--sample-receipts", action="store_true", help="emit the built-in sample receipt bundle")
     parser.add_argument("--format", choices=("json", "text"), default="json")
     parser.add_argument("--require-live", action="store_true", help="fail if go-live blockers remain")
     return parser
@@ -512,8 +1036,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.sample_policy:
         print(json.dumps(sample_policy(registry), indent=2, sort_keys=True))
         return 0
+    if args.sample_receipts:
+        policy = _load_json(args.policy) if args.policy else sample_policy(registry)
+        print(json.dumps(sample_receipt_bundle(policy, registry), indent=2, sort_keys=True))
+        return 0
     policy = _load_json(args.policy) if args.policy else sample_policy(registry)
-    result = check_policy(policy, registry)
+    if args.receipts:
+        receipts: Mapping[str, Any] | None = _load_json(args.receipts)
+    elif args.policy is None and args.registry == DEFAULT_REGISTRY:
+        receipts = sample_receipt_bundle(policy, registry)
+    else:
+        receipts = None
+    result = check_policy(policy, registry, receipt_bundle=receipts)
     if args.require_live and result["go_live_blockers"]:
         result = dict(result)
         result["ok"] = False
@@ -525,6 +1059,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"status = {result['status']}")
         print(f"error_count = {result['error_count']}")
+        print(f"receipt_bundle_status = {result['receipt_bundle_status']}")
         print(f"go_live_blocker_count = {len(result['go_live_blockers'])}")
         print(f"production_enabled_verifier_count = {result['production_enabled_verifier_count']}")
         print(f"distinct_proof_kind_count = {result['distinct_proof_kind_count']}")
