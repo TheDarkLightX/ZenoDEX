@@ -119,6 +119,12 @@ def _workflow_ok() -> bool:
         and "tools/check_zeno_oracle_critical_action_map.py" in gate
         and "tools/zeno_oracle_o3_receipt_flow_replay.py" in gate
         and "tools/check_disaster_obligation_certificate.py" in gate
+        and "tools/check_zeno_oracle_disaster_frontier.py" in gate
+        and "tools/check_zeno_oracle_frontier_obligation_projection.py" in gate
+        and "tools/check_zeno_oracle_live_economics_policy.py" in gate
+        and "tools/check_zenoproof_production_governance_policy.py" in gate
+        and "tools/check_claims_registry.py" in gate
+        and "tools/check_zeno_oracle_goal_completion_audit.py" in gate
         and "tools/zenodex_oracle_reporter_economics_replay.py" in gate
     )
 
@@ -315,20 +321,26 @@ def run_audit() -> dict[str, Any]:
             ),
             _criterion(
                 10,
-                "CI runs the local MVP gate, O3 receipt flow, critical-action map, service tests, reporter economics replay, devnet disaster harness, and obligation-antichain certificate",
+                "CI runs the local MVP gate, O3 flow, service tests, economics replay, disaster frontier, antichain projection, ZenoProof policy, claims registry, and blocked-goal audit",
                 _workflow_ok() and (ROOT / "scripts/check_zeno_oracle_devnet_alpha.sh").is_file(),
                 [
                     "scripts/check_zeno_oracle_devnet_alpha.sh",
                     "tools/check_zeno_oracle_critical_action_map.py",
                     "tools/zeno_oracle_o3_receipt_flow_replay.py",
                     "tools/zenodex_oracle_reporter_economics_replay.py",
+                    "tools/check_zeno_oracle_live_economics_policy.py",
                     "tools/zenodex_oracle_devnet_disaster_harness.py",
                     "tools/check_disaster_obligation_certificate.py",
+                    "tools/check_zeno_oracle_disaster_frontier.py",
+                    "tools/check_zeno_oracle_frontier_obligation_projection.py",
+                    "tools/check_zenoproof_production_governance_policy.py",
+                    "tools/check_claims_registry.py",
+                    "tools/check_zeno_oracle_goal_completion_audit.py",
                 ],
             ),
             _criterion(
                 11,
-                "Public docs explain devnet alpha, not production truth",
+                "Public docs define devnet scope and production-truth limits",
                 docs_ok,
                 ["docs/ZENO_ORACLE_DEVNET_ALPHA.md"],
             ),
@@ -363,8 +375,11 @@ def run_audit() -> dict[str, Any]:
         "criteria": criteria,
         "not_claimed": [
             "does_not_claim_production_oracle_truth",
+            "does_not_claim_live_public_reporter_economics",
             "does_not_claim_onchain_feed_governance",
             "does_not_claim_production_code_signing",
+            "does_not_claim_production_zenoproof_governance",
+            "does_not_claim_generalized_math_proof_completion",
         ],
     }
 
