@@ -32,6 +32,7 @@ def test_goal_completion_audit_maps_all_prompt_items_and_blocks_goal_closure() -
     assert "tools/check_zeno_oracle_live_economics_policy.py" in items[4]["evidence_files"]
     assert audit["live_economics_policy_gate"]["status"] == "production_candidate_only"
     assert "tools/check_zeno_oracle_disaster_frontier.py" in items[5]["evidence_files"]
+    assert "tools/check_zeno_oracle_perps_snapshot_gate.py" in items[5]["evidence_files"]
     assert "production_disaster_frontier_has_explicit_blockers" in items[5]["blockers"]
     assert audit["disaster_frontier_gate"]["status"] == "explicit_blocker_frontier"
     assert items[8]["complete"] is True

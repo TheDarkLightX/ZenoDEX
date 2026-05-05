@@ -201,3 +201,10 @@ The current open frontier families are usable perps oracle snapshots,
 cross-domain finality, live escrow payout safety, live governance timelock
 execution, and public reporter soak/operator independence. `--require-closed`
 intentionally rejects while those families remain open.
+
+The usable perps oracle snapshot family now has bounded replay evidence through
+`tools/check_zeno_oracle_perps_snapshot_gate.py`. That gate checks snapshot
+roundtrip preservation for isolated perps settlement runtime facts, adapter
+execution after restore, liquidation action-ID binding after restore, and
+fail-closed rejection of malformed oracle snapshot state. It does not claim a
+general perps snapshot theorem or live runtime policy.
