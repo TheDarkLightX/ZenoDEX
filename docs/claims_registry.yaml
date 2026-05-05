@@ -1578,7 +1578,8 @@ claims:
       report signing, required code signing, at least five active bonded
       reporters with quorum and operator-diversity constraints, feed-level
       reporter/source/freshness/deviation policies, required critical-runtime
-      controls, and explicit non-claims for undeployed network, unexecuted
+      controls including typed isolated perps settlement authorization, and
+      explicit non-claims for undeployed network, unexecuted
       governance, live token settlement, reporter honesty, and market-price
       truth. The checker rejects devnet chain ids, weak reporter quorum,
       concentrated operators, missing signing/code-signing controls, disabled
@@ -1593,6 +1594,7 @@ claims:
       files:
         - tools/check_zeno_oracle_production_network_config.py
         - tests/test_check_zeno_oracle_production_network_config.py
+        - docs/ZENO_ORACLE_RUNTIME_BRIDGE_V1.md
         - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
 
   - id: py:zeno_oracle:reporter_economics_replay_v1

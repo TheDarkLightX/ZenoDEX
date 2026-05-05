@@ -12,11 +12,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_production_network_config_accepts_sample_candidate() -> None:
-    result = check_config(sample_config())
+    config = sample_config()
+    result = check_config(config)
 
     assert result["schema"] == "zenodex.oracle.production_network_config_check.v1"
     assert result["status"] == "accepted"
     assert result["error_count"] == 0
+    assert config["runtime_controls"]["require_oracle_authorization_for_isolated_settle_epoch"] is True
     assert "live_token_settlement_disabled" in result["go_live_blockers"]
     assert "does_not_claim_live_token_settlement" in result["not_claimed"]
 
@@ -54,6 +56,7 @@ def test_production_network_config_rejects_missing_signing_and_runtime_controls(
     config["code_signing"]["required"] = False
     config["signing"]["receipt_signature_required"] = False
     del config["runtime_controls"]["DEX_ROUTING_ORACLE_ADAPTER_REQUIRED"]
+    del config["runtime_controls"]["require_oracle_authorization_for_isolated_settle_epoch"]
     config["runtime_controls"]["ZUSD_ORACLE_ADAPTER_REQUIRED"] = False
 
     result = check_config(config)
@@ -62,6 +65,7 @@ def test_production_network_config_rejects_missing_signing_and_runtime_controls(
     assert "required_must_be_true" in result["errors"]
     assert "receipt_signature_required_must_be_true" in result["errors"]
     assert "missing_runtime_control:DEX_ROUTING_ORACLE_ADAPTER_REQUIRED" in result["errors"]
+    assert "missing_runtime_control:require_oracle_authorization_for_isolated_settle_epoch" in result["errors"]
     assert "runtime_control_not_enabled:ZUSD_ORACLE_ADAPTER_REQUIRED" in result["errors"]
 
 

@@ -585,6 +585,9 @@ class PerpEngineConfig:
     # Optional production bridge: require a typed ZenoOracle authorization before
     # isolated perps settlement can consume the current oracle/index snapshot.
     require_oracle_authorization_for_isolated_settle: bool = False
+    # Backward-compatible public config spelling that matches the settle_epoch
+    # adapter control names used by production policy docs/tests.
+    require_oracle_authorization_for_isolated_settle_epoch: bool = False
 
 
 @dataclass(frozen=True)
@@ -737,7 +740,10 @@ def _check_isolated_settle_oracle_authorization(
 ) -> Optional[str]:
     authorization = op.data.get("oracle_authorization")
     if authorization is None:
-        if ctx.config.require_oracle_authorization_for_isolated_settle:
+        if (
+            ctx.config.require_oracle_authorization_for_isolated_settle
+            or ctx.config.require_oracle_authorization_for_isolated_settle_epoch
+        ):
             return "oracle_authorization_required"
         return None
     if not isinstance(authorization, Mapping):

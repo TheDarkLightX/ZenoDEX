@@ -84,41 +84,33 @@ def _settle_ready_state(*, market_id: str, quote_asset: str, operator: str) -> D
 
 def _perps_oracle_authorization_bundle(config: object, state: DexState, market_id: str, *, value_e8: int | None = None) -> dict[str, object]:
     from src.integration.perp_engine import (
-        _ORACLE_PERPS_INDEX_QUERY_ID,
-        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-        _perps_runtime_oracle_action_facts_hash,
-        _perps_runtime_oracle_action_id,
-        _perps_runtime_oracle_pre_state_hash,
+        _isolated_settle_oracle_runtime_facts,
     )
-    from src.integration.zeno_oracle_authorization import OracleAuthorization, oracle_value_hash, semantic_hash
+    from src.integration.zeno_oracle_authorization import (
+        CRITICAL_CONSUMER_PROFILES,
+        OracleAuthorization,
+        oracle_value_hash,
+        semantic_hash,
+    )
     from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
     assert state.perps is not None
     market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
     observed_epoch = int(market.global_state.get("oracle_last_update_epoch", 0))
     now_epoch = int(market.global_state.get("now_epoch", 0))
     authorized_value_e8 = int(market.global_state.get("index_price_e8", 0) if value_e8 is None else value_e8)
     authorization = OracleAuthorization(
         consumer_module="zenodex.perps",
         action_kind="settle_epoch",
-        action_id=_perps_runtime_oracle_action_id(
-            config,
-            market_id=market_id,
-            action_kind="settle_epoch",
-            market=market,
-        ),
-        action_facts_hash=_perps_runtime_oracle_action_facts_hash(
-            config,
-            market_id=market_id,
-            action_kind="settle_epoch",
-            market=market,
-        ),
-        pre_state_hash=_perps_runtime_oracle_pre_state_hash(config, market_id=market_id, market=market),
-        profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-        query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        action_id=str(runtime["action_id"]),
+        action_facts_hash=str(runtime["action_facts_hash"]),
+        pre_state_hash=str(runtime["pre_state_hash"]),
+        profile_id=CRITICAL_CONSUMER_PROFILES[("zenodex.perps", "settle_epoch")],
+        query_id=str(runtime["query_id"]),
         value_e8=authorized_value_e8,
         value_hash=oracle_value_hash(
-            query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            query_id=str(runtime["query_id"]),
             value_e8=authorized_value_e8,
             observed_epoch=observed_epoch,
         ),
@@ -1116,7 +1108,7 @@ def test_settle_epoch_requires_oracle_authorization_when_configured() -> None:
         block_timestamp=0,
     )
     assert res.ok is False
-    assert res.error == "settle_epoch requires oracle_authorization"
+    assert res.error == "oracle_authorization_required"
 
 
 def test_settle_epoch_accepts_bound_oracle_authorization() -> None:
