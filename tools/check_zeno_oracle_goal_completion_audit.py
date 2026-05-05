@@ -242,6 +242,7 @@ def build_audit() -> dict[str, Any]:
                 "python3 tools/zeno_oracle_workflow_evidence_status.py --format text",
                 "python3 tools/zeno_oracle_smt_freshness_replay.py --format text",
                 "julia tools/zeno_oracle_math_witness_sweep.jl",
+                "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
             ],
             status="partial",
             blockers=[

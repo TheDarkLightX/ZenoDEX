@@ -35,8 +35,8 @@ registry/verifier layer for O4/O5 claims.
 | Reporter economics | `tools/zenodex_oracle_reporter_economics_replay.py` and tests cover bonds, rewards, disputes, slashing, withdrawals, fee splits, and budget rejection. `tools/check_zeno_oracle_live_economics_policy.py` binds that replay to a production-candidate token, escrow, governance receipt, fee-split, dispute-bond, slash-cap, and withdrawal-delay policy. Live chain receipt replay and funded escrow verification remain open. | Replay plus policy gate |
 | Disaster corpus | `tools/zenodex_oracle_devnet_disaster_harness.py` reports 17 selected states unreachable; `tools/zeno_oracle_disaster_class_corpus.py` reports 8 named families closed, including O5 independence-spoofing and proof-timeout fail-closed behavior. `tools/check_zeno_oracle_disaster_frontier.py` tracks 28 production-candidate disaster families: 23 closed by public/devnet evidence and 5 left as explicit blocker/backlog families. | First shell plus frontier gate |
 | Obligation antichain | `tools/check_disaster_obligation_certificate.py` validates `tools/zeno_oracle_disaster_obligation_certificate_manifest.json`; the current certificate compresses 23 axes into 15 antichain classes and includes `proof_independence` as a required obligation atom. | First shell complete |
-| Julia math lane | `tools/zeno_oracle_math_witness_sweep.jl` checks bounded witnesses for median deviation, source cartel, dispute griefing, reward conservation, split-brain, and O5 independence-witness cases. | Bounded witness |
-| Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides a first witness anchor for bounded arithmetic plus Prop-level O4/O5 binding and O5 independence-witness projections. General median, deviation, economics, executable DAG closure, sync, and typed binding theorems remain open. | Partial |
+| Julia math lane | `tools/zeno_oracle_math_witness_sweep.jl` checks bounded witnesses for median deviation, zero-scale/equal-value sanity, source cartel, dispute griefing, reward conservation/caps, split-brain, epoch-lag symmetry, and O5 independence-witness cases. | Bounded witness |
+| Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides bounded arithmetic anchors plus small general lemmas for zero-scale/equal-value deviation, epoch lag, reward/slash conservation, terminal DAG closure projections, runtime binding projections, and Prop-level O4/O5/O5-independence projections. General production median, deviation, economics, executable DAG closure, sync, and typed binding theorems remain open. | Partial |
 | ESSO/TLA/LTLf/Morph/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py` reports 5 accepted first-shell lanes. Private PopperPad content and deeper Morph campaigns remain outside public claims. | First shell complete |
 | Public claims registry | `docs/claims_registry.yaml` validates with `python3 tools/check_claims_registry.py` and `pytest -q tests/test_claims_registry.py`. | Complete for promoted claims |
 | ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. | Local v0 complete |
@@ -59,6 +59,8 @@ python3 tools/check_zeno_oracle_goal_completion_audit.py --format text --expect-
 python3 tools/check_zeno_oracle_production_network_config.py --format text
 python3 tools/check_zeno_oracle_live_economics_policy.py --format text
 python3 tools/check_zeno_oracle_disaster_frontier.py --format text
+julia tools/zeno_oracle_math_witness_sweep.jl
+cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
 ```
 
 ## Remaining Work Before Goal Closure

@@ -10,11 +10,17 @@ function div_bps(delta::Int, reference::Int)::Int
     return div(delta * BPS, reference)
 end
 
-function max_median_deviation_bps(values::NTuple{3, Int})::Int
+function max_median_deviation_bps_scaled(values::NTuple{3, Int}, bps::Int)::Int
     m = median3(values...)
     m > 0 || error("median must be positive")
-    return maximum(div_bps(abs(v - m), m) for v in values)
+    bps >= 0 || error("bps must be nonnegative")
+    return maximum(div(abs(v - m) * bps, m) for v in values)
 end
+
+max_median_deviation_bps(values::NTuple{3, Int})::Int =
+    max_median_deviation_bps_scaled(values, BPS)
+
+epoch_lag(left::Int, right::Int)::Int = abs(left - right)
 
 function source_cartel_rejected(operators::Vector{String}, max_same_operator::Int)::Bool
     max_seen = maximum(count(==(operator), operators) for operator in unique(operators))
@@ -23,6 +29,9 @@ end
 
 reward_transition_ok(before::Int, reward::Int, after::Int)::Bool =
     before >= 0 && reward > 0 && after >= 0 && reward == before - after
+
+reward_not_overpaid(before::Int, reward::Int)::Bool =
+    before >= 0 && reward >= 0 && reward <= before
 
 dispute_grief_rejected(dispute_bond::Int)::Bool = dispute_bond <= 0
 
@@ -80,6 +89,26 @@ function run_cases()::Vector{Dict{String, Any}}
         ),
     )
 
+    zero_scale_dev = max_median_deviation_bps_scaled((100_000_000, 103_000_000, 98_000_000), 0)
+    push!(
+        cases,
+        case_result(
+            "median_deviation_zero_scale_is_zero",
+            zero_scale_dev == 0,
+            "max_deviation_bps=$(zero_scale_dev) scale_bps=0",
+        ),
+    )
+
+    equal_value_dev = max_median_deviation_bps((100_000_000, 100_000_000, 100_000_000))
+    push!(
+        cases,
+        case_result(
+            "median_deviation_equal_values_are_zero",
+            equal_value_dev == 0,
+            "max_deviation_bps=$(equal_value_dev)",
+        ),
+    )
+
     push!(
         cases,
         case_result(
@@ -119,6 +148,16 @@ function run_cases()::Vector{Dict{String, Any}}
     push!(
         cases,
         case_result(
+            "reward_amount_cannot_exceed_pool",
+            reward_not_overpaid(100_000_000, 25_000_000) &&
+                !reward_not_overpaid(100_000_000, 101_000_000),
+            "before=100000000 accepted_reward=25000000 rejected_reward=101000000",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
             "split_brain_divergence_rejects",
             split_brain_rejected(100_000_000, 10, 110_000_000, 10, 100, 1),
             "zusd=100000000 perp=110000000 max_divergence_bps=100",
@@ -131,6 +170,15 @@ function run_cases()::Vector{Dict{String, Any}}
             "split_brain_epoch_lag_rejects",
             split_brain_rejected(100_000_000, 10, 100_000_000, 13, 0, 1),
             "zusd_epoch=10 perp_epoch=13 max_epoch_lag=1",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "epoch_lag_is_symmetric",
+            epoch_lag(10, 13) == epoch_lag(13, 10) && epoch_lag(10, 10) == 0,
+            "lag(10,13)=$(epoch_lag(10, 13)) lag(13,10)=$(epoch_lag(13, 10))",
         ),
     )
 

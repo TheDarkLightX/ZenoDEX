@@ -12,15 +12,16 @@ Current expected receipt:
 
 ```text
 schema = zenodex.oracle.math_witness_sweep.v1
-case_count = 10
+case_count = 14
 failed_count = 0
 status = accepted
 ```
 
 The sweep covers first-shell integer witnesses for median deviation boundaries,
-source-cartel concentration, zero-bond dispute griefing, reward-pool
-conservation and overpay rejection, cross-module split-brain divergence and
-epoch-lag rejection, and bounded O5 independence-witness acceptance/rejection.
+zero-scale and equal-value median sanity cases, source-cartel concentration,
+zero-bond dispute griefing, reward-pool conservation, overpay rejection,
+reward-cap rejection, cross-module split-brain divergence, epoch-lag rejection,
+epoch-lag symmetry, and bounded O5 independence-witness acceptance/rejection.
 
 The Lean tree already has adjacent checked anchors:
 
@@ -29,9 +30,12 @@ The Lean tree already has adjacent checked anchors:
 - `lean-mathlib/Proofs/OracleBenefitRiskClasses.lean`
 - `lean-mathlib/Proofs/ZenoOracleMathWitness.lean`
 
-`ZenoOracleMathWitness.lean` now also includes a small Prop-level bridge for
-the O4/O5 Oracle-use rule: O4/O5 use projects to accepted O3 receipt binding
-and same consumer action, and O5 use projects to an independence witness with
+`ZenoOracleMathWitness.lean` now includes small general arithmetic anchors for
+zero-scale and equal-value median deviation, self-divergence, epoch-lag
+symmetry, reward-pool bounds, and bonded-slash conservation. It also includes
+Prop-level bridge anchors for terminal DAG closure, runtime binding, and the
+O4/O5 Oracle-use rule: O4/O5 use projects to accepted O3 receipt binding and
+same consumer action, and O5 use projects to an independence witness with
 distinct verifiers and DAG closure. Missing distinct verifiers or missing DAG
 closure contradicts O5 use.
 
