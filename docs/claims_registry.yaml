@@ -1743,7 +1743,8 @@ claims:
       bounded integer examples for median deviation boundaries, zero-scale and
       equal-value median sanity, source-cartel concentration, zero-bond dispute
       griefing, reward-pool conservation, overpay rejection, reward-cap
-      rejection, cross-module split-brain divergence, epoch-lag rejection,
+      rejection, live-economics escrow floor and timelock receipt checks,
+      cross-module split-brain divergence, epoch-lag rejection,
       epoch-lag symmetry, and O5 independence-witness acceptance/rejection. This is
       witness evidence for the current first shell, with full Lean proofs,
       Morph search, and production oracle benefit laws still outside the claim.
@@ -1751,8 +1752,10 @@ claims:
       kind: julia
       check:
         - cmd: julia tools/zeno_oracle_math_witness_sweep.jl
+        - cmd: pytest -q tests/test_zeno_oracle_math_witness_sweep.py
       files:
         - tools/zeno_oracle_math_witness_sweep.jl
+        - tests/test_zeno_oracle_math_witness_sweep.py
         - docs/research/ZENO_ORACLE_MATH_EVIDENCE_LANE.md
         - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
 
@@ -1764,6 +1767,7 @@ claims:
       facts that mirror the Julia witness sweep: median deviation boundary
       examples, zero-scale and equal-value deviation, self-divergence,
       epoch-lag symmetry, reward-pool bounds, bonded-slash conservation,
+      live-economics escrow floor and timelock receipt obligations,
       source-cartel concentration, and cross-module split-brain divergence and
       epoch-lag witnesses. It also checks Prop-level terminal DAG, runtime
       binding, and O4/O5 Oracle-use anchors: O4/O5 use implies an accepted O3

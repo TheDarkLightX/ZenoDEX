@@ -12,7 +12,7 @@ Current expected receipt:
 
 ```text
 schema = zenodex.oracle.math_witness_sweep.v1
-case_count = 14
+case_count = 18
 failed_count = 0
 status = accepted
 ```
@@ -20,8 +20,9 @@ status = accepted
 The sweep covers first-shell integer witnesses for median deviation boundaries,
 zero-scale and equal-value median sanity cases, source-cartel concentration,
 zero-bond dispute griefing, reward-pool conservation, overpay rejection,
-reward-cap rejection, cross-module split-brain divergence, epoch-lag rejection,
-epoch-lag symmetry, and bounded O5 independence-witness acceptance/rejection.
+reward-cap rejection, live-economics escrow floor and timelock receipt checks,
+cross-module split-brain divergence, epoch-lag rejection, epoch-lag symmetry,
+and bounded O5 independence-witness acceptance/rejection.
 
 The Lean tree already has adjacent checked anchors:
 
@@ -32,12 +33,13 @@ The Lean tree already has adjacent checked anchors:
 
 `ZenoOracleMathWitness.lean` now includes small general arithmetic anchors for
 zero-scale and equal-value median deviation, self-divergence, epoch-lag
-symmetry, reward-pool bounds, and bonded-slash conservation. It also includes
-Prop-level bridge anchors for terminal DAG closure, runtime binding, and the
-O4/O5 Oracle-use rule: O4/O5 use projects to accepted O3 receipt binding and
-same consumer action, and O5 use projects to an independence witness with
-distinct verifiers and DAG closure. Missing distinct verifiers or missing DAG
-closure contradicts O5 use.
+symmetry, reward-pool bounds, bonded-slash conservation, live-economics escrow
+floor arithmetic, and timelock execution obligations. It also includes Prop-level
+bridge anchors for live-economics receipt bundles, terminal DAG closure, runtime
+binding, and the O4/O5 Oracle-use rule: O4/O5 use projects to accepted O3
+receipt binding and same consumer action, and O5 use projects to an
+independence witness with distinct verifiers and DAG closure. Missing distinct
+verifiers or missing DAG closure contradicts O5 use.
 
 The next proof ladder should turn the Julia cases into restricted Lean
 theorems for median/deviation boundaries, budget conservation, executable DAG

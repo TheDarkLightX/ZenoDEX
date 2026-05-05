@@ -54,6 +54,23 @@ def O5OracleUseOK
     (O5IndependenceWitnessOK
       primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed)
 
+def LiveEconomicsEscrowFloor
+    (initialDisputePool bondA bondB bondC feePaid : Nat) : Nat :=
+  initialDisputePool + bondA + bondB + bondC + feePaid
+
+def EscrowFundingOK (requiredFloor balance : Nat) : Prop :=
+  requiredFloor <= balance
+
+def GovernanceTimelockOK
+    (queuedAt executableAfter executedAt delay : Nat) : Prop :=
+  And (queuedAt + delay <= executableAfter) (executableAfter <= executedAt)
+
+def LiveEconomicsReceiptBundleOK
+    (governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound : Prop) :
+    Prop :=
+  And governanceApprovalBound
+    (And governanceExecutionBound (And escrowFundingBound replayFloorBound))
+
 theorem median_deviation_boundary_accepts :
     MaxDeviationBpsSorted 98000000 100000000 102000000 10000 = 200 := by
   norm_num [MaxDeviationBpsSorted]
@@ -130,6 +147,62 @@ theorem bonded_slash_conservation
     (hSlash : slash <= bond) :
     after + slash = bond := by
   omega
+
+theorem live_economics_escrow_floor_sample :
+    LiveEconomicsEscrowFloor
+      20000000
+      250000000000
+      250000000000
+      250000000000
+      100000000 = 750120000000 := by
+  norm_num [LiveEconomicsEscrowFloor]
+
+theorem escrow_funding_ok_rejects_shortfall
+    {requiredFloor balance : Nat}
+    (hShortfall : balance < requiredFloor) :
+    Not (EscrowFundingOK requiredFloor balance) := by
+  intro h
+  unfold EscrowFundingOK at h
+  omega
+
+theorem governance_timelock_ok_requires_executed_after_delay
+    {queuedAt executableAfter executedAt delay : Nat}
+    (h : GovernanceTimelockOK queuedAt executableAfter executedAt delay) :
+    queuedAt + delay <= executedAt := by
+  unfold GovernanceTimelockOK at h
+  omega
+
+theorem governance_timelock_rejects_early_execution
+    {queuedAt executableAfter executedAt delay : Nat}
+    (hEarly : executedAt < executableAfter) :
+    Not (GovernanceTimelockOK queuedAt executableAfter executedAt delay) := by
+  intro h
+  unfold GovernanceTimelockOK at h
+  omega
+
+theorem live_economics_receipt_bundle_ok_requires_governance_execution
+    {governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound : Prop}
+    (h :
+      LiveEconomicsReceiptBundleOK
+        governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound) :
+    governanceExecutionBound := by
+  exact h.right.left
+
+theorem live_economics_receipt_bundle_ok_requires_escrow_funding
+    {governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound : Prop}
+    (h :
+      LiveEconomicsReceiptBundleOK
+        governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound) :
+    escrowFundingBound := by
+  exact h.right.right.left
+
+theorem live_economics_receipt_bundle_ok_requires_replay_floor
+    {governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound : Prop}
+    (h :
+      LiveEconomicsReceiptBundleOK
+        governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound) :
+    replayFloorBound := by
+  exact h.right.right.right
 
 theorem reward_pool_conservation_witness :
     75000000 + 25000000 = 100000000 := by

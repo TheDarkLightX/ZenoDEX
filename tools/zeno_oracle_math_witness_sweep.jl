@@ -33,6 +33,30 @@ reward_transition_ok(before::Int, reward::Int, after::Int)::Bool =
 reward_not_overpaid(before::Int, reward::Int)::Bool =
     before >= 0 && reward >= 0 && reward <= before
 
+live_economics_escrow_floor_e8(
+    initial_dispute_pool_e8::Int,
+    reporter_bonds_e8::Vector{Int},
+    fee_paid_e8::Int,
+)::Int = begin
+    initial_dispute_pool_e8 >= 0 || error("initial dispute pool must be nonnegative")
+    fee_paid_e8 >= 0 || error("fee paid must be nonnegative")
+    all(bond -> bond >= 0, reporter_bonds_e8) || error("reporter bonds must be nonnegative")
+    return initial_dispute_pool_e8 + sum(reporter_bonds_e8) + fee_paid_e8
+end
+
+escrow_funding_ok(required_floor_e8::Int, balance_e8::Int)::Bool =
+    required_floor_e8 >= 0 && balance_e8 >= required_floor_e8
+
+governance_timelock_ok(
+    queued_at_timestamp::Int,
+    executable_after_timestamp::Int,
+    executed_at_timestamp::Int,
+    timelock_seconds::Int,
+)::Bool =
+    timelock_seconds >= 0 &&
+    executable_after_timestamp - queued_at_timestamp >= timelock_seconds &&
+    executed_at_timestamp >= executable_after_timestamp
+
 dispute_grief_rejected(dispute_bond::Int)::Bool = dispute_bond <= 0
 
 split_brain_rejected(
@@ -152,6 +176,48 @@ function run_cases()::Vector{Dict{String, Any}}
             reward_not_overpaid(100_000_000, 25_000_000) &&
                 !reward_not_overpaid(100_000_000, 101_000_000),
             "before=100000000 accepted_reward=25000000 rejected_reward=101000000",
+        ),
+    )
+
+    escrow_floor = live_economics_escrow_floor_e8(
+        20_000_000,
+        [250_000_000_000, 250_000_000_000, 250_000_000_000],
+        100_000_000,
+    )
+    push!(
+        cases,
+        case_result(
+            "live_economics_escrow_floor_matches_replay",
+            escrow_floor == 750_120_000_000,
+            "escrow_floor_e8=$(escrow_floor)",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_escrow_shortfall_rejects",
+            escrow_funding_ok(escrow_floor, escrow_floor) &&
+                !escrow_funding_ok(escrow_floor, escrow_floor - 1),
+            "floor=$(escrow_floor) accepted_balance=$(escrow_floor) rejected_balance=$(escrow_floor - 1)",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_governance_timelock_accepts",
+            governance_timelock_ok(1_800_000_000, 1_800_172_800, 1_800_172_800, 172_800),
+            "queued=1800000000 executable_after=1800172800 executed=1800172800 delay=172800",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_governance_early_execution_rejects",
+            !governance_timelock_ok(1_800_000_000, 1_800_172_800, 1_800_172_799, 172_800),
+            "queued=1800000000 executable_after=1800172800 executed=1800172799 delay=172800",
         ),
     )
 
