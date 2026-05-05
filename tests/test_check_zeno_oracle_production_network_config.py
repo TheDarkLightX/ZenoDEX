@@ -24,7 +24,7 @@ def test_production_network_config_accepts_sample_candidate() -> None:
     assert result["status"] == "accepted"
     assert result["error_count"] == 0
     assert result["receipt_bundle_status"] == "accepted"
-    assert result["receipt_bundle_kind_count"] == 4
+    assert result["receipt_bundle_kind_count"] == 6
     assert config["runtime_controls"]["require_oracle_authorization_for_isolated_settle_epoch"] is True
     assert "live_token_settlement_disabled" in result["go_live_blockers"]
     assert "does_not_claim_live_token_settlement" in result["not_claimed"]
@@ -128,6 +128,42 @@ def test_production_network_config_rejects_runtime_controls_receipt_drift() -> N
 
     assert result["status"] == "rejected"
     assert "receipt:runtime_controls_hash_mismatch" in result["errors"]
+
+
+def test_production_network_config_rejects_early_feed_governance_execution() -> None:
+    config = sample_config()
+    bundle = sample_receipt_bundle(config)
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    execution = next(
+        receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == "feed_governance_execution"
+    )
+    payload = execution["payload"]
+    assert isinstance(payload, dict)
+    payload["executed_at_timestamp"] = int(payload["executable_after_timestamp"]) - 1
+    execution["receipt_id"] = receipt_content_hash(execution)
+
+    result = check_config(config, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:feed_governance_execution_before_timelock" in result["errors"]
+
+
+def test_production_network_config_rejects_feed_governance_proposal_drift() -> None:
+    config = sample_config()
+    bundle = sample_receipt_bundle(config)
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    approval = next(receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == "feed_governance_approval")
+    payload = approval["payload"]
+    assert isinstance(payload, dict)
+    payload["proposal_id"] = "sha256:" + "2" * 64
+    approval["receipt_id"] = receipt_content_hash(approval)
+
+    result = check_config(config, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:feed_governance_approval_proposal_id_mismatch" in result["errors"]
 
 
 def test_production_network_config_cli_sample_and_require_live(tmp_path: Path) -> None:

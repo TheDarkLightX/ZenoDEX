@@ -95,9 +95,10 @@ The active workspace now has:
   ESSO, Morph smoke, and PopperPad smoke lanes.
 - a production-candidate network config receipt gate at
   `tools/check_zeno_oracle_production_network_config.py` that validates local
-  reporter-registry deployment, feed-governance deployment, signed release
-  artifact, and runtime-control attestation receipts while keeping live chain
-  and public soak verification outside the claim.
+  reporter-registry deployment, feed-governance deployment, feed-governance
+  approval/execution, signed release artifact, and runtime-control attestation
+  receipts while keeping live chain and public soak verification outside the
+  claim.
 
 Current public gate evidence:
 
