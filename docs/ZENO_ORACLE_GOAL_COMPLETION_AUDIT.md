@@ -9,6 +9,15 @@ evidence. It is intentionally conservative: an item is complete only when the
 repo has a replayable public artifact, verifier, test, or package gate for the
 specific requirement.
 
+The machine-readable audit is:
+
+```bash
+python3 tools/check_zeno_oracle_goal_completion_audit.py --format json
+```
+
+By default this command exits nonzero while the production-candidate goal is
+blocked. Use `--expect-blocked` when testing the current expected state.
+
 ## Objective
 
 Finish ZenoOracle as a production-candidate O3 oracle for ZenoDEX critical
@@ -20,7 +29,7 @@ registry/verifier layer for O4/O5 claims.
 
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
-| One Oracle integration branch | Current branch is `codex/zeno-oracle-mvp-hardening`; public devnet/docs artifacts and typed `OracleAuthorization` code are present in the workspace. The worktree is very dirty, with many unrelated modified and untracked files, so a final merge/PR audit remains open. | Partial |
+| One Oracle integration branch | The PR-capable integration branch is `codex/zeno-oracle-main-integration`, with commit `242c26397a5e6bb0e2fcffbf50dba8de337d821c` pushed and draft PR `#204` opened against `main`. Public devnet/docs artifacts and typed `OracleAuthorization` code are present in the branch. | Integrated branch |
 | O3 receipt flow | `tools/zeno_oracle_o3_receipt_flow_replay.py` replays the focused local path from feed registry through reporter lifecycle, signed report, admission, admitted median3, accepted read, action adapter, and terminal DAG replay with `8/8` accepted stages. Devnet service tools and `bash scripts/check_zeno_oracle_devnet_alpha.sh` provide broader shell coverage. | Devnet complete |
 | Critical consumers | `tools/check_zeno_oracle_critical_action_map.py` reports `catalog_profile_count = 7`, `runtime_wired_count = 7`, and `design_only_backlog_count = 0`, covering zUSD, perps settlement/liquidation, routing, triggers, and critical settlement. | Devnet complete |
 | Reporter economics | `tools/zenodex_oracle_reporter_economics_replay.py` and tests cover bonds, rewards, disputes, slashing, withdrawals, fee splits, and budget rejection. Live token settlement remains open. | Replay complete |
@@ -32,6 +41,7 @@ registry/verifier layer for O4/O5 claims.
 | Public claims registry | `docs/claims_registry.yaml` validates with `python3 tools/check_claims_registry.py` and `pytest -q tests/test_claims_registry.py`. | Complete for promoted claims |
 | ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. | Local v0 complete |
 | Devnet alpha package | `scripts/package_zeno_oracle_rc.sh` and `tools/check_zeno_oracle_rc_package.py` build and validate the devnet alpha package, docs, whitepaper, branding, manifest, receipt, and devnet integrity signature. | Devnet complete |
+| Goal completion audit | `tools/check_zeno_oracle_goal_completion_audit.py` maps all 10 prompt items to evidence and blocks completion on production network, live economics, broader disaster-search, generalized math, and ZenoProof production-governance gaps. | Blocking audit |
 
 ## Latest Replay Commands
 
@@ -45,12 +55,13 @@ python3 tools/zeno_oracle_workflow_evidence_status.py --format text
 python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
 python3 tools/zenoproof_reward_payout_replay.py --format text --registry tools/zenoproof_registry_manifest.json
 python3 tools/check_claims_registry.py
+python3 tools/check_zeno_oracle_goal_completion_audit.py --format text --expect-blocked
 ```
 
 ## Remaining Work Before Goal Closure
 
-1. Final branch integration: reduce the dirty worktree to the intended Oracle
-   changes, merge or rebase against the chosen base, and open/land the PR.
+1. Land the integration PR after review and any required CI/branch-protection
+   checks.
 2. Production network: replace local/devnet-only assumptions with production
    reporter operations, production signing, production code signing, on-chain
    feed governance, and live settlement policy.
