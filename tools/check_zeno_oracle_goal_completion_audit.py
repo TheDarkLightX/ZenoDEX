@@ -277,16 +277,26 @@ def build_audit() -> dict[str, Any]:
                 "tools/zenoproof_registry_manifest.json",
                 "tools/zenoproof_public_replay_verifier.py",
                 "tools/zenoproof_reward_payout_replay.py",
+                "tools/check_zenoproof_production_governance_policy.py",
                 "tests/test_zenoproof_verify.py",
                 "tests/test_zenoproof_reward_payout_replay.py",
+                "tests/test_check_zenoproof_production_governance_policy.py",
             ],
             replay_commands=[
                 "python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json",
                 "python3 tools/zenoproof_reward_payout_replay.py --format text --registry tools/zenoproof_registry_manifest.json",
+                "python3 tools/check_zenoproof_production_governance_policy.py --format text",
+                "pytest -q tests/test_check_zenoproof_production_governance_policy.py",
             ],
             status="local_v0_complete",
+            blockers=[
+                "zenoproof_production_governance_policy_gate_is_candidate_only",
+                "production_verifier_sandbox_and_code_signing_not_verified",
+                "live_proof_network_and_payout_settlement_not_enabled",
+            ],
             limits=[
                 "local static verifier registry only",
+                "production governance policy gate exists but rejects --require-live while blockers remain",
                 "does_not_claim_live_proof_network",
                 "does_not_claim_governance_revocation_live",
             ],
@@ -355,6 +365,11 @@ def build_audit() -> dict[str, Any]:
             "command": "python3 tools/check_zeno_oracle_disaster_frontier.py --format text",
             "require_closed_command": "python3 tools/check_zeno_oracle_disaster_frontier.py --require-closed",
             "status": "explicit_blocker_frontier",
+        },
+        "zenoproof_production_governance_gate": {
+            "command": "python3 tools/check_zenoproof_production_governance_policy.py --format text",
+            "require_live_command": "python3 tools/check_zenoproof_production_governance_policy.py --require-live",
+            "status": "production_candidate_only",
         },
         "not_claimed": [
             "does_not_claim_goal_complete",

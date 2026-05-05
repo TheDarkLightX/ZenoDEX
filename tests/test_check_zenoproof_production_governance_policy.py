@@ -1,0 +1,167 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+from tools.check_zenoproof_production_governance_policy import (
+    check_policy,
+    policy_content_hash,
+    sample_policy,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+REGISTRY = ROOT / "tools" / "zenoproof_registry_manifest.json"
+ACCEPTED_REWARD_STATUS = {"status": "accepted", "errors": []}
+
+
+def _registry() -> dict[str, object]:
+    return json.loads(REGISTRY.read_text(encoding="utf-8"))
+
+
+def _refresh(policy: dict[str, object]) -> None:
+    policy["policy_id"] = policy_content_hash(policy)
+
+
+def test_zenoproof_production_governance_policy_accepts_sample_candidate() -> None:
+    registry = _registry()
+    result = check_policy(sample_policy(registry), registry, ACCEPTED_REWARD_STATUS)
+
+    assert result["schema"] == "zenodex.zenoproof.production_governance_policy_check.v1"
+    assert result["status"] == "accepted"
+    assert result["error_count"] == 0
+    assert result["registry_error_count"] == 0
+    assert result["reward_payout_status"] == "accepted"
+    assert result["production_enabled_verifier_count"] == 8
+    assert result["devnet_only_verifier_count"] == 2
+    assert "live_proof_mining_token_settlement_not_enabled" in result["go_live_blockers"]
+    assert "does_not_claim_live_proof_network" in result["not_claimed"]
+
+
+def test_zenoproof_production_governance_policy_rejects_static_verifier_not_quarantined() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    policy["verifier_policy"]["devnet_only_verifier_ids"] = []
+    _refresh(policy)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS)
+
+    assert result["status"] == "rejected"
+    assert any(error.startswith("static_verifier_not_marked_devnet_only:") for error in result["errors"])
+
+
+def test_zenoproof_production_governance_policy_rejects_devnet_verifier_enabled_for_production() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    devnet_id = policy["verifier_policy"]["devnet_only_verifier_ids"][0]
+    policy["verifier_policy"]["production_enabled_verifier_ids"].append(devnet_id)
+    _refresh(policy)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS)
+
+    assert result["status"] == "rejected"
+    assert "devnet_only_verifier_enabled_for_production" in result["errors"]
+    assert f"production_verifier_execution_mode_invalid:{devnet_id}" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_weak_bridge_and_sandbox_controls() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    policy["oracle_bridge_policy"]["o3_receipt_required"] = False
+    policy["oracle_bridge_policy"]["min_o5_distinct_verifier_count"] = 1
+    policy["sandbox"]["network_disabled"] = False
+    policy["sandbox"]["max_timeout_ms"] = 120_001
+    _refresh(policy)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS)
+
+    assert result["status"] == "rejected"
+    assert "o3_receipt_required_must_be_true" in result["errors"]
+    assert "min_o5_distinct_verifier_count_below_min:2" in result["errors"]
+    assert "network_disabled_must_be_true" in result["errors"]
+    assert "max_timeout_ms_above_max:120000" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_bad_governance_and_reward_controls() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    policy["governance"]["timelock_seconds"] = 1
+    policy["code_signing"]["required"] = False
+    policy["reward_settlement"]["bounded_pool_required"] = False
+    policy["not_claimed"] = ["does_not_claim_live_proof_network"]
+    _refresh(policy)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS)
+
+    assert result["status"] == "rejected"
+    assert "timelock_seconds_below_min:86400" in result["errors"]
+    assert "required_must_be_true" in result["errors"]
+    assert "bounded_pool_required_must_be_true" in result["errors"]
+    assert "missing_not_claim:does_not_claim_live_proof_mining_payouts" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_reward_replay_failure() -> None:
+    registry = _registry()
+    result = check_policy(
+        sample_policy(registry),
+        registry,
+        {"status": "rejected", "errors": ["proof_mining_payout_mismatch"]},
+    )
+
+    assert result["status"] == "rejected"
+    assert "reward_payout_replay_rejected" in result["errors"]
+    assert "reward_payout:proof_mining_payout_mismatch" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_path: Path) -> None:
+    sample = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zenoproof_production_governance_policy.py",
+            "--sample-policy",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample.returncode == 0
+    policy_path = tmp_path / "zenoproof-production-governance-policy.json"
+    policy_path.write_text(sample.stdout, encoding="utf-8")
+
+    accepted = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zenoproof_production_governance_policy.py",
+            "--policy",
+            str(policy_path),
+            "--format",
+            "text",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+    assert "status = accepted" in accepted.stdout
+
+    require_live = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zenoproof_production_governance_policy.py",
+            "--policy",
+            str(policy_path),
+            "--require-live",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert require_live.returncode == 1
+    receipt = json.loads(require_live.stdout)
+    assert receipt["status"] == "rejected"
+    assert "go_live_blockers_present" in receipt["errors"]

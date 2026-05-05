@@ -36,6 +36,10 @@ def test_goal_completion_audit_maps_all_prompt_items_and_blocks_goal_closure() -
     assert audit["disaster_frontier_gate"]["status"] == "explicit_blocker_frontier"
     assert items[8]["complete"] is True
     assert items[9]["status"] == "local_v0_complete"
+    assert items[9]["complete"] is False
+    assert "zenoproof_production_governance_policy_gate_is_candidate_only" in items[9]["blockers"]
+    assert "tools/check_zenoproof_production_governance_policy.py" in items[9]["evidence_files"]
+    assert audit["zenoproof_production_governance_gate"]["status"] == "production_candidate_only"
     assert items[10]["status"] == "devnet_complete"
 
 
