@@ -40,10 +40,19 @@ def test_check_zeno_oracle_rc_package_accepts_built_devnet_bundle() -> None:
     assert report["receipt_checked"] is True
     assert report["signature_checked"] is True
     assert report["errors"] == []
+    assert (package_dir / "docs" / "claims_registry.yaml").is_file()
+    assert (package_dir / "tools" / "check_claims_registry.py").is_file()
     assert (package_dir / "tools" / "check_zeno_oracle_rc_package.py").is_file()
     assert (package_dir / "tools" / "check_disaster_obligation_certificate.py").is_file()
+    assert (package_dir / "tools" / "check_zeno_oracle_disaster_frontier.py").is_file()
+    assert (package_dir / "tools" / "check_zeno_oracle_frontier_obligation_projection.py").is_file()
+    assert (package_dir / "tools" / "check_zeno_oracle_goal_completion_audit.py").is_file()
+    assert (package_dir / "tools" / "check_zeno_oracle_live_economics_policy.py").is_file()
+    assert (package_dir / "tools" / "check_zenoproof_production_governance_policy.py").is_file()
+    assert (package_dir / "tools" / "zeno_oracle_disaster_class_corpus.py").is_file()
     assert (package_dir / "tools" / "zeno_oracle_o3_receipt_flow_replay.py").is_file()
     assert (package_dir / "tools" / "zeno_oracle_disaster_obligation_certificate_manifest.json").is_file()
+    assert (package_dir / "tools" / "zeno_oracle_math_witness_sweep.jl").is_file()
     assert (package_dir / "tools" / "zenodex_oracle_reporter_economics_replay.py").is_file()
 
 

@@ -20,8 +20,16 @@ cp -R "${root}/assets/branding/zeno-oracle" "${stage}/assets/branding/zeno-oracl
 cp "${root}/tools/check_zeno_oracle_critical_action_map.py" "${stage}/tools/check_zeno_oracle_critical_action_map.py"
 cp "${root}/tools/check_zeno_oracle_rc_package.py" "${stage}/tools/check_zeno_oracle_rc_package.py"
 cp "${root}/tools/check_disaster_obligation_certificate.py" "${stage}/tools/check_disaster_obligation_certificate.py"
+cp "${root}/tools/check_claims_registry.py" "${stage}/tools/check_claims_registry.py"
+cp "${root}/tools/check_zeno_oracle_disaster_frontier.py" "${stage}/tools/check_zeno_oracle_disaster_frontier.py"
+cp "${root}/tools/check_zeno_oracle_frontier_obligation_projection.py" "${stage}/tools/check_zeno_oracle_frontier_obligation_projection.py"
+cp "${root}/tools/check_zeno_oracle_goal_completion_audit.py" "${stage}/tools/check_zeno_oracle_goal_completion_audit.py"
+cp "${root}/tools/check_zeno_oracle_live_economics_policy.py" "${stage}/tools/check_zeno_oracle_live_economics_policy.py"
+cp "${root}/tools/check_zenoproof_production_governance_policy.py" "${stage}/tools/check_zenoproof_production_governance_policy.py"
+cp "${root}/tools/zeno_oracle_disaster_class_corpus.py" "${stage}/tools/zeno_oracle_disaster_class_corpus.py"
 cp "${root}/tools/zeno_oracle_o3_receipt_flow_replay.py" "${stage}/tools/zeno_oracle_o3_receipt_flow_replay.py"
 cp "${root}/tools/zeno_oracle_disaster_obligation_certificate_manifest.json" "${stage}/tools/zeno_oracle_disaster_obligation_certificate_manifest.json"
+cp "${root}/tools/zeno_oracle_math_witness_sweep.jl" "${stage}/tools/zeno_oracle_math_witness_sweep.jl"
 
 find "${root}/tools" -maxdepth 1 -type f -name 'zenodex_oracle*.py' -print0 |
   sort -z |
@@ -31,6 +39,7 @@ find "${root}/docs" -maxdepth 1 -type f -name 'ZENO_ORACLE*.md' -print0 |
   sort -z |
   xargs -0 -I{} cp "{}" "${stage}/docs/"
 cp "${root}/docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md" "${stage}/docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md"
+cp "${root}/docs/claims_registry.yaml" "${stage}/docs/claims_registry.yaml"
 
 mkdir -p "${stage}/docs/papers"
 cp -R "${root}/docs/papers/zeno-oracle-whitepaper" "${stage}/docs/papers/zeno-oracle-whitepaper"
@@ -41,6 +50,13 @@ chmod +x "${stage}/tools/zenodex_oracle_reporter_economics_replay.py"
 chmod +x "${stage}/tools/check_zeno_oracle_critical_action_map.py"
 chmod +x "${stage}/tools/check_zeno_oracle_rc_package.py"
 chmod +x "${stage}/tools/check_disaster_obligation_certificate.py"
+chmod +x "${stage}/tools/check_claims_registry.py"
+chmod +x "${stage}/tools/check_zeno_oracle_disaster_frontier.py"
+chmod +x "${stage}/tools/check_zeno_oracle_frontier_obligation_projection.py"
+chmod +x "${stage}/tools/check_zeno_oracle_goal_completion_audit.py"
+chmod +x "${stage}/tools/check_zeno_oracle_live_economics_policy.py"
+chmod +x "${stage}/tools/check_zenoproof_production_governance_policy.py"
+chmod +x "${stage}/tools/zeno_oracle_disaster_class_corpus.py"
 chmod +x "${stage}/tools/zeno_oracle_o3_receipt_flow_replay.py"
 chmod +x "${stage}/bin/zenodex-oracle"
 chmod +x "${stage}/scripts/check_zeno_oracle_mvp.sh"
@@ -101,8 +117,11 @@ manifest = {
     "not_claimed": [
         "does_not_claim_production_oracle_network",
         "does_not_claim_onchain_feed_governance",
+        "does_not_claim_live_public_reporter_economics",
         "does_not_claim_platform_native_binary",
         "does_not_claim_production_code_signing",
+        "does_not_claim_production_zenoproof_governance",
+        "does_not_claim_generalized_math_proof_completion",
     ],
 }
 text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"

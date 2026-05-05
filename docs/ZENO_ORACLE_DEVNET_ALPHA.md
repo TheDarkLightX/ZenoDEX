@@ -97,9 +97,12 @@ bash scripts/check_zeno_oracle_devnet_alpha.sh
 
 It runs the full local MVP gate, the focused O3 receipt-flow replay, the
 service-level HTTP integration tests, the critical-action map checker, the
-reporter economics replay, the deterministic devnet disaster-state harness,
-the obligation-antichain certificate, and the devnet alpha audit. The GitHub
-workflow builds a devnet alpha RC package after the gate passes.
+reporter economics replay, the live-economics production-candidate policy, the
+deterministic devnet disaster-state harness, the disaster corpus/frontier, the
+obligation-antichain certificate, the frontier-to-obligation projection, the
+ZenoProof production-governance candidate policy, the claims registry, the
+blocked-goal audit, and the devnet alpha audit. The GitHub workflow builds a
+devnet alpha RC package after the gate passes.
 
 The critical-action map can be checked directly:
 
@@ -161,6 +164,22 @@ Current expected economics receipt:
 "dispute_count": 1
 ```
 
+The live-economics production-candidate policy can be checked directly:
+
+```bash
+python3 tools/check_zeno_oracle_live_economics_policy.py --format text
+```
+
+Current expected policy receipt:
+
+```text
+status = accepted
+replay_status = accepted
+receipt_bundle_status = accepted
+error_count = 0
+go_live_blocker_count = 6
+```
+
 The obligation-antichain certificate is checked directly:
 
 ```bash
@@ -170,7 +189,56 @@ python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_ora
 Current expected certificate receipt:
 
 ```text
-ok: axes=23 quotient=20 antichain=15 selected_guards=9 private_witnesses=9
+ok: axes=24 quotient=21 antichain=16 selected_guards=10 private_witnesses=10
+```
+
+The production disaster frontier can be checked directly:
+
+```bash
+python3 tools/check_zeno_oracle_disaster_frontier.py --format text
+```
+
+Current expected frontier receipt:
+
+```text
+status = accepted
+frontier_family_count = 29
+closed_family_count = 24
+blocked_or_backlog_count = 5
+new_obligation_family_count = 0
+error_count = 0
+```
+
+The frontier-to-obligation projection can be checked directly:
+
+```bash
+python3 tools/check_zeno_oracle_frontier_obligation_projection.py --format text
+```
+
+Current expected projection receipt:
+
+```text
+status = accepted
+frontier_family_count = 29
+projected_family_count = 29
+new_obligation_family_count = 0
+error_count = 0
+```
+
+The ZenoProof production-governance candidate policy can be checked directly:
+
+```bash
+python3 tools/check_zenoproof_production_governance_policy.py --format text
+```
+
+Current expected ZenoProof policy receipt:
+
+```text
+status = accepted
+error_count = 0
+receipt_bundle_status = accepted
+go_live_blocker_count = 8
+production_enabled_verifier_count = 8
 ```
 
 This is bounded devnet evidence. It does not claim a production oracle network
@@ -193,10 +261,19 @@ dist/zeno-oracle-devnet-alpha-rc1.sig
 dist/zeno-oracle-devnet-alpha-rc1/ZEN_ORACLE_RC_MANIFEST.json
 dist/zeno-oracle-devnet-alpha-rc1/bin/zenodex-oracle
 dist/zeno-oracle-devnet-alpha-rc1/tools/check_disaster_obligation_certificate.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_claims_registry.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_disaster_frontier.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_frontier_obligation_projection.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_goal_completion_audit.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_live_economics_policy.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_rc_package.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_zenoproof_production_governance_policy.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_disaster_class_corpus.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_math_witness_sweep.jl
 dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_o3_receipt_flow_replay.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/zenodex_oracle_reporter_economics_replay.py
+dist/zeno-oracle-devnet-alpha-rc1/docs/claims_registry.yaml
 dist/zeno-oracle-devnet-alpha-rc1/assets/branding/zeno-oracle/
 dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/main.pdf
 dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf
@@ -222,6 +299,8 @@ The devnet alpha does not claim:
 - live public reporter economics;
 - on-chain feed governance;
 - production code signing;
+- production ZenoProof verifier governance;
+- generalized math-proof completion;
 - platform-native installers;
 - protection from dishonest real-world sources beyond the declared source and
   reporter verifier rules.

@@ -14,10 +14,18 @@ from typing import Any, Mapping
 
 REQUIRED_PACKAGE_FILES = {
     "bin/zenodex-oracle",
+    "tools/check_claims_registry.py",
     "tools/check_disaster_obligation_certificate.py",
+    "tools/check_zeno_oracle_disaster_frontier.py",
+    "tools/check_zeno_oracle_frontier_obligation_projection.py",
+    "tools/check_zeno_oracle_goal_completion_audit.py",
+    "tools/check_zeno_oracle_live_economics_policy.py",
     "tools/check_zeno_oracle_rc_package.py",
+    "tools/check_zenoproof_production_governance_policy.py",
+    "tools/zeno_oracle_disaster_class_corpus.py",
     "tools/zeno_oracle_o3_receipt_flow_replay.py",
     "tools/zeno_oracle_disaster_obligation_certificate_manifest.json",
+    "tools/zeno_oracle_math_witness_sweep.jl",
     "tools/zenodex_oracle_cli.py",
     "tools/zenodex_oracle_devnet_service.py",
     "tools/zenodex_oracle_reporter_economics_replay.py",
@@ -26,6 +34,7 @@ REQUIRED_PACKAGE_FILES = {
     "docs/ZENO_ORACLE_CLI_V1.md",
     "docs/ZENO_ORACLE_PRODUCTION_GATES.md",
     "docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md",
+    "docs/claims_registry.yaml",
     "docs/papers/zeno-oracle-whitepaper/main.pdf",
     "docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf",
     "assets/branding/zeno-oracle/zeno_oracle_icon_256.png",
@@ -34,8 +43,11 @@ REQUIRED_PACKAGE_FILES = {
 REQUIRED_NOT_CLAIMS = {
     "does_not_claim_production_oracle_network",
     "does_not_claim_onchain_feed_governance",
+    "does_not_claim_live_public_reporter_economics",
     "does_not_claim_platform_native_binary",
     "does_not_claim_production_code_signing",
+    "does_not_claim_production_zenoproof_governance",
+    "does_not_claim_generalized_math_proof_completion",
 }
 REPORT_SCHEMA = "zenodex.oracle.rc_package_check.v1"
 
@@ -194,12 +206,7 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
         "receipt_checked": receipt_path is not None,
         "signature_checked": sig_path is not None,
         "errors": errors,
-        "not_claimed": [
-            "does_not_claim_production_oracle_network",
-            "does_not_claim_onchain_feed_governance",
-            "does_not_claim_platform_native_binary",
-            "does_not_claim_production_code_signing",
-        ],
+        "not_claimed": sorted(REQUIRED_NOT_CLAIMS),
     }
 
 
