@@ -71,6 +71,24 @@ def LiveEconomicsReceiptBundleOK
   And governanceApprovalBound
     (And governanceExecutionBound (And escrowFundingBound replayFloorBound))
 
+def SettlementExecutionTotalE8
+    (reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta : Nat) :
+    Nat :=
+  reportReward + disputeReward + bondWithdrawn + slashed + feePaid + treasuryDelta + burnDelta
+
+def SettlementExecutionReceiptOK
+    (queryBound totalsBound assetBound contractBound : Prop) : Prop :=
+  And queryBound (And totalsBound (And assetBound contractBound))
+
+def LiveEconomicsReceiptBundleV2OK
+    (governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
+      settlementExecutionBound : Prop) :
+    Prop :=
+  And
+    (LiveEconomicsReceiptBundleOK
+      governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound)
+    settlementExecutionBound
+
 theorem median_deviation_boundary_accepts :
     MaxDeviationBpsSorted 98000000 100000000 102000000 10000 = 200 := by
   norm_num [MaxDeviationBpsSorted]
@@ -203,6 +221,51 @@ theorem live_economics_receipt_bundle_ok_requires_replay_floor
         governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound) :
     replayFloorBound := by
   exact h.right.right.right
+
+theorem live_economics_settlement_execution_total_sample :
+    SettlementExecutionTotalE8
+      50000000
+      10000000
+      250000000000
+      5000000
+      100000000
+      60000000
+      15000000 = 250240000000 := by
+  norm_num [SettlementExecutionTotalE8]
+
+theorem live_economics_settlement_execution_total_drift_rejected :
+    250239999999 ≠
+      SettlementExecutionTotalE8
+        50000000
+        10000000
+        250000000000
+        5000000
+        100000000
+        60000000
+        15000000 := by
+  norm_num [SettlementExecutionTotalE8]
+
+theorem settlement_execution_receipt_ok_requires_query_binding
+    {queryBound totalsBound assetBound contractBound : Prop}
+    (h : SettlementExecutionReceiptOK queryBound totalsBound assetBound contractBound) :
+    queryBound := by
+  exact h.left
+
+theorem settlement_execution_receipt_ok_requires_totals_binding
+    {queryBound totalsBound assetBound contractBound : Prop}
+    (h : SettlementExecutionReceiptOK queryBound totalsBound assetBound contractBound) :
+    totalsBound := by
+  exact h.right.left
+
+theorem live_economics_receipt_bundle_v2_requires_settlement_execution
+    {governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
+      settlementExecutionBound : Prop}
+    (h :
+      LiveEconomicsReceiptBundleV2OK
+        governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
+        settlementExecutionBound) :
+    settlementExecutionBound := by
+  exact h.right
 
 theorem reward_pool_conservation_witness :
     75000000 + 25000000 = 100000000 := by

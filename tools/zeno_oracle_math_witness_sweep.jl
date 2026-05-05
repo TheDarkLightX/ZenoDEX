@@ -57,6 +57,38 @@ governance_timelock_ok(
     executable_after_timestamp - queued_at_timestamp >= timelock_seconds &&
     executed_at_timestamp >= executable_after_timestamp
 
+settlement_execution_totals(
+    report_rewards_e8::Vector{Int},
+    dispute_rewards_e8::Vector{Int},
+    bond_withdrawals_e8::Vector{Int},
+    slashes_e8::Vector{Int},
+    fees_paid_e8::Vector{Int},
+    treasury_deltas_e8::Vector{Int},
+    burn_deltas_e8::Vector{Int},
+)::NTuple{7, Int} = begin
+    all(values -> all(value -> value >= 0, values), (
+        report_rewards_e8,
+        dispute_rewards_e8,
+        bond_withdrawals_e8,
+        slashes_e8,
+        fees_paid_e8,
+        treasury_deltas_e8,
+        burn_deltas_e8,
+    )) || error("settlement totals must be nonnegative")
+    return (
+        sum(report_rewards_e8),
+        sum(dispute_rewards_e8),
+        sum(bond_withdrawals_e8),
+        sum(slashes_e8),
+        sum(fees_paid_e8),
+        sum(treasury_deltas_e8),
+        sum(burn_deltas_e8),
+    )
+end
+
+settlement_execution_totals_ok(expected::NTuple{7, Int}, observed::NTuple{7, Int})::Bool =
+    expected == observed
+
 dispute_grief_rejected(dispute_bond::Int)::Bool = dispute_bond <= 0
 
 split_brain_rejected(
@@ -218,6 +250,51 @@ function run_cases()::Vector{Dict{String, Any}}
             "live_economics_governance_early_execution_rejects",
             !governance_timelock_ok(1_800_000_000, 1_800_172_800, 1_800_172_799, 172_800),
             "queued=1800000000 executable_after=1800172800 executed=1800172799 delay=172800",
+        ),
+    )
+
+    settlement_totals = settlement_execution_totals(
+        [25_000_000, 25_000_000],
+        [10_000_000],
+        [250_000_000_000],
+        [5_000_000],
+        [100_000_000],
+        [60_000_000],
+        [15_000_000],
+    )
+    expected_totals = (
+        50_000_000,
+        10_000_000,
+        250_000_000_000,
+        5_000_000,
+        100_000_000,
+        60_000_000,
+        15_000_000,
+    )
+    drifted_totals = (
+        49_999_999,
+        10_000_000,
+        250_000_000_000,
+        5_000_000,
+        100_000_000,
+        60_000_000,
+        15_000_000,
+    )
+    push!(
+        cases,
+        case_result(
+            "live_economics_settlement_execution_totals_match_replay",
+            settlement_execution_totals_ok(expected_totals, settlement_totals),
+            "report_rewards=50000000 dispute_rewards=10000000 withdrawals=250000000000 slashes=5000000 fee_paid=100000000 treasury=60000000 burn=15000000",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_settlement_execution_total_drift_rejects",
+            !settlement_execution_totals_ok(drifted_totals, settlement_totals),
+            "expected_report_rewards=49999999 observed_report_rewards=50000000",
         ),
     )
 

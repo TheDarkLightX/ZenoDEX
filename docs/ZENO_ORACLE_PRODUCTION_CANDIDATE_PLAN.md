@@ -82,14 +82,15 @@ The active workspace now has:
   split-brain first-shell checks.
 - a first Julia witness sweep at
   `tools/zeno_oracle_math_witness_sweep.jl` for median
-  deviation, source cartel, dispute griefing, reward-pool conservation, and
+  deviation, source cartel, dispute griefing, reward-pool conservation,
+  live-economics settlement-execution total matching/drift rejection, and
   split-brain boundary cases, plus O5 independence-witness acceptance and
   missing-distinct-verifier rejection.
 - a first Lean witness anchor at
   `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` for the same bounded
-  median/deviation, reward-pool, source-cartel, and split-brain arithmetic,
-  plus Prop-level O4/O5 Oracle-use binding and O5 independence-witness
-  projections.
+  median/deviation, reward-pool, live-economics settlement-execution total,
+  source-cartel, and split-brain arithmetic, plus Prop-level live-economics
+  receipt, O4/O5 Oracle-use binding, and O5 independence-witness projections.
 - a public workflow evidence status checker at
   `tools/zeno_oracle_workflow_evidence_status.py` for the first TLA, LTLf,
   ESSO, Morph smoke, and PopperPad smoke lanes.
