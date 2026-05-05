@@ -194,8 +194,17 @@ The frontier gate cross-checks the devnet disaster harness, named
 disaster-class corpus, and obligation-antichain manifest. It rejects silent
 coverage drift: a family must have public replay evidence, or it must remain an
 explicit blocker/backlog item. Cross-domain finality is now represented as a
-manifest obligation atom; live finality adapter receipts remain outside the
-closed evidence set.
+manifest obligation atom and has a local receipt-bundle gate:
+
+```bash
+python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --format text
+```
+
+That gate validates that a source finality checkpoint receipt and target
+adapter-acceptance receipt bind to the same accepted read, query/value hash,
+policy, adapter contract, finality root, confirmation floor, and reorg-depth
+limit. `--require-live` intentionally rejects until those receipts are replayed
+against live chain state and public soak evidence exists.
 
 The current open frontier families are usable perps oracle snapshots,
 cross-domain finality, live escrow payout safety, live governance timelock
