@@ -5,7 +5,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.check_zeno_oracle_production_network_config import check_config, sample_config
+from tools.check_zeno_oracle_production_network_config import (
+    check_config,
+    receipt_content_hash,
+    sample_config,
+    sample_receipt_bundle,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,11 +18,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_production_network_config_accepts_sample_candidate() -> None:
     config = sample_config()
-    result = check_config(config)
+    result = check_config(config, sample_receipt_bundle(config))
 
     assert result["schema"] == "zenodex.oracle.production_network_config_check.v1"
     assert result["status"] == "accepted"
     assert result["error_count"] == 0
+    assert result["receipt_bundle_status"] == "accepted"
+    assert result["receipt_bundle_kind_count"] == 4
     assert config["runtime_controls"]["require_oracle_authorization_for_isolated_settle_epoch"] is True
     assert "live_token_settlement_disabled" in result["go_live_blockers"]
     assert "does_not_claim_live_token_settlement" in result["not_claimed"]
@@ -27,7 +34,7 @@ def test_production_network_config_rejects_devnet_chain_id() -> None:
     config = sample_config()
     config["chain_id"] = "zenodex.oracle.local"
 
-    result = check_config(config)
+    result = check_config(config, sample_receipt_bundle(config))
 
     assert result["status"] == "rejected"
     assert "chain_id_must_be_production_candidate" in result["errors"]
@@ -42,7 +49,7 @@ def test_production_network_config_rejects_weak_reporter_quorum_and_operator_con
     for reporter in registry["registered_reporters"]:
         reporter["operator_id"] = "operator.cartel"
 
-    result = check_config(config)
+    result = check_config(config, sample_receipt_bundle(config))
 
     assert result["status"] == "rejected"
     assert "registered_reporter_count_below_min" in result["errors"]
@@ -59,7 +66,7 @@ def test_production_network_config_rejects_missing_signing_and_runtime_controls(
     del config["runtime_controls"]["require_oracle_authorization_for_isolated_settle_epoch"]
     config["runtime_controls"]["ZUSD_ORACLE_ADAPTER_REQUIRED"] = False
 
-    result = check_config(config)
+    result = check_config(config, sample_receipt_bundle(config))
 
     assert result["status"] == "rejected"
     assert "required_must_be_true" in result["errors"]
@@ -73,11 +80,54 @@ def test_production_network_config_rejects_missing_explicit_non_claims() -> None
     config = sample_config()
     config["not_claimed"] = ["does_not_claim_network_deployed"]
 
-    result = check_config(config)
+    result = check_config(config, sample_receipt_bundle(config))
 
     assert result["status"] == "rejected"
     assert "missing_not_claim:does_not_claim_live_token_settlement" in result["errors"]
     assert "missing_not_claim:does_not_claim_reporter_honesty" in result["errors"]
+
+
+def test_production_network_config_rejects_missing_receipt_bundle() -> None:
+    result = check_config(sample_config(), None)
+
+    assert result["status"] == "rejected"
+    assert result["receipt_bundle_status"] == "rejected"
+    assert "receipt_bundle_rejected" in result["errors"]
+    assert "receipt:receipt_bundle_required" in result["errors"]
+
+
+def test_production_network_config_rejects_signed_release_artifact_drift() -> None:
+    config = sample_config()
+    bundle = sample_receipt_bundle(config)
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    release = next(receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == "signed_release_artifact")
+    payload = release["payload"]
+    assert isinstance(payload, dict)
+    payload["release_artifact_digest"] = "sha256:" + "0" * 64
+    release["receipt_id"] = receipt_content_hash(release)
+
+    result = check_config(config, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:signed_release_release_artifact_digest_mismatch" in result["errors"]
+
+
+def test_production_network_config_rejects_runtime_controls_receipt_drift() -> None:
+    config = sample_config()
+    bundle = sample_receipt_bundle(config)
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    runtime = next(receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == "runtime_controls_attestation")
+    payload = runtime["payload"]
+    assert isinstance(payload, dict)
+    payload["runtime_controls_hash"] = "sha256:" + "1" * 64
+    runtime["receipt_id"] = receipt_content_hash(runtime)
+
+    result = check_config(config, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:runtime_controls_hash_mismatch" in result["errors"]
 
 
 def test_production_network_config_cli_sample_and_require_live(tmp_path: Path) -> None:
@@ -95,6 +145,38 @@ def test_production_network_config_cli_sample_and_require_live(tmp_path: Path) -
     assert sample.returncode == 0
     config_path = tmp_path / "production-network-config.json"
     config_path.write_text(sample.stdout, encoding="utf-8")
+    sample_receipts = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zeno_oracle_production_network_config.py",
+            "--input",
+            str(config_path),
+            "--sample-receipts",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample_receipts.returncode == 0
+    receipts_path = tmp_path / "production-network-receipts.json"
+    receipts_path.write_text(sample_receipts.stdout, encoding="utf-8")
+
+    missing_receipts = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zeno_oracle_production_network_config.py",
+            "--input",
+            str(config_path),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert missing_receipts.returncode == 1
+    missing_receipt = json.loads(missing_receipts.stdout)
+    assert "receipt:receipt_bundle_required" in missing_receipt["errors"]
 
     accepted = subprocess.run(
         [
@@ -102,6 +184,8 @@ def test_production_network_config_cli_sample_and_require_live(tmp_path: Path) -
             "tools/check_zeno_oracle_production_network_config.py",
             "--input",
             str(config_path),
+            "--receipts",
+            str(receipts_path),
             "--format",
             "text",
         ],
@@ -112,6 +196,7 @@ def test_production_network_config_cli_sample_and_require_live(tmp_path: Path) -
     )
     assert accepted.returncode == 0, accepted.stdout + accepted.stderr
     assert "status = accepted" in accepted.stdout
+    assert "receipt_bundle_status = accepted" in accepted.stdout
 
     require_live = subprocess.run(
         [
@@ -119,6 +204,8 @@ def test_production_network_config_cli_sample_and_require_live(tmp_path: Path) -
             "tools/check_zeno_oracle_production_network_config.py",
             "--input",
             str(config_path),
+            "--receipts",
+            str(receipts_path),
             "--require-live",
         ],
         cwd=ROOT,

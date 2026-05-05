@@ -120,7 +120,7 @@ def build_audit() -> dict[str, Any]:
             ],
             status="devnet_complete",
             limits=[
-                "production-candidate config gate exists, but deployment and public soak remain blockers",
+                "production-candidate config gate validates local deployment/signing receipts, but live chain and public soak remain blockers",
                 "does_not_claim_production_oracle_network_live",
             ],
         ),
@@ -363,7 +363,7 @@ def build_audit() -> dict[str, Any]:
         "production_candidate_config_gate": {
             "command": "python3 tools/check_zeno_oracle_production_network_config.py --format text",
             "require_live_command": "python3 tools/check_zeno_oracle_production_network_config.py --require-live",
-            "status": "first_shell_only",
+            "status": "production_candidate_receipt_replay_only",
         },
         "live_economics_policy_gate": {
             "command": "python3 tools/check_zeno_oracle_live_economics_policy.py --format text",
