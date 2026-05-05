@@ -25,6 +25,14 @@ def DivergenceBps (left right bps : Nat) : Nat :=
 def EpochLag (left right : Nat) : Nat :=
   if left <= right then right - left else left - right
 
+def TerminalReceiptDAGOK
+    (depsAvailable noDuplicateReceipts contentHashesBound : Prop) : Prop :=
+  And depsAvailable (And noDuplicateReceipts contentHashesBound)
+
+def OracleRuntimeBindingOK
+    (registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop) : Prop :=
+  And registryRootBound (And runtimeStateBound (And valueBound sameConsumerAction))
+
 def O4OrO5OracleUseOK
     (o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop) :
     Prop :=
@@ -54,6 +62,48 @@ theorem median_deviation_boundary_rejects :
     MaxDeviationBpsSorted 98000000 100000000 103000000 10000 = 300 := by
   norm_num [MaxDeviationBpsSorted]
 
+theorem median_deviation_zero_scale
+    {lo mid hi : Nat} :
+    MaxDeviationBpsSorted lo mid hi 0 = 0 := by
+  simp [MaxDeviationBpsSorted]
+
+theorem median_deviation_equal_values
+    {value bps : Nat} :
+    MaxDeviationBpsSorted value value value bps = 0 := by
+  simp [MaxDeviationBpsSorted]
+
+theorem divergence_self
+    {value bps : Nat} :
+    DivergenceBps value value bps = 0 := by
+  simp [DivergenceBps]
+
+theorem epoch_lag_self
+    {epoch : Nat} :
+    EpochLag epoch epoch = 0 := by
+  simp [EpochLag]
+
+theorem epoch_lag_comm
+    {left right : Nat} :
+    EpochLag left right = EpochLag right left := by
+  unfold EpochLag
+  by_cases hLeft : left <= right
+  · by_cases hRight : right <= left
+    · simp [hLeft, hRight]
+    · simp [hLeft, hRight]
+  · have hRight : right <= left := by omega
+    simp [hLeft, hRight]
+
+theorem epoch_lag_zero_iff_equal
+    {left right : Nat} :
+    EpochLag left right = 0 ↔ left = right := by
+  unfold EpochLag
+  by_cases hLeft : left <= right
+  · simp [hLeft]
+    omega
+  · have hRight : right <= left := by omega
+    simp [hLeft]
+    omega
+
 theorem reward_pool_conservation
     {before reward after : Nat}
     (hAfter : after <= before)
@@ -66,6 +116,19 @@ theorem positive_reward_requires_pool_decrease
     (hConservation : after + reward = before)
     (hPositive : 0 < reward) :
     after < before := by
+  omega
+
+theorem reward_pool_transition_reward_le_before
+    {before reward after : Nat}
+    (hConservation : after + reward = before) :
+    reward <= before := by
+  omega
+
+theorem bonded_slash_conservation
+    {bond slash after : Nat}
+    (hAfter : after = bond - slash)
+    (hSlash : slash <= bond) :
+    after + slash = bond := by
   omega
 
 theorem reward_pool_conservation_witness :
@@ -95,6 +158,42 @@ theorem split_brain_epoch_lag_witness :
 theorem split_brain_epoch_lag_rejects_policy :
     1 < EpochLag 10 13 := by
   norm_num [EpochLag]
+
+theorem terminal_dag_ok_requires_dependencies
+    {depsAvailable noDuplicateReceipts contentHashesBound : Prop}
+    (h : TerminalReceiptDAGOK depsAvailable noDuplicateReceipts contentHashesBound) :
+    depsAvailable := by
+  exact h.left
+
+theorem terminal_dag_ok_requires_no_duplicate_receipts
+    {depsAvailable noDuplicateReceipts contentHashesBound : Prop}
+    (h : TerminalReceiptDAGOK depsAvailable noDuplicateReceipts contentHashesBound) :
+    noDuplicateReceipts := by
+  exact h.right.left
+
+theorem terminal_dag_ok_requires_content_hashes_bound
+    {depsAvailable noDuplicateReceipts contentHashesBound : Prop}
+    (h : TerminalReceiptDAGOK depsAvailable noDuplicateReceipts contentHashesBound) :
+    contentHashesBound := by
+  exact h.right.right
+
+theorem runtime_binding_ok_requires_registry_root
+    {registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop}
+    (h : OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) :
+    registryRootBound := by
+  exact h.left
+
+theorem runtime_binding_ok_requires_runtime_state
+    {registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop}
+    (h : OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) :
+    runtimeStateBound := by
+  exact h.right.left
+
+theorem runtime_binding_ok_requires_value_bound
+    {registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop}
+    (h : OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) :
+    valueBound := by
+  exact h.right.right.left
 
 theorem o4_or_o5_use_requires_o3_receipt
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}
