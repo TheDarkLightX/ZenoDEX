@@ -1660,12 +1660,13 @@ claims:
     statement: >
       The public first-shell ZenoOracle named disaster-class corpus replays
       checker outcomes for source-cartel, dispute-griefing, registry-drift,
-      verifier-spoofing, O5 independence-spoofing, terminal replay-integrity,
-      proof-timeout fail-closed behavior, and cross-module split-brain
-      families. Each family is bound to a concrete verifier or harness result
-      and the claim is bounded to the shipped local corpus, with production
-      oracle truth, reporter honesty, live governance, and live proof-network
-      assumptions outside the claim.
+      settlement-execution total drift, verifier-spoofing, O5
+      independence-spoofing, terminal replay-integrity, proof-timeout
+      fail-closed behavior, and cross-module split-brain families. Each family
+      is bound to a concrete verifier or harness result and the claim is
+      bounded to the shipped local corpus, with production oracle truth,
+      reporter honesty, live governance, and live proof-network assumptions
+      outside the claim.
     evidence:
       kind: python
       check:
@@ -1691,7 +1692,7 @@ claims:
       The ZenoOracle production-disaster frontier checker cross-checks the
       public devnet disaster harness, named disaster-class corpus, and
       obligation-antichain manifest against a production-candidate frontier
-      catalog. The current catalog tracks 28 families: 23 are closed by
+      catalog. The current catalog tracks 29 families: 24 are closed by
       public/devnet evidence, and 5 remain explicit blocker or backlog families
       covering usable perps oracle snapshots, cross-domain finality, live escrow
       payout safety, live governance timelock execution, and public reporter
