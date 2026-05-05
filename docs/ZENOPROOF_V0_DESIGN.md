@@ -165,6 +165,41 @@ maps `100_000_000 -> 100`, `25_000_000 -> 25`, and `75_000_000 -> 75` in the
 bounded local manager. This is replay evidence for payout authorization logic.
 It does not settle live tokens.
 
+## Production Governance Policy Gate
+
+`tools/check_zenoproof_production_governance_policy.py` is the first
+production-candidate governance checker for the v0 shell. It verifies the
+registry manifest structurally, quarantines `local_static_accept` verifiers as
+devnet-only, enables only subprocess/public-replay verifier IDs for the
+candidate production set, checks distinct proof-kind coverage, and binds the
+registry to governance, code-signing, sandbox, revocation, O4/O5 bridge, and
+reward-settlement controls.
+
+```bash
+python3 tools/check_zenoproof_production_governance_policy.py --format text
+```
+
+Current expected receipt:
+
+```text
+status = accepted
+error_count = 0
+go_live_blocker_count = 7
+production_enabled_verifier_count = 8
+distinct_proof_kind_count = 8
+```
+
+The live gate remains fail-closed:
+
+```bash
+python3 tools/check_zenoproof_production_governance_policy.py --require-live
+```
+
+This rejects with `go_live_blockers_present` until governance execution,
+production verifier code signing, sandbox deployment, live revocation drill,
+public proof-network soak, path-lookup removal for production verifiers, and
+live proof-mining token settlement are backed by replayable evidence.
+
 ## Oracle O4/O5 Bridge
 
 ZenoOracle may upgrade an accepted read from O3 to O4 only when a ZenoProof
@@ -239,5 +274,6 @@ RewardAmount = RewardPoolBefore - RewardPoolAfter
 
 Remaining production work: deepen the SMT, TLA, ESSO, Lean, Julia, and Morph
 lanes beyond the current bounded anchors, promote the bounded local payout
-replay to live proof-mining token settlement, and promote O4/O5 claims only
-when their replay commands use public artifacts.
+replay to live proof-mining token settlement, execute production verifier
+governance/revocation, and promote O4/O5 claims only when their replay commands
+use public artifacts.

@@ -1832,3 +1832,34 @@ claims:
         - tests/test_zenoproof_reward_payout_replay.py
         - tests/test_zeno_oracle_smt_freshness_replay.py
         - docs/ZENOPROOF_V0_DESIGN.md
+
+  - id: py:zenoproof:production_governance_policy_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoProof production-candidate governance policy checker binds the
+      public verifier registry manifest to governance timelock/quorum controls,
+      verifier code-signing requirements, deterministic sandbox limits,
+      revocation receipts, devnet-only quarantine for local static verifiers,
+      production-enabled public replay verifier IDs, O3/O5 bridge controls,
+      bounded no-mint reward settlement replay, and explicit non-claims. It
+      rejects static verifier promotion, devnet verifier production enablement,
+      weak bridge or sandbox controls, bad governance or reward controls,
+      missing non-claims, and failed reward-payout replay. The normal checker
+      accepts the current production-candidate policy; `--require-live` rejects
+      while proof-network, code-signing, sandbox, revocation, path-lookup, and
+      live proof-mining token-settlement blockers remain.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zenoproof_production_governance_policy.py --format text
+        - cmd: pytest -q tests/test_check_zenoproof_production_governance_policy.py
+      files:
+        - tools/check_zenoproof_production_governance_policy.py
+        - tests/test_check_zenoproof_production_governance_policy.py
+        - tools/zenoproof_registry_manifest.json
+        - tools/zenoproof_verify.py
+        - tools/zenoproof_reward_payout_replay.py
+        - src/core/proof_mining_claim_gate.py
+        - docs/ZENOPROOF_V0_DESIGN.md
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md

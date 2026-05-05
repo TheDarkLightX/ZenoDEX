@@ -39,7 +39,7 @@ registry/verifier layer for O4/O5 claims.
 | Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides bounded arithmetic anchors plus small general lemmas for zero-scale/equal-value deviation, epoch lag, reward/slash conservation, terminal DAG closure projections, runtime binding projections, and Prop-level O4/O5/O5-independence projections. General production median, deviation, economics, executable DAG closure, sync, and typed binding theorems remain open. | Partial |
 | ESSO/TLA/LTLf/Morph/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py` reports 5 accepted first-shell lanes. Private PopperPad content and deeper Morph campaigns remain outside public claims. | First shell complete |
 | Public claims registry | `docs/claims_registry.yaml` validates with `python3 tools/check_claims_registry.py` and `pytest -q tests/test_claims_registry.py`. | Complete for promoted claims |
-| ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. | Local v0 complete |
+| ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. `tools/check_zenoproof_production_governance_policy.py` adds a production-candidate governance policy gate that quarantines local static verifiers, checks verifier sandbox/code-signing/revocation/O4/O5/reward-settlement controls, and rejects `--require-live` while live proof-network blockers remain. | Local v0 plus governance gate |
 | Devnet alpha package | `scripts/package_zeno_oracle_rc.sh` and `tools/check_zeno_oracle_rc_package.py` build and validate the devnet alpha package, docs, whitepaper, branding, manifest, receipt, and devnet integrity signature. | Devnet complete |
 | Goal completion audit | `tools/check_zeno_oracle_goal_completion_audit.py` maps all 10 prompt items to evidence and blocks completion on production network, live economics, broader disaster-search, generalized math, and ZenoProof production-governance gaps. | Blocking audit |
 
@@ -61,6 +61,7 @@ python3 tools/check_zeno_oracle_live_economics_policy.py --format text
 python3 tools/check_zeno_oracle_disaster_frontier.py --format text
 julia tools/zeno_oracle_math_witness_sweep.jl
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
+python3 tools/check_zenoproof_production_governance_policy.py --format text
 ```
 
 ## Remaining Work Before Goal Closure
@@ -83,9 +84,10 @@ cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
    typed Oracle binding.
 6. Deeper proof lanes: strengthen ESSO/TLA/LTLf/Morph evidence beyond current
    bounded anchors and promote only replayable public outputs.
-7. ZenoProof productionization: replace local static sample verifiers with
-   production verifier identities, hardened verifier execution, governance
-   revocation, and live proof-mining settlement.
+7. ZenoProof productionization: close the production governance gate blockers:
+   on-chain governance execution, production verifier code signing, sandbox
+   deployment, live revocation drill, public proof-network soak, path-lookup
+   removal for production verifiers, and live proof-mining token settlement.
 
 ## Completion Decision
 
