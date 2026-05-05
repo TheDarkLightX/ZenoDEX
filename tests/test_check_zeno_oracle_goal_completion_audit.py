@@ -35,6 +35,8 @@ def test_goal_completion_audit_maps_all_prompt_items_and_blocks_goal_closure() -
     assert "tools/check_zeno_oracle_perps_snapshot_gate.py" in items[5]["evidence_files"]
     assert "production_disaster_frontier_has_explicit_blockers" in items[5]["blockers"]
     assert audit["disaster_frontier_gate"]["status"] == "explicit_blocker_frontier"
+    assert "tools/check_zeno_oracle_frontier_obligation_projection.py" in items[6]["evidence_files"]
+    assert "antichain_projection_must_expand_with_new_frontier_axes" in items[6]["blockers"]
     assert items[8]["complete"] is True
     assert items[9]["status"] == "local_v0_complete"
     assert items[9]["complete"] is False

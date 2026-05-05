@@ -224,15 +224,18 @@ def build_audit() -> dict[str, Any]:
             evidence_files=[
                 "tools/check_disaster_obligation_certificate.py",
                 "tools/zeno_oracle_disaster_obligation_certificate_manifest.json",
+                "tools/check_zeno_oracle_frontier_obligation_projection.py",
                 "tests/test_zeno_oracle_disaster_obligation_certificate.py",
+                "tests/test_check_zeno_oracle_frontier_obligation_projection.py",
             ],
             replay_commands=[
                 "python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json",
+                "python3 tools/check_zeno_oracle_frontier_obligation_projection.py --format text",
             ],
             status="first_shell_complete",
             blockers=[
                 "coverage_proof_is_manifest_checker_not_general_theorem",
-                "antichain_must_expand_with_new_disaster_axes",
+                "antichain_projection_must_expand_with_new_frontier_axes",
             ],
         ),
         _evidence_item(
