@@ -218,6 +218,12 @@ execution after restore, liquidation action-ID binding after restore, and
 fail-closed rejection of malformed oracle snapshot state. It does not claim a
 general perps snapshot theorem or live runtime policy.
 
+The governance-timelock family now has local feed-governance
+approval/execution receipt replay through
+`tools/check_zeno_oracle_production_network_config.py`. The receipt gate checks
+proposal ID binding, feed query binding, timelock floor, and execution time.
+It still rejects `--require-live` until the same receipts are verified on-chain.
+
 The public reporter-soak family now has local observation replay through:
 
 ```bash

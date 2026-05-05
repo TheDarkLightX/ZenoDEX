@@ -369,7 +369,11 @@ def sample_frontier() -> dict[str, Any]:
             manifest_axis="governance_policy_downgrade",
             manifest_obligations=["evidence_floor_o3", "query_semantics", "registry_root_binding", "schema_total"],
             replay_commands=["python3 tools/check_zeno_oracle_production_network_config.py --format text"],
-            blockers=["onchain_feed_governance_not_live", "governance_execution_receipts_not_replayed"],
+            blockers=[
+                "feed_governance_execution_gate_is_local_receipt_replay_not_live",
+                "onchain_feed_governance_not_live",
+                "governance_execution_receipts_not_verified_onchain",
+            ],
         ),
         _family(
             "public_reporter_cartel_after_soak_window",

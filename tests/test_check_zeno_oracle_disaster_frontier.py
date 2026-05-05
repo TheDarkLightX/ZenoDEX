@@ -71,6 +71,11 @@ def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None
     )
     assert "python3 tools/check_zeno_oracle_reporter_soak_gate.py --format text" in reporter_soak_family["replay_commands"]
     assert "reporter_soak_gate_is_local_observation_replay_not_public_soak" in reporter_soak_family["blockers"]
+    governance_family = next(
+        family for family in frontier["families"] if family["family_id"] == "onchain_governance_timelock_bypass"
+    )
+    assert "python3 tools/check_zeno_oracle_production_network_config.py --format text" in governance_family["replay_commands"]
+    assert "feed_governance_execution_gate_is_local_receipt_replay_not_live" in governance_family["blockers"]
 
 
 def test_disaster_frontier_rejects_closed_family_without_devnet_evidence() -> None:

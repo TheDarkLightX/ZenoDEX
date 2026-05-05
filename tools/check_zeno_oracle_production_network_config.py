@@ -44,6 +44,7 @@ REQUIRED_NOT_CLAIMS = {
 GO_LIVE_BLOCKERS = [
     "reporter_registry_deployment_receipt_not_verified_onchain",
     "feed_governance_deployment_receipt_not_verified_onchain",
+    "feed_governance_execution_receipt_not_verified_onchain",
     "signed_release_artifact_not_verified_against_public_transparency_log",
     "fund_live_settlement_escrow",
     "run_public_network_soak",
@@ -71,7 +72,9 @@ RECEIPT_KEYS = {
     "payload",
 }
 REQUIRED_RECEIPT_KINDS = {
+    "feed_governance_approval",
     "feed_governance_deployment",
+    "feed_governance_execution",
     "reporter_registry_deployment",
     "runtime_controls_attestation",
     "signed_release_artifact",
@@ -451,6 +454,10 @@ def sample_receipt_bundle(config: Mapping[str, Any] | None = None) -> dict[str, 
     code_signing = active_config.get("code_signing") if isinstance(active_config.get("code_signing"), Mapping) else {}
     governance_contract = str(governance.get("contract_address"))
     registry_contract = str(registry.get("contract_address"))
+    timelock_seconds = int(governance.get("timelock_seconds", 172_800))
+    queued_at = 1_900_000_000
+    executable_after = queued_at + timelock_seconds
+    proposal_id = _sha_ref(f"zeno_oracle.production_network.feed_governance.proposal.{config_id}")
     receipts = [
         _receipt(
             kind="reporter_registry_deployment",
@@ -489,6 +496,47 @@ def sample_receipt_bundle(config: Mapping[str, Any] | None = None) -> dict[str, 
                 "network_id": network_id,
                 "timelock_seconds": governance.get("timelock_seconds"),
                 "upgrade_delay_seconds": governance.get("upgrade_delay_seconds"),
+            },
+        ),
+        _receipt(
+            kind="feed_governance_approval",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zeno_oracle.production_network.feed_governance_approval"),
+            block_number=3_150,
+            block_hash=_sha_ref("zeno_oracle.production_network.block.3150"),
+            log_index=0,
+            payload={
+                "approved": True,
+                "config_id": config_id,
+                "executable_after_timestamp": executable_after,
+                "feed_count": len(_feed_query_ids(active_config)),
+                "feed_governance_contract_address": governance_contract,
+                "feed_query_ids": _feed_query_ids(active_config),
+                "network_id": network_id,
+                "proposal_id": proposal_id,
+                "queued_at_timestamp": queued_at,
+                "timelock_seconds": timelock_seconds,
+            },
+        ),
+        _receipt(
+            kind="feed_governance_execution",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zeno_oracle.production_network.feed_governance_execution"),
+            block_number=3_180,
+            block_hash=_sha_ref("zeno_oracle.production_network.block.3180"),
+            log_index=0,
+            payload={
+                "config_id": config_id,
+                "executed": True,
+                "executed_at_timestamp": executable_after,
+                "executable_after_timestamp": executable_after,
+                "feed_count": len(_feed_query_ids(active_config)),
+                "feed_governance_contract_address": governance_contract,
+                "feed_query_ids": _feed_query_ids(active_config),
+                "network_id": network_id,
+                "proposal_id": proposal_id,
             },
         ),
         _receipt(
@@ -596,6 +644,52 @@ def _check_receipt_payload(
             errors.append("feed_governance_feed_count_mismatch")
         if payload.get("feed_query_ids") != _feed_query_ids(config):
             errors.append("feed_governance_query_ids_mismatch")
+    elif kind == "feed_governance_approval":
+        if payload.get("approved") is not True:
+            errors.append("feed_governance_approval_not_approved")
+        if payload.get("feed_governance_contract_address") != governance.get("contract_address"):
+            errors.append("feed_governance_approval_contract_address_mismatch")
+        if receipt.get("contract_address") != governance.get("contract_address"):
+            errors.append("feed_governance_approval_receipt_contract_mismatch")
+        if payload.get("timelock_seconds") != governance.get("timelock_seconds"):
+            errors.append("feed_governance_approval_timelock_seconds_mismatch")
+        queued_at = payload.get("queued_at_timestamp")
+        executable_after = payload.get("executable_after_timestamp")
+        timelock_seconds = governance.get("timelock_seconds")
+        if not isinstance(queued_at, int) or isinstance(queued_at, bool):
+            errors.append("feed_governance_approval_queued_at_must_be_int")
+        if not isinstance(executable_after, int) or isinstance(executable_after, bool):
+            errors.append("feed_governance_approval_executable_after_must_be_int")
+        if isinstance(queued_at, int) and isinstance(executable_after, int) and isinstance(timelock_seconds, int):
+            if executable_after < queued_at + timelock_seconds:
+                errors.append("feed_governance_approval_before_timelock_floor")
+        if payload.get("proposal_id") != _sha_ref(f"zeno_oracle.production_network.feed_governance.proposal.{config_content_hash(config)}"):
+            errors.append("feed_governance_approval_proposal_id_mismatch")
+        if payload.get("feed_count") != len(_feed_query_ids(config)):
+            errors.append("feed_governance_approval_feed_count_mismatch")
+        if payload.get("feed_query_ids") != _feed_query_ids(config):
+            errors.append("feed_governance_approval_query_ids_mismatch")
+    elif kind == "feed_governance_execution":
+        if payload.get("executed") is not True:
+            errors.append("feed_governance_execution_not_executed")
+        if payload.get("feed_governance_contract_address") != governance.get("contract_address"):
+            errors.append("feed_governance_execution_contract_address_mismatch")
+        if receipt.get("contract_address") != governance.get("contract_address"):
+            errors.append("feed_governance_execution_receipt_contract_mismatch")
+        executed_at = payload.get("executed_at_timestamp")
+        executable_after = payload.get("executable_after_timestamp")
+        if not isinstance(executed_at, int) or isinstance(executed_at, bool):
+            errors.append("feed_governance_execution_executed_at_must_be_int")
+        if not isinstance(executable_after, int) or isinstance(executable_after, bool):
+            errors.append("feed_governance_execution_executable_after_must_be_int")
+        if isinstance(executed_at, int) and isinstance(executable_after, int) and executed_at < executable_after:
+            errors.append("feed_governance_execution_before_timelock")
+        if payload.get("proposal_id") != _sha_ref(f"zeno_oracle.production_network.feed_governance.proposal.{config_content_hash(config)}"):
+            errors.append("feed_governance_execution_proposal_id_mismatch")
+        if payload.get("feed_count") != len(_feed_query_ids(config)):
+            errors.append("feed_governance_execution_feed_count_mismatch")
+        if payload.get("feed_query_ids") != _feed_query_ids(config):
+            errors.append("feed_governance_execution_query_ids_mismatch")
     elif kind == "signed_release_artifact":
         if payload.get("verified") is not True:
             errors.append("signed_release_artifact_not_verified")
