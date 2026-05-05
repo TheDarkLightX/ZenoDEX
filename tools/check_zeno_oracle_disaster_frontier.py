@@ -122,6 +122,7 @@ def sample_frontier() -> dict[str, Any]:
     corpus_command = "python3 tools/zeno_oracle_disaster_class_corpus.py --format text"
     policy_command = "python3 tools/check_zeno_oracle_live_economics_policy.py --format text"
     perps_snapshot_command = "python3 tools/check_zeno_oracle_perps_snapshot_gate.py --format text"
+    finality_command = "python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --format text"
     families = [
         _family(
             "accepted_read_without_accepted_aggregate",
@@ -345,7 +346,11 @@ def sample_frontier() -> dict[str, Any]:
             status="production_blocked",
             manifest_axis="cross_domain_finality_reorg_feeds_oracle_read",
             manifest_obligations=["cross_domain_finality", "dependency_order", "receipt_dag_closed", "schema_total"],
-            blockers=["no_live_finality_adapter_receipts"],
+            replay_commands=[finality_command],
+            blockers=[
+                "cross_domain_finality_gate_is_local_receipt_replay_not_live",
+                "no_live_finality_adapter_receipts",
+            ],
         ),
         _family(
             "live_escrow_shortfall_blocks_reporter_payout",

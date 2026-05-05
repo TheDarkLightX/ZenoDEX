@@ -1690,8 +1690,9 @@ claims:
       soak/operator independence. The checker rejects missing replay evidence,
       hidden fields, duplicate families, missing non-claims, and any new
       obligation atom that is promoted without an explicit blocker. The current
-      cross-domain finality family is mapped to a manifest obligation atom but
-      remains production-blocked until live finality adapter receipts exist.
+      cross-domain finality family is mapped to a manifest obligation atom and
+      a local receipt-bundle replay gate, but remains production-blocked until
+      live finality adapter receipts exist.
       This is a frontier-accounting claim; it does not claim exhaustive
       production safety.
     evidence:
@@ -1702,10 +1703,39 @@ claims:
       files:
         - tools/check_zeno_oracle_disaster_frontier.py
         - tests/test_check_zeno_oracle_disaster_frontier.py
+        - tools/check_zeno_oracle_cross_domain_finality_gate.py
+        - tests/test_check_zeno_oracle_cross_domain_finality_gate.py
         - tools/zenodex_oracle_devnet_disaster_harness.py
         - tools/zeno_oracle_disaster_class_corpus.py
         - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
         - tools/check_disaster_obligation_certificate.py
+        - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
+  - id: py:zeno_oracle:cross_domain_finality_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The local ZenoOracle cross-domain finality gate accepts only when a
+      source finality checkpoint receipt and target adapter-acceptance receipt
+      bind to the same accepted read, policy, source and target chains, query
+      ID, value hash, adapter contract, finality root, confirmation floor, and
+      reorg-depth limit. It rejects missing receipt bundles, insufficient
+      confirmations, read/hash drift, target adapter finality-receipt drift,
+      duplicate or unknown receipt kinds, malformed hashes, and remaining live
+      finality blockers under `--require-live`. This is local receipt-bundle
+      replay evidence for the production-disaster frontier; it does not claim
+      live cross-domain finality, live RPC verification, target adapter
+      deployment, or live oracle network safety.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --format text
+        - cmd: pytest -q tests/test_check_zeno_oracle_cross_domain_finality_gate.py
+      files:
+        - tools/check_zeno_oracle_cross_domain_finality_gate.py
+        - tests/test_check_zeno_oracle_cross_domain_finality_gate.py
+        - tools/check_zeno_oracle_disaster_frontier.py
         - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
         - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
 

@@ -185,16 +185,19 @@ def build_audit() -> dict[str, Any]:
                 "tools/zeno_oracle_disaster_class_corpus.py",
                 "tools/check_zeno_oracle_disaster_frontier.py",
                 "tools/check_zeno_oracle_perps_snapshot_gate.py",
+                "tools/check_zeno_oracle_cross_domain_finality_gate.py",
                 "tools/check_cross_module_oracle_split_brain_v1.py",
                 "tests/test_zeno_oracle_disaster_class_corpus.py",
                 "tests/test_check_zeno_oracle_disaster_frontier.py",
                 "tests/test_check_zeno_oracle_perps_snapshot_gate.py",
+                "tests/test_check_zeno_oracle_cross_domain_finality_gate.py",
             ],
             replay_commands=[
                 "python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text",
                 "python3 tools/zeno_oracle_disaster_class_corpus.py --format text",
                 "python3 tools/check_zeno_oracle_disaster_frontier.py --format text",
                 "python3 tools/check_zeno_oracle_perps_snapshot_gate.py --format text",
+                "python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --format text",
                 "pytest -q tests/test_check_zeno_oracle_disaster_frontier.py",
             ],
             status="first_shell_complete",
@@ -206,6 +209,7 @@ def build_audit() -> dict[str, Any]:
             limits=[
                 "selected public corpus plus frontier catalog, not exhaustive production safety",
                 "frontier checker requires explicit blockers for unclosed families but does not close them",
+                "cross-domain finality gate validates local receipt bundles but not live finality adapter receipts",
             ],
         ),
         _evidence_item(
@@ -370,6 +374,11 @@ def build_audit() -> dict[str, Any]:
             "command": "python3 tools/check_zeno_oracle_disaster_frontier.py --format text",
             "require_closed_command": "python3 tools/check_zeno_oracle_disaster_frontier.py --require-closed",
             "status": "explicit_blocker_frontier",
+        },
+        "cross_domain_finality_gate": {
+            "command": "python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --format text",
+            "require_live_command": "python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --require-live",
+            "status": "production_candidate_receipt_replay_only",
         },
         "zenoproof_production_governance_gate": {
             "command": "python3 tools/check_zenoproof_production_governance_policy.py --format text",
