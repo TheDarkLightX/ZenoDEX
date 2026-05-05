@@ -183,19 +183,27 @@ def build_audit() -> dict[str, Any]:
             evidence_files=[
                 "tools/zenodex_oracle_devnet_disaster_harness.py",
                 "tools/zeno_oracle_disaster_class_corpus.py",
+                "tools/check_zeno_oracle_disaster_frontier.py",
                 "tools/check_cross_module_oracle_split_brain_v1.py",
                 "tests/test_zeno_oracle_disaster_class_corpus.py",
+                "tests/test_check_zeno_oracle_disaster_frontier.py",
             ],
             replay_commands=[
                 "python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text",
                 "python3 tools/zeno_oracle_disaster_class_corpus.py --format text",
+                "python3 tools/check_zeno_oracle_disaster_frontier.py --format text",
+                "pytest -q tests/test_check_zeno_oracle_disaster_frontier.py",
             ],
             status="first_shell_complete",
             blockers=[
-                "broader_production_disaster_search_not_exhausted",
-                "new_public_axes_need_replay_evidence_before_promotion",
+                "production_disaster_frontier_has_explicit_blockers",
+                "cross_domain_finality_obligation_atom_not_in_manifest",
+                "public_reporter_soak_and_live_governance_disaster_search_not_complete",
             ],
-            limits=["selected public corpus, not exhaustive production safety"],
+            limits=[
+                "selected public corpus plus frontier catalog, not exhaustive production safety",
+                "frontier checker requires explicit blockers for unclosed families but does not close them",
+            ],
         ),
         _evidence_item(
             6,
@@ -341,6 +349,11 @@ def build_audit() -> dict[str, Any]:
             "command": "python3 tools/check_zeno_oracle_live_economics_policy.py --format text",
             "require_live_command": "python3 tools/check_zeno_oracle_live_economics_policy.py --require-live",
             "status": "production_candidate_only",
+        },
+        "disaster_frontier_gate": {
+            "command": "python3 tools/check_zeno_oracle_disaster_frontier.py --format text",
+            "require_closed_command": "python3 tools/check_zeno_oracle_disaster_frontier.py --require-closed",
+            "status": "explicit_blocker_frontier",
         },
         "not_claimed": [
             "does_not_claim_goal_complete",

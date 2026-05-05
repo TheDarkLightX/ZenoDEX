@@ -171,3 +171,31 @@ verifier-spoofing, O5 independence-spoofing, proof-timeout, replay-integrity,
 and cross-module split-brain families to public checker outcomes. This is
 bounded first-shell evidence. It does not claim exhaustive production oracle
 safety, live on-chain governance, reporter honesty, or a live proof network.
+
+## Current Production-Disaster Frontier
+
+The production-candidate frontier catalog is implemented by:
+
+```bash
+python3 tools/check_zeno_oracle_disaster_frontier.py --format text
+```
+
+Current expected receipt:
+
+```text
+frontier_family_count = 28
+closed_family_count = 23
+blocked_or_backlog_count = 5
+new_obligation_family_count = 1
+status = accepted
+```
+
+The frontier gate cross-checks the devnet disaster harness, named
+disaster-class corpus, and obligation-antichain manifest. It rejects silent
+coverage drift: a family must have public replay evidence, or it must remain an
+explicit blocker/backlog item.
+
+The current open frontier families are usable perps oracle snapshots,
+cross-domain finality, live escrow payout safety, live governance timelock
+execution, and public reporter soak/operator independence. `--require-closed`
+intentionally rejects while those families remain open.
