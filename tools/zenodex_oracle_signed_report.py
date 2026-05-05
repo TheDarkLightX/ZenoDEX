@@ -10,6 +10,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -159,6 +160,16 @@ def _hex_bytes(value: str, *, expected_nbytes: int, name: str) -> bytes:
 
 def _verify_bls_signature(
     *,
+    reporter_pubkey: str,
+    signature: str,
+    chain_id: str,
+    payload_bytes: bytes,
+) -> tuple[bool, str | None, bool]:
+    return _verify_bls_signature_cached(reporter_pubkey, signature, chain_id, payload_bytes)
+
+
+@lru_cache(maxsize=4096)
+def _verify_bls_signature_cached(
     reporter_pubkey: str,
     signature: str,
     chain_id: str,

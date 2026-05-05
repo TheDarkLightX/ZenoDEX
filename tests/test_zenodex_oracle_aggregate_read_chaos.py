@@ -21,8 +21,8 @@ def test_zenodex_oracle_aggregate_read_chaos_rejects_all_mutants() -> None:
     receipt = json.loads(proc.stdout)
     assert receipt["ok"] is True
     assert receipt["baseline_status"] == "accepted"
-    assert receipt["case_count"] == 16
-    assert receipt["rejected_case_count"] == 16
+    assert receipt["case_count"] == 17
+    assert receipt["rejected_case_count"] == 17
     assert receipt["failed_case_count"] == 0
 
     names = {case["name"] for case in receipt["cases"]}
@@ -41,6 +41,7 @@ def test_zenodex_oracle_aggregate_read_chaos_rejects_all_mutants() -> None:
     assert "boolean_freshness_window_survives" in names
     assert "zero_freshness_window_survives" in names
     assert "weakened_read_evidence_survives" in names
+    assert "read_evidence_overclaim_survives" in names
     assert "read_expiry_before_observed_survives" in names
 
 

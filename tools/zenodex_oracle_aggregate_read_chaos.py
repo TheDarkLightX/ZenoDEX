@@ -22,9 +22,14 @@ from zenodex_oracle_aggregate_read import (  # noqa: E402
     verify_aggregate_read_bridge,
 )
 
+_BASE_BRIDGE: dict[str, Any] | None = None
+
 
 def base_bridge() -> dict[str, Any]:
-    return sample_aggregate_read_bridge()
+    global _BASE_BRIDGE
+    if _BASE_BRIDGE is None:
+        _BASE_BRIDGE = sample_aggregate_read_bridge()
+    return copy.deepcopy(_BASE_BRIDGE)
 
 
 def _read(bridge: dict[str, Any]) -> dict[str, Any]:
@@ -177,6 +182,11 @@ def aggregate_read_chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]]:
             "weakened_read_evidence_survives",
             _mutate(lambda b: (_read(b).__setitem__("evidence_class", "O2"), _refresh_read_action_ids(b))),
             ["receipt_bundle_not_accepted", "bundle:critical_read_requires_o3_or_higher"],
+        ),
+        (
+            "read_evidence_overclaim_survives",
+            _mutate(lambda b: (_read(b).__setitem__("evidence_class", "O4"), _refresh_read_action_ids(b))),
+            ["bundle_evidence_class_mismatch"],
         ),
         (
             "read_expiry_before_observed_survives",

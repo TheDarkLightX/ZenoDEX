@@ -3,8 +3,7 @@
 
 The consumer-profile catalog is the design-level map. This checker compares
 that catalog against the runtime modules that currently consume Oracle adapter
-bridges and typed OracleAuthorization bundles, and reports any catalog/runtime
-drift.
+bridges, and reports any catalog/runtime drift.
 """
 
 from __future__ import annotations
@@ -117,8 +116,6 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
     )
     for needle in (
         "_require_oracle_adapter_bridge(",
-        "_require_perps_oracle_authorization(",
-        "check_critical_consumer_authorization(",
         'consumer_module="zenodex.perps"',
         'action_kind="settle_epoch"',
         "expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID",
@@ -127,10 +124,6 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
         "expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(",
         "required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch",
         "required=config.require_oracle_adapter_for_clearinghouse_settle_epoch",
-        "required=ctx.config.require_oracle_authorization_for_isolated_settle_epoch",
-        "action_facts_hash=_perps_runtime_oracle_action_facts_hash(",
-        "pre_state_hash=_perps_runtime_oracle_pre_state_hash(",
-        "runtime_value_e8=_perps_runtime_oracle_value_e8(market)",
     ):
         _expect(needle in source, errors, f"perps_settle_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -143,16 +136,53 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
             "required_controls": [
                 "require_oracle_adapter_for_isolated_settle_epoch",
                 "require_oracle_adapter_for_clearinghouse_settle_epoch",
-                "require_oracle_authorization_for_isolated_settle_epoch",
-            ],
-            "typed_authorization_controls": [
-                "require_oracle_authorization_for_isolated_settle_epoch",
             ],
             "covered_runtime_actions": [
                 "isolated_settle_epoch",
                 "clearinghouse_2p_settle_epoch",
                 "clearinghouse_3p_transfer_settle_epoch",
             ],
+        },
+        errors=errors,
+    )
+
+
+def _check_perps_liquidate_account(profiles: Mapping[tuple[str, str], Mapping[str, Any]]) -> dict[str, Any]:
+    errors: list[str] = []
+    key = ("zenodex.perps", "liquidate_account")
+    profile = profiles[key]
+    source = _source("src/integration/perp_engine.py")
+
+    from src.integration import perp_engine  # pylint: disable=import-outside-toplevel
+
+    _expect(
+        str(profile["query_id"]) == perp_engine._ORACLE_PERPS_INDEX_QUERY_ID,  # noqa: SLF001
+        errors,
+        "perps_liquidate_query_id_drift",
+    )
+    _expect(
+        str(profile["profile_id"]) == perp_engine._ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,  # noqa: SLF001
+        errors,
+        "perps_liquidate_profile_id_drift",
+    )
+    for needle in (
+        "require_oracle_adapter_for_isolated_partial_liquidate",
+        "_perps_liquidate_account_runtime_oracle_action_id(",
+        'action_kind="liquidate_account"',
+        "expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID",
+        "expected_profile_id=_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID",
+        "required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate",
+    ):
+        _expect(needle in source, errors, f"perps_liquidate_missing_static_wiring:{needle}")
+    return _runtime_surface(
+        consumer_module=key[0],
+        action_kind=key[1],
+        path="src/integration/perp_engine.py",
+        details={
+            "query_id": profile["query_id"],
+            "profile_id": profile["profile_id"],
+            "required_control": "require_oracle_adapter_for_isolated_partial_liquidate",
+            "covered_runtime_actions": ["isolated_partial_liquidate"],
         },
         errors=errors,
     )
@@ -188,15 +218,10 @@ def _check_zusd_action(
     )
     for needle in (
         "_check_zusd_oracle_adapter_bridge(",
-        "_check_zusd_oracle_authorization(",
         "ZUSD_ORACLE_ADAPTER_REQUIRED",
-        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
         'consumer_module": "zenodex.zusd"',
         'if _adapter_result_get(result, "profile_id") != _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]',
         'if _adapter_result_get(result, "action_id") != expected_action_id',
-        "action_facts_hash=_zusd_runtime_oracle_action_facts_hash(",
-        "pre_state_hash=_zusd_runtime_oracle_pre_state_hash(",
-        "runtime_value_e8=int(state.price_e8)",
     ):
         _expect(needle in source, errors, f"zusd_{action_kind}_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -206,10 +231,7 @@ def _check_zusd_action(
         details={
             "query_id": profile["query_id"],
             "profile_id": profile["profile_id"],
-            "required_controls": [
-                "ZUSD_ORACLE_ADAPTER_REQUIRED",
-                "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
-            ],
+            "required_control": "ZUSD_ORACLE_ADAPTER_REQUIRED",
             "runtime_tag": expected_tag,
         },
         errors=errors,
@@ -244,18 +266,11 @@ def _check_routing_guarded_quote(profiles: Mapping[tuple[str, str], Mapping[str,
     for needle in (
         "_check_routing_oracle_adapter_bridge(",
         "_check_routing_exact_out_oracle_adapter_bridge(",
-        "_check_routing_oracle_authorization(",
         "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
-        "DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED",
         "expected_action_id = _routing_guarded_quote_oracle_action_id(",
         "expected_action_id = _routing_guarded_exact_out_quote_oracle_action_id(",
         'if _adapter_result_get(result, "profile_id") != DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID',
         'if _adapter_result_get(result, "action_id") != expected_action_id',
-        "action_facts_hash=_routing_guarded_quote_oracle_action_facts_hash(",
-        "action_facts_hash=_routing_guarded_exact_out_quote_oracle_action_facts_hash(",
-        "pre_state_hash=_routing_pre_state_hash(",
-        'runtime_value_e8=int(runtime_quote["amount_out"])',
-        'runtime_value_e8=int(runtime_quote["amount_in_total"])',
     ):
         _expect(needle in source, errors, f"routing_guarded_quote_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -265,14 +280,103 @@ def _check_routing_guarded_quote(profiles: Mapping[tuple[str, str], Mapping[str,
         details={
             "query_id": profile["query_id"],
             "profile_id": profile["profile_id"],
-            "required_controls": [
-                "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
-                "DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED",
-            ],
+            "required_control": "DEX_ROUTING_ORACLE_ADAPTER_REQUIRED",
             "covered_runtime_actions": [
                 "exact_in_guarded_quote",
                 "exact_out_many_pool_guarded_quote",
             ],
+        },
+        errors=errors,
+    )
+
+
+def _check_trigger_execute(profiles: Mapping[tuple[str, str], Mapping[str, Any]]) -> dict[str, Any]:
+    errors: list[str] = []
+    key = ("zenodex.trigger", "execute_trigger")
+    profile = profiles[key]
+    source = _source("src/integration/zeno_oracle_trigger_authorization.py")
+
+    from src.integration import zeno_oracle_trigger_authorization as trigger_auth  # pylint: disable=import-outside-toplevel
+
+    _expect(
+        str(profile["query_id"]) == trigger_auth._ORACLE_TRIGGER_REFERENCE_QUERY_ID,  # noqa: SLF001
+        errors,
+        "trigger_execute_query_id_drift",
+    )
+    _expect(
+        str(profile["profile_id"]) == trigger_auth._ORACLE_TRIGGER_EXECUTE_PROFILE_ID,  # noqa: SLF001
+        errors,
+        "trigger_execute_profile_id_drift",
+    )
+    for needle in (
+        "check_trigger_execute_oracle_adapter_bridge(",
+        "_default_oracle_adapter_bridge_verifier(",
+        'consumer_module") != "zenodex.trigger"',
+        'action_kind") != "execute_trigger"',
+        "_ORACLE_TRIGGER_REFERENCE_QUERY_ID",
+        "_ORACLE_TRIGGER_EXECUTE_PROFILE_ID",
+        'expected_action_id = str(trigger_execute_runtime_facts(facts)["action_id"])',
+    ):
+        _expect(needle in source, errors, f"trigger_execute_missing_static_wiring:{needle}")
+    return _runtime_surface(
+        consumer_module=key[0],
+        action_kind=key[1],
+        path="src/integration/zeno_oracle_trigger_authorization.py",
+        details={
+            "query_id": profile["query_id"],
+            "profile_id": profile["profile_id"],
+            "required_control": "check_trigger_execute_oracle_adapter_bridge(required=True)",
+            "covered_runtime_actions": ["trigger_execute"],
+        },
+        errors=errors,
+    )
+
+
+def _check_critical_settlement(profiles: Mapping[tuple[str, str], Mapping[str, Any]]) -> dict[str, Any]:
+    errors: list[str] = []
+    key = ("zenodex.settlement", "critical_settlement")
+    profile = profiles[key]
+    source = _source("src/integration/dex_engine.py")
+    auth_source = _source("src/integration/zeno_oracle_settlement_authorization.py")
+
+    from src.integration import zeno_oracle_settlement_authorization as settlement_auth  # pylint: disable=import-outside-toplevel
+
+    _expect(
+        str(profile["query_id"]) == settlement_auth.critical_settlement_query_id(),
+        errors,
+        "critical_settlement_query_id_drift",
+    )
+    _expect(
+        str(profile["profile_id"]) == settlement_auth.critical_settlement_profile_id(),
+        errors,
+        "critical_settlement_profile_id_drift",
+    )
+    for needle in (
+        "require_oracle_authorization_for_critical_settlements",
+        "_validate_critical_settlement_oracle_authorization(",
+        "check_critical_settlement_oracle_authorization(",
+        "critical_settlement_oracle_authorization_required",
+        "settlement_certificate_price_history",
+    ):
+        _expect(needle in source, errors, f"critical_settlement_missing_static_wiring:{needle}")
+    for needle in (
+        'consumer_module="zenodex.settlement"',
+        'action_kind="critical_settlement"',
+        "profile_id=critical_settlement_profile_id()",
+        "critical_settlement_runtime_facts(",
+        "normalized_settlement_hash(",
+    ):
+        _expect(needle in auth_source, errors, f"critical_settlement_auth_missing_static_wiring:{needle}")
+    return _runtime_surface(
+        consumer_module=key[0],
+        action_kind=key[1],
+        path="src/integration/dex_engine.py",
+        details={
+            "query_id": profile["query_id"],
+            "profile_id": profile["profile_id"],
+            "required_control": "require_oracle_authorization_for_critical_settlements",
+            "covered_runtime_actions": ["apply_ops_settlement"],
+            "typed_authorization_module": "src/integration/zeno_oracle_settlement_authorization.py",
         },
         errors=errors,
     )
@@ -287,9 +391,12 @@ def check_critical_action_map() -> dict[str, Any]:
 
     runtime_surfaces = [
         _check_perps_settle_epoch(profiles),
+        _check_perps_liquidate_account(profiles),
         _check_zusd_action(profiles, action_kind="mint", expected_tag="mint_zusd"),
         _check_zusd_action(profiles, action_kind="liquidate_vault", expected_tag="liquidate"),
         _check_routing_guarded_quote(profiles),
+        _check_critical_settlement(profiles),
+        _check_trigger_execute(profiles),
     ]
     errors.extend(
         f"runtime_surface_rejected:{surface['key']}:{error}"
@@ -297,22 +404,7 @@ def check_critical_action_map() -> dict[str, Any]:
         for error in surface["errors"]
     )
 
-    design_only_backlog = [
-        {
-            "key": "zenodex.perps:liquidate_account",
-            "status": "design_only_backlog",
-            "reason": "profile is reserved for a future standalone liquidation adapter; current perps liquidation occurs inside settle_epoch",
-            "query_id": _query_id_for(consumer_module="zenodex.perps", action_kind="liquidate_account"),
-            "profile_id": _profile_id_for(consumer_module="zenodex.perps", action_kind="liquidate_account"),
-        },
-        {
-            "key": "zenodex.trigger:execute_trigger",
-            "status": "design_only_backlog",
-            "reason": "profile exists in the first-shell catalog, but no trigger runtime module is wired in this checkout",
-            "query_id": _query_id_for(consumer_module="zenodex.trigger", action_kind="execute_trigger"),
-            "profile_id": _profile_id_for(consumer_module="zenodex.trigger", action_kind="execute_trigger"),
-        },
-    ]
+    design_only_backlog: list[dict[str, Any]] = []
 
     ok = not errors
     return {

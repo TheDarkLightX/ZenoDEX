@@ -37,12 +37,16 @@ MAX_ADMITTED_MEDIAN3_BYTES = 2_000_000
 MAX_AMOUNT = 10**24
 MAX_EPOCH = 2**63 - 1
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+MIN_CRITICAL_EVIDENCE = "O3"
 TOP_LEVEL_KEYS = {
     "schema",
     "aggregate_id",
     "query_id",
     "current_epoch",
     "max_staleness_epochs",
+    "evidence_floor",
+    "evidence_class",
     "max_deviation_bps",
     "min_distinct_sources",
     "report_admissions",
@@ -75,6 +79,8 @@ class AdmittedMedian3Result:
     observed_epoch: int | None = None
     report_count: int | None = None
     admission_count: int | None = None
+    evidence_floor: str | None = None
+    evidence_class: str | None = None
     distinct_reporter_count: int | None = None
     distinct_source_count: int | None = None
 
@@ -91,6 +97,8 @@ class AdmittedMedian3Result:
             "observed_epoch": self.observed_epoch,
             "report_count": self.report_count,
             "admission_count": self.admission_count,
+            "evidence_floor": self.evidence_floor,
+            "evidence_class": self.evidence_class,
             "distinct_reporter_count": self.distinct_reporter_count,
             "distinct_source_count": self.distinct_source_count,
             "errors": list(self.errors),
@@ -138,6 +146,7 @@ def _single_report_admission(
     source_diversity: Mapping[str, Any],
     current_epoch: int,
     max_staleness_epochs: int,
+    evidence_class: str = MIN_CRITICAL_EVIDENCE,
 ) -> dict[str, Any]:
     if not _BLS_AVAILABLE or G2Basic is None:
         raise RuntimeError("py_ecc.bls.G2Basic unavailable")
@@ -167,6 +176,7 @@ def _single_report_admission(
         "schema": "zenodex.oracle.report_admission.v1",
         "current_epoch": current_epoch,
         "max_staleness_epochs": max_staleness_epochs,
+        "evidence_class": evidence_class,
         "signed_submission": signed_submission,
         "reporter_lifecycle": sample_lifecycle_for_signed_submission(signed_submission),
         "source_diversity": dict(source_diversity),
@@ -232,6 +242,8 @@ def sample_admitted_median3_aggregate() -> dict[str, Any]:
         "query_id": query_id,
         "current_epoch": current_epoch,
         "max_staleness_epochs": max_staleness_epochs,
+        "evidence_floor": MIN_CRITICAL_EVIDENCE,
+        "evidence_class": MIN_CRITICAL_EVIDENCE,
         "max_deviation_bps": 200,
         "min_distinct_sources": 3,
         "report_admissions": admissions,
@@ -288,6 +300,16 @@ def _int_between(
     return int(value)
 
 
+def _evidence_class(obj: Mapping[str, Any], key: str, errors: list[str]) -> str | None:
+    value = obj.get(key)
+    if not isinstance(value, str) or value not in EVIDENCE_RANK:
+        errors.append(f"{key}_invalid")
+        return None
+    if EVIDENCE_RANK[value] < EVIDENCE_RANK[MIN_CRITICAL_EVIDENCE]:
+        errors.append(f"{key}_below_critical_minimum")
+    return value
+
+
 def _report_admissions(obj: Mapping[str, Any], errors: list[str]) -> list[Mapping[str, Any]]:
     raw = obj.get("report_admissions")
     if not isinstance(raw, list):
@@ -333,13 +355,22 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
     query_id = _hash(obj, "query_id", errors)
     current_epoch = _int_between(obj, "current_epoch", errors, maximum=MAX_EPOCH)
     max_staleness_epochs = _int_between(obj, "max_staleness_epochs", errors, maximum=MAX_EPOCH)
+    evidence_floor = _evidence_class(obj, "evidence_floor", errors)
+    evidence_class = _evidence_class(obj, "evidence_class", errors)
     max_deviation_bps = _int_between(obj, "max_deviation_bps", errors, maximum=10_000)
     min_distinct_sources = _int_between(obj, "min_distinct_sources", errors, minimum=1, maximum=3)
     admissions = _report_admissions(obj, errors)
     aggregate = _aggregate(obj, errors)
+    if (
+        evidence_floor is not None
+        and evidence_class is not None
+        and EVIDENCE_RANK[evidence_class] < EVIDENCE_RANK[evidence_floor]
+    ):
+        errors.append("aggregate_evidence_class_below_floor")
 
     admitted_reports: list[Mapping[str, Any]] = []
     admission_ids: list[str] = []
+    admission_evidence_classes: list[str] = []
     for pos, admission in enumerate(admissions):
         result = verify_report_admission(admission)
         if result.status != "accepted":
@@ -355,6 +386,13 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
             and max_staleness_epochs != result.max_staleness_epochs
         ):
             errors.append(f"admission_max_staleness_epochs_mismatch:{pos}")
+        if result.evidence_class is not None:
+            admission_evidence_classes.append(result.evidence_class)
+            if (
+                evidence_floor is not None
+                and EVIDENCE_RANK[result.evidence_class] < EVIDENCE_RANK[evidence_floor]
+            ):
+                errors.append(f"admission_evidence_class_below_floor:{pos}:{result.evidence_class}<{evidence_floor}")
         reports = list(result.admitted_reports or [])
         if len(reports) != 1:
             errors.append(f"admission_must_contain_exactly_one_report:{pos}:{len(reports)}")
@@ -447,6 +485,10 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
 
     if max_deviation_bps is not None and aggregate_deviation is not None and aggregate_deviation > max_deviation_bps:
         errors.append("aggregate_deviation_exceeds_policy")
+    if evidence_class is not None and admission_evidence_classes:
+        min_admission_rank = min(EVIDENCE_RANK[value] for value in admission_evidence_classes)
+        if EVIDENCE_RANK[evidence_class] > min_admission_rank:
+            errors.append("aggregate_evidence_class_exceeds_admission_minimum")
 
     return AdmittedMedian3Result(
         status="rejected" if errors else "accepted",
@@ -459,6 +501,8 @@ def verify_admitted_median3_aggregate(obj: Mapping[str, Any]) -> AdmittedMedian3
         observed_epoch=aggregate_observed_epoch,
         report_count=aggregate_report_count,
         admission_count=len(admissions),
+        evidence_floor=evidence_floor,
+        evidence_class=evidence_class,
         distinct_reporter_count=len(set(reporter_ids)),
         distinct_source_count=len(set(source_ids)),
     )

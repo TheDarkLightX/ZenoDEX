@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
@@ -11,6 +12,38 @@ from ..state.canonical import canonical_json_bytes
 
 SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+
+
+def _consumer_profile_id(
+    *,
+    consumer_module: str,
+    action_kind: str,
+    query_id: str,
+    max_freshness_window_epochs: int,
+) -> str:
+    payload = {
+        "schema": "zenodex.oracle.consumer_profile.v1",
+        "consumer_module": consumer_module,
+        "action_kind": action_kind,
+        "query_id": query_id,
+        "required_evidence_floor": "O3",
+        "max_freshness_window_epochs": int(max_freshness_window_epochs),
+        "critical": True,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+_CRITICAL_SETTLEMENT_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.settlement.price_curr_e8").hexdigest()
+)
+_CRITICAL_SETTLEMENT_PROFILE_ID = _consumer_profile_id(
+    consumer_module="zenodex.settlement",
+    action_kind="critical_settlement",
+    query_id=_CRITICAL_SETTLEMENT_QUERY_ID,
+    max_freshness_window_epochs=1,
+)
+
 
 CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
     ("zenodex.zusd", "bootstrap_oracle"): "critical-zusd-v1",
@@ -22,7 +55,7 @@ CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
     ("zenodex.perps", "liquidate"): "critical-perps-v1",
     ("zenodex.routing", "protected_swap"): "critical-routing-v1",
     ("zenodex.trigger", "execute"): "critical-trigger-v1",
-    ("zenodex.settlement", "critical_settlement"): "critical-settlement-v1",
+    ("zenodex.settlement", "critical_settlement"): _CRITICAL_SETTLEMENT_PROFILE_ID,
 }
 
 
@@ -62,6 +95,7 @@ class RuntimeActionFacts:
     query_id: str
     runtime_value_e8: int
     now_epoch: int
+    runtime_notional_value_e8: int | None = None
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -84,6 +118,10 @@ def oracle_value_hash(*, query_id: str, value_e8: int, observed_epoch: int) -> s
     )
 
 
+def economic_envelope_hash(envelope: Mapping[str, Any]) -> str:
+    return semantic_hash("zenodex.oracle.economic_envelope.v1", envelope)
+
+
 def _is_sha256_ref(value: str) -> bool:
     if not isinstance(value, str) or not value.startswith("sha256:") or len(value) != 71:
         return False
@@ -103,6 +141,62 @@ def _graph_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[str, Any] | N
     if isinstance(maybe_graph, Mapping):
         return maybe_graph
     return None
+
+
+def _economic_envelope_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    maybe_envelope = payload.get("economic_envelope")
+    if isinstance(maybe_envelope, Mapping):
+        return maybe_envelope
+    return None
+
+
+def _non_negative_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
+    value = obj.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(f"economic_envelope {key} must be a non-negative int")
+        return None
+    out = int(value)
+    if out < 0:
+        errors.append(f"economic_envelope {key} must be a non-negative int")
+        return None
+    return out
+
+
+def verify_economic_envelope_binding(
+    authorization: OracleAuthorization,
+    economic_envelope: Mapping[str, Any] | None,
+    *,
+    runtime_notional_value_e8: int | None = None,
+) -> tuple[bool, tuple[str, ...]]:
+    """Check that a terminal authorization is bound to its economic envelope."""
+
+    errors: list[str] = []
+    if economic_envelope is None:
+        return True, ()
+    if economic_envelope.get("schema") != "zenodex.oracle.economic_security_envelope.v1":
+        errors.append("economic_envelope schema must be zenodex.oracle.economic_security_envelope.v1")
+    for key in ("query_id", "consumer_module", "action_kind"):
+        if economic_envelope.get(key) != getattr(authorization, key):
+            errors.append(f"economic_envelope {key} does not match authorization")
+    notional_value = _non_negative_int_obj(economic_envelope, "notional_value_e8", errors)
+    max_extractable = _non_negative_int_obj(economic_envelope, "max_extractable_value_e8", errors)
+    if (
+        notional_value is not None
+        and max_extractable is not None
+        and max_extractable > notional_value
+    ):
+        errors.append("economic_envelope max_extractable_value_e8 exceeds notional_value_e8")
+    if runtime_notional_value_e8 is not None:
+        if isinstance(runtime_notional_value_e8, bool) or not isinstance(runtime_notional_value_e8, int):
+            errors.append("runtime_notional_value_e8 must be a non-negative int")
+        elif runtime_notional_value_e8 < 0:
+            errors.append("runtime_notional_value_e8 must be a non-negative int")
+        elif notional_value is not None and runtime_notional_value_e8 > notional_value:
+            errors.append("runtime_notional_value_e8 exceeds economic envelope")
+    expected_envelope_id = economic_envelope_hash(economic_envelope)
+    if authorization.economic_envelope_id != expected_envelope_id:
+        errors.append("economic_envelope_id does not bind economic_envelope")
+    return not errors, tuple(errors)
 
 
 def _non_negative_graph_int(graph: Mapping[str, Any], key: str, errors: list[str]) -> int:
@@ -404,6 +498,11 @@ def authorization_from_obj(obj: Mapping[str, Any]) -> OracleAuthorization:
 
 
 def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
+    runtime_notional_value = obj.get("runtime_notional_value_e8")
+    if runtime_notional_value is not None:
+        if isinstance(runtime_notional_value, bool) or not isinstance(runtime_notional_value, int):
+            raise ValueError("runtime_notional_value_e8 must be an int when present")
+        runtime_notional_value = int(runtime_notional_value)
     return RuntimeActionFacts(
         consumer_module=_require_str(obj, "consumer_module"),
         action_kind=_require_str(obj, "action_kind"),
@@ -414,6 +513,7 @@ def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
         query_id=_require_str(obj, "query_id"),
         runtime_value_e8=_require_int(obj, "runtime_value_e8"),
         now_epoch=_require_int(obj, "now_epoch"),
+        runtime_notional_value_e8=runtime_notional_value,
     )
 
 
@@ -441,20 +541,31 @@ def check_authorization_for_runtime(
     opaque_ok, opaque_errors = verify_opaque_authorization(authorization, runtime)
     typed_ok, typed_errors = verify_typed_authorization(authorization, runtime)
     receipt_graph = _graph_obj_from_payload(authorization_payload)
+    economic_envelope = _economic_envelope_obj_from_payload(authorization_payload)
     graph_ok = True
     graph_errors: tuple[str, ...] = ()
     if require_receipt_graph or receipt_graph is not None:
         graph_ok, graph_errors = verify_receipt_graph_binding(authorization, receipt_graph)
         typed_errors = tuple(list(typed_errors) + list(graph_errors))
         typed_ok = bool(typed_ok and graph_ok)
+    economic_ok, economic_errors = verify_economic_envelope_binding(
+        authorization,
+        economic_envelope,
+        runtime_notional_value_e8=runtime.runtime_notional_value_e8,
+    )
+    if economic_errors:
+        typed_errors = tuple(list(typed_errors) + list(economic_errors))
+        typed_ok = bool(typed_ok and economic_ok)
     return {
         "schema": SCHEMA,
         "opaque_ok": bool(opaque_ok),
         "typed_ok": bool(typed_ok),
         "receipt_graph_ok": bool(graph_ok),
+        "economic_envelope_ok": bool(economic_ok),
         "opaque_errors": list(opaque_errors),
         "typed_errors": list(typed_errors),
         "receipt_graph_errors": list(graph_errors),
+        "economic_envelope_errors": list(economic_errors),
         "authorization": asdict(authorization),
         "runtime_action": asdict(runtime),
     }
@@ -481,6 +592,7 @@ def check_critical_consumer_authorization(
     query_id: str,
     runtime_value_e8: int,
     now_epoch: int,
+    runtime_notional_value_e8: int | None = None,
     profile_id: str | None = None,
     require_receipt_graph: bool = True,
 ) -> dict[str, Any]:
@@ -491,9 +603,11 @@ def check_critical_consumer_authorization(
             "opaque_ok": False,
             "typed_ok": False,
             "receipt_graph_ok": False,
+            "economic_envelope_ok": False,
             "opaque_errors": ["unsupported critical consumer/action"],
             "typed_errors": ["unsupported critical consumer/action"],
             "receipt_graph_errors": ["unsupported critical consumer/action"],
+            "economic_envelope_errors": ["unsupported critical consumer/action"],
             "authorization": dict(_authorization_obj_from_payload(authorization_payload)),
             "runtime_action": {
                 "consumer_module": consumer_module,
@@ -505,6 +619,7 @@ def check_critical_consumer_authorization(
                 "query_id": query_id,
                 "runtime_value_e8": runtime_value_e8,
                 "now_epoch": now_epoch,
+                "runtime_notional_value_e8": runtime_notional_value_e8,
             },
         }
     runtime = RuntimeActionFacts(
@@ -517,6 +632,7 @@ def check_critical_consumer_authorization(
         query_id=query_id,
         runtime_value_e8=int(runtime_value_e8),
         now_epoch=int(now_epoch),
+        runtime_notional_value_e8=runtime_notional_value_e8,
     )
     result = check_authorization_for_runtime(
         authorization_payload,

@@ -220,6 +220,19 @@ def admitted_median3_chaos_cases() -> list[tuple[str, dict[str, Any], list[str]]
             ["aggregate_deviation_exceeds_policy"],
         ),
         (
+            "admission_evidence_floor_bypass_survives",
+            _mutate(lambda a: a["report_admissions"][1].__setitem__("evidence_class", "O2")),
+            [
+                "report_admission_1_rejected:evidence_class_below_critical_minimum",
+                "admission_evidence_class_below_floor:1:O2<O3",
+            ],
+        ),
+        (
+            "aggregate_evidence_overclaim_survives",
+            _mutate(lambda a: a.__setitem__("evidence_class", "O4")),
+            ["aggregate_evidence_class_exceeds_admission_minimum"],
+        ),
+        (
             "hidden_top_level_field_survives",
             _mutate(lambda a: a.__setitem__("trusted_override", True)),
             ["unknown_admitted_median3_field:trusted_override"],

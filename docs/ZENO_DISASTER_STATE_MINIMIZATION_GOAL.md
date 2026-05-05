@@ -134,15 +134,40 @@ python3 tools/check_zeno_oracle_critical_action_map.py
 Current expected receipt:
 
 ```text
-catalog_profile_count = 6
-runtime_wired_count = 4
-design_only_backlog_count = 2
+catalog_profile_count = 7
+runtime_wired_count = 7
+design_only_backlog_count = 0
 status = accepted
 ```
 
-The current runtime-wired profiles are perps `settle_epoch`, zUSD `mint`, zUSD
-`liquidate_vault`, and routing `guarded_quote`. The design-only backlog
-profiles are perps `liquidate_account` and trigger `execute_trigger`.
+The current runtime-wired profiles are perps `settle_epoch`, perps
+`liquidate_account`, zUSD `mint`, zUSD `liquidate_vault`, routing
+`guarded_quote`, critical settlement `critical_settlement`, and trigger
+`execute_trigger`. The first-shell profile catalog
+has no design-only backlog entries in this checkout.
 
 Details are in
 [ZENO_ORACLE_CRITICAL_ACTION_MAP.md](ZENO_ORACLE_CRITICAL_ACTION_MAP.md).
+
+## Current Named Disaster Class Corpus
+
+The first public named-class corpus is implemented by:
+
+```bash
+python3 tools/zeno_oracle_disaster_class_corpus.py --format text
+```
+
+Current expected receipt:
+
+```text
+named_disaster_class_count = 8
+closed_class_count = 8
+failed_class_count = 0
+status = accepted
+```
+
+The corpus binds the named source-cartel, dispute-griefing, registry-drift,
+verifier-spoofing, O5 independence-spoofing, proof-timeout, replay-integrity,
+and cross-module split-brain families to public checker outcomes. This is
+bounded first-shell evidence. It does not claim exhaustive production oracle
+safety, live on-chain governance, reporter honesty, or a live proof network.

@@ -1,24 +1,41 @@
 #!/usr/bin/env python3
-"""Zeno Oracle public verifier shell.
+"""Pre-MVP Zeno Oracle reporter/validator CLI.
 
-This is a narrow local verifier for the first public Oracle receipt-bundle
-shape. It does not contact a network and does not claim source honesty or true
-market price. It checks whether a bundle is structurally safe enough to be
-treated as an accepted critical-read receipt bundle by downstream tooling.
+This command is intentionally local-only. It gives operators and reporters a
+single deterministic entrypoint for identity setup, query inspection, report
+dry-runs, and verifier execution while the production Oracle network is still
+under development.
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 import hashlib
+import contextlib
+import io
 import json
+import os
 import re
+import secrets
+import stat
+import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_HOME = Path.home() / ".zenodex" / "oracle"
+SCHEMA = "zenodex.oracle.cli.result.v1"
+CLI_VERSION = "0.1.0-pre-mvp"
+DEFAULT_REQUIRED_BOND_E8 = 100_000_000
+DEFAULT_REPORT_REWARD_E8 = 10_000
+DEFAULT_DISPUTE_BOND_E8 = 10_000_000
+DEFAULT_SLASH_E8 = 100_000_000
+EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 BUNDLE_SCHEMA = "zenodex.oracle.receipt_bundle.v1"
 RESULT_SCHEMA = "zenodex.oracle.verify_result.v1"
 READ_TYPE = "accepted_read_receipt"
@@ -27,7 +44,6 @@ SUPPORTED_RECEIPT_TYPES = {READ_TYPE, ACTION_TYPE}
 MAX_BUNDLE_BYTES = 1_000_000
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 TOKEN_RE = re.compile(r"^[a-z][a-z0-9_.:-]{0,95}$")
-EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 BUNDLE_KEYS = {"schema", "terminal", "receipts"}
 TERMINAL_KEYS = {"read_receipt_id", "consumer_action_receipt_id"}
 READ_RECEIPT_KEYS = {
@@ -60,11 +76,42 @@ ACTION_RECEIPT_KEYS = {
     "emergency_oracle_bypass",
     "depends_on",
 }
+RECEIPT_BUNDLE_VERIFY_SUBCOMMANDS = frozenset(
+    {"authorization", "evidence", "local-state", "receipt"}
+)
 NOT_CLAIMED = [
     "does_not_claim_true_market_price",
     "does_not_claim_source_honesty",
     "does_not_claim_production_network_live",
 ]
+ASSET_CLASSES = ("crypto", "stablecoin", "equity", "rwa", "real_estate", "fx", "commodity")
+SOURCE_KINDS = (
+    "cex",
+    "dex",
+    "twap",
+    "broker",
+    "custodian",
+    "appraisal",
+    "rwa_servicer",
+    "manual",
+    "other",
+)
+SOURCE_ASSURANCE_CLASSES = ("S0", "S1", "S2", "S3", "S4", "S5")
+
+if getattr(sys, "frozen", False):
+    ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+sys.path.insert(0, str(ROOT))
+
+
+def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+        "utf-8"
+    )
+
+
+def semantic_hash(domain: str, payload: Mapping[str, Any]) -> str:
+    digest = hashlib.sha256(domain.encode("utf-8") + b"\x00" + _canonical_bytes(payload)).hexdigest()
+    return f"sha256:{digest}"
 
 
 def sample_hash(tag: str) -> str:
@@ -524,7 +571,9 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     action_epoch: int | None = None
     freshness_window_epochs: int | None = None
     if read is not None:
-        query_id, value_hash, evidence_class, observed_epoch, expires_at_epoch = _read_receipt_ok(read, errors)
+        query_id, value_hash, evidence_class, observed_epoch, expires_at_epoch = _read_receipt_ok(
+            read, errors
+        )
     if action is not None and read_id is not None:
         (
             action_query_id,
@@ -562,7 +611,7 @@ def verify_bundle(bundle: Mapping[str, Any]) -> VerifyResult:
     )
 
 
-def _load_json(path: Path) -> Mapping[str, Any]:
+def _load_receipt_bundle_json(path: Path) -> Mapping[str, Any]:
     size = path.stat().st_size
     if size > MAX_BUNDLE_BYTES:
         raise ValueError(f"bundle_file_too_large:{size}>{MAX_BUNDLE_BYTES}")
@@ -573,7 +622,7 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     return obj
 
 
-def _write_result(result: VerifyResult, output: Path | None) -> None:
+def _write_receipt_bundle_result(result: VerifyResult, output: Path | None) -> None:
     text = json.dumps(result.to_json_obj(), indent=2, sort_keys=True) + "\n"
     if output is None:
         sys.stdout.write(text)
@@ -581,16 +630,16 @@ def _write_result(result: VerifyResult, output: Path | None) -> None:
         output.write_text(text, encoding="utf-8")
 
 
-def cmd_verify(args: argparse.Namespace) -> int:
+def cmd_verify_receipt_bundle(args: argparse.Namespace) -> int:
     try:
-        bundle = _load_json(Path(args.bundle))
-    except Exception as exc:  # pragma: no cover - exercised through CLI tests
+        bundle = _load_receipt_bundle_json(Path(args.bundle))
+    except Exception as exc:
         result = VerifyResult(status="inconclusive", errors=[f"bundle_load_failed:{exc}"])
-        _write_result(result, Path(args.output) if args.output else None)
+        _write_receipt_bundle_result(result, Path(args.output) if args.output else None)
         return 3
 
     result = verify_bundle(bundle)
-    _write_result(result, Path(args.output) if args.output else None)
+    _write_receipt_bundle_result(result, Path(args.output) if args.output else None)
     return 0 if result.status == "accepted" else 2
 
 
@@ -603,24 +652,4338 @@ def cmd_sample_bundle(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+
+
+def _append_jsonl(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True))
+        handle.write("\n")
+
+
+def _emit(payload: Mapping[str, Any], *, json_out: bool) -> None:
+    if json_out:
+        print(json.dumps(payload, sort_keys=True, indent=2))
+        return
+    for key, value in payload.items():
+        if isinstance(value, (dict, list)):
+            print(f"{key}: {json.dumps(value, sort_keys=True)}")
+        else:
+            print(f"{key}: {value}")
+
+
+def _git_commit() -> str:
+    proc = subprocess.run(
+        ["git", "rev-parse", "--short=12", "HEAD"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return proc.stdout.strip() if proc.returncode == 0 else "unknown"
+
+
+def _asset_manifest() -> dict[str, str]:
+    candidates = {
+        "zeno_oracle_icon_256": ROOT / "assets/branding/zeno-oracle/zeno_oracle_icon_256.png",
+        "zeno_oracle_icon_512": ROOT / "assets/branding/zeno-oracle/zeno_oracle_icon_512.png",
+        "zeno_oracle_favicon": ROOT / "assets/branding/zeno-oracle/zeno_oracle_favicon.ico",
+    }
+    result: dict[str, str] = {}
+    for name, path in candidates.items():
+        if path.exists():
+            result[name] = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+    return result
+
+
+def _home(args: argparse.Namespace) -> Path:
+    return Path(getattr(args, "home", None) or DEFAULT_HOME).expanduser()
+
+
+def _registry_path(home: Path) -> Path:
+    return home / "data" / "reporter_registry.json"
+
+
+def _rewards_path(home: Path) -> Path:
+    return home / "data" / "rewards.json"
+
+
+def _reports_log_path(home: Path) -> Path:
+    return home / "data" / "reports.jsonl"
+
+
+def _query_registry_path(home: Path) -> Path:
+    return home / "data" / "queries.json"
+
+
+def _source_registry_path(home: Path) -> Path:
+    return home / "data" / "source_registry.json"
+
+
+def _aggregates_log_path(home: Path) -> Path:
+    return home / "data" / "aggregates.jsonl"
+
+
+def _reads_log_path(home: Path) -> Path:
+    return home / "data" / "accepted_reads.jsonl"
+
+
+def _authorizations_log_path(home: Path) -> Path:
+    return home / "data" / "oracle_authorizations.jsonl"
+
+
+def _disputes_path(home: Path) -> Path:
+    return home / "data" / "disputes.json"
+
+
+def _disputes_log_path(home: Path) -> Path:
+    return home / "data" / "disputes.jsonl"
+
+
+def _load_mapping_or_default(path: Path, default: Mapping[str, Any]) -> dict[str, Any]:
+    if not path.exists():
+        return dict(default)
+    data = _load_json(path)
+    if not isinstance(data, dict):
+        raise SystemExit(f"{path} must contain a JSON object")
+    return data
+
+
+def _load_identity(home: Path) -> dict[str, Any]:
+    data = _load_json(_key_path(home))
+    if not isinstance(data, dict):
+        raise SystemExit("identity file must be an object")
+    for key in ("reporter_id", "public_key", "secret_key"):
+        if not isinstance(data.get(key), str) or not data.get(key):
+            raise SystemExit(f"identity is missing {key}")
+    return data
+
+
+def _load_reporter_registry(home: Path) -> dict[str, Any]:
+    return _load_mapping_or_default(
+        _registry_path(home),
+        {
+            "schema": "zeno_oracle.local_reporter_registry.v1",
+            "reporters": {},
+            "production_authority": False,
+        },
+    )
+
+
+def _load_rewards(home: Path) -> dict[str, Any]:
+    return _load_mapping_or_default(
+        _rewards_path(home),
+        {
+            "schema": "zeno_oracle.local_reporter_rewards.v1",
+            "reporters": {},
+            "production_authority": False,
+        },
+    )
+
+
+def _load_query_registry(home: Path) -> dict[str, Any]:
+    return _load_mapping_or_default(
+        _query_registry_path(home),
+        {
+            "schema": "zeno_oracle.local_query_registry.v1",
+            "queries": [],
+            "production_authority": False,
+        },
+    )
+
+
+def _load_source_registry(home: Path) -> dict[str, Any]:
+    return _load_mapping_or_default(
+        _source_registry_path(home),
+        {
+            "schema": "zeno_oracle.local_source_registry.v1",
+            "sources": {},
+            "production_authority": False,
+        },
+    )
+
+
+def _load_disputes(home: Path) -> dict[str, Any]:
+    return _load_mapping_or_default(
+        _disputes_path(home),
+        {
+            "schema": "zeno_oracle.local_dispute_registry.v1",
+            "disputes": {},
+            "production_authority": False,
+        },
+    )
+
+
+def _registry_reporters(registry: Mapping[str, Any]) -> dict[str, Any]:
+    reporters = registry.get("reporters")
+    if not isinstance(reporters, dict):
+        raise SystemExit("reporter registry reporters must be an object")
+    return reporters
+
+
+def _reward_reporters(rewards: Mapping[str, Any]) -> dict[str, Any]:
+    reporters = rewards.get("reporters")
+    if not isinstance(reporters, dict):
+        raise SystemExit("reward ledger reporters must be an object")
+    return reporters
+
+
+def _dispute_entries(disputes: Mapping[str, Any]) -> dict[str, Any]:
+    entries = disputes.get("disputes")
+    if not isinstance(entries, dict):
+        raise SystemExit("dispute registry disputes must be an object")
+    return entries
+
+
+def _source_entries(registry: Mapping[str, Any]) -> dict[str, Any]:
+    sources = registry.get("sources")
+    if not isinstance(sources, dict):
+        raise SystemExit("source registry sources must be an object")
+    return sources
+
+
+def _local_query_ids(home: Path) -> set[str]:
+    registry = _load_query_registry(home)
+    return {str(query["query_id"]) for query in _registry_queries(registry) if query.get("query_id")}
+
+
+def _find_local_query(home: Path, query_id: str) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any] | None]:
+    registry = _load_query_registry(home)
+    queries = _registry_queries(registry)
+    for query in queries:
+        if query.get("query_id") == query_id:
+            return registry, queries, query
+    return registry, queries, None
+
+
+def _require_known_local_query_if_configured(home: Path, query_id: str) -> None:
+    _registry, queries, query = _find_local_query(home, query_id)
+    if queries and query is None:
+        raise SystemExit(f"query_id is not in the local query registry: {query_id}")
+
+
+def _replace_query(registry: dict[str, Any], queries: list[dict[str, Any]], updated: Mapping[str, Any]) -> None:
+    query_id = updated.get("query_id")
+    registry["queries"] = sorted(
+        [dict(updated) if query.get("query_id") == query_id else query for query in queries],
+        key=lambda item: str(item.get("query_id", "")),
+    )
+
+
+def cmd_version(args: argparse.Namespace) -> int:
+    payload = {
+        "schema": SCHEMA,
+        "name": "zenodex-oracle",
+        "version": CLI_VERSION,
+        "commit": _git_commit(),
+        "build_target": "native-binary" if getattr(sys, "frozen", False) else "python-local",
+        "supported_schema_versions": [
+            "zeno_oracle.oracle_authorization.v1",
+            "zenodex/oracle-authorization-semantic-binding-check/v1",
+        ],
+        "asset_manifest": _asset_manifest(),
+        "production_authority": False,
+    }
+    _emit(payload, json_out=args.json)
+    return 0
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    home = _home(args)
+    for child in ("keys", "data", "receipts", "logs"):
+        (home / child).mkdir(parents=True, exist_ok=True)
+    config = home / "config.toml"
+    if config.exists() and not args.force:
+        raise SystemExit(f"{config} already exists; pass --force to overwrite")
+    config.write_text(
+        "\n".join(
+            [
+                "[node]",
+                'api_url = "http://127.0.0.1:8000"',
+                'chain_id = "tau-devnet"',
+                "",
+                "[reporter]",
+                f'home = "{home}"',
+                f'key_path = "{home / "keys" / "reporter.key.json"}"',
+                'mode = "dev_allowlist"',
+                "",
+                "[registry]",
+                'query_registry_path = "queries.json"',
+                'reporter_registry_path = "reporters.json"',
+                'source_registry_path = "source_registry.json"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "config": str(config),
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _key_path(home: Path) -> Path:
+    return home / "keys" / "reporter.key.json"
+
+
+def _identity_from_secret(secret_hex: str) -> dict[str, Any]:
+    public_key = hashlib.sha256(bytes.fromhex(secret_hex)).hexdigest()
+    reporter_id = semantic_hash("zeno_oracle.reporter_id.v1", {"public_key": public_key})
+    return {
+        "schema": "zeno_oracle.local_reporter_identity.v1",
+        "signature_scheme": "local-dev-sha256:v1",
+        "reporter_id": reporter_id,
+        "public_key": public_key,
+        "not_claimed": [
+            "does_not_replace_production_wallet_or_ed25519_key_management",
+            "does_not_authorize_permissionless_reporting_without_registry_admission",
+        ],
+    }
+
+
+def cmd_identity_create(args: argparse.Namespace) -> int:
+    home = _home(args)
+    path = _key_path(home)
+    if path.exists() and not args.force:
+        raise SystemExit(f"{path} already exists; pass --force to overwrite")
+    secret_hex = secrets.token_hex(32)
+    identity = _identity_from_secret(secret_hex)
+    payload = {
+        **identity,
+        "secret_key": secret_hex,
+    }
+    _write_json(path, payload)
+    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "key_path": str(path),
+            "reporter_id": identity["reporter_id"],
+            "public_key": identity["public_key"],
+            "signature_scheme": identity["signature_scheme"],
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_identity_show(args: argparse.Namespace) -> int:
+    path = _key_path(_home(args))
+    data = _load_json(path)
+    if not isinstance(data, dict):
+        raise SystemExit("identity file must be an object")
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "key_path": str(path),
+            "reporter_id": data.get("reporter_id"),
+            "public_key": data.get("public_key"),
+            "signature_scheme": data.get("signature_scheme"),
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _now_epoch(args: argparse.Namespace) -> int:
+    raw = getattr(args, "epoch", None)
+    if raw is not None:
+        return int(raw)
+    return int(time.time())
+
+
+def cmd_reporter_register(args: argparse.Namespace) -> int:
+    home = _home(args)
+    identity = _load_identity(home)
+    registry = _load_reporter_registry(home)
+    reporters = _registry_reporters(registry)
+    reporter_id = str(identity["reporter_id"])
+    existing = reporters.get(reporter_id)
+    if existing is not None and not args.force:
+        raise SystemExit(f"reporter already registered: {reporter_id}; pass --force to overwrite")
+    query_ids = [str(item) for item in args.query_id]
+    required_bond_e8 = int(args.required_bond_e8)
+    if required_bond_e8 < 0:
+        raise SystemExit("required-bond-e8 must be non-negative")
+    for query_id in query_ids:
+        _require_known_local_query_if_configured(home, query_id)
+    reporters[reporter_id] = {
+        "schema": "zeno_oracle.local_reporter_entry.v1",
+        "reporter_id": reporter_id,
+        "public_key": identity["public_key"],
+        "display_name": args.display_name,
+        "control_group_id": args.control_group_id or reporter_id,
+        "registered_epoch": _now_epoch(args),
+        "active": False,
+        "bond_asset": args.bond_asset,
+        "bond_amount_e8": 0,
+        "required_bond_e8": required_bond_e8,
+        "last_sequence": 0,
+        "slash_state": "clear",
+        "query_ids": query_ids,
+    }
+    _write_json(_registry_path(home), registry)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "reporter_id": reporter_id,
+            "active": False,
+            "required_bond_e8": required_bond_e8,
+            "control_group_id": reporters[reporter_id]["control_group_id"],
+            "query_ids": query_ids,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_reporter_bond(args: argparse.Namespace) -> int:
+    home = _home(args)
+    identity = _load_identity(home)
+    registry = _load_reporter_registry(home)
+    reporters = _registry_reporters(registry)
+    reporter_id = str(identity["reporter_id"])
+    entry = reporters.get(reporter_id)
+    if not isinstance(entry, dict):
+        raise SystemExit("reporter must be registered before bonding")
+    amount = _positive_int(str(args.amount_e8), name="amount-e8")
+    entry["bond_asset"] = args.asset
+    entry["bond_amount_e8"] = int(entry.get("bond_amount_e8", 0)) + amount
+    entry["active"] = int(entry["bond_amount_e8"]) >= int(entry.get("required_bond_e8", 0))
+    _write_json(_registry_path(home), registry)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "reporter_id": reporter_id,
+            "bond_asset": entry["bond_asset"],
+            "bond_amount_e8": entry["bond_amount_e8"],
+            "required_bond_e8": entry.get("required_bond_e8", 0),
+            "active": entry["active"],
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_reporter_show(args: argparse.Namespace) -> int:
+    home = _home(args)
+    reporter_id = args.reporter_id
+    if reporter_id is None:
+        reporter_id = str(_load_identity(home)["reporter_id"])
+    registry = _load_reporter_registry(home)
+    reporters = _registry_reporters(registry)
+    entry = reporters.get(reporter_id)
+    if not isinstance(entry, dict):
+        raise SystemExit(f"reporter not found: {reporter_id}")
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "reporter": entry,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_reporter_list(args: argparse.Namespace) -> int:
+    home = _home(args)
+    registry = _load_reporter_registry(home)
+    rows = [
+        dict(entry)
+        for _reporter_id, entry in sorted(_registry_reporters(registry).items())
+        if isinstance(entry, dict)
+    ]
+    if args.active_only:
+        rows = [row for row in rows if row.get("active") is True]
+    if args.query_id:
+        rows = [
+            row
+            for row in rows
+            if not isinstance(row.get("query_ids"), list) or not row.get("query_ids") or args.query_id in row["query_ids"]
+        ]
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "count": len(rows),
+            "reporters": rows,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_reporter_deactivate(args: argparse.Namespace) -> int:
+    home = _home(args)
+    reporter_id = args.reporter_id
+    if reporter_id is None:
+        reporter_id = str(_load_identity(home)["reporter_id"])
+    registry = _load_reporter_registry(home)
+    reporters = _registry_reporters(registry)
+    entry = reporters.get(reporter_id)
+    if not isinstance(entry, dict):
+        raise SystemExit(f"reporter not found: {reporter_id}")
+    entry["active"] = False
+    entry["deactivated_epoch"] = _now_epoch(args)
+    reporters[reporter_id] = entry
+    registry["reporters"] = {key: reporters[key] for key in sorted(reporters)}
+    _write_json(_registry_path(home), registry)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "reporter_id": reporter_id,
+            "reporter": entry,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _stable_source_snapshot(entry: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "source_id": str(entry.get("source_id", "")),
+        "source_kind": str(entry.get("source_kind", "")),
+        "operator_id": str(entry.get("operator_id", "")),
+        "source_control_group_id": str(entry.get("source_control_group_id", "")),
+        "venue_id": str(entry.get("venue_id", "")),
+        "data_family_id": str(entry.get("data_family_id", "")),
+        "transport_id": str(entry.get("transport_id", "")),
+        "jurisdiction": str(entry.get("jurisdiction", "")),
+        "asset_classes": sorted(str(item) for item in entry.get("asset_classes", []) if isinstance(item, str)),
+        "query_ids": sorted(str(item) for item in entry.get("query_ids", []) if isinstance(item, str)),
+        "assurance_class": str(entry.get("assurance_class", "")),
+        "active": bool(entry.get("active")),
+        "registered_epoch": int(entry.get("registered_epoch", 0)),
+    }
+
+
+def _stable_reporter_snapshot(entry: Mapping[str, Any], reporter_id: str) -> dict[str, Any]:
+    return {
+        "active": bool(entry.get("active")),
+        "bond_amount_e8": int(entry.get("bond_amount_e8", 0)),
+        "control_group_id": str(entry.get("control_group_id", reporter_id)),
+        "required_bond_e8": int(entry.get("required_bond_e8", 0)),
+        "slash_state": str(entry.get("slash_state", "")),
+        "query_ids": sorted(str(item) for item in entry.get("query_ids", []) if isinstance(item, str)),
+    }
+
+
+def _state_snapshot_hash(domain: str, snapshot: Mapping[str, Any] | None) -> str:
+    return semantic_hash(domain, {"snapshot": None if snapshot is None else dict(snapshot)})
+
+
+def _reporter_state_hash(snapshot: Mapping[str, Any]) -> str:
+    return _state_snapshot_hash("zeno_oracle.reporter_state_at_submit.v1", snapshot)
+
+
+def _source_state_hash(snapshot: Mapping[str, Any] | None) -> str:
+    return _state_snapshot_hash("zeno_oracle.source_state_at_submit.v1", snapshot)
+
+
+def cmd_source_register(args: argparse.Namespace) -> int:
+    home = _home(args)
+    registry = _load_source_registry(home)
+    sources = _source_entries(registry)
+    source_id = str(args.source_id).strip()
+    if not source_id:
+        raise SystemExit("source-id must be non-empty")
+    if source_id in sources and not args.force:
+        raise SystemExit(f"source already registered: {source_id}; pass --force to overwrite")
+    asset_classes = sorted({str(item).strip().lower() for item in args.asset_class})
+    if not asset_classes:
+        asset_classes = list(ASSET_CLASSES)
+    invalid_asset_classes = [item for item in asset_classes if item not in ASSET_CLASSES]
+    if invalid_asset_classes:
+        raise SystemExit(f"invalid asset-class values: {', '.join(invalid_asset_classes)}")
+    query_ids = sorted({str(item) for item in args.query_id})
+    for query_id in query_ids:
+        _require_known_local_query_if_configured(home, query_id)
+    source_kind = str(args.source_kind).strip().lower()
+    if source_kind not in SOURCE_KINDS:
+        raise SystemExit(f"source-kind must be one of: {', '.join(SOURCE_KINDS)}")
+    assurance_class = str(args.assurance_class).strip().upper()
+    if assurance_class not in SOURCE_ASSURANCE_CLASSES:
+        raise SystemExit(f"assurance-class must be one of: {', '.join(SOURCE_ASSURANCE_CLASSES)}")
+    entry = {
+        "schema": "zeno_oracle.local_source_entry.v1",
+        "source_id": source_id,
+        "source_kind": source_kind,
+        "operator_id": args.operator_id or source_id,
+        "source_control_group_id": args.control_group_id or args.operator_id or source_id,
+        "venue_id": args.venue_id or source_id,
+        "data_family_id": args.data_family_id,
+        "transport_id": args.transport_id,
+        "jurisdiction": args.jurisdiction,
+        "asset_classes": asset_classes,
+        "query_ids": query_ids,
+        "assurance_class": assurance_class,
+        "registered_epoch": _now_epoch(args),
+        "deactivated_epoch": None,
+        "active": True,
+        "not_claimed": [
+            "does_not_prove_hidden_beneficial_ownership_absent",
+            "does_not_prove_source_data_is_true_without_external_audit",
+        ],
+        "production_authority": False,
+    }
+    sources[source_id] = entry
+    registry["sources"] = {key: sources[key] for key in sorted(sources)}
+    _write_json(_source_registry_path(home), registry)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "source_id": source_id,
+            "source": entry,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_source_list(args: argparse.Namespace) -> int:
+    home = _home(args)
+    registry = _load_source_registry(home)
+    rows = [
+        dict(entry)
+        for _source_id, entry in sorted(_source_entries(registry).items())
+        if isinstance(entry, dict)
+    ]
+    if args.active_only:
+        rows = [row for row in rows if row.get("active") is True]
+    if args.asset_class:
+        rows = [
+            row
+            for row in rows
+            if str(args.asset_class).lower() in {str(item).lower() for item in row.get("asset_classes", [])}
+        ]
+    if args.query_id:
+        rows = [
+            row
+            for row in rows
+            if not isinstance(row.get("query_ids"), list) or not row.get("query_ids") or args.query_id in row["query_ids"]
+        ]
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "count": len(rows),
+            "sources": rows,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_source_show(args: argparse.Namespace) -> int:
+    home = _home(args)
+    registry = _load_source_registry(home)
+    entry = _source_entries(registry).get(args.source_id)
+    if not isinstance(entry, dict):
+        raise SystemExit(f"source not found: {args.source_id}")
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "source": entry,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_source_deactivate(args: argparse.Namespace) -> int:
+    home = _home(args)
+    registry = _load_source_registry(home)
+    sources = _source_entries(registry)
+    entry = sources.get(args.source_id)
+    if not isinstance(entry, dict):
+        raise SystemExit(f"source not found: {args.source_id}")
+    entry["active"] = False
+    entry["deactivated_epoch"] = _now_epoch(args)
+    sources[args.source_id] = entry
+    registry["sources"] = {key: sources[key] for key in sorted(sources)}
+    _write_json(_source_registry_path(home), registry)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "source_id": args.source_id,
+            "source": entry,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _sign_local_report(secret_hex: str, signing_payload_hash: str) -> str:
+    secret = bytes.fromhex(secret_hex)
+    digest = hashlib.sha256(secret + signing_payload_hash.encode("utf-8")).hexdigest()
+    return f"local-dev-sha256:{digest}"
+
+
+def _registry_queries(registry: Any) -> list[dict[str, Any]]:
+    if isinstance(registry, list):
+        queries = registry
+    elif isinstance(registry, dict):
+        value = registry.get("queries", registry.get("items", []))
+        queries = value if isinstance(value, list) else []
+    else:
+        queries = []
+    return [item for item in queries if isinstance(item, dict)]
+
+
+def _query_registry_from_args(args: argparse.Namespace) -> tuple[Path, list[dict[str, Any]]]:
+    if getattr(args, "registry", None):
+        path = Path(args.registry)
+        return path, _registry_queries(_load_json(path))
+    home = _home(args)
+    path = _query_registry_path(home)
+    return path, _registry_queries(_load_query_registry(home))
+
+
+def cmd_query_register(args: argparse.Namespace) -> int:
+    home = _home(args)
+    registry = _load_query_registry(home)
+    queries = _registry_queries(registry)
+    base_asset = args.base_asset.upper()
+    quote_asset = args.quote_asset.upper()
+    if base_asset == quote_asset:
+        raise SystemExit("base-asset and quote-asset must differ")
+    if int(args.scale) <= 0:
+        raise SystemExit("scale must be positive")
+    if int(args.min_reporters) <= 0:
+        raise SystemExit("min-reporters must be positive")
+    if int(args.freshness_window_epochs) <= 0:
+        raise SystemExit("freshness-window-epochs must be positive")
+    if int(args.max_deviation_bps) < 0:
+        raise SystemExit("max-deviation-bps must be non-negative")
+    if int(args.high_uncertainty_confidence_e8) < 0:
+        raise SystemExit("high-uncertainty-confidence-e8 must be non-negative")
+    for name in (
+        "report_reward_e8",
+        "reward_budget_e8",
+        "dispute_bond_e8",
+        "default_slash_e8",
+    ):
+        if int(getattr(args, name)) < 0:
+            raise SystemExit(f"{name.replace('_', '-')} must be non-negative")
+    asset_class = str(args.asset_class).strip().lower()
+    if asset_class not in ASSET_CLASSES:
+        raise SystemExit(f"asset-class must be one of: {', '.join(ASSET_CLASSES)}")
+    query_body = {
+        "schema": "zeno_oracle.query.v1",
+        "query_type": args.query_type,
+        "feed_id": args.feed_id or f"feed:{base_asset}-{quote_asset}:v1",
+        "base_asset": base_asset,
+        "quote_asset": quote_asset,
+        "asset_class": asset_class,
+        "jurisdiction": args.jurisdiction,
+        "market_hours_policy_id": args.market_hours_policy_id,
+        "valuation_policy_id": args.valuation_policy_id,
+        "scale": int(args.scale),
+        "evidence_floor": args.evidence_floor,
+        "freshness_window_epochs": int(args.freshness_window_epochs),
+        "min_reporters": int(args.min_reporters),
+        "max_deviation_bps": int(args.max_deviation_bps),
+        "high_uncertainty_confidence_e8": int(args.high_uncertainty_confidence_e8),
+        "source_policy_id": args.source_policy_id,
+        "report_reward_e8": int(args.report_reward_e8),
+        "reward_budget_e8": int(args.reward_budget_e8),
+        "reward_spent_e8": 0,
+        "dispute_bond_e8": int(args.dispute_bond_e8),
+        "default_slash_e8": int(args.default_slash_e8),
+        "status": "active",
+    }
+    query_id = args.query_id or semantic_hash("zeno_oracle.query.v1", query_body)
+    query = {**query_body, "query_id": query_id}
+    replacement = False
+    for idx, existing in enumerate(queries):
+        if existing.get("query_id") == query_id:
+            if not args.force:
+                raise SystemExit(f"query already exists: {query_id}; pass --force to overwrite")
+            queries[idx] = query
+            replacement = True
+            break
+    if not replacement:
+        queries.append(query)
+    registry["queries"] = sorted(queries, key=lambda item: str(item.get("query_id", "")))
+    _write_json(_query_registry_path(home), registry)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "query_id": query_id,
+            "query": query,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_query_fund(args: argparse.Namespace) -> int:
+    home = _home(args)
+    amount = _positive_int(str(args.amount_e8), name="amount-e8")
+    registry, queries, query = _find_local_query(home, args.query_id)
+    if query is None:
+        raise SystemExit(f"query_id not found: {args.query_id}")
+    query["reward_budget_e8"] = int(query.get("reward_budget_e8", 0)) + amount
+    query.setdefault("reward_spent_e8", 0)
+    _replace_query(registry, queries, query)
+    _write_json(_query_registry_path(home), registry)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "query_id": args.query_id,
+            "reward_budget_e8": query["reward_budget_e8"],
+            "reward_spent_e8": query["reward_spent_e8"],
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_query_list(args: argparse.Namespace) -> int:
+    path, queries = _query_registry_from_args(args)
+    payload = {
+        "schema": SCHEMA,
+        "ok": True,
+        "registry": str(path),
+        "count": len(queries),
+        "queries": queries,
+    }
+    _emit(payload, json_out=args.json)
+    return 0
+
+
+def cmd_query_show(args: argparse.Namespace) -> int:
+    _path, queries = _query_registry_from_args(args)
+    for query in queries:
+        if query.get("query_id") == args.query_id:
+            _emit({"schema": SCHEMA, "ok": True, "query": query}, json_out=args.json)
+            return 0
+    raise SystemExit(f"query_id not found: {args.query_id}")
+
+
+def _latest_aggregate_for_query(home: Path, query_id: str) -> dict[str, Any] | None:
+    candidates = [
+        aggregate
+        for aggregate in _iter_jsonl(_aggregates_log_path(home))
+        if aggregate.get("query_id") == query_id
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: int(item.get("aggregate_epoch", 0)))
+
+
+def _latest_read_for_query(home: Path, query_id: str) -> dict[str, Any] | None:
+    candidates = [read for read in _iter_jsonl(_reads_log_path(home)) if read.get("query_id") == query_id]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: int(item.get("expires_at_epoch", 0)))
+
+
+def _disputed_report_ids(home: Path) -> set[str]:
+    disputes = _load_disputes(home)
+    disputed: set[str] = set()
+    for entry in _dispute_entries(disputes).values():
+        if isinstance(entry, dict) and entry.get("status") in {"open", "upheld"} and entry.get("report_id"):
+            disputed.add(str(entry["report_id"]))
+    return disputed
+
+
+def _aggregate_has_disputed_reports(home: Path, aggregate: Mapping[str, Any] | None) -> bool:
+    if aggregate is None:
+        return False
+    disputed = _disputed_report_ids(home)
+    return any(str(report_id) in disputed for report_id in aggregate.get("included_report_ids", []))
+
+
+def _dispute_state_for_report_ids(home: Path, report_ids: Sequence[str]) -> tuple[list[dict[str, Any]], str]:
+    wanted = {str(report_id) for report_id in report_ids}
+    disputes = _load_disputes(home)
+    entries: list[dict[str, Any]] = []
+    for entry in _dispute_entries(disputes).values():
+        if not isinstance(entry, dict):
+            continue
+        report_id = entry.get("report_id")
+        if str(report_id) not in wanted:
+            continue
+        entries.append(
+            {
+                "dispute_id": str(entry.get("dispute_id", "")),
+                "report_id": str(report_id),
+                "reporter_id": str(entry.get("reporter_id", "")),
+                "status": str(entry.get("status", "")),
+                "slash_e8": int(entry.get("slash_e8", 0)),
+            }
+        )
+    entries.sort(key=lambda item: (item["report_id"], item["dispute_id"]))
+    return entries, semantic_hash("zeno_oracle.dispute_state_root.v1", {"disputes": entries})
+
+
+def _query_status(home: Path, query: Mapping[str, Any], now_epoch: int) -> dict[str, Any]:
+    query_id = str(query["query_id"])
+    aggregate = _latest_aggregate_for_query(home, query_id)
+    read = _latest_read_for_query(home, query_id)
+    labels = ["devnet-only"]
+    fresh = read is not None and int(read.get("expires_at_epoch", -1)) >= int(now_epoch)
+    if fresh:
+        labels.append("fresh")
+    else:
+        labels.append("stale")
+    if _aggregate_has_disputed_reports(home, aggregate):
+        labels.append("disputed")
+    if aggregate is not None:
+        confidence = int(aggregate.get("confidence_e8", 0))
+        uncertainty_limit = int(query.get("high_uncertainty_confidence_e8", 0))
+        if uncertainty_limit > 0 and confidence >= uncertainty_limit:
+            labels.append("high-uncertainty")
+    else:
+        labels.append("no-aggregate")
+    return {
+        "query_id": query_id,
+        "feed_id": query.get("feed_id", f"feed:{query_id}"),
+        "base_asset": query.get("base_asset"),
+        "quote_asset": query.get("quote_asset"),
+        "asset_class": query.get("asset_class", "crypto"),
+        "query_type": query.get("query_type", "spot_price"),
+        "evidence_floor": query.get("evidence_floor", "O3"),
+        "source_policy_id": query.get("source_policy_id", "source-policy:declared-diverse-v1"),
+        "jurisdiction": query.get("jurisdiction", "global"),
+        "market_hours_policy_id": query.get("market_hours_policy_id", "always-open-v1"),
+        "valuation_policy_id": query.get("valuation_policy_id", "spot-observed-v1"),
+        "status": sorted(set(labels)),
+        "latest_aggregate_id": None if aggregate is None else aggregate.get("aggregate_id"),
+        "latest_read_id": None if read is None else read.get("read_id"),
+        "latest_value_e8": None if aggregate is None else aggregate.get("value_e8"),
+        "confidence_e8": None if aggregate is None else aggregate.get("confidence_e8"),
+        "deviation_bps": None if aggregate is None else aggregate.get("deviation_bps"),
+        "expires_at_epoch": None if read is None else read.get("expires_at_epoch"),
+        "now_epoch": int(now_epoch),
+        "production_authority": False,
+    }
+
+
+def cmd_query_status(args: argparse.Namespace) -> int:
+    home = _home(args)
+    if args.all:
+        registry = _load_query_registry(home)
+        queries = _registry_queries(registry)
+        now_epoch = int(args.now_epoch if args.now_epoch is not None else time.time())
+        statuses = [_query_status(home, query, now_epoch) for query in queries if query.get("query_id")]
+        _emit(
+            {
+                "schema": SCHEMA,
+                "ok": True,
+                "home": str(home),
+                "count": len(statuses),
+                "feed_statuses": statuses,
+                "production_authority": False,
+            },
+            json_out=args.json,
+        )
+        return 0
+    if not args.query_id:
+        raise SystemExit("query status requires --query-id unless --all is passed")
+    _registry, queries, query = _find_local_query(home, args.query_id)
+    if query is None:
+        raise SystemExit(f"query_id not found: {args.query_id}")
+    now_epoch = int(args.now_epoch if args.now_epoch is not None else time.time())
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "feed_status": _query_status(home, query, now_epoch),
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _positive_int(raw: str, *, name: str) -> int:
+    if not raw.isdecimal():
+        raise argparse.ArgumentTypeError(f"{name} must be a positive integer, not a float")
+    value = int(raw)
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"{name} must be positive")
+    return value
+
+
+def _require_evidence_at_least(actual: str, minimum: str) -> None:
+    if actual not in EVIDENCE_RANK:
+        raise SystemExit(f"unknown evidence class: {actual}")
+    if minimum not in EVIDENCE_RANK:
+        raise SystemExit(f"unknown minimum evidence class: {minimum}")
+    if EVIDENCE_RANK[actual] < EVIDENCE_RANK[minimum]:
+        raise SystemExit(f"evidence class {actual} is below required {minimum}")
+
+
+def _is_critical_profile(profile_id: object) -> bool:
+    if not isinstance(profile_id, str):
+        return False
+    normalized = profile_id.lower()
+    for separator in (":", "/", "_", "."):
+        normalized = normalized.replace(separator, "-")
+    return "critical" in {token for token in normalized.split("-") if token}
+
+
+def _require_read_profile_evidence(profile_id: object, evidence_class: str) -> None:
+    if _is_critical_profile(profile_id):
+        _require_evidence_at_least(evidence_class, "O3")
+
+
+def _source_policy_requires_registered(source_policy_id: object) -> bool:
+    return str(source_policy_id) in {
+        "registered-diverse-v1",
+        "source-policy:registered-diverse-v1",
+        "source-policy:registered-control-groups-v1",
+        "registered-independent-v1",
+        "source-policy:registered-independent-v1",
+    }
+
+
+def _source_policy_requires_reporter_source_independence(source_policy_id: object) -> bool:
+    return str(source_policy_id) in {
+        "registered-independent-v1",
+        "source-policy:registered-independent-v1",
+    }
+
+
+def _source_state_for_submit(
+    *,
+    home: Path,
+    query: Mapping[str, Any] | None,
+    source_id: str,
+) -> dict[str, Any] | None:
+    registry = _load_source_registry(home)
+    sources = _source_entries(registry)
+    entry = sources.get(source_id)
+    requires_registered = _source_policy_requires_registered(
+        None if query is None else query.get("source_policy_id")
+    )
+    if entry is None:
+        if requires_registered:
+            raise SystemExit(f"source_id is not registered for registered source policy: {source_id}")
+        return None
+    if not isinstance(entry, dict):
+        raise SystemExit(f"source registry entry must be an object: {source_id}")
+    if entry.get("active") is not True:
+        raise SystemExit(f"source is not active: {source_id}")
+    query_id = None if query is None else str(query.get("query_id"))
+    query_ids = entry.get("query_ids")
+    if isinstance(query_ids, list) and query_ids and query_id not in {str(item) for item in query_ids}:
+        raise SystemExit(f"source is not registered for query_id: {query_id}")
+    asset_class = None if query is None else str(query.get("asset_class", "crypto")).lower()
+    asset_classes = entry.get("asset_classes")
+    if isinstance(asset_classes, list) and asset_classes and asset_class not in {
+        str(item).lower() for item in asset_classes
+    }:
+        raise SystemExit(f"source is not registered for asset_class: {asset_class}")
+    return _stable_source_snapshot(entry)
+
+
+def cmd_report_dry_run(args: argparse.Namespace) -> int:
+    price_e8 = _positive_int(str(args.price_e8), name="price-e8")
+    source_epoch = _positive_int(str(args.source_observed_epoch), name="source-observed-epoch")
+    payload = {
+        "schema": "zeno_oracle.report.dry_run.v1",
+        "query_id": args.query_id,
+        "reporter_id": args.reporter_id,
+        "source_id": args.source_id,
+        "value_kind": "price_e8",
+        "price_e8": price_e8,
+        "source_observed_epoch": source_epoch,
+        "reported_epoch": int(args.reported_epoch if args.reported_epoch is not None else source_epoch),
+    }
+    signing_payload_hash = semantic_hash("zeno_oracle.report_signing_payload.v1", payload)
+    report_id = semantic_hash("zeno_oracle.report.v1", {**payload, "signing_payload_hash": signing_payload_hash})
+    result = {
+        "schema": SCHEMA,
+        "ok": True,
+        "dry_run": True,
+        "report_id": report_id,
+        "signing_payload_hash": signing_payload_hash,
+        "report": payload,
+        "production_authority": False,
+    }
+    if args.out:
+        _write_json(Path(args.out), result)
+    _emit(result, json_out=args.json)
+    return 0
+
+
+def _build_report_payload(
+    *,
+    query_id: str,
+    reporter_id: str,
+    source_id: str,
+    price_e8: int,
+    source_observed_epoch: int,
+    reported_epoch: int,
+    sequence: int,
+    reporter_state_hash: str | None = None,
+    source_state_hash: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "schema": "zeno_oracle.report.v1",
+        "query_id": query_id,
+        "reporter_id": reporter_id,
+        "source_id": source_id,
+        "value_kind": "price_e8",
+        "price_e8": int(price_e8),
+        "source_observed_epoch": int(source_observed_epoch),
+        "reported_epoch": int(reported_epoch),
+        "sequence": int(sequence),
+    }
+    if reporter_state_hash is not None:
+        payload["reporter_state_hash"] = reporter_state_hash
+    if source_state_hash is not None:
+        payload["source_state_hash"] = source_state_hash
+    return payload
+
+
+def _report_hashes(payload: Mapping[str, Any]) -> tuple[str, str]:
+    signing_payload_hash = semantic_hash("zeno_oracle.report_signing_payload.v1", payload)
+    report_id = semantic_hash(
+        "zeno_oracle.report.v1",
+        {**payload, "signing_payload_hash": signing_payload_hash},
+    )
+    return signing_payload_hash, report_id
+
+
+def _median_int(values: list[int]) -> int:
+    if not values:
+        raise ValueError("cannot compute median of empty list")
+    ordered = sorted(values)
+    return int(ordered[len(ordered) // 2])
+
+
+def _deviation_bps(values: list[int], median: int) -> int:
+    if median <= 0 or not values:
+        return 0
+    spread = max(values) - min(values)
+    return int(math.ceil((spread * 10_000) / median))
+
+
+def _latest_reports_for_query(home: Path, query_id: str) -> list[dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for report in _iter_jsonl(_reports_log_path(home)):
+        if report.get("query_id") != query_id:
+            continue
+        reporter_id = report.get("reporter_id")
+        if not isinstance(reporter_id, str):
+            continue
+        previous = latest.get(reporter_id)
+        if previous is None or int(report.get("sequence", 0)) > int(previous.get("sequence", 0)):
+            latest[reporter_id] = report
+    return [latest[key] for key in sorted(latest)]
+
+
+def _aggregate_from_reports(*, query: Mapping[str, Any], reports: list[dict[str, Any]], epoch: int) -> dict[str, Any]:
+    query_id = str(query["query_id"])
+    if len(reports) < int(query.get("min_reporters", 1)):
+        raise SystemExit("not enough distinct reporter reports for aggregate")
+    reporter_ids = [str(report.get("reporter_id")) for report in reports]
+    if len(set(reporter_ids)) != len(reporter_ids):
+        raise SystemExit("aggregate reports must have distinct reporter_id values")
+    reporter_control_groups: list[str] = []
+    for report in reports:
+        snapshot = report.get("reporter_state_at_submit")
+        if isinstance(snapshot, Mapping) and snapshot.get("control_group_id"):
+            reporter_control_groups.append(str(snapshot["control_group_id"]))
+        else:
+            reporter_control_groups.append(str(report.get("reporter_id")))
+    source_ids = [str(report.get("source_id", "")).strip() for report in reports]
+    if any(not source_id for source_id in source_ids):
+        raise SystemExit("aggregate reports must have non-empty source_id values")
+    evidence_floor = str(query.get("evidence_floor", "O3"))
+    source_policy_id = str(query.get("source_policy_id", "source-policy:declared-diverse-v1"))
+    requires_registered_sources = _source_policy_requires_registered(source_policy_id)
+    requires_reporter_source_independence = _source_policy_requires_reporter_source_independence(source_policy_id)
+    requires_source_diversity = (
+        EVIDENCE_RANK.get(evidence_floor, 0) >= EVIDENCE_RANK["O3"]
+        or source_policy_id in {"declared-diverse-v1", "source-policy:declared-diverse-v1"}
+        or requires_registered_sources
+    )
+    source_snapshots: list[dict[str, Any]] = []
+    for report in reports:
+        snapshot = report.get("source_state_at_submit")
+        if isinstance(snapshot, Mapping):
+            source_snapshots.append(dict(snapshot))
+        elif requires_registered_sources:
+            raise SystemExit("registered source policy requires source_state_at_submit on every report")
+    if requires_source_diversity and len(set(source_ids)) != len(source_ids):
+        raise SystemExit("aggregate reports must have distinct source_id values")
+    if requires_source_diversity and len(set(reporter_control_groups)) != len(reporter_control_groups):
+        raise SystemExit("aggregate reports must have distinct reporter control_group_id values")
+    if requires_registered_sources:
+        if any(snapshot.get("active") is not True for snapshot in source_snapshots):
+            raise SystemExit("registered source policy requires active source snapshots")
+        for report, snapshot in zip(reports, source_snapshots, strict=True):
+            if snapshot.get("source_id") != report.get("source_id"):
+                raise SystemExit("registered source policy requires source snapshot to match report source_id")
+            for key in (
+                "source_control_group_id",
+                "venue_id",
+                "data_family_id",
+                "transport_id",
+                "assurance_class",
+            ):
+                if not isinstance(snapshot.get(key), str) or not snapshot.get(key):
+                    raise SystemExit(f"registered source policy requires non-empty {key} values")
+        source_control_groups = [
+            str(snapshot.get("source_control_group_id", snapshot.get("source_id", "")))
+            for snapshot in source_snapshots
+        ]
+        venue_ids = [str(snapshot.get("venue_id", snapshot.get("source_id", ""))) for snapshot in source_snapshots]
+        data_family_ids = [
+            str(snapshot.get("data_family_id", snapshot.get("source_id", "")))
+            for snapshot in source_snapshots
+        ]
+        transport_ids = [
+            str(snapshot.get("transport_id", snapshot.get("source_id", "")))
+            for snapshot in source_snapshots
+        ]
+        if len(set(source_control_groups)) != len(source_control_groups):
+            raise SystemExit("registered source policy requires distinct source_control_group_id values")
+        if len(set(venue_ids)) != len(venue_ids):
+            raise SystemExit("registered source policy requires distinct venue_id values")
+        if len(set(data_family_ids)) != len(data_family_ids):
+            raise SystemExit("registered source policy requires distinct data_family_id values")
+        if len(set(transport_ids)) != len(transport_ids):
+            raise SystemExit("registered source policy requires distinct transport_id values")
+        if requires_reporter_source_independence:
+            overlap = sorted(set(reporter_control_groups).intersection(set(source_control_groups)))
+            if overlap:
+                raise SystemExit(
+                    "registered independent source policy rejects reporter/source control_group overlap"
+                )
+    values = [int(report["price_e8"]) for report in reports]
+    median = _median_int(values)
+    confidence = max(abs(value - median) for value in values)
+    deviation_bps = _deviation_bps(values, median)
+    observed_epoch = min(int(report["source_observed_epoch"]) for report in reports)
+    included_report_ids = sorted(str(report["report_id"]) for report in reports)
+    included_source_ids = sorted(source_ids)
+    body = {
+        "schema": "zeno_oracle.aggregate.v1",
+        "query_id": query_id,
+        "aggregate_kind": "median_latest_distinct_reporters_distinct_sources",
+        "evidence_class": evidence_floor,
+        "value_e8": median,
+        "confidence_e8": int(confidence),
+        "deviation_bps": int(deviation_bps),
+        "observed_epoch": observed_epoch,
+        "aggregate_epoch": int(epoch),
+        "min_reporters": int(query.get("min_reporters", 1)),
+        "reporter_count": len(reports),
+        "source_policy_id": source_policy_id,
+        "source_count": len(set(source_ids)),
+        "reporter_control_group_count": len(set(reporter_control_groups)),
+        "included_source_ids": included_source_ids,
+        "included_report_ids": included_report_ids,
+        "feed_registry_root": _feed_registry_root(query),
+        "query_policy_root": _query_registry_root(query),
+        "source_registry_root": _source_registry_root(reports),
+        "reporter_registry_root": _reporter_registry_root(reports),
+        "production_authority": False,
+    }
+    return {**body, "aggregate_id": semantic_hash("zeno_oracle.aggregate.v1", body)}
+
+
+def oracle_value_hash(*, query_id: str, value_e8: int, observed_epoch: int) -> str:
+    return semantic_hash(
+        "zenodex.oracle.value.v1",
+        {
+            "observed_epoch": int(observed_epoch),
+            "query_id": str(query_id),
+            "value_e8": int(value_e8),
+        },
+    )
+
+
+def _aggregates_by_id(home: Path) -> dict[str, dict[str, Any]]:
+    return {
+        str(aggregate["aggregate_id"]): aggregate
+        for aggregate in _iter_jsonl(_aggregates_log_path(home))
+        if aggregate.get("aggregate_id")
+    }
+
+
+def _reads_by_id(home: Path) -> dict[str, dict[str, Any]]:
+    return {
+        str(read["read_id"]): read
+        for read in _iter_jsonl(_reads_log_path(home))
+        if read.get("read_id")
+    }
+
+
+def _reports_by_id(home: Path) -> dict[str, dict[str, Any]]:
+    return {
+        str(report["report_id"]): report
+        for report in _iter_jsonl(_reports_log_path(home))
+        if report.get("report_id")
+    }
+
+
+def _query_registry_root(query: Mapping[str, Any]) -> str:
+    policy_keys = (
+        "schema",
+        "query_type",
+        "query_id",
+        "feed_id",
+        "base_asset",
+        "quote_asset",
+        "asset_class",
+        "jurisdiction",
+        "market_hours_policy_id",
+        "valuation_policy_id",
+        "scale",
+        "evidence_floor",
+        "freshness_window_epochs",
+        "min_reporters",
+        "max_deviation_bps",
+        "high_uncertainty_confidence_e8",
+        "source_policy_id",
+        "report_reward_e8",
+        "dispute_bond_e8",
+        "default_slash_e8",
+        "status",
+    )
+    return semantic_hash(
+        "zeno_oracle.query_policy_root.v1",
+        {key: query.get(key) for key in policy_keys if key in query},
+    )
+
+
+def _feed_registry_root(query: Mapping[str, Any]) -> str:
+    return semantic_hash(
+        "zeno_oracle.feed_registry_root.v1",
+        {
+            "feed_id": query.get("feed_id", f"feed:{query.get('query_id')}"),
+            "query_id": query.get("query_id"),
+            "status": query.get("status"),
+            "evidence_floor": query.get("evidence_floor"),
+        },
+    )
+
+
+def _source_registry_root(reports: list[Mapping[str, Any]]) -> str:
+    source_entries: list[dict[str, Any]] = []
+    fallback_source_ids: list[str] = []
+    for report in reports:
+        source_id = report.get("source_id")
+        if source_id:
+            fallback_source_ids.append(str(source_id))
+        snapshot = report.get("source_state_at_submit")
+        if isinstance(snapshot, Mapping):
+            source_entries.append(
+                {
+                    "active": bool(snapshot.get("active")),
+                    "asset_classes": sorted(
+                        str(item) for item in snapshot.get("asset_classes", []) if isinstance(item, str)
+                    ),
+                    "assurance_class": str(snapshot.get("assurance_class", "")),
+                    "data_family_id": str(snapshot.get("data_family_id", "")),
+                    "jurisdiction": str(snapshot.get("jurisdiction", "")),
+                    "operator_id": str(snapshot.get("operator_id", "")),
+                    "query_ids": sorted(
+                        str(item) for item in snapshot.get("query_ids", []) if isinstance(item, str)
+                    ),
+                    "registered_epoch": int(snapshot.get("registered_epoch", 0)),
+                    "source_control_group_id": str(snapshot.get("source_control_group_id", "")),
+                    "source_id": str(snapshot.get("source_id", source_id or "")),
+                    "source_kind": str(snapshot.get("source_kind", "")),
+                    "transport_id": str(snapshot.get("transport_id", "")),
+                    "venue_id": str(snapshot.get("venue_id", "")),
+                }
+            )
+    if source_entries:
+        source_entries.sort(key=lambda item: item["source_id"])
+        return semantic_hash("zeno_oracle.source_registry_root.v1", {"sources": source_entries})
+    source_ids = sorted(set(fallback_source_ids))
+    return semantic_hash("zeno_oracle.source_registry_root.v1", {"source_ids": source_ids})
+
+
+def _reporter_registry_root(reports: list[Mapping[str, Any]]) -> str:
+    reporter_entries = []
+    for report in reports:
+        reporter_id = report.get("reporter_id")
+        if not reporter_id:
+            continue
+        snapshot = report.get("reporter_state_at_submit")
+        control_group_id = None
+        if isinstance(snapshot, Mapping):
+            control_group_id = snapshot.get("control_group_id")
+        reporter_entries.append(
+            {
+                "control_group_id": str(control_group_id or reporter_id),
+                "reporter_id": str(reporter_id),
+            }
+        )
+    reporter_entries.sort(key=lambda item: (item["control_group_id"], item["reporter_id"]))
+    return semantic_hash("zeno_oracle.reporter_registry_root.v1", {"reporters": reporter_entries})
+
+
+def _report_leaf_commitments(reports: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    leaves: list[dict[str, Any]] = []
+    for report in reports:
+        snapshot = report.get("reporter_state_at_submit")
+        snapshot_obj = snapshot if isinstance(snapshot, Mapping) else {}
+        source_snapshot = report.get("source_state_at_submit")
+        source_snapshot_obj = source_snapshot if isinstance(source_snapshot, Mapping) else {}
+        leaves.append(
+            {
+                "active": bool(snapshot_obj.get("active")),
+                "bond_amount_e8": int(snapshot_obj.get("bond_amount_e8", 0)),
+                "control_group_id": str(snapshot_obj.get("control_group_id", report.get("reporter_id", ""))),
+                "price_e8": int(report.get("price_e8", 0)),
+                "query_id": str(report.get("query_id", "")),
+                "query_ids": sorted(str(item) for item in snapshot_obj.get("query_ids", []) if isinstance(item, str)),
+                "report_id": str(report.get("report_id", "")),
+                "reported_epoch": int(report.get("reported_epoch", 0)),
+                "reporter_id": str(report.get("reporter_id", "")),
+                "reporter_state_hash": str(report.get("reporter_state_hash", "")),
+                "required_bond_e8": int(snapshot_obj.get("required_bond_e8", 0)),
+                "sequence": int(report.get("sequence", 0)),
+                "signature": str(report.get("signature", "")),
+                "signing_payload_hash": str(report.get("signing_payload_hash", "")),
+                "slash_state": str(snapshot_obj.get("slash_state", "")),
+                "source_id": str(report.get("source_id", "")),
+                "source_observed_epoch": int(report.get("source_observed_epoch", 0)),
+                "source_state_hash": str(report.get("source_state_hash", "")),
+                "source_state_at_submit": _stable_source_snapshot(source_snapshot_obj) if source_snapshot_obj else None,
+            }
+        )
+    leaves.sort(key=lambda item: item["report_id"])
+    return leaves
+
+
+def _receipt_graph_from_read(home: Path, read: Mapping[str, Any]) -> dict[str, Any]:
+    aggregate = _aggregates_by_id(home).get(str(read.get("aggregate_id")))
+    if not isinstance(aggregate, dict):
+        raise SystemExit(f"accepted read references unknown aggregate_id: {read.get('aggregate_id')}")
+    reports_by_id = _reports_by_id(home)
+    included_reports = []
+    for report_id in aggregate.get("included_report_ids", []):
+        report = reports_by_id.get(str(report_id))
+        if not isinstance(report, dict):
+            raise SystemExit(f"aggregate references unknown report_id: {report_id}")
+        included_reports.append(report)
+    _registry, _queries, query = _find_local_query(home, str(read.get("query_id")))
+    if query is None:
+        raise SystemExit(f"accepted read references unknown query_id: {read.get('query_id')}")
+    if aggregate.get("feed_registry_root") != _feed_registry_root(query):
+        raise SystemExit("accepted read aggregate feed_registry_root does not match active query")
+    if aggregate.get("query_policy_root") != _query_registry_root(query):
+        raise SystemExit("accepted read aggregate query_policy_root does not match active query")
+    source_registry_root = _source_registry_root(included_reports)
+    reporter_registry_root = _reporter_registry_root(included_reports)
+    if aggregate.get("source_registry_root") != source_registry_root:
+        raise SystemExit("accepted read aggregate source_registry_root does not match report inputs")
+    if aggregate.get("reporter_registry_root") != reporter_registry_root:
+        raise SystemExit("accepted read aggregate reporter_registry_root does not match report inputs")
+    report_leaf_commitments = _report_leaf_commitments(included_reports)
+    dispute_entries, dispute_state_root = _dispute_state_for_report_ids(
+        home,
+        [str(report_id) for report_id in aggregate.get("included_report_ids", [])],
+    )
+    disputed_report_ids = sorted(
+        {
+            entry["report_id"]
+            for entry in dispute_entries
+            if entry.get("status") in {"open", "upheld"}
+        }
+    )
+    body = {
+        "schema": "zeno_oracle.receipt_graph.v1",
+        "read_id": read["read_id"],
+        "aggregate_id": aggregate["aggregate_id"],
+        "query_id": read["query_id"],
+        "value_hash": read.get("value_hash"),
+        "value_e8": int(read.get("value_e8", 0)),
+        "confidence_e8": int(read.get("confidence_e8", 0)),
+        "deviation_bps": int(read.get("deviation_bps", 0)),
+        "observed_epoch": int(read.get("observed_epoch", 0)),
+        "expires_at_epoch": int(read.get("expires_at_epoch", 0)),
+        "read_evidence_class": read.get("evidence_class"),
+        "aggregate_evidence_class": aggregate.get("evidence_class"),
+        "reporter_count": int(aggregate.get("reporter_count", 0)),
+        "min_reporters": int(aggregate.get("min_reporters", 0)),
+        "source_policy_id": aggregate.get("source_policy_id"),
+        "source_count": int(aggregate.get("source_count", 0)),
+        "reporter_control_group_count": int(aggregate.get("reporter_control_group_count", 0)),
+        "included_source_ids": list(aggregate.get("included_source_ids", [])),
+        "included_report_ids": list(aggregate.get("included_report_ids", [])),
+        "report_leaf_commitments": report_leaf_commitments,
+        "report_leaf_root": semantic_hash(
+            "zeno_oracle.report_leaf_root.v1",
+            {"reports": report_leaf_commitments},
+        ),
+        "dispute_state_root": dispute_state_root,
+        "disputed_report_ids": disputed_report_ids,
+        "feed_registry_root": aggregate.get("feed_registry_root"),
+        "query_policy_root": aggregate.get("query_policy_root"),
+        "source_registry_root": source_registry_root,
+        "reporter_registry_root": reporter_registry_root,
+    }
+    return {**body, "receipt_graph_root": semantic_hash("zeno_oracle.receipt_graph.v1", body)}
+
+
+def _accepted_read_from_aggregate(
+    *,
+    query: Mapping[str, Any],
+    aggregate: Mapping[str, Any],
+    consumer_module: str,
+    profile_id: str,
+) -> dict[str, Any]:
+    observed_epoch = int(aggregate["observed_epoch"])
+    value_e8 = int(aggregate["value_e8"])
+    body = {
+        "schema": "zeno_oracle.accepted_read.v1",
+        "aggregate_id": aggregate["aggregate_id"],
+        "query_id": aggregate["query_id"],
+        "consumer_module": consumer_module,
+        "profile_id": profile_id,
+        "value_e8": value_e8,
+        "value_hash": oracle_value_hash(
+            query_id=str(aggregate["query_id"]),
+            value_e8=value_e8,
+            observed_epoch=observed_epoch,
+        ),
+        "confidence_e8": int(aggregate["confidence_e8"]),
+        "deviation_bps": int(aggregate["deviation_bps"]),
+        "observed_epoch": observed_epoch,
+        "expires_at_epoch": observed_epoch + int(query.get("freshness_window_epochs", 0)),
+        "evidence_class": aggregate.get("evidence_class", query.get("evidence_floor", "O3")),
+        "production_authority": False,
+    }
+    return {**body, "read_id": semantic_hash("zeno_oracle.accepted_read.v1", body)}
+
+
+def _require_submit_ready(entry: Mapping[str, Any], query_id: str) -> None:
+    if entry.get("slash_state") != "clear":
+        raise SystemExit("reporter slash_state must be clear")
+    if entry.get("active") is not True:
+        raise SystemExit("reporter is not active; register and bond first")
+    if int(entry.get("bond_amount_e8", 0)) < int(entry.get("required_bond_e8", 0)):
+        raise SystemExit("reporter bond is below required_bond_e8")
+    query_ids = entry.get("query_ids")
+    if isinstance(query_ids, list) and query_ids and query_id not in query_ids:
+        raise SystemExit(f"reporter is not registered for query_id: {query_id}")
+
+
+def cmd_report_submit(args: argparse.Namespace) -> int:
+    home = _home(args)
+    identity = _load_identity(home)
+    reporter_id = str(identity["reporter_id"])
+    registry = _load_reporter_registry(home)
+    reporters = _registry_reporters(registry)
+    entry = reporters.get(reporter_id)
+    if not isinstance(entry, dict):
+        raise SystemExit("reporter must be registered before submitting reports")
+    _require_known_local_query_if_configured(home, args.query_id)
+    _require_submit_ready(entry, args.query_id)
+    query_registry, queries, query = _find_local_query(home, args.query_id)
+    reward_e8 = int(
+        args.reward_e8
+        if args.reward_e8 is not None
+        else (query.get("report_reward_e8", DEFAULT_REPORT_REWARD_E8) if query is not None else DEFAULT_REPORT_REWARD_E8)
+    )
+    if reward_e8 < 0:
+        raise SystemExit("reward-e8 must be non-negative")
+    if query is not None:
+        budget = int(query.get("reward_budget_e8", 0))
+        spent = int(query.get("reward_spent_e8", 0))
+        if spent + reward_e8 > budget:
+            raise SystemExit("query reward budget is insufficient for this report")
+
+    price_e8 = _positive_int(str(args.price_e8), name="price-e8")
+    source_epoch = _positive_int(str(args.source_observed_epoch), name="source-observed-epoch")
+    reported_epoch = int(args.reported_epoch if args.reported_epoch is not None else source_epoch)
+    if reported_epoch < source_epoch:
+        raise SystemExit("reported-epoch must be >= source-observed-epoch")
+    source_state = _source_state_for_submit(home=home, query=query, source_id=args.source_id)
+    sequence = int(entry.get("last_sequence", 0)) + 1
+    reporter_state = _stable_reporter_snapshot(entry, reporter_id)
+    report = _build_report_payload(
+        query_id=args.query_id,
+        reporter_id=reporter_id,
+        source_id=args.source_id,
+        price_e8=price_e8,
+        source_observed_epoch=source_epoch,
+        reported_epoch=reported_epoch,
+        sequence=sequence,
+        reporter_state_hash=_reporter_state_hash(reporter_state),
+        source_state_hash=_source_state_hash(source_state),
+    )
+    signing_payload_hash, report_id = _report_hashes(report)
+    signed_report = {
+        **report,
+        "signing_payload_hash": signing_payload_hash,
+        "report_id": report_id,
+        "reward_e8": reward_e8,
+        "reporter_state_at_submit": reporter_state,
+        "signature_scheme": "local-dev-sha256:v1",
+        "signature": _sign_local_report(str(identity["secret_key"]), signing_payload_hash),
+        "production_authority": False,
+    }
+    if source_state is not None:
+        signed_report["source_state_at_submit"] = source_state
+
+    entry["last_sequence"] = sequence
+    _write_json(_registry_path(home), registry)
+    if query is not None:
+        query["reward_spent_e8"] = int(query.get("reward_spent_e8", 0)) + reward_e8
+        _replace_query(query_registry, queries, query)
+        _write_json(_query_registry_path(home), query_registry)
+
+    rewards = _load_rewards(home)
+    reward_reporters = _reward_reporters(rewards)
+    reward_entry = reward_reporters.setdefault(
+        reporter_id,
+        {
+            "reporter_id": reporter_id,
+            "pending_rewards_e8": 0,
+            "paid_rewards_e8": 0,
+            "accepted_report_count": 0,
+            "slash_debt_e8": 0,
+            "slashed_rewards_e8": 0,
+        },
+    )
+    reward_entry["pending_rewards_e8"] = int(reward_entry.get("pending_rewards_e8", 0)) + reward_e8
+    reward_entry["accepted_report_count"] = int(reward_entry.get("accepted_report_count", 0)) + 1
+    _write_json(_rewards_path(home), rewards)
+
+    receipt_path = home / "receipts" / "reports" / f"{report_id.replace(':', '_')}.json"
+    _write_json(receipt_path, signed_report)
+    _append_jsonl(_reports_log_path(home), signed_report)
+    result = {
+        "schema": SCHEMA,
+        "ok": True,
+        "home": str(home),
+        "report_id": report_id,
+        "signing_payload_hash": signing_payload_hash,
+        "sequence": sequence,
+        "receipt_path": str(receipt_path),
+        "pending_rewards_e8": reward_entry["pending_rewards_e8"],
+        "reward_e8": reward_e8,
+        "production_authority": False,
+    }
+    if args.out:
+        _write_json(Path(args.out), result)
+    _emit(result, json_out=args.json)
+    return 0
+
+
+def cmd_aggregate_build(args: argparse.Namespace) -> int:
+    home = _home(args)
+    _registry, _queries, query = _find_local_query(home, args.query_id)
+    if query is None:
+        raise SystemExit(f"query_id not found: {args.query_id}")
+    if query.get("status") != "active":
+        raise SystemExit(f"query is not active: {args.query_id}")
+    reports = _latest_reports_for_query(home, args.query_id)
+    aggregate = _aggregate_from_reports(query=query, reports=reports, epoch=_now_epoch(args))
+    max_deviation = int(query.get("max_deviation_bps", 0))
+    if max_deviation > 0 and int(aggregate["deviation_bps"]) > max_deviation:
+        raise SystemExit("aggregate deviation_bps exceeds query max_deviation_bps")
+    receipt_path = home / "receipts" / "aggregates" / f"{aggregate['aggregate_id'].replace(':', '_')}.json"
+    _write_json(receipt_path, aggregate)
+    _append_jsonl(_aggregates_log_path(home), aggregate)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "aggregate_id": aggregate["aggregate_id"],
+            "receipt_path": str(receipt_path),
+            "aggregate": aggregate,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_read_accept(args: argparse.Namespace) -> int:
+    home = _home(args)
+    aggregate = _aggregates_by_id(home).get(args.aggregate_id)
+    if not isinstance(aggregate, dict):
+        raise SystemExit(f"aggregate_id not found: {args.aggregate_id}")
+    _registry, _queries, query = _find_local_query(home, str(aggregate["query_id"]))
+    if query is None:
+        raise SystemExit(f"query_id not found: {aggregate['query_id']}")
+    if query.get("status") != "active":
+        raise SystemExit(f"query is not active: {aggregate['query_id']}")
+    if aggregate.get("feed_registry_root") != _feed_registry_root(query):
+        raise SystemExit("aggregate feed_registry_root does not match active query")
+    if aggregate.get("query_policy_root") != _query_registry_root(query):
+        raise SystemExit("aggregate query_policy_root does not match active query")
+    if _aggregate_has_disputed_reports(home, aggregate):
+        raise SystemExit("aggregate includes open or upheld disputed reports")
+    max_deviation = int(query.get("max_deviation_bps", 0))
+    if max_deviation > 0 and int(aggregate.get("deviation_bps", 0)) > max_deviation:
+        raise SystemExit("aggregate deviation_bps exceeds query max_deviation_bps")
+    _require_read_profile_evidence(
+        args.profile_id,
+        str(aggregate.get("evidence_class", query.get("evidence_floor", ""))),
+    )
+    read = _accepted_read_from_aggregate(
+        query=query,
+        aggregate=aggregate,
+        consumer_module=args.consumer_module,
+        profile_id=args.profile_id,
+    )
+    receipt_path = home / "receipts" / "reads" / f"{read['read_id'].replace(':', '_')}.json"
+    _write_json(receipt_path, read)
+    _append_jsonl(_reads_log_path(home), read)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "read_id": read["read_id"],
+            "receipt_path": str(receipt_path),
+            "read": read,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _authorization_bundle_from_read(
+    *,
+    home: Path,
+    read: Mapping[str, Any],
+    action_kind: str,
+    action_id: str,
+    action_facts_hash: str,
+    pre_state_hash: str,
+    now_epoch: int,
+    economic_envelope_id: str,
+) -> dict[str, Any]:
+    _registry, _queries, query = _find_local_query(home, str(read["query_id"]))
+    if query is None:
+        raise SystemExit(f"query_id not found: {read['query_id']}")
+    graph = _receipt_graph_from_read(home, read)
+    authorization = {
+        "consumer_module": read["consumer_module"],
+        "action_kind": action_kind,
+        "action_id": action_id,
+        "action_facts_hash": action_facts_hash,
+        "pre_state_hash": pre_state_hash,
+        "profile_id": read["profile_id"],
+        "query_id": read["query_id"],
+        "value_e8": int(read["value_e8"]),
+        "value_hash": read["value_hash"],
+        "confidence_e8": int(read["confidence_e8"]),
+        "deviation_bps": int(read["deviation_bps"]),
+        "observed_epoch": int(read["observed_epoch"]),
+        "expires_at_epoch": int(read["expires_at_epoch"]),
+        "feed_id": str(query.get("feed_id", f"feed:{read['query_id']}")),
+        "feed_registry_root": graph["feed_registry_root"],
+        "query_policy_root": graph["query_policy_root"],
+        "source_registry_root": graph["source_registry_root"],
+        "reporter_registry_root": graph["reporter_registry_root"],
+        "evidence_class": str(read.get("evidence_class", "")),
+        "economic_envelope_id": economic_envelope_id,
+        "receipt_graph_root": graph["receipt_graph_root"],
+    }
+    runtime_action = {
+        "consumer_module": read["consumer_module"],
+        "action_kind": action_kind,
+        "action_id": action_id,
+        "action_facts_hash": action_facts_hash,
+        "pre_state_hash": pre_state_hash,
+        "profile_id": read["profile_id"],
+        "query_id": read["query_id"],
+        "runtime_value_e8": int(read["value_e8"]),
+        "now_epoch": int(now_epoch),
+    }
+    bundle = {
+        "schema": "zeno_oracle.oracle_authorization_bundle.v1",
+        "authorization": authorization,
+        "runtime_action": runtime_action,
+        "receipt_graph": graph,
+        "production_authority": False,
+    }
+    bundle["authorization_id"] = semantic_hash("zeno_oracle.oracle_authorization.v1", authorization)
+    return bundle
+
+
+def cmd_authorization_build(args: argparse.Namespace) -> int:
+    home = _home(args)
+    read = _reads_by_id(home).get(args.read_id)
+    if not isinstance(read, dict):
+        raise SystemExit(f"read_id not found: {args.read_id}")
+    aggregate = _aggregates_by_id(home).get(str(read.get("aggregate_id")))
+    if _aggregate_has_disputed_reports(home, aggregate):
+        raise SystemExit("accepted read aggregate includes open or upheld disputed reports")
+    _require_evidence_at_least(str(read.get("evidence_class", "")), args.min_evidence_class)
+    now_epoch = int(args.now_epoch if args.now_epoch is not None else read["observed_epoch"])
+    bundle = _authorization_bundle_from_read(
+        home=home,
+        read=read,
+        action_kind=args.action_kind,
+        action_id=args.action_id,
+        action_facts_hash=args.action_facts_hash,
+        pre_state_hash=args.pre_state_hash,
+        now_epoch=now_epoch,
+        economic_envelope_id=args.economic_envelope_id,
+    )
+    from tools.check_oracle_authorization_semantic_binding import check_authorization_payload
+
+    semantic_check = check_authorization_payload(bundle)
+    bundle["semantic_check"] = semantic_check
+    if semantic_check.get("typed_ok") is not True:
+        raise SystemExit("generated OracleAuthorization failed semantic binding check")
+    receipt_path = home / "receipts" / "authorizations" / f"{bundle['authorization_id'].replace(':', '_')}.json"
+    _write_json(receipt_path, bundle)
+    _append_jsonl(_authorizations_log_path(home), bundle)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "authorization_id": bundle["authorization_id"],
+            "receipt_path": str(receipt_path),
+            "authorization": bundle["authorization"],
+            "receipt_graph": bundle["receipt_graph"],
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_rewards_inspect(args: argparse.Namespace) -> int:
+    home = _home(args)
+    reporter_id = args.reporter_id
+    if reporter_id is None:
+        reporter_id = str(_load_identity(home)["reporter_id"])
+    rewards = _load_rewards(home)
+    entry = _reward_reporters(rewards).get(reporter_id)
+    if not isinstance(entry, dict):
+        entry = {
+            "reporter_id": reporter_id,
+            "pending_rewards_e8": 0,
+            "paid_rewards_e8": 0,
+            "accepted_report_count": 0,
+            "slash_debt_e8": 0,
+            "slashed_rewards_e8": 0,
+        }
+    reward_receipt = _reward_entry_receipt(entry)
+    receipt_path = home / "receipts" / "rewards" / f"{reward_receipt['reward_entry_id'].replace(':', '_')}.json"
+    _write_json(receipt_path, reward_receipt)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "rewards": entry,
+            "reward_receipt": reward_receipt,
+            "receipt_path": str(receipt_path),
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_rewards_pay(args: argparse.Namespace) -> int:
+    home = _home(args)
+    reporter_id = args.reporter_id
+    if reporter_id is None:
+        reporter_id = str(_load_identity(home)["reporter_id"])
+    rewards = _load_rewards(home)
+    reporters = _reward_reporters(rewards)
+    entry = reporters.setdefault(
+        reporter_id,
+        {
+            "reporter_id": reporter_id,
+            "pending_rewards_e8": 0,
+            "paid_rewards_e8": 0,
+            "accepted_report_count": 0,
+            "slash_debt_e8": 0,
+            "slashed_rewards_e8": 0,
+        },
+    )
+    requested = int(args.amount_e8) if args.amount_e8 is not None else int(entry.get("pending_rewards_e8", 0))
+    if requested < 0:
+        raise SystemExit("amount-e8 must be non-negative")
+    if requested > int(entry.get("pending_rewards_e8", 0)):
+        raise SystemExit("amount-e8 exceeds pending rewards")
+    entry["pending_rewards_e8"] = int(entry.get("pending_rewards_e8", 0)) - requested
+    entry["paid_rewards_e8"] = int(entry.get("paid_rewards_e8", 0)) + requested
+    _write_json(_rewards_path(home), rewards)
+    reward_receipt = _reward_entry_receipt(entry)
+    receipt_path = home / "receipts" / "rewards" / f"{reward_receipt['reward_entry_id'].replace(':', '_')}.json"
+    _write_json(receipt_path, reward_receipt)
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "reporter_id": reporter_id,
+            "paid_now_e8": requested,
+            "rewards": entry,
+            "reward_receipt": reward_receipt,
+            "receipt_path": str(receipt_path),
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _reward_entry_receipt(entry: Mapping[str, Any]) -> dict[str, Any]:
+    body = {
+        "schema": "zeno_oracle.reward_ledger_entry.v1",
+        "reporter_id": str(entry.get("reporter_id", "")),
+        "pending_rewards_e8": int(entry.get("pending_rewards_e8", 0)),
+        "paid_rewards_e8": int(entry.get("paid_rewards_e8", 0)),
+        "accepted_report_count": int(entry.get("accepted_report_count", 0)),
+        "slash_debt_e8": int(entry.get("slash_debt_e8", 0)),
+        "slashed_rewards_e8": int(entry.get("slashed_rewards_e8", 0)),
+        "production_authority": False,
+    }
+    return {**body, "reward_entry_id": semantic_hash("zeno_oracle.reward_ledger_entry.v1", body)}
+
+
+def _slash_settlement_receipt(
+    *,
+    dispute_id: str,
+    reporter_id: str,
+    slash_e8: int,
+    slash_result: Mapping[str, Any],
+    resolved_epoch: int,
+) -> dict[str, Any]:
+    body = {
+        "schema": "zeno_oracle.slash_settlement.v1",
+        "dispute_id": str(dispute_id),
+        "reporter_id": str(reporter_id),
+        "slash_e8": int(slash_e8),
+        "bond_slashed_e8": int(slash_result.get("bond_slashed_e8", 0)),
+        "pending_reward_slashed_e8": int(slash_result.get("pending_reward_slashed_e8", 0)),
+        "slash_debt_e8": int(slash_result.get("slash_debt_e8", 0)),
+        "resolved_epoch": int(resolved_epoch),
+        "production_authority": False,
+    }
+    return {**body, "slash_settlement_id": semantic_hash("zeno_oracle.slash_settlement.v1", body)}
+
+
+def _report_ids_from_log(home: Path) -> set[str]:
+    return {str(report["report_id"]) for report in _iter_jsonl(_reports_log_path(home)) if report.get("report_id")}
+
+
+def cmd_dispute_open(args: argparse.Namespace) -> int:
+    home = _home(args)
+    bond_e8 = _positive_int(str(args.bond_e8), name="bond-e8")
+    report_ids = _report_ids_from_log(home)
+    if report_ids and args.report_id not in report_ids:
+        raise SystemExit(f"report_id not found in local report log: {args.report_id}")
+    disputes = _load_disputes(home)
+    entries = _dispute_entries(disputes)
+    body = {
+        "schema": "zeno_oracle.local_dispute.v1",
+        "report_id": args.report_id,
+        "reporter_id": args.reporter_id,
+        "opened_epoch": _now_epoch(args),
+        "bond_e8": bond_e8,
+        "reason": args.reason,
+        "status": "open",
+    }
+    dispute_id = args.dispute_id or semantic_hash("zeno_oracle.dispute.v1", body)
+    if dispute_id in entries and not args.force:
+        raise SystemExit(f"dispute already exists: {dispute_id}; pass --force to overwrite")
+    entry = {**body, "dispute_id": dispute_id}
+    entries[dispute_id] = entry
+    _write_json(_disputes_path(home), disputes)
+    _append_jsonl(_disputes_log_path(home), {"event": "open", **entry})
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "dispute_id": dispute_id,
+            "dispute": entry,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _sorted_disputes(disputes: Mapping[str, Any]) -> list[dict[str, Any]]:
+    entries = _dispute_entries(disputes)
+    result: list[dict[str, Any]] = []
+    for dispute_id in sorted(entries):
+        entry = entries[dispute_id]
+        if isinstance(entry, dict):
+            result.append(dict(entry))
+    return result
+
+
+def cmd_dispute_list(args: argparse.Namespace) -> int:
+    home = _home(args)
+    disputes = _load_disputes(home)
+    rows = _sorted_disputes(disputes)
+    if args.status:
+        rows = [row for row in rows if row.get("status") == args.status]
+    if args.reporter_id:
+        rows = [row for row in rows if row.get("reporter_id") == args.reporter_id]
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "count": len(rows),
+            "disputes": rows,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def cmd_dispute_show(args: argparse.Namespace) -> int:
+    home = _home(args)
+    disputes = _load_disputes(home)
+    entry = _dispute_entries(disputes).get(args.dispute_id)
+    if not isinstance(entry, dict):
+        raise SystemExit(f"dispute not found: {args.dispute_id}")
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "dispute": entry,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _slash_reporter(
+    *,
+    home: Path,
+    reporter_id: str,
+    slash_e8: int,
+) -> dict[str, Any]:
+    registry = _load_reporter_registry(home)
+    reporters = _registry_reporters(registry)
+    entry = reporters.get(reporter_id)
+    if not isinstance(entry, dict):
+        raise SystemExit(f"reporter not found: {reporter_id}")
+    rewards = _load_rewards(home)
+    reward_reporters = _reward_reporters(rewards)
+    reward_entry = reward_reporters.setdefault(
+        reporter_id,
+        {
+            "reporter_id": reporter_id,
+            "pending_rewards_e8": 0,
+            "paid_rewards_e8": 0,
+            "accepted_report_count": 0,
+            "slash_debt_e8": 0,
+            "slashed_rewards_e8": 0,
+        },
+    )
+    remaining = int(slash_e8)
+    bond_slash = min(int(entry.get("bond_amount_e8", 0)), remaining)
+    entry["bond_amount_e8"] = int(entry.get("bond_amount_e8", 0)) - bond_slash
+    remaining -= bond_slash
+    reward_slash = min(int(reward_entry.get("pending_rewards_e8", 0)), remaining)
+    reward_entry["pending_rewards_e8"] = int(reward_entry.get("pending_rewards_e8", 0)) - reward_slash
+    reward_entry["slashed_rewards_e8"] = int(reward_entry.get("slashed_rewards_e8", 0)) + reward_slash
+    remaining -= reward_slash
+    reward_entry["slash_debt_e8"] = int(reward_entry.get("slash_debt_e8", 0)) + remaining
+    entry["total_slashed_e8"] = int(entry.get("total_slashed_e8", 0)) + int(slash_e8)
+    entry["slash_state"] = "slashed" if slash_e8 > 0 else entry.get("slash_state", "clear")
+    entry["active"] = False
+    _write_json(_registry_path(home), registry)
+    _write_json(_rewards_path(home), rewards)
+    return {
+        "bond_slashed_e8": bond_slash,
+        "pending_reward_slashed_e8": reward_slash,
+        "slash_debt_e8": remaining,
+        "reporter": entry,
+        "rewards": reward_entry,
+    }
+
+
+def cmd_dispute_resolve(args: argparse.Namespace) -> int:
+    home = _home(args)
+    disputes = _load_disputes(home)
+    entries = _dispute_entries(disputes)
+    entry = entries.get(args.dispute_id)
+    if not isinstance(entry, dict):
+        raise SystemExit(f"dispute not found: {args.dispute_id}")
+    if entry.get("status") != "open" and not args.force:
+        raise SystemExit(f"dispute is not open: {args.dispute_id}")
+    slash_result: dict[str, Any] | None = None
+    slash_receipt: dict[str, Any] | None = None
+    slash_receipt_path: Path | None = None
+    slash_e8 = int(args.slash_e8 if args.slash_e8 is not None else 0)
+    if args.outcome == "upheld":
+        if slash_e8 == 0:
+            slash_e8 = DEFAULT_SLASH_E8
+        if slash_e8 < 0:
+            raise SystemExit("slash-e8 must be non-negative")
+        slash_result = _slash_reporter(
+            home=home,
+            reporter_id=str(entry["reporter_id"]),
+            slash_e8=slash_e8,
+        )
+    elif slash_e8 != 0:
+        raise SystemExit("slash-e8 is only valid when outcome is upheld")
+    entry["status"] = args.outcome
+    entry["resolved_epoch"] = _now_epoch(args)
+    entry["slash_e8"] = slash_e8
+    entries[args.dispute_id] = entry
+    if slash_result is not None:
+        slash_receipt = _slash_settlement_receipt(
+            dispute_id=str(args.dispute_id),
+            reporter_id=str(entry["reporter_id"]),
+            slash_e8=slash_e8,
+            slash_result=slash_result,
+            resolved_epoch=int(entry["resolved_epoch"]),
+        )
+        slash_receipt_path = (
+            home
+            / "receipts"
+            / "slashes"
+            / f"{slash_receipt['slash_settlement_id'].replace(':', '_')}.json"
+        )
+        _write_json(slash_receipt_path, slash_receipt)
+    _write_json(_disputes_path(home), disputes)
+    _append_jsonl(
+        _disputes_log_path(home),
+        {
+            "event": "resolve",
+            "dispute_id": args.dispute_id,
+            "outcome": args.outcome,
+            "slash_e8": slash_e8,
+            "slash_result": slash_result,
+            "resolved_epoch": entry["resolved_epoch"],
+        },
+    )
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": True,
+            "home": str(home),
+            "dispute": entry,
+            "slash_result": slash_result,
+            "slash_receipt": slash_receipt,
+            "slash_receipt_path": None if slash_receipt_path is None else str(slash_receipt_path),
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0
+
+
+def _iter_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    items: list[dict[str, Any]] = []
+    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        value = json.loads(line)
+        if not isinstance(value, dict):
+            raise SystemExit(f"{path}:{line_no}: report log entry must be an object")
+        items.append(value)
+    return items
+
+
+def _verify_disputes(home: Path, reports: list[dict[str, Any]], errors: list[str]) -> None:
+    report_ids = {str(report["report_id"]) for report in reports if report.get("report_id")}
+    disputes = _load_disputes(home)
+    entries = _dispute_entries(disputes)
+    dispute_events = _iter_jsonl(_disputes_log_path(home))
+    opened_counts: dict[str, int] = {}
+    resolved_counts: dict[str, int] = {}
+    resolve_events: dict[str, dict[str, Any]] = {}
+    for event in dispute_events:
+        dispute_id = event.get("dispute_id")
+        if not isinstance(dispute_id, str) or not dispute_id:
+            errors.append("dispute event missing dispute_id")
+            continue
+        if event.get("event") == "open":
+            opened_counts[dispute_id] = opened_counts.get(dispute_id, 0) + 1
+        elif event.get("event") == "resolve":
+            resolved_counts[dispute_id] = resolved_counts.get(dispute_id, 0) + 1
+            resolve_events[dispute_id] = event
+        else:
+            errors.append(f"dispute {dispute_id} has unknown event type")
+    slash_sums: dict[str, int] = {}
+    reward_slash_sums: dict[str, int] = {}
+    slash_debt_sums: dict[str, int] = {}
+    for dispute_id, raw_entry in entries.items():
+        if not isinstance(raw_entry, dict):
+            errors.append(f"dispute {dispute_id} must be an object")
+            continue
+        if raw_entry.get("dispute_id") != dispute_id:
+            errors.append(f"dispute {dispute_id} has mismatched dispute_id")
+        if opened_counts.get(dispute_id, 0) == 0:
+            errors.append(f"dispute {dispute_id} missing open event")
+        if opened_counts.get(dispute_id, 0) > 1:
+            errors.append(f"dispute {dispute_id} has duplicate open events")
+        status = raw_entry.get("status")
+        if status not in {"open", "upheld", "rejected"}:
+            errors.append(f"dispute {dispute_id} has invalid status")
+        if status in {"upheld", "rejected"} and resolved_counts.get(dispute_id, 0) == 0:
+            errors.append(f"dispute {dispute_id} missing resolve event")
+        if resolved_counts.get(dispute_id, 0) > 1:
+            errors.append(f"dispute {dispute_id} has duplicate resolve events")
+        report_id = raw_entry.get("report_id")
+        if report_ids and report_id not in report_ids:
+            errors.append(f"dispute {dispute_id} references unknown report_id")
+        bond_e8 = raw_entry.get("bond_e8")
+        if isinstance(bond_e8, bool) or not isinstance(bond_e8, int) or bond_e8 <= 0:
+            errors.append(f"dispute {dispute_id} bond_e8 must be positive")
+        slash_e8 = raw_entry.get("slash_e8", 0)
+        if isinstance(slash_e8, bool) or not isinstance(slash_e8, int) or slash_e8 < 0:
+            errors.append(f"dispute {dispute_id} slash_e8 must be a non-negative int")
+            slash_e8 = 0
+        if status == "rejected" and slash_e8 != 0:
+            errors.append(f"dispute {dispute_id} rejected dispute cannot slash")
+        resolve_event = resolve_events.get(dispute_id)
+        if status in {"upheld", "rejected"} and isinstance(resolve_event, dict):
+            if resolve_event.get("outcome") != status:
+                errors.append(f"dispute {dispute_id} resolve event outcome mismatch")
+            if resolve_event.get("slash_e8") != slash_e8:
+                errors.append(f"dispute {dispute_id} resolve event slash_e8 mismatch")
+            slash_result = resolve_event.get("slash_result")
+            if status == "upheld":
+                if not isinstance(slash_result, dict):
+                    errors.append(f"dispute {dispute_id} upheld resolve event missing slash_result")
+                else:
+                    bond_slash = slash_result.get("bond_slashed_e8")
+                    reward_slash = slash_result.get("pending_reward_slashed_e8")
+                    slash_debt = slash_result.get("slash_debt_e8")
+                    parts = (bond_slash, reward_slash, slash_debt)
+                    if any(isinstance(part, bool) or not isinstance(part, int) or part < 0 for part in parts):
+                        errors.append(f"dispute {dispute_id} slash_result fields must be non-negative ints")
+                    else:
+                        if int(bond_slash) + int(reward_slash) + int(slash_debt) != int(slash_e8):
+                            errors.append(f"dispute {dispute_id} slash_result does not sum to slash_e8")
+                        reporter_id_for_event = str(raw_entry.get("reporter_id"))
+                        reward_slash_sums[reporter_id_for_event] = (
+                            reward_slash_sums.get(reporter_id_for_event, 0) + int(reward_slash)
+                        )
+                        slash_debt_sums[reporter_id_for_event] = (
+                            slash_debt_sums.get(reporter_id_for_event, 0) + int(slash_debt)
+                        )
+            elif slash_result is not None:
+                errors.append(f"dispute {dispute_id} rejected resolve event cannot include slash_result")
+        if status == "upheld":
+            reporter_id = str(raw_entry.get("reporter_id"))
+            slash_sums[reporter_id] = slash_sums.get(reporter_id, 0) + int(slash_e8)
+    if slash_sums:
+        registry = _load_reporter_registry(home)
+        reporters = _registry_reporters(registry)
+        rewards = _load_rewards(home)
+        reward_entries = _reward_reporters(rewards)
+        for reporter_id, expected in slash_sums.items():
+            reporter = reporters.get(reporter_id)
+            if not isinstance(reporter, dict):
+                errors.append(f"upheld dispute reporter {reporter_id} missing from registry")
+                continue
+            if reporter.get("slash_state") != "slashed":
+                errors.append(f"upheld dispute reporter {reporter_id} not marked slashed")
+            if int(reporter.get("total_slashed_e8", 0)) != expected:
+                errors.append(f"reporter {reporter_id} total_slashed_e8 does not match disputes")
+            reward_entry = reward_entries.get(reporter_id)
+            if not isinstance(reward_entry, dict):
+                errors.append(f"upheld dispute reporter {reporter_id} missing reward entry")
+                continue
+            expected_reward_slash = reward_slash_sums.get(reporter_id, 0)
+            if int(reward_entry.get("slashed_rewards_e8", 0)) != expected_reward_slash:
+                errors.append(f"reporter {reporter_id} slashed_rewards_e8 does not match dispute slashes")
+            expected_slash_debt = slash_debt_sums.get(reporter_id, 0)
+            if int(reward_entry.get("slash_debt_e8", 0)) != expected_slash_debt:
+                errors.append(f"reporter {reporter_id} slash_debt_e8 does not match dispute slashes")
+
+
+def _verify_aggregates(
+    home: Path,
+    reports: list[dict[str, Any]],
+    queries: list[dict[str, Any]],
+    errors: list[str],
+) -> None:
+    reports_by_id = {str(report["report_id"]): report for report in reports if report.get("report_id")}
+    queries_by_id = {str(query["query_id"]): query for query in queries if query.get("query_id")}
+    for aggregate in _iter_jsonl(_aggregates_log_path(home)):
+        aggregate_id = aggregate.get("aggregate_id")
+        query_id = aggregate.get("query_id")
+        if not isinstance(aggregate_id, str) or not aggregate_id:
+            errors.append("aggregate missing aggregate_id")
+            continue
+        if not isinstance(query_id, str) or query_id not in queries_by_id:
+            errors.append(f"aggregate {aggregate_id} references unknown query_id")
+            continue
+        included_ids = aggregate.get("included_report_ids")
+        if not isinstance(included_ids, list) or not included_ids:
+            errors.append(f"aggregate {aggregate_id} must include report ids")
+            continue
+        if len(set(included_ids)) != len(included_ids):
+            errors.append(f"aggregate {aggregate_id} has duplicate included_report_ids")
+            continue
+        included_reports: list[dict[str, Any]] = []
+        for report_id in included_ids:
+            report = reports_by_id.get(str(report_id))
+            if report is None:
+                errors.append(f"aggregate {aggregate_id} references unknown report {report_id}")
+                continue
+            if report.get("query_id") != query_id:
+                errors.append(f"aggregate {aggregate_id} mixes query ids")
+            included_reports.append(report)
+        if len(included_reports) != len(included_ids):
+            continue
+        try:
+            expected = _aggregate_from_reports(
+                query=queries_by_id[query_id],
+                reports=included_reports,
+                epoch=int(aggregate.get("aggregate_epoch")),
+            )
+        except SystemExit as exc:
+            errors.append(f"aggregate {aggregate_id} could not be replayed: {exc}")
+            continue
+        except Exception as exc:
+            errors.append(f"aggregate {aggregate_id} could not be replayed: {exc}")
+            continue
+        for key in (
+            "aggregate_id",
+            "value_e8",
+            "confidence_e8",
+            "deviation_bps",
+            "observed_epoch",
+            "reporter_count",
+            "source_policy_id",
+            "source_count",
+            "reporter_control_group_count",
+            "included_source_ids",
+            "included_report_ids",
+            "feed_registry_root",
+            "query_policy_root",
+            "source_registry_root",
+            "reporter_registry_root",
+        ):
+            if aggregate.get(key) != expected.get(key):
+                errors.append(f"aggregate {aggregate_id} {key} does not match replay")
+        max_deviation = int(queries_by_id[query_id].get("max_deviation_bps", 0))
+        if max_deviation > 0 and int(aggregate.get("deviation_bps", 0)) > max_deviation:
+            errors.append(f"aggregate {aggregate_id} exceeds query max_deviation_bps")
+
+
+def _verify_accepted_reads(home: Path, queries: list[dict[str, Any]], errors: list[str]) -> None:
+    aggregates = _aggregates_by_id(home)
+    queries_by_id = {str(query["query_id"]): query for query in queries if query.get("query_id")}
+    for read in _iter_jsonl(_reads_log_path(home)):
+        read_id = read.get("read_id")
+        aggregate_id = read.get("aggregate_id")
+        if not isinstance(read_id, str) or not read_id:
+            errors.append("accepted read missing read_id")
+            continue
+        if not isinstance(aggregate_id, str) or aggregate_id not in aggregates:
+            errors.append(f"accepted read {read_id} references unknown aggregate_id")
+            continue
+        aggregate = aggregates[aggregate_id]
+        query_id = str(aggregate.get("query_id"))
+        query = queries_by_id.get(query_id)
+        if query is None:
+            errors.append(f"accepted read {read_id} references unknown query_id")
+            continue
+        if _aggregate_has_disputed_reports(home, aggregate):
+            errors.append(f"accepted read {read_id} aggregate includes open or upheld disputed reports")
+        try:
+            expected = _accepted_read_from_aggregate(
+                query=query,
+                aggregate=aggregate,
+                consumer_module=str(read.get("consumer_module")),
+                profile_id=str(read.get("profile_id")),
+            )
+        except Exception as exc:
+            errors.append(f"accepted read {read_id} could not be replayed: {exc}")
+            continue
+        for key in (
+            "read_id",
+            "query_id",
+            "value_e8",
+            "value_hash",
+            "confidence_e8",
+            "deviation_bps",
+            "observed_epoch",
+            "expires_at_epoch",
+            "evidence_class",
+        ):
+            if read.get(key) != expected.get(key):
+                errors.append(f"accepted read {read_id} {key} does not match replay")
+        try:
+            _require_read_profile_evidence(read.get("profile_id"), str(read.get("evidence_class", "")))
+        except SystemExit as exc:
+            errors.append(f"accepted read {read_id} {exc}")
+        if int(read.get("expires_at_epoch", 0)) < int(read.get("observed_epoch", 0)):
+            errors.append(f"accepted read {read_id} expires before observed epoch")
+
+
+def _verify_authorization_bundles(home: Path, errors: list[str]) -> None:
+    from tools.check_oracle_authorization_semantic_binding import check_authorization_payload
+
+    reads = _reads_by_id(home)
+    for bundle in _iter_jsonl(_authorizations_log_path(home)):
+        authorization_id = bundle.get("authorization_id")
+        if not isinstance(authorization_id, str) or not authorization_id:
+            errors.append("authorization bundle missing authorization_id")
+            continue
+        auth = bundle.get("authorization")
+        runtime = bundle.get("runtime_action")
+        graph = bundle.get("receipt_graph")
+        if not isinstance(auth, dict) or not isinstance(runtime, dict) or not isinstance(graph, dict):
+            errors.append(f"authorization {authorization_id} must include authorization/runtime_action/receipt_graph")
+            continue
+        read_id = graph.get("read_id")
+        read = reads.get(str(read_id))
+        if not isinstance(read, dict):
+            errors.append(f"authorization {authorization_id} references unknown read_id")
+            continue
+        try:
+            expected_graph = _receipt_graph_from_read(home, read)
+        except SystemExit as exc:
+            errors.append(f"authorization {authorization_id} receipt graph could not be replayed: {exc}")
+            continue
+        except Exception as exc:
+            errors.append(f"authorization {authorization_id} receipt graph could not be replayed: {exc}")
+            continue
+        if graph != expected_graph:
+            errors.append(f"authorization {authorization_id} receipt_graph does not match replay")
+        if auth.get("receipt_graph_root") != expected_graph.get("receipt_graph_root"):
+            errors.append(f"authorization {authorization_id} receipt_graph_root does not match replay")
+        for root_key in (
+            "feed_registry_root",
+            "query_policy_root",
+            "source_registry_root",
+            "reporter_registry_root",
+        ):
+            if auth.get(root_key) != expected_graph.get(root_key):
+                errors.append(f"authorization {authorization_id} {root_key} does not match replay")
+        for key in (
+            "query_id",
+            "value_e8",
+            "value_hash",
+            "confidence_e8",
+            "deviation_bps",
+            "observed_epoch",
+            "expires_at_epoch",
+            "profile_id",
+            "consumer_module",
+            "evidence_class",
+        ):
+            auth_key = "profile_id" if key == "profile_id" else key
+            read_key = "profile_id" if key == "profile_id" else key
+            if auth.get(auth_key) != read.get(read_key):
+                errors.append(f"authorization {authorization_id} {key} does not match accepted read")
+        expected_auth_id = semantic_hash("zeno_oracle.oracle_authorization.v1", auth)
+        if authorization_id != expected_auth_id:
+            errors.append(f"authorization {authorization_id} authorization_id does not match payload")
+        try:
+            semantic = check_authorization_payload(bundle)
+        except Exception as exc:
+            errors.append(f"authorization {authorization_id} semantic check raised: {exc}")
+            continue
+        if semantic.get("typed_ok") is not True:
+            errors.append(f"authorization {authorization_id} typed semantic check failed")
+
+
+def _receipt_id_from_check(payload: Mapping[str, Any], check: Mapping[str, Any]) -> str | None:
+    receipt_kind = check.get("receipt_kind")
+    if receipt_kind == "report":
+        return str(check.get("expected_report_id") or payload.get("report_id") or "")
+    if receipt_kind == "aggregate":
+        return str(check.get("expected_aggregate_id") or payload.get("aggregate_id") or "")
+    if receipt_kind == "accepted_read":
+        return str(check.get("expected_read_id") or payload.get("read_id") or "")
+    if receipt_kind == "dispute":
+        return str(check.get("expected_dispute_id") or payload.get("dispute_id") or "")
+    if receipt_kind == "receipt_graph":
+        return str(check.get("expected_receipt_graph_root") or payload.get("receipt_graph_root") or "")
+    if receipt_kind == "reward_ledger_entry":
+        return str(check.get("expected_reward_entry_id") or payload.get("reward_entry_id") or "")
+    if receipt_kind == "slash_settlement":
+        return str(check.get("expected_slash_settlement_id") or payload.get("slash_settlement_id") or "")
+    if receipt_kind == "oracle_authorization_bundle":
+        return str(check.get("expected_authorization_id") or payload.get("authorization_id") or "")
+    return None
+
+
+def _verify_stored_receipt_files(home: Path, errors: list[str]) -> None:
+    logged_ids: dict[str, set[str]] = {
+        "reports": {str(row.get("report_id")) for row in _iter_jsonl(_reports_log_path(home)) if row.get("report_id")},
+        "aggregates": {
+            str(row.get("aggregate_id")) for row in _iter_jsonl(_aggregates_log_path(home)) if row.get("aggregate_id")
+        },
+        "reads": {str(row.get("read_id")) for row in _iter_jsonl(_reads_log_path(home)) if row.get("read_id")},
+        "authorizations": {
+            str(row.get("authorization_id"))
+            for row in _iter_jsonl(_authorizations_log_path(home))
+            if row.get("authorization_id")
+        },
+    }
+    expected_slash_receipt_ids: set[str] = set()
+    dispute_entries = _dispute_entries(_load_disputes(home))
+    for event in _iter_jsonl(_disputes_log_path(home)):
+        if event.get("event") != "resolve" or event.get("outcome") != "upheld":
+            continue
+        dispute_id = str(event.get("dispute_id", ""))
+        dispute = dispute_entries.get(dispute_id)
+        slash_result = event.get("slash_result")
+        if not isinstance(dispute, Mapping) or not isinstance(slash_result, Mapping):
+            continue
+        receipt = _slash_settlement_receipt(
+            dispute_id=dispute_id,
+            reporter_id=str(dispute.get("reporter_id", "")),
+            slash_e8=int(event.get("slash_e8", 0)),
+            slash_result=slash_result,
+            resolved_epoch=int(event.get("resolved_epoch", 0)),
+        )
+        expected_slash_receipt_ids.add(str(receipt["slash_settlement_id"]))
+    reward_reporter_ids = set(str(reporter_id) for reporter_id in _reward_reporters(_load_rewards(home)))
+
+    for kind in ("reports", "aggregates", "reads", "authorizations", "rewards", "slashes"):
+        receipt_dir = home / "receipts" / kind
+        if not receipt_dir.exists():
+            continue
+        for path in sorted(receipt_dir.glob("*.json")):
+            relative_path = path.relative_to(home)
+            try:
+                payload = _load_json(path)
+            except Exception as exc:
+                errors.append(f"stored receipt {relative_path} could not be loaded: {exc}")
+                continue
+            if not isinstance(payload, Mapping):
+                errors.append(f"stored receipt {relative_path} root must be an object")
+                continue
+            check = verify_standalone_receipt(payload)
+            if check.get("ok") is not True:
+                for error in check.get("errors", ["unknown receipt error"]):
+                    errors.append(f"stored receipt {relative_path} invalid: {error}")
+            receipt_id = _receipt_id_from_check(payload, check)
+            if receipt_id:
+                expected_stem = receipt_id.replace(":", "_")
+                if path.stem != expected_stem:
+                    errors.append(f"stored receipt {relative_path} filename does not match receipt id")
+                if kind in logged_ids and receipt_id not in logged_ids[kind]:
+                    errors.append(f"stored receipt {relative_path} is not present in {kind} log")
+                if kind == "slashes" and receipt_id not in expected_slash_receipt_ids:
+                    errors.append(f"stored receipt {relative_path} does not match an upheld dispute resolution")
+            if kind == "rewards":
+                reporter_id = str(payload.get("reporter_id", ""))
+                if reporter_id not in reward_reporter_ids:
+                    errors.append(f"stored receipt {relative_path} references unknown reward reporter")
+
+
+def _verify_report_log(home: Path) -> tuple[bool, list[str], dict[str, int], int]:
+    errors: list[str] = []
+    identity: dict[str, Any] | None = None
+    if _key_path(home).exists():
+        identity = _load_identity(home)
+    registry = _load_reporter_registry(home)
+    reporters = _registry_reporters(registry)
+    source_registry = _load_source_registry(home)
+    sources = _source_entries(source_registry)
+    rewards = _load_rewards(home)
+    reward_reporters = _reward_reporters(rewards)
+    _query_registry, queries, _unused = _find_local_query(home, "")
+    query_ids = {str(query["query_id"]) for query in queries if query.get("query_id")}
+    query_reward_sums: dict[str, int] = {}
+    sequences: dict[str, int] = {}
+    reward_counts: dict[str, int] = {}
+    reward_sums: dict[str, int] = {}
+    reports = _iter_jsonl(_reports_log_path(home))
+    for report in reports:
+        reporter_id = report.get("reporter_id")
+        if not isinstance(reporter_id, str):
+            errors.append("report missing reporter_id")
+            continue
+        entry = reporters.get(reporter_id)
+        if not isinstance(entry, dict):
+            errors.append(f"reporter {reporter_id} is not registered")
+            continue
+        query_id = str(report.get("query_id"))
+        if query_ids and query_id not in query_ids:
+            errors.append(f"report query_id is not in local registry: {query_id}")
+        query = next((item for item in queries if item.get("query_id") == query_id), None)
+        snapshot = report.get("reporter_state_at_submit")
+        if not isinstance(snapshot, dict):
+            errors.append(f"reporter {reporter_id} missing reporter_state_at_submit")
+        else:
+            if snapshot.get("active") is not True:
+                errors.append(f"reporter {reporter_id} was not active at submit")
+            if int(snapshot.get("bond_amount_e8", 0)) < int(snapshot.get("required_bond_e8", 0)):
+                errors.append(f"reporter {reporter_id} bond snapshot below required amount")
+            if not isinstance(snapshot.get("control_group_id"), str) or not snapshot.get("control_group_id"):
+                errors.append(f"reporter {reporter_id} missing control_group_id at submit")
+            if snapshot.get("slash_state") != "clear":
+                errors.append(f"reporter {reporter_id} slash_state was not clear at submit")
+            snapshot_queries = snapshot.get("query_ids")
+            if isinstance(snapshot_queries, list) and snapshot_queries and query_id not in snapshot_queries:
+                errors.append(f"reporter {reporter_id} was not registered for query_id at submit")
+            if report.get("reporter_state_hash") != _reporter_state_hash(snapshot):
+                errors.append(f"reporter {reporter_id} reporter_state_hash mismatch at sequence {report.get('sequence')}")
+        source_id = report.get("source_id")
+        if not isinstance(source_id, str) or not source_id:
+            errors.append(f"reporter {reporter_id} missing source_id")
+        source_snapshot = report.get("source_state_at_submit")
+        if _source_policy_requires_registered(None if query is None else query.get("source_policy_id")):
+            if not isinstance(source_snapshot, dict):
+                errors.append(f"reporter {reporter_id} missing source_state_at_submit for registered source policy")
+        if isinstance(source_snapshot, dict):
+            if source_snapshot.get("source_id") != source_id:
+                errors.append(f"reporter {reporter_id} source_state_at_submit source_id mismatch")
+            if source_snapshot.get("active") is not True:
+                errors.append(f"reporter {reporter_id} source was not active at submit")
+            for key in (
+                "source_control_group_id",
+                "venue_id",
+                "data_family_id",
+                "transport_id",
+                "assurance_class",
+            ):
+                if not isinstance(source_snapshot.get(key), str) or not source_snapshot.get(key):
+                    errors.append(f"reporter {reporter_id} source_state_at_submit missing {key}")
+            current_source = sources.get(str(source_id))
+            if sources and not isinstance(current_source, dict):
+                errors.append(f"report source_id is not in source registry: {source_id}")
+        expected_source_state_hash = _source_state_hash(source_snapshot if isinstance(source_snapshot, Mapping) else None)
+        if report.get("source_state_hash") != expected_source_state_hash:
+            errors.append(f"reporter {reporter_id} source_state_hash mismatch at sequence {report.get('sequence')}")
+        sequence = report.get("sequence")
+        if isinstance(sequence, bool) or not isinstance(sequence, int):
+            errors.append(f"reporter {reporter_id} report sequence must be an int")
+            continue
+        expected = sequences.get(reporter_id, 0) + 1
+        if sequence != expected:
+            errors.append(f"reporter {reporter_id} sequence {sequence} != expected {expected}")
+        sequences[reporter_id] = sequence
+        core = {
+            key: report[key]
+            for key in (
+                "schema",
+                "query_id",
+                "reporter_id",
+                "source_id",
+                "value_kind",
+                "price_e8",
+                "source_observed_epoch",
+                "reported_epoch",
+                "sequence",
+                "reporter_state_hash",
+                "source_state_hash",
+            )
+            if key in report
+        }
+        signing_payload_hash, report_id = _report_hashes(core)
+        if report.get("signing_payload_hash") != signing_payload_hash:
+            errors.append(f"reporter {reporter_id} signing_payload_hash mismatch at sequence {sequence}")
+        if report.get("report_id") != report_id:
+            errors.append(f"reporter {reporter_id} report_id mismatch at sequence {sequence}")
+        if identity is not None and identity.get("reporter_id") == reporter_id:
+            expected_signature = _sign_local_report(str(identity["secret_key"]), signing_payload_hash)
+            if report.get("signature") != expected_signature:
+                errors.append(f"reporter {reporter_id} signature mismatch at sequence {sequence}")
+        reward_e8 = report.get("reward_e8")
+        if isinstance(reward_e8, bool) or not isinstance(reward_e8, int) or reward_e8 < 0:
+            errors.append(f"reporter {reporter_id} reward_e8 must be a non-negative int")
+            reward_e8 = 0
+        reward_counts[reporter_id] = reward_counts.get(reporter_id, 0) + 1
+        reward_sums[reporter_id] = reward_sums.get(reporter_id, 0) + int(reward_e8)
+        query_reward_sums[query_id] = query_reward_sums.get(query_id, 0) + int(reward_e8)
+    for reporter_id, count in reward_counts.items():
+        reward_entry = reward_reporters.get(reporter_id)
+        if not isinstance(reward_entry, dict):
+            errors.append(f"reporter {reporter_id} missing reward entry")
+            continue
+        if int(reward_entry.get("accepted_report_count", -1)) != count:
+            errors.append(f"reporter {reporter_id} accepted_report_count does not match replay")
+        accounted = (
+            int(reward_entry.get("pending_rewards_e8", 0))
+            + int(reward_entry.get("paid_rewards_e8", 0))
+            + int(reward_entry.get("slashed_rewards_e8", 0))
+        )
+        if accounted != reward_sums.get(reporter_id, 0):
+            errors.append(f"reporter {reporter_id} reward accounting does not match replay")
+    for reporter_id, entry in reporters.items():
+        if not isinstance(entry, dict):
+            errors.append(f"reporter {reporter_id} registry entry must be an object")
+            continue
+        last_sequence = entry.get("last_sequence", 0)
+        if isinstance(last_sequence, bool) or not isinstance(last_sequence, int) or last_sequence < 0:
+            errors.append(f"reporter {reporter_id} last_sequence must be a non-negative int")
+            continue
+        expected_last_sequence = sequences.get(str(reporter_id), 0)
+        if int(last_sequence) != expected_last_sequence:
+            errors.append(f"reporter {reporter_id} last_sequence does not match replay")
+    for query in queries:
+        query_id = str(query.get("query_id"))
+        expected_spent = query_reward_sums.get(query_id, 0)
+        actual_spent = int(query.get("reward_spent_e8", 0))
+        if actual_spent != expected_spent:
+            errors.append(f"query {query_id} reward_spent_e8 does not match replay")
+        if actual_spent > int(query.get("reward_budget_e8", 0)):
+            errors.append(f"query {query_id} reward_spent_e8 exceeds reward_budget_e8")
+    _verify_aggregates(home, reports, queries, errors)
+    _verify_accepted_reads(home, queries, errors)
+    _verify_authorization_bundles(home, errors)
+    _verify_disputes(home, reports, errors)
+    _verify_stored_receipt_files(home, errors)
+    return not errors, errors, sequences, len(reports)
+
+
+def cmd_verify_local_state(args: argparse.Namespace) -> int:
+    home = _home(args)
+    ok, errors, sequences, checked_reports = _verify_report_log(home)
+    result = {
+        "schema": SCHEMA,
+        "ok": ok,
+        "home": str(home),
+        "checked_reports": checked_reports,
+        "reporter_sequences": sequences,
+        "errors": errors,
+        "production_authority": False,
+    }
+    if args.out:
+        _write_json(Path(args.out), result)
+    _emit(result, json_out=args.json)
+    return 0 if ok else 2
+
+
+def _check_non_negative_int(payload: Mapping[str, Any], key: str, errors: list[str]) -> int:
+    value = payload.get(key)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        errors.append(f"{key} must be a non-negative int")
+        return 0
+    return int(value)
+
+
+def _is_sha256_ref(value: Any) -> bool:
+    if not isinstance(value, str) or not value.startswith("sha256:") or len(value) != 71:
+        return False
+    try:
+        int(value.removeprefix("sha256:"), 16)
+    except ValueError:
+        return False
+    return True
+
+
+def _verify_report_receipt(payload: Mapping[str, Any], errors: list[str]) -> dict[str, Any]:
+    core = {
+        key: payload[key]
+        for key in (
+            "schema",
+            "query_id",
+            "reporter_id",
+            "source_id",
+            "value_kind",
+            "price_e8",
+            "source_observed_epoch",
+            "reported_epoch",
+            "sequence",
+            "reporter_state_hash",
+            "source_state_hash",
+        )
+        if key in payload
+    }
+    for required in (
+        "schema",
+        "query_id",
+        "reporter_id",
+        "source_id",
+        "value_kind",
+        "price_e8",
+        "source_observed_epoch",
+        "reported_epoch",
+        "sequence",
+    ):
+        if required not in core:
+            errors.append(f"report missing {required}")
+    signing_payload_hash, report_id = _report_hashes(core)
+    if payload.get("signing_payload_hash") != signing_payload_hash:
+        errors.append("report signing_payload_hash mismatch")
+    if payload.get("report_id") != report_id:
+        errors.append("report_id mismatch")
+    if payload.get("value_kind") != "price_e8":
+        errors.append("report value_kind must be price_e8")
+    price_e8 = payload.get("price_e8")
+    if isinstance(price_e8, bool) or not isinstance(price_e8, int) or price_e8 <= 0:
+        errors.append("report price_e8 must be a positive int")
+    reward_e8 = payload.get("reward_e8", 0)
+    if isinstance(reward_e8, bool) or not isinstance(reward_e8, int) or reward_e8 < 0:
+        errors.append("report reward_e8 must be a non-negative int")
+    snapshot = payload.get("reporter_state_at_submit")
+    if snapshot is not None and not isinstance(snapshot, dict):
+        errors.append("reporter_state_at_submit must be an object when present")
+    elif isinstance(snapshot, dict) and payload.get("reporter_state_hash") != _reporter_state_hash(snapshot):
+        errors.append("reporter_state_hash mismatch")
+    source_snapshot = payload.get("source_state_at_submit")
+    if source_snapshot is not None:
+        if not isinstance(source_snapshot, dict):
+            errors.append("source_state_at_submit must be an object when present")
+        elif source_snapshot.get("source_id") != payload.get("source_id"):
+            errors.append("source_state_at_submit source_id mismatch")
+    expected_source_state_hash = _source_state_hash(source_snapshot if isinstance(source_snapshot, Mapping) else None)
+    if payload.get("source_state_hash") is not None and payload.get("source_state_hash") != expected_source_state_hash:
+        errors.append("source_state_hash mismatch")
+    return {
+        "receipt_kind": "report",
+        "expected_report_id": report_id,
+        "expected_signing_payload_hash": signing_payload_hash,
+    }
+
+
+def _verify_aggregate_receipt(payload: Mapping[str, Any], errors: list[str]) -> dict[str, Any]:
+    body = dict(payload)
+    aggregate_id = body.pop("aggregate_id", None)
+    expected_aggregate_id = semantic_hash("zeno_oracle.aggregate.v1", body)
+    if aggregate_id != expected_aggregate_id:
+        errors.append("aggregate_id mismatch")
+    included_report_ids = payload.get("included_report_ids")
+    if not isinstance(included_report_ids, list) or not included_report_ids:
+        errors.append("aggregate included_report_ids must be a non-empty list")
+    elif len(set(str(item) for item in included_report_ids)) != len(included_report_ids):
+        errors.append("aggregate included_report_ids must be distinct")
+    source_ids = payload.get("included_source_ids")
+    if not isinstance(source_ids, list) or not source_ids:
+        errors.append("aggregate included_source_ids must be a non-empty list")
+    elif len(set(str(item) for item in source_ids)) != len(source_ids):
+        errors.append("aggregate included_source_ids must be distinct")
+    for key in ("feed_registry_root", "query_policy_root", "source_registry_root", "reporter_registry_root"):
+        if not _is_sha256_ref(payload.get(key)):
+            errors.append(f"aggregate {key} must be a sha256 reference")
+    reporter_count = _check_non_negative_int(payload, "reporter_count", errors)
+    min_reporters = _check_non_negative_int(payload, "min_reporters", errors)
+    if reporter_count < min_reporters:
+        errors.append("aggregate reporter_count below min_reporters")
+    _check_non_negative_int(payload, "value_e8", errors)
+    _check_non_negative_int(payload, "confidence_e8", errors)
+    _check_non_negative_int(payload, "deviation_bps", errors)
+    return {
+        "receipt_kind": "aggregate",
+        "expected_aggregate_id": expected_aggregate_id,
+    }
+
+
+def _verify_accepted_read_receipt(payload: Mapping[str, Any], errors: list[str]) -> dict[str, Any]:
+    body = dict(payload)
+    read_id = body.pop("read_id", None)
+    expected_read_id = semantic_hash("zeno_oracle.accepted_read.v1", body)
+    if read_id != expected_read_id:
+        errors.append("read_id mismatch")
+    for key in ("query_id", "value_e8", "observed_epoch"):
+        if key not in payload:
+            errors.append(f"accepted read missing {key}")
+    expected_value_hash = oracle_value_hash(
+        query_id=str(payload.get("query_id", "")),
+        value_e8=int(payload.get("value_e8", 0)),
+        observed_epoch=int(payload.get("observed_epoch", 0)),
+    )
+    if payload.get("value_hash") != expected_value_hash:
+        errors.append("accepted read value_hash mismatch")
+    try:
+        _require_read_profile_evidence(payload.get("profile_id"), str(payload.get("evidence_class", "")))
+    except SystemExit as exc:
+        errors.append(f"accepted read {exc}")
+    if int(payload.get("expires_at_epoch", 0)) < int(payload.get("observed_epoch", 0)):
+        errors.append("accepted read expires before observed epoch")
+    return {
+        "receipt_kind": "accepted_read",
+        "expected_read_id": expected_read_id,
+        "expected_value_hash": expected_value_hash,
+    }
+
+
+def _verify_dispute_receipt(payload: Mapping[str, Any], errors: list[str]) -> dict[str, Any]:
+    dispute_id = payload.get("dispute_id")
+    open_body = {
+        "schema": "zeno_oracle.local_dispute.v1",
+        "report_id": payload.get("report_id"),
+        "reporter_id": payload.get("reporter_id"),
+        "opened_epoch": payload.get("opened_epoch"),
+        "bond_e8": payload.get("bond_e8"),
+        "reason": payload.get("reason"),
+        "status": "open",
+    }
+    expected_dispute_id = semantic_hash("zeno_oracle.dispute.v1", open_body)
+    if dispute_id != expected_dispute_id:
+        errors.append("dispute_id mismatch")
+    status = payload.get("status")
+    if status not in {"open", "upheld", "rejected"}:
+        errors.append("dispute status must be open, upheld, or rejected")
+    bond_e8 = payload.get("bond_e8")
+    if isinstance(bond_e8, bool) or not isinstance(bond_e8, int) or bond_e8 <= 0:
+        errors.append("dispute bond_e8 must be positive")
+    slash_e8 = payload.get("slash_e8", 0)
+    if isinstance(slash_e8, bool) or not isinstance(slash_e8, int) or slash_e8 < 0:
+        errors.append("dispute slash_e8 must be a non-negative int")
+    if status == "rejected" and slash_e8 != 0:
+        errors.append("rejected dispute cannot carry slash_e8")
+    return {
+        "receipt_kind": "dispute",
+        "expected_dispute_id": expected_dispute_id,
+    }
+
+
+def _verify_receipt_graph(payload: Mapping[str, Any], errors: list[str]) -> dict[str, Any]:
+    if payload.get("schema") != "zeno_oracle.receipt_graph.v1":
+        errors.append("receipt graph schema must be zeno_oracle.receipt_graph.v1")
+    for key in (
+        "read_id",
+        "aggregate_id",
+        "value_hash",
+        "report_leaf_root",
+        "dispute_state_root",
+        "feed_registry_root",
+        "query_policy_root",
+        "source_registry_root",
+        "reporter_registry_root",
+    ):
+        if not _is_sha256_ref(payload.get(key)):
+            errors.append(f"receipt graph {key} must be a sha256 reference")
+    numeric_values: dict[str, int] = {}
+    for key in (
+        "value_e8",
+        "confidence_e8",
+        "deviation_bps",
+        "observed_epoch",
+        "expires_at_epoch",
+        "reporter_count",
+        "min_reporters",
+        "source_count",
+        "reporter_control_group_count",
+    ):
+        numeric_values[key] = _check_non_negative_int(payload, key, errors)
+    if numeric_values["expires_at_epoch"] < numeric_values["observed_epoch"]:
+        errors.append("receipt graph expires before observed epoch")
+
+    included_reports = payload.get("included_report_ids")
+    if not isinstance(included_reports, list) or not included_reports:
+        errors.append("receipt graph included_report_ids must be a non-empty list")
+        included_report_set: set[str] = set()
+    else:
+        included_report_set = {str(item) for item in included_reports}
+        if len(included_report_set) != len(included_reports):
+            errors.append("receipt graph included_report_ids must be distinct")
+    included_sources = payload.get("included_source_ids")
+    if not isinstance(included_sources, list) or not included_sources:
+        errors.append("receipt graph included_source_ids must be a non-empty list")
+    elif len({str(item) for item in included_sources}) != len(included_sources):
+        errors.append("receipt graph included_source_ids must be distinct")
+
+    report_leaf_commitments = payload.get("report_leaf_commitments")
+    if not isinstance(report_leaf_commitments, list) or not report_leaf_commitments:
+        errors.append("receipt graph report_leaf_commitments must be a non-empty list")
+    else:
+        leaf_report_ids: list[str] = []
+        leaf_source_ids: list[str] = []
+        for index, leaf in enumerate(report_leaf_commitments):
+            if not isinstance(leaf, Mapping):
+                errors.append(f"receipt graph report_leaf_commitments[{index}] must be an object")
+                continue
+            report_id = str(leaf.get("report_id", ""))
+            source_id = str(leaf.get("source_id", ""))
+            leaf_report_ids.append(report_id)
+            leaf_source_ids.append(source_id)
+            query_ids_raw = leaf.get("query_ids", [])
+            if not isinstance(query_ids_raw, list):
+                errors.append(f"receipt graph report leaf {report_id} query_ids must be a list")
+                query_ids_raw = []
+            reporter_snapshot = {
+                "active": bool(leaf.get("active")),
+                "bond_amount_e8": _check_non_negative_int(leaf, "bond_amount_e8", errors),
+                "control_group_id": str(leaf.get("control_group_id", leaf.get("reporter_id", ""))),
+                "query_ids": sorted(str(item) for item in query_ids_raw if isinstance(item, str)),
+                "required_bond_e8": _check_non_negative_int(leaf, "required_bond_e8", errors),
+                "slash_state": str(leaf.get("slash_state", "")),
+            }
+            if leaf.get("reporter_state_hash") != _reporter_state_hash(reporter_snapshot):
+                errors.append(f"receipt graph report leaf {report_id} reporter_state_hash mismatch")
+            source_snapshot = leaf.get("source_state_at_submit")
+            if source_snapshot is not None and not isinstance(source_snapshot, Mapping):
+                errors.append(f"receipt graph report leaf {report_id} source_state_at_submit must be an object")
+                source_snapshot = None
+            if isinstance(source_snapshot, Mapping):
+                if source_snapshot.get("source_id") != source_id:
+                    errors.append(f"receipt graph report leaf {report_id} source_state_at_submit source_id mismatch")
+                for key in (
+                    "source_control_group_id",
+                    "venue_id",
+                    "data_family_id",
+                    "transport_id",
+                    "assurance_class",
+                ):
+                    if not isinstance(source_snapshot.get(key), str) or not source_snapshot.get(key):
+                        errors.append(f"receipt graph report leaf {report_id} source_state_at_submit missing {key}")
+            if leaf.get("source_state_hash") != _source_state_hash(
+                source_snapshot if isinstance(source_snapshot, Mapping) else None
+            ):
+                errors.append(f"receipt graph report leaf {report_id} source_state_hash mismatch")
+        if leaf_report_ids != sorted(leaf_report_ids):
+            errors.append("receipt graph report_leaf_commitments must be sorted by report_id")
+        if set(leaf_report_ids) != included_report_set:
+            errors.append("receipt graph report_leaf_commitments must match included_report_ids")
+        if isinstance(included_sources, list) and {str(item) for item in included_sources} != set(leaf_source_ids):
+            errors.append("receipt graph report_leaf_commitments must match included_source_ids")
+        expected_report_leaf_root = semantic_hash(
+            "zeno_oracle.report_leaf_root.v1",
+            {"reports": report_leaf_commitments},
+        )
+        if payload.get("report_leaf_root") != expected_report_leaf_root:
+            errors.append("receipt graph report_leaf_root mismatch")
+
+    disputed_report_ids = payload.get("disputed_report_ids")
+    if not isinstance(disputed_report_ids, list):
+        errors.append("receipt graph disputed_report_ids must be a list")
+    else:
+        normalized_disputed = [str(item) for item in disputed_report_ids]
+        if normalized_disputed != sorted(normalized_disputed):
+            errors.append("receipt graph disputed_report_ids must be sorted")
+        if len(set(normalized_disputed)) != len(normalized_disputed):
+            errors.append("receipt graph disputed_report_ids must be distinct")
+        if any(report_id not in included_report_set for report_id in normalized_disputed):
+            errors.append("receipt graph disputed_report_ids must be included reports")
+
+    body = dict(payload)
+    receipt_graph_root = body.pop("receipt_graph_root", None)
+    expected_receipt_graph_root = semantic_hash("zeno_oracle.receipt_graph.v1", body)
+    if receipt_graph_root != expected_receipt_graph_root:
+        errors.append("receipt_graph_root mismatch")
+    return {
+        "receipt_kind": "receipt_graph",
+        "expected_receipt_graph_root": expected_receipt_graph_root,
+    }
+
+
+def _verify_reward_entry(payload: Mapping[str, Any], errors: list[str]) -> dict[str, Any]:
+    reward_entry_id = payload.get("reward_entry_id")
+    body = dict(payload)
+    body.pop("reward_entry_id", None)
+    expected_reward_entry_id = semantic_hash("zeno_oracle.reward_ledger_entry.v1", body)
+    if reward_entry_id != expected_reward_entry_id:
+        errors.append("reward_entry_id mismatch")
+    if not isinstance(payload.get("reporter_id"), str) or not payload.get("reporter_id"):
+        errors.append("reward reporter_id must be a non-empty string")
+    for key in (
+        "pending_rewards_e8",
+        "paid_rewards_e8",
+        "accepted_report_count",
+        "slash_debt_e8",
+        "slashed_rewards_e8",
+    ):
+        _check_non_negative_int(payload, key, errors)
+    return {
+        "receipt_kind": "reward_ledger_entry",
+        "expected_reward_entry_id": expected_reward_entry_id,
+    }
+
+
+def _verify_slash_settlement(payload: Mapping[str, Any], errors: list[str]) -> dict[str, Any]:
+    slash_settlement_id = payload.get("slash_settlement_id")
+    body = dict(payload)
+    body.pop("slash_settlement_id", None)
+    expected_slash_settlement_id = semantic_hash("zeno_oracle.slash_settlement.v1", body)
+    if slash_settlement_id != expected_slash_settlement_id:
+        errors.append("slash_settlement_id mismatch")
+    if not isinstance(payload.get("dispute_id"), str) or not payload.get("dispute_id"):
+        errors.append("slash settlement dispute_id must be a non-empty string")
+    if not isinstance(payload.get("reporter_id"), str) or not payload.get("reporter_id"):
+        errors.append("slash settlement reporter_id must be a non-empty string")
+    slash_e8 = _check_non_negative_int(payload, "slash_e8", errors)
+    bond_slashed = _check_non_negative_int(payload, "bond_slashed_e8", errors)
+    reward_slashed = _check_non_negative_int(payload, "pending_reward_slashed_e8", errors)
+    slash_debt = _check_non_negative_int(payload, "slash_debt_e8", errors)
+    _check_non_negative_int(payload, "resolved_epoch", errors)
+    if bond_slashed + reward_slashed + slash_debt != slash_e8:
+        errors.append("slash settlement components do not sum to slash_e8")
+    return {
+        "receipt_kind": "slash_settlement",
+        "expected_slash_settlement_id": expected_slash_settlement_id,
+    }
+
+
+def _verify_oracle_authorization_bundle_receipt(
+    payload: Mapping[str, Any],
+    errors: list[str],
+) -> dict[str, Any]:
+    from tools.check_oracle_authorization_semantic_binding import check_authorization_payload
+
+    auth = payload.get("authorization")
+    runtime = payload.get("runtime_action")
+    graph = payload.get("receipt_graph")
+    if not isinstance(auth, Mapping):
+        errors.append("authorization bundle authorization must be an object")
+        auth = {}
+    if not isinstance(runtime, Mapping):
+        errors.append("authorization bundle runtime_action must be an object")
+        runtime = {}
+    if not isinstance(graph, Mapping):
+        errors.append("authorization bundle receipt_graph must be an object")
+        graph = {}
+
+    semantic = check_authorization_payload({"authorization": auth, "runtime_action": runtime})
+    errors.extend(str(error) for error in semantic.get("typed_errors", []))
+    graph_details = _verify_receipt_graph(graph, errors)
+
+    for root_key in (
+        "feed_registry_root",
+        "query_policy_root",
+        "source_registry_root",
+        "reporter_registry_root",
+        "receipt_graph_root",
+    ):
+        if auth.get(root_key) != graph.get(root_key):
+            errors.append(f"authorization bundle {root_key} does not match receipt_graph")
+    for value_key, graph_key in (
+        ("query_id", "query_id"),
+        ("value_e8", "value_e8"),
+        ("value_hash", "value_hash"),
+        ("confidence_e8", "confidence_e8"),
+        ("deviation_bps", "deviation_bps"),
+        ("observed_epoch", "observed_epoch"),
+        ("expires_at_epoch", "expires_at_epoch"),
+        ("evidence_class", "read_evidence_class"),
+    ):
+        if auth.get(value_key) != graph.get(graph_key):
+            errors.append(f"authorization bundle {value_key} does not match receipt_graph")
+
+    expected_authorization_id = semantic_hash("zeno_oracle.oracle_authorization.v1", dict(auth))
+    if payload.get("authorization_id") != expected_authorization_id:
+        errors.append("authorization_id mismatch")
+    return {
+        "receipt_kind": "oracle_authorization_bundle",
+        "authorization_id": payload.get("authorization_id"),
+        "expected_authorization_id": expected_authorization_id,
+        "expected_receipt_graph_root": graph_details.get("expected_receipt_graph_root"),
+        "typed_ok": semantic.get("typed_ok") is True,
+    }
+
+
+def verify_standalone_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
+    errors: list[str] = []
+    if not isinstance(payload, Mapping):
+        return {
+            "schema": "zeno_oracle.receipt_check.v1",
+            "ok": False,
+            "receipt_kind": "unknown",
+            "errors": ["payload root must be an object"],
+            "production_authority": False,
+        }
+    schema = payload.get("schema")
+    details: dict[str, Any]
+    if schema == "zeno_oracle.report.v1":
+        details = _verify_report_receipt(payload, errors)
+    elif schema == "zeno_oracle.aggregate.v1":
+        details = _verify_aggregate_receipt(payload, errors)
+    elif schema == "zeno_oracle.accepted_read.v1":
+        details = _verify_accepted_read_receipt(payload, errors)
+    elif schema == "zeno_oracle.local_dispute.v1":
+        details = _verify_dispute_receipt(payload, errors)
+    elif schema == "zeno_oracle.receipt_graph.v1":
+        details = _verify_receipt_graph(payload, errors)
+    elif schema == "zeno_oracle.reward_ledger_entry.v1":
+        details = _verify_reward_entry(payload, errors)
+    elif schema == "zeno_oracle.slash_settlement.v1":
+        details = _verify_slash_settlement(payload, errors)
+    elif schema == "zeno_oracle.oracle_authorization_bundle.v1":
+        details = _verify_oracle_authorization_bundle_receipt(payload, errors)
+    else:
+        details = {"receipt_kind": "unknown"}
+        errors.append(f"unsupported receipt schema: {schema}")
+    return {
+        "schema": "zeno_oracle.receipt_check.v1",
+        "ok": not errors,
+        **details,
+        "errors": errors,
+        "production_authority": False,
+    }
+
+
+def cmd_verify_receipt(args: argparse.Namespace) -> int:
+    payload = _load_json(Path(args.payload))
+    result = verify_standalone_receipt(payload)
+    if args.out:
+        _write_json(Path(args.out), result)
+    _emit(result, json_out=args.json)
+    return 0 if result.get("ok") is True else 2
+
+
+def cmd_verify_authorization(args: argparse.Namespace) -> int:
+    from tools.check_oracle_authorization_semantic_binding import check_authorization_payload
+
+    payload = _load_json(Path(args.payload))
+    if not isinstance(payload, Mapping):
+        raise SystemExit("payload root must be an object")
+    result = check_authorization_payload(payload)
+    if args.out:
+        _write_json(Path(args.out), result)
+    _emit(result, json_out=args.json)
+    return 0 if result.get("typed_ok") is True else 2
+
+
+def cmd_verify_evidence(args: argparse.Namespace) -> int:
+    checker = ROOT / "internal/zeno_oracle/tools/check_oracle_mvp_evidence.py"
+    if not checker.exists():
+        raise SystemExit("internal Oracle MVP evidence checker is not available in this checkout")
+    cmd = [sys.executable, str(checker)]
+    if args.skip_lean:
+        cmd.append("--skip-lean")
+    proc = subprocess.run(cmd, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "schema": SCHEMA,
+                    "ok": proc.returncode == 0,
+                    "returncode": proc.returncode,
+                    "stdout": proc.stdout,
+                    "stderr": proc.stderr,
+                },
+                sort_keys=True,
+                indent=2,
+            )
+        )
+    else:
+        print(proc.stdout, end="")
+        if proc.stderr:
+            print(proc.stderr, file=sys.stderr, end="")
+    return proc.returncode
+
+
+def cmd_health(args: argparse.Namespace) -> int:
+    home = _home(args)
+    checks = {
+        "home_exists": home.exists(),
+        "config_exists": (home / "config.toml").exists(),
+        "identity_exists": _key_path(home).exists(),
+        "internal_evidence_checker_available": (
+            ROOT / "internal/zeno_oracle/tools/check_oracle_mvp_evidence.py"
+        ).exists(),
+    }
+    _emit(
+        {
+            "schema": SCHEMA,
+            "ok": all(checks.values()),
+            "home": str(home),
+            "checks": checks,
+            "production_authority": False,
+        },
+        json_out=args.json,
+    )
+    return 0 if all(checks.values()) else 2
+
+
+def _safe_verify_report_log(home: Path) -> dict[str, Any]:
+    try:
+        ok, errors, sequences, checked_reports = _verify_report_log(home)
+    except SystemExit as exc:
+        return {
+            "ok": False,
+            "checked_reports": 0,
+            "reporter_sequences": {},
+            "errors": [f"replay raised: {exc}"],
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "checked_reports": 0,
+            "reporter_sequences": {},
+            "errors": [f"replay raised: {exc}"],
+        }
+    return {
+        "ok": ok,
+        "checked_reports": checked_reports,
+        "reporter_sequences": sequences,
+        "errors": errors,
+    }
+
+
+def _iter_receipt_dir(home: Path, kind: str) -> list[dict[str, Any]]:
+    receipt_dir = home / "receipts" / kind
+    if not receipt_dir.exists():
+        return []
+    receipts: list[dict[str, Any]] = []
+    for path in sorted(receipt_dir.glob("*.json")):
+        try:
+            payload = _load_json(path)
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            receipts.append(payload)
+    return receipts
+
+
+def _dashboard_snapshot(home: Path, *, now_epoch: int, recent_limit: int = 50) -> dict[str, Any]:
+    query_registry = _load_query_registry(home)
+    queries = _registry_queries(query_registry)
+    reporters = [
+        dict(entry)
+        for _reporter_id, entry in sorted(_registry_reporters(_load_reporter_registry(home)).items())
+        if isinstance(entry, dict)
+    ]
+    sources = [
+        dict(entry)
+        for _source_id, entry in sorted(_source_entries(_load_source_registry(home)).items())
+        if isinstance(entry, dict)
+    ]
+    disputes = _sorted_disputes(_load_disputes(home))
+    rewards = [
+        dict(entry)
+        for _reporter_id, entry in sorted(_reward_reporters(_load_rewards(home)).items())
+        if isinstance(entry, dict)
+    ]
+    reports = _iter_jsonl(_reports_log_path(home))
+    aggregates = _iter_jsonl(_aggregates_log_path(home))
+    reads = _iter_jsonl(_reads_log_path(home))
+    authorizations = _iter_jsonl(_authorizations_log_path(home))
+    reward_receipts = _iter_receipt_dir(home, "rewards")
+    slash_receipts = _iter_receipt_dir(home, "slashes")
+    replay = _safe_verify_report_log(home)
+    feed_statuses = [_query_status(home, query, now_epoch) for query in queries if query.get("query_id")]
+    critical_reads = [read for read in reads if _is_critical_profile(read.get("profile_id"))]
+    o3_plus_reads = [
+        read
+        for read in reads
+        if EVIDENCE_RANK.get(str(read.get("evidence_class", "O0")), 0) >= EVIDENCE_RANK["O3"]
+    ]
+    open_disputes = [entry for entry in disputes if entry.get("status") == "open"]
+    upheld_disputes = [entry for entry in disputes if entry.get("status") == "upheld"]
+    active_reporters = [entry for entry in reporters if entry.get("active") is True]
+    active_sources = [entry for entry in sources if entry.get("active") is True]
+    total_pending_rewards = sum(int(entry.get("pending_rewards_e8", 0)) for entry in rewards)
+    total_paid_rewards = sum(int(entry.get("paid_rewards_e8", 0)) for entry in rewards)
+    total_slashes = sum(int(entry.get("total_slashed_e8", 0)) for entry in reporters)
+    summary = {
+        "query_count": len(queries),
+        "feed_status_count": len(feed_statuses),
+        "active_feed_count": sum(1 for query in queries if query.get("status") == "active"),
+        "reporter_count": len(reporters),
+        "active_reporter_count": len(active_reporters),
+        "source_count": len(sources),
+        "active_source_count": len(active_sources),
+        "report_count": len(reports),
+        "aggregate_count": len(aggregates),
+        "accepted_read_count": len(reads),
+        "critical_read_count": len(critical_reads),
+        "o3_plus_read_count": len(o3_plus_reads),
+        "authorization_count": len(authorizations),
+        "open_dispute_count": len(open_disputes),
+        "upheld_dispute_count": len(upheld_disputes),
+        "pending_rewards_e8": total_pending_rewards,
+        "paid_rewards_e8": total_paid_rewards,
+        "total_slashed_e8": total_slashes,
+        "replay_ok": replay["ok"],
+    }
+    return {
+        "schema": "zeno_oracle.dashboard_snapshot.v1",
+        "ok": bool(replay["ok"]),
+        "home": str(home),
+        "now_epoch": int(now_epoch),
+        "summary": summary,
+        "feed_statuses": feed_statuses,
+        "queries": queries,
+        "reporters": reporters,
+        "sources": sources,
+        "disputes": disputes,
+        "rewards": rewards,
+        "recent_reports": reports[-recent_limit:],
+        "recent_aggregates": aggregates[-recent_limit:],
+        "recent_accepted_reads": reads[-recent_limit:],
+        "recent_authorizations": authorizations[-recent_limit:],
+        "recent_reward_receipts": reward_receipts[-recent_limit:],
+        "recent_slash_receipts": slash_receipts[-recent_limit:],
+        "replay": replay,
+        "production_authority": False,
+    }
+
+
+def _stored_receipt_by_id(home: Path, receipt_id: str) -> tuple[str, dict[str, Any]] | None:
+    candidate_id = str(receipt_id).strip()
+    if not candidate_id:
+        return None
+    for kind in ("reports", "aggregates", "reads", "authorizations", "rewards", "slashes"):
+        path = home / "receipts" / kind / f"{candidate_id.replace(':', '_')}.json"
+        if path.exists():
+            payload = _load_json(path)
+            if isinstance(payload, dict):
+                return kind, payload
+
+    log_sources = (
+        ("report", _iter_jsonl(_reports_log_path(home)), "report_id"),
+        ("aggregate", _iter_jsonl(_aggregates_log_path(home)), "aggregate_id"),
+        ("accepted_read", _iter_jsonl(_reads_log_path(home)), "read_id"),
+        ("authorization", _iter_jsonl(_authorizations_log_path(home)), "authorization_id"),
+    )
+    for kind, rows, id_key in log_sources:
+        for row in rows:
+            if row.get(id_key) == candidate_id:
+                return kind, row
+
+    dispute = _dispute_entries(_load_disputes(home)).get(candidate_id)
+    if isinstance(dispute, dict):
+        return "dispute", dispute
+    return None
+
+
+def _dashboard_endpoint_payload(
+    home: Path,
+    path: str,
+    *,
+    now_epoch: int,
+    query_params: Mapping[str, list[str]] | None = None,
+) -> tuple[int, dict[str, Any]]:
+    if path == "/api/oracle/verify-receipt":
+        params = query_params or {}
+        receipt_id = params.get("id", [""])[0]
+        found = _stored_receipt_by_id(home, receipt_id)
+        if found is None:
+            return (
+                404,
+                {
+                    "schema": "zeno_oracle.api_receipt_verify.v1",
+                    "ok": False,
+                    "error": "receipt_not_found",
+                    "receipt_id": receipt_id,
+                    "production_authority": False,
+                },
+            )
+        receipt_kind, receipt = found
+        check = verify_standalone_receipt(receipt)
+        return (
+            200 if check.get("ok") is True else 400,
+            {
+                "schema": "zeno_oracle.api_receipt_verify.v1",
+                "ok": check.get("ok") is True,
+                "receipt_id": receipt_id,
+                "stored_receipt_kind": receipt_kind,
+                "receipt_check": check,
+                "receipt": receipt,
+                "production_authority": False,
+            },
+        )
+
+    snapshot = _dashboard_snapshot(home, now_epoch=now_epoch)
+    routes: dict[str, Any] = {
+        "/api/oracle/health": {
+            "schema": "zeno_oracle.api_health.v1",
+            "ok": True,
+            "home": str(home),
+            "replay_ok": snapshot["replay"]["ok"],
+            "production_authority": False,
+        },
+        "/api/oracle/dashboard": snapshot,
+        "/api/oracle/feeds": {
+            "schema": "zeno_oracle.api_feeds.v1",
+            "ok": True,
+            "count": len(snapshot["feed_statuses"]),
+            "feed_statuses": snapshot["feed_statuses"],
+            "production_authority": False,
+        },
+        "/api/oracle/queries": {
+            "schema": "zeno_oracle.api_queries.v1",
+            "ok": True,
+            "count": len(snapshot["queries"]),
+            "queries": snapshot["queries"],
+            "production_authority": False,
+        },
+        "/api/oracle/reporters": {
+            "schema": "zeno_oracle.api_reporters.v1",
+            "ok": True,
+            "count": len(snapshot["reporters"]),
+            "reporters": snapshot["reporters"],
+            "production_authority": False,
+        },
+        "/api/oracle/sources": {
+            "schema": "zeno_oracle.api_sources.v1",
+            "ok": True,
+            "count": len(snapshot["sources"]),
+            "sources": snapshot["sources"],
+            "production_authority": False,
+        },
+        "/api/oracle/disputes": {
+            "schema": "zeno_oracle.api_disputes.v1",
+            "ok": True,
+            "count": len(snapshot["disputes"]),
+            "disputes": snapshot["disputes"],
+            "production_authority": False,
+        },
+        "/api/oracle/rewards": {
+            "schema": "zeno_oracle.api_rewards.v1",
+            "ok": True,
+            "count": len(snapshot["rewards"]),
+            "rewards": snapshot["rewards"],
+            "production_authority": False,
+        },
+        "/api/oracle/aggregates": {
+            "schema": "zeno_oracle.api_aggregates.v1",
+            "ok": True,
+            "count": len(snapshot["recent_aggregates"]),
+            "aggregates": snapshot["recent_aggregates"],
+            "production_authority": False,
+        },
+        "/api/oracle/accepted-reads": {
+            "schema": "zeno_oracle.api_accepted_reads.v1",
+            "ok": True,
+            "count": len(snapshot["recent_accepted_reads"]),
+            "accepted_reads": snapshot["recent_accepted_reads"],
+            "production_authority": False,
+        },
+        "/api/oracle/authorizations": {
+            "schema": "zeno_oracle.api_authorizations.v1",
+            "ok": True,
+            "count": len(snapshot["recent_authorizations"]),
+            "authorizations": snapshot["recent_authorizations"],
+            "production_authority": False,
+        },
+        "/api/oracle/replay": {
+            "schema": "zeno_oracle.api_replay.v1",
+            "ok": snapshot["replay"]["ok"],
+            **snapshot["replay"],
+            "production_authority": False,
+        },
+    }
+    if path in routes:
+        return 200, routes[path]
+    return (
+        404,
+        {
+            "schema": "zeno_oracle.api_error.v1",
+            "ok": False,
+            "error": "not_found",
+            "path": path,
+            "available_paths": sorted([*routes, "/api/oracle/verify-receipt"]),
+            "production_authority": False,
+        },
+    )
+
+
+def _command_json(func: Any, namespace: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    stdout = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(stdout):
+            rc = int(func(namespace))
+    except (SystemExit, argparse.ArgumentTypeError, ValueError, TypeError) as exc:
+        return (
+            400,
+            {
+                "schema": "zeno_oracle.api_command_error.v1",
+                "ok": False,
+                "error": str(exc),
+                "production_authority": False,
+            },
+        )
+    text = stdout.getvalue().strip()
+    if not text:
+        payload: dict[str, Any] = {"schema": SCHEMA, "ok": rc == 0, "production_authority": False}
+    else:
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            payload = {
+                "schema": "zeno_oracle.api_command_result.v1",
+                "ok": rc == 0,
+                "stdout": text,
+                "production_authority": False,
+            }
+    return (200 if rc == 0 else 400, payload)
+
+
+def _list_payload(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    return [str(value)]
+
+
+def _write_endpoint_payload(home: Path, path: str, body: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
+    if path == "/api/oracle/identity/create":
+        return _command_json(
+            cmd_identity_create,
+            argparse.Namespace(home=str(home), force=bool(body.get("force", False)), json=True),
+        )
+    if path == "/api/oracle/reporter/register":
+        return _command_json(
+            cmd_reporter_register,
+            argparse.Namespace(
+                home=str(home),
+                display_name=str(body.get("display_name", "local reporter")),
+                control_group_id=body.get("control_group_id"),
+                query_id=_list_payload(body.get("query_ids", body.get("query_id"))),
+                required_bond_e8=int(body.get("required_bond_e8", DEFAULT_REQUIRED_BOND_E8)),
+                bond_asset=str(body.get("bond_asset", "ZORACLE")),
+                epoch=body.get("epoch"),
+                force=bool(body.get("force", False)),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/reporter/bond":
+        return _command_json(
+            cmd_reporter_bond,
+            argparse.Namespace(
+                home=str(home),
+                amount_e8=str(body.get("amount_e8", "")),
+                asset=str(body.get("asset", "ZORACLE")),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/query/register":
+        return _command_json(
+            cmd_query_register,
+            argparse.Namespace(
+                home=str(home),
+                query_type=str(body.get("query_type", "spot_price")),
+                base_asset=str(body.get("base_asset", "")),
+                quote_asset=str(body.get("quote_asset", "")),
+                feed_id=body.get("feed_id"),
+                asset_class=str(body.get("asset_class", "crypto")),
+                jurisdiction=str(body.get("jurisdiction", "global")),
+                market_hours_policy_id=str(body.get("market_hours_policy_id", "always-open-v1")),
+                valuation_policy_id=str(body.get("valuation_policy_id", "spot-observed-v1")),
+                scale=int(body.get("scale", 100_000_000)),
+                evidence_floor=str(body.get("evidence_floor", "O3")),
+                freshness_window_epochs=int(body.get("freshness_window_epochs", 3)),
+                min_reporters=int(body.get("min_reporters", 3)),
+                max_deviation_bps=int(body.get("max_deviation_bps", 100)),
+                high_uncertainty_confidence_e8=int(body.get("high_uncertainty_confidence_e8", 1_000_000)),
+                source_policy_id=str(body.get("source_policy_id", "source-policy:declared-diverse-v1")),
+                report_reward_e8=int(body.get("report_reward_e8", DEFAULT_REPORT_REWARD_E8)),
+                reward_budget_e8=int(body.get("reward_budget_e8", 0)),
+                dispute_bond_e8=int(body.get("dispute_bond_e8", DEFAULT_DISPUTE_BOND_E8)),
+                default_slash_e8=int(body.get("default_slash_e8", DEFAULT_SLASH_E8)),
+                query_id=body.get("query_id"),
+                force=bool(body.get("force", False)),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/query/fund":
+        return _command_json(
+            cmd_query_fund,
+            argparse.Namespace(
+                home=str(home),
+                query_id=str(body.get("query_id", "")),
+                amount_e8=str(body.get("amount_e8", "")),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/source/register":
+        return _command_json(
+            cmd_source_register,
+            argparse.Namespace(
+                home=str(home),
+                source_id=str(body.get("source_id", "")),
+                source_kind=str(body.get("source_kind", "manual")),
+                operator_id=body.get("operator_id"),
+                control_group_id=body.get("control_group_id"),
+                venue_id=body.get("venue_id"),
+                data_family_id=str(body.get("data_family_id", "price:spot")),
+                transport_id=str(body.get("transport_id", "transport:manual")),
+                jurisdiction=str(body.get("jurisdiction", "global")),
+                asset_class=_list_payload(body.get("asset_classes", body.get("asset_class"))),
+                query_id=_list_payload(body.get("query_ids", body.get("query_id"))),
+                assurance_class=str(body.get("assurance_class", "S1")),
+                epoch=body.get("epoch"),
+                force=bool(body.get("force", False)),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/rewards/pay":
+        return _command_json(
+            cmd_rewards_pay,
+            argparse.Namespace(
+                home=str(home),
+                reporter_id=body.get("reporter_id"),
+                amount_e8=body.get("amount_e8"),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/dispute/open":
+        return _command_json(
+            cmd_dispute_open,
+            argparse.Namespace(
+                home=str(home),
+                report_id=str(body.get("report_id", "")),
+                reporter_id=str(body.get("reporter_id", "")),
+                bond_e8=str(body.get("bond_e8", DEFAULT_DISPUTE_BOND_E8)),
+                reason=str(body.get("reason", "local-api-dispute")),
+                epoch=body.get("epoch"),
+                dispute_id=body.get("dispute_id"),
+                force=bool(body.get("force", False)),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/dispute/resolve":
+        return _command_json(
+            cmd_dispute_resolve,
+            argparse.Namespace(
+                home=str(home),
+                dispute_id=str(body.get("dispute_id", "")),
+                outcome=str(body.get("outcome", "")),
+                slash_e8=body.get("slash_e8"),
+                epoch=body.get("epoch"),
+                force=bool(body.get("force", False)),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/aggregate/build":
+        return _command_json(
+            cmd_aggregate_build,
+            argparse.Namespace(
+                home=str(home),
+                query_id=str(body.get("query_id", "")),
+                epoch=body.get("epoch"),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/read/accept":
+        return _command_json(
+            cmd_read_accept,
+            argparse.Namespace(
+                home=str(home),
+                aggregate_id=str(body.get("aggregate_id", "")),
+                consumer_module=str(body.get("consumer_module", "zenodex.zusd")),
+                profile_id=str(body.get("profile_id", "critical-zusd-v1")),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/authorization/build":
+        return _command_json(
+            cmd_authorization_build,
+            argparse.Namespace(
+                home=str(home),
+                read_id=str(body.get("read_id", "")),
+                action_kind=str(body.get("action_kind", "")),
+                action_id=str(body.get("action_id", "")),
+                action_facts_hash=str(body.get("action_facts_hash", "")),
+                pre_state_hash=str(body.get("pre_state_hash", "")),
+                now_epoch=body.get("now_epoch"),
+                min_evidence_class=str(body.get("min_evidence_class", "O3")),
+                economic_envelope_id=str(body.get("economic_envelope_id", "econ:local-dev-v1")),
+                json=True,
+            ),
+        )
+    if path == "/api/oracle/report/submit":
+        return _command_json(
+            cmd_report_submit,
+            argparse.Namespace(
+                home=str(home),
+                query_id=str(body.get("query_id", "")),
+                price_e8=str(body.get("price_e8", "")),
+                source_observed_epoch=str(body.get("source_observed_epoch", "")),
+                reported_epoch=body.get("reported_epoch"),
+                source_id=str(body.get("source_id", "source:manual")),
+                reward_e8=body.get("reward_e8"),
+                out=None,
+                json=True,
+            ),
+        )
+    return (
+        404,
+        {
+            "schema": "zeno_oracle.api_error.v1",
+            "ok": False,
+            "error": "not_found",
+            "path": path,
+            "available_write_paths": [
+                "/api/oracle/identity/create",
+                "/api/oracle/reporter/register",
+                "/api/oracle/reporter/bond",
+                "/api/oracle/query/register",
+                "/api/oracle/query/fund",
+                "/api/oracle/source/register",
+                "/api/oracle/rewards/pay",
+                "/api/oracle/dispute/open",
+                "/api/oracle/dispute/resolve",
+                "/api/oracle/aggregate/build",
+                "/api/oracle/read/accept",
+                "/api/oracle/authorization/build",
+                "/api/oracle/report/submit",
+            ],
+            "production_authority": False,
+        },
+    )
+
+
+def cmd_dashboard_snapshot(args: argparse.Namespace) -> int:
+    home = _home(args)
+    now_epoch = int(args.now_epoch if args.now_epoch is not None else time.time())
+    result = _dashboard_snapshot(home, now_epoch=now_epoch)
+    if args.out:
+        _write_json(Path(args.out), result)
+    _emit(result, json_out=args.json)
+    return 0 if result.get("ok") is True else 2
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import parse_qs, urlparse
+
+    home = _home(args)
+    host = str(args.host)
+    port = int(args.port)
+
+    class OracleHandler(BaseHTTPRequestHandler):
+        server_version = "ZenoOracleLocal/0.1"
+
+        def log_message(self, format: str, *format_args: object) -> None:
+            if args.quiet:
+                return
+            super().log_message(format, *format_args)
+
+        def _send_json(self, status: int, payload: Mapping[str, Any]) -> None:
+            body = json.dumps(payload, sort_keys=True, indent=2).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", args.cors_origin)
+            self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_OPTIONS(self) -> None:
+            self._send_json(200, {"schema": "zeno_oracle.api_options.v1", "ok": True})
+
+        def do_GET(self) -> None:
+            parsed = urlparse(self.path)
+            now_epoch = int(args.now_epoch if args.now_epoch is not None else time.time())
+            try:
+                status, payload = _dashboard_endpoint_payload(
+                    home,
+                    parsed.path,
+                    now_epoch=now_epoch,
+                    query_params=parse_qs(parsed.query),
+                )
+            except Exception as exc:
+                status, payload = (
+                    500,
+                    {
+                        "schema": "zeno_oracle.api_error.v1",
+                        "ok": False,
+                        "error": f"internal_error: {exc}",
+                        "production_authority": False,
+                    },
+                )
+            self._send_json(status, payload)
+
+        def do_POST(self) -> None:
+            parsed = urlparse(self.path)
+            if not args.allow_writes:
+                self._send_json(
+                    403,
+                    {
+                        "schema": "zeno_oracle.api_error.v1",
+                        "ok": False,
+                        "error": "write_api_disabled",
+                        "hint": "restart zenodex-oracle serve with --allow-writes for local operator writes",
+                        "production_authority": False,
+                    },
+                )
+                return
+            try:
+                content_length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                content_length = 0
+            if content_length <= 0 or content_length > 65_536:
+                self._send_json(
+                    400,
+                    {
+                        "schema": "zeno_oracle.api_error.v1",
+                        "ok": False,
+                        "error": "invalid_content_length",
+                        "production_authority": False,
+                    },
+                )
+                return
+            try:
+                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            except Exception as exc:
+                self._send_json(
+                    400,
+                    {
+                        "schema": "zeno_oracle.api_error.v1",
+                        "ok": False,
+                        "error": f"invalid_json: {exc}",
+                        "production_authority": False,
+                    },
+                )
+                return
+            if not isinstance(body, Mapping):
+                self._send_json(
+                    400,
+                    {
+                        "schema": "zeno_oracle.api_error.v1",
+                        "ok": False,
+                        "error": "request body must be a JSON object",
+                        "production_authority": False,
+                    },
+                )
+                return
+            try:
+                status, payload = _write_endpoint_payload(home, parsed.path, body)
+            except Exception as exc:
+                status, payload = (
+                    500,
+                    {
+                        "schema": "zeno_oracle.api_error.v1",
+                        "ok": False,
+                        "error": f"internal_error: {exc}",
+                        "production_authority": False,
+                    },
+                )
+            self._send_json(status, payload)
+
+    server = ThreadingHTTPServer((host, port), OracleHandler)
+    actual_port = int(server.server_address[1])
+    ready = {
+        "schema": SCHEMA,
+        "ok": True,
+        "home": str(home),
+        "url": f"http://{host}:{actual_port}",
+        "paths": [
+            "/api/oracle/health",
+            "/api/oracle/dashboard",
+            "/api/oracle/feeds",
+            "/api/oracle/reporters",
+            "/api/oracle/sources",
+            "/api/oracle/disputes",
+            "/api/oracle/rewards",
+            "/api/oracle/aggregates",
+            "/api/oracle/accepted-reads",
+            "/api/oracle/authorizations",
+            "/api/oracle/replay",
+        ],
+        "write_paths_enabled": bool(args.allow_writes),
+        "write_paths": [
+            "/api/oracle/identity/create",
+            "/api/oracle/reporter/register",
+            "/api/oracle/reporter/bond",
+            "/api/oracle/query/register",
+            "/api/oracle/query/fund",
+            "/api/oracle/source/register",
+            "/api/oracle/rewards/pay",
+            "/api/oracle/dispute/open",
+            "/api/oracle/dispute/resolve",
+            "/api/oracle/aggregate/build",
+            "/api/oracle/read/accept",
+            "/api/oracle/authorization/build",
+            "/api/oracle/report/submit",
+        ] if args.allow_writes else [],
+        "production_authority": False,
+    }
+    print(json.dumps(ready, sort_keys=True), flush=True)
+    try:
+        if args.once:
+            with contextlib.suppress(Exception):
+                server.handle_request()
+        else:
+            server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser(prog="zenodex-oracle")
+    parser.add_argument("--json", action="store_true", help="emit JSON output")
+    sub = parser.add_subparsers(dest="cmd", required=True)
 
-    verify = subparsers.add_parser("verify", help="verify a local Oracle receipt bundle")
-    verify.add_argument("bundle", help="path to a receipt bundle JSON file")
-    verify.add_argument("--output", help="optional output path for the verifier result JSON")
-    verify.set_defaults(func=cmd_verify)
+    version = sub.add_parser("version", help="show version/build information")
+    version.set_defaults(func=cmd_version)
 
-    sample = subparsers.add_parser("sample-bundle", help="emit a minimal accepted Oracle receipt bundle")
-    sample.add_argument("--output", help="optional output path for the sample bundle JSON")
-    sample.set_defaults(func=cmd_sample_bundle)
+    init = sub.add_parser("init", help="create local Oracle home/config directories")
+    init.add_argument("--home", default=str(DEFAULT_HOME))
+    init.add_argument("--force", action="store_true")
+    init.set_defaults(func=cmd_init)
+
+    identity = sub.add_parser("identity", help="manage local reporter identity")
+    identity_sub = identity.add_subparsers(dest="identity_cmd", required=True)
+    identity_create = identity_sub.add_parser("create", help="create a local dev reporter identity")
+    identity_create.add_argument("--home", default=str(DEFAULT_HOME))
+    identity_create.add_argument("--force", action="store_true")
+    identity_create.set_defaults(func=cmd_identity_create)
+    identity_show = identity_sub.add_parser("show", help="show public reporter identity")
+    identity_show.add_argument("--home", default=str(DEFAULT_HOME))
+    identity_show.set_defaults(func=cmd_identity_show)
+
+    reporter = sub.add_parser("reporter", help="manage local reporter registry state")
+    reporter_sub = reporter.add_subparsers(dest="reporter_cmd", required=True)
+    reporter_register = reporter_sub.add_parser("register", help="register the local identity as a reporter")
+    reporter_register.add_argument("--home", default=str(DEFAULT_HOME))
+    reporter_register.add_argument("--display-name", default="local reporter")
+    reporter_register.add_argument("--control-group-id")
+    reporter_register.add_argument("--query-id", action="append", default=[])
+    reporter_register.add_argument("--required-bond-e8", type=int, default=DEFAULT_REQUIRED_BOND_E8)
+    reporter_register.add_argument("--bond-asset", default="ZORACLE")
+    reporter_register.add_argument("--epoch", type=int)
+    reporter_register.add_argument("--force", action="store_true")
+    reporter_register.set_defaults(func=cmd_reporter_register)
+    reporter_bond = reporter_sub.add_parser("bond", help="add local reporter bond")
+    reporter_bond.add_argument("--home", default=str(DEFAULT_HOME))
+    reporter_bond.add_argument("--amount-e8", required=True)
+    reporter_bond.add_argument("--asset", default="ZORACLE")
+    reporter_bond.set_defaults(func=cmd_reporter_bond)
+    reporter_show = reporter_sub.add_parser("show", help="show local reporter registry entry")
+    reporter_show.add_argument("--home", default=str(DEFAULT_HOME))
+    reporter_show.add_argument("--reporter-id")
+    reporter_show.set_defaults(func=cmd_reporter_show)
+    reporter_list = reporter_sub.add_parser("list", help="list local reporter registry entries")
+    reporter_list.add_argument("--home", default=str(DEFAULT_HOME))
+    reporter_list.add_argument("--active-only", action="store_true")
+    reporter_list.add_argument("--query-id")
+    reporter_list.set_defaults(func=cmd_reporter_list)
+    reporter_deactivate = reporter_sub.add_parser("deactivate", help="deactivate a local reporter")
+    reporter_deactivate.add_argument("--home", default=str(DEFAULT_HOME))
+    reporter_deactivate.add_argument("--reporter-id")
+    reporter_deactivate.add_argument("--epoch", type=int)
+    reporter_deactivate.set_defaults(func=cmd_reporter_deactivate)
+
+    source = sub.add_parser("source", help="manage local source registry state")
+    source_sub = source.add_subparsers(dest="source_cmd", required=True)
+    source_register = source_sub.add_parser("register", help="register a local oracle data source")
+    source_register.add_argument("--home", default=str(DEFAULT_HOME))
+    source_register.add_argument("--source-id", required=True)
+    source_register.add_argument("--source-kind", choices=SOURCE_KINDS, default="manual")
+    source_register.add_argument("--operator-id")
+    source_register.add_argument("--control-group-id")
+    source_register.add_argument("--venue-id")
+    source_register.add_argument("--data-family-id", default="price:spot")
+    source_register.add_argument("--transport-id", default="transport:manual")
+    source_register.add_argument("--jurisdiction", default="global")
+    source_register.add_argument("--asset-class", choices=ASSET_CLASSES, action="append", default=[])
+    source_register.add_argument("--query-id", action="append", default=[])
+    source_register.add_argument("--assurance-class", choices=SOURCE_ASSURANCE_CLASSES, default="S1")
+    source_register.add_argument("--epoch", type=int)
+    source_register.add_argument("--force", action="store_true")
+    source_register.set_defaults(func=cmd_source_register)
+    source_list = source_sub.add_parser("list", help="list local source registry entries")
+    source_list.add_argument("--home", default=str(DEFAULT_HOME))
+    source_list.add_argument("--active-only", action="store_true")
+    source_list.add_argument("--asset-class", choices=ASSET_CLASSES)
+    source_list.add_argument("--query-id")
+    source_list.set_defaults(func=cmd_source_list)
+    source_show = source_sub.add_parser("show", help="show one local source registry entry")
+    source_show.add_argument("--home", default=str(DEFAULT_HOME))
+    source_show.add_argument("--source-id", required=True)
+    source_show.set_defaults(func=cmd_source_show)
+    source_deactivate = source_sub.add_parser("deactivate", help="deactivate a local source")
+    source_deactivate.add_argument("--home", default=str(DEFAULT_HOME))
+    source_deactivate.add_argument("--source-id", required=True)
+    source_deactivate.add_argument("--epoch", type=int)
+    source_deactivate.set_defaults(func=cmd_source_deactivate)
+
+    query = sub.add_parser("query", help="inspect query registries")
+    query_sub = query.add_subparsers(dest="query_cmd", required=True)
+    query_register = query_sub.add_parser("register", help="register a local spot-price query/feed")
+    query_register.add_argument("--home", default=str(DEFAULT_HOME))
+    query_register.add_argument(
+        "--query-type",
+        choices=("spot_price", "index_price", "nav_price", "settlement_price"),
+        default="spot_price",
+    )
+    query_register.add_argument("--base-asset", required=True)
+    query_register.add_argument("--quote-asset", required=True)
+    query_register.add_argument("--feed-id")
+    query_register.add_argument("--asset-class", choices=ASSET_CLASSES, default="crypto")
+    query_register.add_argument("--jurisdiction", default="global")
+    query_register.add_argument("--market-hours-policy-id", default="always-open-v1")
+    query_register.add_argument("--valuation-policy-id", default="spot-observed-v1")
+    query_register.add_argument("--scale", type=int, default=100_000_000)
+    query_register.add_argument("--evidence-floor", default="O3")
+    query_register.add_argument("--freshness-window-epochs", type=int, default=3)
+    query_register.add_argument("--min-reporters", type=int, default=3)
+    query_register.add_argument("--max-deviation-bps", type=int, default=100)
+    query_register.add_argument("--high-uncertainty-confidence-e8", type=int, default=1_000_000)
+    query_register.add_argument("--source-policy-id", default="source-policy:declared-diverse-v1")
+    query_register.add_argument("--report-reward-e8", type=int, default=DEFAULT_REPORT_REWARD_E8)
+    query_register.add_argument("--reward-budget-e8", type=int, default=0)
+    query_register.add_argument("--dispute-bond-e8", type=int, default=DEFAULT_DISPUTE_BOND_E8)
+    query_register.add_argument("--default-slash-e8", type=int, default=DEFAULT_SLASH_E8)
+    query_register.add_argument("--query-id")
+    query_register.add_argument("--force", action="store_true")
+    query_register.set_defaults(func=cmd_query_register)
+    query_fund = query_sub.add_parser("fund", help="add local reward budget to a query/feed")
+    query_fund.add_argument("--home", default=str(DEFAULT_HOME))
+    query_fund.add_argument("--query-id", required=True)
+    query_fund.add_argument("--amount-e8", required=True)
+    query_fund.set_defaults(func=cmd_query_fund)
+    query_list = query_sub.add_parser("list", help="list query registry entries")
+    query_list.add_argument("--home", default=str(DEFAULT_HOME))
+    query_list.add_argument("--registry")
+    query_list.set_defaults(func=cmd_query_list)
+    query_show = query_sub.add_parser("show", help="show one query registry entry")
+    query_show.add_argument("--home", default=str(DEFAULT_HOME))
+    query_show.add_argument("--registry")
+    query_show.add_argument("--query-id", required=True)
+    query_show.set_defaults(func=cmd_query_show)
+    query_status = query_sub.add_parser("status", help="show local feed freshness/dispute/uncertainty labels")
+    query_status.add_argument("--home", default=str(DEFAULT_HOME))
+    query_status.add_argument("--query-id")
+    query_status.add_argument("--all", action="store_true")
+    query_status.add_argument("--now-epoch", type=int)
+    query_status.set_defaults(func=cmd_query_status)
+
+    report = sub.add_parser("report", help="build local report artifacts")
+    report_sub = report.add_subparsers(dest="report_cmd", required=True)
+    dry_run = report_sub.add_parser("dry-run", help="build a deterministic unsigned report preview")
+    dry_run.add_argument("--query-id", required=True)
+    dry_run.add_argument("--price-e8", required=True)
+    dry_run.add_argument("--source-observed-epoch", required=True)
+    dry_run.add_argument("--reported-epoch", type=int)
+    dry_run.add_argument("--reporter-id", required=True)
+    dry_run.add_argument("--source-id", required=True)
+    dry_run.add_argument("--out")
+    dry_run.set_defaults(func=cmd_report_dry_run)
+    submit = report_sub.add_parser("submit", help="submit a local signed report and update rewards")
+    submit.add_argument("--home", default=str(DEFAULT_HOME))
+    submit.add_argument("--query-id", required=True)
+    submit.add_argument("--price-e8", required=True)
+    submit.add_argument("--source-observed-epoch", required=True)
+    submit.add_argument("--reported-epoch", type=int)
+    submit.add_argument("--source-id", required=True)
+    submit.add_argument("--reward-e8", type=int)
+    submit.add_argument("--out")
+    submit.set_defaults(func=cmd_report_submit)
+
+    aggregate = sub.add_parser("aggregate", help="build local aggregate receipts")
+    aggregate_sub = aggregate.add_subparsers(dest="aggregate_cmd", required=True)
+    aggregate_build = aggregate_sub.add_parser("build", help="build a deterministic aggregate from local reports")
+    aggregate_build.add_argument("--home", default=str(DEFAULT_HOME))
+    aggregate_build.add_argument("--query-id", required=True)
+    aggregate_build.add_argument("--epoch", type=int)
+    aggregate_build.set_defaults(func=cmd_aggregate_build)
+
+    read = sub.add_parser("read", help="build local accepted-read receipts")
+    read_sub = read.add_subparsers(dest="read_cmd", required=True)
+    read_accept = read_sub.add_parser("accept", help="accept a local aggregate for a consumer profile")
+    read_accept.add_argument("--home", default=str(DEFAULT_HOME))
+    read_accept.add_argument("--aggregate-id", required=True)
+    read_accept.add_argument("--consumer-module", required=True)
+    read_accept.add_argument("--profile-id", required=True)
+    read_accept.set_defaults(func=cmd_read_accept)
+
+    authorization = sub.add_parser("authorization", help="build typed OracleAuthorization bundles")
+    authorization_sub = authorization.add_subparsers(dest="authorization_cmd", required=True)
+    authorization_build = authorization_sub.add_parser(
+        "build",
+        help="bind an accepted read to exact runtime action facts",
+    )
+    authorization_build.add_argument("--home", default=str(DEFAULT_HOME))
+    authorization_build.add_argument("--read-id", required=True)
+    authorization_build.add_argument("--action-kind", required=True)
+    authorization_build.add_argument("--action-id", required=True)
+    authorization_build.add_argument("--action-facts-hash", required=True)
+    authorization_build.add_argument("--pre-state-hash", required=True)
+    authorization_build.add_argument("--now-epoch", type=int)
+    authorization_build.add_argument("--min-evidence-class", default="O3")
+    authorization_build.add_argument("--economic-envelope-id", default="econ:local-dev-v1")
+    authorization_build.set_defaults(func=cmd_authorization_build)
+
+    rewards = sub.add_parser("rewards", help="inspect local reporter rewards")
+    rewards_sub = rewards.add_subparsers(dest="rewards_cmd", required=True)
+    rewards_inspect = rewards_sub.add_parser("inspect", help="show pending and paid local rewards")
+    rewards_inspect.add_argument("--home", default=str(DEFAULT_HOME))
+    rewards_inspect.add_argument("--reporter-id")
+    rewards_inspect.set_defaults(func=cmd_rewards_inspect)
+    rewards_pay = rewards_sub.add_parser("pay", help="move pending local rewards into paid rewards")
+    rewards_pay.add_argument("--home", default=str(DEFAULT_HOME))
+    rewards_pay.add_argument("--reporter-id")
+    rewards_pay.add_argument("--amount-e8", type=int)
+    rewards_pay.set_defaults(func=cmd_rewards_pay)
+
+    dispute = sub.add_parser("dispute", help="manage local report disputes and slashes")
+    dispute_sub = dispute.add_subparsers(dest="dispute_cmd", required=True)
+    dispute_open = dispute_sub.add_parser("open", help="open a local dispute against a report")
+    dispute_open.add_argument("--home", default=str(DEFAULT_HOME))
+    dispute_open.add_argument("--report-id", required=True)
+    dispute_open.add_argument("--reporter-id", required=True)
+    dispute_open.add_argument("--bond-e8", default=str(DEFAULT_DISPUTE_BOND_E8))
+    dispute_open.add_argument("--reason", required=True)
+    dispute_open.add_argument("--epoch", type=int)
+    dispute_open.add_argument("--dispute-id")
+    dispute_open.add_argument("--force", action="store_true")
+    dispute_open.set_defaults(func=cmd_dispute_open)
+    dispute_list = dispute_sub.add_parser("list", help="list local disputes")
+    dispute_list.add_argument("--home", default=str(DEFAULT_HOME))
+    dispute_list.add_argument("--status")
+    dispute_list.add_argument("--reporter-id")
+    dispute_list.set_defaults(func=cmd_dispute_list)
+    dispute_show = dispute_sub.add_parser("show", help="show one local dispute")
+    dispute_show.add_argument("--home", default=str(DEFAULT_HOME))
+    dispute_show.add_argument("--dispute-id", required=True)
+    dispute_show.set_defaults(func=cmd_dispute_show)
+    dispute_resolve = dispute_sub.add_parser("resolve", help="resolve a local dispute")
+    dispute_resolve.add_argument("--home", default=str(DEFAULT_HOME))
+    dispute_resolve.add_argument("--dispute-id", required=True)
+    dispute_resolve.add_argument("--outcome", choices=("upheld", "rejected"), required=True)
+    dispute_resolve.add_argument("--slash-e8", type=int)
+    dispute_resolve.add_argument("--epoch", type=int)
+    dispute_resolve.add_argument("--force", action="store_true")
+    dispute_resolve.set_defaults(func=cmd_dispute_resolve)
+
+    verify = sub.add_parser("verify", help="run deterministic verifier surfaces")
+    verify_sub = verify.add_subparsers(dest="verify_cmd", required=True)
+    verify_auth = verify_sub.add_parser("authorization", help="verify typed OracleAuthorization binding")
+    verify_auth.add_argument("payload")
+    verify_auth.add_argument("--out")
+    verify_auth.set_defaults(func=cmd_verify_authorization)
+    verify_evidence = verify_sub.add_parser("evidence", help="run internal Oracle MVP evidence replay")
+    verify_evidence.add_argument("--skip-lean", action="store_true")
+    verify_evidence.set_defaults(func=cmd_verify_evidence)
+    verify_local = verify_sub.add_parser("local-state", help="replay local reporter reports/rewards")
+    verify_local.add_argument("--home", default=str(DEFAULT_HOME))
+    verify_local.add_argument("--out")
+    verify_local.set_defaults(func=cmd_verify_local_state)
+    verify_receipt = verify_sub.add_parser("receipt", help="verify one standalone Oracle receipt JSON file")
+    verify_receipt.add_argument("payload")
+    verify_receipt.add_argument("--out")
+    verify_receipt.set_defaults(func=cmd_verify_receipt)
+
+    sample_bundle_parser = sub.add_parser(
+        "sample-bundle",
+        help="emit a minimal accepted public Oracle receipt bundle",
+    )
+    sample_bundle_parser.add_argument("--output", help="optional output path for the sample bundle JSON")
+    sample_bundle_parser.set_defaults(func=cmd_sample_bundle)
+
+    validator = sub.add_parser("validator", help="validator-oriented deterministic replay commands")
+    validator_sub = validator.add_subparsers(dest="validator_cmd", required=True)
+    validator_replay = validator_sub.add_parser("replay", help="replay local Oracle state")
+    validator_replay.add_argument("--home", default=str(DEFAULT_HOME))
+    validator_replay.add_argument("--out")
+    validator_replay.set_defaults(func=cmd_verify_local_state)
+    validator_auth = validator_sub.add_parser("authorization", help="verify typed OracleAuthorization binding")
+    validator_auth.add_argument("payload")
+    validator_auth.add_argument("--out")
+    validator_auth.set_defaults(func=cmd_verify_authorization)
+    validator_receipt = validator_sub.add_parser("receipt", help="verify one standalone Oracle receipt JSON file")
+    validator_receipt.add_argument("payload")
+    validator_receipt.add_argument("--out")
+    validator_receipt.set_defaults(func=cmd_verify_receipt)
+    validator_evidence = validator_sub.add_parser("evidence", help="run internal Oracle MVP evidence replay")
+    validator_evidence.add_argument("--skip-lean", action="store_true")
+    validator_evidence.set_defaults(func=cmd_verify_evidence)
+
+    dashboard = sub.add_parser("dashboard", help="emit dashboard-oriented Oracle state snapshots")
+    dashboard_sub = dashboard.add_subparsers(dest="dashboard_cmd", required=True)
+    dashboard_snapshot = dashboard_sub.add_parser("snapshot", help="emit one local dashboard JSON snapshot")
+    dashboard_snapshot.add_argument("--home", default=str(DEFAULT_HOME))
+    dashboard_snapshot.add_argument("--now-epoch", type=int)
+    dashboard_snapshot.add_argument("--out")
+    dashboard_snapshot.set_defaults(func=cmd_dashboard_snapshot)
+
+    serve = sub.add_parser("serve", help="serve local ZenoOracle dashboard JSON API")
+    serve.add_argument("--home", default=str(DEFAULT_HOME))
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8787)
+    serve.add_argument("--now-epoch", type=int)
+    serve.add_argument("--cors-origin", default="*")
+    serve.add_argument("--allow-writes", action="store_true")
+    serve.add_argument("--quiet", action="store_true")
+    serve.add_argument("--once", action="store_true")
+    serve.set_defaults(func=cmd_serve)
+
+    health = sub.add_parser("health", help="check local Oracle CLI setup")
+    health.add_argument("--home", default=str(DEFAULT_HOME))
+    health.set_defaults(func=cmd_health)
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def _dispatch_public_receipt_bundle_cli(argv: Sequence[str]) -> int | None:
+    args = list(argv)
+    if not args:
+        return None
+
+    if args[0] == "sample-bundle":
+        parser = argparse.ArgumentParser(prog="zenodex-oracle sample-bundle")
+        parser.add_argument("--output", help="optional output path for the sample bundle JSON")
+        return cmd_sample_bundle(parser.parse_args(args[1:]))
+
+    if (
+        args[0] == "verify"
+        and len(args) > 1
+        and args[1] not in RECEIPT_BUNDLE_VERIFY_SUBCOMMANDS
+        and args[1] not in {"-h", "--help"}
+    ):
+        parser = argparse.ArgumentParser(prog="zenodex-oracle verify")
+        parser.add_argument("bundle", help="path to a receipt bundle JSON file")
+        parser.add_argument("--output", help="optional output path for the verifier result JSON")
+        return cmd_verify_receipt_bundle(parser.parse_args(args[1:]))
+
+    return None
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    public_bundle_rc = _dispatch_public_receipt_bundle_cli(raw_argv)
+    if public_bundle_rc is not None:
+        return int(public_bundle_rc)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_argv)
     return int(args.func(args))
 
 

@@ -67,6 +67,7 @@ def test_aggregate_read_accepts_sample(tmp_path: Path) -> None:
     assert result["value_e8"] == 100_000_000
     assert result["confidence_e8"] == 1_000_000
     assert result["deviation_bps"] == 100
+    assert result["evidence_class"] == "O3"
     assert result["errors"] == []
 
 
@@ -143,6 +144,16 @@ def test_aggregate_read_rejects_expiry_mismatch(tmp_path: Path) -> None:
     code, result = _run_verify(tmp_path, bridge)
     assert code == 2
     assert "bundle_expiry_mismatch" in result["errors"]
+
+
+def test_aggregate_read_rejects_bundle_evidence_class_mismatch(tmp_path: Path) -> None:
+    bridge = sample_aggregate_read_bridge()
+    _read(bridge)["evidence_class"] = "O4"
+    _refresh_read_action_ids(bridge)
+    _refresh_bridge_id(bridge)
+    code, result = _run_verify(tmp_path, bridge)
+    assert code == 2
+    assert "bundle_evidence_class_mismatch" in result["errors"]
 
 
 def test_aggregate_read_verify_inconclusive_on_oversized_file(tmp_path: Path) -> None:

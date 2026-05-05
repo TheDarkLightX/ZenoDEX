@@ -35,11 +35,14 @@ RESULT_SCHEMA = "zenodex.oracle.report_admission_verify_result.v1"
 MAX_ADMISSION_BYTES = 1_000_000
 MAX_EPOCH = 2**63 - 1
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+MIN_CRITICAL_EVIDENCE = "O3"
 TOP_LEVEL_KEYS = {
     "schema",
     "admission_id",
     "current_epoch",
     "max_staleness_epochs",
+    "evidence_class",
     "signed_submission",
     "reporter_lifecycle",
     "source_diversity",
@@ -62,6 +65,7 @@ class ReportAdmissionResult:
     admitted_report_count: int | None = None
     current_epoch: int | None = None
     max_staleness_epochs: int | None = None
+    evidence_class: str | None = None
     admitted_reports: list[dict[str, Any]] | None = None
 
     def to_json_obj(self) -> dict[str, Any]:
@@ -75,6 +79,7 @@ class ReportAdmissionResult:
             "admitted_report_count": self.admitted_report_count,
             "current_epoch": self.current_epoch,
             "max_staleness_epochs": self.max_staleness_epochs,
+            "evidence_class": self.evidence_class,
             "admitted_reports": list(self.admitted_reports or []),
             "errors": list(self.errors),
             "not_claimed": NOT_CLAIMED,
@@ -123,6 +128,7 @@ def sample_report_admission() -> dict[str, Any]:
         "schema": ADMISSION_SCHEMA,
         "current_epoch": 104,
         "max_staleness_epochs": 10,
+        "evidence_class": MIN_CRITICAL_EVIDENCE,
         "signed_submission": signed_submission,
         "reporter_lifecycle": lifecycle,
         "source_diversity": source_diversity,
@@ -176,6 +182,16 @@ def _mapping(obj: Mapping[str, Any], key: str, errors: list[str]) -> Mapping[str
     return value
 
 
+def _evidence_class(obj: Mapping[str, Any], key: str, errors: list[str]) -> str | None:
+    value = obj.get(key)
+    if not isinstance(value, str) or value not in EVIDENCE_RANK:
+        errors.append(f"{key}_invalid")
+        return None
+    if EVIDENCE_RANK[value] < EVIDENCE_RANK[MIN_CRITICAL_EVIDENCE]:
+        errors.append(f"{key}_below_critical_minimum")
+    return value
+
+
 def _source_ids(source_diversity: Mapping[str, Any]) -> set[str]:
     raw_sources = source_diversity.get("sources")
     if not isinstance(raw_sources, list):
@@ -219,6 +235,7 @@ def verify_report_admission(obj: Mapping[str, Any]) -> ReportAdmissionResult:
 
     current_epoch = _int_between(obj, "current_epoch", errors, minimum=0, maximum=MAX_EPOCH)
     max_staleness_epochs = _int_between(obj, "max_staleness_epochs", errors, minimum=0, maximum=MAX_EPOCH)
+    evidence_class = _evidence_class(obj, "evidence_class", errors)
     signed_submission = _mapping(obj, "signed_submission", errors)
     reporter_lifecycle = _mapping(obj, "reporter_lifecycle", errors)
     source_diversity = _mapping(obj, "source_diversity", errors)
@@ -336,6 +353,7 @@ def verify_report_admission(obj: Mapping[str, Any]) -> ReportAdmissionResult:
         admitted_report_count=len(admitted_reports),
         current_epoch=current_epoch,
         max_staleness_epochs=max_staleness_epochs,
+        evidence_class=evidence_class,
         admitted_reports=admitted_reports,
     )
 

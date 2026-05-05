@@ -81,6 +81,7 @@ class SignedIntentEnvelope:
 class SettlementEnvelope:
     settlement: Settlement
     proof: Optional[Dict[str, Any]] = None
+    oracle_authorization: Optional[Dict[str, Any]] = None
 
 
 def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:
@@ -408,11 +409,14 @@ def parse_settlement(operations: Dict[str, Any]) -> Optional[Settlement]:
 
 def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[SettlementEnvelope]:
     """
-    Parse settlement and optional proof payload from operations["3"].
+    Parse settlement plus optional proof and oracle authorization payloads from operations["3"].
 
     Proof payload is passed through as an opaque JSON object under either:
     - settlement_data["proof"] (preferred: object)
     - settlement_data["zk_proof"] (legacy/alt: object)
+
+    Oracle authorization is passed through as an opaque JSON object under:
+    - settlement_data["oracle_authorization"]
     """
     if not isinstance(operations, Mapping):
         raise ValueError(f"operations must be an object, got {type(operations)}")
@@ -436,9 +440,20 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             raise ValueError("settlement proof must be an object")
         proof = raw_proof
 
-    settlement_data_no_proof = {k: v for k, v in settlement_data.items() if k not in ("proof", "zk_proof")}
+    oracle_authorization = None
+    raw_oracle_authorization = settlement_data.get("oracle_authorization")
+    if raw_oracle_authorization is not None:
+        if not isinstance(raw_oracle_authorization, dict):
+            raise ValueError("settlement oracle_authorization must be an object")
+        oracle_authorization = raw_oracle_authorization
+
+    settlement_data_no_proof = {
+        k: v
+        for k, v in settlement_data.items()
+        if k not in ("proof", "zk_proof", "oracle_authorization")
+    }
     settlement = _parse_settlement(settlement_data_no_proof)
-    return SettlementEnvelope(settlement=settlement, proof=proof)
+    return SettlementEnvelope(settlement=settlement, proof=proof, oracle_authorization=oracle_authorization)
 
 
 def _parse_settlement(settlement_data: Dict[str, Any]) -> Settlement:

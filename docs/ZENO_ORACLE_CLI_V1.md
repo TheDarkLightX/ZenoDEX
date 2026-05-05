@@ -221,9 +221,24 @@ The script writes:
 
 ```text
 dist/zeno-oracle-mvp-rc1.tar.gz
+dist/zeno-oracle-mvp-rc1.receipt.json
+dist/zeno-oracle-mvp-rc1.sig
 dist/zeno-oracle-mvp-rc1/ZEN_ORACLE_RC_MANIFEST.json
+dist/zeno-oracle-mvp-rc1/bin/zenodex-oracle
 ```
 
 The manifest lists every packaged file with `size_bytes` and `sha256`, and sets
-`bin/zenodex-oracle` as the package entrypoint. The CI workflow uploads the
-tarball and manifest as the `zeno-oracle-mvp-rc1` artifact.
+`bin/zenodex-oracle` as the package entrypoint. The receipt and `.sig` file are
+devnet integrity artifacts, not production code signing.
+
+Validate a built package:
+
+```bash
+python3 tools/check_zeno_oracle_rc_package.py \
+  --package-dir dist/zeno-oracle-mvp-rc1 \
+  --receipt dist/zeno-oracle-mvp-rc1.receipt.json \
+  --sig dist/zeno-oracle-mvp-rc1.sig
+```
+
+The CI workflow uploads the tarball, receipt, signature, and manifest as the
+`zeno-oracle-devnet-alpha-rc1` artifact.

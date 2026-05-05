@@ -75,16 +75,20 @@ def test_oracle_rc_package_exposes_bin_entrypoint() -> None:
     assert manifest["python_entrypoint"] == "tools/zenodex_oracle_cli.py"
     assert manifest["product_name"] == "Zeno Oracle"
     assert manifest["branding"]["icon_256"] == "assets/branding/zeno-oracle/zeno_oracle_icon_256.png"
-    assert manifest["whitepaper"] == "docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf"
+    assert manifest["whitepaper"] == "docs/papers/zeno-oracle-whitepaper/main.pdf"
     assert manifest["whitepaper_author"] == "Dana Edwards"
     assert manifest["devnet_alpha_gate"] == "scripts/check_zeno_oracle_devnet_alpha.sh"
     assert any(item["path"] == "bin/zenodex-oracle" for item in manifest["files"])
-    assert any(item["path"] == "tools/zenodex_oracle_devnet_service.py" for item in manifest["files"])
-    assert any(item["path"] == "assets/branding/zeno-oracle/zeno_oracle_icon_256.png" for item in manifest["files"])
+    assert any(item["path"] == "tools/check_disaster_obligation_certificate.py" for item in manifest["files"])
+    assert any(item["path"] == "tools/zeno_oracle_o3_receipt_flow_replay.py" for item in manifest["files"])
     assert any(
-        item["path"] == "docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf"
+        item["path"] == "tools/zeno_oracle_disaster_obligation_certificate_manifest.json"
         for item in manifest["files"]
     )
+    assert any(item["path"] == "tools/zenodex_oracle_reporter_economics_replay.py" for item in manifest["files"])
+    assert any(item["path"] == "tools/zenodex_oracle_devnet_service.py" for item in manifest["files"])
+    assert any(item["path"] == "assets/branding/zeno-oracle/zeno_oracle_icon_256.png" for item in manifest["files"])
+    assert any(item["path"] == "docs/papers/zeno-oracle-whitepaper/main.pdf" for item in manifest["files"])
     assert any(item["path"] == "docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md" for item in manifest["files"])
     assert (REPO / "dist" / f"{version}.receipt.json").is_file()
     assert (REPO / "dist" / f"{version}.sig").is_file()
@@ -225,122 +229,6 @@ def test_oracle_cli_submits_signed_report_to_local_store(tmp_path: Path) -> None
     assert stored.parent == store_path / "signed_reports"
 
 
-def test_oracle_cli_reporter_identity_registration_bond_and_rewards(tmp_path: Path) -> None:
-    identity_path = tmp_path / "reporter-identity.json"
-    store_path = tmp_path / "oracle-store"
-
-    create_identity = subprocess.run(
-        [
-            *CLI,
-            "create-identity",
-            "reporter.alpha",
-            "--private-key",
-            "51",
-            "--output",
-            str(identity_path),
-        ],
-        cwd=REPO,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert create_identity.returncode == 0, create_identity.stderr
-    identity = json.loads(identity_path.read_text(encoding="utf-8"))
-    assert identity["schema"] == "zenodex.oracle.reporter_identity.v1"
-    assert identity["status"] == "accepted"
-    assert identity["reporter_id"] == "reporter.alpha"
-    assert isinstance(identity["reporter_pubkey"], str)
-    assert identity["reporter_pubkey"].startswith("0x")
-    assert len(identity["reporter_pubkey"]) == 98
-
-    register = subprocess.run(
-        [
-            *CLI,
-            "register-reporter",
-            "--identity",
-            str(identity_path),
-            "--store",
-            str(store_path),
-            "--required-bond",
-            "100",
-            "--bond-amount",
-            "125",
-        ],
-        cwd=REPO,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert register.returncode == 0, register.stderr
-    register_receipt = json.loads(register.stdout)
-    assert register_receipt["schema"] == "zenodex.oracle.devnet_service.v1"
-    assert register_receipt["status"] == "accepted"
-    assert register_receipt["reporter_id"] == "reporter.alpha"
-
-    bond = subprocess.run(
-        [*CLI, "bond-reporter", "reporter.alpha", "--amount", "25", "--store", str(store_path)],
-        cwd=REPO,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert bond.returncode == 0, bond.stderr
-    bond_receipt = json.loads(bond.stdout)
-    assert bond_receipt["status"] == "accepted"
-    assert bond_receipt["event_kind"] == "bond"
-
-    inspect = subprocess.run(
-        [*CLI, "inspect-reporter", "reporter.alpha", "--store", str(store_path)],
-        cwd=REPO,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert inspect.returncode == 0, inspect.stderr
-    status = json.loads(inspect.stdout)
-    assert status["schema"] == "zenodex.oracle.cli_reporter_status.v1"
-    assert status["status"] == "accepted"
-    assert status["registered_bond_amount"] == 125
-    assert status["economic_summary"]["bond_total"] == 25
-
-    rewards = subprocess.run(
-        [*CLI, "inspect-rewards", "--store", str(store_path), "--reporter-id", "reporter.alpha"],
-        cwd=REPO,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert rewards.returncode == 0, rewards.stderr
-    reward_summary = json.loads(rewards.stdout)
-    assert reward_summary["schema"] == "zenodex.oracle.cli_reward_summary.v1"
-    assert reward_summary["status"] == "accepted"
-    assert reward_summary["reporters"]["reporter.alpha"]["bond_total"] == 25
-    assert reward_summary["reporters"]["reporter.alpha"]["reward_total"] == 0
-
-
-def test_oracle_cli_bond_reporter_rejects_unregistered_reporter(tmp_path: Path) -> None:
-    proc = subprocess.run(
-        [
-            *CLI,
-            "bond-reporter",
-            "reporter.missing",
-            "--amount",
-            "25",
-            "--store",
-            str(tmp_path / "oracle-store"),
-        ],
-        cwd=REPO,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert proc.returncode == 2
-    receipt = json.loads(proc.stdout)
-    assert receipt["schema"] == "zenodex.oracle.cli_bond_reporter_receipt.v1"
-    assert receipt["status"] == "rejected"
-    assert receipt["errors"] == ["reporter_not_registered"]
-
-
 def test_oracle_cli_dry_run_exercises_local_mvp_flow(tmp_path: Path) -> None:
     workdir = tmp_path / "dry-run"
     proc = subprocess.run(
@@ -357,12 +245,9 @@ def test_oracle_cli_dry_run_exercises_local_mvp_flow(tmp_path: Path) -> None:
     assert receipt["step_count"] == receipt["accepted_step_count"]
     step_names = {step["name"] for step in receipt["steps"]}
     assert "register_feed_to_local_store" in step_names
-    assert "create_reporter_identity" in step_names
-    assert "register_reporter_to_local_store" in step_names
     assert "submit_report_to_local_store" in step_names
     assert "verify_adapter_bundle" in step_names
     assert (workdir / "store" / "feeds").is_dir()
-    assert (workdir / "store" / "reporters").is_dir()
     assert (workdir / "store" / "signed_reports").is_dir()
 
 

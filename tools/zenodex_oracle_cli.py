@@ -5,8 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
-import secrets
 import shutil
 import subprocess
 import sys
@@ -17,8 +15,6 @@ from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
 TOOLS = REPO / "tools"
-REPORTER_ID_RE = re.compile(r"^[a-z][a-z0-9_.:-]{0,127}$")
-IDENTITY_SCHEMA = "zenodex.oracle.reporter_identity.v1"
 
 SURFACES: dict[str, str] = {
     "receipt": "zenodex_oracle.py",
@@ -120,53 +116,6 @@ def _write_json(obj: dict[str, Any], output: Path | None) -> None:
     else:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text, encoding="utf-8")
-
-
-def _load_json_file(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        obj = json.load(handle)
-    if not isinstance(obj, dict):
-        raise SystemExit(f"{path} must contain a JSON object")
-    return obj
-
-
-def _reporter_pubkey_from_private_key(private_key: int) -> str:
-    try:
-        from py_ecc.bls import G2Basic  # pylint: disable=import-outside-toplevel
-        from py_ecc.optimized_bls12_381 import curve_order  # pylint: disable=import-outside-toplevel
-    except Exception as exc:  # pragma: no cover - dependency availability is tested in this checkout.
-        raise SystemExit(f"py_ecc is required for reporter identity operations: {exc}") from exc
-    if private_key <= 0 or private_key >= int(curve_order):
-        raise SystemExit("private_key must be in the BLS scalar field range")
-    return "0x" + G2Basic.SkToPk(int(private_key)).hex()
-
-
-def _new_private_key() -> int:
-    from py_ecc.optimized_bls12_381 import curve_order  # pylint: disable=import-outside-toplevel
-
-    return secrets.randbelow(int(curve_order) - 1) + 1
-
-
-def _parse_private_key(value: str | None) -> int:
-    if value is None:
-        return _new_private_key()
-    try:
-        return int(value, 0)
-    except ValueError as exc:
-        raise SystemExit("private_key must be an integer, decimal or 0x-prefixed hex") from exc
-
-
-def _load_reporter_identity(path: Path) -> dict[str, Any]:
-    identity = _load_json_file(path)
-    if identity.get("schema") != IDENTITY_SCHEMA:
-        raise SystemExit("identity schema mismatch")
-    reporter_id = identity.get("reporter_id")
-    reporter_pubkey = identity.get("reporter_pubkey")
-    if not isinstance(reporter_id, str) or not REPORTER_ID_RE.match(reporter_id):
-        raise SystemExit("identity reporter_id is invalid")
-    if not isinstance(reporter_pubkey, str) or not reporter_pubkey.startswith("0x") or len(reporter_pubkey) != 98:
-        raise SystemExit("identity reporter_pubkey must be a 48-byte hex value")
-    return identity
 
 
 def _result_ok(obj: dict[str, Any] | None) -> bool:
@@ -355,176 +304,6 @@ def cmd_submit_report(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_create_identity(args: argparse.Namespace) -> int:
-    reporter_id = str(args.reporter_id).strip()
-    if not REPORTER_ID_RE.match(reporter_id):
-        raise SystemExit("reporter_id must match ^[a-z][a-z0-9_.:-]{0,127}$")
-    private_key = _parse_private_key(args.private_key)
-    reporter_pubkey = _reporter_pubkey_from_private_key(private_key)
-    identity = {
-        "schema": IDENTITY_SCHEMA,
-        "ok": True,
-        "status": "accepted",
-        "reporter_id": reporter_id,
-        "reporter_pubkey": reporter_pubkey,
-        "private_key_hex": hex(private_key),
-        "not_claimed": [
-            "does_not_claim_key_stored_in_hardware_wallet",
-            "does_not_claim_identity_registered_or_bonded",
-            "local_identity_file_contains_signing_secret",
-        ],
-    }
-    _write_json(identity, Path(args.output) if args.output else None)
-    return 0
-
-
-def cmd_register_reporter(args: argparse.Namespace) -> int:
-    from zenodex_oracle_devnet_service import (  # pylint: disable=import-outside-toplevel
-        OracleDevnetStore,
-        register_reporter,
-    )
-
-    identity = _load_reporter_identity(Path(args.identity))
-    receipt = register_reporter(
-        OracleDevnetStore(Path(args.store)),
-        {
-            "reporter_id": identity["reporter_id"],
-            "reporter_pubkey": identity["reporter_pubkey"],
-            "required_bond": int(args.required_bond),
-            "bond_amount": int(args.bond_amount),
-            "epoch": int(args.epoch),
-        },
-    )
-    _write_json(receipt, Path(args.receipt_output) if args.receipt_output else None)
-    return 0 if receipt.get("status") == "accepted" else 2
-
-
-def cmd_bond_reporter(args: argparse.Namespace) -> int:
-    from zenodex_oracle_devnet_service import (  # pylint: disable=import-outside-toplevel
-        OracleDevnetStore,
-        persist_economic_event,
-    )
-
-    reporter_id = str(args.reporter_id)
-    if not any(candidate.get("reporter_id") == reporter_id for candidate in _load_store_objects(Path(args.store), "reporters")):
-        receipt = {
-            "schema": "zenodex.oracle.cli_bond_reporter_receipt.v1",
-            "ok": False,
-            "status": "rejected",
-            "reporter_id": reporter_id,
-            "errors": ["reporter_not_registered"],
-        }
-        _write_json(receipt, Path(args.receipt_output) if args.receipt_output else None)
-        return 2
-
-    receipt = persist_economic_event(
-        OracleDevnetStore(Path(args.store)),
-        {
-            "event_kind": "bond",
-            "reporter_id": reporter_id,
-            "amount": int(args.amount),
-        },
-    )
-    _write_json(receipt, Path(args.receipt_output) if args.receipt_output else None)
-    return 0 if receipt.get("status") == "accepted" else 2
-
-
-def _load_store_objects(store: Path, folder: str) -> list[dict[str, Any]]:
-    path = store / folder
-    if not path.is_dir():
-        return []
-    objects: list[dict[str, Any]] = []
-    for item in sorted(path.glob("*.json")):
-        try:
-            objects.append(_load_json_file(item))
-        except Exception:
-            continue
-    return objects
-
-
-def _reporter_economic_summary(store: Path, reporter_id: str | None = None) -> dict[str, dict[str, int]]:
-    summary: dict[str, dict[str, int]] = {}
-    for event in _load_store_objects(store, "economics"):
-        current_reporter = event.get("reporter_id")
-        if not isinstance(current_reporter, str) or (reporter_id is not None and current_reporter != reporter_id):
-            continue
-        event_kind = str(event.get("event_kind", "unknown"))
-        amount = event.get("amount", 0)
-        if not isinstance(amount, int) or isinstance(amount, bool):
-            amount = 0
-        bucket = summary.setdefault(
-            current_reporter,
-            {
-                "bond_total": 0,
-                "reward_total": 0,
-                "dispute_bond_total": 0,
-                "slash_total": 0,
-                "event_count": 0,
-            },
-        )
-        bucket["event_count"] += 1
-        if event_kind == "bond":
-            bucket["bond_total"] += int(amount)
-        elif event_kind == "reward":
-            bucket["reward_total"] += int(amount)
-        elif event_kind == "dispute":
-            bucket["dispute_bond_total"] += int(amount)
-        elif event_kind == "slash":
-            bucket["slash_total"] += int(amount)
-    return summary
-
-
-def cmd_inspect_reporter(args: argparse.Namespace) -> int:
-    store = Path(args.store)
-    reporter_id = str(args.reporter_id)
-    registration = None
-    for candidate in _load_store_objects(store, "reporters"):
-        if candidate.get("reporter_id") == reporter_id:
-            registration = candidate
-            break
-    if registration is None:
-        receipt = {
-            "schema": "zenodex.oracle.cli_reporter_status.v1",
-            "ok": False,
-            "status": "rejected",
-            "reporter_id": reporter_id,
-            "errors": ["reporter_not_registered"],
-        }
-        _write_json(receipt, Path(args.output) if args.output else None)
-        return 2
-    economics = _reporter_economic_summary(store, reporter_id).get(
-        reporter_id,
-        {"bond_total": 0, "reward_total": 0, "dispute_bond_total": 0, "slash_total": 0, "event_count": 0},
-    )
-    receipt = {
-        "schema": "zenodex.oracle.cli_reporter_status.v1",
-        "ok": True,
-        "status": "accepted",
-        "reporter_id": reporter_id,
-        "reporter_pubkey": registration.get("reporter_pubkey"),
-        "registration_id": registration.get("registration_id"),
-        "required_bond": registration.get("required_bond"),
-        "registered_bond_amount": registration.get("bond_amount"),
-        "economic_summary": economics,
-    }
-    _write_json(receipt, Path(args.output) if args.output else None)
-    return 0
-
-
-def cmd_inspect_rewards(args: argparse.Namespace) -> int:
-    summary = _reporter_economic_summary(Path(args.store), args.reporter_id)
-    receipt = {
-        "schema": "zenodex.oracle.cli_reward_summary.v1",
-        "ok": True,
-        "status": "accepted",
-        "reporter_id": args.reporter_id,
-        "reporter_count": len(summary),
-        "reporters": summary,
-    }
-    _write_json(receipt, Path(args.output) if args.output else None)
-    return 0
-
-
 def cmd_dry_run(args: argparse.Namespace) -> int:
     root, temp = _dry_run_root(args.workdir)
     steps: list[dict[str, Any]] = []
@@ -556,8 +335,6 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         store = root / "store"
         feed_path = root / "feed-registry.json"
         feed_receipt_path = root / "feed-registration-receipt.json"
-        identity_path = root / "reporter-identity.json"
-        reporter_receipt_path = root / "reporter-registration-receipt.json"
         report_path = root / "signed-report.json"
         report_receipt_path = root / "report-submission-receipt.json"
         lifecycle_path = root / "reporter-lifecycle.json"
@@ -635,31 +412,6 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         )
         register_result = json.loads(feed_receipt_path.read_text(encoding="utf-8")) if feed_receipt_path.exists() else None
         add_step("register_feed_to_local_store", code=register_code, path=feed_receipt_path, result=register_result)
-
-        identity_code = cmd_create_identity(
-            argparse.Namespace(
-                reporter_id="reporter.sample",
-                private_key="42",
-                output=str(identity_path),
-            )
-        )
-        identity_result = json.loads(identity_path.read_text(encoding="utf-8")) if identity_path.exists() else None
-        add_step("create_reporter_identity", code=identity_code, path=identity_path, result=identity_result)
-
-        reporter_code = cmd_register_reporter(
-            argparse.Namespace(
-                identity=str(identity_path),
-                store=str(store),
-                required_bond=100,
-                bond_amount=100,
-                epoch=1,
-                receipt_output=str(reporter_receipt_path),
-            )
-        )
-        reporter_result = (
-            json.loads(reporter_receipt_path.read_text(encoding="utf-8")) if reporter_receipt_path.exists() else None
-        )
-        add_step("register_reporter_to_local_store", code=reporter_code, path=reporter_receipt_path, result=reporter_result)
 
         submit_code = cmd_submit_report(
             argparse.Namespace(
@@ -743,40 +495,6 @@ def build_parser() -> argparse.ArgumentParser:
     submit_report.add_argument("--store", required=True, help="local Oracle store directory")
     submit_report.add_argument("--receipt-output", help="optional output path for the submission receipt")
     submit_report.set_defaults(func=cmd_submit_report)
-
-    create_identity = subparsers.add_parser("create-identity", help="create a local reporter identity")
-    create_identity.add_argument("reporter_id", help="reporter id, for example reporter.alpha")
-    create_identity.add_argument("--private-key", help="optional BLS private key, decimal or 0x-prefixed hex")
-    create_identity.add_argument("--output", help="optional output path for the identity JSON")
-    create_identity.set_defaults(func=cmd_create_identity)
-
-    register_reporter = subparsers.add_parser("register-reporter", help="register and bond a reporter locally")
-    register_reporter.add_argument("--identity", required=True, help="reporter identity JSON from create-identity")
-    register_reporter.add_argument("--store", required=True, help="local Oracle store directory")
-    register_reporter.add_argument("--required-bond", type=int, default=100, help="required reporter bond")
-    register_reporter.add_argument("--bond-amount", type=int, default=100, help="bond posted at registration")
-    register_reporter.add_argument("--epoch", type=int, default=1, help="registration epoch")
-    register_reporter.add_argument("--receipt-output", help="optional output path for the registration receipt")
-    register_reporter.set_defaults(func=cmd_register_reporter)
-
-    bond_reporter = subparsers.add_parser("bond-reporter", help="record a local reporter bond economic event")
-    bond_reporter.add_argument("reporter_id", help="registered reporter id")
-    bond_reporter.add_argument("--amount", type=int, required=True, help="bond event amount")
-    bond_reporter.add_argument("--store", required=True, help="local Oracle store directory")
-    bond_reporter.add_argument("--receipt-output", help="optional output path for the bond receipt")
-    bond_reporter.set_defaults(func=cmd_bond_reporter)
-
-    inspect_reporter = subparsers.add_parser("inspect-reporter", help="inspect local reporter registration and economics")
-    inspect_reporter.add_argument("reporter_id", help="registered reporter id")
-    inspect_reporter.add_argument("--store", required=True, help="local Oracle store directory")
-    inspect_reporter.add_argument("--output", help="optional output path for the reporter status receipt")
-    inspect_reporter.set_defaults(func=cmd_inspect_reporter)
-
-    inspect_rewards = subparsers.add_parser("inspect-rewards", help="summarize local reporter rewards")
-    inspect_rewards.add_argument("--store", required=True, help="local Oracle store directory")
-    inspect_rewards.add_argument("--reporter-id", help="optional reporter id filter")
-    inspect_rewards.add_argument("--output", help="optional output path for the reward summary receipt")
-    inspect_rewards.set_defaults(func=cmd_inspect_rewards)
 
     dry_run = subparsers.add_parser("dry-run", help="run a complete local Oracle MVP happy path")
     dry_run.add_argument("--workdir", help="optional directory where generated artifacts are kept")
