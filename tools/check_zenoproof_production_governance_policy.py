@@ -32,6 +32,7 @@ POLICY_SCHEMA = "zenodex.zenoproof.production_governance_policy.v1"
 REPORT_SCHEMA = "zenodex.zenoproof.production_governance_policy_check.v1"
 RECEIPT_BUNDLE_SCHEMA = "zenodex.zenoproof.production_governance_receipt_bundle.v1"
 RECEIPT_SCHEMA = "zenodex.zenoproof.production_governance_receipt.v1"
+VERIFIER_RELEASE_MANIFEST_SCHEMA = "zenodex.zenoproof.verifier_release_manifest.v1"
 DEFAULT_REGISTRY = ROOT / "tools" / "zenoproof_registry_manifest.json"
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 TX_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
@@ -68,6 +69,7 @@ CODE_SIGNING_KEYS = {
     "release_signer_identity",
     "artifact_digest_alg",
     "policy_bundle_digest",
+    "verifier_release_manifest_digest",
 }
 SANDBOX_KEYS = {
     "required",
@@ -155,6 +157,7 @@ PRODUCTION_EXECUTION_MODES = {"subprocess_json"}
 BASE_GO_LIVE_BLOCKERS = [
     "proof_governance_execution_not_verified_onchain",
     "production_verifier_code_signing_not_verified",
+    "production_verifier_release_transparency_log_not_verified",
     "production_verifier_sandbox_not_deployed",
     "revocation_drill_not_replayed_on_live_registry",
     "proof_network_public_soak_not_completed",
@@ -287,6 +290,57 @@ def _registry_id(registry: Mapping[str, Any]) -> str:
     return sha256_json(registry)
 
 
+def production_verifier_release_manifest(registry: Mapping[str, Any], policy: Mapping[str, Any]) -> dict[str, Any]:
+    verifier_policy = policy.get("verifier_policy") if isinstance(policy.get("verifier_policy"), Mapping) else {}
+    raw_ids = verifier_policy.get("production_enabled_verifier_ids")
+    production_ids = sorted(str(item) for item in raw_ids if isinstance(item, str)) if isinstance(raw_ids, list) else []
+    verifier_by_id = {
+        str(verifier.get("verifier_id")): verifier
+        for verifier in _registry_verifiers(registry)
+        if isinstance(verifier.get("verifier_id"), str)
+    }
+    entries: list[dict[str, Any]] = []
+    for index, verifier_id in enumerate(production_ids, start=1):
+        verifier = verifier_by_id.get(verifier_id)
+        if verifier is None:
+            continue
+        verifier_command = verifier.get("verifier_command")
+        command = list(verifier_command) if isinstance(verifier_command, list) else []
+        proof_kinds = sorted(str(kind) for kind in verifier.get("proof_kinds", []) if isinstance(kind, str))
+        toolchain_ids = sorted(str(toolchain) for toolchain in verifier.get("toolchain_ids", []) if isinstance(toolchain, str))
+        entry_base = {
+            "allow_path_lookup": verifier.get("allow_path_lookup"),
+            "current_policy_root": verifier.get("current_policy_root"),
+            "execution_mode": verifier.get("execution_mode"),
+            "max_input_bytes": verifier.get("max_input_bytes"),
+            "name": verifier.get("name"),
+            "proof_kinds": proof_kinds,
+            "timeout_ms": verifier.get("timeout_ms"),
+            "toolchain_ids_hash": sha256_json({"toolchain_ids": toolchain_ids}),
+            "verifier_command_hash": sha256_json({"verifier_command": command}),
+            "verifier_id": verifier_id,
+        }
+        artifact_digest = sha256_json({"verifier_release_entry": entry_base})
+        entries.append(
+            {
+                **entry_base,
+                "artifact_digest": artifact_digest,
+                "transparency_log_id": _sha(f"zenoproof.production_verifier.release.{verifier_id}.{artifact_digest}"),
+                "transparency_log_index": index,
+            }
+        )
+    manifest_body = {
+        "schema": VERIFIER_RELEASE_MANIFEST_SCHEMA,
+        "registry_manifest_id": _registry_id(registry),
+        "production_verifier_ids": production_ids,
+        "verifiers": entries,
+    }
+    return {
+        **manifest_body,
+        "manifest_digest": sha256_json(manifest_body),
+    }
+
+
 def _sample_registry() -> Mapping[str, Any]:
     return _load_json(DEFAULT_REGISTRY)
 
@@ -324,6 +378,7 @@ def _sample_receipts_for_policy(policy: Mapping[str, Any], registry: Mapping[str
     code_signing = policy.get("code_signing") if isinstance(policy.get("code_signing"), Mapping) else {}
     sandbox = policy.get("sandbox") if isinstance(policy.get("sandbox"), Mapping) else {}
     revocation = policy.get("revocation") if isinstance(policy.get("revocation"), Mapping) else {}
+    release_manifest = production_verifier_release_manifest(registry, policy)
     registry_id = _registry_id(registry)
     proposal_id = _sha(f"zenoproof.production_governance.proposal.{static_hash}.{registry_id}")
     queued_at = 1_900_000_000
@@ -428,7 +483,10 @@ def _sample_receipts_for_policy(policy: Mapping[str, Any], registry: Mapping[str
                 "registry_manifest_id": registry_id,
                 "release_signer_identity": code_signing.get("release_signer_identity"),
                 "scheme": code_signing.get("scheme"),
+                "transparency_log_observed": True,
                 "verified": True,
+                "verifier_release_entries": release_manifest["verifiers"],
+                "verifier_release_manifest_digest": code_signing.get("verifier_release_manifest_digest"),
             },
         ),
         _receipt(
@@ -504,6 +562,10 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
         for verifier in verifiers
         if verifier.get("execution_mode") in PRODUCTION_EXECUTION_MODES and isinstance(verifier.get("verifier_id"), str)
     )
+    release_manifest = production_verifier_release_manifest(
+        active_registry,
+        {"verifier_policy": {"production_enabled_verifier_ids": production_enabled}},
+    )
     policy: dict[str, Any] = {
         "schema": POLICY_SCHEMA,
         "policy_name": "zenoproof-production-governance-candidate-1",
@@ -524,6 +586,7 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
             "release_signer_identity": "release@zenodex.org",
             "artifact_digest_alg": "sha256",
             "policy_bundle_digest": _sha("zenoproof.production_governance.policy_bundle"),
+            "verifier_release_manifest_digest": release_manifest["manifest_digest"],
         },
         "sandbox": {
             "required": True,
@@ -783,9 +846,22 @@ def check_receipt_bundle(
     if code_signing_payload:
         if code_signing_payload.get("verified") is not True:
             errors.append("code_signing_attestation_not_verified")
-        for key in ("artifact_digest_alg", "policy_bundle_digest", "release_signer_identity", "scheme"):
+        for key in (
+            "artifact_digest_alg",
+            "policy_bundle_digest",
+            "release_signer_identity",
+            "scheme",
+            "verifier_release_manifest_digest",
+        ):
             if code_signing_payload.get(key) != code_signing.get(key):
                 errors.append(f"code_signing_attestation_{key}_mismatch")
+        expected_release_manifest = production_verifier_release_manifest(registry, policy)
+        if code_signing_payload.get("transparency_log_observed") is not True:
+            errors.append("code_signing_attestation_transparency_log_not_observed")
+        if code_signing_payload.get("verifier_release_manifest_digest") != expected_release_manifest["manifest_digest"]:
+            errors.append("code_signing_attestation_verifier_release_manifest_digest_mismatch")
+        if code_signing_payload.get("verifier_release_entries") != expected_release_manifest["verifiers"]:
+            errors.append("code_signing_attestation_verifier_release_entries_mismatch")
     if sandbox_payload:
         if sandbox_payload.get("verified") is not True:
             errors.append("sandbox_attestation_not_verified")
@@ -871,6 +947,8 @@ def check_policy(
             errors.append("release_signer_identity_not_production")
         if not _is_sha(code_signing.get("policy_bundle_digest")):
             errors.append("policy_bundle_digest_must_be_sha256")
+        if not _is_sha(code_signing.get("verifier_release_manifest_digest")):
+            errors.append("verifier_release_manifest_digest_must_be_sha256")
 
     sandbox = _obj_field(policy, "sandbox", errors)
     if sandbox:
@@ -955,6 +1033,11 @@ def check_policy(
         if isinstance(min_distinct_proof_kinds, int) and len(distinct_proof_kinds) < min_distinct_proof_kinds:
             errors.append("distinct_proof_kind_count_below_policy")
 
+    release_manifest = production_verifier_release_manifest(registry, policy)
+    if code_signing and _is_sha(code_signing.get("verifier_release_manifest_digest")):
+        if code_signing.get("verifier_release_manifest_digest") != release_manifest["manifest_digest"]:
+            errors.append("verifier_release_manifest_digest_mismatch")
+
     oracle_bridge = _obj_field(policy, "oracle_bridge_policy", errors)
     if oracle_bridge:
         _unknown_fields(oracle_bridge, allowed=ORACLE_BRIDGE_KEYS, label="oracle_bridge_policy", errors=errors)
@@ -1010,6 +1093,7 @@ def check_policy(
         "production_enabled_verifier_count": len(production_enabled_ids),
         "devnet_only_verifier_count": len(devnet_only_ids),
         "distinct_proof_kind_count": len(distinct_proof_kinds),
+        "verifier_release_entry_count": len(release_manifest["verifiers"]),
         "production_verifier_path_lookup_count": production_path_lookup_count,
         "error_count": len(errors),
         "errors": errors,

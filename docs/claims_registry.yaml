@@ -1949,15 +1949,18 @@ claims:
       revocation receipts, devnet-only quarantine for local static verifiers,
       production-enabled public replay verifier IDs, O3/O5 bridge controls,
       bounded no-mint reward settlement replay, a local receipt bundle for
-      governance execution, revocation drill/list, code-signing attestation, and
-      sandbox attestation, and explicit non-claims. It
+      governance execution, revocation drill/list, code-signing attestation with
+      verifier-release manifest binding, and sandbox attestation, and explicit
+      non-claims. It
       rejects static verifier promotion, devnet verifier production enablement,
       weak bridge or sandbox controls, bad governance or reward controls,
       missing non-claims, missing receipt bundles, early governance execution,
-      sandbox attestation drift, and failed reward-payout replay. The normal checker
-      accepts the current production-candidate policy; `--require-live` rejects
-      while proof-network, code-signing, sandbox, revocation, path-lookup, and
-      live proof-mining token-settlement blockers remain.
+      sandbox attestation drift, verifier-release entry drift, missing
+      transparency-log observation, and failed reward-payout replay. The normal
+      checker accepts the current production-candidate policy; `--require-live`
+      rejects while proof-network, code-signing, verifier-release transparency,
+      sandbox, revocation, path-lookup, and live proof-mining token-settlement
+      blockers remain.
     evidence:
       kind: python
       check:
