@@ -95,10 +95,11 @@ The devnet alpha gate is:
 bash scripts/check_zeno_oracle_devnet_alpha.sh
 ```
 
-It runs the full local MVP gate, the service-level HTTP integration tests, the
-critical-action map checker, the deterministic devnet disaster-state harness,
-and the devnet alpha audit. The GitHub workflow builds a devnet alpha RC
-package after the gate passes.
+It runs the full local MVP gate, the focused O3 receipt-flow replay, the
+service-level HTTP integration tests, the critical-action map checker, the
+reporter economics replay, the deterministic devnet disaster-state harness,
+the obligation-antichain certificate, and the devnet alpha audit. The GitHub
+workflow builds a devnet alpha RC package after the gate passes.
 
 The critical-action map can be checked directly:
 
@@ -106,12 +107,27 @@ The critical-action map can be checked directly:
 python3 tools/check_zeno_oracle_critical_action_map.py
 ```
 
-Current expected receipt:
+Current expected critical-action receipt:
 
 ```text
-catalog_profile_count = 6
-runtime_wired_count = 4
-design_only_backlog_count = 2
+catalog_profile_count = 7
+runtime_wired_count = 7
+design_only_backlog_count = 0
+status = accepted
+```
+
+The focused O3 receipt chain can be replayed directly:
+
+```bash
+python3 tools/zeno_oracle_o3_receipt_flow_replay.py --format text
+```
+
+Current expected O3 receipt:
+
+```text
+stage_count = 8
+accepted_stage_count = 8
+failed_stage_count = 0
 status = accepted
 ```
 
@@ -128,6 +144,33 @@ selected_disaster_state_count = 17
 unreachable_count = 17
 failed_count = 0
 inconclusive_count = 0
+```
+
+The reporter economics replay can be checked directly:
+
+```bash
+python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
+```
+
+Current expected economics receipt:
+
+```text
+"status": "accepted"
+"reporter_count": 3
+"report_count": 3
+"dispute_count": 1
+```
+
+The obligation-antichain certificate is checked directly:
+
+```bash
+python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+```
+
+Current expected certificate receipt:
+
+```text
+ok: axes=23 quotient=20 antichain=15 selected_guards=9 private_witnesses=9
 ```
 
 This is bounded devnet evidence. It does not claim a production oracle network
@@ -148,12 +191,28 @@ dist/zeno-oracle-devnet-alpha-rc1.tar.gz
 dist/zeno-oracle-devnet-alpha-rc1.receipt.json
 dist/zeno-oracle-devnet-alpha-rc1.sig
 dist/zeno-oracle-devnet-alpha-rc1/ZEN_ORACLE_RC_MANIFEST.json
+dist/zeno-oracle-devnet-alpha-rc1/bin/zenodex-oracle
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_disaster_obligation_certificate.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_rc_package.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_o3_receipt_flow_replay.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/zenodex_oracle_reporter_economics_replay.py
 dist/zeno-oracle-devnet-alpha-rc1/assets/branding/zeno-oracle/
+dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/main.pdf
 dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf
 ```
 
 The `.sig` file is a devnet integrity signature derived from the package hash.
 It is not production code signing.
+
+Validate a built package:
+
+```bash
+python3 tools/check_zeno_oracle_rc_package.py \
+  --package-dir dist/zeno-oracle-devnet-alpha-rc1 \
+  --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json \
+  --sig dist/zeno-oracle-devnet-alpha-rc1.sig
+```
 
 ## Not Claimed
 

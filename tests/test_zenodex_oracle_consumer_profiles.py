@@ -37,11 +37,12 @@ def test_consumer_profile_catalog_accepts_sample(tmp_path: Path) -> None:
     assert code == 0
     assert result["ok"] is True
     assert result["status"] == "accepted"
-    assert result["profile_count"] == 6
-    assert result["required_profile_count"] == 6
+    assert result["profile_count"] == 7
+    assert result["required_profile_count"] == 7
     assert "zenodex.perps:settle_epoch" in result["profile_keys"]
     assert "zenodex.zusd:mint" in result["profile_keys"]
     assert "zenodex.routing:guarded_quote" in result["profile_keys"]
+    assert "zenodex.settlement:critical_settlement" in result["profile_keys"]
     assert result["errors"] == []
 
 

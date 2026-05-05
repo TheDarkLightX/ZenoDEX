@@ -3,10 +3,9 @@
 Status: machine-checked runtime wiring map for the current local Oracle MVP
 branch.
 
-The consumer-profile catalog defines six first-shell critical profiles. The
+The consumer-profile catalog defines seven first-shell critical profiles. The
 runtime checker compares that catalog against the integration modules that
-currently consume Oracle adapter bridges and typed `OracleAuthorization`
-bundles:
+currently consume Oracle adapter bridges:
 
 ```bash
 python3 tools/check_zeno_oracle_critical_action_map.py
@@ -15,9 +14,9 @@ python3 tools/check_zeno_oracle_critical_action_map.py
 Current expected receipt:
 
 ```text
-catalog_profile_count = 6
-runtime_wired_count = 4
-design_only_backlog_count = 2
+catalog_profile_count = 7
+runtime_wired_count = 7
+design_only_backlog_count = 0
 status = accepted
 ```
 
@@ -25,28 +24,30 @@ status = accepted
 
 | Consumer | Action | Runtime path | Required control |
 | --- | --- | --- | --- |
-| `zenodex.perps` | `settle_epoch` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_settle_epoch`, `require_oracle_adapter_for_clearinghouse_settle_epoch`, `require_oracle_authorization_for_isolated_settle_epoch` |
-| `zenodex.zusd` | `mint` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED`, `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` |
-| `zenodex.zusd` | `liquidate_vault` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED`, `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` |
-| `zenodex.routing` | `guarded_quote` | `src/integration/api_server.py` | `DEX_ROUTING_ORACLE_ADAPTER_REQUIRED`, `DEX_ROUTING_ORACLE_AUTHORIZATION_REQUIRED` |
+| `zenodex.perps` | `settle_epoch` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_settle_epoch`, `require_oracle_adapter_for_clearinghouse_settle_epoch` |
+| `zenodex.perps` | `liquidate_account` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_partial_liquidate` |
+| `zenodex.zusd` | `mint` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED` |
+| `zenodex.zusd` | `liquidate_vault` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED` |
+| `zenodex.routing` | `guarded_quote` | `src/integration/api_server.py` | `DEX_ROUTING_ORACLE_ADAPTER_REQUIRED` |
+| `zenodex.settlement` | `critical_settlement` | `src/integration/dex_engine.py` | `require_oracle_authorization_for_critical_settlements` |
+| `zenodex.trigger` | `execute_trigger` | `src/integration/zeno_oracle_trigger_authorization.py` | `check_trigger_execute_oracle_adapter_bridge(required=True)` |
 
 The checker verifies that each runtime-wired surface still agrees with the
 catalog query ID, catalog profile ID, expected consumer module, expected action
 kind, and runtime action-ID binding. For routing it checks both exact-in and
-exact-out guarded quote paths. For perps it checks isolated settlement plus the
-two clearinghouse settlement variants. It also ratchets the typed authorization
-wiring for the currently implemented adapters: zUSD, guarded routing quotes,
-and isolated perps settlement must bind action facts, pre-state, and the
-runtime oracle value consumed by the action.
+exact-out guarded quote paths. For perps it checks isolated settlement, the two
+clearinghouse settlement variants, and isolated partial liquidation under the
+`liquidate_account` profile. For critical settlements it checks the typed
+`OracleAuthorization` binding in `dex_engine` against the normalized settlement,
+pre-state root, current settlement price, and settlement freshness controls. For
+triggers it checks the existing typed trigger action facts against an O3 adapter
+bridge result.
 
 ## Design-Only Backlog Profiles
 
-| Consumer | Action | Why Not Runtime-Wired Yet |
-| --- | --- | --- |
-| `zenodex.perps` | `liquidate_account` | Reserved for a future standalone liquidation adapter. Current perps liquidation is reached through `settle_epoch`. |
-| `zenodex.trigger` | `execute_trigger` | The profile exists in the first-shell catalog, but no trigger runtime module is wired in this checkout. |
-
-These are explicit backlog items, not covered runtime guarantees.
+The first-shell profile catalog has no design-only backlog entries in this
+checkout. Future critical consumers still need their own profiles and runtime
+checks before they become covered guarantees.
 
 ## CI Gate
 

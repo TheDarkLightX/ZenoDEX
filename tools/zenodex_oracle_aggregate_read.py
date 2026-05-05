@@ -65,6 +65,7 @@ class AggregateReadResult:
     deviation_bps: int | None = None
     observed_epoch: int | None = None
     expires_at_epoch: int | None = None
+    evidence_class: str | None = None
 
     def to_json_obj(self) -> dict[str, Any]:
         return {
@@ -82,6 +83,7 @@ class AggregateReadResult:
             "deviation_bps": self.deviation_bps,
             "observed_epoch": self.observed_epoch,
             "expires_at_epoch": self.expires_at_epoch,
+            "evidence_class": self.evidence_class,
             "errors": list(self.errors),
             "not_claimed": NOT_CLAIMED,
         }
@@ -314,6 +316,8 @@ def verify_aggregate_read_bridge(obj: Mapping[str, Any]) -> AggregateReadResult:
             errors.append("bundle_expiry_mismatch")
         if bundle_result.freshness_window_epochs != freshness_window_epochs:
             errors.append("bundle_freshness_window_mismatch")
+        if bundle_result.evidence_class != aggregate_result.evidence_class:
+            errors.append("bundle_evidence_class_mismatch")
 
     return AggregateReadResult(
         status="rejected" if errors else "accepted",
@@ -329,6 +333,7 @@ def verify_aggregate_read_bridge(obj: Mapping[str, Any]) -> AggregateReadResult:
         deviation_bps=None if aggregate_result is None else aggregate_result.deviation_bps,
         observed_epoch=None if aggregate_result is None else aggregate_result.observed_epoch,
         expires_at_epoch=expires_at_epoch,
+        evidence_class=None if aggregate_result is None else aggregate_result.evidence_class,
     )
 
 

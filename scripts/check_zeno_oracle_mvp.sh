@@ -35,9 +35,12 @@ pytest -q \
   tests/test_zenodex_oracle_adapter_chaos.py \
   tests/test_zenodex_oracle_consumer_profiles.py \
   tests/test_zenodex_oracle_consumer_profiles_chaos.py \
+  tests/test_zeno_oracle_disaster_class_corpus.py \
+  tests/test_zenodex_oracle_reporter_economics_replay.py \
   tests/test_zenodex_oracle_economic_security.py \
   tests/test_zenodex_oracle_economic_security_chaos.py
 
+python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter

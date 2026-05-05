@@ -117,11 +117,15 @@ def _workflow_ok() -> bool:
         and "actions/upload-artifact@v4" in workflow
         and "tools/zenodex_oracle_devnet_disaster_harness.py" in gate
         and "tools/check_zeno_oracle_critical_action_map.py" in gate
+        and "tools/zeno_oracle_o3_receipt_flow_replay.py" in gate
+        and "tools/check_disaster_obligation_certificate.py" in gate
+        and "tools/zenodex_oracle_reporter_economics_replay.py" in gate
     )
 
 
 def run_audit() -> dict[str, Any]:
     sys.path.insert(0, str(ROOT / "tools"))
+    from check_zeno_oracle_rc_package import check_package
     from zenodex_oracle_feed_registry import sample_feed_registry
     from zenodex_oracle_signed_report import G2Basic
 
@@ -237,6 +241,13 @@ def run_audit() -> dict[str, Any]:
         )
         replay_cli = json.loads(replay_cli_proc.stdout) if replay_cli_proc.returncode == 0 else {}
         package_ok, package_receipt, package_error = _run_package("zeno-oracle-devnet-alpha-audit-rc")
+        package_check = None
+        if package_ok:
+            package_check = check_package(
+                package_dir=ROOT / "dist" / "zeno-oracle-devnet-alpha-audit-rc",
+                receipt_path=ROOT / "dist" / "zeno-oracle-devnet-alpha-audit-rc.receipt.json",
+                sig_path=ROOT / "dist" / "zeno-oracle-devnet-alpha-audit-rc.sig",
+            )
 
         docs_ok = all(
             (ROOT / path).is_file()
@@ -304,12 +315,15 @@ def run_audit() -> dict[str, Any]:
             ),
             _criterion(
                 10,
-                "CI runs the local MVP gate, critical-action map, service tests, and devnet disaster harness",
+                "CI runs the local MVP gate, O3 receipt flow, critical-action map, service tests, reporter economics replay, devnet disaster harness, and obligation-antichain certificate",
                 _workflow_ok() and (ROOT / "scripts/check_zeno_oracle_devnet_alpha.sh").is_file(),
                 [
                     "scripts/check_zeno_oracle_devnet_alpha.sh",
                     "tools/check_zeno_oracle_critical_action_map.py",
+                    "tools/zeno_oracle_o3_receipt_flow_replay.py",
+                    "tools/zenodex_oracle_reporter_economics_replay.py",
                     "tools/zenodex_oracle_devnet_disaster_harness.py",
+                    "tools/check_disaster_obligation_certificate.py",
                 ],
             ),
             _criterion(
@@ -320,12 +334,19 @@ def run_audit() -> dict[str, Any]:
             ),
             _criterion(
                 12,
-                "A signed RC/devnet package exists",
+                "A signed RC/devnet package exists and validates",
                 package_ok
                 and package_receipt is not None
                 and isinstance(package_receipt.get("signature"), str)
+                and package_check is not None
+                and package_check.get("ok") is True
                 and (ROOT / "dist/zeno-oracle-devnet-alpha-audit-rc.sig").is_file(),
-                ["dist/zeno-oracle-devnet-alpha-audit-rc.sig"] if package_ok else [package_error],
+                [
+                    "dist/zeno-oracle-devnet-alpha-audit-rc.sig",
+                    "tools/check_zeno_oracle_rc_package.py",
+                ]
+                if package_ok
+                else [package_error],
                 residual_limits=["signature is a devnet integrity signature, not production code signing"],
             ),
             ]

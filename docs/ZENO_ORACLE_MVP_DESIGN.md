@@ -256,9 +256,3 @@ This document is a design snapshot. It does not claim that:
 The production milestone is a public replay gate that recomputes accepted reads
 and critical-action receipts from a clean checkout, plus a reporter binary that
 ordinary users can run.
-
-The current devnet replay receipt also reconstructs reporter and economic
-state from accepted event artifacts. It rejects cross-submission sequence
-replay and slash events that exceed the replayed reporter bond, while still
-leaving production network liveness, true-market-price claims, and reporter
-honesty outside the local receipt.

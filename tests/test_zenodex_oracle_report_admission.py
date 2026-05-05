@@ -80,6 +80,7 @@ def test_report_admission_accepts_sample(tmp_path: Path) -> None:
     assert result["status"] == "accepted"
     assert result["admitted_report_count"] == 2
     assert result["reporter_id"] == "reporter.sample"
+    assert result["evidence_class"] == "O3"
     assert result["errors"] == []
 
 
@@ -200,6 +201,15 @@ def test_report_admission_rejects_stale_report(tmp_path: Path) -> None:
     code, result = _run_verify(tmp_path, admission)
     assert code == 2
     assert "admitted_report_stale:0" in result["errors"]
+
+
+def test_report_admission_rejects_below_o3_evidence_class(tmp_path: Path) -> None:
+    admission = sample_report_admission()
+    admission["evidence_class"] = "O2"
+    _refresh_admission_id(admission)
+    code, result = _run_verify(tmp_path, admission)
+    assert code == 2
+    assert "evidence_class_below_critical_minimum" in result["errors"]
 
 
 def test_report_admission_rejects_rejected_lifecycle_trace(tmp_path: Path) -> None:

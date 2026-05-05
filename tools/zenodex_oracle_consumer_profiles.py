@@ -72,6 +72,11 @@ REQUIRED_PROFILE_SPECS: dict[tuple[str, str], dict[str, Any]] = {
         "required_evidence_floor": "O3",
         "max_freshness_window_epochs": 4,
     },
+    ("zenodex.settlement", "critical_settlement"): {
+        "query_id": sample_hash("zenodex.oracle.query.settlement.price_curr_e8"),
+        "required_evidence_floor": "O3",
+        "max_freshness_window_epochs": 1,
+    },
     ("zenodex.trigger", "execute_trigger"): {
         "query_id": sample_hash("zenodex.oracle.query.trigger.reference_price_e8"),
         "required_evidence_floor": "O3",

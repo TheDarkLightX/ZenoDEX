@@ -1,0 +1,106 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_oracle_recovery_lifecycle_v1"
+  created_by: "zenodex"
+  notes: |
+    Stateless bounded oracle-recovery liveness shell for replayable risky-op
+    re-enablement on the ZUSD oracle boundary.
+
+    It checks:
+    - current oracle health requires env_ok, sync_gate_ok, and sync alignment
+    - any reported re-enablement must come from a previously blocked risky action
+      on a healthy current boundary with risky ops allowed
+    - outcomes are total: reenabled xor rejected-with-reason
+    - rejection requires an explicit reason
+observables:
+  state_vars: []
+  effects:
+    [
+      "healthy_now",
+      "reenabled_requires_healthy",
+      "outcome_total",
+      "rejection_total",
+      "lifecycle_ok",
+    ]
+types: []
+state_vars: []
+init: []
+invariants: []
+actions:
+  - id: "compose_oracle_recovery_lifecycle"
+    params:
+      - id: "previous_risky_action_blocked"
+        type: { kind: "bool" }
+      - id: "current_oracle_env_ok"
+        type: { kind: "bool" }
+      - id: "current_sync_gate_ok"
+        type: { kind: "bool" }
+      - id: "sync_aligned_to_current_gate"
+        type: { kind: "bool" }
+      - id: "current_risky_ops_allowed"
+        type: { kind: "bool" }
+      - id: "risky_ops_reenabled"
+        type: { kind: "bool" }
+      - id: "rejected_with_reason"
+        type: { kind: "bool" }
+      - id: "rejection_reason_present"
+        type: { kind: "bool" }
+    guard: { bool: true }
+    updates: []
+    effects:
+      healthy_now:
+        op: "and"
+        args:
+          - { param: "current_oracle_env_ok" }
+          - { param: "current_sync_gate_ok" }
+          - { param: "sync_aligned_to_current_gate" }
+      reenabled_requires_healthy:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "risky_ops_reenabled" }]
+          - op: "and"
+            args:
+              - { param: "previous_risky_action_blocked" }
+              - op: "and"
+                args:
+                  - { param: "current_oracle_env_ok" }
+                  - { param: "current_sync_gate_ok" }
+                  - { param: "sync_aligned_to_current_gate" }
+              - { param: "current_risky_ops_allowed" }
+      outcome_total:
+        op: "xor"
+        args:
+          - { param: "risky_ops_reenabled" }
+          - { param: "rejected_with_reason" }
+      rejection_total:
+        op: "or"
+        args:
+          - op: "not"
+            args: [{ param: "rejected_with_reason" }]
+          - { param: "rejection_reason_present" }
+      lifecycle_ok:
+        op: "and"
+        args:
+          - op: "xor"
+            args:
+              - { param: "risky_ops_reenabled" }
+              - { param: "rejected_with_reason" }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "risky_ops_reenabled" }]
+              - op: "and"
+                args:
+                  - { param: "previous_risky_action_blocked" }
+                  - op: "and"
+                    args:
+                      - { param: "current_oracle_env_ok" }
+                      - { param: "current_sync_gate_ok" }
+                      - { param: "sync_aligned_to_current_gate" }
+                  - { param: "current_risky_ops_allowed" }
+          - op: "or"
+            args:
+              - op: "not"
+                args: [{ param: "rejected_with_reason" }]
+              - { param: "rejection_reason_present" }

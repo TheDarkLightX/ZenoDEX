@@ -79,6 +79,8 @@ def test_admitted_median3_accepts_sample(tmp_path: Path) -> None:
     assert result["deviation_bps"] == 100
     assert result["report_count"] == 3
     assert result["admission_count"] == 3
+    assert result["evidence_floor"] == "O3"
+    assert result["evidence_class"] == "O3"
     assert result["distinct_reporter_count"] == 3
     assert result["distinct_source_count"] == 3
     assert result["errors"] == []
@@ -154,6 +156,36 @@ def test_admitted_median3_rejects_deviation_over_policy(tmp_path: Path) -> None:
     code, result = _run_verify(tmp_path, aggregate)
     assert code == 2
     assert "aggregate_deviation_exceeds_policy" in result["errors"]
+
+
+def test_admitted_median3_rejects_admission_evidence_below_floor(tmp_path: Path) -> None:
+    aggregate = sample_admitted_median3_aggregate()
+    aggregate["report_admissions"][1]["evidence_class"] = "O2"
+    _refresh_admission_id(aggregate, 1)
+    _refresh_aggregate_id(aggregate)
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert "report_admission_1_rejected:evidence_class_below_critical_minimum" in result["errors"]
+    assert "admission_evidence_class_below_floor:1:O2<O3" in result["errors"]
+
+
+def test_admitted_median3_rejects_aggregate_evidence_overclaim(tmp_path: Path) -> None:
+    aggregate = sample_admitted_median3_aggregate()
+    aggregate["evidence_class"] = "O4"
+    _refresh_aggregate_id(aggregate)
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert "aggregate_evidence_class_exceeds_admission_minimum" in result["errors"]
+
+
+def test_admitted_median3_rejects_aggregate_evidence_below_floor(tmp_path: Path) -> None:
+    aggregate = sample_admitted_median3_aggregate()
+    aggregate["evidence_class"] = "O2"
+    _refresh_aggregate_id(aggregate)
+    code, result = _run_verify(tmp_path, aggregate)
+    assert code == 2
+    assert "evidence_class_below_critical_minimum" in result["errors"]
+    assert "aggregate_evidence_class_below_floor" in result["errors"]
 
 
 def test_admitted_median3_verify_inconclusive_on_oversized_file(tmp_path: Path) -> None:

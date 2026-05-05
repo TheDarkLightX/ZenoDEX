@@ -185,11 +185,6 @@ def test_oracle_devnet_service_replays_http_pipeline(tmp_path: Path) -> None:
         assert replay["duplicate_event_sequences"] == []
         assert replay["event_sequence_errors"] == []
         assert replay["malformed_events"] == []
-        assert replay["reporter_state_count"] == 3
-        assert replay["reporter_states"]["reporter.alpha"]["reports_submitted"] == 1
-        assert replay["economic_summary"]["reporter.alpha"]["reward_total"] == 5
-        assert replay["reporter_sequence_errors"] == []
-        assert replay["economic_state_errors"] == []
     finally:
         proc.terminate()
         try:
@@ -219,92 +214,3 @@ def test_oracle_devnet_replay_cli_reads_receipt_store(tmp_path: Path) -> None:
     assert receipt["duplicate_event_sequences"] == []
     assert receipt["event_sequence_errors"] == []
     assert receipt["malformed_events"] == []
-    assert receipt["reporter_states"] == {}
-    assert receipt["economic_summary"] == {}
-
-
-def test_oracle_devnet_replay_rejects_cross_submission_sequence_replay(tmp_path: Path) -> None:
-    sys.path.insert(0, str(REPO / "tools"))
-    from zenodex_oracle_devnet_service import OracleDevnetStore, register_feed, register_reporter, replay_store, submit_report
-    from zenodex_oracle_feed_registry import sample_feed_registry
-    from zenodex_oracle_signed_report import G2Basic
-
-    store = OracleDevnetStore(tmp_path / "oracle-devnet")
-    registry = sample_feed_registry()
-    feed = registry["feeds"][0]
-    query_id = feed["query_spec"]["query_id"]
-    source_id = feed["source_diversity"]["sources"][0]["source_id"]
-    private_key = 51
-    reporter_id = "reporter.alpha"
-    reporter_pubkey = "0x" + G2Basic.SkToPk(private_key).hex()
-
-    assert register_feed(store, registry)["status"] == "accepted"
-    assert register_reporter(
-        store,
-        {
-            "reporter_id": reporter_id,
-            "reporter_pubkey": reporter_pubkey,
-            "required_bond": 100,
-            "bond_amount": 100,
-            "epoch": 1,
-        },
-    )["status"] == "accepted"
-    first = _single_report_submission(
-        private_key=private_key,
-        reporter_id=reporter_id,
-        query_id=query_id,
-        source_id=source_id,
-        value_e8=100_000_000,
-        observed_epoch=8,
-    )
-    second = _single_report_submission(
-        private_key=private_key,
-        reporter_id=reporter_id,
-        query_id=query_id,
-        source_id=source_id,
-        value_e8=100_100_000,
-        observed_epoch=9,
-    )
-    assert submit_report(store, first)["status"] == "accepted"
-    assert submit_report(store, second)["status"] == "accepted"
-
-    replay = replay_store(store)
-
-    assert replay["status"] == "rejected"
-    assert replay["reporter_states"][reporter_id]["reports_submitted"] == 2
-    assert any("sequence_replay" in error for error in replay["reporter_sequence_errors"])
-
-
-def test_oracle_devnet_replay_rejects_slash_exceeding_replayed_bond(tmp_path: Path) -> None:
-    sys.path.insert(0, str(REPO / "tools"))
-    from zenodex_oracle_devnet_service import OracleDevnetStore, persist_economic_event, register_reporter, replay_store
-    from zenodex_oracle_signed_report import G2Basic
-
-    store = OracleDevnetStore(tmp_path / "oracle-devnet")
-    private_key = 51
-    reporter_id = "reporter.alpha"
-    reporter_pubkey = "0x" + G2Basic.SkToPk(private_key).hex()
-    assert register_reporter(
-        store,
-        {
-            "reporter_id": reporter_id,
-            "reporter_pubkey": reporter_pubkey,
-            "required_bond": 100,
-            "bond_amount": 100,
-            "epoch": 1,
-        },
-    )["status"] == "accepted"
-    assert persist_economic_event(
-        store,
-        {
-            "event_kind": "slash",
-            "reporter_id": reporter_id,
-            "amount": 101,
-        },
-    )["status"] == "accepted"
-
-    replay = replay_store(store)
-
-    assert replay["status"] == "rejected"
-    assert replay["economic_summary"][reporter_id]["slash_total"] == 101
-    assert any("slash_exceeds_replayed_bond" in error for error in replay["economic_state_errors"])
