@@ -107,15 +107,22 @@ def build_audit() -> dict[str, Any]:
             evidence_files=[
                 "tools/zeno_oracle_o3_receipt_flow_replay.py",
                 "tests/test_zeno_oracle_o3_receipt_flow_replay.py",
+                "tools/check_zeno_oracle_production_network_config.py",
+                "tests/test_check_zeno_oracle_production_network_config.py",
                 "tools/zenodex_oracle_devnet_service.py",
                 "tools/zenodex_oracle_devnet_disaster_harness.py",
             ],
             replay_commands=[
                 "python3 tools/zeno_oracle_o3_receipt_flow_replay.py --format text",
                 "pytest -q tests/test_zeno_oracle_o3_receipt_flow_replay.py",
+                "python3 tools/check_zeno_oracle_production_network_config.py --format text",
+                "pytest -q tests/test_check_zeno_oracle_production_network_config.py",
             ],
             status="devnet_complete",
-            limits=["does_not_claim_production_oracle_network_live"],
+            limits=[
+                "production-candidate config gate exists, but deployment and public soak remain blockers",
+                "does_not_claim_production_oracle_network_live",
+            ],
         ),
         _evidence_item(
             3,
@@ -318,6 +325,11 @@ def build_audit() -> dict[str, Any]:
         "incomplete_item_count": len(incomplete),
         "items": items,
         "production_blockers": production_blockers,
+        "production_candidate_config_gate": {
+            "command": "python3 tools/check_zeno_oracle_production_network_config.py --format text",
+            "require_live_command": "python3 tools/check_zeno_oracle_production_network_config.py --require-live",
+            "status": "first_shell_only",
+        },
         "not_claimed": [
             "does_not_claim_goal_complete",
             "does_not_claim_production_oracle_truth",

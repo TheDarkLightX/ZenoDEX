@@ -30,7 +30,7 @@ registry/verifier layer for O4/O5 claims.
 | Requirement | Current evidence | Status |
 | --- | --- | --- |
 | One Oracle integration branch | The PR-capable integration branch is `codex/zeno-oracle-main-integration`, with commit `242c26397a5e6bb0e2fcffbf50dba8de337d821c` pushed and draft PR `#204` opened against `main`. Public devnet/docs artifacts and typed `OracleAuthorization` code are present in the branch. | Integrated branch |
-| O3 receipt flow | `tools/zeno_oracle_o3_receipt_flow_replay.py` replays the focused local path from feed registry through reporter lifecycle, signed report, admission, admitted median3, accepted read, action adapter, and terminal DAG replay with `8/8` accepted stages. Devnet service tools and `bash scripts/check_zeno_oracle_devnet_alpha.sh` provide broader shell coverage. | Devnet complete |
+| O3 receipt flow | `tools/zeno_oracle_o3_receipt_flow_replay.py` replays the focused local path from feed registry through reporter lifecycle, signed report, admission, admitted median3, accepted read, action adapter, and terminal DAG replay with `8/8` accepted stages. Devnet service tools and `bash scripts/check_zeno_oracle_devnet_alpha.sh` provide broader shell coverage. `tools/check_zeno_oracle_production_network_config.py` adds the first fail-closed production-candidate network config gate, while deployment and public soak remain open. | Devnet complete plus config gate |
 | Critical consumers | `tools/check_zeno_oracle_critical_action_map.py` reports `catalog_profile_count = 7`, `runtime_wired_count = 7`, and `design_only_backlog_count = 0`, covering zUSD, perps settlement/liquidation, routing, triggers, and critical settlement. | Devnet complete |
 | Reporter economics | `tools/zenodex_oracle_reporter_economics_replay.py` and tests cover bonds, rewards, disputes, slashing, withdrawals, fee splits, and budget rejection. Live token settlement remains open. | Replay complete |
 | Disaster corpus | `tools/zenodex_oracle_devnet_disaster_harness.py` reports 17 selected states unreachable; `tools/zeno_oracle_disaster_class_corpus.py` reports 8 named families closed, including O5 independence-spoofing and proof-timeout fail-closed behavior. | First shell complete |
@@ -56,6 +56,7 @@ python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_
 python3 tools/zenoproof_reward_payout_replay.py --format text --registry tools/zenoproof_registry_manifest.json
 python3 tools/check_claims_registry.py
 python3 tools/check_zeno_oracle_goal_completion_audit.py --format text --expect-blocked
+python3 tools/check_zeno_oracle_production_network_config.py --format text
 ```
 
 ## Remaining Work Before Goal Closure
@@ -64,7 +65,9 @@ python3 tools/check_zeno_oracle_goal_completion_audit.py --format text --expect-
    checks.
 2. Production network: replace local/devnet-only assumptions with production
    reporter operations, production signing, production code signing, on-chain
-   feed governance, and live settlement policy.
+   feed governance, public soak evidence, and live settlement policy. The
+   current production-candidate config checker rejects malformed configs, but it
+   does not prove that the network is deployed or live.
 3. Live economics: promote local replay economics into live token settlement
    and governance-approved payout/slash/dispute flows.
 4. Broader disaster search: expand beyond the first-shell selected corpus and

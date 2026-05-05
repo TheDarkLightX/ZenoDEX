@@ -1569,6 +1569,32 @@ claims:
         - tools/zenodex_oracle_aggregate_adapter.py
         - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
 
+  - id: py:zeno_oracle:production_network_config_gate_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The production-candidate ZenoOracle network config checker accepts only a
+      config with a non-devnet chain id, timelocked governance, production
+      report signing, required code signing, at least five active bonded
+      reporters with quorum and operator-diversity constraints, feed-level
+      reporter/source/freshness/deviation policies, required critical-runtime
+      controls, and explicit non-claims for undeployed network, unexecuted
+      governance, live token settlement, reporter honesty, and market-price
+      truth. The checker rejects devnet chain ids, weak reporter quorum,
+      concentrated operators, missing signing/code-signing controls, disabled
+      runtime controls, and missing non-claims. This is a production-candidate
+      config gate only; it does not claim that the network is deployed, publicly
+      soaked, governance-executed, or live-settling tokens.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zeno_oracle_production_network_config.py --format text
+        - cmd: pytest -q tests/test_check_zeno_oracle_production_network_config.py
+      files:
+        - tools/check_zeno_oracle_production_network_config.py
+        - tests/test_check_zeno_oracle_production_network_config.py
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
   - id: py:zeno_oracle:reporter_economics_replay_v1
     status: supported
     layer: implementation
