@@ -66,6 +66,11 @@ def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None
     )
     assert "python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --format text" in finality_family["replay_commands"]
     assert "cross_domain_finality_gate_is_local_receipt_replay_not_live" in finality_family["blockers"]
+    reporter_soak_family = next(
+        family for family in frontier["families"] if family["family_id"] == "public_reporter_cartel_after_soak_window"
+    )
+    assert "python3 tools/check_zeno_oracle_reporter_soak_gate.py --format text" in reporter_soak_family["replay_commands"]
+    assert "reporter_soak_gate_is_local_observation_replay_not_public_soak" in reporter_soak_family["blockers"]
 
 
 def test_disaster_frontier_rejects_closed_family_without_devnet_evidence() -> None:

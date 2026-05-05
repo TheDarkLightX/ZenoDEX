@@ -217,3 +217,15 @@ roundtrip preservation for isolated perps settlement runtime facts, adapter
 execution after restore, liquidation action-ID binding after restore, and
 fail-closed rejection of malformed oracle snapshot state. It does not claim a
 general perps snapshot theorem or live runtime policy.
+
+The public reporter-soak family now has local observation replay through:
+
+```bash
+python3 tools/check_zeno_oracle_reporter_soak_gate.py --format text
+```
+
+That gate validates reporter count, distinct operator count, operator-share
+limits, per-reporter soak epochs, success/dispute-rate thresholds, and
+source-diversity acceptance. `--require-live` intentionally rejects until the
+observations are verified against public telemetry and operator independence is
+externally attested.

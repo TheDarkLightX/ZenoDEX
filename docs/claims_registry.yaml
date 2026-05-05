@@ -1696,8 +1696,9 @@ claims:
       hidden fields, duplicate families, missing non-claims, and any new
       obligation atom that is promoted without an explicit blocker. The current
       cross-domain finality family is mapped to a manifest obligation atom and
-      a local receipt-bundle replay gate, but remains production-blocked until
-      live finality adapter receipts exist.
+      a local receipt-bundle replay gate, and the public reporter-soak family
+      is mapped to a local observation replay gate, but both remain blocked on
+      live public evidence.
       This is a frontier-accounting claim; it does not claim exhaustive
       production safety.
     evidence:
@@ -1710,10 +1711,40 @@ claims:
         - tests/test_check_zeno_oracle_disaster_frontier.py
         - tools/check_zeno_oracle_cross_domain_finality_gate.py
         - tests/test_check_zeno_oracle_cross_domain_finality_gate.py
+        - tools/check_zeno_oracle_reporter_soak_gate.py
+        - tests/test_check_zeno_oracle_reporter_soak_gate.py
         - tools/zenodex_oracle_devnet_disaster_harness.py
         - tools/zeno_oracle_disaster_class_corpus.py
         - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
         - tools/check_disaster_obligation_certificate.py
+        - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
+  - id: py:zeno_oracle:reporter_soak_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The local ZenoOracle reporter-soak gate accepts only when a
+      production-candidate policy and observation bundle meet reporter count,
+      distinct operator count, operator-share, per-reporter soak-epoch,
+      success-rate, dispute-rate, and source-diversity thresholds. It rejects
+      missing observation bundles, operator-cartel concentration, low reporter
+      success rates, source-diversity drift, duplicate reporter IDs, malformed
+      observation IDs, and remaining public-soak blockers under
+      `--require-live`. This is local observation replay evidence for the
+      production-disaster frontier; it does not claim public telemetry
+      verification, real-world operator independence, reporter honesty, or live
+      oracle network safety.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zeno_oracle_reporter_soak_gate.py --format text
+        - cmd: pytest -q tests/test_check_zeno_oracle_reporter_soak_gate.py
+      files:
+        - tools/check_zeno_oracle_reporter_soak_gate.py
+        - tests/test_check_zeno_oracle_reporter_soak_gate.py
+        - tools/check_zeno_oracle_disaster_frontier.py
+        - tools/zenodex_oracle_source_diversity.py
         - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
         - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
 
