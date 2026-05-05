@@ -1705,6 +1705,32 @@ claims:
         - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
         - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
 
+  - id: py:zeno_oracle:perps_snapshot_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The bounded perps oracle snapshot gate checks that the current isolated
+      perps snapshot encoder/decoder preserves settle-epoch oracle runtime
+      facts and action IDs across roundtrip, executes a perps settlement adapter
+      bridge after snapshot restore, preserves liquidation action-ID binding
+      after restore, and rejects malformed oracle snapshot state where
+      `oracle_seen` is false while oracle price fields remain populated. This
+      is local replay evidence for the production-disaster frontier family
+      covering usable perps oracle snapshots; it does not claim a general perps
+      snapshot theorem or live production runtime policy.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zeno_oracle_perps_snapshot_gate.py --format text
+        - cmd: pytest -q tests/test_check_zeno_oracle_perps_snapshot_gate.py
+      files:
+        - tools/check_zeno_oracle_perps_snapshot_gate.py
+        - tests/test_check_zeno_oracle_perps_snapshot_gate.py
+        - src/integration/dex_snapshot.py
+        - src/integration/perp_engine.py
+        - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
   - id: julia:zeno_oracle:first_shell_math_witness_sweep_v1
     status: supported
     layer: assurance

@@ -55,6 +55,12 @@ def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None
     blockers = {item["family_id"] for item in result["closure_blockers"]}
     assert "cross_domain_finality_reorg_feeds_oracle_read" in blockers
     assert "does_not_claim_exhaustive_production_disaster_search" in result["not_claimed"]
+    frontier = sample_frontier()
+    snapshot_family = next(
+        family for family in frontier["families"] if family["family_id"] == "oracle_settlement_without_usable_snapshot"
+    )
+    assert "python3 tools/check_zeno_oracle_perps_snapshot_gate.py --format text" in snapshot_family["replay_commands"]
+    assert "perps_snapshot_gate_is_bounded_replay_not_general_theorem" in snapshot_family["blockers"]
 
 
 def test_disaster_frontier_rejects_closed_family_without_devnet_evidence() -> None:

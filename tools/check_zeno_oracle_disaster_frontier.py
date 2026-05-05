@@ -121,6 +121,7 @@ def sample_frontier() -> dict[str, Any]:
     devnet_command = "python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text"
     corpus_command = "python3 tools/zeno_oracle_disaster_class_corpus.py --format text"
     policy_command = "python3 tools/check_zeno_oracle_live_economics_policy.py --format text"
+    perps_snapshot_command = "python3 tools/check_zeno_oracle_perps_snapshot_gate.py --format text"
     families = [
         _family(
             "accepted_read_without_accepted_aggregate",
@@ -335,8 +336,8 @@ def sample_frontier() -> dict[str, Any]:
             status="production_blocked",
             manifest_axis="stale_read_used_for_critical_action",
             manifest_obligations=["critical_action_bound", "receipt_dag_closed", "schema_total", "time_freshness"],
-            replay_commands=["python3 tools/check_zeno_oracle_critical_action_map.py"],
-            blockers=["general_perps_snapshot_theorem_not_complete", "production_runtime_policy_not_live"],
+            replay_commands=["python3 tools/check_zeno_oracle_critical_action_map.py", perps_snapshot_command],
+            blockers=["perps_snapshot_gate_is_bounded_replay_not_general_theorem", "production_runtime_policy_not_live"],
         ),
         _family(
             "cross_domain_finality_reorg_feeds_oracle_read",
