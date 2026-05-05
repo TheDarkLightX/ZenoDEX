@@ -47,8 +47,8 @@ def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None
 
     assert result["schema"] == "zenodex.oracle.production_disaster_frontier_check.v1"
     assert result["status"] == "accepted"
-    assert result["frontier_family_count"] == 28
-    assert result["closed_family_count"] == 23
+    assert result["frontier_family_count"] == 29
+    assert result["closed_family_count"] == 24
     assert result["blocked_or_backlog_count"] == 5
     assert result["new_obligation_family_count"] == 0
     assert result["error_count"] == 0
@@ -56,6 +56,11 @@ def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None
     assert "cross_domain_finality_reorg_feeds_oracle_read" in blockers
     assert "does_not_claim_exhaustive_production_disaster_search" in result["not_claimed"]
     frontier = sample_frontier()
+    settlement_drift_family = next(
+        family for family in frontier["families"] if family["family_id"] == "settlement_execution_total_drift"
+    )
+    assert settlement_drift_family["corpus_class_id"] == "settlement_execution_total_drift"
+    assert "python3 tools/zeno_oracle_disaster_class_corpus.py --format text" in settlement_drift_family["replay_commands"]
     snapshot_family = next(
         family for family in frontier["families"] if family["family_id"] == "oracle_settlement_without_usable_snapshot"
     )

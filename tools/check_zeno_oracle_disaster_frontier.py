@@ -279,6 +279,15 @@ def sample_frontier() -> dict[str, Any]:
             replay_commands=[corpus_command],
         ),
         _family(
+            "settlement_execution_total_drift",
+            source="tools/zeno_oracle_disaster_class_corpus.py",
+            status="public_corpus_closed",
+            manifest_axis="reward_budget_overdraft",
+            manifest_obligations=["budget_conservation", "economic_margin", "schema_total"],
+            corpus_class_id="settlement_execution_total_drift",
+            replay_commands=[corpus_command],
+        ),
+        _family(
             "registry_drift",
             source="tools/zeno_oracle_disaster_class_corpus.py",
             status="public_corpus_closed",

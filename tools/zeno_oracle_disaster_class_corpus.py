@@ -20,6 +20,12 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from check_cross_module_oracle_split_brain_v1 import check_cross_module_oracle_split_brain_v1  # noqa: E402
+from check_zeno_oracle_live_economics_policy import (  # noqa: E402
+    check_policy as check_live_economics_policy,
+    receipt_content_hash as live_economics_receipt_content_hash,
+    sample_policy as sample_live_economics_policy,
+    sample_receipt_bundle as sample_live_economics_receipt_bundle,
+)
 from zenodex_oracle_devnet_disaster_harness import run_harness  # noqa: E402
 from zenodex_oracle_feed_registry import sample_feed_registry, verify_feed_registry  # noqa: E402
 from zenodex_oracle_reporter_economics_replay import (  # noqa: E402
@@ -148,6 +154,44 @@ def _dispute_griefing_case() -> dict[str, Any]:
             "errors": result["errors"],
             "dispute_count": result["dispute_count"],
         },
+    )
+
+
+def _settlement_execution_total_drift_case() -> dict[str, Any]:
+    replay = sample_replay()
+    policy = sample_live_economics_policy()
+    bundle = sample_live_economics_receipt_bundle(policy, replay)
+    settlement_receipt = next(
+        receipt
+        for receipt in bundle["receipts"]
+        if isinstance(receipt, dict) and receipt.get("kind") == "settlement_execution"
+    )
+    payload = settlement_receipt["payload"]
+    if not isinstance(payload, dict):  # pragma: no cover
+        raise CorpusError("settlement execution payload is not an object")
+    payload["report_reward_paid_e8"] = int(payload["report_reward_paid_e8"]) - 1
+    settlement_receipt["receipt_id"] = live_economics_receipt_content_hash(settlement_receipt)
+
+    result = check_live_economics_policy(policy, replay, bundle)
+    ok = (
+        result["status"] == "rejected"
+        and "receipt:settlement_execution_report_reward_paid_e8_mismatch" in result["errors"]
+    )
+    return _case_receipt(
+        "settlement_execution_total_drift",
+        manifest_axis="reward_budget_overdraft",
+        guard_family="live_economics_settlement_gate",
+        obligations=["budget_conservation", "economic_margin", "schema_total"],
+        ok=ok,
+        expected="settlement execution receipt totals must match the reporter economics replay totals",
+        observed={
+            "verifier": "check_zeno_oracle_live_economics_policy.check_policy",
+            "status": result["status"],
+            "errors": result["errors"],
+            "receipt_bundle_status": result["receipt_bundle_status"],
+            "replay_status": result["replay_status"],
+        },
+        replay_command="python3 tools/check_zeno_oracle_live_economics_policy.py --format text",
     )
 
 
@@ -364,6 +408,7 @@ def build_corpus(
     for builder in (
         _source_cartel_case,
         _dispute_griefing_case,
+        _settlement_execution_total_drift_case,
         _registry_drift_case,
         lambda: _verifier_spoofing_case(zenoproof_registry),
         lambda: _o5_independence_spoofing_case(zenoproof_registry),

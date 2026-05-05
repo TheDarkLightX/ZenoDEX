@@ -16,14 +16,15 @@ def test_named_disaster_class_corpus_closes_requested_classes(tmp_path: Path) ->
 
     assert receipt["schema"] == "zenodex.oracle.disaster_class_corpus.v1"
     assert receipt["status"] == "accepted"
-    assert receipt["named_disaster_class_count"] == 8
-    assert receipt["closed_class_count"] == 8
+    assert receipt["named_disaster_class_count"] == 9
+    assert receipt["closed_class_count"] == 9
     assert receipt["failed_class_count"] == 0
 
     cases = {case["class_id"]: case for case in receipt["cases"]}
     assert set(cases) == {
         "source_cartel",
         "dispute_griefing",
+        "settlement_execution_total_drift",
         "registry_drift",
         "verifier_spoofing",
         "o5_independence_spoofing",
@@ -34,6 +35,10 @@ def test_named_disaster_class_corpus_closes_requested_classes(tmp_path: Path) ->
 
     assert "operator_concentration_exceeds_policy" in cases["source_cartel"]["observed"]["errors"]
     assert "dispute_bond_required" in cases["dispute_griefing"]["observed"]["errors"]
+    assert (
+        "receipt:settlement_execution_report_reward_paid_e8_mismatch"
+        in cases["settlement_execution_total_drift"]["observed"]["errors"]
+    )
     assert any(
         error.startswith("registry_content_hash_mismatch:")
         for error in cases["registry_drift"]["observed"]["errors"]
@@ -73,6 +78,6 @@ def test_named_disaster_class_corpus_cli_writes_receipt(tmp_path: Path) -> None:
     )
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
-    assert "closed_class_count = 8" in proc.stdout
+    assert "closed_class_count = 9" in proc.stdout
     receipt = json.loads(output.read_text(encoding="utf-8"))
     assert receipt["status"] == "accepted"
