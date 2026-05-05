@@ -194,8 +194,29 @@ new_obligation_family_count = 0
 The frontier gate cross-checks the devnet disaster harness, named
 disaster-class corpus, and obligation-antichain manifest. It rejects silent
 coverage drift: a family must have public replay evidence, or it must remain an
-explicit blocker/backlog item. Cross-domain finality is now represented as a
-manifest obligation atom and has a local receipt-bundle gate:
+explicit blocker/backlog item.
+
+The frontier-to-antichain projection gate is:
+
+```bash
+python3 tools/check_zeno_oracle_frontier_obligation_projection.py --format text
+```
+
+Current expected receipt:
+
+```text
+status = accepted
+frontier_family_count = 29
+projected_family_count = 29
+new_obligation_family_count = 0
+error_count = 0
+```
+
+This gate rejects frontier drift before a family can silently escape the
+obligation quotient.
+
+Cross-domain finality is now represented as a manifest obligation atom and has
+a local receipt-bundle gate:
 
 ```bash
 python3 tools/check_zeno_oracle_cross_domain_finality_gate.py --format text

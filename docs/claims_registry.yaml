@@ -1467,16 +1467,22 @@ claims:
       The public ZenoOracle disaster-obligation manifest is structurally valid: every selected
       guard family has a private witness reference, quotient classes are represented by the
       declared antichain, and no listed disaster axis is left outside the manifest taxonomy.
+      The frontier-obligation projection checker also maps every current
+      production-disaster frontier family onto a manifest quotient class, with
+      no unprojected family and no new obligation family.
       This is a certificate about manifest coverage and replayability, not a proof that all
       possible Oracle or ZenoDEX disaster states have been discovered.
     evidence:
       kind: python
       check:
         - cmd: python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+        - cmd: python3 tools/check_zeno_oracle_frontier_obligation_projection.py --format text
       files:
         - tools/check_disaster_obligation_certificate.py
         - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+        - tools/check_zeno_oracle_frontier_obligation_projection.py
         - tests/test_zeno_oracle_disaster_obligation_certificate.py
+        - tests/test_check_zeno_oracle_frontier_obligation_projection.py
 
   - id: py:zeno_oracle:devnet_alpha_replay_gate
     status: supported
