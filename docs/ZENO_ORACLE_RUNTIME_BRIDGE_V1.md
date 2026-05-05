@@ -15,6 +15,7 @@ APIs.
 oracle_adapter_bridge_verifier: Optional[Callable[[Mapping[str, Any]], Any]]
 require_oracle_adapter_for_isolated_settle_epoch: bool
 require_oracle_adapter_for_clearinghouse_settle_epoch: bool
+require_oracle_authorization_for_isolated_settle_epoch: bool
 ```
 
 When a `settle_epoch` op carries `oracle_adapter_bridge`, the engine:
@@ -75,6 +76,11 @@ without `oracle_adapter_bridge` is rejected on isolated perps. If
 without `oracle_adapter_bridge` is rejected on 2-party and 3-party clearinghouse
 perps. If the bridge is present but no verifier is configured, settlement is
 rejected even when the requirement flag is false.
+
+If `require_oracle_authorization_for_isolated_settle_epoch` is true, isolated
+settlement also requires a typed `oracle_authorization` bound to the runtime
+action facts and current oracle snapshot. The older internal spelling
+`require_oracle_authorization_for_isolated_settle` remains accepted as an alias.
 
 This prevents the wired perps settlement paths from accepting a receipt minted
 for a different consumer, action, query, profile policy, market, market kind,
