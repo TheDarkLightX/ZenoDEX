@@ -232,6 +232,7 @@ def build_audit() -> dict[str, Any]:
             requirement="Use Julia, Lean, ESSO, TLA, LTLf, Morph, and PopperPad for replayable evidence.",
             evidence_files=[
                 "tools/zeno_oracle_math_witness_sweep.jl",
+                "tests/test_zeno_oracle_math_witness_sweep.py",
                 "lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
                 "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
                 "formal/ltlf/oracle_recovery_goal_family_v1.json",
@@ -245,6 +246,7 @@ def build_audit() -> dict[str, Any]:
                 "python3 tools/zeno_oracle_workflow_evidence_status.py --format text",
                 "python3 tools/zeno_oracle_smt_freshness_replay.py --format text",
                 "julia tools/zeno_oracle_math_witness_sweep.jl",
+                "pytest -q tests/test_zeno_oracle_math_witness_sweep.py",
                 "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
             ],
             status="partial",
