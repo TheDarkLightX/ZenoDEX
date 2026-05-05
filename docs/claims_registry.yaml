@@ -1578,14 +1578,19 @@ claims:
       report signing, required code signing, at least five active bonded
       reporters with quorum and operator-diversity constraints, feed-level
       reporter/source/freshness/deviation policies, required critical-runtime
-      controls including typed isolated perps settlement authorization, and
+      controls including typed isolated perps settlement authorization, a local
+      receipt bundle for reporter-registry deployment, feed-governance
+      deployment, signed release artifact verification, runtime-control
+      attestation, and
       explicit non-claims for undeployed network, unexecuted
       governance, live token settlement, reporter honesty, and market-price
       truth. The checker rejects devnet chain ids, weak reporter quorum,
       concentrated operators, missing signing/code-signing controls, disabled
-      runtime controls, and missing non-claims. This is a production-candidate
-      config gate only; it does not claim that the network is deployed, publicly
-      soaked, governance-executed, or live-settling tokens.
+      runtime controls, missing receipt bundles, receipt drift, and missing
+      non-claims. This is a production-candidate config and local receipt gate
+      only; it does not claim that the network is deployed, public release
+      transparency logs have verified the artifact, the network is publicly
+      soaked, governance has executed live, or tokens are live-settling.
     evidence:
       kind: python
       check:
