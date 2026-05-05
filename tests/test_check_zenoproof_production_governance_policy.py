@@ -54,7 +54,9 @@ def test_zenoproof_production_governance_policy_accepts_sample_candidate() -> No
     assert result["receipt_bundle_status"] == "accepted"
     assert result["receipt_bundle_kind_count"] == 6
     assert result["production_enabled_verifier_count"] == 8
+    assert result["verifier_release_entry_count"] == 8
     assert result["devnet_only_verifier_count"] == 2
+    assert "production_verifier_release_transparency_log_not_verified" in result["go_live_blockers"]
     assert "live_proof_mining_token_settlement_not_enabled" in result["go_live_blockers"]
     assert "does_not_claim_live_proof_network" in result["not_claimed"]
 
@@ -108,6 +110,7 @@ def test_zenoproof_production_governance_policy_rejects_bad_governance_and_rewar
     policy = sample_policy(registry)
     policy["governance"]["timelock_seconds"] = 1
     policy["code_signing"]["required"] = False
+    policy["code_signing"]["verifier_release_manifest_digest"] = "sha256:" + "8" * 64
     policy["reward_settlement"]["bounded_pool_required"] = False
     policy["not_claimed"] = ["does_not_claim_live_proof_network"]
     _refresh(policy)
@@ -117,6 +120,7 @@ def test_zenoproof_production_governance_policy_rejects_bad_governance_and_rewar
     assert result["status"] == "rejected"
     assert "timelock_seconds_below_min:86400" in result["errors"]
     assert "required_must_be_true" in result["errors"]
+    assert "verifier_release_manifest_digest_mismatch" in result["errors"]
     assert "bounded_pool_required_must_be_true" in result["errors"]
     assert "missing_not_claim:does_not_claim_live_proof_mining_payouts" in result["errors"]
 
@@ -175,6 +179,42 @@ def test_zenoproof_production_governance_policy_rejects_sandbox_attestation_drif
 
     assert result["status"] == "rejected"
     assert "receipt:sandbox_attestation_network_disabled_mismatch" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_verifier_release_entry_drift() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    code_signing = _receipt(bundle, "code_signing_attestation")
+    payload = code_signing["payload"]
+    assert isinstance(payload, dict)
+    entries = payload["verifier_release_entries"]
+    assert isinstance(entries, list)
+    first = entries[0]
+    assert isinstance(first, dict)
+    first["artifact_digest"] = "sha256:" + "9" * 64
+    code_signing["receipt_id"] = receipt_content_hash(code_signing)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:code_signing_attestation_verifier_release_entries_mismatch" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_missing_transparency_log_observation() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    code_signing = _receipt(bundle, "code_signing_attestation")
+    payload = code_signing["payload"]
+    assert isinstance(payload, dict)
+    payload["transparency_log_observed"] = False
+    code_signing["receipt_id"] = receipt_content_hash(code_signing)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:code_signing_attestation_transparency_log_not_observed" in result["errors"]
 
 
 def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_path: Path) -> None:
