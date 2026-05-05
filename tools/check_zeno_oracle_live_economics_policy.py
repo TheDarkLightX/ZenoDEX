@@ -27,8 +27,11 @@ from zenodex_oracle_reporter_economics_replay import (  # noqa: E402
 
 POLICY_SCHEMA = "zenodex.oracle.live_economics_policy.v1"
 REPORT_SCHEMA = "zenodex.oracle.live_economics_policy_check.v1"
+RECEIPT_BUNDLE_SCHEMA = "zenodex.oracle.live_economics_receipt_bundle.v1"
+RECEIPT_SCHEMA = "zenodex.oracle.live_economics_receipt.v1"
 BPS_DENOM = 10_000
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+TX_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 SHA_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 REQUIRED_NOT_CLAIMS = {
     "does_not_claim_escrow_funded_onchain",
@@ -55,6 +58,7 @@ TOP_LEVEL_KEYS = {
     "governance_contract",
     "governance",
     "governance_approval_receipt",
+    "governance_execution_receipt",
     "escrow_funding_receipt",
     "live_token_settlement_enabled",
     "required_reporter_bond_e8",
@@ -73,6 +77,33 @@ GOVERNANCE_KEYS = {
     "emergency_pause_role",
 }
 FEE_SPLIT_KEYS = {"reporter_reward", "treasury", "burn"}
+RECEIPT_BUNDLE_KEYS = {
+    "schema",
+    "policy_id",
+    "policy_name",
+    "chain_id",
+    "observed_block_number",
+    "observed_block_hash",
+    "receipts",
+    "not_claimed",
+}
+RECEIPT_KEYS = {
+    "schema",
+    "receipt_id",
+    "kind",
+    "chain_id",
+    "contract_address",
+    "tx_hash",
+    "block_number",
+    "block_hash",
+    "log_index",
+    "payload",
+}
+REQUIRED_RECEIPT_KINDS = {"governance_approval", "governance_execution", "escrow_funding"}
+RECEIPT_NOT_CLAIMS = {
+    "does_not_claim_receipts_verified_against_live_rpc",
+    "does_not_claim_contract_code_verified_onchain",
+}
 
 
 def _canonical_bytes(obj: Mapping[str, Any]) -> bytes:
@@ -85,8 +116,31 @@ def policy_content_hash(policy: Mapping[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(_canonical_bytes(payload)).hexdigest()
 
 
+def policy_static_hash(policy: Mapping[str, Any]) -> str:
+    payload = dict(policy)
+    for key in (
+        "policy_id",
+        "governance_approval_receipt",
+        "governance_execution_receipt",
+        "escrow_funding_receipt",
+        "not_claimed",
+    ):
+        payload.pop(key, None)
+    return "sha256:" + hashlib.sha256(_canonical_bytes(payload)).hexdigest()
+
+
+def receipt_content_hash(receipt: Mapping[str, Any]) -> str:
+    payload = dict(receipt)
+    payload.pop("receipt_id", None)
+    return "sha256:" + hashlib.sha256(_canonical_bytes(payload)).hexdigest()
+
+
 def _sha(label: str) -> str:
     return "sha256:" + hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def _tx(label: str) -> str:
+    return "0x" + hashlib.sha256(label.encode("utf-8")).hexdigest()
 
 
 def _is_address(value: Any) -> bool:
@@ -95,6 +149,10 @@ def _is_address(value: Any) -> bool:
 
 def _is_sha(value: Any) -> bool:
     return isinstance(value, str) and SHA_RE.fullmatch(value) is not None
+
+
+def _is_tx(value: Any) -> bool:
+    return isinstance(value, str) and TX_RE.fullmatch(value) is not None
 
 
 def _int_field(
@@ -147,7 +205,150 @@ def _events_by_type(replay: Mapping[str, Any], event_type: str) -> list[Mapping[
     return [event for event in raw if isinstance(event, Mapping) and event.get("type") == event_type]
 
 
+def minimum_escrow_floor_e8(replay: Mapping[str, Any]) -> int:
+    floor = 0
+    initial_dispute_pool = replay.get("initial_dispute_reward_pool_e8")
+    if isinstance(initial_dispute_pool, int) and not isinstance(initial_dispute_pool, bool):
+        floor += max(0, int(initial_dispute_pool))
+    for event in replay.get("events", []) if isinstance(replay.get("events"), list) else []:
+        if not isinstance(event, Mapping):
+            continue
+        if event.get("type") == "deposit_bond":
+            amount = event.get("amount_e8")
+            if isinstance(amount, int) and not isinstance(amount, bool):
+                floor += max(0, int(amount))
+        if event.get("type") == "fee_split":
+            fee_paid = event.get("fee_paid_e8")
+            if isinstance(fee_paid, int) and not isinstance(fee_paid, bool):
+                floor += max(0, int(fee_paid))
+    return floor
+
+
+def _receipt(
+    *,
+    kind: str,
+    chain_id: str,
+    contract_address: str,
+    tx_hash: str,
+    block_number: int,
+    block_hash: str,
+    log_index: int,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    receipt: dict[str, Any] = {
+        "schema": RECEIPT_SCHEMA,
+        "kind": kind,
+        "chain_id": chain_id,
+        "contract_address": contract_address,
+        "tx_hash": tx_hash,
+        "block_number": int(block_number),
+        "block_hash": block_hash,
+        "log_index": int(log_index),
+        "payload": dict(payload),
+    }
+    receipt["receipt_id"] = receipt_content_hash(receipt)
+    return receipt
+
+
+def _sample_receipts_for_policy(policy: Mapping[str, Any], replay: Mapping[str, Any]) -> list[dict[str, Any]]:
+    chain_id = "zenodex.oracle.mainnet-candidate-1"
+    static_hash = policy_static_hash(policy)
+    proposal_id = _sha(f"zenodex.oracle.live_economics.proposal.{static_hash}")
+    queued_at = 1_800_000_000
+    governance = policy.get("governance") if isinstance(policy.get("governance"), Mapping) else {}
+    timelock_seconds = int(governance.get("timelock_seconds", 172_800))
+    executable_after = queued_at + timelock_seconds
+    executed_at = executable_after
+    required_floor = minimum_escrow_floor_e8(replay)
+    return [
+        _receipt(
+            kind="governance_approval",
+            chain_id=chain_id,
+            contract_address=str(policy.get("governance_contract")),
+            tx_hash=_tx("zenodex.oracle.live_economics.governance_approval"),
+            block_number=1_000,
+            block_hash=_sha("zenodex.oracle.live_economics.block.1000"),
+            log_index=0,
+            payload={
+                "approved": True,
+                "executable_after_timestamp": executable_after,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "proposal_id": proposal_id,
+                "queued_at_timestamp": queued_at,
+                "timelock_seconds": timelock_seconds,
+            },
+        ),
+        _receipt(
+            kind="governance_execution",
+            chain_id=chain_id,
+            contract_address=str(policy.get("governance_contract")),
+            tx_hash=_tx("zenodex.oracle.live_economics.governance_execution"),
+            block_number=1_100,
+            block_hash=_sha("zenodex.oracle.live_economics.block.1100"),
+            log_index=0,
+            payload={
+                "executed": True,
+                "executed_at_timestamp": executed_at,
+                "executable_after_timestamp": executable_after,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "proposal_id": proposal_id,
+            },
+        ),
+        _receipt(
+            kind="escrow_funding",
+            chain_id=chain_id,
+            contract_address=str(policy.get("escrow_contract")),
+            tx_hash=_tx("zenodex.oracle.live_economics.escrow_funding"),
+            block_number=1_200,
+            block_hash=_sha("zenodex.oracle.live_economics.block.1200"),
+            log_index=0,
+            payload={
+                "balance_e8": required_floor,
+                "escrow_contract": str(policy.get("escrow_contract")),
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "required_escrow_floor_e8": required_floor,
+                "token_contract": str(policy.get("token_contract")),
+            },
+        ),
+    ]
+
+
+def _sample_receipt_refs(policy: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[str, str]:
+    receipts = _sample_receipts_for_policy(policy, replay)
+    by_kind = {str(receipt["kind"]): str(receipt["receipt_id"]) for receipt in receipts}
+    return {
+        "governance_approval_receipt": by_kind["governance_approval"],
+        "governance_execution_receipt": by_kind["governance_execution"],
+        "escrow_funding_receipt": by_kind["escrow_funding"],
+    }
+
+
+def sample_receipt_bundle(
+    policy: Mapping[str, Any] | None = None,
+    replay: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if policy is None:
+        policy = sample_policy()
+    if replay is None:
+        replay = sample_replay()
+    receipts = _sample_receipts_for_policy(policy, replay)
+    return {
+        "schema": RECEIPT_BUNDLE_SCHEMA,
+        "policy_id": policy.get("policy_id"),
+        "policy_name": policy.get("policy_name"),
+        "chain_id": "zenodex.oracle.mainnet-candidate-1",
+        "observed_block_number": 1_200,
+        "observed_block_hash": _sha("zenodex.oracle.live_economics.block.1200"),
+        "receipts": receipts,
+        "not_claimed": sorted(RECEIPT_NOT_CLAIMS),
+    }
+
+
 def sample_policy() -> dict[str, Any]:
+    replay = sample_replay()
     policy: dict[str, Any] = {
         "schema": POLICY_SCHEMA,
         "policy_name": "zeno-oracle-live-economics-production-candidate-1",
@@ -162,8 +363,6 @@ def sample_policy() -> dict[str, Any]:
             "slash_delay_epochs": 2,
             "emergency_pause_role": "oracle-economics-guardian-1",
         },
-        "governance_approval_receipt": _sha("zenodex.oracle.live_economics.governance_approval"),
-        "escrow_funding_receipt": _sha("zenodex.oracle.live_economics.escrow_funding"),
         "live_token_settlement_enabled": True,
         "required_reporter_bond_e8": 250_000_000_000,
         "max_report_reward_e8": 30_000_000,
@@ -178,11 +377,194 @@ def sample_policy() -> dict[str, Any]:
         "settlement_receipt_required": True,
         "not_claimed": sorted(REQUIRED_NOT_CLAIMS),
     }
+    policy.update(_sample_receipt_refs(policy, replay))
     policy["policy_id"] = policy_content_hash(policy)
     return policy
 
 
-def check_policy(policy: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[str, Any]:
+def check_receipt_bundle(
+    policy: Mapping[str, Any],
+    replay: Mapping[str, Any],
+    receipt_bundle: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    if receipt_bundle is None:
+        return {
+            "schema": RECEIPT_BUNDLE_SCHEMA,
+            "ok": False,
+            "status": "rejected",
+            "error_count": 1,
+            "errors": ["receipt_bundle_required"],
+            "required_escrow_floor_e8": minimum_escrow_floor_e8(replay),
+        }
+
+    _unknown_fields(receipt_bundle, allowed=RECEIPT_BUNDLE_KEYS, label="receipt_bundle", errors=errors)
+    if receipt_bundle.get("schema") != RECEIPT_BUNDLE_SCHEMA:
+        errors.append("receipt_bundle_schema_mismatch")
+    if receipt_bundle.get("policy_id") != policy.get("policy_id"):
+        errors.append("receipt_bundle_policy_id_mismatch")
+    if receipt_bundle.get("policy_name") != policy.get("policy_name"):
+        errors.append("receipt_bundle_policy_name_mismatch")
+    chain_id = receipt_bundle.get("chain_id")
+    if not isinstance(chain_id, str) or not chain_id.strip():
+        errors.append("receipt_bundle_chain_id_required")
+    observed_block_number = receipt_bundle.get("observed_block_number")
+    if not isinstance(observed_block_number, int) or isinstance(observed_block_number, bool) or observed_block_number <= 0:
+        errors.append("observed_block_number_must_be_positive_int")
+        observed_block_number = 0
+    if not _is_sha(receipt_bundle.get("observed_block_hash")):
+        errors.append("observed_block_hash_must_be_sha256")
+
+    not_claimed = receipt_bundle.get("not_claimed")
+    if not isinstance(not_claimed, list):
+        errors.append("receipt_bundle_not_claimed_must_be_list")
+    else:
+        values = {str(item) for item in not_claimed if isinstance(item, str)}
+        errors.extend(f"missing_receipt_not_claim:{item}" for item in sorted(RECEIPT_NOT_CLAIMS - values))
+
+    raw_receipts = receipt_bundle.get("receipts")
+    if not isinstance(raw_receipts, list):
+        errors.append("receipts_must_be_list")
+        raw_receipts = []
+
+    by_kind: dict[str, Mapping[str, Any]] = {}
+    static_hash = policy_static_hash(policy)
+    expected_contract_by_kind = {
+        "governance_approval": policy.get("governance_contract"),
+        "governance_execution": policy.get("governance_contract"),
+        "escrow_funding": policy.get("escrow_contract"),
+    }
+    expected_receipt_id_by_kind = {
+        "governance_approval": policy.get("governance_approval_receipt"),
+        "governance_execution": policy.get("governance_execution_receipt"),
+        "escrow_funding": policy.get("escrow_funding_receipt"),
+    }
+
+    for idx, receipt in enumerate(raw_receipts):
+        if not isinstance(receipt, Mapping):
+            errors.append(f"receipt_{idx}_must_be_object")
+            continue
+        _unknown_fields(receipt, allowed=RECEIPT_KEYS, label=f"receipt_{idx}", errors=errors)
+        if receipt.get("schema") != RECEIPT_SCHEMA:
+            errors.append(f"receipt_{idx}_schema_mismatch")
+        kind = receipt.get("kind")
+        if not isinstance(kind, str) or kind not in REQUIRED_RECEIPT_KINDS:
+            errors.append(f"receipt_{idx}_kind_invalid")
+            continue
+        if kind in by_kind:
+            errors.append(f"duplicate_receipt_kind:{kind}")
+        else:
+            by_kind[kind] = receipt
+        if receipt.get("receipt_id") != receipt_content_hash(receipt):
+            errors.append(f"receipt_id_mismatch:{kind}")
+        if receipt.get("receipt_id") != expected_receipt_id_by_kind.get(kind):
+            errors.append(f"policy_receipt_id_mismatch:{kind}")
+        if receipt.get("chain_id") != chain_id:
+            errors.append(f"receipt_chain_id_mismatch:{kind}")
+        if receipt.get("contract_address") != expected_contract_by_kind.get(kind):
+            errors.append(f"receipt_contract_mismatch:{kind}")
+        if not _is_tx(receipt.get("tx_hash")):
+            errors.append(f"receipt_tx_hash_invalid:{kind}")
+        if not _is_sha(receipt.get("block_hash")):
+            errors.append(f"receipt_block_hash_invalid:{kind}")
+        block_number = receipt.get("block_number")
+        if not isinstance(block_number, int) or isinstance(block_number, bool) or block_number <= 0:
+            errors.append(f"receipt_block_number_invalid:{kind}")
+        elif isinstance(observed_block_number, int) and observed_block_number > 0 and block_number > observed_block_number:
+            errors.append(f"receipt_after_observed_block:{kind}")
+        log_index = receipt.get("log_index")
+        if not isinstance(log_index, int) or isinstance(log_index, bool) or log_index < 0:
+            errors.append(f"receipt_log_index_invalid:{kind}")
+        payload = receipt.get("payload")
+        if not isinstance(payload, Mapping):
+            errors.append(f"receipt_payload_must_be_object:{kind}")
+            continue
+        if payload.get("policy_name") != policy.get("policy_name"):
+            errors.append(f"receipt_policy_name_mismatch:{kind}")
+        if payload.get("policy_static_hash") != static_hash:
+            errors.append(f"receipt_policy_static_hash_mismatch:{kind}")
+
+    for kind in sorted(REQUIRED_RECEIPT_KINDS - set(by_kind)):
+        errors.append(f"missing_receipt_kind:{kind}")
+
+    approval = by_kind.get("governance_approval")
+    execution = by_kind.get("governance_execution")
+    funding = by_kind.get("escrow_funding")
+    approval_payload = approval.get("payload") if isinstance(approval, Mapping) and isinstance(approval.get("payload"), Mapping) else {}
+    execution_payload = execution.get("payload") if isinstance(execution, Mapping) and isinstance(execution.get("payload"), Mapping) else {}
+    funding_payload = funding.get("payload") if isinstance(funding, Mapping) and isinstance(funding.get("payload"), Mapping) else {}
+
+    governance = policy.get("governance") if isinstance(policy.get("governance"), Mapping) else {}
+    timelock_seconds = governance.get("timelock_seconds")
+    if approval_payload:
+        if approval_payload.get("approved") is not True:
+            errors.append("governance_approval_not_true")
+        if approval_payload.get("timelock_seconds") != timelock_seconds:
+            errors.append("governance_approval_timelock_mismatch")
+        queued_at = approval_payload.get("queued_at_timestamp")
+        executable_after = approval_payload.get("executable_after_timestamp")
+        if (
+            isinstance(queued_at, int)
+            and not isinstance(queued_at, bool)
+            and isinstance(executable_after, int)
+            and not isinstance(executable_after, bool)
+            and isinstance(timelock_seconds, int)
+            and not isinstance(timelock_seconds, bool)
+        ):
+            if executable_after - queued_at < timelock_seconds:
+                errors.append("governance_timelock_not_satisfied")
+        else:
+            errors.append("governance_approval_timestamps_invalid")
+    if execution_payload:
+        if execution_payload.get("executed") is not True:
+            errors.append("governance_execution_not_true")
+        if execution_payload.get("proposal_id") != approval_payload.get("proposal_id"):
+            errors.append("governance_execution_proposal_mismatch")
+        executed_at = execution_payload.get("executed_at_timestamp")
+        executable_after = approval_payload.get("executable_after_timestamp")
+        if (
+            isinstance(executed_at, int)
+            and not isinstance(executed_at, bool)
+            and isinstance(executable_after, int)
+            and not isinstance(executable_after, bool)
+        ):
+            if executed_at < executable_after:
+                errors.append("governance_execution_before_timelock")
+        else:
+            errors.append("governance_execution_timestamp_invalid")
+
+    required_floor = minimum_escrow_floor_e8(replay)
+    if funding_payload:
+        if funding_payload.get("token_contract") != policy.get("token_contract"):
+            errors.append("escrow_funding_token_contract_mismatch")
+        if funding_payload.get("escrow_contract") != policy.get("escrow_contract"):
+            errors.append("escrow_funding_contract_mismatch")
+        if funding_payload.get("required_escrow_floor_e8") != required_floor:
+            errors.append("escrow_funding_required_floor_mismatch")
+        balance = funding_payload.get("balance_e8")
+        if not isinstance(balance, int) or isinstance(balance, bool):
+            errors.append("escrow_funding_balance_must_be_int")
+        elif balance < required_floor:
+            errors.append("escrow_funding_below_replay_floor")
+
+    status = "accepted" if not errors else "rejected"
+    return {
+        "schema": RECEIPT_BUNDLE_SCHEMA,
+        "ok": status == "accepted",
+        "status": status,
+        "error_count": len(errors),
+        "errors": errors,
+        "required_escrow_floor_e8": required_floor,
+        "receipt_count": len(raw_receipts),
+        "receipt_kinds": sorted(by_kind),
+    }
+
+
+def check_policy(
+    policy: Mapping[str, Any],
+    replay: Mapping[str, Any],
+    receipt_bundle: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     errors: list[str] = []
     _unknown_fields(policy, allowed=TOP_LEVEL_KEYS, label="policy", errors=errors)
     if policy.get("schema") != POLICY_SCHEMA:
@@ -197,7 +579,7 @@ def check_policy(policy: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
     for key in ("token_contract", "escrow_contract", "governance_contract"):
         if not _is_address(policy.get(key)):
             errors.append(f"{key}_invalid")
-    for key in ("governance_approval_receipt", "escrow_funding_receipt"):
+    for key in ("governance_approval_receipt", "governance_execution_receipt", "escrow_funding_receipt"):
         if not _is_sha(policy.get(key)):
             errors.append(f"{key}_must_be_sha256")
     _bool_true(policy, "live_token_settlement_enabled", errors)
@@ -239,6 +621,10 @@ def check_policy(policy: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
     if replay_result["status"] != "accepted":
         errors.append("reporter_economics_replay_rejected")
         errors.extend(f"replay:{error}" for error in replay_result.get("errors", []))
+    receipt_result = check_receipt_bundle(policy, replay, receipt_bundle)
+    if receipt_result["status"] != "accepted":
+        errors.append("receipt_bundle_rejected")
+        errors.extend(f"receipt:{error}" for error in receipt_result.get("errors", []))
 
     if required_bond is not None and replay.get("required_reporter_bond_e8") != required_bond:
         errors.append("required_reporter_bond_mismatch")
@@ -318,12 +704,15 @@ def check_policy(policy: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[s
         "status": status,
         "policy_id": expected_policy_id,
         "replay_status": replay_result["status"],
+        "receipt_bundle_status": receipt_result["status"],
+        "required_escrow_floor_e8": receipt_result["required_escrow_floor_e8"],
         "error_count": len(errors),
         "errors": errors,
         "settlement_controls": {
             "live_token_settlement_enabled": bool(policy.get("live_token_settlement_enabled") is True),
             "settlement_receipt_required": bool(policy.get("settlement_receipt_required") is True),
             "governance_approval_receipt": policy.get("governance_approval_receipt"),
+            "governance_execution_receipt": policy.get("governance_execution_receipt"),
             "escrow_funding_receipt": policy.get("escrow_funding_receipt"),
         },
         "go_live_blockers": list(GO_LIVE_BLOCKERS),
@@ -343,7 +732,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--policy", type=Path, help="policy JSON; defaults to built-in sample policy")
     parser.add_argument("--replay", type=Path, help="reporter economics replay JSON; defaults to built-in sample replay")
+    parser.add_argument("--receipts", type=Path, help="receipt bundle JSON; required when policy/replay is custom")
     parser.add_argument("--sample-policy", action="store_true", help="emit the built-in sample policy")
+    parser.add_argument("--sample-receipts", action="store_true", help="emit the built-in sample receipt bundle")
     parser.add_argument("--format", choices=("json", "text"), default="json")
     parser.add_argument("--require-live", action="store_true", help="fail if go-live blockers remain")
     return parser
@@ -354,9 +745,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.sample_policy:
         print(json.dumps(sample_policy(), indent=2, sort_keys=True))
         return 0
+    if args.sample_receipts:
+        policy = _load_json(args.policy) if args.policy else sample_policy()
+        replay = _load_json(args.replay) if args.replay else sample_replay()
+        print(json.dumps(sample_receipt_bundle(policy, replay), indent=2, sort_keys=True))
+        return 0
     policy = _load_json(args.policy) if args.policy else sample_policy()
     replay = _load_json(args.replay) if args.replay else sample_replay()
-    result = check_policy(policy, replay)
+    if args.receipts:
+        receipts: Mapping[str, Any] | None = _load_json(args.receipts)
+    elif args.policy is None and args.replay is None:
+        receipts = sample_receipt_bundle(policy, replay)
+    else:
+        receipts = None
+    result = check_policy(policy, replay, receipts)
     if args.require_live and result["go_live_blockers"]:
         result = dict(result)
         result["ok"] = False
@@ -368,6 +770,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"status = {result['status']}")
         print(f"replay_status = {result['replay_status']}")
+        print(f"receipt_bundle_status = {result['receipt_bundle_status']}")
         print(f"error_count = {result['error_count']}")
         print(f"go_live_blocker_count = {len(result['go_live_blockers'])}")
         print(f"policy_id = {result['policy_id']}")

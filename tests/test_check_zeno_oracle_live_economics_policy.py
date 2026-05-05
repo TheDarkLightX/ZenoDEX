@@ -8,7 +8,9 @@ from pathlib import Path
 
 from tools.check_zeno_oracle_live_economics_policy import (
     check_policy,
+    receipt_content_hash,
     sample_policy,
+    sample_receipt_bundle,
     sample_replay,
 )
 
@@ -26,12 +28,30 @@ def _event(replay: dict[str, object], event_type: str) -> dict[str, object]:
     raise AssertionError(f"missing event: {event_type}")
 
 
+def _receipt(bundle: dict[str, object], kind: str) -> dict[str, object]:
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    for receipt in receipts:
+        assert isinstance(receipt, dict)
+        if receipt.get("kind") == kind:
+            return receipt
+    raise AssertionError(f"missing receipt: {kind}")
+
+
+def _check(policy: dict[str, object], replay: dict[str, object]) -> dict[str, object]:
+    return check_policy(policy, replay, sample_receipt_bundle(policy, replay))
+
+
 def test_live_economics_policy_accepts_sample_candidate() -> None:
-    result = check_policy(sample_policy(), sample_replay())
+    policy = sample_policy()
+    replay = sample_replay()
+    result = check_policy(policy, replay, sample_receipt_bundle(policy, replay))
 
     assert result["schema"] == "zenodex.oracle.live_economics_policy_check.v1"
     assert result["status"] == "accepted"
     assert result["error_count"] == 0
+    assert result["receipt_bundle_status"] == "accepted"
+    assert result["settlement_controls"]["governance_execution_receipt"] == policy["governance_execution_receipt"]
     assert "escrow_funding_receipt_not_verified_onchain" in result["go_live_blockers"]
     assert "does_not_claim_onchain_settlement_executed" in result["not_claimed"]
 
@@ -41,7 +61,7 @@ def test_live_economics_policy_rejects_fee_split_mismatch() -> None:
     fee_split = _event(replay, "fee_split")
     fee_split["treasury_delta_e8"] = 6_000_000
 
-    result = check_policy(sample_policy(), replay)
+    result = _check(sample_policy(), replay)
 
     assert result["status"] == "rejected"
     assert "fee_split_treasury_delta_e8_policy_mismatch" in result["errors"]
@@ -53,7 +73,7 @@ def test_live_economics_policy_rejects_low_dispute_bond() -> None:
     dispute = _event(replay, "open_dispute")
     dispute["dispute_bond_e8"] = 9_000_000
 
-    result = check_policy(sample_policy(), replay)
+    result = _check(sample_policy(), replay)
 
     assert result["status"] == "rejected"
     assert "dispute_bond_below_policy" in result["errors"]
@@ -63,7 +83,7 @@ def test_live_economics_policy_rejects_slash_above_policy_cap() -> None:
     policy = sample_policy()
     policy["max_slash_bps"] = 4_000
 
-    result = check_policy(policy, sample_replay())
+    result = _check(policy, sample_replay())
 
     assert result["status"] == "rejected"
     assert "policy_id_mismatch" in result["errors"]
@@ -75,7 +95,7 @@ def test_live_economics_policy_rejects_early_withdrawal() -> None:
     withdraw = _event(replay, "withdraw_bond")
     withdraw["epoch"] = 16
 
-    result = check_policy(sample_policy(), replay)
+    result = _check(sample_policy(), replay)
 
     assert result["status"] == "rejected"
     assert "withdrawal_before_policy_delay" in result["errors"]
@@ -87,7 +107,7 @@ def test_live_economics_policy_rejects_disabled_live_settlement_and_bad_contract
     policy["escrow_contract"] = "0xbad"
     policy["not_claimed"] = ["does_not_claim_reporter_honesty"]
 
-    result = check_policy(policy, sample_replay())
+    result = _check(policy, sample_replay())
 
     assert result["status"] == "rejected"
     assert "live_token_settlement_enabled_must_be_true" in result["errors"]
@@ -100,11 +120,52 @@ def test_live_economics_policy_rejects_unknown_policy_and_governance_fields() ->
     policy["surprise"] = True
     policy["governance"]["fast_path"] = True
 
-    result = check_policy(policy, sample_replay())
+    result = _check(policy, sample_replay())
 
     assert result["status"] == "rejected"
     assert "unknown_policy_field:surprise" in result["errors"]
     assert "unknown_governance_field:fast_path" in result["errors"]
+
+
+def test_live_economics_policy_rejects_missing_receipt_bundle() -> None:
+    result = check_policy(sample_policy(), sample_replay(), None)
+
+    assert result["status"] == "rejected"
+    assert result["receipt_bundle_status"] == "rejected"
+    assert "receipt_bundle_rejected" in result["errors"]
+    assert "receipt:receipt_bundle_required" in result["errors"]
+
+
+def test_live_economics_policy_rejects_governance_execution_before_timelock() -> None:
+    policy = sample_policy()
+    replay = sample_replay()
+    bundle = sample_receipt_bundle(policy, replay)
+    execution = _receipt(bundle, "governance_execution")
+    payload = execution["payload"]
+    assert isinstance(payload, dict)
+    payload["executed_at_timestamp"] = int(payload["executable_after_timestamp"]) - 1
+    execution["receipt_id"] = receipt_content_hash(execution)
+
+    result = check_policy(policy, replay, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:governance_execution_before_timelock" in result["errors"]
+
+
+def test_live_economics_policy_rejects_escrow_funding_below_replay_floor() -> None:
+    policy = sample_policy()
+    replay = sample_replay()
+    bundle = sample_receipt_bundle(policy, replay)
+    funding = _receipt(bundle, "escrow_funding")
+    payload = funding["payload"]
+    assert isinstance(payload, dict)
+    payload["balance_e8"] = int(payload["required_escrow_floor_e8"]) - 1
+    funding["receipt_id"] = receipt_content_hash(funding)
+
+    result = check_policy(policy, replay, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:escrow_funding_below_replay_floor" in result["errors"]
 
 
 def test_live_economics_policy_cli_sample_and_require_live(tmp_path: Path) -> None:
@@ -122,6 +183,38 @@ def test_live_economics_policy_cli_sample_and_require_live(tmp_path: Path) -> No
     assert sample.returncode == 0
     policy_path = tmp_path / "live-economics-policy.json"
     policy_path.write_text(sample.stdout, encoding="utf-8")
+    sample_receipts = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zeno_oracle_live_economics_policy.py",
+            "--sample-receipts",
+            "--policy",
+            str(policy_path),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert sample_receipts.returncode == 0
+    receipts_path = tmp_path / "live-economics-receipts.json"
+    receipts_path.write_text(sample_receipts.stdout, encoding="utf-8")
+
+    missing_receipts = subprocess.run(
+        [
+            sys.executable,
+            "tools/check_zeno_oracle_live_economics_policy.py",
+            "--policy",
+            str(policy_path),
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert missing_receipts.returncode == 1
+    missing_receipts_obj = json.loads(missing_receipts.stdout)
+    assert "receipt:receipt_bundle_required" in missing_receipts_obj["errors"]
 
     accepted = subprocess.run(
         [
@@ -129,6 +222,8 @@ def test_live_economics_policy_cli_sample_and_require_live(tmp_path: Path) -> No
             "tools/check_zeno_oracle_live_economics_policy.py",
             "--policy",
             str(policy_path),
+            "--receipts",
+            str(receipts_path),
             "--format",
             "text",
         ],
@@ -139,6 +234,7 @@ def test_live_economics_policy_cli_sample_and_require_live(tmp_path: Path) -> No
     )
     assert accepted.returncode == 0, accepted.stdout + accepted.stderr
     assert "status = accepted" in accepted.stdout
+    assert "receipt_bundle_status = accepted" in accepted.stdout
 
     require_live = subprocess.run(
         [
@@ -146,6 +242,8 @@ def test_live_economics_policy_cli_sample_and_require_live(tmp_path: Path) -> No
             "tools/check_zeno_oracle_live_economics_policy.py",
             "--policy",
             str(policy_path),
+            "--receipts",
+            str(receipts_path),
             "--require-live",
         ],
         cwd=ROOT,

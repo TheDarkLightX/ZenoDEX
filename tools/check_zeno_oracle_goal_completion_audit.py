@@ -169,8 +169,8 @@ def build_audit() -> dict[str, Any]:
                 "escrow_funding_and_governance_execution_not_verified_onchain",
             ],
             limits=[
-                "local replay validates accounting transitions only",
-                "policy checker binds replay to production-candidate controls but does not prove live settlement",
+                "local replay validates accounting transitions and local receipt bundles only",
+                "policy checker binds replay to production-candidate controls but does not prove live chain settlement",
             ],
         ),
         _evidence_item(
