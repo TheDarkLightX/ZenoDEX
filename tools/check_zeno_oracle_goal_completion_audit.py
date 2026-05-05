@@ -154,17 +154,24 @@ def build_audit() -> dict[str, Any]:
             evidence_files=[
                 "tools/zenodex_oracle_reporter_economics_replay.py",
                 "tests/test_zenodex_oracle_reporter_economics_replay.py",
+                "tools/check_zeno_oracle_live_economics_policy.py",
+                "tests/test_check_zeno_oracle_live_economics_policy.py",
             ],
             replay_commands=[
                 "python3 tools/zenodex_oracle_reporter_economics_replay.py self-test",
+                "python3 tools/check_zeno_oracle_live_economics_policy.py --format text",
+                "pytest -q tests/test_check_zeno_oracle_live_economics_policy.py",
             ],
             status="partial",
             blockers=[
-                "live_token_settlement_not_implemented",
-                "onchain_dispute_governance_not_live",
-                "production_slash_withdrawal_policy_not_governance_approved",
+                "live_economics_policy_gate_is_production_candidate_only",
+                "onchain_economics_receipts_not_replayed_against_live_chain_state",
+                "escrow_funding_and_governance_execution_not_verified_onchain",
             ],
-            limits=["local replay validates accounting transitions only"],
+            limits=[
+                "local replay validates accounting transitions only",
+                "policy checker binds replay to production-candidate controls but does not prove live settlement",
+            ],
         ),
         _evidence_item(
             5,
@@ -329,6 +336,11 @@ def build_audit() -> dict[str, Any]:
             "command": "python3 tools/check_zeno_oracle_production_network_config.py --format text",
             "require_live_command": "python3 tools/check_zeno_oracle_production_network_config.py --require-live",
             "status": "first_shell_only",
+        },
+        "live_economics_policy_gate": {
+            "command": "python3 tools/check_zeno_oracle_live_economics_policy.py --format text",
+            "require_live_command": "python3 tools/check_zeno_oracle_live_economics_policy.py --require-live",
+            "status": "production_candidate_only",
         },
         "not_claimed": [
             "does_not_claim_goal_complete",
