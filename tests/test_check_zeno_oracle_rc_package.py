@@ -58,6 +58,8 @@ def test_check_zeno_oracle_rc_package_accepts_built_devnet_bundle() -> None:
     assert (package_dir / "tools" / "check_zeno_oracle_live_economics_policy.py").is_file()
     assert (package_dir / "tools" / "check_zenoproof_production_governance_policy.py").is_file()
     assert (package_dir / "tools" / "zeno_oracle_disaster_class_corpus.py").is_file()
+    assert (package_dir / "tools" / "zeno_oracle_tla_recovery_replay.py").is_file()
+    assert (package_dir / "tools" / "zeno_oracle_ltlf_recovery_replay.py").is_file()
     assert (package_dir / "tools" / "zeno_oracle_o3_receipt_flow_replay.py").is_file()
     assert (package_dir / "tools" / "zeno_oracle_disaster_obligation_certificate_manifest.json").is_file()
     assert (package_dir / "tools" / "zeno_oracle_math_witness_sweep.jl").is_file()

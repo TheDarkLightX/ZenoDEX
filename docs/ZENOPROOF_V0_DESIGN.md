@@ -118,7 +118,7 @@ replay command returns an accepted receipt.
 python3 tools/zeno_oracle_workflow_evidence_status.py --format json
 julia tools/zeno_oracle_math_witness_sweep.jl --json
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_tla_oracle_recovery_lifecycle.py
+python3 tools/zeno_oracle_tla_recovery_replay.py --format json
 python3 tools/zeno_oracle_ltlf_recovery_replay.py --format json
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py
 python3 -c 'from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status; import json; print(json.dumps(build_morph_oracle_clamp_envelope_status(), sort_keys=True))'
@@ -129,13 +129,16 @@ The verifier checks the profile claim ID, verifier ID, policy root, toolchain
 ID, input commitment root, and output commitment root. The output root is the
 canonical hash of the accepted profile receipt. For the Lean profile, the
 receipt also requires a clean placeholder scan over the witness anchor and root
-import file. For the TLA and ESSO profiles, the receipt is a normalized wrapper
-around the corresponding public pytest replay command. For the LTLf profile,
-the receipt comes from `tools/zeno_oracle_ltlf_recovery_replay.py` and requires
-the bounded Oracle recovery goal family to have zero failed goals. For the
-Morph profile, the receipt requires both `check` and `check2` to pass on the
-oracle-clamp envelope domain. For the SMT profile, the receipt requires Z3 and
-CVC5 to return `unsat` for each Oracle freshness safety query.
+import file. For the TLA profile, the receipt comes from
+`tools/zeno_oracle_tla_recovery_replay.py` and requires zero invariant
+violations and zero failed fair-liveness properties over the bounded reachable
+graph. For the LTLf profile, the receipt comes from
+`tools/zeno_oracle_ltlf_recovery_replay.py` and requires the bounded Oracle
+recovery goal family to have zero failed goals. For the ESSO profile, the
+receipt is a normalized wrapper around the corresponding public pytest replay
+command. For the Morph profile, the receipt requires both `check` and `check2`
+to pass on the oracle-clamp envelope domain. For the SMT profile, the receipt
+requires Z3 and CVC5 to return `unsat` for each Oracle freshness safety query.
 
 ## Proof Mining Reward Gate
 
@@ -270,9 +273,9 @@ The repo-local v0 shell includes:
    as the public replay command for the sample verifier shell, Oracle O4 bridge,
    Oracle O5 bridge, local reward gate, workflow-evidence public replay verifier, Julia
    witness-sweep public replay verifier, Lean witness-anchor public replay
-   verifier, TLA public replay verifier, deterministic bounded LTLf public
-   replay verifier, ESSO public replay verifier, Morph public replay verifier,
-   and SMT public replay verifier.
+   verifier, deterministic bounded TLA public replay verifier, deterministic
+   bounded LTLf public replay verifier, ESSO public replay verifier, Morph
+   public replay verifier, and SMT public replay verifier.
 
 The local reward gate accepts only when the ZenoProof artifact is accepted,
 `proof_ok`, `binding_ok`, `policy_ok`, and `freshness_ok` are true, the claim

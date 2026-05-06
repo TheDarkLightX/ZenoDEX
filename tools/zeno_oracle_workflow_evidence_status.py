@@ -265,9 +265,10 @@ def build_status() -> dict[str, Any]:
             files=[
                 "formal/tla/OracleRecoveryLifecycle.tla",
                 "formal/tla/OracleRecoveryLifecycle.cfg",
+                "tools/zeno_oracle_tla_recovery_replay.py",
                 "tests/formal/test_tla_oracle_recovery_lifecycle.py",
             ],
-            replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_tla_oracle_recovery_lifecycle.py",
+            replay_command="python3 tools/zeno_oracle_tla_recovery_replay.py --format text",
             evidence_class="tla_public_replay",
         ),
         _artifact_case(

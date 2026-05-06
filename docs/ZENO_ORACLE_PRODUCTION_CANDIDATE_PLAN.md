@@ -62,9 +62,9 @@ The active workspace now has:
   roots, and claim-DAG dependency closure.
 - ZenoProof public replay verifier roots at
   `tools/zenoproof_public_replay_verifier.py` for workflow-evidence status,
-  Julia witness-sweep, Lean witness-anchor, TLA Oracle recovery, deterministic
-  bounded LTLf Oracle recovery, ESSO zUSD Oracle recovery, Morph oracle-clamp,
-  and SMT Oracle freshness profiles.
+  Julia witness-sweep, Lean witness-anchor, deterministic bounded TLA Oracle
+  recovery, deterministic bounded LTLf Oracle recovery, ESSO zUSD Oracle
+  recovery, Morph oracle-clamp, and SMT Oracle freshness profiles.
 - a bounded ZenoProof reward-payout replay bridge at
   `tools/zenoproof_reward_payout_replay.py`, which takes an accepted local
   reward gate through proof-mining claim construction, manager execution, and
@@ -93,8 +93,10 @@ The active workspace now has:
   receipt, O4/O5 Oracle-use binding, and O5 independence-witness projections.
 - a public workflow evidence status checker at
   `tools/zeno_oracle_workflow_evidence_status.py` for the first TLA, LTLf,
-  ESSO, Morph smoke, and PopperPad smoke lanes. The LTLf lane has deterministic
-  bounded public replay at `tools/zeno_oracle_ltlf_recovery_replay.py`.
+  ESSO, Morph smoke, and PopperPad smoke lanes. The TLA and LTLf lanes have
+  deterministic bounded public replay at
+  `tools/zeno_oracle_tla_recovery_replay.py` and
+  `tools/zeno_oracle_ltlf_recovery_replay.py`.
 - a production-candidate network config receipt gate at
   `tools/check_zeno_oracle_production_network_config.py` that validates local
   reporter-registry deployment, feed-governance deployment, feed-governance
@@ -338,10 +340,10 @@ pytest -q tests/test_zeno_oracle_workflow_evidence_status.py
 
 It checks the presence and replay boundaries for the Oracle recovery TLA/LTLf
 lanes, the ESSO zUSD oracle recovery lane, a Morph oracle-clamp smoke check,
-and a temporary PopperPad append-only smoke. The LTLf lane replays the bounded
-Oracle recovery goal family locally. Broader Morph campaigns, external ESSO
-synthesis, and private PopperPad ledgers remain internal until promoted through
-public replay commands.
+and a temporary PopperPad append-only smoke. The TLA/LTLf lanes replay the
+bounded Oracle recovery models locally. Broader Morph campaigns, external
+TLC/ESSO synthesis, and private PopperPad ledgers remain internal until
+promoted through public replay commands.
 
 ### 7. Public Claim Promotion
 
@@ -387,8 +389,9 @@ Before marking the goal complete, audit each item below against real artifacts:
 - public claims registry validates;
 - ZenoProof v0 design, verifier shell, registry manifest, Oracle O4 bridge,
   and Oracle O5 independence-witness bridge
-  sample pass replay, including the workflow-evidence, Julia, Lean, TLA,
-  deterministic bounded LTLf, ESSO, Morph, and SMT public replay verifiers and
-  the local proof-mining reward gate plus bounded reward-payout replay;
+  sample pass replay, including the workflow-evidence, Julia, Lean,
+  deterministic bounded TLA, deterministic bounded LTLf, ESSO, Morph, and SMT
+  public replay verifiers and the local proof-mining reward gate plus bounded
+  reward-payout replay;
 - devnet alpha package builds and validates its manifest, launcher, docs,
   replay, whitepaper, branding, receipt, integrity signature, and non-claims.

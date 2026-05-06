@@ -256,10 +256,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "statement_hash": TLA_REPLAY_STATEMENT_HASH,
         "assumptions_hash": TLA_REPLAY_ASSUMPTIONS_HASH,
         "timeout_ms": 70_000,
-        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_tla_oracle_recovery_lifecycle.py",
+        "replay_command": "python3 tools/zeno_oracle_tla_recovery_replay.py --format json",
         "expected_schema": "zenodex.oracle.tla_recovery_lifecycle_replay.v1",
-        "test_path": "tests/formal/test_tla_oracle_recovery_lifecycle.py",
         "non_claims": [
+            "does_not_claim_external_tlc_model_checking",
             "does_not_claim_unbounded_liveness",
             "does_not_claim_production_oracle_truth",
         ],
@@ -809,6 +809,25 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("lean_math_witness_placeholder_hits")
         return receipt
 
+    if profile == TLA_REPLAY_PROFILE:
+        proc = subprocess.run(
+            [sys.executable, "tools/zeno_oracle_tla_recovery_replay.py", "--format", "json"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+        receipt = _load_json_stdout(proc.stdout, "tla_recovery_replay")
+        if proc.returncode != 0:
+            raise ValueError(f"tla_recovery_replay_failed:{proc.returncode}")
+        _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
+        if receipt.get("invariant_violation_count") != 0:
+            raise ValueError("tla_recovery_invariant_violations")
+        if receipt.get("failed_property_count") != 0:
+            raise ValueError("tla_recovery_failed_properties")
+        return receipt
+
     if profile == LTLF_REPLAY_PROFILE:
         proc = subprocess.run(
             [sys.executable, "tools/zeno_oracle_ltlf_recovery_replay.py", "--format", "json"],
@@ -826,7 +845,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("ltlf_recovery_failed_goals")
         return receipt
 
-    if profile in {TLA_REPLAY_PROFILE, ESSO_REPLAY_PROFILE}:
+    if profile == ESSO_REPLAY_PROFILE:
         test_path = str(cfg["test_path"])
         proc = subprocess.run(
             [
