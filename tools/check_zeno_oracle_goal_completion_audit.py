@@ -225,17 +225,23 @@ def build_audit() -> dict[str, Any]:
                 "tools/check_disaster_obligation_certificate.py",
                 "tools/zeno_oracle_disaster_obligation_certificate_manifest.json",
                 "tools/check_zeno_oracle_frontier_obligation_projection.py",
+                "lean-mathlib/Proofs/DisasterAntichainBasis.lean",
+                "lean-mathlib/proof_receipts/disaster_antichain_basis_v1.json",
                 "tests/test_zeno_oracle_disaster_obligation_certificate.py",
                 "tests/test_check_zeno_oracle_frontier_obligation_projection.py",
+                "tests/formal/test_lean_disaster_schema_family_exports.py",
             ],
             replay_commands=[
                 "python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json",
                 "python3 tools/check_zeno_oracle_frontier_obligation_projection.py --format text",
+                "cd lean-mathlib && lake build Proofs.DisasterAntichainBasis",
+                "pytest -q tests/formal/test_lean_disaster_schema_family_exports.py",
             ],
-            status="first_shell_complete",
-            blockers=[
-                "coverage_proof_is_manifest_checker_not_general_theorem",
-                "antichain_projection_must_expand_with_new_frontier_axes",
+            status="accepted",
+            limits=[
+                "the generic Lean theorem proves coverage and private-witness guard lower-bound transfer for supplied predicates",
+                "the Python certificate instantiates the current manifest and frontier projection only",
+                "antichain projection must expand with newly promoted frontier axes",
             ],
         ),
         _evidence_item(

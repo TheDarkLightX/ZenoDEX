@@ -121,5 +121,80 @@ theorem antichain_exact_basis_still_lifts
     ∀ x : Axis, Bad x → Rejected x := by
   exact basis_rejection_lifts_to_all_bad le basis Bad Rejected hexact.1 hbasisRejected hrejectUp
 
+section GuardMinimality
+
+variable {Guard Obligation : Type u}
+
+/-- A guard set covers every required obligation when each required atom has at
+least one selected covering guard. -/
+def GuardSetCoversRequired
+    (Covers : Guard → Obligation → Prop)
+    (Chosen : Guard → Prop)
+    (Required : Obligation → Prop) : Prop :=
+  ∀ o : Obligation, Required o → ∃ g : Guard, Chosen g ∧ Covers g o
+
+/-- A private obligation is covered by exactly one guard. This mirrors the
+private-witness rows used by the JSON disaster-obligation certificate. -/
+def PrivateGuardObligation
+    (Covers : Guard → Obligation → Prop)
+    (g : Guard)
+    (o : Obligation) : Prop :=
+  Covers g o ∧ ∀ h : Guard, Covers h o → h = g
+
+/-- If a required obligation is private to one guard, every guard set that
+covers all required obligations must include that guard. -/
+theorem private_obligation_forces_guard
+    (Covers : Guard → Obligation → Prop)
+    (Chosen : Guard → Prop)
+    (Required : Obligation → Prop)
+    {g : Guard}
+    {o : Obligation}
+    (hcover : GuardSetCoversRequired Covers Chosen Required)
+    (hrequired : Required o)
+    (hprivate : PrivateGuardObligation Covers g o) :
+    Chosen g := by
+  obtain ⟨h, hhChosen, hhCovers⟩ := hcover o hrequired
+  have hEq : h = g := hprivate.right h hhCovers
+  rwa [← hEq]
+
+/-- Private witnesses for every selected guard prove that any guard set covering
+the same required obligation universe contains the selected set. -/
+theorem private_witnesses_force_selected_subset
+    (Covers : Guard → Obligation → Prop)
+    (Selected Chosen : Guard → Prop)
+    (Required : Obligation → Prop)
+    (hcover : GuardSetCoversRequired Covers Chosen Required)
+    (hprivate :
+      ∀ g : Guard, Selected g →
+        ∃ o : Obligation, Required o ∧ PrivateGuardObligation Covers g o) :
+    ∀ g : Guard, Selected g → Chosen g := by
+  intro g hgSelected
+  obtain ⟨o, hrequired, hpriv⟩ := hprivate g hgSelected
+  exact private_obligation_forces_guard Covers Chosen Required hcover hrequired hpriv
+
+/-- Finite guard-set form: private witnesses give a cardinality lower bound for
+any guard set that covers the same required obligations. -/
+theorem private_witnesses_cardinality_lower_bound
+    [Fintype Guard]
+    (Covers : Guard → Obligation → Prop)
+    (Selected Chosen : Guard → Prop)
+    (Required : Obligation → Prop)
+    [DecidablePred Selected]
+    [DecidablePred Chosen]
+    (hcover : GuardSetCoversRequired Covers Chosen Required)
+    (hprivate :
+      ∀ g : Guard, Selected g →
+        ∃ o : Obligation, Required o ∧ PrivateGuardObligation Covers g o) :
+    (Finset.univ.filter Selected).card ≤ (Finset.univ.filter Chosen).card := by
+  have hsubset :
+      ∀ g : Guard, Selected g → Chosen g :=
+    private_witnesses_force_selected_subset Covers Selected Chosen Required hcover hprivate
+  exact Finset.card_le_card (by
+    intro g hg
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at *
+    exact hsubset g hg)
+
+end GuardMinimality
+
 end DisasterAntichainBasis
 end Proofs

@@ -1470,19 +1470,26 @@ claims:
       The frontier-obligation projection checker also maps every current
       production-disaster frontier family onto a manifest quotient class, with
       no unprojected family and no new obligation family.
-      This is a certificate about manifest coverage and replayability, not a proof that all
-      possible Oracle or ZenoDEX disaster states have been discovered.
+      The Lean antichain-basis module proves the generic coverage transfer and
+      private-witness guard lower-bound shape used by the certificate.
+      This is a certificate about current manifest coverage and replayability,
+      not a proof that all possible Oracle or ZenoDEX disaster states have been discovered.
     evidence:
-      kind: python
+      kind: python+lean
       check:
         - cmd: python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
         - cmd: python3 tools/check_zeno_oracle_frontier_obligation_projection.py --format text
+        - cmd: cd lean-mathlib && lake build Proofs.DisasterAntichainBasis
+        - cmd: pytest -q tests/formal/test_lean_disaster_schema_family_exports.py
       files:
         - tools/check_disaster_obligation_certificate.py
         - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
         - tools/check_zeno_oracle_frontier_obligation_projection.py
+        - lean-mathlib/Proofs/DisasterAntichainBasis.lean
+        - lean-mathlib/proof_receipts/disaster_antichain_basis_v1.json
         - tests/test_zeno_oracle_disaster_obligation_certificate.py
         - tests/test_check_zeno_oracle_frontier_obligation_projection.py
+        - tests/formal/test_lean_disaster_schema_family_exports.py
 
   - id: py:zeno_oracle:devnet_alpha_replay_gate
     status: supported
