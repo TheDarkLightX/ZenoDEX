@@ -201,6 +201,36 @@ theorem epoch_lag_zero_iff_equal
     simp [hLeft]
     omega
 
+theorem epoch_lag_triangle
+    (left bridge right : Nat) :
+    EpochLag left right <= EpochLag left bridge + EpochLag bridge right := by
+  unfold EpochLag
+  by_cases hLB : left <= bridge
+  · by_cases hBR : bridge <= right
+    · have hLR : left <= right := by omega
+      simp [hLB, hBR, hLR]
+      omega
+    · have hRB : right <= bridge := by omega
+      by_cases hLR : left <= right
+      · simp [hLB, hBR, hLR]
+        omega
+      · have hRL : right <= left := by omega
+        simp [hLB, hBR, hLR]
+        omega
+  · have hBL : bridge <= left := by omega
+    by_cases hBR : bridge <= right
+    · by_cases hLR : left <= right
+      · simp [hLB, hBR, hLR]
+        omega
+      · have hRL : right <= left := by omega
+        simp [hLB, hBR, hLR]
+        omega
+    · have hRB : right <= bridge := by omega
+      have hRL : right <= left := by omega
+      have hLR : Not (left <= right) := by omega
+      simp [hLB, hBR, hLR]
+      omega
+
 theorem reward_pool_conservation
     {before reward after : Nat}
     (hAfter : after <= before)
@@ -468,6 +498,15 @@ theorem oracle_sync_window_ok_monotone
     (hLe : oldMaxLag <= newMaxLag) :
     OracleSyncWindowOK sourceEpoch targetEpoch newMaxLag := by
   unfold OracleSyncWindowOK at *
+  omega
+
+theorem oracle_sync_window_ok_compose
+    {sourceEpoch bridgeEpoch targetEpoch maxLagAB maxLagBC : Nat}
+    (hAB : OracleSyncWindowOK sourceEpoch bridgeEpoch maxLagAB)
+    (hBC : OracleSyncWindowOK bridgeEpoch targetEpoch maxLagBC) :
+    OracleSyncWindowOK sourceEpoch targetEpoch (maxLagAB + maxLagBC) := by
+  unfold OracleSyncWindowOK at *
+  have hTriangle := epoch_lag_triangle sourceEpoch bridgeEpoch targetEpoch
   omega
 
 theorem o3_action_binding_ok_requires_terminal_dag

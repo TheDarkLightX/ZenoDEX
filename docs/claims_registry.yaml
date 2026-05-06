@@ -1902,7 +1902,8 @@ claims:
       acceptance/rejection, and O3 action binding across terminal DAG closure,
       runtime binding, and sync-window witnesses, including bounded
       missing value-binding rejection, wrong consumer-action rejection, and
-      sync-window widening preservation. This is witness evidence for the
+      sync-window widening preservation, plus a bounded sync-window
+      composition grid with summed lag bounds. This is witness evidence for the
       current first shell, with full Lean proofs, Morph search, and production
       oracle benefit laws still outside the claim.
     evidence:
@@ -1935,7 +1936,9 @@ claims:
       registry-root drift, runtime-state drift,
       direct O3 value-binding and same-consumer-action projections/rejections,
       sync-window symmetry/rejection/monotonicity, O3 action-binding
-      projections, O3 sync-window widening preservation, and O4/O5 Oracle-use
+      projections, epoch-lag triangle composition, Oracle sync-window
+      composition with summed lag bounds, O3 sync-window widening preservation,
+      and O4/O5 Oracle-use
       anchors: O4/O5 use decomposes exactly into accepted O3 receipt,
       ZenoProof acceptance, same query/value/window, and same consumer-action
       obligations, while O5 use decomposes exactly into those bridge
@@ -1943,7 +1946,8 @@ claims:
       O5 claim, distinct verifiers, distinct proof kinds, shared input/output
       roots, and DAG closure. This is a
       concrete theorem anchor, with production median/deviation, economics,
-      executable DAG, and production sync theorems still outside the claim.
+      executable DAG, and live typed production sync use still outside the
+      claim.
     evidence:
       kind: lean
       check:
