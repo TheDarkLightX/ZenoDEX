@@ -1,10 +1,38 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+
+
+def test_tla_oracle_recovery_public_replay_accepts() -> None:
+    root = Path(__file__).resolve().parents[2]
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "tools/zeno_oracle_tla_recovery_replay.py",
+            "--format",
+            "json",
+        ],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    receipt = json.loads(proc.stdout)
+    assert receipt["schema"] == "zenodex.oracle.tla_recovery_lifecycle_replay.v1"
+    assert receipt["status"] == "accepted"
+    assert receipt["invariant_violation_count"] == 0
+    assert receipt["failed_property_count"] == 0
+    property_ids = {prop["id"] for prop in receipt["properties"]}
+    assert "FairImpliesEventuallyFreshOrBlocked" in property_ids
+    assert "FairImpliesHealthyRequestEventuallyResolved" in property_ids
 
 
 def test_tla_oracle_recovery_lifecycle_model_checks(tmp_path: Path) -> None:

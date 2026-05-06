@@ -22,7 +22,6 @@ def _rehash(artifact: dict[str, Any]) -> dict[str, Any]:
 
 
 LOCAL_TOOLCHAIN_REPLAY_FAILURE_PREFIXES = {
-    zv.TLA_REPLAY_PROFILE: ("pytest_replay_skipped:",),
     zv.ESSO_REPLAY_PROFILE: ("pytest_replay_failed:",),
 }
 

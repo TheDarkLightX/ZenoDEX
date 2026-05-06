@@ -909,17 +909,17 @@ claims:
       re-enable, stale unblocked oracle state eventually becomes fresh or permanently blocked, and any
       requested risky action in a healthy oracle world is eventually resolved by re-enable or permanent block.
     evidence:
-      kind: tla
+      kind: python
       note: >
-        Bounded TLC model check over the repo-local oracle-recovery control model. This is a temporal
-        complement to the replayable oracle recovery lifecycle packet, not a full theorem about arbitrary
-        recovery policy, throughput, or chain inclusion.
+        Deterministic finite-state replay over the repo-local oracle-recovery control model. This is a temporal
+        complement to the replayable oracle recovery lifecycle packet, not an external TLC model-checking claim
+        or a full theorem about arbitrary recovery policy, throughput, or chain inclusion.
       check:
-        - cmd: python3 tools/run_tla_models.py --json
+        - cmd: python3 tools/zeno_oracle_tla_recovery_replay.py --format text
       files:
         - formal/tla/OracleRecoveryLifecycle.tla
         - formal/tla/OracleRecoveryLifecycle.cfg
-        - tools/run_tla_models.py
+        - tools/zeno_oracle_tla_recovery_replay.py
 
   - id: tla:settlement_witness_lifecycle:accepted_resolves_before_expiry
     status: supported
@@ -1897,11 +1897,12 @@ claims:
       The public ZenoOracle workflow evidence status checker accepts five
       first-shell lanes: TLA Oracle recovery lifecycle, LTLf Oracle recovery,
       ESSO zUSD Oracle recovery lifecycle, a Morph oracle-clamp envelope smoke
-      check, and a temporary PopperPad append-only smoke. The LTLf lane has a
-      deterministic local replay command for the bounded Oracle recovery goal
-      family. This is bounded workflow status evidence; private PopperPad
-      content, exhaustive Morph campaigns, external ESSO synthesis, and
-      production oracle truth remain outside the claim.
+      check, and a temporary PopperPad append-only smoke. The TLA and LTLf
+      lanes have deterministic local replay commands for the bounded Oracle
+      recovery models and goal families. This is bounded workflow status
+      evidence; private PopperPad content, exhaustive Morph campaigns, external
+      TLC model checking, external ESSO synthesis, and production oracle truth
+      remain outside the claim.
     evidence:
       kind: python
       check:
@@ -1909,6 +1910,7 @@ claims:
         - cmd: pytest -q tests/test_zeno_oracle_workflow_evidence_status.py
       files:
         - tools/zeno_oracle_workflow_evidence_status.py
+        - tools/zeno_oracle_tla_recovery_replay.py
         - tools/zeno_oracle_ltlf_recovery_replay.py
         - tests/test_zeno_oracle_workflow_evidence_status.py
         - tests/morph_domains/oracle_clamp_envelope_domain.py
@@ -1934,13 +1936,14 @@ claims:
       shared Oracle input/output roots, and claim-DAG dependency closure,
       accepts a local proof-mining reward gate only when proof, binding, policy,
       freshness, uniqueness, and reward-pool budget checks pass, accepts
-      workflow-evidence, Julia witness-sweep, Lean witness-anchor, TLA Oracle
-      recovery, deterministic bounded LTLf Oracle recovery, ESSO zUSD Oracle
-      recovery, and Morph oracle-clamp public replay, and SMT Oracle freshness
-      public replay verifiers only when their output roots match accepted
-      public replay receipts. Public replay profiles with skipped or missing
-      local toolchains become rejected profile results rather than accepted evidence or
-      unstructured verifier crashes. It also replays a bounded local
+      workflow-evidence, Julia witness-sweep, Lean witness-anchor,
+      deterministic bounded TLA Oracle recovery, deterministic bounded LTLf
+      Oracle recovery, ESSO zUSD Oracle recovery, and Morph oracle-clamp public
+      replay, and SMT Oracle freshness public replay verifiers only when their
+      output roots match accepted public replay receipts. Public replay
+      profiles with skipped or missing local toolchains become rejected profile
+      results rather than accepted evidence or unstructured verifier crashes.
+      It also replays a bounded local
       reward-payout bridge from an accepted ZenoProof reward gate through
       proof-mining claim construction, manager execution, and claimability
       checks. It rejects malformed
@@ -1961,6 +1964,7 @@ claims:
         - tools/zenoproof_reward_payout_replay.py
         - tools/zenoproof_registry_manifest.json
         - tools/zeno_oracle_workflow_evidence_status.py
+        - tools/zeno_oracle_tla_recovery_replay.py
         - tools/zeno_oracle_ltlf_recovery_replay.py
         - tools/zeno_oracle_math_witness_sweep.jl
         - lean-mathlib/Proofs/ZenoOracleMathWitness.lean
