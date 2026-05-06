@@ -118,6 +118,13 @@ settlement_execution_budget_caps_components(totals::NTuple{7, Int}, budget::Int)
            all(component -> component <= budget, totals)
 end
 
+settlement_execution_receipt_ok(
+    query_bound::Bool,
+    totals_bound::Bool,
+    asset_bound::Bool,
+    contract_bound::Bool,
+)::Bool = query_bound && totals_bound && asset_bound && contract_bound
+
 dispute_grief_rejected(dispute_bond::Int)::Bool = dispute_bond <= 0
 
 split_brain_rejected(
@@ -393,6 +400,25 @@ function run_cases()::Vector{Dict{String, Any}}
             settlement_execution_budget_caps_components(settlement_totals, settlement_grand_total) &&
                 !settlement_execution_budget_caps_components(settlement_totals, settlement_grand_total - 1),
             "budget=$(settlement_grand_total) short_budget=$(settlement_grand_total - 1)",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_settlement_execution_receipt_accepts_bound_obligations",
+            settlement_execution_receipt_ok(true, true, true, true),
+            "query_bound=true totals_bound=true asset_bound=true contract_bound=true",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_settlement_execution_receipt_rejects_asset_or_contract_drift",
+            !settlement_execution_receipt_ok(true, true, false, true) &&
+                !settlement_execution_receipt_ok(true, true, true, false),
+            "asset_bound=false_or_contract_bound=false",
         ),
     )
 
