@@ -327,6 +327,7 @@ def build_audit() -> dict[str, Any]:
                 "scripts/package_zeno_oracle_rc.sh",
                 "tools/check_zeno_oracle_rc_package.py",
                 "scripts/check_zeno_oracle_devnet_alpha.sh",
+                "scripts/check_zeno_oracle_rc_bundle.sh",
                 "docs/ZENO_ORACLE_DEVNET_ALPHA.md",
                 "docs/ZENO_ORACLE_CLI_V1.md",
                 "docs/papers/zeno-oracle-whitepaper/main.pdf",
@@ -334,6 +335,7 @@ def build_audit() -> dict[str, Any]:
             replay_commands=[
                 "bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1",
                 "python3 tools/check_zeno_oracle_rc_package.py --package-dir dist/zeno-oracle-devnet-alpha-rc1 --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json --sig dist/zeno-oracle-devnet-alpha-rc1.sig",
+                "cd dist/zeno-oracle-devnet-alpha-rc1 && bash scripts/check_zeno_oracle_rc_bundle.sh",
                 "bash scripts/check_zeno_oracle_devnet_alpha.sh",
             ],
             status="devnet_complete",

@@ -346,7 +346,7 @@ def run_audit() -> dict[str, Any]:
             ),
             _criterion(
                 12,
-                "A signed RC/devnet package exists and validates",
+                "A signed RC/devnet package exists with a package-local replay gate and validates",
                 package_ok
                 and package_receipt is not None
                 and isinstance(package_receipt.get("signature"), str)
@@ -355,6 +355,7 @@ def run_audit() -> dict[str, Any]:
                 and (ROOT / "dist/zeno-oracle-devnet-alpha-audit-rc.sig").is_file(),
                 [
                     "dist/zeno-oracle-devnet-alpha-audit-rc.sig",
+                    "scripts/check_zeno_oracle_rc_bundle.sh",
                     "tools/check_zeno_oracle_rc_package.py",
                 ]
                 if package_ok

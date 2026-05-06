@@ -15,6 +15,7 @@ cp "${root}/requirements-core.txt" "${stage}/requirements-core.txt"
 cp "${root}/requirements-dev.txt" "${stage}/requirements-dev.txt"
 cp "${root}/scripts/check_zeno_oracle_mvp.sh" "${stage}/scripts/check_zeno_oracle_mvp.sh"
 cp "${root}/scripts/check_zeno_oracle_devnet_alpha.sh" "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"
+cp "${root}/scripts/check_zeno_oracle_rc_bundle.sh" "${stage}/scripts/check_zeno_oracle_rc_bundle.sh"
 cp "${root}/scripts/package_zeno_oracle_rc.sh" "${stage}/scripts/package_zeno_oracle_rc.sh"
 cp -R "${root}/assets/branding/zeno-oracle" "${stage}/assets/branding/zeno-oracle"
 cp "${root}/tools/check_zeno_oracle_critical_action_map.py" "${stage}/tools/check_zeno_oracle_critical_action_map.py"
@@ -35,14 +36,25 @@ find "${root}/tools" -maxdepth 1 -type f -name 'zenodex_oracle*.py' -print0 |
   sort -z |
   xargs -0 -I{} cp "{}" "${stage}/tools/"
 
-find "${root}/docs" -maxdepth 1 -type f -name 'ZENO_ORACLE*.md' -print0 |
+find "${root}/tools" -maxdepth 1 -type f -print0 |
   sort -z |
-  xargs -0 -I{} cp "{}" "${stage}/docs/"
-cp "${root}/docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md" "${stage}/docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md"
-cp "${root}/docs/claims_registry.yaml" "${stage}/docs/claims_registry.yaml"
+  xargs -0 -I{} cp "{}" "${stage}/tools/"
+
+cp -R "${root}/docs/." "${stage}/docs/"
+cp -R "${root}/src" "${stage}/src"
+cp -R "${root}/tests" "${stage}/tests"
+cp -R "${root}/generated" "${stage}/generated"
+cp -R "${root}/formal" "${stage}/formal"
+mkdir -p "${stage}/lean-mathlib"
+cp "${root}/lean-mathlib/Proofs.lean" "${stage}/lean-mathlib/Proofs.lean"
+cp -R "${root}/lean-mathlib/Proofs" "${stage}/lean-mathlib/Proofs"
+cp -R "${root}/lean-mathlib/proof_receipts" "${stage}/lean-mathlib/proof_receipts"
 
 mkdir -p "${stage}/docs/papers"
 cp -R "${root}/docs/papers/zeno-oracle-whitepaper" "${stage}/docs/papers/zeno-oracle-whitepaper"
+
+find "${stage}" -type d -name '__pycache__' -prune -exec rm -rf {} +
+find "${stage}" -type f -name '*.pyc' -delete
 
 chmod +x "${stage}/tools/zenodex_oracle_cli.py"
 chmod +x "${stage}/tools/zenodex_oracle_devnet_disaster_harness.py"
@@ -61,6 +73,7 @@ chmod +x "${stage}/tools/zeno_oracle_o3_receipt_flow_replay.py"
 chmod +x "${stage}/bin/zenodex-oracle"
 chmod +x "${stage}/scripts/check_zeno_oracle_mvp.sh"
 chmod +x "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"
+chmod +x "${stage}/scripts/check_zeno_oracle_rc_bundle.sh"
 chmod +x "${stage}/scripts/package_zeno_oracle_rc.sh"
 
 commit="$(git -C "${root}" rev-parse HEAD 2>/dev/null || printf 'unknown')"
@@ -112,6 +125,7 @@ manifest = {
     "whitepaper_author": "Dana Edwards",
     "local_gate": "scripts/check_zeno_oracle_mvp.sh",
     "devnet_alpha_gate": "scripts/check_zeno_oracle_devnet_alpha.sh",
+    "package_replay_gate": "scripts/check_zeno_oracle_rc_bundle.sh",
     "file_count": len(files),
     "files": files,
     "not_claimed": [

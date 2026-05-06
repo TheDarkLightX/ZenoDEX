@@ -260,8 +260,10 @@ dist/zeno-oracle-devnet-alpha-rc1.receipt.json
 dist/zeno-oracle-devnet-alpha-rc1.sig
 dist/zeno-oracle-devnet-alpha-rc1/ZEN_ORACLE_RC_MANIFEST.json
 dist/zeno-oracle-devnet-alpha-rc1/bin/zenodex-oracle
+dist/zeno-oracle-devnet-alpha-rc1/scripts/check_zeno_oracle_rc_bundle.sh
 dist/zeno-oracle-devnet-alpha-rc1/tools/check_disaster_obligation_certificate.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/check_claims_registry.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/check_cross_module_oracle_split_brain_v1.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_disaster_frontier.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_frontier_obligation_projection.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/check_zeno_oracle_goal_completion_audit.py
@@ -274,6 +276,12 @@ dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_math_witness_sweep.jl
 dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_o3_receipt_flow_replay.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/zenodex_oracle_reporter_economics_replay.py
 dist/zeno-oracle-devnet-alpha-rc1/docs/claims_registry.yaml
+dist/zeno-oracle-devnet-alpha-rc1/src/
+dist/zeno-oracle-devnet-alpha-rc1/tests/
+dist/zeno-oracle-devnet-alpha-rc1/formal/
+dist/zeno-oracle-devnet-alpha-rc1/generated/
+dist/zeno-oracle-devnet-alpha-rc1/lean-mathlib/Proofs/
+dist/zeno-oracle-devnet-alpha-rc1/lean-mathlib/proof_receipts/
 dist/zeno-oracle-devnet-alpha-rc1/assets/branding/zeno-oracle/
 dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/main.pdf
 dist/zeno-oracle-devnet-alpha-rc1/docs/papers/zeno-oracle-whitepaper/ZenoOracleWhitepaper.pdf
@@ -290,6 +298,20 @@ python3 tools/check_zeno_oracle_rc_package.py \
   --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json \
   --sig dist/zeno-oracle-devnet-alpha-rc1.sig
 ```
+
+Replay a built package from inside the extracted bundle:
+
+```bash
+cd dist/zeno-oracle-devnet-alpha-rc1
+bash scripts/check_zeno_oracle_rc_bundle.sh
+```
+
+This package-local gate runs the shipped O3 replay, reporter-economics replay,
+live-economics policy, disaster harness, disaster frontier, obligation
+certificate/projection, ZenoProof governance policy, claims registry, blocked
+goal audit, package manifest check, and Julia witness sweep when Julia is
+installed. The package checker rejects missing claims-registry evidence files,
+so a shipped bundle cannot validate with only the registry YAML present.
 
 ## Not Claimed
 
