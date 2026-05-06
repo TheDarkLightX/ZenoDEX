@@ -206,6 +206,15 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 15_000,
         "replay_command": "python3 tools/zeno_oracle_workflow_evidence_status.py --format json",
         "expected_schema": "zenodex.oracle.workflow_evidence_status.v1",
+        "source_paths": [
+            "tools/zeno_oracle_workflow_evidence_status.py",
+            "formal/tla/OracleRecoveryLifecycle.tla",
+            "formal/tla/OracleRecoveryLifecycle.cfg",
+            "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
+            "formal/ltlf/oracle_recovery_goal_family_v1.json",
+            "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
+            "tests/morph_domains/oracle_clamp_envelope_domain.py",
+        ],
         "non_claims": [
             "does_not_claim_private_popperpad_publication",
             "does_not_claim_exhaustive_morph_search",
@@ -224,6 +233,9 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 20_000,
         "replay_command": "julia tools/zeno_oracle_math_witness_sweep.jl --json",
         "expected_schema": "zenodex.oracle.math_witness_sweep.v1",
+        "source_paths": [
+            "tools/zeno_oracle_math_witness_sweep.jl",
+        ],
         "non_claims": [
             "does_not_claim_generalized_median_theorems",
             "does_not_claim_production_oracle_benefit_laws",
@@ -241,6 +253,11 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 30_000,
         "replay_command": "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
         "expected_schema": "zenodex.oracle.lean_math_witness_anchor_replay.v1",
+        "source_paths": [
+            "lean-mathlib/lean-toolchain",
+            "lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
+            "lean-mathlib/Proofs.lean",
+        ],
         "non_claims": [
             "does_not_claim_generalized_median_theorems",
             "does_not_claim_full_sync_gate_composition",
@@ -258,6 +275,11 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 70_000,
         "replay_command": "python3 tools/zeno_oracle_tla_recovery_replay.py --format json",
         "expected_schema": "zenodex.oracle.tla_recovery_lifecycle_replay.v1",
+        "source_paths": [
+            "tools/zeno_oracle_tla_recovery_replay.py",
+            "formal/tla/OracleRecoveryLifecycle.tla",
+            "formal/tla/OracleRecoveryLifecycle.cfg",
+        ],
         "non_claims": [
             "does_not_claim_external_tlc_model_checking",
             "does_not_claim_unbounded_liveness",
@@ -276,6 +298,11 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 20_000,
         "replay_command": "python3 tools/zeno_oracle_ltlf_recovery_replay.py --format json",
         "expected_schema": "zenodex.oracle.ltlf_recovery_replay.v1",
+        "source_paths": [
+            "tools/zeno_oracle_ltlf_recovery_replay.py",
+            "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
+            "formal/ltlf/oracle_recovery_goal_family_v1.json",
+        ],
         "non_claims": [
             "does_not_claim_external_esso_synthesis",
             "does_not_claim_infinite_trace_fairness",
@@ -294,6 +321,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 20_000,
         "replay_command": "python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format json",
         "expected_schema": "zenodex.oracle.esso_zusd_recovery_replay.v1",
+        "source_paths": [
+            "tools/zeno_oracle_esso_zusd_recovery_replay.py",
+            "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
+        ],
         "non_claims": [
             "does_not_claim_external_esso_verify_multi",
             "does_not_claim_live_governance_recovery",
@@ -312,6 +343,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 20_000,
         "replay_command": "python3 -c 'from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status; import json; print(json.dumps(build_morph_oracle_clamp_envelope_status(), sort_keys=True))'",
         "expected_schema": "zenodex.oracle.morph_oracle_clamp_envelope_replay.v1",
+        "source_paths": [
+            "tools/zeno_oracle_workflow_evidence_status.py",
+            "tests/morph_domains/oracle_clamp_envelope_domain.py",
+        ],
         "non_claims": [
             "does_not_claim_exhaustive_morph_search",
             "does_not_claim_production_oracle_truth",
@@ -329,6 +364,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "timeout_ms": 20_000,
         "replay_command": "python3 tools/zeno_oracle_smt_freshness_replay.py --format json",
         "expected_schema": "zenodex.oracle.smt_freshness_replay.v1",
+        "source_paths": [
+            "tools/zeno_oracle_smt_freshness_replay.py",
+            "formal/tau/contracts/oracle_freshness_v2.contract.json",
+        ],
         "non_claims": [
             "does_not_claim_tau_binary_equivalence",
             "does_not_claim_unbounded_temporal_liveness",
@@ -475,6 +514,24 @@ def sha256_json(obj: Any) -> str:
 
 def sha256_file(path: Path) -> str:
     return HASH_PREFIX + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def public_replay_source_digests(profile: str) -> list[dict[str, str]]:
+    cfg = PUBLIC_REPLAY_PROFILE_CONFIGS.get(profile)
+    if cfg is None:
+        raise ValueError(f"unknown_public_replay_profile:{profile}")
+    raw_paths = cfg.get("source_paths")
+    if not isinstance(raw_paths, list):
+        raise ValueError(f"public_replay_source_paths_missing:{profile}")
+    rows: list[dict[str, str]] = []
+    for raw_path in raw_paths:
+        if not isinstance(raw_path, str) or not raw_path:
+            raise ValueError(f"public_replay_source_path_invalid:{profile}")
+        path = ROOT / raw_path
+        if not path.is_file():
+            raise ValueError(f"public_replay_source_path_missing:{profile}:{raw_path}")
+        rows.append({"path": raw_path, "sha256": sha256_file(path)})
+    return rows
 
 
 def sample_hash(tag: str) -> str:
@@ -733,6 +790,7 @@ def public_replay_input_root(profile: str = PUBLIC_REPLAY_PROFILE) -> str:
             "replay_command": cfg["replay_command"],
             "expected_schema": cfg["expected_schema"],
             "expected_status": "accepted",
+            "source_digests": public_replay_source_digests(profile),
         }
     )
 
@@ -742,6 +800,12 @@ def public_replay_output_root(profile: str = PUBLIC_REPLAY_PROFILE) -> str:
         raise ValueError(f"unknown_public_replay_profile:{profile}")
 
     return sha256_json(run_public_replay_profile(profile))
+
+
+def _with_public_replay_source_digests(profile: str, receipt: Mapping[str, Any]) -> dict[str, Any]:
+    payload = dict(receipt)
+    payload["profile_source_digests"] = public_replay_source_digests(profile)
+    return payload
 
 
 def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
@@ -767,7 +831,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("workflow_status_lane_count_mismatch")
         if receipt.get("failed_lane_count") != 0:
             raise ValueError("workflow_status_failed_lanes")
-        return receipt
+        return _with_public_replay_source_digests(profile, receipt)
 
     if profile == JULIA_REPLAY_PROFILE:
         proc = subprocess.run(
@@ -784,7 +848,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
         _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
         if receipt.get("case_count", 0) < MIN_JULIA_MATH_WITNESS_CASE_COUNT or receipt.get("failed_count") != 0:
             raise ValueError("julia_math_witness_case_count_mismatch")
-        return receipt
+        return _with_public_replay_source_digests(profile, receipt)
 
     if profile == LEAN_REPLAY_PROFILE:
         proc = subprocess.run(
@@ -813,7 +877,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError(f"lean_math_witness_failed:{proc.returncode}")
         if placeholder_hits:
             raise ValueError("lean_math_witness_placeholder_hits")
-        return receipt
+        return _with_public_replay_source_digests(profile, receipt)
 
     if profile == TLA_REPLAY_PROFILE:
         proc = subprocess.run(
@@ -832,7 +896,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("tla_recovery_invariant_violations")
         if receipt.get("failed_property_count") != 0:
             raise ValueError("tla_recovery_failed_properties")
-        return receipt
+        return _with_public_replay_source_digests(profile, receipt)
 
     if profile == LTLF_REPLAY_PROFILE:
         proc = subprocess.run(
@@ -849,7 +913,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
         _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
         if receipt.get("failed_goal_count") != 0:
             raise ValueError("ltlf_recovery_failed_goals")
-        return receipt
+        return _with_public_replay_source_digests(profile, receipt)
 
     if profile == ESSO_REPLAY_PROFILE:
         proc = subprocess.run(
@@ -868,7 +932,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("esso_zusd_recovery_assignment_mismatches")
         if receipt.get("failed_witness_count") != 0:
             raise ValueError("esso_zusd_recovery_failed_witnesses")
-        return receipt
+        return _with_public_replay_source_digests(profile, receipt)
 
     if profile == MORPH_REPLAY_PROFILE:
         from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status
@@ -880,7 +944,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("morph_replay_lane_missing")
         if lane.get("check") != "CheckResult.PASS" or lane.get("check2") != "CheckResult.PASS":
             raise ValueError("morph_replay_checks_not_pass")
-        return receipt
+        return _with_public_replay_source_digests(profile, receipt)
 
     if profile == SMT_REPLAY_PROFILE:
         from tools.zeno_oracle_smt_freshness_replay import build_status
@@ -897,7 +961,7 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
                 raise ValueError("smt_freshness_solver_set_mismatch")
             if [row.get("status") for row in solvers if isinstance(row, Mapping)] != ["unsat", "unsat"]:
                 raise ValueError("smt_freshness_solver_status_mismatch")
-        return receipt
+        return _with_public_replay_source_digests(profile, receipt)
 
     raise ValueError(f"unknown_public_replay_profile:{profile}")
 
