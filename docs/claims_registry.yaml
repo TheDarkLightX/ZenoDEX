@@ -1866,12 +1866,13 @@ claims:
       The first ZenoOracle Lean math-witness anchor checks bounded arithmetic
       facts that mirror the Julia witness sweep: median deviation boundary
       examples, zero-scale and equal-value deviation, median-deviation
-      side-obligation decomposition, self-divergence, epoch-lag symmetry,
-      reward-pool bounds, bonded-slash conservation, live-economics escrow
-      floor, timelock receipt obligations, settlement-execution total
-      arithmetic, and settlement-execution receipt projections, source-cartel
-      concentration, and cross-module split-brain divergence and epoch-lag
-      witnesses. It also checks Prop-level terminal DAG, runtime binding,
+      side-obligation decomposition, a two-side iff characterization of the
+      sorted median-deviation acceptance predicate, low/high side rejection,
+      self-divergence, epoch-lag symmetry, reward-pool bounds, bonded-slash
+      conservation, live-economics escrow floor, timelock receipt obligations,
+      settlement-execution total arithmetic, and settlement-execution receipt
+      projections, source-cartel concentration, and cross-module split-brain
+      divergence and epoch-lag witnesses. It also checks Prop-level terminal DAG, runtime binding,
       direct O3 value-binding and same-consumer-action projections/rejections,
       sync-window symmetry/rejection/monotonicity, O3 action-binding
       projections, O3 sync-window widening preservation, and O4/O5 Oracle-use

@@ -139,6 +139,28 @@ theorem median_deviation_within_of_side_bounds
   unfold MedianDeviationWithinBpsSorted MaxDeviationBpsSorted
   exact max_le hLo hHi
 
+theorem median_deviation_within_iff_side_bounds
+    {lo mid hi bps maxAllowed : Nat} :
+    MedianDeviationWithinBpsSorted lo mid hi bps maxAllowed ↔
+      (((mid - lo) * bps) / mid) <= maxAllowed ∧
+        (((hi - mid) * bps) / mid) <= maxAllowed := by
+  constructor
+  · intro h
+    exact ⟨
+      median_deviation_within_requires_low_side h,
+      median_deviation_within_requires_high_side h
+    ⟩
+  · intro h
+    exact median_deviation_within_of_side_bounds h.left h.right
+
+theorem median_deviation_rejects_low_side_above_bound
+    {lo mid hi bps maxAllowed : Nat}
+    (hLow : maxAllowed < (((mid - lo) * bps) / mid)) :
+    Not (MedianDeviationWithinBpsSorted lo mid hi bps maxAllowed) := by
+  intro h
+  have hLo := median_deviation_within_requires_low_side h
+  omega
+
 theorem median_deviation_rejects_high_side_above_bound
     {lo mid hi bps maxAllowed : Nat}
     (hHigh : maxAllowed < (((hi - mid) * bps) / mid)) :

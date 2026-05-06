@@ -40,10 +40,12 @@ The Lean tree already has adjacent checked anchors:
 
 `ZenoOracleMathWitness.lean` now includes small general arithmetic anchors for
 zero-scale and equal-value median deviation, median-deviation decomposition
-into low/high side bounds, self-divergence, epoch-lag symmetry, reward-pool
-bounds, bonded-slash conservation, live-economics escrow floor arithmetic,
-timelock execution obligations, settlement-execution total arithmetic, and
-settlement-execution receipt projections. It also includes Prop-level bridge
+into low/high side bounds, an iff characterization of sorted
+median-deviation acceptance by the two side bounds, low/high side rejection
+lemmas, self-divergence, epoch-lag symmetry, reward-pool bounds, bonded-slash
+conservation, live-economics escrow floor arithmetic, timelock execution
+obligations, settlement-execution total arithmetic, and settlement-execution
+receipt projections. It also includes Prop-level bridge
 anchors for live-economics receipt bundles, terminal DAG closure, runtime
 binding, sync-window symmetry/rejection, O3 action binding from
 DAG/runtime/sync obligations, direct O3 value-binding and same-consumer-action
