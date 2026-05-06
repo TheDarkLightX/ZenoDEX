@@ -102,7 +102,9 @@ deterministic devnet disaster-state harness, the disaster corpus/frontier, the
 obligation-antichain certificate, the frontier-to-obligation projection, the
 ZenoProof production-governance candidate policy, the claims registry, the
 blocked-goal audit, and the devnet alpha audit. The GitHub workflow builds a
-devnet alpha RC package after the gate passes.
+devnet alpha RC package after the gate passes, then validates the package
+manifest/signature receipt and runs the package-local replay gate from inside
+the extracted bundle before upload.
 
 The critical-action map can be checked directly:
 
