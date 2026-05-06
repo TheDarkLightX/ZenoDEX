@@ -286,9 +286,10 @@ def build_status() -> dict[str, Any]:
             "esso_zusd_oracle_recovery_lifecycle",
             files=[
                 "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
+                "tools/zeno_oracle_esso_zusd_recovery_replay.py",
                 "tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
             ],
-            replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
+            replay_command="python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format text",
             evidence_class="esso_public_replay",
         ),
         _morph_case(),

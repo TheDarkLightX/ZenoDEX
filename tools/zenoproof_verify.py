@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
 import subprocess
 import sys
@@ -292,10 +291,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "statement_hash": ESSO_REPLAY_STATEMENT_HASH,
         "assumptions_hash": ESSO_REPLAY_ASSUMPTIONS_HASH,
         "timeout_ms": 20_000,
-        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
+        "replay_command": "python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format json",
         "expected_schema": "zenodex.oracle.esso_zusd_recovery_replay.v1",
-        "test_path": "tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py",
         "non_claims": [
+            "does_not_claim_external_esso_verify_multi",
             "does_not_claim_live_governance_recovery",
             "does_not_claim_production_oracle_truth",
         ],
@@ -846,39 +845,22 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
         return receipt
 
     if profile == ESSO_REPLAY_PROFILE:
-        test_path = str(cfg["test_path"])
         proc = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pytest",
-                "-q",
-                "-p",
-                "no:cacheprovider",
-                test_path,
-            ],
+            [sys.executable, "tools/zeno_oracle_esso_zusd_recovery_replay.py", "--format", "json"],
             cwd=ROOT,
             check=False,
             capture_output=True,
             text=True,
             timeout=timeout_s,
-            env={**os.environ, "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
         )
-        combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
-        ok = proc.returncode == 0 and "passed" in combined
-        receipt = {
-            "schema": cfg["expected_schema"],
-            "ok": ok,
-            "status": "accepted" if ok else "rejected",
-            "test_path": test_path,
-            "pytest_returncode": proc.returncode,
-        }
-        if "passed" not in combined:
-            if "skipped" in combined:
-                raise ValueError(f"pytest_replay_skipped:{profile}")
-            if proc.returncode != 0:
-                raise ValueError(f"pytest_replay_failed:{profile}:{proc.returncode}")
-            raise ValueError(f"pytest_replay_no_pass_marker:{profile}")
+        receipt = _load_json_stdout(proc.stdout, "esso_zusd_recovery_replay")
+        if proc.returncode != 0:
+            raise ValueError(f"esso_zusd_recovery_replay_failed:{proc.returncode}")
+        _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
+        if receipt.get("assignment_mismatch_count") != 0:
+            raise ValueError("esso_zusd_recovery_assignment_mismatches")
+        if receipt.get("failed_witness_count") != 0:
+            raise ValueError("esso_zusd_recovery_failed_witnesses")
         return receipt
 
     if profile == MORPH_REPLAY_PROFILE:

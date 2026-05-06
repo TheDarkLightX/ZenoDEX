@@ -59,7 +59,7 @@ theorems for median/deviation boundaries, budget conservation, executable DAG
 closure, typed binding, and production sync-gate composition. The current public workflow status lane is documented in
 `docs/research/ZENO_ORACLE_WORKFLOW_EVIDENCE_STATUS.md`. ZenoProof now has
 public replay profiles for this Julia sweep, the Lean anchor, and the bounded
-TLA/LTLf Oracle recovery models through
-`tools/zenoproof_public_replay_verifier.py`. Deeper Morph, ESSO, external TLC,
+ESSO/TLA/LTLf Oracle recovery models through
+`tools/zenoproof_public_replay_verifier.py`. Deeper Morph, external ESSO/TLC,
 and PopperPad evidence should remain internal until each lane has a public
 replay command and a stable claim boundary.

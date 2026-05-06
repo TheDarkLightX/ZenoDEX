@@ -251,6 +251,7 @@ def build_audit() -> dict[str, Any]:
                 "formal/tla/OracleRecoveryLifecycle.tla",
                 "src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml",
                 "tools/zeno_oracle_workflow_evidence_status.py",
+                "tools/zeno_oracle_esso_zusd_recovery_replay.py",
                 "tools/zeno_oracle_tla_recovery_replay.py",
                 "tools/zeno_oracle_ltlf_recovery_replay.py",
                 "tools/zeno_oracle_smt_freshness_replay.py",
@@ -258,6 +259,7 @@ def build_audit() -> dict[str, Any]:
             ],
             replay_commands=[
                 "python3 tools/zeno_oracle_workflow_evidence_status.py --format text",
+                "python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format text",
                 "python3 tools/zeno_oracle_tla_recovery_replay.py --format text",
                 "python3 tools/zeno_oracle_ltlf_recovery_replay.py --format text",
                 "python3 tools/zeno_oracle_smt_freshness_replay.py --format text",
