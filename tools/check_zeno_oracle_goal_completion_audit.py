@@ -295,10 +295,10 @@ def build_audit() -> dict[str, Any]:
                 "pytest -q tests/test_zeno_oracle_math_witness_sweep.py",
                 "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
             ],
-            status="partial",
+            status="partial_restricted_math_packet",
             blockers=[
-                "lean_theorems_are_first_witness_anchors_not_general_oracle_math",
-                "julia_lane_is_bounded_witness_search",
+                "lean_theorems_are_restricted_anchors_not_complete_general_oracle_math",
+                "julia_lane_is_bounded_witness_search_with_restricted_theorem_pressure",
                 "morph_lane_is_public_smoke_not_exhaustive_campaign",
                 "esso_tla_ltlf_lanes_are_first_shell_models",
             ],

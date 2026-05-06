@@ -1891,23 +1891,26 @@ claims:
     status: supported
     layer: assurance
     statement: >
-      The first ZenoOracle Julia math-witness sweep deterministically checks
-      bounded integer examples for median deviation boundaries, zero-scale and
+      The ZenoOracle Julia math-witness sweep deterministically checks bounded
+      integer examples for median deviation boundaries, zero-scale and
       equal-value median sanity, a bounded median-deviation decomposition grid,
-      source-cartel concentration, zero-bond dispute griefing, reward-pool
-      conservation, overpay rejection, reward-cap rejection, live-economics
-      escrow floor and timelock receipt checks, settlement-execution total
-      matching, drift rejection, component dominance by the computed settlement
-      grand total, budget-to-component cap transfer, and settlement-execution
-      receipt asset/contract drift rejection, cross-module split-brain
-      divergence, epoch-lag rejection, epoch-lag symmetry, O5 independence-witness
-      acceptance/rejection, and O3 action binding across terminal DAG closure,
-      runtime binding, and sync-window witnesses, including bounded
-      missing value-binding rejection, wrong consumer-action rejection, and
-      sync-window widening preservation, plus a bounded sync-window
-      composition grid with summed lag bounds. This is witness evidence for the
-      current first shell, with full Lean proofs, Morph search, and production
-      oracle benefit laws still outside the claim.
+      monotone acceptance under widened deviation bounds, source-cartel
+      concentration, zero-bond dispute griefing, reward-pool conservation,
+      overpay rejection, reward-cap rejection, live-economics escrow floor and
+      timelock receipt checks, settlement-execution total matching, drift
+      rejection, component dominance by the computed settlement grand total,
+      budget-to-component cap transfer, preservation of component caps under
+      budget widening, settlement-execution receipt totals/asset/contract drift
+      rejection, cross-module split-brain divergence, epoch-lag rejection,
+      epoch-lag symmetry, O5 independence-witness acceptance/rejection, O5 use
+      rejection under proof/window/proof-kind/root drift, and O3 action binding
+      across terminal DAG closure, runtime binding, and sync-window witnesses,
+      including bounded missing value-binding rejection, wrong consumer-action
+      rejection, sync-window widening preservation, and sync-window composition
+      preservation, plus a bounded sync-window composition grid with summed lag
+      bounds. This is witness evidence for the current math lane, with complete
+      generalized oracle math, Morph search, and production oracle benefit laws
+      still outside the claim.
     evidence:
       kind: julia
       check:
@@ -1923,18 +1926,20 @@ claims:
     status: supported
     layer: assurance
     statement: >
-      The first ZenoOracle Lean math-witness anchor checks bounded arithmetic
-      facts that mirror the Julia witness sweep: median deviation boundary
-      examples, zero-scale and equal-value deviation, median-deviation
-      side-obligation decomposition, a two-side iff characterization of the
-      sorted median-deviation acceptance predicate, low/high side rejection,
-      self-divergence, epoch-lag symmetry, reward-pool bounds, bonded-slash
-      conservation, live-economics escrow floor, timelock receipt obligations,
-      settlement-execution total arithmetic, component dominance by the
-      settlement grand total, budget-to-component cap transfer,
-      settlement-execution receipt iff decomposition, and asset/contract drift
-      rejection, source-cartel concentration, and cross-module split-brain
-      divergence and epoch-lag witnesses. It also checks Prop-level terminal DAG, runtime binding,
+      The ZenoOracle Lean math-witness anchor checks bounded arithmetic facts
+      and restricted general anchors that mirror the Julia witness sweep:
+      median deviation boundary examples, zero-scale and equal-value deviation,
+      median-deviation side-obligation decomposition, a two-side iff
+      characterization of the sorted median-deviation acceptance predicate,
+      monotone acceptance under widened deviation bounds, low/high side
+      rejection, self-divergence, epoch-lag symmetry, reward-pool bounds,
+      bonded-slash conservation, live-economics escrow floor, timelock receipt
+      obligations, settlement-execution total arithmetic, component dominance
+      by the settlement grand total, budget-to-component cap transfer,
+      monotone budget widening, settlement-execution receipt iff
+      decomposition, and totals/asset/contract drift rejection, source-cartel
+      concentration, and cross-module split-brain divergence and epoch-lag
+      witnesses. It also checks Prop-level terminal DAG, runtime binding,
       iff decompositions for terminal DAG/runtime binding/O3 action-binding
       obligations, rejection of missing DAG dependencies, content-hash drift,
       registry-root drift, runtime-state drift,
@@ -1942,6 +1947,7 @@ claims:
       sync-window symmetry/rejection/monotonicity, O3 action-binding
       projections, epoch-lag triangle composition, Oracle sync-window
       composition with summed lag bounds, O3 sync-window widening preservation,
+      O3 preservation through sync-window composition,
       and O4/O5 Oracle-use
       anchors: O4/O5 use decomposes exactly into accepted O3 receipt,
       ZenoProof acceptance, same query/value/window, and same consumer-action
@@ -1949,9 +1955,9 @@ claims:
       obligations plus the full independence-witness obligations for primary
       O5 claim, distinct verifiers, distinct proof kinds, shared input/output
       roots, and DAG closure. This is a
-      concrete theorem anchor, with production median/deviation, economics,
-      executable DAG, and live typed production sync use still outside the
-      claim.
+      concrete theorem anchor, with complete generalized oracle math,
+      production economics, executable DAG, and live typed production sync use
+      still outside the claim.
     evidence:
       kind: lean
       check:

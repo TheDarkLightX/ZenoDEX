@@ -4,10 +4,11 @@ import Mathlib.Tactic
 /-!
 # ZenoOracle Math Witnesses
 
-Small checked arithmetic anchors for the first ZenoOracle Julia witness sweep.
+Checked arithmetic anchors for the ZenoOracle Julia witness sweep.
 
-These theorems intentionally stay concrete and bounded. They are bridge targets
-for later restricted theorems over the full median, budget, and sync gates.
+These theorems include bounded samples plus restricted general anchors. They are
+bridge targets for later theorem families over the full median, budget, and sync
+gates.
 -/
 
 namespace Proofs
@@ -144,6 +145,33 @@ theorem settlement_execution_components_le_budget
       Nat.le_trans hComponents.right.right.right.right.right.right hBudget
     ⟩
 
+theorem settlement_execution_total_budget_monotone
+    {reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta oldBudget newBudget : Nat}
+    (hBudget :
+      SettlementExecutionTotalE8
+        reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta <= oldBudget)
+    (hLe : oldBudget <= newBudget) :
+    SettlementExecutionTotalE8
+      reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta <= newBudget := by
+  exact Nat.le_trans hBudget hLe
+
+theorem settlement_execution_components_le_larger_budget
+    {reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta oldBudget newBudget : Nat}
+    (hBudget :
+      SettlementExecutionTotalE8
+        reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta <= oldBudget)
+    (hLe : oldBudget <= newBudget) :
+    reportReward <= newBudget ∧
+      disputeReward <= newBudget ∧
+      bondWithdrawn <= newBudget ∧
+      slashed <= newBudget ∧
+      feePaid <= newBudget ∧
+      treasuryDelta <= newBudget ∧
+      burnDelta <= newBudget := by
+  exact
+    settlement_execution_components_le_budget
+      (settlement_execution_total_budget_monotone hBudget hLe)
+
 def SettlementExecutionReceiptOK
     (queryBound totalsBound assetBound contractBound : Prop) : Prop :=
   And queryBound (And totalsBound (And assetBound contractBound))
@@ -210,6 +238,14 @@ theorem median_deviation_within_iff_side_bounds
     ⟩
   · intro h
     exact median_deviation_within_of_side_bounds h.left h.right
+
+theorem median_deviation_within_monotone_max_allowed
+    {lo mid hi bps oldMaxAllowed newMaxAllowed : Nat}
+    (h : MedianDeviationWithinBpsSorted lo mid hi bps oldMaxAllowed)
+    (hLe : oldMaxAllowed <= newMaxAllowed) :
+    MedianDeviationWithinBpsSorted lo mid hi bps newMaxAllowed := by
+  unfold MedianDeviationWithinBpsSorted at *
+  omega
 
 theorem median_deviation_rejects_low_side_above_bound
     {lo mid hi bps maxAllowed : Nat}
@@ -434,6 +470,12 @@ theorem settlement_execution_receipt_rejects_missing_asset_binding
     Not (SettlementExecutionReceiptOK queryBound totalsBound False contractBound) := by
   intro h
   exact settlement_execution_receipt_ok_requires_asset_binding h
+
+theorem settlement_execution_receipt_rejects_missing_totals_binding
+    {queryBound assetBound contractBound : Prop} :
+    Not (SettlementExecutionReceiptOK queryBound False assetBound contractBound) := by
+  intro h
+  exact settlement_execution_receipt_ok_requires_totals_binding h
 
 theorem settlement_execution_receipt_rejects_missing_contract_binding
     {queryBound totalsBound assetBound : Prop} :
@@ -757,11 +799,41 @@ theorem o3_action_binding_preserved_by_sync_window_widening
       (And.intro h.right.left
         (oracle_sync_window_ok_monotone h.right.right hLe))
 
+theorem o3_action_binding_preserved_by_sync_window_composition
+    {terminalDAGOK runtimeBindingOK : Prop}
+    {sourceEpoch bridgeEpoch targetEpoch maxLagAB maxLagBC : Nat}
+    (h :
+      O3ActionBindingOK
+        terminalDAGOK
+        runtimeBindingOK
+        (OracleSyncWindowOK sourceEpoch bridgeEpoch maxLagAB))
+    (hBC : OracleSyncWindowOK bridgeEpoch targetEpoch maxLagBC) :
+    O3ActionBindingOK
+      terminalDAGOK
+      runtimeBindingOK
+      (OracleSyncWindowOK sourceEpoch targetEpoch (maxLagAB + maxLagBC)) := by
+  exact
+    And.intro h.left
+      (And.intro h.right.left
+        (oracle_sync_window_ok_compose h.right.right hBC))
+
 theorem o4_or_o5_use_requires_o3_receipt
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}
     (h : O4OrO5OracleUseOK o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction) :
     o3ReceiptOK := by
   exact h.left
+
+theorem o4_or_o5_use_requires_zenoproof_accepted
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}
+    (h : O4OrO5OracleUseOK o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction) :
+    zenoProofAccepted := by
+  exact h.right.left
+
+theorem o4_or_o5_use_requires_same_query_value_window
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}
+    (h : O4OrO5OracleUseOK o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction) :
+    sameQueryValueWindow := by
+  exact h.right.right.left
 
 theorem o4_or_o5_use_requires_same_consumer_action
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}
@@ -786,6 +858,30 @@ theorem o5_independence_witness_requires_distinct_verifiers
         primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) :
     distinctVerifiers := by
   exact h.right.left
+
+theorem o5_independence_witness_requires_distinct_proof_kinds
+    {primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
+    (h :
+      O5IndependenceWitnessOK
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) :
+    distinctProofKinds := by
+  exact h.right.right.left
+
+theorem o5_independence_witness_requires_same_input_root
+    {primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
+    (h :
+      O5IndependenceWitnessOK
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) :
+    sameInputRoot := by
+  exact h.right.right.right.left
+
+theorem o5_independence_witness_requires_same_output_root
+    {primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
+    (h :
+      O5IndependenceWitnessOK
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) :
+    sameOutputRoot := by
+  exact h.right.right.right.right.left
 
 theorem o5_independence_witness_requires_dag_closed
     {primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
@@ -872,6 +968,61 @@ theorem o5_use_rejects_missing_distinct_verifiers
         primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) := by
   intro h
   exact hMissingDistinctVerifiers (o5_independence_witness_requires_distinct_verifiers h.right)
+
+theorem o5_use_rejects_missing_zenoproof_acceptance
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+      primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
+    (hMissingProof : Not zenoProofAccepted) :
+    Not
+      (O5OracleUseOK
+        o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) := by
+  intro h
+  exact hMissingProof (o4_or_o5_use_requires_zenoproof_accepted h.left)
+
+theorem o5_use_rejects_query_value_window_drift
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+      primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
+    (hWindowDrift : Not sameQueryValueWindow) :
+    Not
+      (O5OracleUseOK
+        o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) := by
+  intro h
+  exact hWindowDrift (o4_or_o5_use_requires_same_query_value_window h.left)
+
+theorem o5_use_rejects_missing_distinct_proof_kinds
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+      primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
+    (hMissingDistinctKinds : Not distinctProofKinds) :
+    Not
+      (O5OracleUseOK
+        o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) := by
+  intro h
+  exact hMissingDistinctKinds (o5_independence_witness_requires_distinct_proof_kinds h.right)
+
+theorem o5_use_rejects_input_root_drift
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+      primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
+    (hInputRootDrift : Not sameInputRoot) :
+    Not
+      (O5OracleUseOK
+        o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) := by
+  intro h
+  exact hInputRootDrift (o5_independence_witness_requires_same_input_root h.right)
+
+theorem o5_use_rejects_output_root_drift
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+      primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
+    (hOutputRootDrift : Not sameOutputRoot) :
+    Not
+      (O5OracleUseOK
+        o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) := by
+  intro h
+  exact hOutputRootDrift (o5_independence_witness_requires_same_output_root h.right)
 
 theorem o5_use_rejects_missing_dag_closure
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
