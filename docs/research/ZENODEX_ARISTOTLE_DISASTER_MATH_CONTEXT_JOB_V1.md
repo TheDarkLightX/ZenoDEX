@@ -44,8 +44,10 @@ Treat 104 as the audit count until the summary count is reconciled.
 
 The local trust scan over the returned Lean files found no `sorry`, `admit`,
 `axiom`, `unsafe`, or `sorryAx` tokens. The returned project targets Lean
-`v4.28.0`; the repo currently targets `v4.27.0`, so selected promotion still
-needs repo-toolchain replay.
+`v4.28.0`, which matches the active local `lean` and `lake` commands. One
+nested tracked file, `lean-mathlib/lean-toolchain`, still pins `v4.27.0`; proof
+promotion should either align that pin or run replay in the active `v4.28.0`
+environment.
 
 ## Boundaries
 

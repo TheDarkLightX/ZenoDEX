@@ -22,10 +22,11 @@ The disaster-context summary says 89 proved theorems, while a direct `rg
 to be a reporting/counting issue, not a trust issue.
 
 The checked token scan over the three current result jobs found no `sorry`,
-`admit`, `axiom`, `unsafe`, or `sorryAx` in Lean files. The Aristotle projects
-target Lean `v4.28.0`; the repo's current `lean-mathlib/lean-toolchain` is
-`v4.27.0`. Local acceptance still requires either porting selected proofs to
-`v4.27.0` or making a deliberate repo-wide toolchain upgrade.
+`admit`, `axiom`, `unsafe`, or `sorryAx` in Lean files. The active local
+`lean` and `lake` commands report Lean `v4.28.0`, matching the Aristotle
+projects. One nested tracked file, `lean-mathlib/lean-toolchain`, still pins
+`v4.27.0`; if proof promotion runs inside that subproject, align or confirm the
+pin before treating local replay as final.
 
 ## Main Mathematical Shape
 

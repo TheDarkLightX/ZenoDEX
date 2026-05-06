@@ -33,9 +33,10 @@ project containing 17 sections and 164 theorem declarations. The local trust
 scan over the returned Lean files found no `sorry`, `admit`, `axiom`, `unsafe`,
 or `sorryAx` tokens.
 
-The returned project targets Lean `v4.28.0`; the repo currently targets
-`v4.27.0`. Production promotion still requires a repo-toolchain build after
-porting selected theorems or intentionally upgrading the repo toolchain.
+The returned project targets Lean `v4.28.0`, which matches the active local
+`lean` and `lake` commands. One nested tracked file,
+`lean-mathlib/lean-toolchain`, still pins `v4.27.0`; proof promotion should
+either align that pin or run replay in the active `v4.28.0` environment.
 
 ## Boundaries
 
