@@ -274,10 +274,10 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
         "statement_hash": LTLF_REPLAY_STATEMENT_HASH,
         "assumptions_hash": LTLF_REPLAY_ASSUMPTIONS_HASH,
         "timeout_ms": 20_000,
-        "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_oracle_recovery_ltlf.py",
+        "replay_command": "python3 tools/zeno_oracle_ltlf_recovery_replay.py --format json",
         "expected_schema": "zenodex.oracle.ltlf_recovery_replay.v1",
-        "test_path": "tests/formal/test_oracle_recovery_ltlf.py",
         "non_claims": [
+            "does_not_claim_external_esso_synthesis",
             "does_not_claim_infinite_trace_fairness",
             "does_not_claim_production_oracle_truth",
         ],
@@ -809,7 +809,24 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             raise ValueError("lean_math_witness_placeholder_hits")
         return receipt
 
-    if profile in {TLA_REPLAY_PROFILE, LTLF_REPLAY_PROFILE, ESSO_REPLAY_PROFILE}:
+    if profile == LTLF_REPLAY_PROFILE:
+        proc = subprocess.run(
+            [sys.executable, "tools/zeno_oracle_ltlf_recovery_replay.py", "--format", "json"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+        receipt = _load_json_stdout(proc.stdout, "ltlf_recovery_replay")
+        if proc.returncode != 0:
+            raise ValueError(f"ltlf_recovery_replay_failed:{proc.returncode}")
+        _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
+        if receipt.get("failed_goal_count") != 0:
+            raise ValueError("ltlf_recovery_failed_goals")
+        return receipt
+
+    if profile in {TLA_REPLAY_PROFILE, ESSO_REPLAY_PROFILE}:
         test_path = str(cfg["test_path"])
         proc = subprocess.run(
             [

@@ -37,7 +37,7 @@ registry/verifier layer for O4/O5 claims.
 | Obligation antichain | `tools/check_disaster_obligation_certificate.py` validates `tools/zeno_oracle_disaster_obligation_certificate_manifest.json`; the current certificate compresses 24 axes into 16 antichain classes and includes `proof_independence` and `cross_domain_finality` as required obligation atoms. `tools/check_zeno_oracle_frontier_obligation_projection.py` projects all 29 current frontier families onto manifest quotient classes with zero unprojected families. | First shell complete |
 | Julia math lane | `tools/zeno_oracle_math_witness_sweep.jl` checks bounded witnesses for median deviation, zero-scale/equal-value sanity, bounded median-deviation side-obligation decomposition, source cartel, dispute griefing, reward conservation/caps, live-economics escrow floor and timelock receipts, settlement-execution total matching/drift rejection, split-brain, epoch-lag symmetry, O5 independence-witness cases, O3 action-binding DAG/runtime/sync-window cases, missing value-binding and wrong consumer-action rejection, and sync-window widening preservation. | Bounded witness |
 | Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides bounded arithmetic anchors plus small general lemmas for zero-scale/equal-value deviation, median-deviation side-obligation decomposition, epoch lag, reward/slash conservation, live-economics escrow floor, timelock receipt-bundle obligations, settlement-execution receipt projections, terminal DAG closure projections, runtime binding projections, direct O3 value-binding and same-consumer-action projections/rejections, sync-window symmetry/rejection/monotonicity, O3 action-binding projections, O3 sync-window widening preservation, and Prop-level O4/O5/O5-independence projections. General production median, deviation, economics, executable DAG closure, production sync, and typed binding theorems remain open. | Partial |
-| ESSO/TLA/LTLf/Morph/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py` reports 5 accepted first-shell lanes. Private PopperPad content and deeper Morph campaigns remain outside public claims. | First shell complete |
+| ESSO/TLA/LTLf/Morph/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py` reports 5 accepted first-shell lanes. `tools/zeno_oracle_ltlf_recovery_replay.py` gives the bounded LTLf Oracle recovery goal family a deterministic public replay command. Private PopperPad content, external ESSO synthesis, and deeper Morph campaigns remain outside public claims. | First shell complete |
 | Public claims registry | `docs/claims_registry.yaml` validates with `python3 tools/check_claims_registry.py` and `pytest -q tests/test_claims_registry.py`. | Complete for promoted claims |
 | ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. The self-test now reports skipped or missing public replay toolchains as rejected profile results instead of accepted evidence or a traceback. `tools/check_zenoproof_production_governance_policy.py` adds a production-candidate governance policy gate that quarantines local static verifiers, checks verifier sandbox/code-signing/revocation/O4/O5/reward-settlement controls, and verifies a local receipt bundle for governance execution, revocation drill/list, code signing, verifier-release manifest binding, and sandbox attestation. It still rejects `--require-live` while live proof-network blockers remain. | Local v0 plus governance gate |
 | Devnet alpha package | `scripts/package_zeno_oracle_rc.sh` and `tools/check_zeno_oracle_rc_package.py` build and validate the devnet alpha package, docs, whitepaper, branding, manifest, receipt, and devnet integrity signature. | Devnet complete |
@@ -53,6 +53,7 @@ python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
 python3 tools/check_zeno_oracle_frontier_obligation_projection.py --format text
 python3 tools/zeno_oracle_workflow_evidence_status.py --format text
+python3 tools/zeno_oracle_ltlf_recovery_replay.py --format text
 python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
 python3 tools/zenoproof_reward_payout_replay.py --format text --registry tools/zenoproof_registry_manifest.json
 python3 tools/check_claims_registry.py
@@ -90,7 +91,10 @@ python3 tools/check_zenoproof_production_governance_policy.py --format text
    theorems for median/deviation, economics, DAG closure, synchronization, and
    typed Oracle binding.
 6. Deeper proof lanes: strengthen ESSO/TLA/LTLf/Morph evidence beyond current
-   bounded anchors and promote only replayable public outputs.
+   bounded anchors. The LTLf lane now has deterministic bounded public replay;
+   external ESSO synthesis, TLA model checking, and Morph campaign evidence
+   still need stable public replay boundaries before broader claims can be
+   promoted.
 7. ZenoProof productionization: close the production governance gate blockers:
    on-chain governance execution, production verifier code signing, sandbox
    deployment, verifier release transparency-log verification, live revocation

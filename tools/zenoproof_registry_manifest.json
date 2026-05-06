@@ -90,10 +90,11 @@
       ],
       "evidence_class": "O4",
       "non_claims": [
+        "does_not_claim_external_esso_synthesis",
         "does_not_claim_infinite_trace_fairness",
         "does_not_claim_production_oracle_truth"
       ],
-      "replay_command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_oracle_recovery_ltlf.py",
+      "replay_command": "python3 tools/zeno_oracle_ltlf_recovery_replay.py --format json",
       "statement_hash": "sha256:5be41f7c4d4b794c16666caa8e39b365af1e0500a34232e049b4d2eb734ca956"
     },
     {

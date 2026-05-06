@@ -1897,9 +1897,11 @@ claims:
       The public ZenoOracle workflow evidence status checker accepts five
       first-shell lanes: TLA Oracle recovery lifecycle, LTLf Oracle recovery,
       ESSO zUSD Oracle recovery lifecycle, a Morph oracle-clamp envelope smoke
-      check, and a temporary PopperPad append-only smoke. This is bounded
-      workflow status evidence; private PopperPad content, exhaustive Morph
-      campaigns, and production oracle truth remain outside the claim.
+      check, and a temporary PopperPad append-only smoke. The LTLf lane has a
+      deterministic local replay command for the bounded Oracle recovery goal
+      family. This is bounded workflow status evidence; private PopperPad
+      content, exhaustive Morph campaigns, external ESSO synthesis, and
+      production oracle truth remain outside the claim.
     evidence:
       kind: python
       check:
@@ -1907,6 +1909,7 @@ claims:
         - cmd: pytest -q tests/test_zeno_oracle_workflow_evidence_status.py
       files:
         - tools/zeno_oracle_workflow_evidence_status.py
+        - tools/zeno_oracle_ltlf_recovery_replay.py
         - tests/test_zeno_oracle_workflow_evidence_status.py
         - tests/morph_domains/oracle_clamp_envelope_domain.py
         - tools/perp_oracle_manipulation_lp_sweep.py
@@ -1932,11 +1935,11 @@ claims:
       accepts a local proof-mining reward gate only when proof, binding, policy,
       freshness, uniqueness, and reward-pool budget checks pass, accepts
       workflow-evidence, Julia witness-sweep, Lean witness-anchor, TLA Oracle
-      recovery, LTLf Oracle recovery, ESSO zUSD Oracle recovery, and Morph
-      oracle-clamp public replay, and SMT Oracle freshness public replay
-      verifiers only when their output roots match accepted public replay
-      receipts. Public replay profiles with skipped or missing local toolchains
-      become rejected profile results rather than accepted evidence or
+      recovery, deterministic bounded LTLf Oracle recovery, ESSO zUSD Oracle
+      recovery, and Morph oracle-clamp public replay, and SMT Oracle freshness
+      public replay verifiers only when their output roots match accepted
+      public replay receipts. Public replay profiles with skipped or missing
+      local toolchains become rejected profile results rather than accepted evidence or
       unstructured verifier crashes. It also replays a bounded local
       reward-payout bridge from an accepted ZenoProof reward gate through
       proof-mining claim construction, manager execution, and claimability
@@ -1958,6 +1961,7 @@ claims:
         - tools/zenoproof_reward_payout_replay.py
         - tools/zenoproof_registry_manifest.json
         - tools/zeno_oracle_workflow_evidence_status.py
+        - tools/zeno_oracle_ltlf_recovery_replay.py
         - tools/zeno_oracle_math_witness_sweep.jl
         - lean-mathlib/Proofs/ZenoOracleMathWitness.lean
         - lean-mathlib/Proofs.lean
