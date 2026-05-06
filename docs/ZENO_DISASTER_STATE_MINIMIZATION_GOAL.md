@@ -173,6 +173,34 @@ public checker outcomes. This is
 bounded first-shell evidence. It does not claim exhaustive production oracle
 safety, live on-chain governance, reporter honesty, or a live proof network.
 
+## Current Compositional Disaster Regression Projection
+
+The private compositional disaster campaigns are represented publicly by a
+sanitized regression manifest and checker:
+
+```bash
+python3 tools/check_zeno_oracle_compositional_disaster_regressions.py --format text
+```
+
+Current expected receipt:
+
+```text
+status = accepted
+campaign_count = 2
+private_candidate_witness_count = 7
+accepted_public_regression_count = 3
+deferred_projection_count = 4
+```
+
+The public projection records two 100-iteration campaign summaries and promotes
+only branch-local replayable regressions: duplicate DEX nonce replay, stale
+quote-receipt pool snapshots, and signed perps expected-nonce mismatch without
+nonce consumption. Four private witness projections remain deferred because the
+matching public source surfaces are absent from this integration branch.
+
+Private campaign artifacts are provenance. The public assurance value is the
+tracked manifest, checker, and replayable tests.
+
 ## Current Production-Disaster Frontier
 
 The production-candidate frontier catalog is implemented by:

@@ -1,0 +1,188 @@
+{
+  "schema": "zenodex/zeno-oracle-compositional-disaster-regression-manifest/v1",
+  "private_artifact_policy": {
+    "private_campaign_artifacts_committed": false,
+    "public_claim_tier": "bounded_replay_regression",
+    "promotion_rule": "Private campaign output is provenance only. A promoted public regression must name tracked source or test files and replay commands that run from this checkout.",
+    "raw_private_paths_excluded": true
+  },
+  "campaign_summaries": [
+    {
+      "campaign_id": "compositional_aot100_2026_05_05",
+      "check_schema": "zenodex/private-compositional-disaster-aot-campaign-check/v1",
+      "ok": true,
+      "iteration_count": 100,
+      "unique_atom_count": 100,
+      "unique_candidate_count": 100,
+      "promotion_ready_count": 0,
+      "lane_counts": {
+        "cross_verifier_canonicalization_vectors": 20,
+        "minimal_witness_language_loop": 20,
+        "policy_lattice_replay_harness": 20,
+        "stateful_root_sequence_harness": 20,
+        "temporal_sequence_harness": 20
+      },
+      "shape_counts": {
+        "valid_artifact_mixed_registry_roots": 20,
+        "valid_artifact_wrong_evidence_class": 20,
+        "valid_artifact_wrong_field_projection": 20,
+        "valid_artifact_wrong_pre_state": 20,
+        "valid_artifact_wrong_time_window": 20
+      }
+    },
+    {
+      "campaign_id": "compositional_aot100_expansion2_2026_05_05",
+      "check_schema": "zenodex/private-compositional-disaster-aot-campaign-check/v2",
+      "ok": true,
+      "iteration_count": 100,
+      "unique_atom_count": 100,
+      "unique_candidate_count": 100,
+      "promotion_ready_count": 0,
+      "lane_counts": {
+        "assumption_boundary_replay_harness": 20,
+        "cross_surface_canonical_sequence_harness": 20,
+        "evidence_floor_and_live_admission_harness": 20,
+        "stateful_api_receipt_sequence_harness": 20,
+        "stateful_nonce_sequence_harness": 20
+      },
+      "shape_counts": {
+        "valid_artifact_wrong_api_snapshot": 20,
+        "valid_artifact_wrong_external_boundary_assumption": 20,
+        "valid_artifact_wrong_live_admission_floor": 20,
+        "valid_artifact_wrong_nonce_or_session": 20,
+        "valid_artifact_wrong_order_or_projection": 20
+      }
+    }
+  ],
+  "candidate_witness_projection": {
+    "source_campaign_id": "compositional_aot100_expansion2_2026_05_05",
+    "private_candidate_witness_count": 7,
+    "accepted_public_regression_count": 3,
+    "deferred_projection_count": 4,
+    "entries": [
+      {
+        "id": "dex_engine_duplicate_nonce_replay",
+        "atom_id": "AOT-EXP2-017",
+        "composition_shape": "valid_artifact_wrong_nonce_or_session",
+        "surface_pair": "quote_transport_to_dex_sequence",
+        "public_status": "accepted_public_replay",
+        "test_file": "tests/integration/test_dex_engine_sequence_grammar_fuzz.py",
+        "test_names": [
+          "test_dex_engine_sequence_minimizer_removes_dead_tail_without_changing_path",
+          "test_dex_engine_sequence_minimizer_cli_emits_expected_schema"
+        ],
+        "source_files": [
+          "tools/dex_engine_sequence_grammar_fuzz.py"
+        ],
+        "replay_commands": [
+          "python3 tools/dex_engine_sequence_grammar_fuzz.py --target dex_engine_sequence --minimize-derivation DexSeq->ReplayPoolAfterSuccessWithDeadTail --format json",
+          "pytest -q tests/integration/test_dex_engine_sequence_grammar_fuzz.py"
+        ],
+        "expected": {
+          "target": "dex_engine_sequence",
+          "derivation": "DexSeq->ReplayPoolAfterSuccessWithDeadTail",
+          "outcome_substrings": [
+            "reject:step=1:nonce sequence invalid"
+          ],
+          "original_size": 1601,
+          "minimized_size": 1076,
+          "path_id_policy": "minimized_path_matches_unminimized_path"
+        }
+      },
+      {
+        "id": "dex_engine_quote_receipt_stale_pool_snapshot",
+        "atom_id": "AOT-EXP2-016",
+        "composition_shape": "valid_artifact_wrong_api_snapshot",
+        "surface_pair": "quote_transport_to_dex_sequence",
+        "public_status": "accepted_public_replay",
+        "test_file": "tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py",
+        "test_names": [
+          "test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_changing_path",
+          "test_dex_engine_quote_receipt_sequence_minimizer_cli_emits_expected_schema"
+        ],
+        "source_files": [
+          "tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py"
+        ],
+        "replay_commands": [
+          "python3 tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py --target direct_quote_receipt_sequence --minimize-derivation DirectSeq->ValidThenStaleSamePoolWithDeadTail --format json",
+          "pytest -q tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py"
+        ],
+        "expected": {
+          "target": "direct_quote_receipt_sequence",
+          "derivation": "DirectSeq->ValidThenStaleSamePoolWithDeadTail",
+          "outcome_substrings": [
+            "invalid quote receipt:",
+            "pool_snapshot_mismatch"
+          ],
+          "original_size": 3570,
+          "minimized_size": 2390,
+          "path_id_policy": "minimized_path_matches_unminimized_path"
+        }
+      },
+      {
+        "id": "perp_submission_nonce_replay_without_consumption",
+        "atom_id": "AOT-EXP2-087",
+        "composition_shape": "valid_artifact_wrong_nonce_or_session",
+        "surface_pair": "perps_submission_auth_to_ingress_queue",
+        "public_status": "accepted_public_replay",
+        "test_file": "tests/core/test_perp_submission_auth_gate.py",
+        "test_names": [
+          "test_perp_submission_auth_gate_rejects_nonce_replay_without_consumption"
+        ],
+        "source_files": [
+          "src/core/perp_submission_auth_gate.py"
+        ],
+        "replay_commands": [
+          "pytest -q tests/core/test_perp_submission_auth_gate.py"
+        ],
+        "expected": {
+          "target": "perp_submission_auth_gate",
+          "derivation": "SignedSubmission->ExpectedNonceMismatch",
+          "outcome_substrings": [
+            "NonceExpectedInvalid",
+            "nonce invalid"
+          ],
+          "original_size": 285,
+          "minimized_size": 285,
+          "path_id_policy": "single_gate_case_has_no_path_id_claim"
+        }
+      },
+      {
+        "id": "strategy_policy_live_floor_o3",
+        "atom_id": "AOT-EXP2-064",
+        "composition_shape": "valid_artifact_wrong_live_admission_floor",
+        "surface_pair": "tau_operator_policy_to_deployment_contract",
+        "public_status": "deferred_missing_public_surface",
+        "deferred_reason": "strategy_policy_contract_adapter_surface_absent_on_this_integration_branch",
+        "expected_public_test": "tests/core/test_strategy_policy_contracts_v1_adapter.py"
+      },
+      {
+        "id": "confidential_live_admission_replay",
+        "atom_id": "AOT-EXP2-054",
+        "composition_shape": "valid_artifact_wrong_nonce_or_session",
+        "surface_pair": "confidential_attestation_to_live_admission",
+        "public_status": "deferred_missing_public_surface",
+        "deferred_reason": "confidential_live_admission_source_surface_absent_on_this_integration_branch",
+        "expected_public_test": "tests/core/test_confidential_extension_live_admission.py"
+      },
+      {
+        "id": "route_canonicalization_projection_order",
+        "atom_id": "AOT-EXP2-023",
+        "composition_shape": "valid_artifact_wrong_order_or_projection",
+        "surface_pair": "route_canonicalization_to_exact_out_certificate",
+        "public_status": "deferred_missing_public_surface",
+        "deferred_reason": "quote_receipt_route_canonicalization_sequence_harness_absent_on_this_integration_branch",
+        "expected_public_test": "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"
+      },
+      {
+        "id": "quote_receipt_transport_missing_hash",
+        "atom_id": "AOT-EXP2-020",
+        "composition_shape": "valid_artifact_wrong_external_boundary_assumption",
+        "surface_pair": "quote_transport_to_dex_sequence",
+        "public_status": "deferred_missing_public_surface",
+        "deferred_reason": "quote_receipt_transport_harness_absent_on_this_integration_branch",
+        "expected_public_test": "tests/integration/test_quote_receipt_transport_grammar_fuzz.py"
+      }
+    ]
+  }
+}

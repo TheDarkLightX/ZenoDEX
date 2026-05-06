@@ -1837,6 +1837,39 @@ claims:
         - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
         - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
 
+  - id: py:zeno_oracle:compositional_disaster_regression_projection_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public compositional-disaster regression projection checker validates
+      sanitized summaries for two private 100-iteration disaster campaigns and
+      accepts three branch-local public regressions: duplicate DEX nonce replay,
+      stale quote-receipt pool snapshot rejection, and signed perps
+      expected-nonce mismatch without nonce consumption. The checker requires
+      tracked public test/source files for promoted regressions, rejects private
+      path markers in the manifest, and records four deferred witness
+      projections whose matching public source surfaces are absent from this
+      integration branch. Private campaign artifacts remain provenance; this
+      claim is limited to the tracked manifest, checker, and public replay
+      tests.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zeno_oracle_compositional_disaster_regressions.py --format text
+        - cmd: pytest -q tests/test_check_zeno_oracle_compositional_disaster_regressions.py tests/core/test_perp_submission_auth_gate.py tests/integration/test_dex_engine_sequence_grammar_fuzz.py tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py
+      files:
+        - tools/check_zeno_oracle_compositional_disaster_regressions.py
+        - tools/zeno_oracle_compositional_disaster_regression_manifest.json
+        - tests/test_check_zeno_oracle_compositional_disaster_regressions.py
+        - tests/core/test_perp_submission_auth_gate.py
+        - src/core/perp_submission_auth_gate.py
+        - tests/integration/test_dex_engine_sequence_grammar_fuzz.py
+        - tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py
+        - tools/dex_engine_sequence_grammar_fuzz.py
+        - tools/dex_engine_quote_receipt_sequence_grammar_fuzz.py
+        - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
   - id: julia:zeno_oracle:first_shell_math_witness_sweep_v1
     status: supported
     layer: assurance

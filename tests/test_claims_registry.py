@@ -26,3 +26,21 @@ def test_zeno_oracle_devnet_alpha_claim_tracks_package_replay_gate() -> None:
     assert "scripts/check_zeno_oracle_rc_bundle.sh" in files
     assert ".github/workflows/zeno-oracle-mvp.yml" in files
     assert "tools/check_zeno_oracle_frontier_obligation_projection.py" in files
+
+
+def test_zeno_oracle_compositional_disaster_claim_tracks_public_projection() -> None:
+    from tools.check_claims_registry import REGISTRY_PATH
+
+    registry = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
+    claims = {claim["id"]: claim for claim in registry["claims"]}
+    claim = claims["py:zeno_oracle:compositional_disaster_regression_projection_v1"]
+    evidence = claim["evidence"]
+    commands = [row["cmd"] for row in evidence["check"]]
+    files = set(evidence["files"])
+
+    assert (
+        "python3 tools/check_zeno_oracle_compositional_disaster_regressions.py --format text"
+        in commands
+    )
+    assert "tools/zeno_oracle_compositional_disaster_regression_manifest.json" in files
+    assert "tests/core/test_perp_submission_auth_gate.py" in files
