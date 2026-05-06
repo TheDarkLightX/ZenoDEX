@@ -161,12 +161,25 @@ def test_public_replay_verifier_rejects_wrong_output_root() -> None:
     assert not result.proof_ok
 
 
+def test_public_replay_profiles_declare_source_digests() -> None:
+    for profile in zv.PUBLIC_REPLAY_PROFILE_CONFIGS:
+        rows = zv.public_replay_source_digests(profile)
+
+        assert rows
+        assert all(row["path"] for row in rows)
+        assert all(row["sha256"].startswith("sha256:") for row in rows)
+
+
 def test_lean_public_replay_receipt_binds_file_digests() -> None:
     receipt = zv.run_public_replay_profile(zv.LEAN_REPLAY_PROFILE)
 
     assert receipt["status"] == "accepted"
     assert receipt["file_sha256"].startswith("sha256:")
     assert receipt["root_import_file_sha256"].startswith("sha256:")
+    assert any(
+        row["path"] == "lean-mathlib/Proofs/ZenoOracleMathWitness.lean"
+        for row in receipt["profile_source_digests"]
+    )
     assert receipt["placeholder_hits"] == []
 
 

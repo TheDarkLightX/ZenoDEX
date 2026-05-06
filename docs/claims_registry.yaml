@@ -1948,7 +1948,10 @@ claims:
       verifiers only when their output roots match accepted public replay
       receipts. Public replay profiles with skipped or missing local toolchains
       become rejected profile results rather than accepted evidence or
-      unstructured verifier crashes. The Lean public replay profile binds the
+      unstructured verifier crashes. Each public replay profile declares the
+      source/spec files it depends on, includes their file digests in the input
+      root, and adds those digests to the accepted profile receipt before the
+      output root is computed. The Lean public replay profile also binds the
       witness-anchor file digest and root-import file digest into its output
       root. It also replays a bounded local
       reward-payout bridge from an accepted ZenoProof reward gate through
