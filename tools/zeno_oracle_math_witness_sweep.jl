@@ -20,6 +20,19 @@ end
 max_median_deviation_bps(values::NTuple{3, Int})::Int =
     max_median_deviation_bps_scaled(values, BPS)
 
+function median_deviation_side_obligations_ok(
+    values::NTuple{3, Int},
+    bps::Int,
+    max_allowed_bps::Int,
+)::Bool
+    sorted_values = sort([values...])
+    lo, mid, hi = sorted_values
+    mid > 0 || error("median must be positive")
+    lo_side = div((mid - lo) * bps, mid)
+    hi_side = div((hi - mid) * bps, mid)
+    return lo_side <= max_allowed_bps && hi_side <= max_allowed_bps
+end
+
 epoch_lag(left::Int, right::Int)::Int = abs(left - right)
 
 function source_cartel_rejected(operators::Vector{String}, max_same_operator::Int)::Bool
@@ -184,6 +197,20 @@ function run_cases()::Vector{Dict{String, Any}}
             "median_deviation_equal_values_are_zero",
             equal_value_dev == 0,
             "max_deviation_bps=$(equal_value_dev)",
+        ),
+    )
+
+    grid_decomposes = all(
+        (max_median_deviation_bps_scaled((lo, 100, hi), BPS) <= 200) ==
+            median_deviation_side_obligations_ok((lo, 100, hi), BPS, 200)
+        for lo in 95:100 for hi in 100:105
+    )
+    push!(
+        cases,
+        case_result(
+            "median_deviation_small_grid_decomposes_to_side_obligations",
+            grid_decomposes,
+            "lo_range=95:100 mid=100 hi_range=100:105 max_allowed_bps=200",
         ),
     )
 

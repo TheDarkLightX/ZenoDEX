@@ -12,19 +12,20 @@ Current expected receipt:
 
 ```text
 schema = zenodex.oracle.math_witness_sweep.v1
-case_count = 23
+case_count = 24
 failed_count = 0
 status = accepted
 ```
 
 The sweep covers first-shell integer witnesses for median deviation boundaries,
-zero-scale and equal-value median sanity cases, source-cartel concentration,
-zero-bond dispute griefing, reward-pool conservation, overpay rejection,
-reward-cap rejection, live-economics escrow floor, timelock receipt checks,
-settlement-execution total matching and drift rejection, cross-module
+zero-scale and equal-value median sanity cases, a bounded grid decomposition
+of median deviation into low/high side obligations, source-cartel
+concentration, zero-bond dispute griefing, reward-pool conservation, overpay
+rejection, reward-cap rejection, live-economics escrow floor, timelock receipt
+checks, settlement-execution total matching and drift rejection, cross-module
 split-brain divergence, epoch-lag rejection, epoch-lag symmetry, and bounded
-O5 independence-witness acceptance/rejection. It also now checks bounded O3
-action binding across terminal DAG closure, runtime binding, and sync-window
+O5 independence-witness acceptance/rejection. It also checks bounded O3 action
+binding across terminal DAG closure, runtime binding, and sync-window
 acceptance, plus rejection witnesses for duplicate terminal receipts and stale
 sync windows.
 
@@ -36,15 +37,16 @@ The Lean tree already has adjacent checked anchors:
 - `lean-mathlib/Proofs/ZenoOracleMathWitness.lean`
 
 `ZenoOracleMathWitness.lean` now includes small general arithmetic anchors for
-zero-scale and equal-value median deviation, self-divergence, epoch-lag
-symmetry, reward-pool bounds, bonded-slash conservation, live-economics escrow
-floor arithmetic, timelock execution obligations, settlement-execution total
-arithmetic, and settlement-execution receipt projections. It also includes
-Prop-level bridge anchors for live-economics receipt bundles, terminal DAG
-closure, runtime binding, sync-window symmetry/rejection, O3 action binding
-from DAG/runtime/sync obligations, and the O4/O5 Oracle-use rule: O4/O5 use
-projects to accepted O3 receipt binding and same consumer action, and O5 use
-projects to an independence witness with distinct verifiers and DAG closure.
+zero-scale and equal-value median deviation, median-deviation decomposition
+into low/high side bounds, self-divergence, epoch-lag symmetry, reward-pool
+bounds, bonded-slash conservation, live-economics escrow floor arithmetic,
+timelock execution obligations, settlement-execution total arithmetic, and
+settlement-execution receipt projections. It also includes Prop-level bridge
+anchors for live-economics receipt bundles, terminal DAG closure, runtime
+binding, sync-window symmetry/rejection, O3 action binding from
+DAG/runtime/sync obligations, and the O4/O5 Oracle-use rule: O4/O5 use projects
+to accepted O3 receipt binding and same consumer action, and O5 use projects
+to an independence witness with distinct verifiers and DAG closure.
 Missing distinct verifiers or missing DAG closure contradicts O5 use.
 
 The next proof ladder should turn the Julia cases into restricted Lean
