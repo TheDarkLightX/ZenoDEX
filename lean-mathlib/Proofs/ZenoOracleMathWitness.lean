@@ -86,6 +86,32 @@ def SettlementExecutionTotalE8
     Nat :=
   reportReward + disputeReward + bondWithdrawn + slashed + feePaid + treasuryDelta + burnDelta
 
+theorem settlement_execution_components_le_total
+    {reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta : Nat} :
+    reportReward <=
+        SettlementExecutionTotalE8
+          reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta ∧
+      disputeReward <=
+        SettlementExecutionTotalE8
+          reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta ∧
+      bondWithdrawn <=
+        SettlementExecutionTotalE8
+          reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta ∧
+      slashed <=
+        SettlementExecutionTotalE8
+          reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta ∧
+      feePaid <=
+        SettlementExecutionTotalE8
+          reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta ∧
+      treasuryDelta <=
+        SettlementExecutionTotalE8
+          reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta ∧
+      burnDelta <=
+        SettlementExecutionTotalE8
+          reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta := by
+  unfold SettlementExecutionTotalE8
+  omega
+
 def SettlementExecutionReceiptOK
     (queryBound totalsBound assetBound contractBound : Prop) : Prop :=
   And queryBound (And totalsBound (And assetBound contractBound))

@@ -12,7 +12,7 @@ Current expected receipt:
 
 ```text
 schema = zenodex.oracle.math_witness_sweep.v1
-case_count = 28
+case_count = 29
 failed_count = 0
 status = accepted
 ```
@@ -22,9 +22,10 @@ zero-scale and equal-value median sanity cases, a bounded grid decomposition
 of median deviation into low/high side obligations, source-cartel
 concentration, zero-bond dispute griefing, reward-pool conservation, overpay
 rejection, reward-cap rejection, live-economics escrow floor, timelock receipt
-checks, settlement-execution total matching and drift rejection, cross-module
-split-brain divergence, epoch-lag rejection, epoch-lag symmetry, and bounded
-O5 independence-witness acceptance/rejection. It also checks bounded O3 action
+checks, settlement-execution total matching, drift rejection, and component
+dominance by the computed settlement grand total, cross-module split-brain
+divergence, epoch-lag rejection, epoch-lag symmetry, and bounded O5
+independence-witness acceptance/rejection. It also checks bounded O3 action
 binding across terminal DAG closure, runtime binding, and sync-window
 acceptance, plus rejection witnesses for duplicate terminal receipts and stale
 sync windows, rejection witnesses for missing value binding and wrong consumer
@@ -47,8 +48,9 @@ into low/high side bounds, an iff characterization of sorted
 median-deviation acceptance by the two side bounds, low/high side rejection
 lemmas, self-divergence, epoch-lag symmetry, reward-pool bounds, bonded-slash
 conservation, live-economics escrow floor arithmetic, timelock execution
-obligations, settlement-execution total arithmetic, and settlement-execution
-receipt projections. It also includes Prop-level bridge
+obligations, settlement-execution total arithmetic, component dominance by the
+settlement total, and settlement-execution receipt projections. It also
+includes Prop-level bridge
 anchors for live-economics receipt bundles, terminal DAG closure, runtime
 binding, sync-window symmetry/rejection, O3 action binding from
 DAG/runtime/sync obligations, iff decompositions for terminal DAG, runtime

@@ -102,6 +102,16 @@ end
 settlement_execution_totals_ok(expected::NTuple{7, Int}, observed::NTuple{7, Int})::Bool =
     expected == observed
 
+settlement_execution_total_e8(totals::NTuple{7, Int})::Int = begin
+    all(value -> value >= 0, totals) || error("settlement total components must be nonnegative")
+    return sum(totals)
+end
+
+settlement_execution_components_bounded_by_total(totals::NTuple{7, Int})::Bool = begin
+    total = settlement_execution_total_e8(totals)
+    return all(component -> component <= total, totals)
+end
+
 dispute_grief_rejected(dispute_bond::Int)::Bool = dispute_bond <= 0
 
 split_brain_rejected(
@@ -356,6 +366,17 @@ function run_cases()::Vector{Dict{String, Any}}
             "live_economics_settlement_execution_total_drift_rejects",
             !settlement_execution_totals_ok(drifted_totals, settlement_totals),
             "expected_report_rewards=49999999 observed_report_rewards=50000000",
+        ),
+    )
+
+    settlement_grand_total = settlement_execution_total_e8(settlement_totals)
+    push!(
+        cases,
+        case_result(
+            "live_economics_settlement_execution_components_bounded_by_total",
+            settlement_execution_components_bounded_by_total(settlement_totals) &&
+                settlement_grand_total == 250_240_000_000,
+            "grand_total=$(settlement_grand_total) component_count=7",
         ),
     )
 
