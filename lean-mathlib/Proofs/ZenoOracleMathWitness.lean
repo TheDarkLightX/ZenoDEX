@@ -386,6 +386,14 @@ theorem oracle_sync_window_rejects_lag_above_max
   unfold OracleSyncWindowOK at h
   omega
 
+theorem oracle_sync_window_ok_monotone
+    {sourceEpoch targetEpoch oldMaxLag newMaxLag : Nat}
+    (h : OracleSyncWindowOK sourceEpoch targetEpoch oldMaxLag)
+    (hLe : oldMaxLag <= newMaxLag) :
+    OracleSyncWindowOK sourceEpoch targetEpoch newMaxLag := by
+  unfold OracleSyncWindowOK at *
+  omega
+
 theorem o3_action_binding_ok_requires_terminal_dag
     {terminalDAGOK runtimeBindingOK syncWindowOK : Prop}
     (h : O3ActionBindingOK terminalDAGOK runtimeBindingOK syncWindowOK) :
@@ -433,6 +441,24 @@ theorem o3_action_binding_rejects_stale_sync_window
     o3_action_binding_ok_requires_sync_window h
   unfold OracleSyncWindowOK at hSync
   norm_num [EpochLag] at hSync
+
+theorem o3_action_binding_preserved_by_sync_window_widening
+    {terminalDAGOK runtimeBindingOK : Prop}
+    {sourceEpoch targetEpoch oldMaxLag newMaxLag : Nat}
+    (h :
+      O3ActionBindingOK
+        terminalDAGOK
+        runtimeBindingOK
+        (OracleSyncWindowOK sourceEpoch targetEpoch oldMaxLag))
+    (hLe : oldMaxLag <= newMaxLag) :
+    O3ActionBindingOK
+      terminalDAGOK
+      runtimeBindingOK
+      (OracleSyncWindowOK sourceEpoch targetEpoch newMaxLag) := by
+  exact
+    And.intro h.left
+      (And.intro h.right.left
+        (oracle_sync_window_ok_monotone h.right.right hLe))
 
 theorem o4_or_o5_use_requires_o3_receipt
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}
