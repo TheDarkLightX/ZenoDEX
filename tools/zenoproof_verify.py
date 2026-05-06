@@ -33,6 +33,7 @@ REWARD_GATE_RESULT_SCHEMA = "zenodex.zenoproof.reward_gate_result.v0"
 MAX_JSON_BYTES = 1_000_000
 MAX_EPOCH = 2**63 - 1
 MAX_REWARD_AMOUNT = 10**30
+PRODUCTION_PYTHON = "/usr/bin/python3"
 HASH_PREFIX = "sha256:"
 HASH_HEX_LEN = 64
 SUPPORTED_PROOF_KINDS = {
@@ -517,12 +518,12 @@ def _public_replay_verifier_manifest(profile: str) -> dict[str, Any]:
         "timeout_ms": cfg["timeout_ms"],
         "execution_mode": "subprocess_json",
         "verifier_command": [
-            "python3",
+            PRODUCTION_PYTHON,
             "tools/zenoproof_public_replay_verifier.py",
             "--profile",
             profile,
         ],
-        "allow_path_lookup": True,
+        "allow_path_lookup": False,
     }
 
 
