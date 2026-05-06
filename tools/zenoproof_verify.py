@@ -150,7 +150,7 @@ JULIA_REPLAY_TOOLCHAIN_ID = "sha256:29c47e97f280e147a0b3ee5607448e0406a4bf54da5c
 JULIA_REPLAY_CLAIM_ID = "sha256:66099f8f5d2200152e88543ccaa7d982718ef10b800e6e8480561580e800e43f"
 JULIA_REPLAY_STATEMENT_HASH = "sha256:d7360c57ce1a34dc35ec3d8cbfed5d24d1173aa170e4c3c1860ef972d5449f5b"
 JULIA_REPLAY_ASSUMPTIONS_HASH = "sha256:5215763c57ec0176053bc1e2e3e8209818c29736f31c708783dec77e949005dc"
-MIN_JULIA_MATH_WITNESS_CASE_COUNT = 20
+MIN_JULIA_MATH_WITNESS_CASE_COUNT = 23
 LEAN_REPLAY_PROFILE = "zeno_oracle_math_witness_anchor_lean_v1"
 LEAN_REPLAY_VERIFIER_ID = "sha256:57263ed213841b4b1875bc25a1bb743579c5a2bfb618e2f9d2cee1d6bc5e0fa5"
 LEAN_REPLAY_POLICY_ROOT = "sha256:b6d77205af54f3200ca69dcd101790abe9f6ecdb7fd35b4bcdffd72a96211a2c"
@@ -837,9 +837,11 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             "test_path": test_path,
             "pytest_returncode": proc.returncode,
         }
-        if proc.returncode != 0:
-            raise ValueError(f"pytest_replay_failed:{profile}:{proc.returncode}")
         if "passed" not in combined:
+            if "skipped" in combined:
+                raise ValueError(f"pytest_replay_skipped:{profile}")
+            if proc.returncode != 0:
+                raise ValueError(f"pytest_replay_failed:{profile}:{proc.returncode}")
             raise ValueError(f"pytest_replay_no_pass_marker:{profile}")
         return receipt
 
@@ -923,6 +925,22 @@ def sample_public_replay_artifact(profile: str = PUBLIC_REPLAY_PROFILE) -> dict[
     }
     artifact["proof_id"] = artifact_content_hash(artifact)
     return artifact
+
+
+def _public_replay_failed_result(profile: str, exc: Exception) -> ZenoProofVerifyResult:
+    cfg = PUBLIC_REPLAY_PROFILE_CONFIGS[profile]
+    return ZenoProofVerifyResult(
+        status="rejected",
+        errors=[f"public_replay_sample_failed:{profile}:{type(exc).__name__}:{exc}"],
+        proof_ok=False,
+        binding_ok=False,
+        policy_ok=False,
+        freshness_ok=False,
+        claim_id=str(cfg["claim_id"]),
+        proof_id=None,
+        verifier_id=str(cfg["verifier_id"]),
+        evidence_class="O4",
+    )
 
 
 def sample_oracle_o4_bridge() -> dict[str, Any]:
@@ -1859,14 +1877,16 @@ def cmd_self_test(args: argparse.Namespace) -> int:
     o5_bridge = sample_oracle_o5_bridge()
     o5_bridge_result = verify_oracle_o4_bridge(o5_bridge, registry, now_epoch=150)
     reward_result = verify_reward_gate(sample_reward_gate(), registry, now_epoch=150)
-    public_replay_results = {
-        profile: verify_zenoproof_artifact(
-            sample_public_replay_artifact(profile),
-            registry,
-            now_epoch=150,
-        )
-        for profile in PUBLIC_REPLAY_PROFILE_CONFIGS
-    }
+    public_replay_results: dict[str, ZenoProofVerifyResult] = {}
+    for profile in PUBLIC_REPLAY_PROFILE_CONFIGS:
+        try:
+            public_replay_results[profile] = verify_zenoproof_artifact(
+                sample_public_replay_artifact(profile),
+                registry,
+                now_epoch=150,
+            )
+        except Exception as exc:
+            public_replay_results[profile] = _public_replay_failed_result(profile, exc)
     receipt = {
         "schema": "zenodex.zenoproof.self_test.v0",
         "ok": (

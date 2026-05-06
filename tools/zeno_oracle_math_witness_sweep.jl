@@ -118,6 +118,28 @@ o5_independence_witness_ok(
           same_output_root &&
           dag_closed
 
+terminal_dag_ok(
+    deps_available::Bool,
+    no_duplicate_receipts::Bool,
+    content_hashes_bound::Bool,
+)::Bool = deps_available && no_duplicate_receipts && content_hashes_bound
+
+oracle_runtime_binding_ok(
+    registry_root_bound::Bool,
+    runtime_state_bound::Bool,
+    value_bound::Bool,
+    same_consumer_action::Bool,
+)::Bool = registry_root_bound && runtime_state_bound && value_bound && same_consumer_action
+
+oracle_sync_window_ok(source_epoch::Int, target_epoch::Int, max_lag::Int)::Bool =
+    max_lag >= 0 && epoch_lag(source_epoch, target_epoch) <= max_lag
+
+o3_action_binding_ok(
+    terminal_dag::Bool,
+    runtime_binding::Bool,
+    sync_window::Bool,
+)::Bool = terminal_dag && runtime_binding && sync_window
+
 function case_result(id::String, ok::Bool, observed::String)::Dict{String, Any}
     return Dict("id" => id, "ok" => ok, "observed" => observed)
 end
@@ -340,6 +362,37 @@ function run_cases()::Vector{Dict{String, Any}}
             "o5_independence_missing_distinct_verifiers_rejects",
             !o5_independence_witness_ok(true, false, true, true, true, true),
             "primary_o5=true distinct_verifiers=false distinct_proof_kinds=true same_roots=true dag_closed=true",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "o3_action_binding_accepts_dag_runtime_sync",
+            o3_action_binding_ok(
+                terminal_dag_ok(true, true, true),
+                oracle_runtime_binding_ok(true, true, true, true),
+                oracle_sync_window_ok(100, 101, 1),
+            ),
+            "dag_closed=true runtime_bound=true sync_lag=1 max_lag=1",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "terminal_dag_duplicate_receipt_rejects",
+            !terminal_dag_ok(true, false, true),
+            "deps_available=true no_duplicate_receipts=false content_hashes_bound=true",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "oracle_sync_window_epoch_lag_rejects",
+            !oracle_sync_window_ok(100, 103, 1),
+            "source_epoch=100 target_epoch=103 max_lag=1",
         ),
     )
 
