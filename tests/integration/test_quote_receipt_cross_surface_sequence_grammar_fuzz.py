@@ -44,4 +44,10 @@ def test_quote_receipt_cross_surface_minimize_preserves_stale_snapshot_mismatch(
 
 def test_quote_receipt_cross_surface_minimize_preserves_transport_repair_then_stale_snapshot() -> None:
     witness = minimize_case("drop_hash_then_rehash_then_drift")
+    assert witness.target == "quote_receipt_cross_surface_sequence"
+    assert witness.derivation == "drop_hash_then_rehash_then_drift"
     assert witness.outcome_label == "reject:step=3:pool_snapshot_mismatch"
+    assert witness.path_id == "4f849d8b45d19c8b"
+    assert witness.path_length == 3
+    assert witness.original_size == 140
+    assert witness.minimized_size == 140
