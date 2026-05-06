@@ -423,6 +423,26 @@ function run_cases()::Vector{Dict{String, Any}}
         ),
     )
 
+    push!(
+        cases,
+        case_result(
+            "o3_action_binding_sync_window_widening_preserves_acceptance",
+            o3_action_binding_ok(
+                terminal_dag_ok(true, true, true),
+                oracle_runtime_binding_ok(true, true, true, true),
+                oracle_sync_window_ok(100, 101, 1),
+            ) &&
+                o3_action_binding_ok(
+                    terminal_dag_ok(true, true, true),
+                    oracle_runtime_binding_ok(true, true, true, true),
+                    oracle_sync_window_ok(100, 101, 3),
+                ) &&
+                !oracle_sync_window_ok(100, 103, 1) &&
+                oracle_sync_window_ok(100, 103, 3),
+            "accepted_lag=1 widened_max_lag=3 stale_at_1_accepted_at_3",
+        ),
+    )
+
     return cases
 end
 
