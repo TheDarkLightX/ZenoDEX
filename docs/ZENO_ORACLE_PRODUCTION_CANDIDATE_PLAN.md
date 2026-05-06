@@ -91,7 +91,8 @@ The active workspace now has:
   `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` for the same bounded
   median/deviation, reward-pool, live-economics settlement-execution total,
   source-cartel, and split-brain arithmetic, plus Prop-level live-economics
-  receipt, O4/O5 Oracle-use binding, and O5 independence-witness projections.
+  receipt, O4/O5 Oracle-use binding, O4/O5 iff decomposition, and full O5
+  independence-witness obligation decomposition.
 - a public workflow evidence status checker at
   `tools/zeno_oracle_workflow_evidence_status.py` for the first TLA, LTLf,
   ESSO, Morph smoke, and PopperPad smoke lanes. The ESSO, TLA, and LTLf lanes

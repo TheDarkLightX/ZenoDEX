@@ -1936,9 +1936,12 @@ claims:
       direct O3 value-binding and same-consumer-action projections/rejections,
       sync-window symmetry/rejection/monotonicity, O3 action-binding
       projections, O3 sync-window widening preservation, and O4/O5 Oracle-use
-      anchors: O4/O5 use implies an
-      accepted O3 receipt and same consumer action, while O5 use implies an
-      independence witness with distinct verifiers and DAG closure. This is a
+      anchors: O4/O5 use decomposes exactly into accepted O3 receipt,
+      ZenoProof acceptance, same query/value/window, and same consumer-action
+      obligations, while O5 use decomposes exactly into those bridge
+      obligations plus the full independence-witness obligations for primary
+      O5 claim, distinct verifiers, distinct proof kinds, shared input/output
+      roots, and DAG closure. This is a
       concrete theorem anchor, with production median/deviation, economics,
       executable DAG, and production sync theorems still outside the claim.
     evidence:
