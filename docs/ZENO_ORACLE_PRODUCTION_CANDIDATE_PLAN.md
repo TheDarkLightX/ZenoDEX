@@ -81,18 +81,21 @@ The active workspace now has:
   griefing, registry drift, verifier spoofing, O5 independence spoofing,
   proof-timeout fail-closed behavior, replay integrity, and cross-module
   split-brain first-shell checks.
-- a first Julia witness sweep at
+- a Julia witness sweep at
   `tools/zeno_oracle_math_witness_sweep.jl` for median
-  deviation, source cartel, dispute griefing, reward-pool conservation,
-  live-economics settlement-execution total matching/drift rejection, and
-  split-brain boundary cases, plus O5 independence-witness acceptance and
-  missing-distinct-verifier rejection.
-- a first Lean witness anchor at
-  `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` for the same bounded
-  median/deviation, reward-pool, live-economics settlement-execution total,
-  source-cartel, and split-brain arithmetic, plus Prop-level live-economics
-  receipt, O4/O5 Oracle-use binding, O4/O5 iff decomposition, and full O5
-  independence-witness obligation decomposition.
+  deviation, monotone deviation-bound widening, source cartel, dispute
+  griefing, reward-pool conservation, live-economics settlement-execution total
+  matching/drift rejection, budget-widening preservation, and split-brain
+  boundary cases, plus O5 independence-witness acceptance/rejection, O5
+  proof/window/proof-kind/root drift rejection, and O3 sync-window composition
+  preservation.
+- a Lean witness anchor at `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` for
+  the same bounded median/deviation, reward-pool, live-economics
+  settlement-execution total, source-cartel, and split-brain arithmetic, plus
+  restricted general theorems for median-bound monotonicity,
+  settlement-budget widening, O3 sync-window composition, Prop-level
+  live-economics receipt, O4/O5 Oracle-use binding, O4/O5 iff decomposition,
+  and full O5 independence-witness obligation decomposition and rejection.
 - a public workflow evidence status checker at
   `tools/zeno_oracle_workflow_evidence_status.py` for the first TLA, LTLf,
   ESSO, Morph smoke, and PopperPad smoke lanes. The ESSO, TLA, and LTLf lanes
@@ -301,7 +304,7 @@ Lean discovery/proof work remains open.
 
 Julia lane:
 
-- first witness sweep:
+- witness sweep:
 
 ```bash
 julia tools/zeno_oracle_math_witness_sweep.jl
@@ -314,18 +317,17 @@ julia tools/zeno_oracle_math_witness_sweep.jl
 
 Lean lane:
 
-- first bounded witness anchor:
+- bounded and restricted theorem anchor:
 
 ```bash
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
 ```
 
-- median and deviation laws;
+- complete median and deviation theorem families;
 - action binding and receipt-borrowing exclusion;
 - terminal DAG closure;
 - economic budget and deterrence inequalities;
-- cross-module sync including epoch-lag composition beyond the current local
-  theorem scope.
+- cross-module sync beyond the current restricted composition theorem scope.
 
 Workflow lane:
 

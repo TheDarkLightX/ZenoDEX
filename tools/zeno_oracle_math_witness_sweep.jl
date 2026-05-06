@@ -154,6 +154,42 @@ o5_independence_witness_ok(
           same_output_root &&
           dag_closed
 
+o4_or_o5_oracle_use_ok(
+    o3_receipt_ok::Bool,
+    zeno_proof_accepted::Bool,
+    same_query_value_window::Bool,
+    same_consumer_action::Bool,
+)::Bool = o3_receipt_ok &&
+          zeno_proof_accepted &&
+          same_query_value_window &&
+          same_consumer_action
+
+o5_oracle_use_ok(
+    o3_receipt_ok::Bool,
+    zeno_proof_accepted::Bool,
+    same_query_value_window::Bool,
+    same_consumer_action::Bool,
+    primary_o5_claim::Bool,
+    distinct_verifiers::Bool,
+    distinct_proof_kinds::Bool,
+    same_input_root::Bool,
+    same_output_root::Bool,
+    dag_closed::Bool,
+)::Bool = o4_or_o5_oracle_use_ok(
+              o3_receipt_ok,
+              zeno_proof_accepted,
+              same_query_value_window,
+              same_consumer_action,
+          ) &&
+          o5_independence_witness_ok(
+              primary_o5_claim,
+              distinct_verifiers,
+              distinct_proof_kinds,
+              same_input_root,
+              same_output_root,
+              dag_closed,
+          )
+
 terminal_dag_ok(
     deps_available::Bool,
     no_duplicate_receipts::Bool,
@@ -246,6 +282,23 @@ function run_cases()::Vector{Dict{String, Any}}
             "median_deviation_small_grid_decomposes_to_side_obligations",
             grid_decomposes,
             "lo_range=95:100 mid=100 hi_range=100:105 max_allowed_bps=200",
+        ),
+    )
+
+    monotone_deviation_grid = all(
+        !median_deviation_side_obligations_ok((lo, 100, hi), BPS, old_bound) ||
+            median_deviation_side_obligations_ok((lo, 100, hi), BPS, new_bound)
+        for lo in 95:100
+        for hi in 100:105
+        for old_bound in 0:50:300
+        for new_bound in old_bound:50:350
+    )
+    push!(
+        cases,
+        case_result(
+            "median_deviation_acceptance_monotone_in_bound",
+            monotone_deviation_grid,
+            "lo_range=95:100 mid=100 hi_range=100:105 old_bound=0:50:300 widened_to=old:50:350",
         ),
     )
 
@@ -406,6 +459,16 @@ function run_cases()::Vector{Dict{String, Any}}
     push!(
         cases,
         case_result(
+            "live_economics_settlement_execution_budget_widening_preserves_component_caps",
+            settlement_execution_budget_caps_components(settlement_totals, settlement_grand_total) &&
+                settlement_execution_budget_caps_components(settlement_totals, settlement_grand_total + 1_000_000),
+            "budget=$(settlement_grand_total) widened_budget=$(settlement_grand_total + 1_000_000)",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
             "live_economics_settlement_execution_receipt_accepts_bound_obligations",
             settlement_execution_receipt_ok(true, true, true, true),
             "query_bound=true totals_bound=true asset_bound=true contract_bound=true",
@@ -419,6 +482,15 @@ function run_cases()::Vector{Dict{String, Any}}
             !settlement_execution_receipt_ok(true, true, false, true) &&
                 !settlement_execution_receipt_ok(true, true, true, false),
             "asset_bound=false_or_contract_bound=false",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_settlement_execution_receipt_rejects_missing_totals_binding",
+            !settlement_execution_receipt_ok(true, false, true, true),
+            "query_bound=true totals_bound=false asset_bound=true contract_bound=true",
         ),
     )
 
@@ -464,6 +536,19 @@ function run_cases()::Vector{Dict{String, Any}}
             "o5_independence_missing_distinct_verifiers_rejects",
             !o5_independence_witness_ok(true, false, true, true, true, true),
             "primary_o5=true distinct_verifiers=false distinct_proof_kinds=true same_roots=true dag_closed=true",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "o5_oracle_use_rejects_proof_window_kind_or_root_drift",
+            !o5_oracle_use_ok(true, false, true, true, true, true, true, true, true, true) &&
+                !o5_oracle_use_ok(true, true, false, true, true, true, true, true, true, true) &&
+                !o5_oracle_use_ok(true, true, true, true, true, true, false, true, true, true) &&
+                !o5_oracle_use_ok(true, true, true, true, true, true, true, false, true, true) &&
+                !o5_oracle_use_ok(true, true, true, true, true, true, true, true, false, true),
+            "zeno_proof=false_or_window=false_or_distinct_kind=false_or_input_root=false_or_output_root=false",
         ),
     )
 
@@ -561,6 +646,25 @@ function run_cases()::Vector{Dict{String, Any}}
                 oracle_sync_window_ok(102, 105, 3) &&
                 oracle_sync_window_ok(100, 105, 5),
             "grid_epochs=98:102 max_ab=0:4 max_bc=0:4 sample=100->102->105 composed_max=5",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "o3_action_binding_sync_window_composition_preserves_binding",
+            o3_action_binding_ok(
+                terminal_dag_ok(true, true, true),
+                oracle_runtime_binding_ok(true, true, true, true),
+                oracle_sync_window_ok(100, 102, 2),
+            ) &&
+                oracle_sync_window_ok(102, 105, 3) &&
+                o3_action_binding_ok(
+                    terminal_dag_ok(true, true, true),
+                    oracle_runtime_binding_ok(true, true, true, true),
+                    oracle_sync_window_ok(100, 105, 5),
+                ),
+            "source=100 bridge=102 target=105 max_ab=2 max_bc=3 composed_max=5",
         ),
     )
 

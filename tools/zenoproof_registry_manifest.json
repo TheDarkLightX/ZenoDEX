@@ -41,32 +41,32 @@
       "statement_hash": "sha256:773a777d8c4c19d541a204f87322d711713e050a74025f2451b50acb95307b0f"
     },
     {
-      "assumptions_hash": "sha256:5215763c57ec0176053bc1e2e3e8209818c29736f31c708783dec77e949005dc",
+      "assumptions_hash": "sha256:3164678e4bde3aa26c650e1732eb0346f0674c7f2fd4dd62726dc07c11e49dab",
       "claim_id": "sha256:66099f8f5d2200152e88543ccaa7d982718ef10b800e6e8480561580e800e43f",
       "dependency_claim_ids": [
         "sha256:33d0e19ca78b8e80698e67444a4f93d73b921ad26c463ecb7d0be761c7d53b00"
       ],
       "evidence_class": "O4",
       "non_claims": [
-        "does_not_claim_generalized_median_theorems",
+        "does_not_claim_complete_generalized_oracle_math",
         "does_not_claim_production_oracle_benefit_laws"
       ],
       "replay_command": "julia tools/zeno_oracle_math_witness_sweep.jl --json",
-      "statement_hash": "sha256:f4d2229d7ff5645b4196612121bde3c62f785cdbdf557a5ad870a0306fa4b584"
+      "statement_hash": "sha256:128c9c55983f3b7177614b5bea5c040c42306530bb88c3b8bf26d948ab694020"
     },
     {
-      "assumptions_hash": "sha256:31d9d09769a722ea6314d583df67205c6526301827a9cbe0e7412baf4d9e4907",
+      "assumptions_hash": "sha256:e3b75c0ddd75b1a0fd92f62cbc30b54627e2d73413c8785c5c30d16339b78dba",
       "claim_id": "sha256:f30a0311aa74ae3847b8dd34c19881f46f8acfff3c32f93f6e1bac798113a05d",
       "dependency_claim_ids": [
         "sha256:33d0e19ca78b8e80698e67444a4f93d73b921ad26c463ecb7d0be761c7d53b00"
       ],
       "evidence_class": "O4",
       "non_claims": [
-        "does_not_claim_generalized_median_theorems",
+        "does_not_claim_complete_generalized_oracle_math",
         "does_not_claim_live_typed_production_sync"
       ],
       "replay_command": "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
-      "statement_hash": "sha256:dc8f143952011d4c6ff6aec5b8861d5f2fe2d82f72a9695538b9f177cf954b4b"
+      "statement_hash": "sha256:ef42c05b2c41d60dd01a553d73da17c2d01bbce8ec898ef0e0b14e89bb1e22a8"
     },
     {
       "assumptions_hash": "sha256:6af545052c07aed8dd756cb2e12f9fdc9814527ad7c09dc86820047219b2edf8",

@@ -148,16 +148,16 @@ JULIA_REPLAY_VERIFIER_ID = "sha256:74f91670c6d852c843add1a76b007277d8a729a07050c
 JULIA_REPLAY_POLICY_ROOT = "sha256:94a277186469997af46e1027c272a7f8c7740db0f3eba272e744e41056b7a768"
 JULIA_REPLAY_TOOLCHAIN_ID = "sha256:29c47e97f280e147a0b3ee5607448e0406a4bf54da5cfcb056feef48373010ea"
 JULIA_REPLAY_CLAIM_ID = "sha256:66099f8f5d2200152e88543ccaa7d982718ef10b800e6e8480561580e800e43f"
-JULIA_REPLAY_STATEMENT_HASH = "sha256:f4d2229d7ff5645b4196612121bde3c62f785cdbdf557a5ad870a0306fa4b584"
-JULIA_REPLAY_ASSUMPTIONS_HASH = "sha256:5215763c57ec0176053bc1e2e3e8209818c29736f31c708783dec77e949005dc"
-MIN_JULIA_MATH_WITNESS_CASE_COUNT = 32
+JULIA_REPLAY_STATEMENT_HASH = "sha256:128c9c55983f3b7177614b5bea5c040c42306530bb88c3b8bf26d948ab694020"
+JULIA_REPLAY_ASSUMPTIONS_HASH = "sha256:3164678e4bde3aa26c650e1732eb0346f0674c7f2fd4dd62726dc07c11e49dab"
+MIN_JULIA_MATH_WITNESS_CASE_COUNT = 37
 LEAN_REPLAY_PROFILE = "zeno_oracle_math_witness_anchor_lean_v1"
 LEAN_REPLAY_VERIFIER_ID = "sha256:57263ed213841b4b1875bc25a1bb743579c5a2bfb618e2f9d2cee1d6bc5e0fa5"
 LEAN_REPLAY_POLICY_ROOT = "sha256:b6d77205af54f3200ca69dcd101790abe9f6ecdb7fd35b4bcdffd72a96211a2c"
 LEAN_REPLAY_TOOLCHAIN_ID = "sha256:d77c7a7c3eb2c3d4cd0f5d79004328ac21d220d50f28e7c84da191bdf2eee747"
 LEAN_REPLAY_CLAIM_ID = "sha256:f30a0311aa74ae3847b8dd34c19881f46f8acfff3c32f93f6e1bac798113a05d"
-LEAN_REPLAY_STATEMENT_HASH = "sha256:dc8f143952011d4c6ff6aec5b8861d5f2fe2d82f72a9695538b9f177cf954b4b"
-LEAN_REPLAY_ASSUMPTIONS_HASH = "sha256:31d9d09769a722ea6314d583df67205c6526301827a9cbe0e7412baf4d9e4907"
+LEAN_REPLAY_STATEMENT_HASH = "sha256:ef42c05b2c41d60dd01a553d73da17c2d01bbce8ec898ef0e0b14e89bb1e22a8"
+LEAN_REPLAY_ASSUMPTIONS_HASH = "sha256:e3b75c0ddd75b1a0fd92f62cbc30b54627e2d73413c8785c5c30d16339b78dba"
 TLA_REPLAY_PROFILE = "zeno_oracle_recovery_lifecycle_tla_v1"
 TLA_REPLAY_VERIFIER_ID = "sha256:4b24cee9b09ddcc5e1ef2f25423b651701fe52c70b865a44fc26292ca71450bf"
 TLA_REPLAY_POLICY_ROOT = "sha256:7e391abf70467577c5c3816b2f03385650b34802739a3781594985e43de5e5eb"
@@ -237,7 +237,7 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
             "tools/zeno_oracle_math_witness_sweep.jl",
         ],
         "non_claims": [
-            "does_not_claim_generalized_median_theorems",
+            "does_not_claim_complete_generalized_oracle_math",
             "does_not_claim_production_oracle_benefit_laws",
         ],
     },
@@ -259,7 +259,7 @@ PUBLIC_REPLAY_PROFILE_CONFIGS: dict[str, dict[str, Any]] = {
             "lean-mathlib/Proofs.lean",
         ],
         "non_claims": [
-            "does_not_claim_generalized_median_theorems",
+            "does_not_claim_complete_generalized_oracle_math",
             "does_not_claim_live_typed_production_sync",
         ],
     },
