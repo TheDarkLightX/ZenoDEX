@@ -57,8 +57,8 @@
   "candidate_witness_projection": {
     "source_campaign_id": "compositional_aot100_expansion2_2026_05_05",
     "private_candidate_witness_count": 7,
-    "accepted_public_regression_count": 4,
-    "deferred_projection_count": 3,
+    "accepted_public_regression_count": 6,
+    "deferred_projection_count": 1,
     "entries": [
       {
         "id": "dex_engine_duplicate_nonce_replay",
@@ -190,18 +190,56 @@
         "atom_id": "AOT-EXP2-023",
         "composition_shape": "valid_artifact_wrong_order_or_projection",
         "surface_pair": "route_canonicalization_to_exact_out_certificate",
-        "public_status": "deferred_missing_public_surface",
-        "deferred_reason": "quote_receipt_route_canonicalization_sequence_harness_absent_on_this_integration_branch",
-        "expected_public_test": "tests/integration/test_quote_receipt_route_canonicalization_sequence_grammar_fuzz.py"
+        "public_status": "accepted_public_replay",
+        "test_file": "tests/integration/test_route_certificate_sequence_grammar_fuzz.py",
+        "test_names": [
+          "test_route_certificate_sequence_minimize_case_preserves_candidate_set_hash_mismatch"
+        ],
+        "source_files": [
+          "tools/route_certificate_sequence_grammar_fuzz.py",
+          "src/integration/exact_in_route_certificate.py"
+        ],
+        "replay_commands": [
+          "python3 tools/route_certificate_sequence_grammar_fuzz.py --target route_certificate_sequence --minimize-derivation add_better_candidate --format json",
+          "pytest -q tests/integration/test_route_certificate_sequence_grammar_fuzz.py"
+        ],
+        "expected": {
+          "target": "route_certificate_sequence",
+          "derivation": "add_better_candidate",
+          "outcome_substrings": [
+            "candidate_set_hash mismatch"
+          ],
+          "original_size": 1033,
+          "minimized_size": 1033,
+          "path_id_policy": "route_certificate_minimized_path"
+        }
       },
       {
         "id": "quote_receipt_transport_missing_hash",
         "atom_id": "AOT-EXP2-020",
         "composition_shape": "valid_artifact_wrong_external_boundary_assumption",
         "surface_pair": "quote_transport_to_dex_sequence",
-        "public_status": "deferred_missing_public_surface",
-        "deferred_reason": "quote_receipt_transport_harness_absent_on_this_integration_branch",
-        "expected_public_test": "tests/integration/test_quote_receipt_transport_grammar_fuzz.py"
+        "public_status": "accepted_public_replay",
+        "test_file": "tests/core/test_quote_receipts.py",
+        "test_names": [
+          "test_quote_receipt_verifier_rejects_malformed_single_hop_receipts"
+        ],
+        "source_files": [
+          "src/core/quote_receipts.py"
+        ],
+        "replay_commands": [
+          "pytest -q tests/core/test_quote_receipts.py::test_quote_receipt_verifier_rejects_malformed_single_hop_receipts"
+        ],
+        "expected": {
+          "target": "route_quote_receipt_verifier",
+          "derivation": "SingleHopReceipt->MissingReceiptHash",
+          "outcome_substrings": [
+            "missing_receipt_hash"
+          ],
+          "original_size": 1,
+          "minimized_size": 1,
+          "path_id_policy": "existing_parameterized_verifier_regression_has_no_path_id_claim"
+        }
       }
     ]
   }

@@ -45,3 +45,5 @@ def test_zeno_oracle_compositional_disaster_claim_tracks_public_projection() -> 
     assert "tools/zeno_oracle_compositional_disaster_regression_manifest.json" in files
     assert "tests/core/test_perp_submission_auth_gate.py" in files
     assert "tests/core/test_strategy_policy_contracts_v1_adapter.py" in files
+    assert "tests/core/test_quote_receipts.py" in files
+    assert "tests/integration/test_route_certificate_sequence_grammar_fuzz.py" in files

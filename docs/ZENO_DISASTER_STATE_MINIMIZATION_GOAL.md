@@ -188,16 +188,17 @@ Current expected receipt:
 status = accepted
 campaign_count = 2
 private_candidate_witness_count = 7
-accepted_public_regression_count = 4
-deferred_projection_count = 3
+accepted_public_regression_count = 6
+deferred_projection_count = 1
 ```
 
 The public projection records two 100-iteration campaign summaries and promotes
 only branch-local replayable regressions: duplicate DEX nonce replay, stale
 quote-receipt pool snapshots, signed perps expected-nonce mismatch without
 nonce consumption, and strategy policy bundle rejection below the O3 live
-floor. Three private witness projections remain deferred because the
-matching public source surfaces are absent from this integration branch.
+floor, route candidate-set hash drift, and missing quote-receipt hashes. The
+remaining private witness projection is deferred because the confidential live
+admission source surface is absent from this integration branch.
 
 Private campaign artifacts are provenance. The public assurance value is the
 tracked manifest, checker, and replayable tests.
