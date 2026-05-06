@@ -16,6 +16,10 @@ namespace ZenoOracleMathWitness
 def MaxDeviationBpsSorted (lo mid hi bps : Nat) : Nat :=
   max (((mid - lo) * bps) / mid) (((hi - mid) * bps) / mid)
 
+def MedianDeviationWithinBpsSorted
+    (lo mid hi bps maxAllowed : Nat) : Prop :=
+  MaxDeviationBpsSorted lo mid hi bps <= maxAllowed
+
 def DivergenceBps (left right bps : Nat) : Nat :=
   if left <= right then
     ((right - left) * bps) / right
@@ -112,6 +116,36 @@ theorem median_deviation_equal_values
     {value bps : Nat} :
     MaxDeviationBpsSorted value value value bps = 0 := by
   simp [MaxDeviationBpsSorted]
+
+theorem median_deviation_within_requires_low_side
+    {lo mid hi bps maxAllowed : Nat}
+    (h : MedianDeviationWithinBpsSorted lo mid hi bps maxAllowed) :
+    (((mid - lo) * bps) / mid) <= maxAllowed := by
+  unfold MedianDeviationWithinBpsSorted MaxDeviationBpsSorted at h
+  exact (max_le_iff.mp h).left
+
+theorem median_deviation_within_requires_high_side
+    {lo mid hi bps maxAllowed : Nat}
+    (h : MedianDeviationWithinBpsSorted lo mid hi bps maxAllowed) :
+    (((hi - mid) * bps) / mid) <= maxAllowed := by
+  unfold MedianDeviationWithinBpsSorted MaxDeviationBpsSorted at h
+  exact (max_le_iff.mp h).right
+
+theorem median_deviation_within_of_side_bounds
+    {lo mid hi bps maxAllowed : Nat}
+    (hLo : (((mid - lo) * bps) / mid) <= maxAllowed)
+    (hHi : (((hi - mid) * bps) / mid) <= maxAllowed) :
+    MedianDeviationWithinBpsSorted lo mid hi bps maxAllowed := by
+  unfold MedianDeviationWithinBpsSorted MaxDeviationBpsSorted
+  exact max_le hLo hHi
+
+theorem median_deviation_rejects_high_side_above_bound
+    {lo mid hi bps maxAllowed : Nat}
+    (hHigh : maxAllowed < (((hi - mid) * bps) / mid)) :
+    Not (MedianDeviationWithinBpsSorted lo mid hi bps maxAllowed) := by
+  intro h
+  have hHi := median_deviation_within_requires_high_side h
+  omega
 
 theorem divergence_self
     {value bps : Nat} :
