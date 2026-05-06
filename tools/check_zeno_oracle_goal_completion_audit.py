@@ -191,6 +191,9 @@ def build_audit() -> dict[str, Any]:
                 "tools/check_cross_module_oracle_split_brain_v1.py",
                 "tools/zeno_oracle_compositional_disaster_regression_manifest.json",
                 "tools/check_zeno_oracle_compositional_disaster_regressions.py",
+                "src/agents/policy_artifacts.py",
+                "src/kernels/python/strategy_policy_bundle_contract_v1_adapter.py",
+                "src/kernels/python/strategy_policy_artifact_contract_v1_adapter.py",
                 "tests/test_zeno_oracle_disaster_class_corpus.py",
                 "tests/test_check_zeno_oracle_disaster_frontier.py",
                 "tests/test_check_zeno_oracle_perps_snapshot_gate.py",
@@ -198,6 +201,7 @@ def build_audit() -> dict[str, Any]:
                 "tests/test_check_zeno_oracle_reporter_soak_gate.py",
                 "tests/test_check_zeno_oracle_compositional_disaster_regressions.py",
                 "tests/core/test_perp_submission_auth_gate.py",
+                "tests/core/test_strategy_policy_contracts_v1_adapter.py",
             ],
             replay_commands=[
                 "python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text",
@@ -208,7 +212,7 @@ def build_audit() -> dict[str, Any]:
                 "python3 tools/check_zeno_oracle_reporter_soak_gate.py --format text",
                 "python3 tools/check_zeno_oracle_compositional_disaster_regressions.py --format text",
                 "pytest -q tests/test_check_zeno_oracle_disaster_frontier.py",
-                "pytest -q tests/test_check_zeno_oracle_compositional_disaster_regressions.py tests/core/test_perp_submission_auth_gate.py",
+                "pytest -q tests/test_check_zeno_oracle_compositional_disaster_regressions.py tests/core/test_perp_submission_auth_gate.py tests/core/test_strategy_policy_contracts_v1_adapter.py",
             ],
             status="first_shell_complete",
             blockers=[

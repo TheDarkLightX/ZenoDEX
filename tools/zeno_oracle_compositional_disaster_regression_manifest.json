@@ -57,8 +57,8 @@
   "candidate_witness_projection": {
     "source_campaign_id": "compositional_aot100_expansion2_2026_05_05",
     "private_candidate_witness_count": 7,
-    "accepted_public_regression_count": 3,
-    "deferred_projection_count": 4,
+    "accepted_public_regression_count": 4,
+    "deferred_projection_count": 3,
     "entries": [
       {
         "id": "dex_engine_duplicate_nonce_replay",
@@ -152,9 +152,29 @@
         "atom_id": "AOT-EXP2-064",
         "composition_shape": "valid_artifact_wrong_live_admission_floor",
         "surface_pair": "tau_operator_policy_to_deployment_contract",
-        "public_status": "deferred_missing_public_surface",
-        "deferred_reason": "strategy_policy_contract_adapter_surface_absent_on_this_integration_branch",
-        "expected_public_test": "tests/core/test_strategy_policy_contracts_v1_adapter.py"
+        "public_status": "accepted_public_replay",
+        "test_file": "tests/core/test_strategy_policy_contracts_v1_adapter.py",
+        "test_names": [
+          "test_policy_bundle_contract_rejects_evidence_class_below_live_floor"
+        ],
+        "source_files": [
+          "src/agents/policy_artifacts.py",
+          "src/kernels/python/strategy_policy_bundle_contract_v1_adapter.py",
+          "src/kernels/python/strategy_policy_artifact_contract_v1_adapter.py"
+        ],
+        "replay_commands": [
+          "pytest -q tests/core/test_strategy_policy_contracts_v1_adapter.py"
+        ],
+        "expected": {
+          "target": "strategy_policy_bundle_contract",
+          "derivation": "TauPolicyBundle->EvidenceClassO2AgainstLiveFloorO3",
+          "outcome_substrings": [
+            "evidence_class_below_o3"
+          ],
+          "original_size": 740,
+          "minimized_size": 740,
+          "path_id_policy": "single_gate_case_has_no_path_id_claim"
+        }
       },
       {
         "id": "confidential_live_admission_replay",
