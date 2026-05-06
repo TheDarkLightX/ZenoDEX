@@ -1844,6 +1844,7 @@ claims:
       epoch-lag rejection, epoch-lag symmetry, O5 independence-witness
       acceptance/rejection, and O3 action binding across terminal DAG closure,
       runtime binding, and sync-window witnesses, including bounded
+      missing value-binding rejection, wrong consumer-action rejection, and
       sync-window widening preservation. This is witness evidence for the
       current first shell, with full Lean proofs, Morph search, and production
       oracle benefit laws still outside the claim.
@@ -1871,6 +1872,7 @@ claims:
       arithmetic, and settlement-execution receipt projections, source-cartel
       concentration, and cross-module split-brain divergence and epoch-lag
       witnesses. It also checks Prop-level terminal DAG, runtime binding,
+      direct O3 value-binding and same-consumer-action projections/rejections,
       sync-window symmetry/rejection/monotonicity, O3 action-binding
       projections, O3 sync-window widening preservation, and O4/O5 Oracle-use
       anchors: O4/O5 use implies an

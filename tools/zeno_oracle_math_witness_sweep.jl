@@ -417,6 +417,32 @@ function run_cases()::Vector{Dict{String, Any}}
     push!(
         cases,
         case_result(
+            "o3_action_binding_missing_value_binding_rejects",
+            !o3_action_binding_ok(
+                terminal_dag_ok(true, true, true),
+                oracle_runtime_binding_ok(true, true, false, true),
+                oracle_sync_window_ok(100, 101, 1),
+            ),
+            "dag_closed=true runtime_state_bound=true value_bound=false same_consumer_action=true",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "o3_action_binding_wrong_consumer_action_rejects",
+            !o3_action_binding_ok(
+                terminal_dag_ok(true, true, true),
+                oracle_runtime_binding_ok(true, true, true, false),
+                oracle_sync_window_ok(100, 101, 1),
+            ),
+            "dag_closed=true runtime_state_bound=true value_bound=true same_consumer_action=false",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
             "oracle_sync_window_epoch_lag_rejects",
             !oracle_sync_window_ok(100, 103, 1),
             "source_epoch=100 target_epoch=103 max_lag=1",

@@ -12,7 +12,7 @@ Current expected receipt:
 
 ```text
 schema = zenodex.oracle.math_witness_sweep.v1
-case_count = 25
+case_count = 27
 failed_count = 0
 status = accepted
 ```
@@ -27,8 +27,9 @@ split-brain divergence, epoch-lag rejection, epoch-lag symmetry, and bounded
 O5 independence-witness acceptance/rejection. It also checks bounded O3 action
 binding across terminal DAG closure, runtime binding, and sync-window
 acceptance, plus rejection witnesses for duplicate terminal receipts and stale
-sync windows, and a bounded witness that widening an accepted sync window
-preserves O3 action-binding acceptance.
+sync windows, rejection witnesses for missing value binding and wrong consumer
+action, and a bounded witness that widening an accepted sync window preserves
+O3 action-binding acceptance.
 
 The Lean tree already has adjacent checked anchors:
 
@@ -45,10 +46,12 @@ timelock execution obligations, settlement-execution total arithmetic, and
 settlement-execution receipt projections. It also includes Prop-level bridge
 anchors for live-economics receipt bundles, terminal DAG closure, runtime
 binding, sync-window symmetry/rejection, O3 action binding from
-DAG/runtime/sync obligations, and sync-window widening preservation for O3
-action binding. The O4/O5 Oracle-use rule projects O4/O5 use to accepted O3
-receipt binding and same consumer action, and O5 use projects to an
-independence witness with distinct verifiers and DAG closure.
+DAG/runtime/sync obligations, direct O3 value-binding and same-consumer-action
+projections, rejection of missing value binding or wrong consumer action, and
+sync-window widening preservation for O3 action binding. The O4/O5 Oracle-use
+rule projects O4/O5 use to accepted O3 receipt binding and same consumer
+action, and O5 use projects to an independence witness with distinct verifiers
+and DAG closure.
 Missing distinct verifiers or missing DAG closure contradicts O5 use.
 
 The next proof ladder should turn the Julia cases into restricted Lean
