@@ -33,6 +33,7 @@ REQUIRED_PACKAGE_FILES = {
     "tools/check_zeno_oracle_rc_package.py",
     "tools/check_zenoproof_production_governance_policy.py",
     "tools/zeno_oracle_disaster_class_corpus.py",
+    "tools/zeno_oracle_esso_zusd_recovery_replay.py",
     "tools/zeno_oracle_tla_recovery_replay.py",
     "tools/zeno_oracle_ltlf_recovery_replay.py",
     "tools/zeno_oracle_o3_receipt_flow_replay.py",

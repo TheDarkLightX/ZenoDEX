@@ -120,7 +120,7 @@ julia tools/zeno_oracle_math_witness_sweep.jl --json
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
 python3 tools/zeno_oracle_tla_recovery_replay.py --format json
 python3 tools/zeno_oracle_ltlf_recovery_replay.py --format json
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py
+python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format json
 python3 -c 'from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status; import json; print(json.dumps(build_morph_oracle_clamp_envelope_status(), sort_keys=True))'
 python3 tools/zeno_oracle_smt_freshness_replay.py --format json
 ```
@@ -135,10 +135,12 @@ violations and zero failed fair-liveness properties over the bounded reachable
 graph. For the LTLf profile, the receipt comes from
 `tools/zeno_oracle_ltlf_recovery_replay.py` and requires the bounded Oracle
 recovery goal family to have zero failed goals. For the ESSO profile, the
-receipt is a normalized wrapper around the corresponding public pytest replay
-command. For the Morph profile, the receipt requires both `check` and `check2`
-to pass on the oracle-clamp envelope domain. For the SMT profile, the receipt
-requires Z3 and CVC5 to return `unsat` for each Oracle freshness safety query.
+receipt comes from `tools/zeno_oracle_esso_zusd_recovery_replay.py` and
+requires all 256 boolean assignments to match the ESSO-IR effect semantics plus
+zero failed lifecycle witness cases. For the Morph profile, the receipt
+requires both `check` and `check2` to pass on the oracle-clamp envelope domain.
+For the SMT profile, the receipt requires Z3 and CVC5 to return `unsat` for
+each Oracle freshness safety query.
 
 ## Proof Mining Reward Gate
 
@@ -274,8 +276,9 @@ The repo-local v0 shell includes:
    Oracle O5 bridge, local reward gate, workflow-evidence public replay verifier, Julia
    witness-sweep public replay verifier, Lean witness-anchor public replay
    verifier, deterministic bounded TLA public replay verifier, deterministic
-   bounded LTLf public replay verifier, ESSO public replay verifier, Morph
-   public replay verifier, and SMT public replay verifier.
+   bounded LTLf public replay verifier, deterministic bounded ESSO public
+   replay verifier, Morph public replay verifier, and SMT public replay
+   verifier.
 
 The local reward gate accepts only when the ZenoProof artifact is accepted,
 `proof_ok`, `binding_ok`, `policy_ok`, and `freshness_ok` are true, the claim

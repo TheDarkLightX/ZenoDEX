@@ -33,6 +33,14 @@ def test_workflow_evidence_status_accepts_public_lanes() -> None:
         == "python3 tools/zeno_oracle_ltlf_recovery_replay.py --format text"
     )
     assert lanes["esso_zusd_oracle_recovery_lifecycle"]["evidence_class"] == "esso_public_replay"
+    assert (
+        "tools/zeno_oracle_esso_zusd_recovery_replay.py"
+        in lanes["esso_zusd_oracle_recovery_lifecycle"]["files"]
+    )
+    assert (
+        lanes["esso_zusd_oracle_recovery_lifecycle"]["replay_command"]
+        == "python3 tools/zeno_oracle_esso_zusd_recovery_replay.py --format text"
+    )
     assert lanes["morph_oracle_clamp_envelope_smoke"]["check"] == "CheckResult.PASS"
     assert lanes["morph_oracle_clamp_envelope_smoke"]["check2"] == "CheckResult.PASS"
     assert lanes["popperpad_append_only_smoke"]["summary"]["total_entries"] == 2
