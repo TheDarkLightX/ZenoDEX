@@ -54,9 +54,10 @@ same-consumer-action projections, rejection of missing DAG dependencies,
 content-hash drift, registry-root drift, runtime-state drift, missing value
 binding, or wrong consumer action, and sync-window widening preservation for
 O3 action binding. The O4/O5 Oracle-use
-rule projects O4/O5 use to accepted O3 receipt binding and same consumer
-action, and O5 use projects to an independence witness with distinct verifiers
-and DAG closure.
+rule now has iff decompositions for O4/O5 bridge obligations and full O5 use:
+accepted O3 receipt, ZenoProof acceptance, same query/value/window, same
+consumer action, primary O5 claim, distinct verifiers, distinct proof kinds,
+shared input/output roots, and DAG closure.
 Missing distinct verifiers or missing DAG closure contradicts O5 use.
 
 The next proof ladder should turn the Julia cases into restricted Lean

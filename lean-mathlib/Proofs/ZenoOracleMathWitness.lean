@@ -638,6 +638,16 @@ theorem o4_or_o5_use_requires_same_consumer_action
     sameConsumerAction := by
   exact h.right.right.right
 
+theorem o4_or_o5_use_iff_obligations
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop} :
+    O4OrO5OracleUseOK o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction ↔
+      o3ReceiptOK ∧ zenoProofAccepted ∧ sameQueryValueWindow ∧ sameConsumerAction := by
+  constructor
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right.left, h.right.right.right⟩
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right.left, h.right.right.right⟩
+
 theorem o5_independence_witness_requires_distinct_verifiers
     {primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop}
     (h :
@@ -653,6 +663,22 @@ theorem o5_independence_witness_requires_dag_closed
         primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed) :
     dagClosed := by
   exact h.right.right.right.right.right
+
+theorem o5_independence_witness_iff_obligations
+    {primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop} :
+    O5IndependenceWitnessOK
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed ↔
+      primaryO5Claim ∧ distinctVerifiers ∧ distinctProofKinds ∧ sameInputRoot ∧
+        sameOutputRoot ∧ dagClosed := by
+  constructor
+  · intro h
+    exact
+      ⟨h.left, h.right.left, h.right.right.left, h.right.right.right.left,
+        h.right.right.right.right.left, h.right.right.right.right.right⟩
+  · intro h
+    exact
+      ⟨h.left, h.right.left, h.right.right.left, h.right.right.right.left,
+        h.right.right.right.right.left, h.right.right.right.right.right⟩
 
 theorem o5_use_requires_o3_receipt
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
@@ -674,6 +700,36 @@ theorem o5_use_requires_independence_witness
     O5IndependenceWitnessOK
       primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed := by
   exact h.right
+
+theorem o5_use_iff_obligations
+    {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+      primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed : Prop} :
+    O5OracleUseOK
+        o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
+        primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed ↔
+      o3ReceiptOK ∧ zenoProofAccepted ∧ sameQueryValueWindow ∧ sameConsumerAction ∧
+        primaryO5Claim ∧ distinctVerifiers ∧ distinctProofKinds ∧ sameInputRoot ∧
+          sameOutputRoot ∧ dagClosed := by
+  constructor
+  · intro h
+    have hBridge :=
+      o4_or_o5_use_iff_obligations.mp h.left
+    have hWitness :=
+      o5_independence_witness_iff_obligations.mp h.right
+    exact
+      ⟨hBridge.left, hBridge.right.left, hBridge.right.right.left, hBridge.right.right.right,
+        hWitness.left, hWitness.right.left, hWitness.right.right.left,
+        hWitness.right.right.right.left, hWitness.right.right.right.right.left,
+        hWitness.right.right.right.right.right⟩
+  · intro h
+    rcases h with
+      ⟨hO3, hProof, hWindow, hAction, hPrimary, hVerifiers, hKinds, hInput, hOutput, hDag⟩
+    exact
+      ⟨
+        (o4_or_o5_use_iff_obligations.mpr ⟨hO3, hProof, hWindow, hAction⟩),
+        (o5_independence_witness_iff_obligations.mpr
+          ⟨hPrimary, hVerifiers, hKinds, hInput, hOutput, hDag⟩)
+      ⟩
 
 theorem o5_use_rejects_missing_distinct_verifiers
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction
