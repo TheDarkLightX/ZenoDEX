@@ -102,9 +102,9 @@ The active workspace now has:
 - a production-candidate network config receipt gate at
   `tools/check_zeno_oracle_production_network_config.py` that validates local
   reporter-registry deployment, feed-governance deployment, feed-governance
-  approval/execution, signed release artifact, and runtime-control attestation
-  receipts while keeping live chain and public soak verification outside the
-  claim.
+  approval/execution, signed release artifact, signed-release transparency-log
+  root binding, and runtime-control attestation receipts while keeping live
+  chain and public soak verification outside the claim.
 - a production-candidate live economics policy gate at
   `tools/check_zeno_oracle_live_economics_policy.py` that binds reporter
   economics replay to token, escrow, governance approval/execution, escrow
