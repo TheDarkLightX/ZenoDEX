@@ -107,6 +107,11 @@ The small `fb6f30df` packet is the cleanest immediate production proof source.
 Its proof-quality scan rated it `S (100/100)`, and the same shape is already
 mirrored in `lean-mathlib/Proofs/ZenoDEXProofMiningClaimability.lean`.
 
+First promotion slice: `lean-mathlib/Proofs/ZenoDEXAristotleDisasterBasis.lean`
+now carries 22 locally checked theorem declarations from the Tier 1 basis. It
+is covered by `tests/formal/test_lean_zenodex_aristotle_disaster_basis.py` and
+receipt `lean-mathlib/proof_receipts/zenodex_aristotle_disaster_basis_v1.json`.
+
 ## Curation Findings
 
 Several proof families are high-value but need curation before becoming public
@@ -218,8 +223,9 @@ root binding, and a replay receipt that maps exactly into the `contextOk` bits.
    ProofMining proof family. This is mostly done in
    `lean-mathlib/Proofs/ZenoDEXProofMiningClaimability.lean`.
 
-2. Port the Tier 1 disaster theorems into `lean-mathlib/Proofs/` under the repo
-   toolchain, keeping theorem names stable and recording receipts.
+2. Continue porting Tier 1 disaster theorems into `lean-mathlib/Proofs/` under
+   the repo toolchain, keeping theorem names stable and recording receipts. The
+   first compact basis file is `Proofs/ZenoDEXAristotleDisasterBasis.lean`.
 
 3. Build a theorem-to-runtime matrix:
 
