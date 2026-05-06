@@ -244,8 +244,7 @@ theorem median_deviation_within_monotone_max_allowed
     (h : MedianDeviationWithinBpsSorted lo mid hi bps oldMaxAllowed)
     (hLe : oldMaxAllowed <= newMaxAllowed) :
     MedianDeviationWithinBpsSorted lo mid hi bps newMaxAllowed := by
-  unfold MedianDeviationWithinBpsSorted at *
-  omega
+  exact Nat.le_trans h hLe
 
 theorem median_deviation_rejects_low_side_above_bound
     {lo mid hi bps maxAllowed : Nat}
@@ -299,31 +298,7 @@ theorem epoch_lag_triangle
     (left bridge right : Nat) :
     EpochLag left right <= EpochLag left bridge + EpochLag bridge right := by
   unfold EpochLag
-  by_cases hLB : left <= bridge
-  · by_cases hBR : bridge <= right
-    · have hLR : left <= right := by omega
-      simp [hLB, hBR, hLR]
-      omega
-    · have hRB : right <= bridge := by omega
-      by_cases hLR : left <= right
-      · simp [hLB, hBR, hLR]
-        omega
-      · have hRL : right <= left := by omega
-        simp [hLB, hBR, hLR]
-        omega
-  · have hBL : bridge <= left := by omega
-    by_cases hBR : bridge <= right
-    · by_cases hLR : left <= right
-      · simp [hLB, hBR, hLR]
-        omega
-      · have hRL : right <= left := by omega
-        simp [hLB, hBR, hLR]
-        omega
-    · have hRB : right <= bridge := by omega
-      have hRL : right <= left := by omega
-      have hLR : Not (left <= right) := by omega
-      simp [hLB, hBR, hLR]
-      omega
+  split_ifs <;> omega
 
 theorem reward_pool_conservation
     {before reward after : Nat}
