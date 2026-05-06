@@ -39,7 +39,13 @@ def test_quote_receipt_cross_surface_minimize_preserves_certificate_mismatch() -
 
 def test_quote_receipt_cross_surface_minimize_preserves_stale_snapshot_mismatch() -> None:
     witness = minimize_case("drift_pool_snapshot")
+    assert witness.target == "quote_receipt_cross_surface_sequence"
+    assert witness.derivation == "drift_pool_snapshot"
     assert witness.outcome_label == "reject:step=1:pool_snapshot_mismatch"
+    assert witness.path_id == "a91edda6e10947af"
+    assert witness.path_length == 1
+    assert witness.original_size == 76
+    assert witness.minimized_size == 76
 
 
 def test_quote_receipt_cross_surface_minimize_preserves_transport_repair_then_stale_snapshot() -> None:
