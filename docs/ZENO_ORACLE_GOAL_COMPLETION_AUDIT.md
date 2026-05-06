@@ -2,7 +2,7 @@
 
 Status: active audit, goal still open.
 
-Last checked: 2026-05-05.
+Last checked: 2026-05-06.
 
 This audit maps the active ZenoOracle/ZenoProof goal to concrete workspace
 evidence. It is intentionally conservative: an item is complete only when the
@@ -34,7 +34,7 @@ registry/verifier layer for O4/O5 claims.
 | Critical consumers | `tools/check_zeno_oracle_critical_action_map.py` reports `catalog_profile_count = 7`, `runtime_wired_count = 7`, and `design_only_backlog_count = 0`, covering zUSD, perps settlement/liquidation, routing, triggers, and critical settlement. | Devnet complete |
 | Reporter economics | `tools/zenodex_oracle_reporter_economics_replay.py` and tests cover bonds, rewards, disputes, slashing, withdrawals, fee splits, and budget rejection. `tools/check_zeno_oracle_live_economics_policy.py` binds that replay to a production-candidate token, escrow, governance receipt, fee-split, dispute-bond, slash-cap, and withdrawal-delay policy. The same checker now verifies a local receipt bundle for governance approval, governance execution, escrow funding against the replay-derived escrow floor, and settlement execution totals against the replay. Live chain receipt replay, on-chain funded escrow verification, and on-chain settlement execution remain open. | Replay plus policy gate |
 | Disaster corpus | `tools/zenodex_oracle_devnet_disaster_harness.py` reports 17 selected states unreachable; `tools/zeno_oracle_disaster_class_corpus.py` reports 9 named families closed, including settlement-execution total drift, O5 independence-spoofing, and proof-timeout fail-closed behavior. `tools/check_zeno_oracle_disaster_frontier.py` tracks 29 production-candidate disaster families: 24 closed by public/devnet evidence and 5 left as explicit blocker/backlog families. `tools/check_zeno_oracle_perps_snapshot_gate.py` adds bounded replay evidence for usable isolated perps oracle snapshots. `tools/check_zeno_oracle_cross_domain_finality_gate.py` adds local receipt-bundle replay for source finality checkpoint and target adapter acceptance binding. `tools/check_zeno_oracle_reporter_soak_gate.py` adds local reporter-soak observation replay for operator-diversity and source-diversity thresholds. | First shell plus frontier gate |
-| Obligation antichain | `tools/check_disaster_obligation_certificate.py` validates `tools/zeno_oracle_disaster_obligation_certificate_manifest.json`; the current certificate compresses 24 axes into 16 antichain classes and includes `proof_independence` and `cross_domain_finality` as required obligation atoms. `tools/check_zeno_oracle_frontier_obligation_projection.py` projects all 29 current frontier families onto manifest quotient classes with zero unprojected families. | First shell complete |
+| Obligation antichain | `tools/check_disaster_obligation_certificate.py` validates `tools/zeno_oracle_disaster_obligation_certificate_manifest.json`; the current certificate compresses 24 axes into 16 antichain classes and includes `proof_independence` and `cross_domain_finality` as required obligation atoms. `tools/check_zeno_oracle_frontier_obligation_projection.py` projects all 29 current frontier families onto manifest quotient classes with zero unprojected families. `lean-mathlib/Proofs/DisasterAntichainBasis.lean` and `lean-mathlib/proof_receipts/disaster_antichain_basis_v1.json` add generic checked lift theorems for covered antichain-basis rejection plus private-witness guard lower bounds. The Python certificate instantiates the current manifest and frontier projection only, and it must expand with any newly promoted frontier axis. | Accepted |
 | Julia math lane | `tools/zeno_oracle_math_witness_sweep.jl` checks bounded witnesses for median deviation, zero-scale/equal-value sanity, bounded median-deviation side-obligation decomposition, source cartel, dispute griefing, reward conservation/caps, live-economics escrow floor and timelock receipts, settlement-execution total matching/drift rejection, split-brain, epoch-lag symmetry, O5 independence-witness cases, O3 action-binding DAG/runtime/sync-window cases, missing value-binding and wrong consumer-action rejection, and sync-window widening preservation. | Bounded witness |
 | Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides bounded arithmetic anchors plus small general lemmas for zero-scale/equal-value deviation, median-deviation side-obligation decomposition, the iff relation between sorted median-deviation acceptance and its two side bounds, low/high side rejection, epoch lag, reward/slash conservation, live-economics escrow floor, timelock receipt-bundle obligations, settlement-execution receipt projections, terminal DAG closure projections, runtime binding projections, iff decompositions for terminal DAG/runtime binding/O3 action-binding obligations, direct O3 value-binding and same-consumer-action projections/rejections, rejection of missing DAG dependencies, content-hash drift, registry-root drift, and runtime-state drift, sync-window symmetry/rejection/monotonicity, O3 action-binding projections, O3 sync-window widening preservation, and Prop-level O4/O5/O5-independence projections. General production median, deviation, economics, executable DAG closure, production sync, and typed binding theorems remain open. | Partial |
 | ESSO/TLA/LTLf/Morph/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py` reports 5 accepted first-shell lanes. `tools/zeno_oracle_esso_zusd_recovery_replay.py`, `tools/zeno_oracle_tla_recovery_replay.py`, and `tools/zeno_oracle_ltlf_recovery_replay.py` give the bounded ESSO/TLA/LTLf Oracle recovery profiles deterministic public replay commands. Private PopperPad content, external TLC/ESSO toolchains, and deeper Morph campaigns remain outside public claims. | First shell complete |
@@ -68,6 +68,7 @@ python3 tools/check_zeno_oracle_reporter_soak_gate.py --format text
 julia tools/zeno_oracle_math_witness_sweep.jl
 pytest -q tests/test_zeno_oracle_math_witness_sweep.py
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
+cd lean-mathlib && lake build Proofs.DisasterAntichainBasis
 python3 tools/check_zenoproof_production_governance_policy.py --format text
 ```
 
@@ -106,7 +107,8 @@ python3 tools/check_zenoproof_production_governance_policy.py --format text
 
 The active goal is not complete. The workspace now has strong devnet and local
 v0 evidence, including O5 independence-witness checking, a
-production-candidate live economics policy gate, and an explicit
-production-disaster frontier catalog, but production network, live settlement,
+production-candidate live economics policy gate, an explicit
+production-disaster frontier catalog, and a generic Lean basis theorem for the
+current obligation-antichain certificate. Production network, live settlement,
 broader disaster search, generalized formal proofs, and final branch integration
 remain open.

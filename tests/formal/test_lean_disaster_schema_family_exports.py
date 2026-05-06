@@ -9,6 +9,7 @@ import pytest
 
 
 DISASTER_SCHEMA_TARGETS = (
+    "Proofs.DisasterAntichainBasis",
     "Proofs.ForbiddenTraceMinor",
     "Proofs.NoFreeResourceTraceLedger",
     "Proofs.ZenoDEXDisasterSchemaInstantiations",
@@ -65,6 +66,10 @@ def test_lean_disaster_schema_family_exported_via_proofs_root() -> None:
     _ensure_proofs_root_built(lake, lean_dir)
     smoke = (
         "import Proofs\n"
+        "#check Proofs.DisasterAntichainBasis.basis_rejection_lifts_to_all_bad\n"
+        "#check Proofs.DisasterAntichainBasis.private_obligation_forces_guard\n"
+        "#check Proofs.DisasterAntichainBasis.private_witnesses_force_selected_subset\n"
+        "#check Proofs.DisasterAntichainBasis.private_witnesses_cardinality_lower_bound\n"
         "#check Proofs.ForbiddenTraceMinor.motif_rejection_lifts_to_all_bad\n"
         "#check Proofs.ForbiddenTraceMinor.guard_hitting_set_rejects_all_bad\n"
         "#check Proofs.NoFreeResourceTraceLedger.no_free_resource_creation_from_accepted_trace\n"
