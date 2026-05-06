@@ -343,12 +343,11 @@ def build_audit() -> dict[str, Any]:
             blockers=[
                 "zenoproof_production_governance_policy_gate_is_candidate_only",
                 "production_verifier_sandbox_and_code_signing_not_verified",
-                "production_verifier_release_transparency_log_not_verified",
                 "live_proof_network_and_payout_settlement_not_enabled",
             ],
             limits=[
                 "local static verifier registry only",
-                "production governance policy gate exists and binds verifier-release manifests locally, but rejects --require-live while blockers remain",
+                "production governance policy gate exists and binds verifier-release manifests plus transparency-log receipts locally, but rejects --require-live while blockers remain",
                 "does_not_claim_live_proof_network",
                 "does_not_claim_governance_revocation_live",
             ],

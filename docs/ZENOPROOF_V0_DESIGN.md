@@ -188,11 +188,13 @@ candidate production set, checks distinct proof-kind coverage, and binds the
 registry to governance, code-signing, sandbox, revocation, O4/O5 bridge, and
 reward-settlement controls. It also verifies a local governance receipt bundle
 for policy approval/execution, revocation list/drill, code-signing attestation,
-and sandbox attestation. The code-signing attestation binds a verifier-release
-manifest covering every production-enabled verifier ID, artifact digest,
-command hash, toolchain hash, policy root, and local transparency-log entry.
-These receipts are content-hashed and bound to the policy static hash plus the
-registry manifest id.
+verifier-release transparency-log observation, and sandbox attestation. The
+code-signing attestation binds a verifier-release manifest covering every
+production-enabled verifier ID, artifact digest, command hash, toolchain hash,
+policy root, and local transparency-log entry. The transparency-log receipt
+checks the entry list, contiguous indices, tree size, and log root against that
+release manifest. These receipts are content-hashed and bound to the policy
+static hash plus the registry manifest id.
 
 ```bash
 python3 tools/check_zenoproof_production_governance_policy.py --format text
@@ -204,7 +206,7 @@ Current expected receipt:
 status = accepted
 error_count = 0
 receipt_bundle_status = accepted
-go_live_blocker_count = 7
+go_live_blocker_count = 6
 production_enabled_verifier_count = 8
 distinct_proof_kind_count = 8
 production_verifier_path_lookup_count = 0
@@ -217,9 +219,9 @@ python3 tools/check_zenoproof_production_governance_policy.py --require-live
 ```
 
 This rejects with `go_live_blockers_present` until governance execution,
-production verifier code signing, verifier release transparency-log
-verification, sandbox deployment, live revocation drill, public proof-network
-soak, and live proof-mining token settlement are backed by replayable evidence.
+production verifier code signing, sandbox deployment, live revocation drill,
+public proof-network soak, and live proof-mining token settlement are backed by
+live replayable evidence.
 
 ## Oracle O4/O5 Bridge
 

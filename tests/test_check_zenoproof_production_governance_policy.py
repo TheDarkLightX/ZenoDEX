@@ -52,12 +52,12 @@ def test_zenoproof_production_governance_policy_accepts_sample_candidate() -> No
     assert result["registry_error_count"] == 0
     assert result["reward_payout_status"] == "accepted"
     assert result["receipt_bundle_status"] == "accepted"
-    assert result["receipt_bundle_kind_count"] == 6
+    assert result["receipt_bundle_kind_count"] == 7
     assert result["production_enabled_verifier_count"] == 8
     assert result["verifier_release_entry_count"] == 8
     assert result["devnet_only_verifier_count"] == 2
     assert result["production_verifier_path_lookup_count"] == 0
-    assert "production_verifier_release_transparency_log_not_verified" in result["go_live_blockers"]
+    assert "production_verifier_release_transparency_log_not_verified" not in result["go_live_blockers"]
     assert "live_proof_mining_token_settlement_not_enabled" in result["go_live_blockers"]
     assert "public_replay_verifiers_still_allow_path_lookup" not in result["go_live_blockers"]
     assert "does_not_claim_live_proof_network" in result["not_claimed"]
@@ -236,6 +236,22 @@ def test_zenoproof_production_governance_policy_rejects_missing_transparency_log
 
     assert result["status"] == "rejected"
     assert "receipt:code_signing_attestation_transparency_log_not_observed" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_transparency_log_root_drift() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    transparency_log = _receipt(bundle, "verifier_release_transparency_log")
+    payload = transparency_log["payload"]
+    assert isinstance(payload, dict)
+    payload["transparency_log_root"] = "sha256:" + "9" * 64
+    transparency_log["receipt_id"] = receipt_content_hash(transparency_log)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:verifier_release_transparency_log_root_mismatch" in result["errors"]
 
 
 def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_path: Path) -> None:
