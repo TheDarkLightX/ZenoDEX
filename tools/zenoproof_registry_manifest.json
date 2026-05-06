@@ -52,7 +52,7 @@
         "does_not_claim_production_oracle_benefit_laws"
       ],
       "replay_command": "julia tools/zeno_oracle_math_witness_sweep.jl --json",
-      "statement_hash": "sha256:608e2986ae636a5227b73acaf242c7b6f4ef7d4285437d33ca8be2a993f30bb4"
+      "statement_hash": "sha256:35cebe1f433633af5295e552cbd8fc5d484dcde0ba314c54cc93af257a7300b9"
     },
     {
       "assumptions_hash": "sha256:31d9d09769a722ea6314d583df67205c6526301827a9cbe0e7412baf4d9e4907",
@@ -66,7 +66,7 @@
         "does_not_claim_live_typed_production_sync"
       ],
       "replay_command": "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
-      "statement_hash": "sha256:2474cfe1d63fbf2f8654993226c7fa533994728403d4e80c315f411fb39008e7"
+      "statement_hash": "sha256:5e95c164103d9769f3414fbdf5bb78eb6e79b7d058f7e286090ff1e96daeafdf"
     },
     {
       "assumptions_hash": "sha256:6af545052c07aed8dd756cb2e12f9fdc9814527ad7c09dc86820047219b2edf8",
