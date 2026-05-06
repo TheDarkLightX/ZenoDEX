@@ -37,6 +37,10 @@ def test_goal_completion_audit_maps_all_prompt_items_and_blocks_goal_closure() -
     assert "tests/core/test_perp_submission_auth_gate.py" in items[5]["evidence_files"]
     assert "tests/core/test_strategy_policy_contracts_v1_adapter.py" in items[5]["evidence_files"]
     assert "tests/core/test_quote_receipts.py" in items[5]["evidence_files"]
+    assert "tests/core/test_confidential_extension_live_admission.py" in items[5]["evidence_files"]
+    assert "tests/core/test_confidential_extension_live_admission_gate.py" in items[5]["evidence_files"]
+    assert "src/core/confidential_extension_live_admission.py" in items[5]["evidence_files"]
+    assert "src/state/confidential_requests.py" in items[5]["evidence_files"]
     assert "tests/integration/test_route_certificate_sequence_grammar_fuzz.py" in items[5]["evidence_files"]
     assert "production_disaster_frontier_has_explicit_blockers" in items[5]["blockers"]
     assert audit["disaster_frontier_gate"]["status"] == "explicit_blocker_frontier"

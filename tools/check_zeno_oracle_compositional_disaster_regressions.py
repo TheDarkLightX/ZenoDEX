@@ -284,7 +284,7 @@ def build_receipt(path: Path = MANIFEST_PATH) -> dict[str, Any]:
         "limits": [
             "private_campaign_artifacts_are_not_public_evidence",
             "public_regressions_are_bounded_branch_local_replays",
-            "deferred_projections_require_source_surface_migration_before_claim_promotion"
+            "new_private_candidates_require_source_surface_migration_before_claim_promotion"
         ],
     }
 
