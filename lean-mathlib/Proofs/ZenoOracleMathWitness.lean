@@ -375,6 +375,30 @@ theorem terminal_dag_ok_requires_content_hashes_bound
     contentHashesBound := by
   exact h.right.right
 
+theorem terminal_dag_ok_iff_obligations
+    {depsAvailable noDuplicateReceipts contentHashesBound : Prop} :
+    TerminalReceiptDAGOK depsAvailable noDuplicateReceipts contentHashesBound ↔
+      depsAvailable ∧ noDuplicateReceipts ∧ contentHashesBound := by
+  constructor
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right⟩
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right⟩
+
+theorem terminal_dag_rejects_missing_dependency
+    {depsAvailable noDuplicateReceipts contentHashesBound : Prop}
+    (hMissingDeps : Not depsAvailable) :
+    Not (TerminalReceiptDAGOK depsAvailable noDuplicateReceipts contentHashesBound) := by
+  intro h
+  exact hMissingDeps h.left
+
+theorem terminal_dag_rejects_content_hash_drift
+    {depsAvailable noDuplicateReceipts contentHashesBound : Prop}
+    (hContentDrift : Not contentHashesBound) :
+    Not (TerminalReceiptDAGOK depsAvailable noDuplicateReceipts contentHashesBound) := by
+  intro h
+  exact hContentDrift h.right.right
+
 theorem runtime_binding_ok_requires_registry_root
     {registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop}
     (h : OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) :
@@ -398,6 +422,30 @@ theorem runtime_binding_ok_requires_same_consumer_action
     (h : OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) :
     sameConsumerAction := by
   exact h.right.right.right
+
+theorem runtime_binding_ok_iff_obligations
+    {registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop} :
+    OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction ↔
+      registryRootBound ∧ runtimeStateBound ∧ valueBound ∧ sameConsumerAction := by
+  constructor
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right.left, h.right.right.right⟩
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right.left, h.right.right.right⟩
+
+theorem runtime_binding_rejects_registry_root_drift
+    {registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop}
+    (hRegistryDrift : Not registryRootBound) :
+    Not (OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) := by
+  intro h
+  exact hRegistryDrift h.left
+
+theorem runtime_binding_rejects_runtime_state_drift
+    {registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop}
+    (hRuntimeDrift : Not runtimeStateBound) :
+    Not (OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) := by
+  intro h
+  exact hRuntimeDrift h.right.left
 
 theorem oracle_sync_window_ok_comm
     {sourceEpoch targetEpoch maxLag : Nat} :
@@ -440,6 +488,16 @@ theorem o3_action_binding_ok_requires_sync_window
     syncWindowOK := by
   exact h.right.right
 
+theorem o3_action_binding_ok_iff_component_obligations
+    {terminalDAGOK runtimeBindingOK syncWindowOK : Prop} :
+    O3ActionBindingOK terminalDAGOK runtimeBindingOK syncWindowOK ↔
+      terminalDAGOK ∧ runtimeBindingOK ∧ syncWindowOK := by
+  constructor
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right⟩
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right⟩
+
 theorem o3_action_binding_ok_requires_value_bound
     {terminalDAGOK registryRootBound runtimeStateBound valueBound sameConsumerAction syncWindowOK : Prop}
     (h :
@@ -476,6 +534,46 @@ theorem o3_action_binding_rejects_duplicate_receipt
         syncWindowOK) := by
   intro h
   exact terminal_dag_ok_requires_no_duplicate_receipts h.left
+
+theorem o3_action_binding_rejects_missing_dependency
+    {noDuplicateReceipts contentHashesBound runtimeBindingOK syncWindowOK : Prop} :
+    Not
+      (O3ActionBindingOK
+        (TerminalReceiptDAGOK False noDuplicateReceipts contentHashesBound)
+        runtimeBindingOK
+        syncWindowOK) := by
+  intro h
+  exact terminal_dag_ok_requires_dependencies h.left
+
+theorem o3_action_binding_rejects_content_hash_drift
+    {depsAvailable noDuplicateReceipts runtimeBindingOK syncWindowOK : Prop} :
+    Not
+      (O3ActionBindingOK
+        (TerminalReceiptDAGOK depsAvailable noDuplicateReceipts False)
+        runtimeBindingOK
+        syncWindowOK) := by
+  intro h
+  exact terminal_dag_ok_requires_content_hashes_bound h.left
+
+theorem o3_action_binding_rejects_registry_root_drift
+    {terminalDAGOK runtimeStateBound valueBound sameConsumerAction syncWindowOK : Prop} :
+    Not
+      (O3ActionBindingOK
+        terminalDAGOK
+        (OracleRuntimeBindingOK False runtimeStateBound valueBound sameConsumerAction)
+        syncWindowOK) := by
+  intro h
+  exact runtime_binding_ok_requires_registry_root h.right.left
+
+theorem o3_action_binding_rejects_runtime_state_drift
+    {terminalDAGOK registryRootBound valueBound sameConsumerAction syncWindowOK : Prop} :
+    Not
+      (O3ActionBindingOK
+        terminalDAGOK
+        (OracleRuntimeBindingOK registryRootBound False valueBound sameConsumerAction)
+        syncWindowOK) := by
+  intro h
+  exact runtime_binding_ok_requires_runtime_state h.right.left
 
 theorem o3_action_binding_rejects_missing_value_binding
     {terminalDAGOK registryRootBound runtimeStateBound sameConsumerAction syncWindowOK : Prop} :

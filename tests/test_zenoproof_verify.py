@@ -161,6 +161,15 @@ def test_public_replay_verifier_rejects_wrong_output_root() -> None:
     assert not result.proof_ok
 
 
+def test_lean_public_replay_receipt_binds_file_digests() -> None:
+    receipt = zv.run_public_replay_profile(zv.LEAN_REPLAY_PROFILE)
+
+    assert receipt["status"] == "accepted"
+    assert receipt["file_sha256"].startswith("sha256:")
+    assert receipt["root_import_file_sha256"].startswith("sha256:")
+    assert receipt["placeholder_hits"] == []
+
+
 def test_oracle_o4_bridge_rejects_wrong_proof_input_binding() -> None:
     bridge = zv.sample_oracle_o4_bridge()
     bridge["proof_artifact"] = zv.sample_artifact(

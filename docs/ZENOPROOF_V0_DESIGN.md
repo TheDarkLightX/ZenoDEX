@@ -132,9 +132,9 @@ python3 tools/zeno_oracle_smt_freshness_replay.py --format json
 The verifier checks the profile claim ID, verifier ID, policy root, toolchain
 ID, input commitment root, and output commitment root. The output root is the
 canonical hash of the accepted profile receipt. For the Lean profile, the
-receipt also requires a clean placeholder scan over the witness anchor and root
-import file. For the TLA profile, the receipt comes from
-`tools/zeno_oracle_tla_recovery_replay.py` and requires zero invariant
+receipt also binds the witness-anchor file digest and root-import file digest
+and requires a clean placeholder scan over both files. For the TLA profile, the
+receipt comes from `tools/zeno_oracle_tla_recovery_replay.py` and requires zero invariant
 violations and zero failed fair-liveness properties over the bounded reachable
 graph. For the LTLf profile, the receipt comes from
 `tools/zeno_oracle_ltlf_recovery_replay.py` and requires the bounded Oracle
