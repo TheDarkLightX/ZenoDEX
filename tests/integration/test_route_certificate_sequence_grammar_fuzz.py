@@ -31,3 +31,14 @@ def test_route_certificate_sequence_minimize_case_preserves_candidate_set_hash_m
     assert witness.path_length == 639
     assert witness.original_size == 1033
     assert witness.original_size == witness.minimized_size
+
+
+def test_route_certificate_sequence_minimize_case_preserves_reordered_candidate_set_hash_mismatch() -> None:
+    witness = minimize_case("reorder_candidates")
+    assert witness.target == "route_certificate_sequence"
+    assert witness.derivation == "reorder_candidates"
+    assert witness.outcome_label == "reject:step=1:candidate_set_hash mismatch"
+    assert witness.path_id == "d6f0b9dfea73b9e0"
+    assert witness.path_length == 572
+    assert witness.original_size == 835
+    assert witness.original_size == witness.minimized_size
