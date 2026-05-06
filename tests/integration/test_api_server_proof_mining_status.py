@@ -35,7 +35,13 @@ def _stop_test_server(httpd, thread: threading.Thread) -> None:
     thread.join(timeout=2.0)
 
 
-def _claim(*, miner_id: str, reward_pool_before: int) -> dict:
+def _claim(
+    *,
+    miner_id: str,
+    reward_pool_before: int,
+    policy_ok: bool | int = 1,
+    allow_rejected: bool = False,
+) -> dict:
     from src.core.proof_mining_claims import build_proof_mining_claim
 
     return build_proof_mining_claim(
@@ -57,10 +63,12 @@ def _claim(*, miner_id: str, reward_pool_before: int) -> dict:
         epoch=1,
         proposal_slot=0,
         prover_id=1,
+        policy_ok=policy_ok,
         chain_id="tau-testnet-alpha",
         prev_state_hash="sha256:prev",
         batch_hash="sha256:batch",
         dex_hash_after="sha256:after",
+        allow_rejected=allow_rejected,
     )
 
 
@@ -247,6 +255,44 @@ def test_api_server_proof_mining_status_rejects_duplicate_claimed_proposal(monke
         assert status["checks"]["verified_context_present"] is True
         assert status["checks"]["runtime_state_present"] is True
         assert status["checks"]["reward_pool_balance_matches_state"] is True
+        assert status["checks"]["runtime_apply_ok"] is False
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_api_server_proof_mining_status_rejects_inadmissible_live_floor_claim(monkeypatch) -> None:
+    sender = "0x" + "57" * 48
+    reward_pool = "0x" + "67" * 48
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+    claim = _claim(miner_id=sender, reward_pool_before=20, policy_ok=False, allow_rejected=True)
+    context = _context_from_claim(claim)
+    httpd, thread, host, port = _start_test_server()
+    try:
+        req = {
+            "app_state_json": "",
+            "chain_balances": {reward_pool: 20, sender: 0},
+            "claim": claim,
+            "proof_mining_context": context,
+            "tx_sender_pubkey": sender,
+            "expected_proposal_hash": claim["body"]["proposal_hash"],
+        }
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/proof_mining_status",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        status = body["status"]
+        assert status["claimable"] is False
+        assert status["error"] == "proof-mining claim inadmissible"
+        assert status["reward_amount"] is None
+        assert status["checks"]["sender_valid"] is True
+        assert status["checks"]["claim_valid"] is False
         assert status["checks"]["runtime_apply_ok"] is False
     finally:
         _stop_test_server(httpd, thread)

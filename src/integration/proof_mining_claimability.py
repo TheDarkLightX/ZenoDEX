@@ -176,7 +176,20 @@ def evaluate_proof_mining_claimability(
 
     sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
     checks["sender_valid"] = True
-    claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
+    try:
+        claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
+    except (TypeError, ValueError) as exc:
+        return ProofMiningClaimabilityStatus(
+            enabled=True,
+            claimable=False,
+            error=str(exc),
+            reward_pool_pubkey=canonical_pool,
+            proposal_hash=None,
+            reward_amount=None,
+            reward_pool_before=None,
+            reward_pool_after=None,
+            checks=checks,
+        )
     checks["claim_valid"] = True
     if proof_mining_context_obj is not None:
         verified_context = proof_mining_context_from_obj(proof_mining_context_obj)

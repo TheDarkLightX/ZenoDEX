@@ -116,6 +116,55 @@ def test_claimability_requires_verified_context() -> None:
     assert status.checks["verified_context_present"] is False
 
 
+def test_claimability_rejects_inadmissible_claim_artifact() -> None:
+    sender = "0x" + "10" * 48
+    reward_pool = "0x" + "98" * 48
+    claim = build_proof_mining_claim(
+        round_obj={
+            "schema": "zenodex/improvement_bounty_round/v1",
+            "ok": True,
+            "job_digest": "job-inadmissible",
+            "winner": {
+                "miner_id": sender,
+                "witness_sha256": "witness-inadmissible",
+                "improvement_u64": 9,
+            },
+            "candidates": [],
+            "argmax_certificate": None,
+        },
+        round_id="round-inadmissible",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=1,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev-inadmissible",
+        batch_hash="sha256:batch-inadmissible",
+        dex_hash_after="sha256:after-inadmissible",
+        policy_ok=False,
+        unclaimed_ok=False,
+        allow_rejected=True,
+    )
+
+    status = evaluate_proof_mining_claimability(
+        reward_pool_pubkey=reward_pool,
+        app_state_json="",
+        chain_balances={reward_pool: 20, sender: 0},
+        claim_artifact=claim,
+        tx_sender_pubkey=sender,
+        expected_proposal_hash=str(claim["body"]["proposal_hash"]),
+        proof_mining_context_obj=proof_mining_context_to_obj(_context_from_claim(claim)),
+    )
+
+    assert status.claimable is False
+    assert status.error == "proof-mining claim inadmissible"
+    assert status.reward_amount is None
+    assert status.checks["sender_valid"] is True
+    assert status.checks["claim_valid"] is False
+    assert status.checks["runtime_apply_ok"] is False
+
+
 def test_claimability_rejects_proposal_hash_mismatch() -> None:
     sender = "0x" + "22" * 48
     reward_pool = "0x" + "88" * 48

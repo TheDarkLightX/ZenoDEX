@@ -56,6 +56,19 @@ theorem claimable_implies_verified_context
   cases hContext : s.verifiedContextPresent <;>
     simp [claimable, hContext] at hClaimable ⊢
 
+theorem not_claimable_with_invalid_claim
+    (s : Status)
+    (hClaim : s.claimValid = false) :
+    claimable s = false := by
+  simp [claimable, hClaim]
+
+theorem claimable_implies_claim_valid
+    (s : Status)
+    (hClaimable : claimable s = true) :
+    s.claimValid = true := by
+  cases hClaim : s.claimValid <;>
+    simp [claimable, hClaim] at hClaimable ⊢
+
 theorem runtime_balance_drift_not_claimable
     (s : Status)
     (hRuntime : s.runtimeStatePresent = true)
@@ -123,6 +136,21 @@ theorem accepted_implies_host_guards_ok
     (hAccepted : accepted g) :
     hostGuardsOk g = true :=
   hAccepted.1
+
+theorem accepted_implies_policy_ok
+    (g : Gate)
+    (hAccepted : accepted g) :
+    g.policyOk = true := by
+  cases hPolicy : g.policyOk <;>
+    simp [accepted, hostGuardsOk, hPolicy] at hAccepted ⊢
+
+theorem not_accepted_without_policy
+    (g : Gate)
+    (hPolicy : g.policyOk = false) :
+    ¬ accepted g := by
+  intro hAccepted
+  have hPolicyTrue := accepted_implies_policy_ok g hAccepted
+  simp [hPolicy] at hPolicyTrue
 
 theorem accepted_reward_delta_conservative
     (g : Gate)
