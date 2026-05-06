@@ -371,6 +371,12 @@ theorem runtime_binding_ok_requires_value_bound
     valueBound := by
   exact h.right.right.left
 
+theorem runtime_binding_ok_requires_same_consumer_action
+    {registryRootBound runtimeStateBound valueBound sameConsumerAction : Prop}
+    (h : OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) :
+    sameConsumerAction := by
+  exact h.right.right.right
+
 theorem oracle_sync_window_ok_comm
     {sourceEpoch targetEpoch maxLag : Nat} :
     OracleSyncWindowOK sourceEpoch targetEpoch maxLag ↔
@@ -412,6 +418,26 @@ theorem o3_action_binding_ok_requires_sync_window
     syncWindowOK := by
   exact h.right.right
 
+theorem o3_action_binding_ok_requires_value_bound
+    {terminalDAGOK registryRootBound runtimeStateBound valueBound sameConsumerAction syncWindowOK : Prop}
+    (h :
+      O3ActionBindingOK
+        terminalDAGOK
+        (OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction)
+        syncWindowOK) :
+    valueBound := by
+  exact runtime_binding_ok_requires_value_bound h.right.left
+
+theorem o3_action_binding_ok_requires_same_consumer_action
+    {terminalDAGOK registryRootBound runtimeStateBound valueBound sameConsumerAction syncWindowOK : Prop}
+    (h :
+      O3ActionBindingOK
+        terminalDAGOK
+        (OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction)
+        syncWindowOK) :
+    sameConsumerAction := by
+  exact runtime_binding_ok_requires_same_consumer_action h.right.left
+
 theorem o3_action_binding_sample :
     O3ActionBindingOK
       (TerminalReceiptDAGOK True True True)
@@ -428,6 +454,26 @@ theorem o3_action_binding_rejects_duplicate_receipt
         syncWindowOK) := by
   intro h
   exact terminal_dag_ok_requires_no_duplicate_receipts h.left
+
+theorem o3_action_binding_rejects_missing_value_binding
+    {terminalDAGOK registryRootBound runtimeStateBound sameConsumerAction syncWindowOK : Prop} :
+    Not
+      (O3ActionBindingOK
+        terminalDAGOK
+        (OracleRuntimeBindingOK registryRootBound runtimeStateBound False sameConsumerAction)
+        syncWindowOK) := by
+  intro h
+  exact o3_action_binding_ok_requires_value_bound h
+
+theorem o3_action_binding_rejects_wrong_consumer_action
+    {terminalDAGOK registryRootBound runtimeStateBound valueBound syncWindowOK : Prop} :
+    Not
+      (O3ActionBindingOK
+        terminalDAGOK
+        (OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound False)
+        syncWindowOK) := by
+  intro h
+  exact o3_action_binding_ok_requires_same_consumer_action h
 
 theorem o3_action_binding_rejects_stale_sync_window
     {terminalDAGOK runtimeBindingOK : Prop} :
