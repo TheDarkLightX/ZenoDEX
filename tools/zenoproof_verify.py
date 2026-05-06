@@ -473,6 +473,10 @@ def sha256_json(obj: Any) -> str:
     return HASH_PREFIX + hashlib.sha256(canonical_json_bytes(obj)).hexdigest()
 
 
+def sha256_file(path: Path) -> str:
+    return HASH_PREFIX + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def sample_hash(tag: str) -> str:
     return HASH_PREFIX + hashlib.sha256(tag.encode("utf-8")).hexdigest()
 
@@ -800,7 +804,9 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
             "ok": ok,
             "status": "accepted" if ok else "rejected",
             "file": "lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
+            "file_sha256": sha256_file(lean_file),
             "root_import_file": "lean-mathlib/Proofs.lean",
+            "root_import_file_sha256": sha256_file(root_file),
             "placeholder_hits": placeholder_hits,
         }
         if proc.returncode != 0:

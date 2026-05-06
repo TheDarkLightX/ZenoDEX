@@ -1873,6 +1873,9 @@ claims:
       settlement-execution total arithmetic, and settlement-execution receipt
       projections, source-cartel concentration, and cross-module split-brain
       divergence and epoch-lag witnesses. It also checks Prop-level terminal DAG, runtime binding,
+      iff decompositions for terminal DAG/runtime binding/O3 action-binding
+      obligations, rejection of missing DAG dependencies, content-hash drift,
+      registry-root drift, runtime-state drift,
       direct O3 value-binding and same-consumer-action projections/rejections,
       sync-window symmetry/rejection/monotonicity, O3 action-binding
       projections, O3 sync-window widening preservation, and O4/O5 Oracle-use
@@ -1945,7 +1948,9 @@ claims:
       verifiers only when their output roots match accepted public replay
       receipts. Public replay profiles with skipped or missing local toolchains
       become rejected profile results rather than accepted evidence or
-      unstructured verifier crashes. It also replays a bounded local
+      unstructured verifier crashes. The Lean public replay profile binds the
+      witness-anchor file digest and root-import file digest into its output
+      root. It also replays a bounded local
       reward-payout bridge from an accepted ZenoProof reward gate through
       proof-mining claim construction, manager execution, and claimability
       checks. It rejects malformed

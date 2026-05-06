@@ -48,9 +48,12 @@ obligations, settlement-execution total arithmetic, and settlement-execution
 receipt projections. It also includes Prop-level bridge
 anchors for live-economics receipt bundles, terminal DAG closure, runtime
 binding, sync-window symmetry/rejection, O3 action binding from
-DAG/runtime/sync obligations, direct O3 value-binding and same-consumer-action
-projections, rejection of missing value binding or wrong consumer action, and
-sync-window widening preservation for O3 action binding. The O4/O5 Oracle-use
+DAG/runtime/sync obligations, iff decompositions for terminal DAG, runtime
+binding, and O3 action-binding obligations, direct O3 value-binding and
+same-consumer-action projections, rejection of missing DAG dependencies,
+content-hash drift, registry-root drift, runtime-state drift, missing value
+binding, or wrong consumer action, and sync-window widening preservation for
+O3 action binding. The O4/O5 Oracle-use
 rule projects O4/O5 use to accepted O3 receipt binding and same consumer
 action, and O5 use projects to an independence witness with distinct verifiers
 and DAG closure.
