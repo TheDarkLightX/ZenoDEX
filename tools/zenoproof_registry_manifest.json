@@ -52,7 +52,7 @@
         "does_not_claim_production_oracle_benefit_laws"
       ],
       "replay_command": "julia tools/zeno_oracle_math_witness_sweep.jl --json",
-      "statement_hash": "sha256:d7360c57ce1a34dc35ec3d8cbfed5d24d1173aa170e4c3c1860ef972d5449f5b"
+      "statement_hash": "sha256:948c32a4f671a159a5a609daafbddbc3d392b616f154715f02ebe79e71fe8c1d"
     },
     {
       "assumptions_hash": "sha256:31d9d09769a722ea6314d583df67205c6526301827a9cbe0e7412baf4d9e4907",
@@ -63,10 +63,10 @@
       "evidence_class": "O4",
       "non_claims": [
         "does_not_claim_generalized_median_theorems",
-        "does_not_claim_full_sync_gate_composition"
+        "does_not_claim_live_typed_production_sync"
       ],
       "replay_command": "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
-      "statement_hash": "sha256:4171758f2adef37bb4d40a5595e8981e234fa98cdb509138ae0ce1c392e00a28"
+      "statement_hash": "sha256:1b9c20694c96b917fd16bac3d2e068b67c579229d8ad0cd45b203b3ba6f5da83"
     },
     {
       "assumptions_hash": "sha256:6af545052c07aed8dd756cb2e12f9fdc9814527ad7c09dc86820047219b2edf8",

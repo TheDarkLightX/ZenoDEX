@@ -12,7 +12,7 @@ Current expected receipt:
 
 ```text
 schema = zenodex.oracle.math_witness_sweep.v1
-case_count = 27
+case_count = 28
 failed_count = 0
 status = accepted
 ```
@@ -29,7 +29,10 @@ binding across terminal DAG closure, runtime binding, and sync-window
 acceptance, plus rejection witnesses for duplicate terminal receipts and stale
 sync windows, rejection witnesses for missing value binding and wrong consumer
 action, and a bounded witness that widening an accepted sync window preserves
-O3 action-binding acceptance.
+O3 action-binding acceptance. It also checks a bounded sync-window
+composition grid: if source-to-bridge and bridge-to-target epoch windows are
+accepted, then the composed source-to-target window is accepted with the summed
+lag bound.
 
 The Lean tree already has adjacent checked anchors:
 
@@ -53,16 +56,18 @@ binding, and O3 action-binding obligations, direct O3 value-binding and
 same-consumer-action projections, rejection of missing DAG dependencies,
 content-hash drift, registry-root drift, runtime-state drift, missing value
 binding, or wrong consumer action, and sync-window widening preservation for
-O3 action binding. The O4/O5 Oracle-use
+O3 action binding. It now also proves epoch-lag triangle composition and
+Oracle sync-window composition with summed lag bounds. The O4/O5 Oracle-use
 rule now has iff decompositions for O4/O5 bridge obligations and full O5 use:
 accepted O3 receipt, ZenoProof acceptance, same query/value/window, same
 consumer action, primary O5 claim, distinct verifiers, distinct proof kinds,
 shared input/output roots, and DAG closure.
 Missing distinct verifiers or missing DAG closure contradicts O5 use.
 
-The next proof ladder should turn the Julia cases into restricted Lean
+The next proof ladder should turn the remaining Julia cases into restricted Lean
 theorems for median/deviation boundaries, budget conservation, executable DAG
-closure, typed binding, and production sync-gate composition. The current public workflow status lane is documented in
+closure, typed binding, and production sync-gate use in the live typed
+adapters. The current public workflow status lane is documented in
 `docs/research/ZENO_ORACLE_WORKFLOW_EVIDENCE_STATUS.md`. ZenoProof now has
 public replay profiles for this Julia sweep, the Lean anchor, and the bounded
 ESSO/TLA/LTLf Oracle recovery models through

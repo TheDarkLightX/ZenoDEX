@@ -147,6 +147,18 @@ oracle_runtime_binding_ok(
 oracle_sync_window_ok(source_epoch::Int, target_epoch::Int, max_lag::Int)::Bool =
     max_lag >= 0 && epoch_lag(source_epoch, target_epoch) <= max_lag
 
+oracle_sync_window_composes(
+    source_epoch::Int,
+    bridge_epoch::Int,
+    target_epoch::Int,
+    max_ab::Int,
+    max_bc::Int,
+)::Bool =
+    !(
+        oracle_sync_window_ok(source_epoch, bridge_epoch, max_ab) &&
+        oracle_sync_window_ok(bridge_epoch, target_epoch, max_bc)
+    ) || oracle_sync_window_ok(source_epoch, target_epoch, max_ab + max_bc)
+
 o3_action_binding_ok(
     terminal_dag::Bool,
     runtime_binding::Bool,
@@ -466,6 +478,26 @@ function run_cases()::Vector{Dict{String, Any}}
                 !oracle_sync_window_ok(100, 103, 1) &&
                 oracle_sync_window_ok(100, 103, 3),
             "accepted_lag=1 widened_max_lag=3 stale_at_1_accepted_at_3",
+        ),
+    )
+
+    sync_composition_grid = all(
+        oracle_sync_window_composes(a, b, c, max_ab, max_bc)
+        for a in 98:102
+        for b in 98:102
+        for c in 98:102
+        for max_ab in 0:4
+        for max_bc in 0:4
+    )
+    push!(
+        cases,
+        case_result(
+            "oracle_sync_window_composition_preserves_bound",
+            sync_composition_grid &&
+                oracle_sync_window_ok(100, 102, 2) &&
+                oracle_sync_window_ok(102, 105, 3) &&
+                oracle_sync_window_ok(100, 105, 5),
+            "grid_epochs=98:102 max_ab=0:4 max_bc=0:4 sample=100->102->105 composed_max=5",
         ),
     )
 
