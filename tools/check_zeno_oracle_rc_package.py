@@ -11,10 +11,19 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
+import yaml
+
 
 REQUIRED_PACKAGE_FILES = {
     "bin/zenodex-oracle",
+    "scripts/check_zeno_oracle_rc_bundle.sh",
+    "src/state/canonical.py",
+    "tests/integration/test_dex_snapshot.py",
+    "generated/perp_python/perp_epoch_clearinghouse_2p_v0_1_ref.py",
+    "formal/tla/OracleRecoveryLifecycle.tla",
+    "lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
     "tools/check_claims_registry.py",
+    "tools/check_cross_module_oracle_split_brain_v1.py",
     "tools/check_disaster_obligation_certificate.py",
     "tools/check_zeno_oracle_disaster_frontier.py",
     "tools/check_zeno_oracle_frontier_obligation_projection.py",
@@ -112,6 +121,8 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
             errors.append("python_entrypoint_mismatch")
         if manifest.get("devnet_alpha_gate") != "scripts/check_zeno_oracle_devnet_alpha.sh":
             errors.append("devnet_alpha_gate_mismatch")
+        if manifest.get("package_replay_gate") != "scripts/check_zeno_oracle_rc_bundle.sh":
+            errors.append("package_replay_gate_mismatch")
         if manifest.get("whitepaper") != "docs/papers/zeno-oracle-whitepaper/main.pdf":
             errors.append("whitepaper_mismatch")
         if manifest.get("whitepaper_author") != "Dana Edwards":
@@ -124,6 +135,49 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
             errors.extend(f"missing_not_claim:{item}" for item in missing)
 
         file_index = _file_index(manifest, errors)
+        claims_registry_path = package_dir / "docs" / "claims_registry.yaml"
+        if claims_registry_path.is_file():
+            try:
+                registry = yaml.safe_load(claims_registry_path.read_text(encoding="utf-8"))
+                if not isinstance(registry, Mapping):
+                    errors.append("claims_registry_must_be_object")
+                else:
+                    claims = registry.get("claims")
+                    if not isinstance(claims, list):
+                        errors.append("claims_registry_claims_must_be_list")
+                    else:
+                        for claim_index, claim in enumerate(claims):
+                            if not isinstance(claim, Mapping):
+                                errors.append(f"claims_registry_claim_{claim_index}_must_be_object")
+                                continue
+                            evidence = claim.get("evidence")
+                            if not isinstance(evidence, Mapping):
+                                errors.append(f"claims_registry_claim_{claim_index}_evidence_must_be_object")
+                                continue
+                            files = evidence.get("files")
+                            if files is None:
+                                continue
+                            if not isinstance(files, list):
+                                errors.append(f"claims_registry_claim_{claim_index}_files_must_be_list")
+                                continue
+                            for file_index_in_claim, rel_path in enumerate(files):
+                                if not isinstance(rel_path, str) or not rel_path:
+                                    errors.append(
+                                        f"claims_registry_claim_{claim_index}_file_{file_index_in_claim}_must_be_string"
+                                    )
+                                    continue
+                                if rel_path.startswith("/") or ".." in Path(rel_path).parts:
+                                    errors.append(f"claims_registry_file_outside_package:{rel_path}")
+                                    continue
+                                if rel_path not in file_index:
+                                    errors.append(f"claims_registry_file_missing_from_manifest:{rel_path}")
+                                if not (package_dir / rel_path).is_file():
+                                    errors.append(f"claims_registry_file_missing_on_disk:{rel_path}")
+            except Exception as exc:
+                errors.append(f"claims_registry_invalid:{exc}")
+        else:
+            errors.append("claims_registry_missing")
+
         missing_files = sorted(REQUIRED_PACKAGE_FILES - set(file_index))
         errors.extend(f"missing_required_file:{path}" for path in missing_files)
         for rel_path, row in sorted(file_index.items()):
@@ -144,6 +198,11 @@ def check_package(*, package_dir: Path, receipt_path: Path | None = None, sig_pa
             errors.append("entrypoint_missing_on_disk")
         elif not (entrypoint_path.stat().st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
             errors.append("entrypoint_not_executable")
+        package_replay_path = package_dir / "scripts" / "check_zeno_oracle_rc_bundle.sh"
+        if not package_replay_path.is_file():
+            errors.append("package_replay_gate_missing_on_disk")
+        elif not (package_replay_path.stat().st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
+            errors.append("package_replay_gate_not_executable")
 
     receipt: Mapping[str, Any] | None = None
     if receipt_path is not None:

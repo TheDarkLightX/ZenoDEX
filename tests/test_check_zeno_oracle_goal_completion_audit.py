@@ -44,6 +44,11 @@ def test_goal_completion_audit_maps_all_prompt_items_and_blocks_goal_closure() -
     assert "tools/check_zenoproof_production_governance_policy.py" in items[9]["evidence_files"]
     assert audit["zenoproof_production_governance_gate"]["status"] == "production_candidate_only"
     assert items[10]["status"] == "devnet_complete"
+    assert "scripts/check_zeno_oracle_rc_bundle.sh" in items[10]["evidence_files"]
+    assert (
+        "cd dist/zeno-oracle-devnet-alpha-rc1 && bash scripts/check_zeno_oracle_rc_bundle.sh"
+        in items[10]["replay_commands"]
+    )
 
 
 def test_goal_completion_audit_cli_fails_closed_and_can_expect_blocked() -> None:
