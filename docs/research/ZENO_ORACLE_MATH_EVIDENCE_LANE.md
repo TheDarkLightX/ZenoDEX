@@ -58,7 +58,7 @@ The next proof ladder should turn the Julia cases into restricted Lean
 theorems for median/deviation boundaries, budget conservation, executable DAG
 closure, typed binding, and production sync-gate composition. The current public workflow status lane is documented in
 `docs/research/ZENO_ORACLE_WORKFLOW_EVIDENCE_STATUS.md`. ZenoProof now has
-public replay profiles for this Julia sweep and Lean anchor through
-`tools/zenoproof_public_replay_verifier.py`; deeper Morph, ESSO, TLA/LTLf,
-and PopperPad evidence should remain internal until each lane has a public
-replay command and a stable claim boundary.
+public replay profiles for this Julia sweep, the Lean anchor, and the bounded
+LTLf Oracle recovery model through `tools/zenoproof_public_replay_verifier.py`.
+Deeper Morph, ESSO, TLA, and PopperPad evidence should remain internal until
+each lane has a public replay command and a stable claim boundary.

@@ -34,12 +34,15 @@ def _ensure_morph_smoke_api() -> str:
         from morph.proofs import Transition, VerifyResult  # noqa: F401
         from morph.triviality_safe import CertificateOnlyDomain, CheckResult  # noqa: F401
 
+        if getattr(sys.modules.get("morph"), "__zenodex_public_api_stub__", False):
+            return "public_api_stub"
         return "morph"
     except ModuleNotFoundError as exc:
         if exc.name != "morph":
             raise
 
     morph_mod = types.ModuleType("morph")
+    morph_mod.__zenodex_public_api_stub__ = True
     domain_mod = types.ModuleType("morph.domain")
     proofs_mod = types.ModuleType("morph.proofs")
     triviality_mod = types.ModuleType("morph.triviality_safe")
@@ -272,9 +275,10 @@ def build_status() -> dict[str, Any]:
             files=[
                 "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
                 "formal/ltlf/oracle_recovery_goal_family_v1.json",
+                "tools/zeno_oracle_ltlf_recovery_replay.py",
                 "tests/formal/test_oracle_recovery_ltlf.py",
             ],
-            replay_command="PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 pytest -q -p no:cacheprovider tests/formal/test_oracle_recovery_ltlf.py",
+            replay_command="python3 tools/zeno_oracle_ltlf_recovery_replay.py --format text",
             evidence_class="ltlf_public_replay",
         ),
         _artifact_case(
