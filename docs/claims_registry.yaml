@@ -1843,22 +1843,20 @@ claims:
     statement: >
       The public compositional-disaster regression projection checker validates
       sanitized summaries for two private 100-iteration disaster campaigns and
-      accepts six branch-local public regressions: duplicate DEX nonce replay,
+      accepts seven branch-local public regressions: duplicate DEX nonce replay,
       stale quote-receipt pool snapshot rejection, signed perps expected-nonce
       mismatch without nonce consumption, strategy policy bundle rejection
-      below the O3 live evidence floor, route candidate-set hash drift, and
-      missing quote-receipt hash rejection. The checker requires
-      tracked public test/source files for promoted regressions, rejects private
-      path markers in the manifest, and records the confidential live-admission
-      witness projection as deferred because its public source surface is absent
-      from this integration branch. Private campaign artifacts remain
-      provenance; this claim is limited to the tracked manifest, checker, and
-      public replay tests.
+      below the O3 live evidence floor, confidential live-admission replay
+      rejection, route candidate-set hash drift, and missing quote-receipt hash
+      rejection. The checker requires tracked public test/source files for
+      promoted regressions and rejects private path markers in the manifest.
+      Private campaign artifacts remain provenance; this claim is limited to
+      the tracked manifest, checker, and public replay tests.
     evidence:
       kind: python
       check:
         - cmd: python3 tools/check_zeno_oracle_compositional_disaster_regressions.py --format text
-        - cmd: pytest -q tests/test_check_zeno_oracle_compositional_disaster_regressions.py tests/core/test_perp_submission_auth_gate.py tests/core/test_strategy_policy_contracts_v1_adapter.py tests/core/test_quote_receipts.py::test_quote_receipt_verifier_rejects_malformed_single_hop_receipts tests/integration/test_route_certificate_sequence_grammar_fuzz.py tests/integration/test_dex_engine_sequence_grammar_fuzz.py tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py
+        - cmd: pytest -q tests/test_check_zeno_oracle_compositional_disaster_regressions.py tests/core/test_perp_submission_auth_gate.py tests/core/test_strategy_policy_contracts_v1_adapter.py tests/core/test_quote_receipts.py::test_quote_receipt_verifier_rejects_malformed_single_hop_receipts tests/core/test_confidential_extension_live_admission.py tests/core/test_confidential_extension_live_admission_gate.py tests/integration/test_route_certificate_sequence_grammar_fuzz.py tests/integration/test_dex_engine_sequence_grammar_fuzz.py tests/integration/test_dex_engine_quote_receipt_sequence_grammar_fuzz.py
       files:
         - tools/check_zeno_oracle_compositional_disaster_regressions.py
         - tools/zeno_oracle_compositional_disaster_regression_manifest.json
@@ -1871,6 +1869,12 @@ claims:
         - src/kernels/python/strategy_policy_artifact_contract_v1_adapter.py
         - tests/core/test_quote_receipts.py
         - src/core/quote_receipts.py
+        - tests/core/test_confidential_extension_live_admission.py
+        - tests/core/test_confidential_extension_live_admission_gate.py
+        - src/core/confidential_extension_live_admission.py
+        - src/core/confidential_extension_receipts.py
+        - src/integration/confidential_attestation.py
+        - src/state/confidential_requests.py
         - tests/integration/test_route_certificate_sequence_grammar_fuzz.py
         - tools/route_certificate_sequence_grammar_fuzz.py
         - src/integration/exact_in_route_certificate.py

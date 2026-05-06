@@ -14,13 +14,14 @@ from __future__ import annotations
 
 from typing import AbstractSet, Any, Dict, Iterable, Tuple
 
-from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes, sha256_hex
 
 
 MAX_FEE = 0x7FFF
 MAX_BALANCE = 0xFFFF
 MAX_EPOCH = 0xFFFF
 MAX_ATTESTATION_AGE = 0xFF
+DEFAULT_POLICY_DIGEST = "0x" + ("0" * 64)
 
 
 def confidential_extension_receipt_hash(receipt_body: Dict[str, Any]) -> str:
@@ -31,6 +32,10 @@ def _to_measurement_set(values: Iterable[str] | AbstractSet[str]) -> set[str]:
     out = {str(v) for v in values}
     out.discard("")
     return out
+
+
+def _canonical_policy_digest(value: object, *, name: str = "policy_digest") -> str:
+    return canonical_hex_fixed_allow_0x(value, nbytes=32, name=name)  # type: ignore[arg-type]
 
 
 def _fresh_attestation(*, current_epoch: int, attestation_epoch: int, max_attestation_age: int) -> bool:
@@ -89,6 +94,7 @@ def make_confidential_extension_receipt(
     provider_id: str,
     request_id: str,
     policy_version: str,
+    policy_digest: str = DEFAULT_POLICY_DIGEST,
     measurement: str,
     do_execute: int,
     policy_ok: int,
@@ -104,12 +110,14 @@ def make_confidential_extension_receipt(
     provider_balance_before: int,
     provider_balance_after: int,
 ) -> Dict[str, Any]:
+    canonical_policy_digest = _canonical_policy_digest(policy_digest)
     body = {
         "schema": "zenodex/confidential_extension_receipt/v1",
         "extension_id": str(extension_id),
         "provider_id": str(provider_id),
         "request_id": str(request_id),
         "policy_version": str(policy_version),
+        "policy_digest": canonical_policy_digest,
         "measurement": str(measurement),
         "host": {
             "do_execute": int(do_execute),
@@ -157,6 +165,12 @@ def verify_confidential_extension_receipt(
         val = body.get(key)
         if not isinstance(val, str) or not val:
             return False, f"bad_{key}"
+    try:
+        canonical_policy_digest = _canonical_policy_digest(body.get("policy_digest"))
+    except Exception:
+        return False, "bad_policy_digest"
+    if body.get("policy_digest") != canonical_policy_digest:
+        return False, "bad_policy_digest"
 
     if body["measurement"] not in _to_measurement_set(approved_measurements):
         return False, "measurement_not_approved"

@@ -7,9 +7,15 @@ external concerns; callers should only pass already-verified attestation payload
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Mapping
 
-from ..core.confidential_extension_receipts import make_confidential_extension_receipt
+from ..core.confidential_extension_receipts import (
+    DEFAULT_POLICY_DIGEST,
+    MAX_EPOCH,
+    make_confidential_extension_receipt,
+)
+from ..state.canonical import canonical_hex_fixed_allow_0x
 
 
 def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
@@ -31,6 +37,34 @@ def _normalize_hex(value: Any, *, name: str) -> str:
     if not s or any(ch not in "0123456789abcdef" for ch in s):
         raise ValueError(f"{name} must be hex")
     return s
+
+
+def _require_bounded_epoch(value: Any, *, name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > MAX_EPOCH:
+        raise ValueError(f"{name} must be a bounded epoch")
+    return value
+
+
+@dataclass(frozen=True)
+class VerifiedConfidentialAttestation:
+    """Deterministic summary of an externally verified TEE attestation."""
+
+    measurement: str
+    policy_digest: str
+    attestation_epoch: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "measurement", _require_nonempty_str(self.measurement, name="measurement"))
+        object.__setattr__(
+            self,
+            "policy_digest",
+            canonical_hex_fixed_allow_0x(self.policy_digest, nbytes=32, name="policy_digest"),
+        )
+        object.__setattr__(
+            self,
+            "attestation_epoch",
+            _require_bounded_epoch(self.attestation_epoch, name="attestation_epoch"),
+        )
 
 
 def nitro_measurement_from_summary(summary: Mapping[str, Any]) -> str:
@@ -83,6 +117,7 @@ def make_confidential_extension_receipt_from_nitro(
     provider_id: str,
     request_id: str,
     policy_version: str,
+    policy_digest: str = DEFAULT_POLICY_DIGEST,
     do_execute: int,
     policy_ok: int,
     nonce_unused: int,
@@ -102,6 +137,7 @@ def make_confidential_extension_receipt_from_nitro(
         provider_id=provider_id,
         request_id=request_id,
         policy_version=policy_version,
+        policy_digest=policy_digest,
         measurement=nitro_measurement_from_summary(summary),
         do_execute=do_execute,
         policy_ok=policy_ok,
@@ -126,6 +162,7 @@ def make_confidential_extension_receipt_from_azure(
     provider_id: str,
     request_id: str,
     policy_version: str,
+    policy_digest: str = DEFAULT_POLICY_DIGEST,
     do_execute: int,
     policy_ok: int,
     nonce_unused: int,
@@ -145,6 +182,7 @@ def make_confidential_extension_receipt_from_azure(
         provider_id=provider_id,
         request_id=request_id,
         policy_version=policy_version,
+        policy_digest=policy_digest,
         measurement=azure_hostdata_measurement_from_claims(claims),
         do_execute=do_execute,
         policy_ok=policy_ok,
@@ -152,6 +190,51 @@ def make_confidential_extension_receipt_from_azure(
         output_bound_ok=output_bound_ok,
         current_epoch=current_epoch,
         attestation_epoch=attestation_epoch,
+        max_attestation_age=max_attestation_age,
+        fee_charged=fee_charged,
+        receipt_fee=receipt_fee,
+        credit_before=credit_before,
+        credit_after=credit_after,
+        provider_balance_before=provider_balance_before,
+        provider_balance_after=provider_balance_after,
+    )
+
+
+def make_confidential_extension_receipt_from_verified_attestation(
+    *,
+    verified_attestation: VerifiedConfidentialAttestation,
+    extension_id: str,
+    provider_id: str,
+    request_id: str,
+    policy_version: str,
+    do_execute: int,
+    policy_ok: int,
+    nonce_unused: int,
+    output_bound_ok: int,
+    current_epoch: int,
+    max_attestation_age: int,
+    fee_charged: int,
+    receipt_fee: int,
+    credit_before: int,
+    credit_after: int,
+    provider_balance_before: int,
+    provider_balance_after: int,
+) -> dict[str, Any]:
+    if not isinstance(verified_attestation, VerifiedConfidentialAttestation):
+        raise ValueError("verified_attestation must be a VerifiedConfidentialAttestation")
+    return make_confidential_extension_receipt(
+        extension_id=extension_id,
+        provider_id=provider_id,
+        request_id=request_id,
+        policy_version=policy_version,
+        policy_digest=verified_attestation.policy_digest,
+        measurement=verified_attestation.measurement,
+        do_execute=do_execute,
+        policy_ok=policy_ok,
+        nonce_unused=nonce_unused,
+        output_bound_ok=output_bound_ok,
+        current_epoch=current_epoch,
+        attestation_epoch=verified_attestation.attestation_epoch,
         max_attestation_age=max_attestation_age,
         fee_charged=fee_charged,
         receipt_fee=receipt_fee,

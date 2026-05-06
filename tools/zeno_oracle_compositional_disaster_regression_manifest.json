@@ -57,8 +57,8 @@
   "candidate_witness_projection": {
     "source_campaign_id": "compositional_aot100_expansion2_2026_05_05",
     "private_candidate_witness_count": 7,
-    "accepted_public_regression_count": 6,
-    "deferred_projection_count": 1,
+    "accepted_public_regression_count": 7,
+    "deferred_projection_count": 0,
     "entries": [
       {
         "id": "dex_engine_duplicate_nonce_replay",
@@ -181,9 +181,30 @@
         "atom_id": "AOT-EXP2-054",
         "composition_shape": "valid_artifact_wrong_nonce_or_session",
         "surface_pair": "confidential_attestation_to_live_admission",
-        "public_status": "deferred_missing_public_surface",
-        "deferred_reason": "confidential_live_admission_source_surface_absent_on_this_integration_branch",
-        "expected_public_test": "tests/core/test_confidential_extension_live_admission.py"
+        "public_status": "accepted_public_replay",
+        "test_file": "tests/core/test_confidential_extension_live_admission.py",
+        "test_names": [
+          "test_confidential_extension_live_admission_rejects_request_replay"
+        ],
+        "source_files": [
+          "src/core/confidential_extension_live_admission.py",
+          "src/state/confidential_requests.py",
+          "src/core/confidential_extension_receipts.py",
+          "src/integration/confidential_attestation.py"
+        ],
+        "replay_commands": [
+          "pytest -q tests/core/test_confidential_extension_live_admission.py tests/core/test_confidential_extension_live_admission_gate.py"
+        ],
+        "expected": {
+          "target": "confidential_extension_live_admission_gate",
+          "derivation": "VerifiedReceipt->UsedRequestReplay",
+          "outcome_substrings": [
+            "request_replay"
+          ],
+          "original_size": 158,
+          "minimized_size": 158,
+          "path_id_policy": "single_gate_case_has_no_path_id_claim"
+        }
       },
       {
         "id": "route_canonicalization_projection_order",

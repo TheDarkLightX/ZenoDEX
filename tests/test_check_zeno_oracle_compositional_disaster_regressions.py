@@ -24,17 +24,18 @@ def test_compositional_disaster_regression_manifest_accepts_public_projection() 
     assert receipt["ok"] is True
     assert receipt["campaign_count"] == 2
     assert receipt["private_candidate_witness_count"] == 7
-    assert receipt["accepted_public_regression_count"] == 6
-    assert receipt["deferred_projection_count"] == 1
+    assert receipt["accepted_public_regression_count"] == 7
+    assert receipt["deferred_projection_count"] == 0
     assert set(receipt["accepted_public_regressions"]) == {
         "dex_engine_duplicate_nonce_replay",
         "dex_engine_quote_receipt_stale_pool_snapshot",
         "perp_submission_nonce_replay_without_consumption",
         "strategy_policy_live_floor_o3",
+        "confidential_live_admission_replay",
         "route_canonicalization_projection_order",
         "quote_receipt_transport_missing_hash",
     }
-    assert "confidential_live_admission_replay" in receipt["deferred_projections"]
+    assert receipt["deferred_projections"] == []
 
 
 def test_compositional_disaster_regression_manifest_cli_text() -> None:
@@ -53,7 +54,8 @@ def test_compositional_disaster_regression_manifest_cli_text() -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "status = accepted" in result.stdout
-    assert "accepted_public_regression_count = 6" in result.stdout
+    assert "accepted_public_regression_count = 7" in result.stdout
+    assert "deferred_projection_count = 0" in result.stdout
 
 
 def test_compositional_disaster_regression_manifest_rejects_missing_public_test(tmp_path: Path) -> None:
