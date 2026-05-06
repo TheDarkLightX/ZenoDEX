@@ -26,6 +26,7 @@ POLICY_ARTIFACT_SCHEMA = "zenodex/strategy-policy-artifact/v1"
 TAU_POLICY_BUNDLE_SCHEMA = "zenodex/strategy-policy-bundle/v1"
 SOURCE_ARTIFACT_SCHEMA = "zenodex/strategy-source-artifact/v1"
 DEFAULT_DECISION_MODEL_VERSION = "autotrader-binary-v1"
+EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 
 
 def _require_mapping(value: object, *, name: str) -> Mapping[str, Any]:
@@ -139,6 +140,7 @@ class TauPolicyBundle:
     compile_contract_tau_receipt: Mapping[str, Any]
     compilation_witness_tau_receipt: Mapping[str, Any]
     decision_model_version: str = DEFAULT_DECISION_MODEL_VERSION
+    evidence_class: str = "O3"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "strategy_hash", _require_text(self.strategy_hash, name="strategy_hash"))
@@ -153,6 +155,10 @@ class TauPolicyBundle:
             "decision_model_version",
             _require_text(self.decision_model_version, name="decision_model_version"),
         )
+        evidence_class = _require_text(self.evidence_class, name="evidence_class")
+        if evidence_class not in EVIDENCE_RANK:
+            raise ValueError("evidence_class must be one of O0..O5")
+        object.__setattr__(self, "evidence_class", evidence_class)
         normalized_specs: list[str] = []
         seen: set[str] = set()
         for raw in self.required_spec_ids:
@@ -182,6 +188,7 @@ class TauPolicyBundle:
             "compile_contract_tau_receipt": dict(self.compile_contract_tau_receipt),
             "compilation_witness_tau_receipt": dict(self.compilation_witness_tau_receipt),
             "decision_model_version": self.decision_model_version,
+            "evidence_class": self.evidence_class,
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -371,6 +378,7 @@ def tau_policy_bundle_from_dict(data: Mapping[str, Any]) -> TauPolicyBundle:
         compile_contract_tau_receipt=doc.get("compile_contract_tau_receipt", {}),
         compilation_witness_tau_receipt=doc.get("compilation_witness_tau_receipt", {}),
         decision_model_version=doc.get("decision_model_version", DEFAULT_DECISION_MODEL_VERSION),
+        evidence_class=doc.get("evidence_class", "O3"),
     )
     bundle_hash = _require_text(doc.get("tau_policy_bundle_hash"), name="tau_policy_bundle_hash")
     if bundle_hash != bundle.tau_policy_bundle_hash_hex():
