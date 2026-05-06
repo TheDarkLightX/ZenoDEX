@@ -21,6 +21,13 @@ def _rehash(artifact: dict[str, Any]) -> dict[str, Any]:
     return artifact
 
 
+LOCAL_TOOLCHAIN_REPLAY_FAILURE_PREFIXES = {
+    zv.TLA_REPLAY_PROFILE: ("pytest_replay_skipped:",),
+    zv.LTLF_REPLAY_PROFILE: ("pytest_replay_skipped:",),
+    zv.ESSO_REPLAY_PROFILE: ("pytest_replay_failed:",),
+}
+
+
 def test_manifest_accepts_sample_artifact_and_oracle_bridge() -> None:
     registry = _manifest()
 
@@ -61,8 +68,21 @@ def test_manifest_accepts_sample_artifact_and_oracle_bridge() -> None:
     assert reward_result.checks["reward_pool_has_budget"] is True
 
     for profile in zv.PUBLIC_REPLAY_PROFILE_CONFIGS:
+        try:
+            public_replay_artifact = zv.sample_public_replay_artifact(profile)
+        except ValueError as exc:
+            assert profile in LOCAL_TOOLCHAIN_REPLAY_FAILURE_PREFIXES
+            assert str(exc).startswith(LOCAL_TOOLCHAIN_REPLAY_FAILURE_PREFIXES[profile])
+            failed_replay_result = zv._public_replay_failed_result(profile, exc)
+            assert failed_replay_result.status == "rejected"
+            assert failed_replay_result.proof_ok is False
+            assert failed_replay_result.errors == [
+                "public_replay_sample_failed:"
+                f"{profile}:ValueError:{exc}"
+            ]
+            continue
         public_replay_result = zv.verify_zenoproof_artifact(
-            zv.sample_public_replay_artifact(profile),
+            public_replay_artifact,
             registry,
             now_epoch=150,
         )

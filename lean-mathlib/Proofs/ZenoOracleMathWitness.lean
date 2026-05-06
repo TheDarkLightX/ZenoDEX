@@ -54,6 +54,12 @@ def O5OracleUseOK
     (O5IndependenceWitnessOK
       primaryO5Claim distinctVerifiers distinctProofKinds sameInputRoot sameOutputRoot dagClosed)
 
+def OracleSyncWindowOK (sourceEpoch targetEpoch maxLag : Nat) : Prop :=
+  EpochLag sourceEpoch targetEpoch <= maxLag
+
+def O3ActionBindingOK (terminalDAGOK runtimeBindingOK syncWindowOK : Prop) : Prop :=
+  And terminalDAGOK (And runtimeBindingOK syncWindowOK)
+
 def LiveEconomicsEscrowFloor
     (initialDisputePool bondA bondB bondC feePaid : Nat) : Nat :=
   initialDisputePool + bondA + bondB + bondC + feePaid
@@ -330,6 +336,69 @@ theorem runtime_binding_ok_requires_value_bound
     (h : OracleRuntimeBindingOK registryRootBound runtimeStateBound valueBound sameConsumerAction) :
     valueBound := by
   exact h.right.right.left
+
+theorem oracle_sync_window_ok_comm
+    {sourceEpoch targetEpoch maxLag : Nat} :
+    OracleSyncWindowOK sourceEpoch targetEpoch maxLag ↔
+      OracleSyncWindowOK targetEpoch sourceEpoch maxLag := by
+  unfold OracleSyncWindowOK
+  rw [epoch_lag_comm]
+
+theorem oracle_sync_window_rejects_lag_above_max
+    {sourceEpoch targetEpoch maxLag : Nat}
+    (hLag : maxLag < EpochLag sourceEpoch targetEpoch) :
+    Not (OracleSyncWindowOK sourceEpoch targetEpoch maxLag) := by
+  intro h
+  unfold OracleSyncWindowOK at h
+  omega
+
+theorem o3_action_binding_ok_requires_terminal_dag
+    {terminalDAGOK runtimeBindingOK syncWindowOK : Prop}
+    (h : O3ActionBindingOK terminalDAGOK runtimeBindingOK syncWindowOK) :
+    terminalDAGOK := by
+  exact h.left
+
+theorem o3_action_binding_ok_requires_runtime_binding
+    {terminalDAGOK runtimeBindingOK syncWindowOK : Prop}
+    (h : O3ActionBindingOK terminalDAGOK runtimeBindingOK syncWindowOK) :
+    runtimeBindingOK := by
+  exact h.right.left
+
+theorem o3_action_binding_ok_requires_sync_window
+    {terminalDAGOK runtimeBindingOK syncWindowOK : Prop}
+    (h : O3ActionBindingOK terminalDAGOK runtimeBindingOK syncWindowOK) :
+    syncWindowOK := by
+  exact h.right.right
+
+theorem o3_action_binding_sample :
+    O3ActionBindingOK
+      (TerminalReceiptDAGOK True True True)
+      (OracleRuntimeBindingOK True True True True)
+      (OracleSyncWindowOK 100 101 1) := by
+  norm_num [O3ActionBindingOK, TerminalReceiptDAGOK, OracleRuntimeBindingOK, OracleSyncWindowOK, EpochLag]
+
+theorem o3_action_binding_rejects_duplicate_receipt
+    {runtimeBindingOK syncWindowOK : Prop} :
+    Not
+      (O3ActionBindingOK
+        (TerminalReceiptDAGOK True False True)
+        runtimeBindingOK
+        syncWindowOK) := by
+  intro h
+  exact terminal_dag_ok_requires_no_duplicate_receipts h.left
+
+theorem o3_action_binding_rejects_stale_sync_window
+    {terminalDAGOK runtimeBindingOK : Prop} :
+    Not
+      (O3ActionBindingOK
+        terminalDAGOK
+        runtimeBindingOK
+        (OracleSyncWindowOK 100 103 1)) := by
+  intro h
+  have hSync : OracleSyncWindowOK 100 103 1 :=
+    o3_action_binding_ok_requires_sync_window h
+  unfold OracleSyncWindowOK at hSync
+  norm_num [EpochLag] at hSync
 
 theorem o4_or_o5_use_requires_o3_receipt
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}
