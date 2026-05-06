@@ -24,7 +24,7 @@ def test_production_network_config_accepts_sample_candidate() -> None:
     assert result["status"] == "accepted"
     assert result["error_count"] == 0
     assert result["receipt_bundle_status"] == "accepted"
-    assert result["receipt_bundle_kind_count"] == 6
+    assert result["receipt_bundle_kind_count"] == 7
     assert config["runtime_controls"]["require_oracle_authorization_for_isolated_settle_epoch"] is True
     assert "live_token_settlement_disabled" in result["go_live_blockers"]
     assert "does_not_claim_live_token_settlement" in result["not_claimed"]
@@ -111,6 +111,25 @@ def test_production_network_config_rejects_signed_release_artifact_drift() -> No
 
     assert result["status"] == "rejected"
     assert "receipt:signed_release_release_artifact_digest_mismatch" in result["errors"]
+
+
+def test_production_network_config_rejects_release_transparency_log_root_drift() -> None:
+    config = sample_config()
+    bundle = sample_receipt_bundle(config)
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    release_log = next(
+        receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == "signed_release_transparency_log"
+    )
+    payload = release_log["payload"]
+    assert isinstance(payload, dict)
+    payload["release_transparency_log_root"] = "sha256:" + "9" * 64
+    release_log["receipt_id"] = receipt_content_hash(release_log)
+
+    result = check_config(config, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:signed_release_transparency_log_root_mismatch" in result["errors"]
 
 
 def test_production_network_config_rejects_runtime_controls_receipt_drift() -> None:

@@ -78,6 +78,7 @@ REQUIRED_RECEIPT_KINDS = {
     "reporter_registry_deployment",
     "runtime_controls_attestation",
     "signed_release_artifact",
+    "signed_release_transparency_log",
 }
 RECEIPT_NOT_CLAIMS = {
     "does_not_claim_receipts_verified_against_live_rpc",
@@ -111,6 +112,12 @@ def runtime_controls_hash(config: Mapping[str, Any]) -> str:
 
 def _sha_ref(label: str) -> str:
     return "sha256:" + hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def _sha_obj(obj: Any) -> str:
+    return "sha256:" + hashlib.sha256(
+        json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    ).hexdigest()
 
 
 def _tx(label: str) -> str:
@@ -443,6 +450,37 @@ def _enabled_runtime_controls(config: Mapping[str, Any]) -> list[str]:
     return sorted(str(key) for key, value in controls.items() if isinstance(key, str) and value is True)
 
 
+def release_transparency_log_entries(config: Mapping[str, Any]) -> list[dict[str, Any]]:
+    code_signing = config.get("code_signing") if isinstance(config.get("code_signing"), Mapping) else {}
+    signing = config.get("signing") if isinstance(config.get("signing"), Mapping) else {}
+    config_id = config_content_hash(config)
+    entry = {
+        "artifact_digest_alg": code_signing.get("artifact_digest_alg"),
+        "config_id": config_id,
+        "domain_separator": signing.get("domain_separator"),
+        "release_artifact_digest": code_signing.get("release_artifact_digest"),
+        "release_signer_identity": code_signing.get("release_signer_identity"),
+        "scheme": code_signing.get("scheme"),
+        "transparency_log_id": _sha_ref(
+            f"zenodex.oracle.production_network.release.{config_id}.{code_signing.get('release_artifact_digest')}"
+        ),
+        "transparency_log_index": 1,
+        "verify_command_hash": _sha_obj({"verify_command": code_signing.get("verify_command", [])}),
+    }
+    return [entry]
+
+
+def release_transparency_log_root(config: Mapping[str, Any]) -> str:
+    return _sha_obj(
+        {
+            "schema": "zenodex.oracle.release_transparency_log.v1",
+            "config_id": config_content_hash(config),
+            "network_id": config.get("network_id"),
+            "entries": release_transparency_log_entries(config),
+        }
+    )
+
+
 def sample_receipt_bundle(config: Mapping[str, Any] | None = None) -> dict[str, Any]:
     active_config = sample_config() if config is None else config
     config_id = config_content_hash(active_config)
@@ -557,6 +595,24 @@ def sample_receipt_bundle(config: Mapping[str, Any] | None = None) -> dict[str, 
                 "release_signer_identity": code_signing.get("release_signer_identity"),
                 "report_signature_scheme": signing.get("report_signature_scheme"),
                 "scheme": code_signing.get("scheme"),
+                "verified": True,
+            },
+        ),
+        _receipt(
+            kind="signed_release_transparency_log",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zeno_oracle.production_network.signed_release_transparency_log"),
+            block_number=3_250,
+            block_hash=_sha_ref("zeno_oracle.production_network.block.3250"),
+            log_index=0,
+            payload={
+                "candidate_transparency_log_observed": True,
+                "config_id": config_id,
+                "entries": release_transparency_log_entries(active_config),
+                "network_id": network_id,
+                "release_transparency_log_root": release_transparency_log_root(active_config),
+                "release_transparency_log_tree_size": len(release_transparency_log_entries(active_config)),
                 "verified": True,
             },
         ),
@@ -699,6 +755,21 @@ def _check_receipt_payload(
         for key in ("report_signature_scheme", "domain_separator", "receipt_signature_required"):
             if payload.get(key) != signing.get(key):
                 errors.append(f"signed_release_{key}_mismatch")
+    elif kind == "signed_release_transparency_log":
+        if payload.get("verified") is not True:
+            errors.append("signed_release_transparency_log_not_verified")
+        if payload.get("candidate_transparency_log_observed") is not True:
+            errors.append("signed_release_transparency_log_not_observed")
+        expected_entries = release_transparency_log_entries(config)
+        if payload.get("entries") != expected_entries:
+            errors.append("signed_release_transparency_log_entries_mismatch")
+        if payload.get("release_transparency_log_tree_size") != len(expected_entries):
+            errors.append("signed_release_transparency_log_tree_size_mismatch")
+        if payload.get("release_transparency_log_root") != release_transparency_log_root(config):
+            errors.append("signed_release_transparency_log_root_mismatch")
+        indices = [entry.get("transparency_log_index") for entry in expected_entries]
+        if indices != [1]:
+            errors.append("signed_release_transparency_log_indices_not_contiguous")
     elif kind == "runtime_controls_attestation":
         if payload.get("verified") is not True:
             errors.append("runtime_controls_attestation_not_verified")

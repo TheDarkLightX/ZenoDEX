@@ -1613,13 +1613,15 @@ claims:
       controls including typed isolated perps settlement authorization, a local
       receipt bundle for reporter-registry deployment, feed-governance
       deployment, feed-governance approval/execution with timelock checking,
-      signed release artifact verification, runtime-control attestation, and
+      signed release artifact verification, signed-release transparency-log
+      root binding, runtime-control attestation, and
       explicit non-claims for undeployed network, unexecuted
       governance, live token settlement, reporter honesty, and market-price
       truth. The checker rejects devnet chain ids, weak reporter quorum,
       concentrated operators, missing signing/code-signing controls, disabled
       runtime controls, missing receipt bundles, early governance execution,
-      proposal drift, receipt drift, and missing non-claims. This is a
+      proposal drift, release transparency-log root drift, receipt drift, and
+      missing non-claims. This is a
       production-candidate config and local receipt gate only; it does not
       claim that the network is deployed, public release transparency logs have
       verified the artifact, the network is publicly soaked, governance has
