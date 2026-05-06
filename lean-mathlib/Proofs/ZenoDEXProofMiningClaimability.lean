@@ -74,6 +74,19 @@ theorem claimable_runtime_present_implies_balance_matches
       simp [claimable, runtimeBindingsOk, hRuntime, hPubkey, hBalance] at hClaimable
   · rfl
 
+theorem not_claimable_when_manager_rejects
+    (s : Status)
+    (hManager : s.managerOk = false) :
+    claimable s = false := by
+  simp [claimable, hManager]
+
+theorem claimable_implies_manager_ok
+    (s : Status)
+    (hClaimable : claimable s = true) :
+    s.managerOk = true := by
+  cases hManager : s.managerOk <;>
+    simp [claimable, hManager] at hClaimable ⊢
+
 end ProofMiningClaimability
 
 namespace ZenoProofRewardGate

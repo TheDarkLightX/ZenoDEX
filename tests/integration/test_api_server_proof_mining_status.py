@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import threading
 from http.client import HTTPConnection
@@ -198,6 +199,54 @@ def test_api_server_proof_mining_status_requires_verified_context(monkeypatch) -
         assert status["checks"]["winner_matches_sender"] is True
         assert status["checks"]["proposal_hash_matches_context"] is True
         assert status["checks"]["runtime_state_present"] is False
+        assert status["checks"]["runtime_apply_ok"] is False
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_api_server_proof_mining_status_rejects_duplicate_claimed_proposal(monkeypatch) -> None:
+    sender = "0x" + "55" * 48
+    reward_pool = "0x" + "65" * 48
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+    claim = _claim(miner_id=sender, reward_pool_before=20)
+    context = _context_from_claim(claim)
+    proposal_hash = str(claim["body"]["proposal_hash"])
+    runtime_state = initialize_proof_mining_runtime_state(
+        reward_pool_pubkey=reward_pool,
+        reward_pool_balance=20,
+        claim_artifact=claim,
+    )
+    replayed_runtime_state = replace(
+        runtime_state,
+        snapshot=replace(runtime_state.snapshot, claimed_slots={0: proposal_hash}),
+    )
+    httpd, thread, host, port = _start_test_server()
+    try:
+        req = {
+            "app_state_json": _app_state_from_runtime_state(replayed_runtime_state),
+            "chain_balances": {reward_pool: 20, sender: 0},
+            "claim": claim,
+            "proof_mining_context": context,
+            "tx_sender_pubkey": sender,
+            "expected_proposal_hash": proposal_hash,
+        }
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/proof_mining_status",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        status = body["status"]
+        assert status["claimable"] is False
+        assert status["error"] == "proposal_hash already claimed"
+        assert status["checks"]["verified_context_present"] is True
+        assert status["checks"]["runtime_state_present"] is True
+        assert status["checks"]["reward_pool_balance_matches_state"] is True
         assert status["checks"]["runtime_apply_ok"] is False
     finally:
         _stop_test_server(httpd, thread)
