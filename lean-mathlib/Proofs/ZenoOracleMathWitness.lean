@@ -112,6 +112,38 @@ theorem settlement_execution_components_le_total
   unfold SettlementExecutionTotalE8
   omega
 
+theorem settlement_execution_components_le_budget
+    {reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta budget : Nat}
+    (hBudget :
+      SettlementExecutionTotalE8
+        reportReward disputeReward bondWithdrawn slashed feePaid treasuryDelta burnDelta <= budget) :
+    reportReward <= budget ∧
+      disputeReward <= budget ∧
+      bondWithdrawn <= budget ∧
+      slashed <= budget ∧
+      feePaid <= budget ∧
+      treasuryDelta <= budget ∧
+      burnDelta <= budget := by
+  have hComponents :=
+    settlement_execution_components_le_total
+      (reportReward := reportReward)
+      (disputeReward := disputeReward)
+      (bondWithdrawn := bondWithdrawn)
+      (slashed := slashed)
+      (feePaid := feePaid)
+      (treasuryDelta := treasuryDelta)
+      (burnDelta := burnDelta)
+  exact
+    ⟨
+      Nat.le_trans hComponents.left hBudget,
+      Nat.le_trans hComponents.right.left hBudget,
+      Nat.le_trans hComponents.right.right.left hBudget,
+      Nat.le_trans hComponents.right.right.right.left hBudget,
+      Nat.le_trans hComponents.right.right.right.right.left hBudget,
+      Nat.le_trans hComponents.right.right.right.right.right.left hBudget,
+      Nat.le_trans hComponents.right.right.right.right.right.right hBudget
+    ⟩
+
 def SettlementExecutionReceiptOK
     (queryBound totalsBound assetBound contractBound : Prop) : Prop :=
   And queryBound (And totalsBound (And assetBound contractBound))

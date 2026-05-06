@@ -112,6 +112,12 @@ settlement_execution_components_bounded_by_total(totals::NTuple{7, Int})::Bool =
     return all(component -> component <= total, totals)
 end
 
+settlement_execution_budget_caps_components(totals::NTuple{7, Int}, budget::Int)::Bool = begin
+    budget >= 0 || error("budget must be nonnegative")
+    return settlement_execution_total_e8(totals) <= budget &&
+           all(component -> component <= budget, totals)
+end
+
 dispute_grief_rejected(dispute_bond::Int)::Bool = dispute_bond <= 0
 
 split_brain_rejected(
@@ -377,6 +383,16 @@ function run_cases()::Vector{Dict{String, Any}}
             settlement_execution_components_bounded_by_total(settlement_totals) &&
                 settlement_grand_total == 250_240_000_000,
             "grand_total=$(settlement_grand_total) component_count=7",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_settlement_execution_budget_caps_components",
+            settlement_execution_budget_caps_components(settlement_totals, settlement_grand_total) &&
+                !settlement_execution_budget_caps_components(settlement_totals, settlement_grand_total - 1),
+            "budget=$(settlement_grand_total) short_budget=$(settlement_grand_total - 1)",
         ),
     )
 
