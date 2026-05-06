@@ -15,6 +15,7 @@ import yaml
 
 
 REQUIRED_PACKAGE_FILES = {
+    ".github/workflows/zeno-oracle-mvp.yml",
     "bin/zenodex-oracle",
     "scripts/check_zeno_oracle_rc_bundle.sh",
     "src/state/canonical.py",

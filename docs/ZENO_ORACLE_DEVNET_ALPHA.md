@@ -261,6 +261,7 @@ dist/zeno-oracle-devnet-alpha-rc1.tar.gz
 dist/zeno-oracle-devnet-alpha-rc1.receipt.json
 dist/zeno-oracle-devnet-alpha-rc1.sig
 dist/zeno-oracle-devnet-alpha-rc1/ZEN_ORACLE_RC_MANIFEST.json
+dist/zeno-oracle-devnet-alpha-rc1/.github/workflows/zeno-oracle-mvp.yml
 dist/zeno-oracle-devnet-alpha-rc1/bin/zenodex-oracle
 dist/zeno-oracle-devnet-alpha-rc1/scripts/check_zeno_oracle_rc_bundle.sh
 dist/zeno-oracle-devnet-alpha-rc1/tools/check_disaster_obligation_certificate.py

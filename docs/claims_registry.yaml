@@ -1492,32 +1492,51 @@ claims:
       focused O3 receipt flow, devnet service tests, devnet disaster harness,
       named disaster-class corpus, reporter economics replay, obligation-antichain
       certificate, workflow evidence status checker, devnet alpha audit, and RC
-      package validation from public repo artifacts.
+      package validation from public repo artifacts. The CI workflow also verifies
+      the exact devnet-alpha RC package before upload by checking its manifest,
+      receipt, and devnet integrity signature, then running the package-local
+      replay gate from inside the extracted bundle.
       The gate supports a devnet package claim with an executable launcher, package receipt,
-      integrity signature, manifest hash checks, and explicit non-claims for production oracle
-      truth, on-chain feed governance, platform-native binaries, and production code signing.
+      integrity signature, manifest hash checks, package-local replay evidence,
+      shipped claims-registry evidence files, and explicit non-claims for
+      production oracle truth, on-chain feed governance, live public reporter
+      economics, platform-native binaries, production ZenoProof governance,
+      generalized math-proof completion, and production code signing.
     evidence:
       kind: bash
       check:
         - cmd: bash scripts/check_zeno_oracle_devnet_alpha.sh
+        - cmd: bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1
+        - cmd: python3 tools/check_zeno_oracle_rc_package.py --package-dir dist/zeno-oracle-devnet-alpha-rc1 --receipt dist/zeno-oracle-devnet-alpha-rc1.receipt.json --sig dist/zeno-oracle-devnet-alpha-rc1.sig
+        - cmd: cd dist/zeno-oracle-devnet-alpha-rc1 && bash scripts/check_zeno_oracle_rc_bundle.sh
         - cmd: pytest -q tests/test_check_zeno_oracle_rc_package.py
       files:
+        - .github/workflows/zeno-oracle-mvp.yml
         - scripts/check_zeno_oracle_devnet_alpha.sh
         - scripts/check_zeno_oracle_mvp.sh
+        - scripts/check_zeno_oracle_rc_bundle.sh
         - scripts/package_zeno_oracle_rc.sh
         - tools/check_disaster_obligation_certificate.py
+        - tools/check_claims_registry.py
         - tools/check_zeno_oracle_critical_action_map.py
+        - tools/check_zeno_oracle_disaster_frontier.py
+        - tools/check_zeno_oracle_frontier_obligation_projection.py
+        - tools/check_zeno_oracle_goal_completion_audit.py
+        - tools/check_zeno_oracle_live_economics_policy.py
         - tools/check_zeno_oracle_rc_package.py
+        - tools/check_zenoproof_production_governance_policy.py
         - tools/zeno_oracle_o3_receipt_flow_replay.py
         - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
         - tools/zenodex_oracle_devnet_disaster_harness.py
         - tools/zeno_oracle_disaster_class_corpus.py
+        - tools/zeno_oracle_math_witness_sweep.jl
         - tools/zeno_oracle_workflow_evidence_status.py
         - tools/zenodex_oracle_devnet_alpha_audit.py
         - tools/zenodex_oracle_reporter_economics_replay.py
         - tests/test_zeno_oracle_o3_receipt_flow_replay.py
         - tests/test_zenodex_oracle_reporter_economics_replay.py
         - tests/test_check_zeno_oracle_rc_package.py
+        - tests/test_check_zeno_oracle_goal_completion_audit.py
         - docs/ZENO_ORACLE_DEVNET_ALPHA.md
 
   - id: py:zeno_oracle:first_shell_critical_action_map
