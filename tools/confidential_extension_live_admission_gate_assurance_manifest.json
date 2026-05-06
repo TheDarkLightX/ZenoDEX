@@ -1,0 +1,96 @@
+{
+  "manifest_version": 1,
+  "notes": "Pinned, fail-closed assurance envelope for the normalized confidential-extension live-admission micro-kernel. Update only alongside a successful run of tools/run_confidential_extension_live_admission_gate_assurance_gate.sh and tools/check_confidential_extension_live_admission_gate_assurance_manifest.py.",
+  "toolchain": {
+    "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "esso_tree_sha256": "463ba86b72ffb345a435cf9fff8e6dd51a7385e0faffa7b53490b195a143c336",
+    "solvers": {
+      "z3": "Z3 version 4.15.4 - 64 bit",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "source_files": [
+    {
+      "path": "src/kernels/dex/confidential_extension_live_admission_gate_v1.yaml",
+      "sha256": "d277cc199c2ee3f1bcaa0a65d9699186fa09a9bd3ce6ace73d2db2ae33a4568b"
+    },
+    {
+      "path": "src/core/confidential_extension_live_admission.py",
+      "sha256": "32b962dafb72204bcfcb812075ae16fe84fa36d7241a8d31dac061e383920f01"
+    },
+    {
+      "path": "src/kernels/python/confidential_extension_live_admission_gate_v1_native_adapter.py",
+      "sha256": "d00799c3ed5653c08fe2a86d70718a848484336daf72bdfbee0ad97850c068c1"
+    },
+    {
+      "path": "tests/core/test_confidential_extension_live_admission_gate.py",
+      "sha256": "f80212ff51176965c609599e86ae32843a891ae7b4a8d3a1cad528cbdd50389b"
+    },
+    {
+      "path": "tests/kernels/test_confidential_extension_live_admission_gate_v1_native_adapter.py",
+      "sha256": "aff06237145f85b249deb8c1d94d0656ff589821a9c84ef66d7f83796d5ca9c2"
+    }
+  ],
+  "validate": {
+    "report_path": "internal/esso_verify/confidential_extension_live_admission_gate_v1/validate.json",
+    "model_path": "src/kernels/dex/confidential_extension_live_admission_gate_v1.yaml",
+    "ir_hash": "sha256:38268e53a15d6334bfbb784202c0fc5877c23319660454245952755b3436f285"
+  },
+  "shell_lint": {
+    "report_path": "internal/esso_verify/confidential_extension_live_admission_gate_v1/shell_lint.json",
+    "adapter_spec": "src.kernels.python.confidential_extension_live_admission_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:38268e53a15d6334bfbb784202c0fc5877c23319660454245952755b3436f285",
+    "actions": [
+      "evaluate_confidential_extension_live_admission"
+    ],
+    "effects": [
+      "admission_ok",
+      "do_execute_ok",
+      "policy_digest_match_ok",
+      "receipt_verified_ok",
+      "request_unused_ok",
+      "request_used_after"
+    ]
+  },
+  "verify_shell": {
+    "report_path": "internal/esso_verify/confidential_extension_live_admission_gate_v1/verify_shell.json",
+    "kernel_path": "src/kernels/dex/confidential_extension_live_admission_gate_v1.yaml",
+    "adapter_spec": "src.kernels.python.confidential_extension_live_admission_gate_v1_native_adapter:make_adapter",
+    "ir_hash": "sha256:38268e53a15d6334bfbb784202c0fc5877c23319660454245952755b3436f285",
+    "mode": "full",
+    "seed": 0,
+    "traces": 16,
+    "max_steps": 8,
+    "determinism_trials": 2,
+    "fingerprint": "sha256:b5a7e73f724a3f8584dacdce60c4a74978971a2d183fc4b267392fe73e86522a"
+  },
+  "verify_multi": {
+    "report_path": "internal/esso_verify/confidential_extension_live_admission_gate_v1/verification_report.json",
+    "model_id": "confidential_extension_live_admission_gate_v1",
+    "ir_hash_short": "38268e53a15d6334",
+    "verdict": "VERIFIED",
+    "z3_passed": true,
+    "cvc5_available": true,
+    "cvc5_passed": true,
+    "solvers_agreed": true,
+    "total_queries": 2,
+    "passed_queries": 2,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "notes": [
+      "Cross-verified by Z3 and CVC5"
+    ],
+    "scope_kind": "inductive",
+    "k": 1,
+    "solver_timeout_ms": 60000,
+    "fail_closed": true,
+    "report_solver_versions": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    }
+  },
+  "adapter_regression_tests": [
+    "tests/kernels/test_confidential_extension_live_admission_gate_v1_native_adapter.py"
+  ]
+}

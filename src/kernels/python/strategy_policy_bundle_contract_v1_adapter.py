@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from ...agents.policy_artifacts import TauPolicyBundle
 from ...agents.strategy_ir import AUTOTRADER_TAU_POLICY_SPECS
 
+EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
+
 
 @dataclass(frozen=True)
 class StrategyPolicyBundleContractResult:
@@ -16,6 +18,7 @@ class StrategyPolicyBundleContractResult:
     compile_contract_ok: bool
     compilation_witness_ok: bool
     decision_model_version_ok: bool
+    evidence_class_ok: bool
     error: str | None = None
 
 
@@ -34,6 +37,8 @@ def check_strategy_policy_bundle_contract(bundle: TauPolicyBundle) -> StrategyPo
         and witness_receipt.get("spec_id") == "autotrader_compilation_witness_v1"
     )
     decision_model_version_ok = bool(bundle.decision_model_version)
+    evidence_rank = EVIDENCE_RANK.get(str(getattr(bundle, "evidence_class", "")), -1)
+    evidence_class_ok = evidence_rank >= EVIDENCE_RANK["O3"]
     ok = all(
         (
             strategy_hash_ok,
@@ -43,6 +48,7 @@ def check_strategy_policy_bundle_contract(bundle: TauPolicyBundle) -> StrategyPo
             compile_contract_ok,
             compilation_witness_ok,
             decision_model_version_ok,
+            evidence_class_ok,
         )
     )
     if not strategy_hash_ok:
@@ -59,6 +65,8 @@ def check_strategy_policy_bundle_contract(bundle: TauPolicyBundle) -> StrategyPo
         error = "compilation_witness_tau_receipt_invalid"
     elif not decision_model_version_ok:
         error = "decision_model_version_missing"
+    elif not evidence_class_ok:
+        error = "evidence_class_below_o3"
     else:
         error = None
     return StrategyPolicyBundleContractResult(
@@ -70,5 +78,6 @@ def check_strategy_policy_bundle_contract(bundle: TauPolicyBundle) -> StrategyPo
         compile_contract_ok=compile_contract_ok,
         compilation_witness_ok=compilation_witness_ok,
         decision_model_version_ok=decision_model_version_ok,
+        evidence_class_ok=evidence_class_ok,
         error=error,
     )
