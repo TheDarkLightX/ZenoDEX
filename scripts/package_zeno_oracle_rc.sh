@@ -8,8 +8,10 @@ stage="${dist_dir}/${version}"
 
 rm -rf "${stage}"
 mkdir -p "${stage}/bin" "${stage}/tools" "${stage}/docs" "${stage}/scripts" "${stage}/assets/branding"
+mkdir -p "${stage}/.github/workflows"
 
 cp "${root}/bin/zenodex-oracle" "${stage}/bin/zenodex-oracle"
+cp "${root}/.github/workflows/zeno-oracle-mvp.yml" "${stage}/.github/workflows/zeno-oracle-mvp.yml"
 cp "${root}/README.md" "${stage}/README.md"
 cp "${root}/requirements-core.txt" "${stage}/requirements-core.txt"
 cp "${root}/requirements-dev.txt" "${stage}/requirements-dev.txt"

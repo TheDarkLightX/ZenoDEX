@@ -40,6 +40,7 @@ def test_check_zeno_oracle_rc_package_accepts_built_devnet_bundle() -> None:
     assert report["receipt_checked"] is True
     assert report["signature_checked"] is True
     assert report["errors"] == []
+    assert (package_dir / ".github" / "workflows" / "zeno-oracle-mvp.yml").is_file()
     assert (package_dir / "docs" / "claims_registry.yaml").is_file()
     assert (package_dir / "scripts" / "check_zeno_oracle_rc_bundle.sh").is_file()
     assert (package_dir / "src" / "state" / "canonical.py").is_file()
