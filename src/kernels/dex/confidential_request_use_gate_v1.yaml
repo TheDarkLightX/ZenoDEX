@@ -1,0 +1,83 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "confidential_request_use_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: normalized confidential-request replay transition.
+
+    Purpose:
+      - Make the replay-table consume/check transition explicit and replayable.
+      - Pin the exact state law used by confidential live admission.
+
+    Scope:
+      - Models only the normalized replay bit and a consume_request control bit.
+      - Does not model key parsing or table copying.
+
+observables:
+  state_vars: ["request_used_before", "consume_request"]
+  effects:
+    [
+      "request_unused_ok",
+      "transition_ok",
+      "consume_applied",
+      "request_used_after",
+    ]
+
+types: []
+
+state_vars:
+  - id: "request_used_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "consume_request"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "request_used_before"
+    expr: { const: 0 }
+  - var: "consume_request"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "request_used_before" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "request_used_before" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "consume_request" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "consume_request" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_confidential_request_use"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      request_unused_ok:
+        op: "="
+        args: [{ var: "request_used_before" }, { const: 0 }]
+      transition_ok:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "consume_request" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "request_used_before" }, { const: 0 }] }
+      consume_applied:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "consume_request" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "request_used_before" }, { const: 0 }] }
+      request_used_after:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "request_used_before" }, { const: 1 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "consume_request" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "request_used_before" }, { const: 0 }] }
