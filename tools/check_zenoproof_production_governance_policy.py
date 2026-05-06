@@ -608,7 +608,7 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
             "production_enabled_verifier_ids": production_enabled,
             "min_production_verifiers": 6,
             "min_distinct_proof_kinds": 6,
-            "path_lookup_mode": "public_replay_devnet_only",
+            "path_lookup_mode": "disabled",
         },
         "oracle_bridge_policy": {
             "o3_receipt_required": True,
@@ -1020,6 +1020,8 @@ def check_policy(
                 distinct_proof_kinds.update(str(kind) for kind in proof_kinds if isinstance(kind, str))
             if verifier.get("allow_path_lookup") is True:
                 production_path_lookup_count += 1
+                if path_lookup_mode == "disabled":
+                    errors.append(f"production_verifier_path_lookup_enabled:{verifier_id}")
             if isinstance(max_input_bytes, int):
                 raw_max_input = verifier.get("max_input_bytes")
                 if not isinstance(raw_max_input, int) or isinstance(raw_max_input, bool) or raw_max_input > max_input_bytes:
@@ -1147,6 +1149,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"go_live_blocker_count = {len(result['go_live_blockers'])}")
         print(f"production_enabled_verifier_count = {result['production_enabled_verifier_count']}")
         print(f"distinct_proof_kind_count = {result['distinct_proof_kind_count']}")
+        print(f"production_verifier_path_lookup_count = {result['production_verifier_path_lookup_count']}")
         print(f"policy_id = {result['policy_id']}")
     return 0 if result["ok"] else 1
 

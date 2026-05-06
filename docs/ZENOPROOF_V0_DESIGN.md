@@ -113,6 +113,10 @@ disabled, misconfigured, timeout, oversize, malformed, and bad-exit paths.
 verifier roots in the v0 registry. It accepts a ZenoProof artifact only when
 the artifact binds to an allowed public replay profile and the profile's public
 replay command returns an accepted receipt.
+The production-candidate registry invokes these public replay verifier entries
+through `/usr/bin/python3` with executable path lookup disabled. The verifier
+command hash and the disabled path-lookup bit are included in the
+verifier-release manifest checked by the governance policy gate.
 
 ```bash
 python3 tools/zeno_oracle_workflow_evidence_status.py --format json
@@ -198,9 +202,10 @@ Current expected receipt:
 status = accepted
 error_count = 0
 receipt_bundle_status = accepted
-go_live_blocker_count = 8
+go_live_blocker_count = 7
 production_enabled_verifier_count = 8
 distinct_proof_kind_count = 8
+production_verifier_path_lookup_count = 0
 ```
 
 The live gate remains fail-closed:
@@ -212,8 +217,7 @@ python3 tools/check_zenoproof_production_governance_policy.py --require-live
 This rejects with `go_live_blockers_present` until governance execution,
 production verifier code signing, verifier release transparency-log
 verification, sandbox deployment, live revocation drill, public proof-network
-soak, path-lookup removal for production verifiers, and live proof-mining token
-settlement are backed by replayable evidence.
+soak, and live proof-mining token settlement are backed by replayable evidence.
 
 ## Oracle O4/O5 Bridge
 

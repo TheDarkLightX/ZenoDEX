@@ -239,8 +239,9 @@ Current expected ZenoProof policy receipt:
 status = accepted
 error_count = 0
 receipt_bundle_status = accepted
-go_live_blocker_count = 8
+go_live_blocker_count = 7
 production_enabled_verifier_count = 8
+production_verifier_path_lookup_count = 0
 ```
 
 This is bounded devnet evidence. It does not claim a production oracle network
