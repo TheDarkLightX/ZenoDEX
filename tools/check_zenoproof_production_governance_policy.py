@@ -139,6 +139,7 @@ REQUIRED_RECEIPT_KINDS = {
     "revocation_drill",
     "revocation_list",
     "sandbox_attestation",
+    "verifier_release_transparency_log",
 }
 RECEIPT_NOT_CLAIMS = {
     "does_not_claim_receipts_verified_against_live_rpc",
@@ -157,7 +158,6 @@ PRODUCTION_EXECUTION_MODES = {"subprocess_json"}
 BASE_GO_LIVE_BLOCKERS = [
     "proof_governance_execution_not_verified_onchain",
     "production_verifier_code_signing_not_verified",
-    "production_verifier_release_transparency_log_not_verified",
     "production_verifier_sandbox_not_deployed",
     "revocation_drill_not_replayed_on_live_registry",
     "proof_network_public_soak_not_completed",
@@ -341,6 +341,36 @@ def production_verifier_release_manifest(registry: Mapping[str, Any], policy: Ma
     }
 
 
+def verifier_release_transparency_log_entries(release_manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
+    entries = release_manifest.get("verifiers")
+    if not isinstance(entries, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            continue
+        out.append(
+            {
+                "artifact_digest": entry.get("artifact_digest"),
+                "transparency_log_id": entry.get("transparency_log_id"),
+                "transparency_log_index": entry.get("transparency_log_index"),
+                "verifier_id": entry.get("verifier_id"),
+            }
+        )
+    return out
+
+
+def verifier_release_transparency_log_root(release_manifest: Mapping[str, Any]) -> str:
+    return sha256_json(
+        {
+            "schema": "zenodex.zenoproof.verifier_release_transparency_log.v1",
+            "manifest_digest": release_manifest.get("manifest_digest"),
+            "registry_manifest_id": release_manifest.get("registry_manifest_id"),
+            "entries": verifier_release_transparency_log_entries(release_manifest),
+        }
+    )
+
+
 def _sample_registry() -> Mapping[str, Any]:
     return _load_json(DEFAULT_REGISTRY)
 
@@ -486,6 +516,27 @@ def _sample_receipts_for_policy(policy: Mapping[str, Any], registry: Mapping[str
                 "transparency_log_observed": True,
                 "verified": True,
                 "verifier_release_entries": release_manifest["verifiers"],
+                "verifier_release_manifest_digest": code_signing.get("verifier_release_manifest_digest"),
+            },
+        ),
+        _receipt(
+            kind="verifier_release_transparency_log",
+            chain_id=chain_id,
+            contract_address=governance_contract,
+            tx_hash=_tx("zenoproof.production_governance.verifier_release_transparency_log"),
+            block_number=2_450,
+            block_hash=_sha("zenoproof.production_governance.block.2450"),
+            log_index=0,
+            payload={
+                "entries": verifier_release_transparency_log_entries(release_manifest),
+                "policy_epoch": policy_epoch,
+                "policy_name": str(policy.get("policy_name")),
+                "policy_static_hash": static_hash,
+                "registry_manifest_id": registry_id,
+                "transparency_log_observed": True,
+                "transparency_log_root": verifier_release_transparency_log_root(release_manifest),
+                "transparency_log_tree_size": len(release_manifest["verifiers"]),
+                "verified": True,
                 "verifier_release_manifest_digest": code_signing.get("verifier_release_manifest_digest"),
             },
         ),
@@ -774,6 +825,12 @@ def check_receipt_bundle(
         if "code_signing_attestation" in by_kind and isinstance(by_kind["code_signing_attestation"].get("payload"), Mapping)
         else {}
     )
+    transparency_log_payload = (
+        by_kind["verifier_release_transparency_log"].get("payload")
+        if "verifier_release_transparency_log" in by_kind
+        and isinstance(by_kind["verifier_release_transparency_log"].get("payload"), Mapping)
+        else {}
+    )
     sandbox_payload = (
         by_kind["sandbox_attestation"].get("payload")
         if "sandbox_attestation" in by_kind and isinstance(by_kind["sandbox_attestation"].get("payload"), Mapping)
@@ -862,6 +919,25 @@ def check_receipt_bundle(
             errors.append("code_signing_attestation_verifier_release_manifest_digest_mismatch")
         if code_signing_payload.get("verifier_release_entries") != expected_release_manifest["verifiers"]:
             errors.append("code_signing_attestation_verifier_release_entries_mismatch")
+    if transparency_log_payload:
+        if transparency_log_payload.get("verified") is not True:
+            errors.append("verifier_release_transparency_log_not_verified")
+        if transparency_log_payload.get("transparency_log_observed") is not True:
+            errors.append("verifier_release_transparency_log_not_observed")
+        expected_release_manifest = production_verifier_release_manifest(registry, policy)
+        expected_log_entries = verifier_release_transparency_log_entries(expected_release_manifest)
+        if transparency_log_payload.get("verifier_release_manifest_digest") != expected_release_manifest["manifest_digest"]:
+            errors.append("verifier_release_transparency_log_manifest_digest_mismatch")
+        if transparency_log_payload.get("entries") != expected_log_entries:
+            errors.append("verifier_release_transparency_log_entries_mismatch")
+        if transparency_log_payload.get("transparency_log_tree_size") != len(expected_log_entries):
+            errors.append("verifier_release_transparency_log_tree_size_mismatch")
+        expected_log_root = verifier_release_transparency_log_root(expected_release_manifest)
+        if transparency_log_payload.get("transparency_log_root") != expected_log_root:
+            errors.append("verifier_release_transparency_log_root_mismatch")
+        indices = [entry.get("transparency_log_index") for entry in expected_log_entries]
+        if indices != list(range(1, len(expected_log_entries) + 1)):
+            errors.append("verifier_release_transparency_log_indices_not_contiguous")
     if sandbox_payload:
         if sandbox_payload.get("verified") is not True:
             errors.append("sandbox_attestation_not_verified")
