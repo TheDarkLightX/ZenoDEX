@@ -167,6 +167,42 @@ def test_api_server_proof_mining_status_rejects_runtime_snapshot_balance_drift(m
         _stop_test_server(httpd, thread)
 
 
+def test_api_server_proof_mining_status_requires_verified_context(monkeypatch) -> None:
+    sender = "0x" + "44" * 48
+    reward_pool = "0x" + "66" * 48
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+    claim = _claim(miner_id=sender, reward_pool_before=20)
+    httpd, thread, host, port = _start_test_server()
+    try:
+        req = {
+            "app_state_json": "",
+            "chain_balances": {reward_pool: 20, sender: 0},
+            "claim": claim,
+            "tx_sender_pubkey": sender,
+            "expected_proposal_hash": claim["body"]["proposal_hash"],
+        }
+        conn = HTTPConnection(host, port, timeout=2.0)
+        conn.request(
+            "POST",
+            "/api/dex/proof_mining_status",
+            body=json.dumps(req).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        assert resp.status == 200
+        assert body["ok"] is True
+        status = body["status"]
+        assert status["claimable"] is False
+        assert status["error"] == "proof mining claim requires verified DEX proof context"
+        assert status["checks"]["winner_matches_sender"] is True
+        assert status["checks"]["proposal_hash_matches_context"] is True
+        assert status["checks"]["runtime_state_present"] is False
+        assert status["checks"]["runtime_apply_ok"] is False
+    finally:
+        _stop_test_server(httpd, thread)
+
+
 def test_api_server_proof_mining_status_requires_expected_hash(monkeypatch) -> None:
     sender = "0x" + "22" * 48
     reward_pool = "0x" + "88" * 48
