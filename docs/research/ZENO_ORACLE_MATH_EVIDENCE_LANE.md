@@ -12,7 +12,7 @@ Current expected receipt:
 
 ```text
 schema = zenodex.oracle.math_witness_sweep.v1
-case_count = 30
+case_count = 32
 failed_count = 0
 status = accepted
 ```
@@ -26,15 +26,16 @@ checks, settlement-execution total matching, drift rejection, component
 dominance by the computed settlement grand total, and the rule that a budget
 covering the grand total caps every component, cross-module split-brain
 divergence, epoch-lag rejection, epoch-lag symmetry, and bounded O5
-independence-witness acceptance/rejection. It also checks bounded O3 action
-binding across terminal DAG closure, runtime binding, and sync-window
-acceptance, plus rejection witnesses for duplicate terminal receipts and stale
-sync windows, rejection witnesses for missing value binding and wrong consumer
-action, and a bounded witness that widening an accepted sync window preserves
-O3 action-binding acceptance. It also checks a bounded sync-window
-composition grid: if source-to-bridge and bridge-to-target epoch windows are
-accepted, then the composed source-to-target window is accepted with the summed
-lag bound.
+independence-witness acceptance/rejection. It also checks settlement-execution
+receipt admission/rejection for query, total, asset, and contract obligations.
+Bounded O3 action binding is checked across terminal DAG closure, runtime
+binding, and sync-window acceptance, plus rejection witnesses for duplicate
+terminal receipts and stale sync windows, rejection witnesses for missing value
+binding and wrong consumer action, and a bounded witness that widening an
+accepted sync window preserves O3 action-binding acceptance. It also checks a
+bounded sync-window composition grid: if source-to-bridge and bridge-to-target
+epoch windows are accepted, then the composed source-to-target window is
+accepted with the summed lag bound.
 
 The Lean tree already has adjacent checked anchors:
 
@@ -50,8 +51,8 @@ median-deviation acceptance by the two side bounds, low/high side rejection
 lemmas, self-divergence, epoch-lag symmetry, reward-pool bounds, bonded-slash
 conservation, live-economics escrow floor arithmetic, timelock execution
 obligations, settlement-execution total arithmetic, component dominance by the
-settlement total, budget-to-component cap transfer, and settlement-execution
-receipt projections. It also
+settlement total, budget-to-component cap transfer, settlement-execution
+receipt iff decomposition, and asset/contract drift rejection. It also
 includes Prop-level bridge
 anchors for live-economics receipt bundles, terminal DAG closure, runtime
 binding, sync-window symmetry/rejection, O3 action binding from

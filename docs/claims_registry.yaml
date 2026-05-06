@@ -1898,8 +1898,9 @@ claims:
       conservation, overpay rejection, reward-cap rejection, live-economics
       escrow floor and timelock receipt checks, settlement-execution total
       matching, drift rejection, component dominance by the computed settlement
-      grand total, and budget-to-component cap transfer, cross-module
-      split-brain divergence, epoch-lag rejection, epoch-lag symmetry, O5 independence-witness
+      grand total, budget-to-component cap transfer, and settlement-execution
+      receipt asset/contract drift rejection, cross-module split-brain
+      divergence, epoch-lag rejection, epoch-lag symmetry, O5 independence-witness
       acceptance/rejection, and O3 action binding across terminal DAG closure,
       runtime binding, and sync-window witnesses, including bounded
       missing value-binding rejection, wrong consumer-action rejection, and
@@ -1930,8 +1931,9 @@ claims:
       self-divergence, epoch-lag symmetry, reward-pool bounds, bonded-slash
       conservation, live-economics escrow floor, timelock receipt obligations,
       settlement-execution total arithmetic, component dominance by the
-      settlement grand total, budget-to-component cap transfer, and
-      settlement-execution receipt projections, source-cartel concentration, and cross-module split-brain
+      settlement grand total, budget-to-component cap transfer,
+      settlement-execution receipt iff decomposition, and asset/contract drift
+      rejection, source-cartel concentration, and cross-module split-brain
       divergence and epoch-lag witnesses. It also checks Prop-level terminal DAG, runtime binding,
       iff decompositions for terminal DAG/runtime binding/O3 action-binding
       obligations, rejection of missing DAG dependencies, content-hash drift,

@@ -407,6 +407,40 @@ theorem settlement_execution_receipt_ok_requires_totals_binding
     totalsBound := by
   exact h.right.left
 
+theorem settlement_execution_receipt_ok_requires_asset_binding
+    {queryBound totalsBound assetBound contractBound : Prop}
+    (h : SettlementExecutionReceiptOK queryBound totalsBound assetBound contractBound) :
+    assetBound := by
+  exact h.right.right.left
+
+theorem settlement_execution_receipt_ok_requires_contract_binding
+    {queryBound totalsBound assetBound contractBound : Prop}
+    (h : SettlementExecutionReceiptOK queryBound totalsBound assetBound contractBound) :
+    contractBound := by
+  exact h.right.right.right
+
+theorem settlement_execution_receipt_ok_iff_obligations
+    {queryBound totalsBound assetBound contractBound : Prop} :
+    SettlementExecutionReceiptOK queryBound totalsBound assetBound contractBound ↔
+      queryBound ∧ totalsBound ∧ assetBound ∧ contractBound := by
+  constructor
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right.left, h.right.right.right⟩
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right.left, h.right.right.right⟩
+
+theorem settlement_execution_receipt_rejects_missing_asset_binding
+    {queryBound totalsBound contractBound : Prop} :
+    Not (SettlementExecutionReceiptOK queryBound totalsBound False contractBound) := by
+  intro h
+  exact settlement_execution_receipt_ok_requires_asset_binding h
+
+theorem settlement_execution_receipt_rejects_missing_contract_binding
+    {queryBound totalsBound assetBound : Prop} :
+    Not (SettlementExecutionReceiptOK queryBound totalsBound assetBound False) := by
+  intro h
+  exact settlement_execution_receipt_ok_requires_contract_binding h
+
 theorem live_economics_receipt_bundle_v2_requires_settlement_execution
     {governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
       settlementExecutionBound : Prop}
