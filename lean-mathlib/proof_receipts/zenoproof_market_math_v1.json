@@ -1,7 +1,7 @@
 {
   "checker": "cd lean-mathlib && lake env lean Proofs/ZenoProofMarket.lean",
   "aggregate_check": "cd lean-mathlib && lake build Proofs",
-  "claim": "Formalizes the exact ZenoProof proof-market boundary: proof mining and posted proof demand instantiate a primary proof-demand market only when demand, escrowed budget, verified proof supply, canonical consumed-set deduplication, and settlement gates are present. A full user-to-user proof exchange additionally requires transferable receipts.",
+  "claim": "Formalizes the exact ZenoProof proof-market boundary: proof mining and posted proof demand instantiate a primary proof-demand market only when demand, escrowed budget, verified proof supply, canonical consumed-set deduplication, and settlement gates are present. A full user-to-user proof exchange additionally requires transferable receipts. The file includes concrete non-vacuity witnesses showing that safe settlement certificates and both primary-only and full-exchange market states are satisfiable.",
   "file": "lean-mathlib/Proofs/ZenoProofMarket.lean",
   "focused_test": "pytest -q tests/formal/test_lean_zenoproof_market.py",
   "lean_toolchain": "leanprover/lean4:v4.27.0",
@@ -12,7 +12,7 @@
     "Does not prove mathematical truth of accepted work without an explicit verifier-soundness assumption.",
     "Does not prove concrete runtime fields instantiate every abstract theorem assumption."
   ],
-  "proof_quality_scan": "placeholders=0, trust=0",
+  "proof_quality_scan": "S (93/100), placeholders=0, trust=0, broad_auto=0, nonvacuity_witnesses=4",
   "status": "checked",
   "theorems": [
     "Proofs.ZenoProofMarket.same_work_settles_once_under_canonicalizer",
@@ -25,11 +25,19 @@
     "Proofs.ZenoProofMarket.stale_order_not_settled",
     "Proofs.ZenoProofMarket.settled_work_marked_consumed",
     "Proofs.ZenoProofMarket.settled_trade_truth_requires_verifier_soundness",
+    "Proofs.ZenoProofMarket.workCanonicalId_canonicalizes",
+    "Proofs.ZenoProofMarket.exampleSafeOrder_admitted",
+    "Proofs.ZenoProofMarket.exampleSafeOffer_accepted",
+    "Proofs.ZenoProofMarket.settlement_certificate_assumptions_nonvacuous",
+    "Proofs.ZenoProofMarket.accepted_settlement_contract_nonvacuous",
+    "Proofs.ZenoProofMarket.concrete_same_work_duplicate_rejected",
     "Proofs.ZenoProofMarket.full_exchange_implies_primary_market",
     "Proofs.ZenoProofMarket.full_exchange_requires_transferable_receipts",
     "Proofs.ZenoProofMarket.full_exchange_iff_primary_and_transferable",
     "Proofs.ZenoProofMarket.primary_market_does_not_imply_secondary_exchange",
     "Proofs.ZenoProofMarket.monetization_does_not_imply_user_to_user_resale",
-    "Proofs.ZenoProofMarket.proof_mining_shape_is_primary_when_gates_exist"
+    "Proofs.ZenoProofMarket.proof_mining_shape_is_primary_when_gates_exist",
+    "Proofs.ZenoProofMarket.primary_market_without_secondary_exchange_nonvacuous",
+    "Proofs.ZenoProofMarket.full_exchange_nonvacuous"
   ]
 }
