@@ -257,6 +257,118 @@ theorem settled_trade_truth_requires_verifier_soundness
     Truth cert.offer.work :=
   hSound cert.offer cert.hOffer
 
+/-! ## Non-vacuity witnesses -/
+
+def exampleWork : ProofWork :=
+  ⟨11, 22, 33, 44, 55⟩
+
+def workCanonicalId (work : ProofWork) : Nat :=
+  work.statementRoot
+
+theorem workCanonicalId_canonicalizes : canonicalizes workCanonicalId := by
+  intro a b hSame
+  exact hSame.1
+
+def exampleSafeOrder : BuyOrder where
+  buyerId := 1001
+  work := exampleWork
+  maxPayment := 7
+  escrow := 10
+  expiryEpoch := 99
+  isOpen := true
+  sourceVerified := true
+  sourceBounded := true
+  noPassiveYield := true
+  noProfitShare := true
+  noFutureEntrant := true
+  disclosureMet := true
+
+theorem exampleSafeOrder_admitted :
+    BuyOrderAdmitted exampleSafeOrder := by
+  constructor <;> norm_num [exampleSafeOrder]
+
+def exampleSafeOffer : ProofOffer where
+  sellerId := 2002
+  work := exampleWork
+  askPrice := 6
+  verified := true
+  bindingOk := true
+  policyOk := true
+  nonceOk := true
+  verifierAdmitted := true
+
+theorem exampleSafeOffer_accepted :
+    ProofOfferAccepted exampleSafeOffer := by
+  constructor <;> norm_num [exampleSafeOffer]
+
+def exampleSettlementCert : SettlementCert where
+  flow := .postedBuyOrder
+  order := exampleSafeOrder
+  offer := exampleSafeOffer
+  canon := workCanonicalId
+  canonicalId := 11
+  price := 7
+  escrowBefore := 10
+  escrowAfter := 3
+  sellerCreditBefore := 5
+  sellerCreditAfter := 12
+  consumedBefore := ∅
+  consumedAfter := {11}
+  nowEpoch := 42
+  hOrder := exampleSafeOrder_admitted
+  hOffer := exampleSafeOffer_accepted
+  hWorkMatch := by
+    norm_num [exampleSafeOrder, exampleSafeOffer, exampleWork, sameWork]
+  hPriceAtLeastAsk := by norm_num [exampleSafeOffer]
+  hPriceAtMostMax := by norm_num [exampleSafeOrder]
+  hEscrowBefore := by norm_num [exampleSafeOrder]
+  hEscrowDelta := by norm_num
+  hSellerDelta := by norm_num
+  hFresh := by norm_num [exampleSafeOrder]
+  hCanonical := by norm_num [workCanonicalId, exampleSafeOffer, exampleWork]
+  hUnconsumed := by simp
+  hConsumedAfter := by simp
+
+theorem settlement_certificate_assumptions_nonvacuous :
+    ∃ cert : SettlementCert,
+      cert.flow = .postedBuyOrder ∧
+        cert.order = exampleSafeOrder ∧
+        cert.offer = exampleSafeOffer ∧
+        cert.price = 7 ∧
+        cert.escrowBefore = 10 ∧
+        cert.escrowAfter = 3 ∧
+        cert.sellerCreditBefore = 5 ∧
+        cert.sellerCreditAfter = 12 ∧
+        cert.canonicalId ∈ cert.consumedAfter := by
+  refine ⟨exampleSettlementCert, ?_⟩
+  simp [exampleSettlementCert]
+
+theorem accepted_settlement_contract_nonvacuous :
+    ∃ cert : SettlementCert,
+      cert.offer.verified = true ∧
+        cert.offer.bindingOk = true ∧
+        cert.offer.policyOk = true ∧
+        cert.offer.verifierAdmitted = true ∧
+        cert.order.sourceVerified = true ∧
+        cert.order.sourceBounded = true ∧
+        cert.order.noPassiveYield = true ∧
+        cert.order.noProfitShare = true ∧
+        cert.order.noFutureEntrant = true ∧
+        cert.price ≤ cert.order.escrow ∧
+        cert.price ≤ cert.escrowBefore ∧
+        cert.escrowAfter ≤ cert.escrowBefore ∧
+        cert.sellerCreditAfter = cert.sellerCreditBefore + cert.price := by
+  exact ⟨exampleSettlementCert,
+    settled_trade_implies_verified_bound_and_source_safe exampleSettlementCert⟩
+
+theorem concrete_same_work_duplicate_rejected :
+    (settleWork workCanonicalId exampleSafeOffer.work
+      (settleWork workCanonicalId exampleSafeOrder.work ∅).2).1 = false := by
+  exact same_work_settles_once_under_canonicalizer workCanonicalId
+    workCanonicalId_canonicalizes ∅ exampleSafeOrder.work exampleSafeOffer.work
+    (by simp [workCanonicalId, exampleSafeOrder, exampleWork])
+    (by norm_num [exampleSafeOrder, exampleSafeOffer, exampleWork, sameWork])
+
 /-! ## Secondary-market boundary -/
 
 structure ProofMarketState where
@@ -332,6 +444,38 @@ theorem proof_mining_shape_is_primary_when_gates_exist
     (hSettlement : state.settlementGate = true) :
     PrimaryProofMarketExists state :=
   ⟨hDemand, hEscrow, hSupply, hConsumed, hSettlement⟩
+
+def examplePrimaryOnlyState : ProofMarketState where
+  postedDemand := true
+  escrowedBudget := true
+  verifiedSupply := true
+  canonicalConsumedSet := true
+  settlementGate := true
+  transferableReceipts := false
+
+def exampleFullExchangeState : ProofMarketState where
+  postedDemand := true
+  escrowedBudget := true
+  verifiedSupply := true
+  canonicalConsumedSet := true
+  settlementGate := true
+  transferableReceipts := true
+
+theorem primary_market_without_secondary_exchange_nonvacuous :
+    PrimaryProofMarketExists examplePrimaryOnlyState ∧
+      ¬ FullProofExchangeExists examplePrimaryOnlyState := by
+  constructor
+  · exact proof_mining_shape_is_primary_when_gates_exist examplePrimaryOnlyState
+      rfl rfl rfl rfl rfl
+  · exact primary_market_does_not_imply_secondary_exchange
+      examplePrimaryOnlyState rfl
+
+theorem full_exchange_nonvacuous :
+    FullProofExchangeExists exampleFullExchangeState := by
+  constructor
+  · exact proof_mining_shape_is_primary_when_gates_exist exampleFullExchangeState
+      rfl rfl rfl rfl rfl
+  · rfl
 
 end ZenoProofMarket
 end Proofs

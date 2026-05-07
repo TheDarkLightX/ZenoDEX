@@ -15,6 +15,28 @@ layer. That layer needs receipt ownership, transfer authorization, listing,
 secondary settlement, cancellation, and replay protection rules before the
 protocol can claim that users freely buy and sell proofs as assets.
 
+## What A Lean Proof Verifies
+
+The proof file is a Lean 4 proof checked by the Lean kernel through the repo's
+pinned toolchain. The checker verifies that each theorem follows from its
+definitions, imported library facts, and stated assumptions. It does not verify
+that the real protocol implements every abstract field, that the verifier
+network is sound, or that legal/economic claims are true.
+
+The verification discipline is:
+
+```text
+Lean kernel check
+AND no sorry/admit/axiom/unsafe/sorryAx
+AND #print axioms audit
+AND concrete non-vacuity witnesses
+AND runtime refinement tests
+```
+
+The first three items check proof integrity. The non-vacuity witnesses check
+that the assumptions are satisfiable. Runtime refinement tests are still needed
+to show that deployed ZenoProof objects instantiate these formal structures.
+
 ## Core Formula
 
 ```text
@@ -91,6 +113,16 @@ This blocks duplicate payout by nonce churn, auxiliary-data churn, or raw hash
 variation. It also gives the market a clean object of trade: the verified work
 class, rather than an arbitrary file digest.
 
+The Lean file includes a concrete duplicate-payout witness:
+
+```text
+safe order work = safe offer work
+first settlement consumes canonical id
+second settlement for the same work rejects
+```
+
+This proves the deduplication theorem is exercised on a satisfiable example.
+
 ## Truth Boundary
 
 The market can pay for accepted verifier outputs. Mathematical truth requires a
@@ -113,6 +145,29 @@ decentralize verified mathematical labor only to the extent that the verifier
 network, proof checker, assumptions, and artifact bindings are sound for the
 statement class.
 
+## Vacuity Boundary
+
+A theorem of the form:
+
+```text
+SettlementCert -> SafeConsequence
+```
+
+would be weak if no `SettlementCert` could exist. The V1 Lean file now includes
+concrete witnesses:
+
+```text
+settlement_certificate_assumptions_nonvacuous
+accepted_settlement_contract_nonvacuous
+primary_market_without_secondary_exchange_nonvacuous
+full_exchange_nonvacuous
+```
+
+These prove that the safe-settlement assumptions are consistent, that a primary
+market can exist without secondary resale, and that a full exchange can exist
+when transferable receipts are present. This does not finish the runtime
+refinement proof, but it blocks the most common vacuous-proof failure mode.
+
 ## Disaster States Reduced
 
 The V1 Lean model directly blocks these disaster states:
@@ -128,6 +183,8 @@ The V1 Lean model directly blocks these disaster states:
   and `noFutureEntrant`.
 - Truth overclaim: blocked unless `VerifierSound` is supplied explicitly.
 - Secondary-market overclaim: blocked unless `TransferableReceipts = true`.
+- Vacuous certificate overclaim: blocked by concrete satisfiable settlement and
+  market-state witnesses.
 
 ## What The Repo Can Claim Now
 
@@ -171,6 +228,6 @@ Replay:
 
 ```bash
 cd lean-mathlib && lake env lean Proofs/ZenoProofMarket.lean
+cd lean-mathlib && lake build Proofs.ZenoProofMarket
 pytest -q tests/formal/test_lean_zenoproof_market.py
 ```
-
