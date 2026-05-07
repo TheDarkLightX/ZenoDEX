@@ -1589,3 +1589,53 @@ claims:
         - tests/test_zenoproof_reward_payout_replay.py
         - tests/test_zeno_oracle_smt_freshness_replay.py
         - docs/ZENOPROOF_V0_DESIGN.md
+
+  - id: lean:zenodex:s_tier_disaster_math_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public Lean S-tier disaster math basis checks corrected reserve-first
+      payout, zero-surplus outflow collapse, canonical same-work deduplication,
+      raw inequality counterexample, oracle bridge gate exposure, and
+      code-signing revocation fail-closed admission. This is a compact
+      theorem-level gate basis; legal compliance, cryptographic security,
+      oracle truth, backend refinement, runtime liveness, and concrete
+      production-field instantiation remain outside the claim.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoDEXSTierDisasterMath.lean
+        - cmd: pytest -q tests/formal/test_lean_zenodex_s_tier_disaster_math.py
+      files:
+        - lean-mathlib/Proofs/ZenoDEXSTierDisasterMath.lean
+        - lean-mathlib/Proofs.lean
+        - lean-mathlib/proof_receipts/zenodex_s_tier_disaster_math_v1.json
+        - tests/formal/test_lean_zenodex_s_tier_disaster_math.py
+
+  - id: lean:zenodex:yield_like_funding_safety_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public Lean yield-like funding safety basis refines the passive-yield
+      posture into a typed whitelist. Earned service rewards, fee rebates,
+      liquidity service fees, protocol staking security rewards, verified work
+      bounties, treasury operating revenue, liquid-staking pass-through
+      receipts, and deflationary burn sources can be admitted only when the
+      source is verified, bounded, non-guaranteed, non-profit-share,
+      non-future-entrant, disclosed, and compatible with reserve-first payout
+      caps. Hold-to-earn, guaranteed APY, profit-share, future-entrant, and
+      discretionary managerial-yield sources reject by kind or by flag. Legal
+      compliance, securities status, tax treatment, oracle truth, backend
+      refinement, runtime liveness, and live production-field instantiation
+      remain outside the claim.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoDEXYieldLikeFundingSafety.lean
+        - cmd: pytest -q tests/formal/test_lean_zenodex_yield_like_funding_safety.py
+      files:
+        - lean-mathlib/Proofs/ZenoDEXYieldLikeFundingSafety.lean
+        - lean-mathlib/Proofs.lean
+        - lean-mathlib/proof_receipts/zenodex_yield_like_funding_safety_v1.json
+        - tests/formal/test_lean_zenodex_yield_like_funding_safety.py
+        - docs/research/ZENODEX_YIELD_LIKE_FUNDING_SHAPES_V1.md

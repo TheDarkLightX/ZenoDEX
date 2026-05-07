@@ -112,6 +112,29 @@ now carries 22 locally checked theorem declarations from the Tier 1 basis. It
 is covered by `tests/formal/test_lean_zenodex_aristotle_disaster_basis.py` and
 receipt `lean-mathlib/proof_receipts/zenodex_aristotle_disaster_basis_v1.json`.
 
+S-tier promotion slice: `lean-mathlib/Proofs/ZenoDEXSTierDisasterMath.lean`
+uses the latest S-tier Aristotle packet as a theorem source and adapts the
+accepted ideas into repo-local Lean style. It promotes the corrected
+reserve-first payout theorem, the zero-surplus outflow theorem, canonical
+same-work deduplication, the raw-inequality counterexample, oracle bridge gate
+exposure, and code-signing revocation rejection. It is covered by
+`tests/formal/test_lean_zenodex_s_tier_disaster_math.py`, receipt
+`lean-mathlib/proof_receipts/zenodex_s_tier_disaster_math_v1.json`, and public
+claim `lean:zenodex:s_tier_disaster_math_v1`.
+
+Yield-like funding promotion slice: `lean-mathlib/Proofs/ZenoDEXYieldLikeFundingSafety.lean`
+refines the blanket passive-yield rejection into a typed funding-source
+taxonomy. It admits only earned service rewards, fee rebates, liquidity service
+fees, protocol-staking security rewards, verified work bounties, treasury
+operating revenue, liquid-staking pass-through receipts, and deflationary burn
+sources that satisfy source verification, cap, no-guaranteed-return,
+no-profit-share, no-future-entrant, disclosure, and reserve-first payout gates.
+It rejects hold-to-earn, guaranteed APY, profit-share, future-entrant, and
+discretionary managerial-yield sources by kind or flag. The public explanatory
+note is `docs/research/ZENODEX_YIELD_LIKE_FUNDING_SHAPES_V1.md`, with receipt
+`lean-mathlib/proof_receipts/zenodex_yield_like_funding_safety_v1.json` and
+claim `lean:zenodex:yield_like_funding_safety_v1`.
+
 ## Curation Findings
 
 Several proof families are high-value but need curation before becoming public
