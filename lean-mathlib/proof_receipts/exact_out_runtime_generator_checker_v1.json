@@ -1,0 +1,52 @@
+{
+  "receipt_id": "exact_out_runtime_generator_checker_v1",
+  "artifacts": [
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedPathWitnessShapeLadder.lean",
+    "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRuntimeGeneratorChecker.lean"
+  ],
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "theorems": [
+    "TauSwap.Routing.ExactOutManyPoolOrderedPathWitnessShapeLadder.orderedQuotedPathSetCovers_of_orderedPathWitnessStreamSetCover",
+    "TauSwap.Routing.ExactOutManyPoolOrderedPathWitnessShapeLadder.packetOk_implies_exists_unique_feasibleCandidateSet_minimum_of_quoteTotal_and_orderedPathWitnessStreamSetCover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolOrderedPathWitnessShapeLadder.packetOk_implies_exists_unique_feasibleCandidateSet_minimum_of_cpmm_orderedPathWitnessStreamSetCover_canonicalCandidate",
+    "TauSwap.Routing.ExactOutManyPoolRuntimeGeneratorChecker.orderedWitnessChecker_sound",
+    "TauSwap.Routing.ExactOutManyPoolRuntimeGeneratorChecker.solver_sound_of_orderedWitnessChecker_acceptance"
+  ],
+  "claims": [
+    "Ordered runtime path-witness streams project to the existing ordered quoted-path cover used by the many-pool exact-out certificate theorem.",
+    "For quote-total models, packet success plus an ordered path-witness stream cover gives quote replay and a unique feasible canonical minimum.",
+    "The same bridge specializes to CPMM pools under positive reserve-in and fee-bps bounds.",
+    "The exact-out ordered witness checker is sound for canonical exact-out route decisions.",
+    "Any runtime generator accepted by that ordered witness checker is solver-sound: its emitted decision satisfies quote replay and unique canonical minimum properties."
+  ],
+  "proof_method": [
+    "projection from ordered witness payloads to quoted-path payloads",
+    "reuse of the selected-domain certified bridge and ordered quoted-path set-cover theorem",
+    "CPMM quote-totality specialization",
+    "instantiation of the generic solver/checker separation theorem"
+  ],
+  "checker_commands": [
+    {
+      "command": "cd lean-mathlib && lake build Proofs.ZenoDEXExactOutManyPoolOrderedPathWitnessShapeLadder Proofs.ZenoDEXExactOutManyPoolRuntimeGeneratorChecker",
+      "result": "passed"
+    },
+    {
+      "command": "cd lean-mathlib && lake build Proofs",
+      "result": "passed with pre-existing linter warnings in unrelated proof files"
+    },
+    {
+      "command": "cd lean-mathlib && lake env lean --stdin < theorem-name-check-script",
+      "result": "passed for every theorem listed in this receipt"
+    },
+    {
+      "command": "rg -n '^\\s*(sorry|admit)\\b|^\\s*axiom\\b|^\\s*unsafe\\b|\\bsorryAx\\b' lean-mathlib/Proofs/ZenoDEXExactOutManyPoolOrderedPathWitnessShapeLadder.lean lean-mathlib/Proofs/ZenoDEXExactOutManyPoolRuntimeGeneratorChecker.lean",
+      "result": "no matches"
+    }
+  ],
+  "boundaries": [
+    "This is a checker-soundness bridge. It does not prove that any concrete runtime generator is complete or always emits a covering witness stream.",
+    "Runtime integrations must still bind concrete Python/Tau generator outputs to the ordered witness payload shape modeled here.",
+    "The CPMM specialization assumes the stated quote-totality preconditions, including positive reserve-in and fee-bps below the BPS scale.",
+    "The theorem preserves canonicality only for accepted generator outputs; rejected or absent outputs are fail-closed, not completed by this proof."
+  ]
+}
