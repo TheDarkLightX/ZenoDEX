@@ -222,6 +222,33 @@ def test_parse_signed_intents_output_rejects_out_of_order_duplicate_nonce_projec
     assert updated is None
 
 
+def test_parse_signed_intents_output_rejects_mixed_nonce_live_admission_floor() -> None:
+    sender = "0x" + "48" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "48" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+        "signature": "0xsig-nonce",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "49" * 32),
+        "sender_pubkey": sender,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-missing-nonce"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-nonce", "0xsig-missing-nonce"]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, None]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=False,
+    )
+    assert not ok
+    assert err == "nonce presence must be consistent across batch"
+    assert updated is None
+
+
 def test_create_intent_operation_rejects_quote_receipt_reserved_key() -> None:
     intent = Intent(
         module="TauSwap",
