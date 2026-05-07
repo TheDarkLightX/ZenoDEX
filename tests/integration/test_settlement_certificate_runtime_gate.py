@@ -343,6 +343,35 @@ def test_validate_operations_rejects_stale_attested_certificate_at_runtime_gate(
     assert err == "invalid settlement spot price attestation: settlement spot price attestation is stale"
 
 
+def test_validate_operations_rejects_future_attestation_epoch_at_runtime_gate() -> None:
+    intent_dicts, balances, pools, _sender, asset0, asset1 = _four_swap_intent_dicts()
+    intents = parse_intents({"2": intent_dicts})
+    settlement = compute_settlement(intents=intents, pools=pools, balances=balances, lp_balances=LPTable())
+    attestation = build_settlement_spot_price_attestation(packet=_spot_price_packet(asset0, asset1), signer_privkey=7)
+
+    ok, err = validate_operations(
+        intents=intents,
+        settlement=settlement,
+        balances=balances,
+        pools=pools,
+        lp_balances=LPTable(),
+        block_timestamp=0,
+        settlement_validation="strong_replay",
+        require_settlement_end_to_end_certificate=True,
+        settlement_end_to_end_certificate_inputs=SettlementEndToEndCertificateInputs(
+            proof_flags=SettlementProofFlags.all_true(),
+            price_history=(100, 110, 120),
+            feature_extension_inputs=_feature_extension_inputs(),
+            price_attestation=attestation,
+            consumer_now_epoch=99,
+            max_attestation_age_epochs=5,
+            allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+        ),
+    )
+    assert ok is False
+    assert err == "invalid settlement spot price attestation: attestation signed_at_epoch is in the future"
+
+
 def test_validate_operations_rejects_when_end_to_end_certificate_required_but_inputs_missing() -> None:
     intent_dicts, balances, pools, _sender, _asset0, _asset1 = _four_swap_intent_dicts()
     intents = parse_intents({"2": intent_dicts})
