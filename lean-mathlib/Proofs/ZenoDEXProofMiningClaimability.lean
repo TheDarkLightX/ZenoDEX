@@ -515,6 +515,58 @@ theorem scheduled_reward_le_base_when_positive
   have hOne : 1 ≤ baseReward := Nat.succ_le_iff.mpr hBase
   exact Nat.max_le.mpr ⟨hOne, Nat.div_le_self baseReward (2 ^ epoch)⟩
 
+structure ScheduledGate extends Gate where
+  baseReward : Nat
+  epoch : Nat
+  rewardMatchesSchedule : Bool
+
+def scheduledAccepted (g : ScheduledGate) : Prop :=
+  accepted g.toGate ∧
+    g.rewardMatchesSchedule = true ∧
+    g.rewardAmount = scheduledReward g.baseReward g.epoch
+
+theorem scheduled_accepted_implies_base_gate_accepted
+    (g : ScheduledGate)
+    (hAccepted : scheduledAccepted g) :
+    accepted g.toGate :=
+  hAccepted.1
+
+theorem not_scheduled_accepted_when_schedule_flag_false
+    (g : ScheduledGate)
+    (hSchedule : g.rewardMatchesSchedule = false) :
+    ¬ scheduledAccepted g := by
+  intro hAccepted
+  have hScheduleTrue : g.rewardMatchesSchedule = true := hAccepted.2.1
+  simp [hSchedule] at hScheduleTrue
+
+theorem scheduled_accepted_reward_matches_schedule
+    (g : ScheduledGate)
+    (hAccepted : scheduledAccepted g) :
+    g.rewardAmount = scheduledReward g.baseReward g.epoch :=
+  hAccepted.2.2
+
+theorem scheduled_accepted_reward_amount_le_base
+    (g : ScheduledGate)
+    (hBase : 0 < g.baseReward)
+    (hAccepted : scheduledAccepted g) :
+    g.rewardAmount ≤ g.baseReward := by
+  rw [scheduled_accepted_reward_matches_schedule g hAccepted]
+  exact scheduled_reward_le_base_when_positive hBase
+
+theorem scheduled_accepted_reward_delta_conservative
+    (g : ScheduledGate)
+    (hAccepted : scheduledAccepted g) :
+    conservativeDelta g.toGate :=
+  accepted_reward_delta_conservative g.toGate
+    (scheduled_accepted_implies_base_gate_accepted g hAccepted)
+
+theorem scheduled_accepted_reward_after_le_before
+    (g : ScheduledGate)
+    (hAccepted : scheduledAccepted g) :
+    g.rewardPoolAfter ≤ g.rewardPoolBefore :=
+  accepted_reward_after_le_before g.toGate
+    (scheduled_accepted_implies_base_gate_accepted g hAccepted)
+
 end ZenoProofRewardGate
 
 end TauSwap

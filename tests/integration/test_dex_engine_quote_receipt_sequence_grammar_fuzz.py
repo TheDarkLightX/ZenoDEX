@@ -5,7 +5,18 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.dex_engine_quote_receipt_sequence_grammar_fuzz import explore_all_targets, explore_target, minimize_case
+from src.integration.dex_engine import DexEngineConfig, apply_ops
+from tools.dex_engine_quote_receipt_sequence_grammar_fuzz import (
+    ASSET_A,
+    ASSET_B,
+    DIRECT_POOLS,
+    SENDER,
+    _direct_state,
+    _make_direct_ops,
+    explore_all_targets,
+    explore_target,
+    minimize_case,
+)
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -17,6 +28,15 @@ def _labels(report) -> set[str]:
 
 def _derivations(report) -> set[str]:
     return {case.derivation for case in report.cases}
+
+
+def _dex_state_facts(state) -> dict:
+    return {
+        "balances": state.balances.get_all_balances(),
+        "pools": dict(state.pools),
+        "lp_balances": state.lp_balances.get_all_balances(),
+        "nonces": dict(state.nonces.get_all()),
+    }
 
 
 def test_dex_engine_quote_receipt_sequence_direct_paths_are_stable() -> None:
@@ -36,6 +56,56 @@ def test_dex_engine_quote_receipt_sequence_direct_paths_are_stable() -> None:
     assert "DirectSeq->ValidThenStaleSamePool" in derivations
     assert "DirectSeq->ValidThenIndependentMissingWitness" in derivations
     assert "DirectSeq->ValidThenIndependentHashMismatch" in derivations
+
+
+def test_dex_engine_quote_receipt_live_admission_floor_rejects_stale_transport_without_state_advance() -> None:
+    config = DexEngineConfig(allow_missing_settlement=True, require_intent_signatures=False)
+    state = _direct_state()
+    first_ops = _make_direct_ops(
+        pools=DIRECT_POOLS,
+        pool_id="p_ab",
+        asset_in=ASSET_A,
+        asset_out=ASSET_B,
+        amount_in=123,
+        nonce=1,
+    )
+    first = apply_ops(
+        config=config,
+        state=state,
+        operations=first_ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+    assert first.ok
+    assert first.state is not None
+
+    live_state = first.state
+    before_failed_step = _dex_state_facts(live_state)
+    stale_transport_ops = _make_direct_ops(
+        pools=DIRECT_POOLS,
+        pool_id="p_ab",
+        asset_in=ASSET_A,
+        asset_out=ASSET_B,
+        amount_in=123,
+        nonce=2,
+    )
+
+    failed = apply_ops(
+        config=config,
+        state=live_state,
+        operations=stale_transport_ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert not failed.ok
+    assert failed.state is None
+    assert failed.settlement is None
+    assert failed.error is not None
+    assert "invalid quote receipt:" in failed.error
+    assert "verifier_error='pool_snapshot_mismatch'" in failed.error
+    assert _dex_state_facts(live_state) == before_failed_step
+    assert dict(live_state.nonces.get_all()) == {SENDER: 1}
 
 
 def test_dex_engine_quote_receipt_sequence_split_paths_are_stable() -> None:
