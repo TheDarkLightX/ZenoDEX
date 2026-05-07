@@ -1655,7 +1655,12 @@ claims:
       user-to-user proof exchange additionally requires transferable receipts.
       The theorem surface includes concrete non-vacuity witnesses for safe
       settlement certificates, duplicate-work rejection, a primary-only market
-      state, and a full-exchange state.
+      state, and a full-exchange state. It also checks a ZK fair-exchange lane:
+      pre-disclosure acceptance requires an accepted bound ZK receipt, buyer
+      authorization, quality acceptance, escrow lock, hidden proof body, and
+      escrow sufficiency, while payment release requires reveal matching,
+      artifact availability, decryption-key release, escrow non-increase, and
+      seller credit by price.
       Legal compliance, securities status, verifier soundness, cryptographic
       security, proof availability, market liquidity, runtime liveness, and
       concrete production-field instantiation remain outside the claim.
