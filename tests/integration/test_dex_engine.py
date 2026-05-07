@@ -144,6 +144,51 @@ def test_engine_rejects_signature_valid_cross_batch_nonce_replay_without_mutatio
     assert state.balances.get(sender, max(asset0, asset1)) == 2000
 
 
+def test_engine_rejects_unsigned_live_admission_nonce_replay_without_mutation() -> None:
+    sender = "0x" + "39" * 48
+    asset0 = "0x" + "33" * 32
+    asset1 = "0x" + "34" * 32
+    intent_id = "0x" + "39" * 32
+
+    balances = BalanceTable()
+    balances.set(sender, min(asset0, asset1), 1000)
+    balances.set(sender, max(asset0, asset1), 2000)
+    nonces = NonceTable()
+    nonces.set_last(sender, 1)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable(), nonces=nonces)
+    ops = {
+        "2": [
+            _create_pool_intent_dict(
+                intent_id=intent_id,
+                sender=sender,
+                asset0=asset0,
+                asset1=asset1,
+            )
+        ]
+    }
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=True,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=sender,
+    )
+
+    assert not res.ok
+    assert res.error == "nonce sequence invalid"
+    assert res.state is None
+    assert res.settlement is None
+    assert state.nonces.get_last(sender) == 1
+    assert state.pools == {}
+    assert state.balances.get(sender, min(asset0, asset1)) == 1000
+    assert state.balances.get(sender, max(asset0, asset1)) == 2000
+
+
 def test_engine_accepts_proof_fields_when_verifier_disabled() -> None:
     sender = "0x" + "aa" * 48
     asset0 = "0x" + "11" * 32
