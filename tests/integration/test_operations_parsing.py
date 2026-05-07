@@ -184,6 +184,44 @@ def test_parse_signed_intents_output_rejects_duplicate_nonce_after_sender_canoni
     assert updated is None
 
 
+def test_parse_signed_intents_output_rejects_out_of_order_duplicate_nonce_projection() -> None:
+    sender = "0x" + "45" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "45" * 32),
+        "sender_pubkey": sender,
+        "nonce": 2,
+        "signature": "0xsig-nonce-2a",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "46" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+    }
+    third = {
+        **_min_intent_dict(intent_id="0x" + "47" * 32),
+        "sender_pubkey": sender,
+        "nonce": 2,
+        "signature": "0xsig-nonce-2b",
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-nonce-1"], third]})
+
+    assert [env.signature for env in envs] == [
+        "0xsig-nonce-2a",
+        "0xsig-nonce-1",
+        "0xsig-nonce-2b",
+    ]
+    assert [env.intent.fields.get("nonce") for env in envs] == [2, 1, 2]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err == "duplicate nonce in batch"
+    assert updated is None
+
+
 def test_create_intent_operation_rejects_quote_receipt_reserved_key() -> None:
     intent = Intent(
         module="TauSwap",
