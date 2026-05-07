@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
-from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt
+import pytest
+
+from src.agents.intent_signer import create_swap_intent_from_quote_receipt, create_swap_intents_from_quote_receipt, sign_intent
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexState
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
 from src.integration.dex_engine import DexEngineConfig, apply_ops
-from src.integration.operations import SignedIntentEnvelope, create_signed_intent_operation, create_settlement_operation
+from src.integration.operations import SignedIntentEnvelope, create_signed_intent_operation, create_settlement_operation, parse_intents
 from src.integration.proof_verifier import ProofVerifierConfig
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
+from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus
 
 
@@ -83,6 +87,61 @@ def test_engine_computes_settlement_when_missing() -> None:
 
     # Creator received LP (excluding MIN_LP_LOCK).
     assert res.state.lp_balances.get(sender, pool_id) == lp_minted
+
+
+def test_engine_rejects_signature_valid_cross_batch_nonce_replay_without_mutation() -> None:
+    pytest.importorskip("py_ecc")
+
+    privkey = 7
+    sender = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    asset0 = "0x" + "31" * 32
+    asset1 = "0x" + "32" * 32
+    intent_id = "0x" + "36" * 32
+
+    balances = BalanceTable()
+    balances.set(sender, min(asset0, asset1), 1000)
+    balances.set(sender, max(asset0, asset1), 2000)
+    nonces = NonceTable()
+    nonces.set_last(sender, 1)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable(), nonces=nonces)
+
+    intent = parse_intents(
+        {
+            "2": [
+                _create_pool_intent_dict(
+                    intent_id=intent_id,
+                    sender=sender,
+                    asset0=asset0,
+                    asset1=asset1,
+                )
+            ]
+        }
+    )[0]
+    signed = sign_intent(intent, privkey, chain_id="tau-net-alpha")
+    ops = create_signed_intent_operation(
+        [SignedIntentEnvelope(intent=signed.intent, signature=signed.signature)]
+    )
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=False,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=None,
+    )
+
+    assert not res.ok
+    assert res.error == "nonce sequence invalid"
+    assert res.state is None
+    assert res.settlement is None
+    assert state.nonces.get_last(sender) == 1
+    assert state.pools == {}
+    assert state.balances.get(sender, min(asset0, asset1)) == 1000
+    assert state.balances.get(sender, max(asset0, asset1)) == 2000
 
 
 def test_engine_accepts_proof_fields_when_verifier_disabled() -> None:
