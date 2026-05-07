@@ -1639,3 +1639,31 @@ claims:
         - lean-mathlib/proof_receipts/zenodex_yield_like_funding_safety_v1.json
         - tests/formal/test_lean_zenodex_yield_like_funding_safety.py
         - docs/research/ZENODEX_YIELD_LIKE_FUNDING_SHAPES_V1.md
+
+  - id: lean:zenoproof:proof_market_math_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public Lean ZenoProof proof-market basis checks the exact boundary
+      between a primary proof-demand market and a full user-to-user proof
+      exchange. Proof mining and posted proof demand can instantiate a primary
+      market only when demand, escrowed budget, verified proof supply,
+      canonical consumed-set deduplication, and settlement gates are present.
+      Accepted settlement implies verifier admission, binding, policy, bounded
+      source, no-passive-yield, no-profit-share, no-future-entrant, escrow
+      sufficiency, escrow non-increase, and seller credit by price. A full
+      user-to-user proof exchange additionally requires transferable receipts.
+      Legal compliance, securities status, verifier soundness, cryptographic
+      security, proof availability, market liquidity, runtime liveness, and
+      concrete production-field instantiation remain outside the claim.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoProofMarket.lean
+        - cmd: pytest -q tests/formal/test_lean_zenoproof_market.py
+      files:
+        - lean-mathlib/Proofs/ZenoProofMarket.lean
+        - lean-mathlib/Proofs.lean
+        - lean-mathlib/proof_receipts/zenoproof_market_math_v1.json
+        - tests/formal/test_lean_zenoproof_market.py
+        - docs/research/ZENOPROOF_PROOF_MARKET_MATH_V1.md

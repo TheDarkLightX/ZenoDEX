@@ -1,0 +1,35 @@
+{
+  "checker": "cd lean-mathlib && lake env lean Proofs/ZenoProofMarket.lean",
+  "aggregate_check": "cd lean-mathlib && lake build Proofs",
+  "claim": "Formalizes the exact ZenoProof proof-market boundary: proof mining and posted proof demand instantiate a primary proof-demand market only when demand, escrowed budget, verified proof supply, canonical consumed-set deduplication, and settlement gates are present. A full user-to-user proof exchange additionally requires transferable receipts.",
+  "file": "lean-mathlib/Proofs/ZenoProofMarket.lean",
+  "focused_test": "pytest -q tests/formal/test_lean_zenoproof_market.py",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "non_claims": [
+    "Does not prove legal compliance or securities status.",
+    "Does not prove verifier soundness, cryptographic security, proof availability, market liquidity, or runtime liveness.",
+    "Does not prove that a full secondary proof exchange exists without transferable receipt rules.",
+    "Does not prove mathematical truth of accepted work without an explicit verifier-soundness assumption.",
+    "Does not prove concrete runtime fields instantiate every abstract theorem assumption."
+  ],
+  "proof_quality_scan": "placeholders=0, trust=0",
+  "status": "checked",
+  "theorems": [
+    "Proofs.ZenoProofMarket.same_work_settles_once_under_canonicalizer",
+    "Proofs.ZenoProofMarket.raw_digest_inequality_is_not_work_uniqueness",
+    "Proofs.ZenoProofMarket.protocol_bounty_is_primary_not_secondary",
+    "Proofs.ZenoProofMarket.settled_trade_implies_verified_bound_and_source_safe",
+    "Proofs.ZenoProofMarket.unverified_offer_not_settled",
+    "Proofs.ZenoProofMarket.binding_bad_offer_not_settled",
+    "Proofs.ZenoProofMarket.over_escrow_price_not_settled",
+    "Proofs.ZenoProofMarket.stale_order_not_settled",
+    "Proofs.ZenoProofMarket.settled_work_marked_consumed",
+    "Proofs.ZenoProofMarket.settled_trade_truth_requires_verifier_soundness",
+    "Proofs.ZenoProofMarket.full_exchange_implies_primary_market",
+    "Proofs.ZenoProofMarket.full_exchange_requires_transferable_receipts",
+    "Proofs.ZenoProofMarket.full_exchange_iff_primary_and_transferable",
+    "Proofs.ZenoProofMarket.primary_market_does_not_imply_secondary_exchange",
+    "Proofs.ZenoProofMarket.monetization_does_not_imply_user_to_user_resale",
+    "Proofs.ZenoProofMarket.proof_mining_shape_is_primary_when_gates_exist"
+  ]
+}

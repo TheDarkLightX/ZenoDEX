@@ -77,6 +77,7 @@ import Proofs.PiecewiseEnvelopeParametric
 import Proofs.FeeCeilDecomposition
 import Proofs.ZenoDEXSTierDisasterMath
 import Proofs.ZenoDEXYieldLikeFundingSafety
+import Proofs.ZenoProofMarket
 import Proofs.FeeDustCarryConservation
 import Proofs.FeeRevenueBoundedness
 import Proofs.FeeSplitRoundingGap
