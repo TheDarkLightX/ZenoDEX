@@ -21,7 +21,7 @@ def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
-def _swap_context():
+def _swap_context(intent_index: int = 3300):
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
@@ -40,7 +40,7 @@ def _swap_context():
         module="TauSwap",
         version="0.1",
         kind=IntentKind.SWAP_EXACT_IN,
-        intent_id=_iid(3300),
+        intent_id=_iid(intent_index),
         sender_pubkey=pk,
         deadline=9_999_999_999,
         fields={
@@ -158,6 +158,58 @@ def test_settlement_value_packet_rejects_lp_unit_value_snapshot_mismatch() -> No
         packet_payload=packet.to_dict(),
         lp_unit_values={pool_id: 51},
         allowed_signers={attestation.signer_pubkey: ["oracle:a", "oracle:b"]},
+    )
+    assert ok is False
+    assert err == "settlement value packet mismatch"
+
+
+def test_settlement_value_packet_rejects_replay_with_different_settlement_identity() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context(3300)
+    _pk2, _asset0b, _asset1b, _pool_id2, replay_settlement = _swap_context(3301)
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    replay_settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    allowed_signers = {attestation.signer_pubkey: ["oracle:a", "oracle:b"]}
+
+    packet = build_settlement_value_packet_from_price_attestation(
+        settlement=settlement,
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50},
+        allowed_signers=allowed_signers,
+    )
+    replay_packet = build_settlement_value_packet_from_price_attestation(
+        settlement=replay_settlement,
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50},
+        allowed_signers=allowed_signers,
+    )
+    assert packet.lp_value_contract is not None
+    assert replay_packet.lp_value_contract is not None
+    assert (
+        packet.lp_value_contract.settlement_commitment_sha256
+        != replay_packet.lp_value_contract.settlement_commitment_sha256
+    )
+
+    ok, err = verify_settlement_value_packet_payload_from_price_attestation(
+        settlement=replay_settlement,
+        price_attestation_payload=attestation.to_dict(),
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        packet_payload=packet.to_dict(),
+        lp_unit_values={pool_id: 50},
+        allowed_signers=allowed_signers,
     )
     assert ok is False
     assert err == "settlement value packet mismatch"
