@@ -43,6 +43,8 @@ from .operations import (
 )
 from .proof_mining_context import ProofMiningContext, build_proof_mining_context
 from .proof_verifier import MisconfiguredProofVerifier, ProofVerifier, ProofVerifierConfig, make_proof_verifier
+from .zeno_oracle_routing_authorization import check_protected_swap_oracle_authorization
+from .zeno_oracle_settlement_authorization import check_critical_settlement_oracle_authorization
 from .settlement_strong_certificate import (
     SettlementProofFlags,
     derive_verified_replay_bound_certificate_flags,
@@ -192,6 +194,13 @@ class DexEngineConfig:
     settlement_certificate_price_history: Optional[Tuple[int, int, int]] = None
     require_settlement_end_to_end_certificate: bool = False
     settlement_end_to_end_certificate_inputs: Optional[SettlementEndToEndCertificateInputs] = None
+    # Optional production bridge: require quote-receipt-bound swaps to carry a
+    # typed ZenoOracle authorization binding the actual protected quote value.
+    require_oracle_authorization_for_protected_swaps: bool = False
+    # Optional production bridge: require critical batch settlements to carry a
+    # typed ZenoOracle authorization binding the exact settlement, pre-state,
+    # and price_curr value consumed by the settlement certificate lane.
+    require_oracle_authorization_for_critical_settlements: bool = False
 
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
@@ -789,6 +798,109 @@ def _validate_quote_receipt_witnesses(
     return None
 
 
+def _validate_protected_swap_oracle_authorizations(
+    *,
+    signed_intents: List[SignedIntentEnvelope],
+    block_timestamp: int,
+    require_authorization: bool,
+) -> Optional[str]:
+    for env in signed_intents:
+        auth = env.intent.get_field("oracle_authorization")
+        if auth is None and not require_authorization:
+            continue
+        if env.intent.kind.value not in {"SWAP_EXACT_IN", "SWAP_EXACT_OUT"}:
+            if auth is not None:
+                return _quote_receipt_error(
+                    "oracle authorization only supported for swap intents",
+                    **_quote_receipt_intent_context(env.intent),
+                )
+            continue
+        quote_hash = env.intent.get_field("quote_receipt_hash")
+        if auth is None:
+            if quote_hash is not None or env.quote_receipt is not None:
+                return _quote_receipt_error(
+                    "oracle_authorization_required",
+                    **_quote_receipt_intent_context(env.intent),
+                )
+            continue
+        if not isinstance(auth, Mapping):
+            return _quote_receipt_error(
+                "oracle_authorization must be an object",
+                **_quote_receipt_intent_context(env.intent),
+            )
+        if env.quote_receipt is None:
+            return _quote_receipt_error(
+                "oracle authorization requires quote receipt witness",
+                **_quote_receipt_intent_context(env.intent),
+            )
+        try:
+            result = check_protected_swap_oracle_authorization(
+                authorization_payload=auth,
+                intent=env.intent,
+                receipt=env.quote_receipt,
+                now_epoch=int(block_timestamp),
+            )
+        except Exception as exc:
+            return _quote_receipt_error(
+                f"oracle_authorization_rejected: {_clean_error(exc)}",
+                **_quote_receipt_intent_context(env.intent),
+            )
+        if not bool(result.get("typed_ok", False)):
+            errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
+            return _quote_receipt_error(
+                "oracle_authorization_rejected: " + "; ".join(str(err) for err in errors),
+                **_quote_receipt_intent_context(env.intent),
+            )
+    return None
+
+
+def _validate_critical_settlement_oracle_authorization(
+    *,
+    settlement: Optional[Settlement],
+    settlement_env: Optional[SettlementEnvelope],
+    state: DexState,
+    block_timestamp: int,
+    price_history: Optional[Tuple[int, int, int]],
+    require_authorization: bool,
+) -> Optional[str]:
+    auth = getattr(settlement_env, "oracle_authorization", None) if settlement_env else None
+    if settlement is None:
+        if auth is not None:
+            return "critical_settlement_oracle_authorization_rejected: settlement missing"
+        return None
+    if auth is None:
+        if require_authorization:
+            return "critical_settlement_oracle_authorization_required"
+        return None
+    if not isinstance(auth, Mapping):
+        return "critical settlement oracle_authorization must be an object"
+    if price_history is None:
+        return "critical settlement oracle authorization requires settlement_certificate_price_history"
+    try:
+        pre_state_hash = compute_state_root(
+            balances=state.balances,
+            pools=state.pools,
+            lp_balances=state.lp_balances,
+            nonces=state.nonces,
+        )
+    except Exception as exc:
+        return f"critical_settlement_oracle_authorization_rejected: invalid pre-state root: {_clean_error(exc)}"
+    try:
+        result = check_critical_settlement_oracle_authorization(
+            authorization_payload=auth,
+            settlement=settlement,
+            pre_state_hash=pre_state_hash,
+            price_history=price_history,
+            now_epoch=int(block_timestamp),
+        )
+    except Exception as exc:
+        return f"critical_settlement_oracle_authorization_rejected: {_clean_error(exc)}"
+    if not bool(result.get("typed_ok", False)):
+        errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
+        return "critical_settlement_oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
+    return None
+
+
 def _sanitize_intents_after_quote_receipt_validation(intents: List[Intent]) -> List[Intent]:
     """
     Strip transport-only quote receipt witness fields after engine-side witness
@@ -800,6 +912,7 @@ def _sanitize_intents_after_quote_receipt_validation(intents: List[Intent]) -> L
         fields = dict(intent.fields or {})
         fields.pop("quote_receipt_hash", None)
         fields.pop("quote_receipt_leg_index", None)
+        fields.pop("oracle_authorization", None)
         out.append(
             Intent(
                 module=intent.module,
@@ -939,6 +1052,13 @@ def apply_ops(
         err = _validate_quote_receipt_witnesses(signed_intents=signed_intents, pools=state.pools)
         if err is not None:
             return DexTxResult(ok=False, error=err)
+        err = _validate_protected_swap_oracle_authorizations(
+            signed_intents=signed_intents,
+            block_timestamp=block_timestamp,
+            require_authorization=bool(config.require_oracle_authorization_for_protected_swaps),
+        )
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
         validation_intents = _sanitize_intents_after_quote_receipt_validation(intents)
 
         next_nonces: Optional[NonceTable] = None
@@ -973,6 +1093,17 @@ def apply_ops(
                     return DexTxResult(ok=False, error="settlement mismatch")
                 settlement = computed_settlement
         _fault_stage(config, "after_settlement_compute")
+
+        err = _validate_critical_settlement_oracle_authorization(
+            settlement=settlement,
+            settlement_env=settlement_env,
+            state=state,
+            block_timestamp=block_timestamp,
+            price_history=config.settlement_certificate_price_history,
+            require_authorization=bool(config.require_oracle_authorization_for_critical_settlements),
+        )
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
 
         verifier = make_proof_verifier(config.proof_config)
         verifier_enforcing = bool(config.proof_config.enabled)

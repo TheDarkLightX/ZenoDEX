@@ -1,0 +1,116 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "confidential_extension_live_admission_gate_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: normalized confidential-extension live-admission gate.
+
+    Purpose:
+      - Make the final live execution admission relation explicit and replayable.
+      - Bridge the existing Tau policy
+        `confidential_extension_live_admission_v1`
+        into an ESSO shell/kernel lane.
+
+    Scope:
+      - Models only the normalized booleans after receipt parsing and
+        measurement verification.
+      - Treats request replay as an explicit state input and emits the
+        next-state replay bit as an effect.
+
+observables:
+  state_vars:
+    ["do_execute", "receipt_verified", "policy_digest_match", "request_used_before"]
+  effects:
+    [
+      "do_execute_ok",
+      "receipt_verified_ok",
+      "policy_digest_match_ok",
+      "request_unused_ok",
+      "request_used_after",
+      "admission_ok",
+    ]
+
+types: []
+
+state_vars:
+  - id: "do_execute"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "receipt_verified"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "policy_digest_match"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "request_used_before"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - var: "do_execute"
+    expr: { const: 0 }
+  - var: "receipt_verified"
+    expr: { const: 0 }
+  - var: "policy_digest_match"
+    expr: { const: 0 }
+  - var: "request_used_before"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "do_execute" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "do_execute" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "receipt_verified" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "receipt_verified" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "policy_digest_match" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "policy_digest_match" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "request_used_before" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "request_used_before" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_confidential_extension_live_admission"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      do_execute_ok:
+        op: "="
+        args: [{ var: "do_execute" }, { const: 1 }]
+      receipt_verified_ok:
+        op: "="
+        args: [{ var: "receipt_verified" }, { const: 1 }]
+      policy_digest_match_ok:
+        op: "="
+        args: [{ var: "policy_digest_match" }, { const: 1 }]
+      request_unused_ok:
+        op: "="
+        args: [{ var: "request_used_before" }, { const: 0 }]
+      request_used_after:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "request_used_before" }, { const: 1 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "do_execute" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "receipt_verified" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "policy_digest_match" }, { const: 1 }] }
+              - { op: "=", args: [{ var: "request_used_before" }, { const: 0 }] }
+      admission_ok:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "do_execute" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "receipt_verified" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "policy_digest_match" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "request_used_before" }, { const: 0 }] }

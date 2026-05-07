@@ -1,0 +1,191 @@
+# LTLf micro-kernel: Oracle recovery liveness
+#
+# Goal:
+# - Prove oracle recovery liveness: G(stale -> F(fresh OR blocked)).
+# - Prove safety: G(stale -> !risky_op_allowed).
+#
+# Model intuition:
+# - Oracle epoch tracks when the oracle last reported.
+# - now_epoch advances monotonically.
+# - Staleness is detected when now_epoch - oracle_epoch > max_stale.
+# - Recovery: oracle updates (becomes fresh) or permanently blocks.
+#
+# ZAG operator: op_oracle_anomaly_detection
+#
+# Fairness assumption: oracle source eventually updates (or blocks).
+# The OR permanently_blocked disjunct handles the case where it doesn't.
+
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "oracle_recovery_ltlf_v1"
+  created_by: "zenodex"
+  notes: "Finite-trace oracle recovery liveness model for LTLf synthesis gate."
+
+observables:
+  state_vars: ["now_epoch", "oracle_epoch", "oracle_fresh", "permanently_blocked", "risky_op_attempted"]
+  effects: ["event"]
+
+types:
+  - id: "t_event"
+    type:
+      kind: "enum"
+      symbols:
+        [
+          "TimeAdvanced",
+          "OracleUpdated",
+          "OracleStaleDetected",
+          "PermanentlyBlocked",
+          "RiskyOpBlocked",
+          "End",
+        ]
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+
+  - id: "oracle_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+
+  # Whether the oracle is currently fresh (updated recently).
+  - id: "oracle_fresh"
+    role: "data"
+    type: { kind: "bool" }
+
+  # Whether the oracle source has been permanently blocked.
+  - id: "permanently_blocked"
+    role: "data"
+    type: { kind: "bool" }
+
+  # Whether a risky operation was attempted while stale.
+  - id: "risky_op_attempted"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "oracle_epoch"
+    expr: { const: 0 }
+  - var: "oracle_fresh"
+    expr: { bool: true }
+  - var: "permanently_blocked"
+    expr: { bool: false }
+  - var: "risky_op_attempted"
+    expr: { bool: false }
+
+invariants:
+  # Oracle epoch never exceeds now_epoch.
+  - id: "inv_oracle_not_from_future"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "oracle_epoch" }, { var: "now_epoch" }]
+
+  # SAFETY: When oracle is stale (not fresh and not blocked), risky ops are blocked.
+  - id: "inv_stale_blocks_risky"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - op: "and"
+          args:
+            - op: "not"
+              args: [{ var: "oracle_fresh" }]
+            - op: "not"
+              args: [{ var: "permanently_blocked" }]
+        - op: "not"
+          args: [{ var: "risky_op_attempted" }]
+
+  # Blocked is absorbing: once blocked, stays blocked.
+  - id: "inv_blocked_absorbing"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { var: "permanently_blocked" }
+        - op: "not"
+          args: [{ var: "oracle_fresh" }]
+
+actions:
+  # Advance time (may cause staleness).
+  - id: "advance_time"
+    guard:
+      op: "and"
+      args:
+        - op: "<"
+          args: [{ var: "now_epoch" }, { const: 4 }]
+        - op: "not"
+          args: [{ var: "permanently_blocked" }]
+    updates:
+      - var: "now_epoch"
+        expr:
+          op: "+"
+          args: [{ var: "now_epoch" }, { const: 1 }]
+      # Oracle becomes stale if gap > 1 (max_stale = 1 for this model).
+      - var: "oracle_fresh"
+        expr:
+          op: "<="
+          args:
+            - op: "-"
+              args:
+                - op: "+"
+                  args: [{ var: "now_epoch" }, { const: 1 }]
+                - { var: "oracle_epoch" }
+            - { const: 1 }
+    effects:
+      event: { enum: "TimeAdvanced" }
+
+  # Oracle reports a fresh value (recovery).
+  - id: "update_oracle"
+    guard:
+      op: "and"
+      args:
+        - op: "not"
+          args: [{ var: "permanently_blocked" }]
+        - op: "not"
+          args: [{ var: "oracle_fresh" }]
+    updates:
+      - var: "oracle_epoch"
+        expr: { var: "now_epoch" }
+      - var: "oracle_fresh"
+        expr: { bool: true }
+    effects:
+      event: { enum: "OracleUpdated" }
+
+  # Permanently block oracle source (no recovery possible).
+  - id: "block_permanently"
+    guard:
+      op: "and"
+      args:
+        - op: "not"
+          args: [{ var: "oracle_fresh" }]
+        - op: "not"
+          args: [{ var: "permanently_blocked" }]
+    updates:
+      - var: "permanently_blocked"
+        expr: { bool: true }
+    effects:
+      event: { enum: "PermanentlyBlocked" }
+
+  # Attempt a risky operation (only succeeds when fresh).
+  - id: "attempt_risky_op"
+    guard:
+      op: "and"
+      args:
+        - { var: "oracle_fresh" }
+        - op: "not"
+          args: [{ var: "permanently_blocked" }]
+    updates:
+      - var: "risky_op_attempted"
+        expr: { bool: true }
+    effects:
+      event: { enum: "RiskyOpBlocked" }
+
+  # Explicit end action for LTLf termination.
+  - id: "end"
+    guard: { bool: true }
+    updates: []
+    effects:
+      event: { enum: "End" }

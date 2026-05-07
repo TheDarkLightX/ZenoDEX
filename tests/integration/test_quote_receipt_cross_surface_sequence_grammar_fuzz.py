@@ -28,14 +28,32 @@ def test_quote_receipt_cross_surface_sequence_reaches_transport_certificate_and_
 
 def test_quote_receipt_cross_surface_minimize_preserves_certificate_mismatch() -> None:
     witness = minimize_case("tamper_then_rehash")
+    assert witness.target == "quote_receipt_cross_surface_sequence"
+    assert witness.derivation == "tamper_then_rehash"
     assert witness.outcome_label == "reject:step=2:canonical_route_certificate_amount_out_mismatch"
+    assert witness.path_id == "d74077898ae7d4fb"
+    assert witness.path_length == 2
+    assert witness.original_size == 118
+    assert witness.minimized_size == 118
 
 
 def test_quote_receipt_cross_surface_minimize_preserves_stale_snapshot_mismatch() -> None:
     witness = minimize_case("drift_pool_snapshot")
+    assert witness.target == "quote_receipt_cross_surface_sequence"
+    assert witness.derivation == "drift_pool_snapshot"
     assert witness.outcome_label == "reject:step=1:pool_snapshot_mismatch"
+    assert witness.path_id == "a91edda6e10947af"
+    assert witness.path_length == 1
+    assert witness.original_size == 76
+    assert witness.minimized_size == 76
 
 
 def test_quote_receipt_cross_surface_minimize_preserves_transport_repair_then_stale_snapshot() -> None:
     witness = minimize_case("drop_hash_then_rehash_then_drift")
+    assert witness.target == "quote_receipt_cross_surface_sequence"
+    assert witness.derivation == "drop_hash_then_rehash_then_drift"
     assert witness.outcome_label == "reject:step=3:pool_snapshot_mismatch"
+    assert witness.path_id == "4f849d8b45d19c8b"
+    assert witness.path_length == 3
+    assert witness.original_size == 140
+    assert witness.minimized_size == 140

@@ -67,8 +67,45 @@ def test_policy_bundle_and_artifact_contract_accept_path() -> None:
         privkey=privkey,
     )
 
-    assert check_strategy_policy_bundle_contract(bundle).ok is True
+    bundle_result = check_strategy_policy_bundle_contract(bundle)
+    assert bundle_result.ok is True
+    assert bundle_result.evidence_class_ok is True
     assert check_strategy_policy_artifact_contract(artifact, tau_policy_bundle=bundle).ok is True
+
+
+def test_policy_bundle_contract_rejects_evidence_class_below_live_floor() -> None:
+    privkey = 29
+    owner_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    strategy = _strategy(owner_pubkey)
+    source_artifact = build_strategy_source_artifact(strategy=strategy, source_form="kv")
+    good_bundle = build_tau_policy_bundle(
+        strategy=strategy,
+        compile_contract_tau_receipt=build_compile_contract_tau_policy_receipt(strategy=strategy).to_dict(),
+        source_artifact=source_artifact,
+    )
+    low_evidence_bundle = TauPolicyBundle(
+        strategy_hash=good_bundle.strategy_hash,
+        owner_pubkey=good_bundle.owner_pubkey,
+        source_artifact_hash=good_bundle.source_artifact_hash,
+        required_spec_ids=good_bundle.required_spec_ids,
+        compile_contract_tau_receipt=good_bundle.compile_contract_tau_receipt,
+        compilation_witness_tau_receipt=good_bundle.compilation_witness_tau_receipt,
+        decision_model_version=good_bundle.decision_model_version,
+        evidence_class="O2",
+    )
+
+    result = check_strategy_policy_bundle_contract(low_evidence_bundle)
+
+    assert result.ok is False
+    assert result.strategy_hash_ok is True
+    assert result.owner_binding_ok is True
+    assert result.source_artifact_hash_ok is True
+    assert result.canonical_specs_ok is True
+    assert result.compile_contract_ok is True
+    assert result.compilation_witness_ok is True
+    assert result.decision_model_version_ok is True
+    assert result.evidence_class_ok is False
+    assert result.error == "evidence_class_below_o3"
 
 
 def test_policy_artifact_contract_rejects_unsigned_artifact() -> None:
@@ -130,6 +167,7 @@ def test_policy_contract_adapters_cover_type_and_error_edges() -> None:
     object.__setattr__(bad_bundle, "compile_contract_tau_receipt", receipt)
     object.__setattr__(bad_bundle, "compilation_witness_tau_receipt", witness_receipt)
     object.__setattr__(bad_bundle, "decision_model_version", bundle.decision_model_version)
+    object.__setattr__(bad_bundle, "evidence_class", bundle.evidence_class)
     assert check_strategy_policy_bundle_contract(bad_bundle).error == "strategy_hash_missing"
 
     object.__setattr__(bad_bundle, "strategy_hash", strategy.strategy_hash_hex())
@@ -155,6 +193,10 @@ def test_policy_contract_adapters_cover_type_and_error_edges() -> None:
     object.__setattr__(bad_bundle, "compilation_witness_tau_receipt", witness_receipt)
     object.__setattr__(bad_bundle, "decision_model_version", "")
     assert check_strategy_policy_bundle_contract(bad_bundle).error == "decision_model_version_missing"
+
+    object.__setattr__(bad_bundle, "decision_model_version", bundle.decision_model_version)
+    object.__setattr__(bad_bundle, "evidence_class", "O2")
+    assert check_strategy_policy_bundle_contract(bad_bundle).error == "evidence_class_below_o3"
 
     wrong_hash_bundle = TauPolicyBundle(
         strategy_hash="0xdead",

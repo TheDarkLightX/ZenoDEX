@@ -80,7 +80,7 @@ def test_dex_engine_quote_receipt_sequence_minimizer_removes_dead_tail_without_c
     witness = minimize_case("direct_quote_receipt_sequence", "DirectSeq->ValidThenStaleSamePoolWithDeadTail")
     assert "invalid quote receipt:" in witness.outcome_label
     assert "verifier_error='pool_snapshot_mismatch'" in witness.outcome_label
-    assert witness.path_id == "b44f66c3caa607f8"
+    assert witness.path_id == "dea2dabd3b60f14c"
     assert witness.original_size == 6819
     assert witness.minimized_size == 4556
     assert witness.original_size > witness.minimized_size
@@ -111,6 +111,6 @@ def test_dex_engine_quote_receipt_sequence_minimizer_cli_emits_expected_schema()
     assert witness["target"] == "direct_quote_receipt_sequence"
     assert witness["derivation"] == "DirectSeq->ValidThenStaleSamePoolWithDeadTail"
     assert "invalid quote receipt:" in witness["outcome_label"]
-    assert witness["path_id"] == "b44f66c3caa607f8"
+    assert witness["path_id"] == "dea2dabd3b60f14c"
     assert witness["original_size"] == 6819
     assert witness["minimized_size"] == 4556

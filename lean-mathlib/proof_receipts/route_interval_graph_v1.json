@@ -1,0 +1,25 @@
+{
+  "schema": "zenodex-lean-proof-receipt/v1",
+  "artifact": "lean-mathlib/Proofs/RouteIntervalGraph.lean",
+  "lean_toolchain": "leanprover/lean4:v4.27.0",
+  "checker_command": "lake env lean Proofs/RouteIntervalGraph.lean",
+  "placeholder_scan": "rg -n \"\\bsorry\\b|\\badmit\\b|\\baxiom\\b|\\bunsafe\\b|sorryAx\" lean-mathlib/Proofs/RouteIntervalGraph.lean || true",
+  "placeholder_scan_clean": true,
+  "theorems": [
+    "Proofs.RouteIntervalGraph.cpmmOutPostFee_mul_den_le_num",
+    "Proofs.RouteIntervalGraph.cpmm_num_lt_succ_out_mul_den",
+    "Proofs.RouteIntervalGraph.cpmm_post_fee_floor_interval",
+    "Proofs.RouteIntervalGraph.pathProduct_potential_bound",
+    "Proofs.RouteIntervalGraph.pathProduct_le_potential_ratio"
+  ],
+  "source_discovery_packet": "experiments/math_object_innovation_v187",
+  "proof_idea": [
+    "The CPMM floor theorem uses Nat.div_mul_le_self and Nat.div_lt_iff_lt_mul to characterize floor(num / den) by adjacent integer ticks.",
+    "The route theorem uses induction over vertex lists. Each edge certificate rate(u,v) * potential(v) <= potential(u) composes multiplicatively, with nonnegative rates preserving order."
+  ],
+  "scope_limits": [
+    "This proves the abstract route-interval graph certificate shape, not production router optimality.",
+    "It assumes externally supplied nonnegative upper rates and positive potentials.",
+    "It does not model live reserve mutation, concurrency, MEV ordering, or external venue execution."
+  ]
+}

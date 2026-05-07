@@ -1,0 +1,894 @@
+# Zeno Oracle Chaos Engineering
+
+Status: public chaos-test plan and first replay lane.
+
+Chaos engineering is useful for Zeno Oracle when it is treated as a bounded
+receipt- and budget-mutation discipline, not as random breakage. A valid
+receipt bundle or budget transition is the baseline. Each chaos case changes
+one semantic axis and expects the verifier to fail closed.
+
+## Target Shape
+
+```text
+ValidBundle + DangerousPerturbation -> RejectedBundle
+```
+
+Plain English: if a mutation weakens evidence, freshness, dispute status,
+query binding, value binding, dependency closure, or bypass policy, the local
+verifier should reject the bundle instead of letting the unsafe state reach a
+critical ZenoDEX action.
+
+## First Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_chaos.py
+```
+
+The replay starts with one accepted `O3` critical-read bundle, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `weak_o2_evidence_used_for_critical_action` | weak evidence feeds a critical action |
+| `stale_read_used_for_critical_action` | stale data remains consumable |
+| `open_dispute_used_for_critical_action` | disputed aggregate feeds a critical action |
+| `high_uncertainty_erased_before_action` | uncertainty failure is stripped before use |
+| `consumer_action_borrows_other_query` | action consumes a read for another query |
+| `consumer_action_borrows_other_value` | action consumes a value hash from another bundle |
+| `consumer_action_drops_read_dependency` | dependency closure is broken |
+| `emergency_oracle_bypass_flag_set` | bypass flag survives critical-action verification |
+| `consumer_action_replays_expired_read` | action executes after the read expires |
+| `consumer_action_precedes_read_observation` | action claims a read before it was observed |
+| `consumer_action_erases_consumer_identity` | action removes the downstream consumer binding |
+| `terminal_points_to_missing_read` | terminal read pointer is absent from the bundle |
+| `action_depends_on_missing_receipt` | dependency graph references missing evidence |
+| `duplicate_receipt_id_shadows_terminal` | duplicate IDs create ambiguous evidence |
+| `stray_receipt_hides_unreachable_evidence` | unrelated evidence is present but not in terminal closure |
+| `unsupported_receipt_type_in_terminal_closure` | unknown receipt type enters the replay closure |
+| `dependency_consumed_before_it_appears` | bundle is not in dependency-before-consumer order |
+| `read_receipt_depends_on_itself` | receipt graph contains a self-cycle |
+| `read_receipt_depends_on_action_receipt` | read depends on the action it should precede |
+| `action_depends_on_extra_reachable_read` | action imports extra reachable read evidence |
+| `action_duplicates_read_dependency` | action duplicates dependency edges |
+| `terminal_aliases_read_as_action` | terminal read ID is reused as action ID |
+| `receipt_id_forged_without_body_match` | receipt ID does not match its canonical body hash |
+| `read_receipt_status_downgraded_after_terminal_binding` | terminal read is no longer accepted |
+| `unknown_top_level_field_survives` | bundle carries undeclared top-level authority |
+| `unknown_terminal_field_survives` | terminal binding carries undeclared action data |
+| `unknown_read_receipt_field_survives` | read receipt carries unchecked source/debug data |
+| `unknown_action_receipt_field_survives` | action receipt carries unchecked bypass-like data |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 28,
+  "rejected_case_count": 28,
+  "failed_case_count": 0
+}
+```
+
+## What This Improves
+
+This lane gives ZenoDEX a cheap regression check for the most important oracle
+weird-machine pattern:
+
+```text
+receipt looks reachable
+but one semantic binding is wrong
+```
+
+It is stronger than ordinary malformed-input testing because each mutant starts
+from a valid bundle and changes one field that a real attacker would want to
+weaken while preserving as much surrounding structure as possible.
+
+## What It Does Not Prove
+
+This is not a universal proof of Oracle safety. It is a bounded replay receipt
+for named disaster shapes. New consumers, new evidence classes, larger
+aggregate families, live network submission, reporter economics, and dispute
+governance need their own chaos lanes.
+
+The current public Oracle chaos lanes together cover `283` named disaster
+shapes, all rejected in the latest local replay:
+
+```text
+total_oracle_chaos_case_count = 283
+total_oracle_chaos_rejected_count = 283
+total_oracle_chaos_failed_count = 0
+```
+
+The unified local CLI can run the same aggregate replay:
+
+```bash
+python3 tools/zenodex_oracle_cli.py chaos all
+```
+
+## Feed Registry Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_feed_registry_chaos.py
+```
+
+The replay starts with one accepted `AGRS/ZDEX` feed registry, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `registry_hash_forgery_survives` | registry body changes without changing registry ID |
+| `feed_hash_forgery_survives` | feed body changes without changing feed ID |
+| `query_hash_forgery_survives` | query semantics change without changing query ID |
+| `aggregate_policy_hash_forgery_survives` | aggregate policy changes without changing policy ID |
+| `source_diversity_hash_forgery_survives` | source-diversity policy changes without changing source-set ID |
+| `duplicate_feed_id_survives` | two feeds share one feed ID |
+| `duplicate_query_id_survives` | two feeds claim one query ID |
+| `base_quote_same_survives` | a price feed aliases base and quote assets |
+| `weak_min_reporters_survives` | reporter quorum drops below three |
+| `weak_min_sources_survives` | source quorum drops below three |
+| `zero_freshness_survives` | feed accepts a zero freshness window |
+| `excessive_deviation_survives` | deviation policy exceeds the bps domain |
+| `weak_evidence_floor_survives` | critical evidence floor is downgraded |
+| `unsupported_aggregate_policy_survives` | feed switches away from admitted median3 |
+| `unsupported_report_schema_survives` | feed switches away from signed reports |
+| `source_query_mismatch_survives` | source policy binds a different query |
+| `source_operator_correlation_survives` | source set collapses distinct operators |
+| `future_created_feed_survives` | feed is created after current epoch |
+| `inactive_feed_survives` | inactive feed becomes admissible |
+| `hidden_registry_field_survives` | registry carries undeclared governance authority |
+| `hidden_feed_field_survives` | feed carries undeclared admin authority |
+| `hidden_query_field_survives` | query spec carries an unchecked semantic alias |
+| `hidden_policy_field_survives` | policy carries an unchecked bypass field |
+| `wrong_registry_schema_survives` | registry schema downgrade is accepted |
+| `feeds_as_object_survives` | feed list shape is replaced by an object |
+| `boolean_current_epoch_survives` | boolean is accepted as an epoch |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.feed_registry_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 26,
+  "rejected_case_count": 26,
+  "failed_case_count": 0
+}
+```
+
+This lane checks feed creation and registration before a query can enter the
+rest of the Oracle chain:
+
+```text
+ValidFeedRegistry + DangerousPerturbation -> RejectedRegistry
+```
+
+If a mutation weakens query semantics, source policy, aggregate policy,
+freshness, deviation, evidence, or uniqueness, the local verifier rejects it.
+
+## Token Budget Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_budget_chaos.py
+```
+
+The replay starts with one accepted budget transition, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `query_reward_exceeds_remaining_budget` | reporter reward exceeds query budget |
+| `query_reward_from_zero_budget` | reward is paid from an empty query budget |
+| `reporter_slash_exceeds_available_bond` | reporter slash payout exceeds bond |
+| `dispute_slash_exceeds_available_bond` | dispute slash payout exceeds dispute bond |
+| `fee_split_spends_more_than_fee` | fee split spends more than paid fees |
+| `fee_split_spends_from_zero_fee` | fee share is paid from an empty fee envelope |
+| `hidden_mint_field_survives` | hidden mint-like field is accepted |
+| `negative_reward_amount_survives` | negative reward amount enters accounting |
+| `boolean_burn_share_survives` | boolean value is accepted as an amount |
+| `missing_fee_share_survives` | required fee share is omitted |
+| `wrong_schema_survives` | budget schema downgrade is accepted |
+| `string_budget_amount_survives` | string amount is accepted as a budget |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.budget_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 12,
+  "rejected_case_count": 12,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the token surface behind the Oracle MVP:
+
+```text
+ValidBudgetTransition + DangerousPerturbation -> RejectedTransition
+```
+
+Plain English: if a mutation creates a reward, slash, burn, treasury, or fee
+share that exceeds the explicit budget/bond/fee envelope, the local verifier
+rejects it.
+
+## Reporter Lifecycle Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_reporter_lifecycle_chaos.py
+```
+
+The replay starts with one accepted reporter lifecycle trace, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `duplicate_reporter_registration` | reporter registers twice |
+| `bond_deposit_before_registration` | bond appears before reporter registration |
+| `report_before_registration` | report is submitted by inactive reporter |
+| `report_under_required_bond` | report is submitted below required bond |
+| `duplicate_report_id_survives` | same report ID is submitted twice |
+| `dispute_for_unknown_report` | dispute targets unknown report |
+| `zero_dispute_bond_survives` | dispute opens with no challenger bond |
+| `slash_without_open_dispute` | slash executes without open dispute |
+| `slash_exceeds_reporter_bond` | slash exceeds available reporter bond |
+| `double_slash_same_dispute` | same dispute slashes twice |
+| `resolve_unknown_dispute` | resolver closes unknown dispute |
+| `unregister_with_open_dispute` | reporter exits with open dispute |
+| `withdraw_while_active` | reporter withdraws while active |
+| `withdraw_with_open_dispute` | reporter withdraws while dispute is open |
+| `withdraw_exceeds_bond` | withdrawal exceeds remaining bond |
+| `event_epoch_regression` | lifecycle epochs move backward |
+| `hidden_event_field_survives` | hidden event authority field is accepted |
+| `unknown_event_type_survives` | unsupported event type is accepted |
+| `boolean_bond_amount_survives` | boolean is accepted as amount |
+| `too_many_events_survive` | trace exceeds event-count budget |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.reporter_lifecycle_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 20,
+  "rejected_case_count": 20,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the permissionless reporter sequence:
+
+```text
+ValidReporterLifecycle + DangerousPerturbation -> RejectedLifecycle
+```
+
+Plain English: if a mutation lets a reporter skip registration, report
+under-bonded, slash outside an open dispute, or withdraw unsafely, the local
+verifier rejects it.
+
+## Signed Report Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_signed_report_chaos.py
+```
+
+The replay starts with one accepted BLS-signed report submission, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `submission_hash_forgery_survives` | submission ID no longer matches submission body |
+| `payload_mutation_survives_signature_check` | report payload changes while old signature is reused |
+| `payload_hash_forgery_survives` | payload hash no longer matches signed payload |
+| `signature_mutation_survives` | mutated BLS signature is accepted |
+| `report_id_forgery_survives` | report ID no longer matches report body |
+| `sequence_gap_survives` | reporter sequence skips a number |
+| `previous_report_chain_mismatch_survives` | report points at the wrong predecessor |
+| `first_previous_report_id_survives` | first report falsely claims a predecessor |
+| `duplicate_report_id_survives` | duplicate report ID enters the submission |
+| `hidden_submission_field_survives` | submission carries unchecked authority/debug data |
+| `hidden_report_field_survives` | report carries unchecked authority/debug data |
+| `wrong_submission_schema_survives` | submission schema downgrade is accepted |
+| `wrong_report_schema_survives` | report schema downgrade is accepted |
+| `bad_reporter_pubkey_survives` | malformed reporter public key is accepted |
+| `bad_signature_length_survives` | malformed signature length is accepted |
+| `boolean_value_survives` | boolean is accepted as a report value |
+| `reports_as_object_survives` | report list shape is replaced by an object |
+| `bad_source_token_survives` | malformed source identifier is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.signed_report_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 18,
+  "rejected_case_count": 18,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the signature and replay shell for reporter submissions:
+
+```text
+ValidSignedReportSubmission + DangerousPerturbation -> RejectedSubmission
+```
+
+Plain English: if a mutation changes a signed payload, reuses a signature,
+breaks the sequence chain, forges an ID, or hides authority in an unchecked
+field, the local verifier rejects the signed-report submission before it can be
+promoted into an aggregate.
+
+## Report Admission Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_report_admission_chaos.py
+```
+
+The replay starts with one accepted report admission bundle, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `admission_hash_forgery_survives` | admission ID no longer matches admission body |
+| `signed_payload_mutation_survives` | signed payload is mutated before admission |
+| `reporter_id_mismatch_survives` | lifecycle trace belongs to another reporter |
+| `missing_lifecycle_submit_survives` | signed report has no lifecycle submit event |
+| `lifecycle_query_mismatch_survives` | lifecycle submit event names another query |
+| `lifecycle_value_hash_mismatch_survives` | lifecycle submit event names another payload hash |
+| `extra_lifecycle_submit_survives` | lifecycle submits a report outside the signed submission |
+| `source_not_in_diversity_survives` | signed report uses a source outside the source-diversity set |
+| `source_diversity_query_mismatch_survives` | source policy belongs to another query |
+| `future_admitted_report_survives` | future-dated report is admitted |
+| `stale_admitted_report_survives` | stale report is admitted |
+| `underbonded_lifecycle_survives` | lifecycle trace admits under-bonded reporting |
+| `source_operator_correlation_survives` | source-diversity subreceipt is rejected but admission continues |
+| `hidden_admission_field_survives` | admission carries unchecked authority/debug data |
+| `hidden_signed_submission_field_survives` | signed-submission subreceipt carries unchecked authority/debug data |
+| `wrong_admission_schema_survives` | admission schema downgrade is accepted |
+| `boolean_current_epoch_survives` | boolean is accepted as current epoch |
+| `source_diversity_as_null_survives` | source-diversity subreceipt is missing |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.report_admission_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 18,
+  "rejected_case_count": 18,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the bridge from signed reports to aggregate eligibility:
+
+```text
+ValidReportAdmission + DangerousPerturbation -> RejectedAdmission
+```
+
+Plain English: if a mutation makes the signed report, lifecycle trace, or
+source-diversity receipt disagree, the local verifier rejects the report before
+it can be treated as aggregatable.
+
+## Median3 Aggregate Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_median3_chaos.py
+```
+
+The replay starts with one accepted `median_3` aggregate, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `aggregate_value_not_median` | aggregate value is not the median of included reports |
+| `aggregate_confidence_mismatch` | confidence radius is understated or miscomputed |
+| `aggregate_deviation_mismatch` | deviation bps is understated or miscomputed |
+| `aggregate_observed_epoch_mismatch` | aggregate observation epoch does not match report epochs |
+| `report_query_id_mismatch` | report for a different query enters the aggregate |
+| `stale_report_survives` | stale report remains aggregatable |
+| `future_report_survives` | future-dated report remains aggregatable |
+| `duplicate_reporter_survives` | one reporter counts as multiple reporters |
+| `duplicate_source_survives` | one source counts as multiple independent sources |
+| `too_few_reports_survive` | aggregate is accepted below the median_3 quorum |
+| `too_many_reports_survive` | extra reports enter an exactly-three policy |
+| `forged_report_id_survives` | report ID does not match report body |
+| `forged_aggregate_id_survives` | aggregate ID does not match aggregate body |
+| `deviation_policy_exceeded` | high-deviation aggregate passes policy |
+| `source_diversity_report_source_mismatch_survives` | aggregate reports do not match the declared source set |
+| `source_diversity_operator_correlation_survives` | source set collapses to one operator |
+| `source_diversity_query_mismatch_survives` | aggregate borrows source policy from another query |
+| `nonpositive_report_value_survives` | zero price enters aggregation |
+| `hidden_report_field_survives` | report carries unchecked authority/debug data |
+| `hidden_aggregate_field_survives` | aggregate carries unchecked authority/debug data |
+| `wrong_schema_survives` | aggregate schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.median3_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 21,
+  "rejected_case_count": 21,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the first aggregate policy:
+
+```text
+ValidMedian3Aggregate + DangerousPerturbation -> RejectedAggregate
+```
+
+Plain English: if a mutation changes the median, confidence, deviation, source
+set, query binding, freshness, or content hash, the local verifier rejects the
+aggregate before it can become an accepted read.
+
+## Admitted Median3 Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_admitted_median3_chaos.py
+```
+
+The replay starts with one accepted admitted-median3 aggregate, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `aggregate_hash_forgery_survives` | aggregate ID no longer matches aggregate body |
+| `wrong_median_value_survives` | aggregate value is not the median of admitted reports |
+| `wrong_confidence_survives` | confidence radius is understated or miscomputed |
+| `wrong_deviation_survives` | deviation bps is understated or miscomputed |
+| `wrong_observed_epoch_survives` | aggregate observation epoch does not match admitted report epochs |
+| `too_few_admissions_survive` | aggregate is accepted below the three-admission quorum |
+| `admission_rejection_survives` | rejected report admission remains aggregatable |
+| `duplicate_admission_survives` | one admission counts as multiple independent admissions |
+| `duplicate_reporter_survives` | one reporter counts as multiple reporters |
+| `duplicate_source_survives` | one source counts as multiple independent sources |
+| `admission_query_mismatch_survives` | admission policy disagrees with aggregate query |
+| `admission_epoch_mismatch_survives` | admission freshness epoch disagrees with aggregate epoch |
+| `admission_staleness_mismatch_survives` | admission staleness window disagrees with aggregate policy |
+| `multi_report_admission_survives` | aggregate input hides selection inside a multi-report admission |
+| `deviation_policy_exceeded_survives` | high-deviation aggregate passes policy |
+| `hidden_top_level_field_survives` | aggregate carries unchecked authority/debug data |
+| `hidden_aggregate_field_survives` | aggregate result carries unchecked authority/debug data |
+| `wrong_schema_survives` | admitted-median3 schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.admitted_median3_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 18,
+  "rejected_case_count": 18,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the bridge from report admission to aggregate construction:
+
+```text
+ValidAdmittedMedian3 + DangerousPerturbation -> RejectedAdmittedMedian3
+```
+
+Plain English: if a mutation lets a rejected, duplicated, query-mismatched, or
+freshness-mismatched admission enter the median, the local verifier rejects the
+aggregate before it can become an accepted read.
+
+## Aggregate-Read Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_aggregate_read_chaos.py
+```
+
+The replay starts with one accepted aggregate-read bridge, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `bridge_hash_forgery_survives` | bridge ID no longer matches bridge body |
+| `rejected_aggregate_survives` | rejected admitted aggregate still becomes a read |
+| `rejected_bundle_survives` | rejected receipt bundle still passes the bridge |
+| `query_mismatch_survives` | read bundle query differs from aggregate query |
+| `value_hash_mismatch_survives` | read value hash differs from aggregate result hash |
+| `observed_epoch_mismatch_survives` | read observed epoch differs from aggregate epoch |
+| `expiry_mismatch_survives` | read expiry differs from aggregate freshness policy |
+| `freshness_window_mismatch_survives` | action freshness window differs from bridge policy |
+| `missing_aggregate_survives` | bridge has no aggregate subobject |
+| `missing_receipt_bundle_survives` | bridge has no receipt bundle subobject |
+| `hidden_top_level_field_survives` | bridge carries unchecked authority/debug data |
+| `wrong_schema_survives` | aggregate-read schema downgrade is accepted |
+| `boolean_freshness_window_survives` | boolean is accepted as a freshness window |
+| `zero_freshness_window_survives` | zero freshness window is accepted |
+| `weakened_read_evidence_survives` | read evidence drops below the critical floor |
+| `read_expiry_before_observed_survives` | read expires before the aggregate observation |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.aggregate_read_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 16,
+  "rejected_case_count": 16,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the bridge from admitted aggregate to accepted read:
+
+```text
+ValidAggregateRead + DangerousPerturbation -> RejectedAggregateRead
+```
+
+Plain English: if a mutation lets a read/action bundle point at the wrong
+query, value hash, epoch, expiry, freshness window, or weak evidence, the local
+verifier rejects it before the adapter sees it.
+
+## Aggregate-Adapter Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_aggregate_adapter_chaos.py
+```
+
+The replay starts with one accepted aggregate-adapter bridge, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `bridge_hash_forgery_survives` | bridge ID no longer matches bridge body |
+| `aggregate_read_rejection_survives` | rejected aggregate-read bridge still feeds the adapter |
+| `action_query_mismatch_survives` | concrete action query differs from aggregate-derived bundle |
+| `action_value_hash_mismatch_survives` | concrete action value hash differs from aggregate-derived bundle |
+| `action_id_mismatch_survives` | concrete action ID differs from bundle action ID |
+| `action_read_receipt_mismatch_survives` | concrete action points at a different read receipt |
+| `action_consumer_receipt_mismatch_survives` | concrete action points at a different consumer-action receipt |
+| `profile_hash_forgery_survives` | profile body changes without matching profile ID |
+| `profile_module_mismatch_survives` | profile belongs to a different consumer module |
+| `action_freshness_exceeds_profile_survives` | action allows a looser freshness window than profile |
+| `action_not_critical_survives` | action is not marked critical |
+| `missing_aggregate_read_survives` | bridge has no aggregate-read subobject |
+| `missing_action_survives` | bridge has no action subobject |
+| `missing_profile_survives` | bridge has no profile subobject |
+| `hidden_top_level_field_survives` | bridge carries unchecked authority/debug data |
+| `wrong_schema_survives` | aggregate-adapter schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.aggregate_adapter_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 16,
+  "rejected_case_count": 16,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the bridge from aggregate-derived read to concrete action:
+
+```text
+ValidAggregateAdapter + DangerousPerturbation -> RejectedAggregateAdapter
+```
+
+Plain English: if a mutation lets a concrete action or profile mismatch the
+aggregate-derived read bundle, the local verifier rejects it before claiming
+the action is Oracle-safe.
+
+## Source Diversity Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_source_diversity_chaos.py
+```
+
+The replay starts with one accepted source-diversity receipt, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `source_set_hash_forgery_survives` | source-set ID does not match the source policy body |
+| `duplicate_source_id_survives` | one source counts as multiple sources |
+| `too_few_sources_survives` | source set drops below the declared quorum |
+| `operator_correlation_survives` | multiple sources share one operator |
+| `venue_correlation_survives` | multiple sources share one venue |
+| `data_family_correlation_survives` | multiple sources share one data family |
+| `transport_correlation_survives` | multiple sources share one transport |
+| `jurisdiction_correlation_survives` | multiple sources share one jurisdiction bucket |
+| `hidden_top_level_override_survives` | source set carries unchecked top-level authority data |
+| `hidden_source_weight_survives` | source carries unchecked weight/authority data |
+| `wrong_schema_survives` | source-diversity schema downgrade is accepted |
+| `boolean_min_sources_survives` | boolean is accepted as a source threshold |
+| `zero_max_same_operator_survives` | impossible concentration cap is accepted |
+| `bad_operator_token_survives` | malformed operator identifier is accepted |
+| `sources_as_object_survives` | source list shape is replaced by an object |
+| `min_jurisdictions_unmet_survives` | jurisdiction minimum is silently unmet |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.source_diversity_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 16,
+  "rejected_case_count": 16,
+  "failed_case_count": 0
+}
+```
+
+This lane checks declared source independence before the aggregate shell trusts
+source IDs:
+
+```text
+ValidSourceDiversity + DangerousPerturbation -> RejectedSourceDiversity
+```
+
+Plain English: if a mutation collapses three source names into one operator,
+venue, data family, transport, or jurisdiction bucket, the local verifier
+rejects the source set before it can back a `median_3` aggregate.
+
+## Query-Policy Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_query_policy_chaos.py
+```
+
+The replay starts with one accepted query-policy trace, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `staleness_downgrade_survives` | later policy allows older reports |
+| `deviation_downgrade_survives` | later policy allows wider price dispersion |
+| `evidence_floor_downgrade_survives` | later policy lowers required evidence class |
+| `source_quorum_downgrade_survives` | later policy lowers source quorum |
+| `reporter_quorum_downgrade_survives` | later policy lowers reporter quorum |
+| `aggregation_schema_drift_survives` | later policy swaps aggregate schema |
+| `read_schema_drift_survives` | later policy swaps read-receipt schema |
+| `policy_content_hash_forgery_survives` | policy ID no longer matches policy body |
+| `policy_query_mismatch_survives` | policy for another query enters the trace |
+| `wrong_supersedes_survives` | policy update does not supersede active policy |
+| `version_skip_survives` | policy version jumps or skips |
+| `unknown_policy_binding_survives` | consumer binds an unknown policy ID |
+| `nonlatest_policy_binding_survives` | consumer binds an older policy after a newer one exists |
+| `noncritical_binding_survives` | critical policy shell accepts non-critical binding |
+| `action_before_binding_survives` | action claims policy before binding event |
+| `hidden_policy_field_survives` | policy carries unchecked authority/debug data |
+| `hidden_event_field_survives` | event carries unchecked authority/debug data |
+| `event_epoch_regression_survives` | policy lifecycle epochs move backward |
+| `wrong_schema_survives` | query-policy schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.query_policy_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 19,
+  "rejected_case_count": 19,
+  "failed_case_count": 0
+}
+```
+
+This lane checks query-policy versioning:
+
+```text
+ValidQueryPolicyTrace + DangerousPerturbation -> RejectedTrace
+```
+
+Plain English: if a mutation weakens the policy envelope or binds a consumer to
+the wrong policy, the local verifier rejects the trace before a critical action
+can treat the weaker policy as authority.
+
+## Adapter Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_adapter_chaos.py
+```
+
+The replay starts with one accepted action/bundle pair, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `unaccepted_bundle_survives` | downstream action accepts a rejected Oracle bundle |
+| `consumer_module_mismatch_survives` | receipt is borrowed across consumer modules |
+| `action_kind_mismatch_survives` | receipt is borrowed across action kinds |
+| `action_id_mismatch_survives` | receipt is borrowed across action IDs |
+| `action_epoch_mismatch_survives` | receipt is borrowed across action epochs |
+| `query_mismatch_survives` | action asks one query but consumes another |
+| `value_mismatch_survives` | action consumes another value hash |
+| `read_receipt_id_mismatch_survives` | action names a different read receipt |
+| `consumer_action_receipt_id_mismatch_survives` | action names a different consumer-action receipt |
+| `evidence_below_action_floor_survives` | bundle evidence is below action requirement |
+| `freshness_window_exceeds_action_limit_survives` | bundle freshness window is looser than action limit |
+| `noncritical_action_descriptor_survives` | non-critical action descriptor is treated as critical |
+| `weak_required_evidence_floor_survives` | action declares a weak evidence floor |
+| `hidden_action_field_survives` | action carries unchecked authority/debug data |
+| `wrong_action_schema_survives` | action schema downgrade is accepted |
+| `missing_action_id_survives` | action omits the downstream action ID |
+| `boolean_action_epoch_survives` | boolean is accepted as action epoch |
+| `profile_content_hash_forgery_survives` | profile ID no longer matches profile body |
+| `profile_consumer_module_mismatch_survives` | profile for another consumer module is accepted |
+| `profile_action_kind_mismatch_survives` | profile for another action kind is accepted |
+| `profile_query_mismatch_survives` | profile for another query is accepted |
+| `action_evidence_floor_below_profile_survives` | action evidence floor is weaker than profile |
+| `action_freshness_window_exceeds_profile_survives` | action freshness window is looser than profile |
+| `noncritical_profile_survives` | non-critical profile is accepted for critical adapter use |
+| `hidden_profile_field_survives` | profile carries unchecked authority/debug data |
+| `weak_profile_evidence_floor_survives` | profile declares weak evidence for critical use |
+| `wrong_profile_schema_survives` | profile schema downgrade is accepted |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.adapter_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 27,
+  "rejected_case_count": 27,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the first adapter boundary:
+
+```text
+ValidActionBundlePair + DangerousPerturbation -> RejectedOracleUse
+```
+
+Plain English: if a mutation lets a critical action borrow a receipt from the
+wrong bundle, action, query, value, epoch, evidence floor, or freshness policy,
+or lets a consumer profile silently weaken the action policy, the local adapter
+rejects the attempted Oracle use.
+
+## Consumer Profile Catalog Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_consumer_profiles_chaos.py
+```
+
+The replay starts with one accepted critical consumer profile catalog, then
+applies deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `missing_required_profile_survives` | a critical consumer profile is omitted |
+| `duplicate_profile_key_survives` | one module/action profile appears twice |
+| `duplicate_profile_id_survives` | two profiles share one content ID |
+| `profile_hash_forgery_survives` | profile ID no longer matches profile body |
+| `unsupported_profile_key_survives` | unsupported consumer/action enters the catalog |
+| `wrong_query_survives` | profile points at the wrong query |
+| `weak_evidence_floor_survives` | profile lowers evidence below the required floor |
+| `loose_freshness_survives` | profile loosens freshness beyond the required cap |
+| `noncritical_profile_survives` | non-critical profile enters critical catalog |
+| `hidden_profile_field_survives` | profile carries unchecked authority/debug data |
+| `wrong_catalog_schema_survives` | catalog schema downgrade is accepted |
+| `wrong_profile_schema_survives` | profile schema downgrade is accepted |
+| `boolean_freshness_survives` | boolean is accepted as freshness window |
+| `hidden_catalog_field_survives` | catalog carries unchecked authority/debug data |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.consumer_profile_catalog_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 14,
+  "rejected_case_count": 14,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the first concrete ZenoDEX consumer profile catalog:
+
+```text
+ValidConsumerProfileCatalog + DangerousPerturbation -> RejectedCatalog
+```
+
+Plain English: if a mutation removes, duplicates, weakens, misbinds, or hides
+authority in a critical consumer profile, the local verifier rejects the catalog.
+
+## Economic Security Replay Lane
+
+Run:
+
+```bash
+python3 tools/zenodex_oracle_economic_security_chaos.py
+```
+
+The replay starts with one accepted economic security envelope, then applies
+deterministic single-axis mutations:
+
+| Chaos Case | Disaster Shape |
+| --- | --- |
+| `extractable_above_notional_survives` | extractable value exceeds protected notional |
+| `attack_cost_below_margin_survives` | attack cost is below extractable value plus margin |
+| `reward_below_honest_cost_survives` | reporter reward does not cover honest cost and risk |
+| `reporter_reward_budget_overspend_survives` | total reporter reward exceeds budget |
+| `cheat_gain_above_extractable_survives` | declared cheating gain exceeds extractable value |
+| `weak_slash_deterrence_survives` | slashable bond is below cheating gain plus margin |
+| `dispute_reward_budget_overspend_survives` | dispute reward exceeds dispute budget |
+| `fee_split_overspend_survives` | fee shares spend more than paid fees |
+| `hidden_mint_field_survives` | hidden mint-like field is accepted |
+| `boolean_attack_cost_survives` | boolean is accepted as amount |
+| `wrong_schema_survives` | economic envelope schema downgrade is accepted |
+| `zero_reporter_count_survives` | zero reporters are accepted |
+| `slash_fraction_over_100_percent_survives` | slash fraction above 100% is accepted |
+| `negative_fee_share_survives` | negative fee share enters accounting |
+
+The receipt reports:
+
+```json
+{
+  "schema": "zenodex.oracle.economic_security_chaos_replay.v1",
+  "ok": true,
+  "baseline_status": "accepted",
+  "case_count": 14,
+  "rejected_case_count": 14,
+  "failed_case_count": 0
+}
+```
+
+This lane checks the first economic envelope:
+
+```text
+ValidEconomicEnvelope + DangerousPerturbation -> RejectedEnvelope
+```
+
+Plain English: if a mutation underprices manipulation, underpays honest
+reporters, weakens slash deterrence, or overspends a budget, the local verifier
+rejects the envelope.
+
+## Next Chaos Lanes
+
+1. Higher-redundancy aggregation lifecycle: reporter-set drift, source-family
+   drift, root drift.
+2. Runtime adapter hooks beyond perps settlement, the zUSD demo API, and
+   guarded routing quotes: production zUSD transaction execution, additional
+   routing endpoints, liquidation, and trigger calls must reject raw oracle
+   values and wrong-profile receipt reuse.

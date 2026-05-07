@@ -1,0 +1,34 @@
+{
+  "goals": [
+    {
+      "id": "G_stale_eventually_recovers",
+      "formula": "G (!state.oracle_fresh -> F (state.oracle_fresh | state.permanently_blocked))",
+      "required_in_release": true
+    },
+    {
+      "id": "G_stale_blocks_risky",
+      "formula": "G ((!state.oracle_fresh & !state.permanently_blocked) -> !state.risky_op_attempted)",
+      "required_in_release": true
+    },
+    {
+      "id": "G_recovery_reachable",
+      "formula": "F effect.event.OracleUpdated",
+      "required_in_release": true
+    },
+    {
+      "id": "G_block_reachable",
+      "formula": "F effect.event.PermanentlyBlocked",
+      "required_in_release": false
+    },
+    {
+      "id": "G_end_explicit",
+      "formula": "F effect.event.End",
+      "required_in_release": false
+    }
+  ],
+  "required_goal_ids": [
+    "G_stale_eventually_recovers",
+    "G_stale_blocks_risky",
+    "G_recovery_reachable"
+  ]
+}

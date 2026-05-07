@@ -37,14 +37,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields, replace
 from functools import lru_cache
-import hashlib
 from importlib.util import module_from_spec, spec_from_file_location
+import hashlib
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 from ..core.dex import DexState
+from ..core.perp_clearinghouse_market_params_guard import (
+    MARKET_KIND_CH2P,
+    MARKET_KIND_CH3P,
+    evaluate_perp_clearinghouse_market_params_guard,
+    perp_clearinghouse_market_params_guard_error,
+)
+from ..core.perp_apply_funding_auto_gate import (
+    evaluate_perp_apply_funding_auto_gate,
+    perp_apply_funding_auto_gate_error,
+)
 from ..core.perp_epoch import (
     perp_epoch_isolated_default_apply,
     perp_epoch_isolated_default_fee_pool_max_quote,
@@ -57,6 +67,7 @@ from ..core.perp_v2.math import is_oracle_fresh as _perp_v2_is_oracle_fresh
 from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
 from ..core.perp_v2.math import settle_price as _perp_v2_settle_price
 from ..core.perps import (
+    PerpAnyMarketState,
     PERP_CLEARINGHOUSE_2P_STATE_KEYS,
     PERP_CLEARINGHOUSE_3P_TRANSFER_STATE_KEYS,
     PERP_GLOBAL_KEYS,
@@ -68,9 +79,49 @@ from ..core.perps import (
     PerpMarketState,
     PerpsState,
 )
+from ..core.perp_market_version_prefix_guard import (
+    REJECT_CH2P_PREFIX_MISMATCH,
+    REJECT_CH3P_PREFIX_MISMATCH,
+    REJECT_INVALID_VERSION,
+    REJECT_ISOLATED_PREFIX_CONFLICT,
+    evaluate_perp_market_version_prefix_guard,
+)
+from ..core.perp_runtime_risk_gate import (
+    ACTION_ADVANCE_EPOCH as RUNTIME_ACTION_ADVANCE_EPOCH,
+    ACTION_APPLY_FUNDING_AUTO as RUNTIME_ACTION_APPLY_FUNDING_AUTO,
+    ACTION_CLEAR_BREAKER as RUNTIME_ACTION_CLEAR_BREAKER,
+    ACTION_DEPOSIT_COLLATERAL as RUNTIME_ACTION_DEPOSIT_COLLATERAL,
+    ACTION_PARTIAL_LIQUIDATE as RUNTIME_ACTION_PARTIAL_LIQUIDATE,
+    ACTION_PUBLISH_CLEARING_PRICE as RUNTIME_ACTION_PUBLISH_CLEARING_PRICE,
+    ACTION_SET_MARKET_PARAMS as RUNTIME_ACTION_SET_MARKET_PARAMS,
+    ACTION_SETTLE_EPOCH as RUNTIME_ACTION_SETTLE_EPOCH,
+    ACTION_SET_POSITION as RUNTIME_ACTION_SET_POSITION,
+    ACTION_WITHDRAW_COLLATERAL as RUNTIME_ACTION_WITHDRAW_COLLATERAL,
+    evaluate_perp_runtime_risk_gate,
+    perp_runtime_risk_gate_error,
+)
+from ..core.perp_signed_surface_guard import (
+    ACTION_INIT_MARKET_2P,
+    ACTION_INIT_MARKET_3P,
+    ACTION_PUBLISH_CLEARING_PRICE,
+    ACTION_SET_POSITION_PAIR,
+    ACTION_SET_POSITION_TRIPLET,
+    evaluate_perp_signed_surface_guard,
+    perp_signed_surface_guard_error,
+)
+from ..core.perp_submission_auth_message import (
+    PERP_OP_AUTH_SIGNED_FIELD_KEYS_V1,
+    build_perp_op_auth_signing_dict_v1,
+    hash_perp_op_auth_message_v1,
+)
+from ..core.perp_submission_auth_gate import (
+    evaluate_perp_submission_auth_gate,
+    perp_submission_auth_gate_error,
+)
 from ..state.balances import BalanceTable
-from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
+from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.nonces import NonceTable
+from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
 
 
 PERP_OP_MODULE = "TauPerp"
@@ -90,16 +141,17 @@ PERP_CH3P_MARKET_PREFIX = "perp:ch3p:"
 _E8_SCALE = 100_000_000
 
 try:
-    from py_ecc.bls import G2Basic  # type: ignore
+    from py_ecc.bls import G2Basic
 
     _BLS_AVAILABLE = True
 except Exception:  # pragma: no cover - optional dependency
-    G2Basic = None  # type: ignore[assignment]
+    G2Basic = None
     _BLS_AVAILABLE = False
 
 _HEX_CHARS_RE = re.compile(r"^[0-9a-fA-F]+$")
 _U32_MAX = 0xFFFFFFFF
 _BPS_SCALE = 10_000
+OracleAdapterBridgeVerifier = Callable[[Mapping[str, Any]], Any]
 
 
 def _safe_error_str(exc: Exception) -> str:
@@ -124,6 +176,37 @@ _ASCII_TOKEN_CHARS_MODULE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO
 _ASCII_TOKEN_CHARS_VERSION = frozenset("0123456789.")
 _ASCII_TOKEN_CHARS_ACTION = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 _ASCII_TOKEN_CHARS_MARKET_ID = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-")
+_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
+_ORACLE_PERPS_INDEX_QUERY_ID = (
+    "sha256:"
+    + hashlib.sha256("zenodex.oracle.query.perps.index_price_e8".encode("utf-8")).hexdigest()
+)
+
+
+def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
+    return "sha256:" + hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
+                "consumer_module": "zenodex.perps",
+                "action_kind": action_kind,
+                "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+                "required_evidence_floor": "O3",
+                "max_freshness_window_epochs": int(max_freshness_window_epochs),
+                "critical": True,
+            }
+        )
+    ).hexdigest()
+
+
+_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID = _oracle_consumer_profile_id(
+    action_kind="settle_epoch",
+    max_freshness_window_epochs=2,
+)
+_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID = _oracle_consumer_profile_id(
+    action_kind="liquidate_account",
+    max_freshness_window_epochs=1,
+)
 
 
 def _require_ascii_token(value: Any, *, name: str, max_len: int, allowed: frozenset[str]) -> str:
@@ -304,6 +387,8 @@ def _apply_clearinghouse_market_params(
     *,
     params: Mapping[str, Any],
     kind: str,
+    operator_ok: bool,
+    epoch_settled_ok: bool,
 ) -> Dict[str, Any]:
     updates = _validated_control_params(params, bounds=_CLEARINGHOUSE_CONTROL_PARAM_BOUNDS, name="params")
     if not updates:
@@ -313,25 +398,20 @@ def _apply_clearinghouse_market_params(
     for k, v in updates.items():
         new_state[k] = int(v)
 
-    old_liquidation_penalty_bps = int(state.get("liquidation_penalty_bps", 0))
-    new_liquidation_penalty_bps = int(new_state.get("liquidation_penalty_bps", 0))
-    if new_liquidation_penalty_bps > old_liquidation_penalty_bps:
-        if kind == "ch2p":
-            has_open_positions = bool(int(state.get("position_base_a", 0)) != 0 or int(state.get("position_base_b", 0)) != 0)
-        elif kind == "ch3p":
-            has_open_positions = bool(
-                int(state.get("position_base_a", 0)) != 0
-                or int(state.get("position_base_b", 0)) != 0
-                or int(state.get("position_base_c", 0)) != 0
-            )
-        else:  # pragma: no cover
-            has_open_positions = False
-        if has_open_positions:
-            raise ValueError("invalid params: cannot increase liquidation_penalty_bps while positions are open")
-
-    # Additional policy guard (stricter than some specs): liquidation penalty should be below maintenance.
-    if int(new_state["liquidation_penalty_bps"]) >= int(new_state["maintenance_margin_bps"]):
-        raise ValueError("invalid params: require liquidation_penalty_bps < maintenance_margin_bps")
+    kind_code = MARKET_KIND_CH2P if kind == "ch2p" else MARKET_KIND_CH3P if kind == "ch3p" else 0
+    guard = evaluate_perp_clearinghouse_market_params_guard(
+        market_kind=kind_code,
+        operator_ok=operator_ok,
+        epoch_settled_ok=epoch_settled_ok,
+        position_base_a=int(state.get("position_base_a", 0)),
+        position_base_b=int(state.get("position_base_b", 0)),
+        position_base_c=int(state.get("position_base_c", 0)),
+        old_liquidation_penalty_bps=int(state.get("liquidation_penalty_bps", 0)),
+        new_liquidation_penalty_bps=int(new_state.get("liquidation_penalty_bps", 0)),
+        new_maintenance_margin_bps=int(new_state.get("maintenance_margin_bps", 0)),
+    )
+    if not guard.admission_ok:
+        raise ValueError(perp_clearinghouse_market_params_guard_error(guard) or "invalid clearinghouse market params")
 
     try:
         if kind == "ch2p":
@@ -492,9 +572,19 @@ class PerpEngineConfig:
     oracle_spot_fee_bps: int = 30
     oracle_spot_reward_bps: int = 0
     oracle_spot_reward_safety_margin_bps: int = 1
+    # Optional ZenoOracle aggregate-adapter verifier. If a settle_epoch op
+    # carries `oracle_adapter_bridge`, the engine verifies that bridge before
+    # settlement and checks that it binds to zenodex.perps / settle_epoch.
+    oracle_adapter_bridge_verifier: Optional[OracleAdapterBridgeVerifier] = None
+    require_oracle_adapter_for_isolated_settle_epoch: bool = False
+    require_oracle_adapter_for_isolated_partial_liquidate: bool = False
+    require_oracle_adapter_for_clearinghouse_settle_epoch: bool = False
     # Scientist-derived anti-bounty-farming posture guard:
     # require a non-trivial minimum collectible liquidation penalty for bounty-eligible notional.
     min_collectible_liquidation_penalty_quote: int = 1_000
+    # Optional production bridge: require a typed ZenoOracle authorization before
+    # isolated perps settlement can consume the current oracle/index snapshot.
+    require_oracle_authorization_for_isolated_settle: bool = False
 
 
 @dataclass(frozen=True)
@@ -579,6 +669,103 @@ def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
     for pk, last in nonces.get_all().items():
         copied.set_last(pk, int(last))
     return copied
+
+
+def _perps_settle_query_id(*, market_id: str) -> str:
+    return f"zenodex.perps.{market_id}.index_price_e8"
+
+
+def _isolated_market_state_hash(*, market_id: str, market: PerpMarketState) -> str:
+    return semantic_hash(
+        "zenodex.perps.isolated.pre_state.v1",
+        {
+            "accounts": {
+                str(pk): acct.to_kernel_state()
+                for pk, acct in sorted(market.accounts.items(), key=lambda item: str(item[0]))
+            },
+            "global_state": {str(k): market.global_state[k] for k in sorted(market.global_state.keys())},
+            "kind": market.kind,
+            "market_id": str(market_id),
+            "quote_asset": str(market.quote_asset),
+        },
+    )
+
+
+def _isolated_settle_oracle_runtime_facts(*, market_id: str, market: PerpMarketState) -> Dict[str, Any]:
+    global_state = market.global_state
+    pre_state_hash = _isolated_market_state_hash(market_id=market_id, market=market)
+    facts_payload: Dict[str, Any] = {
+        "action_kind": "settle_epoch",
+        "clearing_price_e8": int(global_state.get("clearing_price_e8", 0)),
+        "clearing_price_epoch": int(global_state.get("clearing_price_epoch", 0)),
+        "clearing_price_seen": bool(global_state.get("clearing_price_seen", False)),
+        "consumer_module": "zenodex.perps",
+        "index_price_e8": int(global_state.get("index_price_e8", 0)),
+        "market_id": str(market_id),
+        "max_oracle_move_bps": int(global_state.get("max_oracle_move_bps", 0)),
+        "max_oracle_staleness_epochs": int(global_state.get("max_oracle_staleness_epochs", 0)),
+        "now_epoch": int(global_state.get("now_epoch", 0)),
+        "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
+        "oracle_seen": bool(global_state.get("oracle_seen", False)),
+        "pre_state_hash": pre_state_hash,
+        "query_id": _perps_settle_query_id(market_id=market_id),
+        "quote_asset": str(market.quote_asset),
+    }
+    action_facts_hash = semantic_hash("zenodex.perps.settle_epoch.facts.v1", facts_payload)
+    action_id = semantic_hash(
+        "zenodex.perps.settle_epoch.action.v1",
+        {
+            "action_facts_hash": action_facts_hash,
+            "market_id": str(market_id),
+        },
+    )
+    return {
+        "action_facts_hash": action_facts_hash,
+        "action_id": action_id,
+        "now_epoch": int(global_state.get("now_epoch", 0)),
+        "pre_state_hash": pre_state_hash,
+        "query_id": _perps_settle_query_id(market_id=market_id),
+        "runtime_value_e8": int(global_state.get("index_price_e8", 0)),
+    }
+
+
+def _check_isolated_settle_oracle_authorization(
+    *,
+    ctx: "_PerpApplyCtx",
+    op: PerpOp,
+    market: PerpMarketState,
+) -> Optional[str]:
+    authorization = op.data.get("oracle_authorization")
+    if authorization is None:
+        if ctx.config.require_oracle_authorization_for_isolated_settle:
+            return "oracle_authorization_required"
+        return None
+    if not isinstance(authorization, Mapping):
+        return "oracle_authorization must be an object"
+    if not bool(market.global_state.get("oracle_seen", False)):
+        return "oracle_authorization_rejected: oracle snapshot not seen"
+    if int(market.global_state.get("index_price_e8", 0)) <= 0:
+        return "oracle_authorization_rejected: index_price_e8 must be positive"
+
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=op.market_id, market=market)
+    try:
+        result = check_critical_consumer_authorization(
+            authorization,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            action_id=str(runtime["action_id"]),
+            action_facts_hash=str(runtime["action_facts_hash"]),
+            pre_state_hash=str(runtime["pre_state_hash"]),
+            query_id=str(runtime["query_id"]),
+            runtime_value_e8=int(runtime["runtime_value_e8"]),
+            now_epoch=int(runtime["now_epoch"]),
+        )
+    except Exception as exc:
+        return f"oracle_authorization_rejected: {exc}"
+    if not bool(result.get("typed_ok", False)):
+        errors = result.get("typed_errors") or result.get("opaque_errors") or ["typed authorization rejected"]
+        return "oracle_authorization_rejected: " + "; ".join(str(err) for err in errors)
+    return None
 
 
 def _assert_ints_within_bits(obj: Any, *, max_bits: int, name: str) -> None:
@@ -670,14 +857,23 @@ def parse_perp_ops(
         )
         is_ch2p = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
         is_ch3p = version == PERP_OP_VERSION_CH3P_V1_1
-        if is_ch2p and not market_id.startswith(PERP_CH2P_MARKET_PREFIX):
-            raise ValueError(f"clearinghouse markets must start with {PERP_CH2P_MARKET_PREFIX!r}")
-        if is_ch3p and not market_id.startswith(PERP_CH3P_MARKET_PREFIX):
-            raise ValueError(f"clearinghouse markets must start with {PERP_CH3P_MARKET_PREFIX!r}")
-        if not (is_ch2p or is_ch3p) and (
-            market_id.startswith(PERP_CH2P_MARKET_PREFIX) or market_id.startswith(PERP_CH3P_MARKET_PREFIX)
-        ):
-            raise ValueError("isolated markets cannot start with clearinghouse prefixes")
+        version_prefix_guard = evaluate_perp_market_version_prefix_guard(
+            version_is_v0_1=version == PERP_OP_VERSION_V0_1,
+            version_is_ch2p=is_ch2p,
+            version_is_ch3p=is_ch3p,
+            market_has_ch2p_prefix=market_id.startswith(PERP_CH2P_MARKET_PREFIX),
+            market_has_ch3p_prefix=market_id.startswith(PERP_CH3P_MARKET_PREFIX),
+        )
+        if not version_prefix_guard.admission_ok:
+            if version_prefix_guard.reject_code == REJECT_INVALID_VERSION:
+                raise ValueError(f"invalid perps version: {version}")
+            if version_prefix_guard.reject_code == REJECT_CH2P_PREFIX_MISMATCH:
+                raise ValueError(f"clearinghouse markets must start with {PERP_CH2P_MARKET_PREFIX!r}")
+            if version_prefix_guard.reject_code == REJECT_CH3P_PREFIX_MISMATCH:
+                raise ValueError(f"clearinghouse markets must start with {PERP_CH3P_MARKET_PREFIX!r}")
+            if version_prefix_guard.reject_code == REJECT_ISOLATED_PREFIX_CONFLICT:
+                raise ValueError("isolated markets cannot start with clearinghouse prefixes")
+            raise ValueError("invalid perps version/prefix posture")
 
         action = _require_ascii_token(
             op_obj.get("action"),
@@ -739,6 +935,154 @@ def _is_operator(config: PerpEngineConfig, *, tx_sender_pubkey: str) -> bool:
     return _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
 
 
+def _oracle_adapter_result_get(result: Any, key: str) -> Any:
+    if isinstance(result, Mapping):
+        return result.get(key)
+    return getattr(result, key, None)
+
+
+def _oracle_adapter_error_summary(result: Any) -> str:
+    errors = _oracle_adapter_result_get(result, "errors")
+    if isinstance(errors, list):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    if isinstance(errors, tuple):
+        parts = [str(x) for x in errors[:3]]
+        if parts:
+            return "; ".join(parts)
+    return "bridge verifier rejected"
+
+
+def _require_oracle_adapter_bridge(
+    config: PerpEngineConfig,
+    *,
+    data: Mapping[str, Any],
+    consumer_module: str,
+    action_kind: str,
+    expected_query_id: Optional[str] = None,
+    expected_profile_id: Optional[str] = None,
+    expected_action_id: Optional[str] = None,
+    required: bool = False,
+) -> Optional[str]:
+    if "oracle_adapter_bridge" not in data:
+        if required:
+            return f"{action_kind} requires oracle_adapter_bridge"
+        return None
+
+    bridge = data.get("oracle_adapter_bridge")
+    if not isinstance(bridge, Mapping):
+        return "oracle_adapter_bridge must be an object"
+    verifier = config.oracle_adapter_bridge_verifier
+    if verifier is None:
+        return "oracle_adapter_bridge verifier not configured"
+    try:
+        result = verifier(bridge)
+    except Exception as exc:
+        return f"oracle_adapter_bridge verifier error: {_safe_error_str(exc)}"
+
+    if _oracle_adapter_result_get(result, "status") != "accepted":
+        return f"oracle_adapter_bridge rejected: {_oracle_adapter_error_summary(result)}"
+    result_consumer = _oracle_adapter_result_get(result, "consumer_module")
+    result_action = _oracle_adapter_result_get(result, "action_kind")
+    if result_consumer != consumer_module:
+        return "oracle_adapter_bridge consumer mismatch"
+    if result_action != action_kind:
+        return "oracle_adapter_bridge action mismatch"
+    result_query_id = _oracle_adapter_result_get(result, "query_id")
+    if expected_query_id is not None and result_query_id != expected_query_id:
+        return "oracle_adapter_bridge query mismatch"
+    result_profile_id = _oracle_adapter_result_get(result, "profile_id")
+    if expected_profile_id is not None and result_profile_id != expected_profile_id:
+        return "oracle_adapter_bridge profile mismatch"
+    result_action_id = _oracle_adapter_result_get(result, "action_id")
+    if expected_action_id is not None and result_action_id != expected_action_id:
+        return "oracle_adapter_bridge action_id mismatch"
+    return None
+
+
+def _perps_runtime_oracle_action_id(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    action_kind: str,
+    market: PerpMarketState,
+) -> str:
+    global_state = market.global_state
+    payload = {
+        "schema": "zenodex.oracle.perps_runtime_action_id.v1",
+        "chain_id": config.chain_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": action_kind,
+        "market_id": market_id,
+        "quote_asset": market.quote_asset,
+        "now_epoch": int(global_state.get("now_epoch", 0)),
+        "clearing_price_epoch": int(global_state.get("clearing_price_epoch", 0)),
+        "clearing_price_e8": int(global_state.get("clearing_price_e8", 0)),
+        "index_price_e8": int(global_state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _perps_liquidate_account_runtime_oracle_action_id(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    market: PerpMarketState,
+    account_pubkey: str,
+    fraction_bps: int,
+) -> str:
+    global_state = market.global_state
+    acct = market.accounts.get(account_pubkey) or _kernel_initial_account_state()
+    payload = {
+        "schema": "zenodex.oracle.perps_runtime_action_id.v1",
+        "chain_id": config.chain_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": "liquidate_account",
+        "market_id": market_id,
+        "quote_asset": market.quote_asset,
+        "account_pubkey": str(account_pubkey),
+        "fraction_bps": int(fraction_bps),
+        "now_epoch": int(global_state.get("now_epoch", 0)),
+        "index_price_e8": int(global_state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
+        "position_base": int(acct.position_base),
+        "entry_price_e8": int(acct.entry_price_e8),
+        "collateral_quote": int(acct.collateral_quote),
+        "liquidated_this_step": bool(acct.liquidated_this_step),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
+def _perps_clearinghouse_runtime_oracle_action_id(
+    config: PerpEngineConfig,
+    *,
+    market_id: str,
+    action_kind: str,
+    market_kind: str,
+    quote_asset: str,
+    state: Mapping[str, Any],
+    participant_pubkeys: tuple[str, ...],
+) -> str:
+    payload = {
+        "schema": "zenodex.oracle.perps_clearinghouse_runtime_action_id.v1",
+        "chain_id": config.chain_id,
+        "consumer_module": "zenodex.perps",
+        "action_kind": action_kind,
+        "market_kind": market_kind,
+        "market_id": market_id,
+        "quote_asset": quote_asset,
+        "participant_pubkeys": list(participant_pubkeys),
+        "now_epoch": int(state.get("now_epoch", 0)),
+        "clearing_price_epoch": int(state.get("clearing_price_epoch", 0)),
+        "clearing_price_e8": int(state.get("clearing_price_e8", 0)),
+        "index_price_e8": int(state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(state.get("oracle_last_update_epoch", 0)),
+    }
+    return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
+
+
 def _oracle_reward_posture_error(config: PerpEngineConfig) -> Optional[str]:
     fields = {
         "oracle_spot_fee_bps": config.oracle_spot_fee_bps,
@@ -768,29 +1112,7 @@ def _oracle_reward_posture_error(config: PerpEngineConfig) -> Optional[str]:
     return None
 
 
-_SIGNED_FIELD_KEYS: dict[str, tuple[str, ...]] = {
-    # Clearinghouse market formation / matched updates (P2P posture).
-    "init_market_2p": ("quote_asset", "account_a_pubkey", "account_b_pubkey", "deadline"),
-    "init_market_3p": ("quote_asset", "account_a_pubkey", "account_b_pubkey", "account_c_pubkey", "deadline"),
-    "set_position_pair": (
-        "account_a_pubkey",
-        "account_b_pubkey",
-        "new_position_base_a",
-        "new_position_base_b",
-        "deadline",
-    ),
-    "set_position_triplet": (
-        "account_a_pubkey",
-        "account_b_pubkey",
-        "account_c_pubkey",
-        "new_position_base_a",
-        "new_position_base_b",
-        "new_position_base_c",
-        "deadline",
-    ),
-    # Clearing price publication (oracle-signed by default for clearinghouse markets).
-    "publish_clearing_price": ("price_e8", "deadline"),
-}
+_SIGNED_FIELD_KEYS = PERP_OP_AUTH_SIGNED_FIELD_KEYS_V1
 
 
 def _perp_op_signing_dict(op: Mapping[str, Any], *, signer_pubkey: str, nonce: int) -> Dict[str, Any]:
@@ -809,38 +1131,7 @@ def _perp_op_signing_dict(op: Mapping[str, Any], *, signer_pubkey: str, nonce: i
     and the signing payload acts as a second line of defense against "hidden field"
     confusion.
     """
-    module = op.get("module")
-    version = op.get("version")
-    market_id = op.get("market_id")
-    action = op.get("action")
-    if not isinstance(module, str) or not module:
-        raise ValueError("signing dict missing module")
-    if not isinstance(version, str) or not version:
-        raise ValueError("signing dict missing version")
-    if not isinstance(market_id, str) or not market_id:
-        raise ValueError("signing dict missing market_id")
-    if not isinstance(action, str) or not action:
-        raise ValueError("signing dict missing action")
-
-    keys = _SIGNED_FIELD_KEYS.get(action)
-    if keys is None:
-        raise ValueError(f"unsupported signed action: {action}")
-
-    fields: Dict[str, Any] = {}
-    for k in keys:
-        if k not in op:
-            raise ValueError(f"signing dict missing field: {k}")
-        fields[k] = op[k]
-
-    return {
-        "module": module,
-        "version": version,
-        "market_id": market_id,
-        "action": action,
-        "signer_pubkey": str(signer_pubkey),
-        "nonce": int(nonce),
-        "fields": fields,
-    }
+    return build_perp_op_auth_signing_dict_v1(op, signer_pubkey=signer_pubkey, nonce=nonce)
 
 
 def _verify_perp_op_signature(
@@ -879,14 +1170,26 @@ def _verify_perp_op_signature(
         deadline = _require_int(op.get("deadline"), name="deadline", non_negative=True)
     except Exception as exc:
         return _safe_error_str(exc)
-    if int(block_timestamp) > int(deadline):
-        return "signature expired (deadline)"
+    deadline_ok = int(block_timestamp) <= int(deadline)
 
     # Nonce policy (cheap). We only commit after signature verification, but we
     # validate expected value here to fail quickly.
+    nonce_domain_ok = isinstance(nonce, int) and not isinstance(nonce, bool) and 0 < int(nonce) <= _U32_MAX
     expected = int(nonces.get_last(signer_nonce_key)) + 1
-    if int(nonce) != expected:
-        return "nonce invalid"
+    nonce_expected_ok = bool(nonce_domain_ok and int(nonce) == expected)
+    precheck = evaluate_perp_submission_auth_gate(
+        mode_signed=True,
+        mode_sender_bound=False,
+        signed_surface_ok=True,
+        signer_role_set_ok=True,
+        deadline_ok=deadline_ok,
+        nonce_domain_ok=nonce_domain_ok,
+        nonce_expected_ok=nonce_expected_ok,
+        signature_ok=True,
+        tx_sender_binding_ok=True,
+    )
+    if not precheck.admission_ok:
+        return perp_submission_auth_gate_error(precheck) or "signed auth rejected"
 
     try:
         pubkey_bytes = _hex_to_bytes_allow_0x(signer_pubkey, name="signer_pubkey", expected_nbytes=48)
@@ -895,19 +1198,81 @@ def _verify_perp_op_signature(
         return str(exc)
 
     try:
-        signing_dict = _perp_op_signing_dict(op, signer_pubkey=signer_pubkey, nonce=int(nonce))
-        signing_payload = canonical_json_bytes(signing_dict)
-        msg = domain_sep_bytes(f"perp_op_sig:{config.chain_id}", version=1) + signing_payload
-        msg_hash = hashlib.sha256(msg).digest()
-        ok = bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))  # type: ignore[attr-defined]
+        msg_hash = hash_perp_op_auth_message_v1(
+            op,
+            chain_id=config.chain_id,
+            signer_pubkey=signer_pubkey,
+            nonce=int(nonce),
+        )
+        ok = bool(G2Basic.Verify(pubkey_bytes, msg_hash, sig_bytes))
     except Exception as exc:
         return f"signature verification error: {_safe_error_str(exc)}"
-    if not ok:
-        return "invalid signature"
+    outcome = evaluate_perp_submission_auth_gate(
+        mode_signed=True,
+        mode_sender_bound=False,
+        signed_surface_ok=True,
+        signer_role_set_ok=True,
+        deadline_ok=deadline_ok,
+        nonce_domain_ok=nonce_domain_ok,
+        nonce_expected_ok=nonce_expected_ok,
+        signature_ok=ok,
+        tx_sender_binding_ok=True,
+    )
+    if not outcome.admission_ok:
+        return perp_submission_auth_gate_error(outcome) or "signed auth rejected"
 
     # Commit nonce consumption after signature verification.
     nonces.set_last(signer_nonce_key, int(nonce))
     return None
+
+
+def _require_sender_bound_account_pubkey(*, account_pubkey: str, tx_sender_pubkey: str) -> str | None:
+    try:
+        acct_b = _hex_to_bytes_allow_0x(account_pubkey, name="account_pubkey", expected_nbytes=48)
+        sender_b = _hex_to_bytes_allow_0x(tx_sender_pubkey, name="tx_sender_pubkey", expected_nbytes=48)
+    except Exception as exc:
+        return str(exc)
+    outcome = evaluate_perp_submission_auth_gate(
+        mode_signed=False,
+        mode_sender_bound=True,
+        signed_surface_ok=True,
+        signer_role_set_ok=True,
+        deadline_ok=True,
+        nonce_domain_ok=True,
+        nonce_expected_ok=True,
+        signature_ok=True,
+        tx_sender_binding_ok=acct_b == sender_b,
+    )
+    if not outcome.admission_ok:
+        return perp_submission_auth_gate_error(outcome) or "sender-bound auth rejected"
+    return None
+
+
+def _evaluate_signed_surface(
+    *,
+    action_kind: int,
+    action: str,
+    version_ok: bool,
+    unknown_fields_ok: bool,
+    distinct_accounts_ok: bool = True,
+    market_accounts_match_ok: bool = True,
+    net_zero_ok: bool = True,
+    idle_leg_ok: bool = True,
+    positive_price_ok: bool = True,
+) -> str | None:
+    outcome = evaluate_perp_signed_surface_guard(
+        action_kind=action_kind,
+        version_ok=version_ok,
+        unknown_fields_ok=unknown_fields_ok,
+        distinct_accounts_ok=distinct_accounts_ok,
+        market_accounts_match_ok=market_accounts_match_ok,
+        net_zero_ok=net_zero_ok,
+        idle_leg_ok=idle_leg_ok,
+        positive_price_ok=positive_price_ok,
+    )
+    if outcome.signed_surface_ok:
+        return None
+    return perp_signed_surface_guard_error(outcome, action=action) or "signed surface invalid"
 
 
 @dataclass
@@ -925,6 +1290,54 @@ def _reject_unknown_fields(data: Mapping[str, Any], allowed: set[str], *, error:
     if set(data.keys()) - allowed:
         return error
     return None
+
+
+def _operator_gate_error(
+    *,
+    action_kind: int,
+    action: str,
+    operator_err: str | None,
+    unknown_fields_ok: bool,
+    epoch_settled_ok: bool = True,
+    positive_price_ok: bool = True,
+    positions_flat_ok: bool = True,
+    params_object_ok: bool = True,
+) -> str | None:
+    if operator_err is not None and operator_err != "operator only":
+        return operator_err
+    outcome = evaluate_perp_runtime_risk_gate(
+        action_kind=action_kind,
+        operator_ok=operator_err is None,
+        unknown_fields_ok=unknown_fields_ok,
+        sender_binding_ok=True,
+        epoch_settled_ok=epoch_settled_ok,
+        positive_price_ok=positive_price_ok,
+        positions_flat_ok=positions_flat_ok,
+        params_object_ok=params_object_ok,
+    )
+    return perp_runtime_risk_gate_error(outcome, action=action)
+
+
+def _sender_gate_error(
+    *,
+    action_kind: int,
+    action: str,
+    sender_err: str | None,
+    unknown_fields_ok: bool,
+) -> str | None:
+    if sender_err is not None and sender_err != "account_pubkey must match tx sender":
+        return sender_err
+    outcome = evaluate_perp_runtime_risk_gate(
+        action_kind=action_kind,
+        operator_ok=True,
+        unknown_fields_ok=unknown_fields_ok,
+        sender_binding_ok=sender_err is None,
+        epoch_settled_ok=True,
+        positive_price_ok=True,
+        positions_flat_ok=True,
+        params_object_ok=True,
+    )
+    return perp_runtime_risk_gate_error(outcome, action=action)
 
 
 def _ch2p_market_with_state(
@@ -994,18 +1407,41 @@ def _apply_ch2p_op(
         if not oracle_pubkey:
             return "oracle signer not configured (set PerpEngineConfig.oracle_pubkey)"
 
+        version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+        if not version_ok:
+            surface_err = _evaluate_signed_surface(
+                action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+                action=action,
+                version_ok=False,
+                unknown_fields_ok=True,
+            )
+            return surface_err or "publish_clearing_price requires a clearinghouse perps.version"
+
         oracle_nonce = _require_int_u32_pos(data.get("oracle_nonce"), name="oracle_nonce")
         oracle_sig = _require_str(data.get("oracle_sig"), name="oracle_sig", non_empty=True, max_len=4096)
 
         allowed = {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
-        unknown = _reject_unknown_fields(data, allowed, error="publish_clearing_price has unknown fields")
-        if unknown is not None:
-            return unknown
+        unknown_fields_ok = not (set(data.keys()) - allowed)
+        if not unknown_fields_ok:
+            surface_err = _evaluate_signed_surface(
+                action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+                action=action,
+                version_ok=version_ok,
+                unknown_fields_ok=False,
+            )
+            return surface_err or "publish_clearing_price has unknown fields"
 
         # Cheap validation before signature verification (DoS resistance).
         price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
-        if price_e8 <= 0:
-            return "publish_clearing_price requires price_e8 > 0"
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+            action=action,
+            version_ok=version_ok,
+            unknown_fields_ok=unknown_fields_ok,
+            positive_price_ok=price_e8 > 0,
+        )
+        if surface_err is not None:
+            return surface_err
 
         sig_err = _verify_perp_op_signature(
             config=config,
@@ -1028,10 +1464,30 @@ def _apply_ch2p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action"}
+        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
         unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
         if unknown is not None:
             return unknown
+        err = _require_oracle_adapter_bridge(
+            config,
+            data=data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_2p_v1",
+                quote_asset=ch2p_market.quote_asset,
+                state=ch2p_market.state,
+                participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
+            ),
+            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
+        if err is not None:
+            return err
         try:
             next_state, eff = _ch2p_step(ch2p_market.state, tag="settle_epoch", args={})
         except Exception as exc:
@@ -1056,21 +1512,40 @@ def _apply_ch2p_op(
         return None
 
     if action == "set_market_params":
-        err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
-        if err is not None:
-            return err
+        operator_ok = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
+        epoch_settled_ok = int(ch2p_market.state.get("oracle_last_update_epoch", 0)) == int(
+            ch2p_market.state.get("now_epoch", 0)
+        )
+        pre_guard = evaluate_perp_clearinghouse_market_params_guard(
+            market_kind=MARKET_KIND_CH2P,
+            operator_ok=operator_ok,
+            epoch_settled_ok=epoch_settled_ok,
+            position_base_a=int(ch2p_market.state.get("position_base_a", 0)),
+            position_base_b=int(ch2p_market.state.get("position_base_b", 0)),
+            position_base_c=0,
+            old_liquidation_penalty_bps=int(ch2p_market.state.get("liquidation_penalty_bps", 0)),
+            new_liquidation_penalty_bps=int(ch2p_market.state.get("liquidation_penalty_bps", 0)),
+            new_maintenance_margin_bps=int(ch2p_market.state.get("maintenance_margin_bps", 0)),
+        )
+        pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
+        if pre_guard_error is not None:
+            return pre_guard_error
         allowed = {"module", "version", "market_id", "action", "params"}
         unknown = _reject_unknown_fields(data, allowed, error="set_market_params has unknown fields")
         if unknown is not None:
             return unknown
-        if int(ch2p_market.state.get("oracle_last_update_epoch", 0)) != int(ch2p_market.state.get("now_epoch", 0)):
-            return "cannot update market params mid-epoch"
 
         params = data.get("params")
         if not isinstance(params, Mapping):
             return "params must be an object"
         try:
-            next_state = _apply_clearinghouse_market_params(ch2p_market.state, params=params, kind="ch2p")
+            next_state = _apply_clearinghouse_market_params(
+                ch2p_market.state,
+                params=params,
+                kind="ch2p",
+                operator_ok=operator_ok,
+                epoch_settled_ok=epoch_settled_ok,
+            )
         except Exception as exc:
             return str(exc)
         ctx.markets[market_id] = _ch2p_market_with_state(ch2p_market, state=next_state)
@@ -1085,13 +1560,12 @@ def _apply_ch2p_op(
             return unknown
 
         account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
-        try:
-            acct_b = _hex_to_bytes_allow_0x(account_pubkey, name="account_pubkey", expected_nbytes=48)
-            sender_b = _hex_to_bytes_allow_0x(tx_sender_pubkey, name="tx_sender_pubkey", expected_nbytes=48)
-        except Exception as exc:
-            return str(exc)
-        if acct_b != sender_b:
-            return "account_pubkey must match tx sender"
+        sender_err = _require_sender_bound_account_pubkey(
+            account_pubkey=account_pubkey,
+            tx_sender_pubkey=tx_sender_pubkey,
+        )
+        if sender_err is not None:
+            return sender_err
 
         role = ch2p_market.role_for_pubkey(account_pubkey)
         if role is None:
@@ -1131,8 +1605,15 @@ def _apply_ch2p_op(
         return None
 
     if action == "set_position_pair":
-        if version not in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
-            return "set_position_pair requires perps.version=0.2 or 1.0"
+        version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+        if not version_ok:
+            surface_err = _evaluate_signed_surface(
+                action_kind=ACTION_SET_POSITION_PAIR,
+                action=action,
+                version_ok=False,
+                unknown_fields_ok=True,
+            )
+            return surface_err or "set_position_pair requires perps.version=0.2 or 1.0"
 
         nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
         sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
@@ -1154,9 +1635,15 @@ def _apply_ch2p_op(
             "nonce_b",
             "sig_b",
         }
-        unknown = _reject_unknown_fields(data, allowed, error="set_position_pair has unknown fields")
-        if unknown is not None:
-            return unknown
+        unknown_fields_ok = not (set(data.keys()) - allowed)
+        if not unknown_fields_ok:
+            surface_err = _evaluate_signed_surface(
+                action_kind=ACTION_SET_POSITION_PAIR,
+                action=action,
+                version_ok=version_ok,
+                unknown_fields_ok=False,
+            )
+            return surface_err or "set_position_pair has unknown fields"
 
         account_a_pubkey = _require_str(
             data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
@@ -1171,13 +1658,20 @@ def _apply_ch2p_op(
             mb_b = _hex_to_bytes_allow_0x(ch2p_market.account_b_pubkey, name="market.account_b_pubkey", expected_nbytes=48)
         except Exception as exc:
             return str(exc)
-        if a_b != ma_b or b_b != mb_b:
-            return "accounts do not match this market"
+        market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b)
 
         new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
         new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
-        if new_b != -new_a:
-            return "clearinghouse_2p requires net position == 0"
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_SET_POSITION_PAIR,
+            action=action,
+            version_ok=version_ok,
+            unknown_fields_ok=unknown_fields_ok,
+            market_accounts_match_ok=market_accounts_match_ok,
+            net_zero_ok=new_b == -new_a,
+        )
+        if surface_err is not None:
+            return surface_err
 
         sig_err_a = _verify_perp_op_signature(
             config=config,
@@ -1260,18 +1754,41 @@ def _apply_ch3p_op(
         if not oracle_pubkey:
             return "oracle signer not configured (set PerpEngineConfig.oracle_pubkey)"
 
+        version_ok = version == PERP_OP_VERSION_CH3P_V1_1
+        if not version_ok:
+            surface_err = _evaluate_signed_surface(
+                action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+                action=action,
+                version_ok=False,
+                unknown_fields_ok=True,
+            )
+            return surface_err or "publish_clearing_price requires a clearinghouse perps.version"
+
         oracle_nonce = _require_int_u32_pos(data.get("oracle_nonce"), name="oracle_nonce")
         oracle_sig = _require_str(data.get("oracle_sig"), name="oracle_sig", non_empty=True, max_len=4096)
 
         allowed = {"module", "version", "market_id", "action", "price_e8", "deadline", "oracle_nonce", "oracle_sig"}
-        unknown = _reject_unknown_fields(data, allowed, error="publish_clearing_price has unknown fields")
-        if unknown is not None:
-            return unknown
+        unknown_fields_ok = not (set(data.keys()) - allowed)
+        if not unknown_fields_ok:
+            surface_err = _evaluate_signed_surface(
+                action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+                action=action,
+                version_ok=version_ok,
+                unknown_fields_ok=False,
+            )
+            return surface_err or "publish_clearing_price has unknown fields"
 
         # Cheap validation before signature verification (DoS resistance).
         price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
-        if price_e8 <= 0:
-            return "publish_clearing_price requires price_e8 > 0"
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_PUBLISH_CLEARING_PRICE,
+            action=action,
+            version_ok=version_ok,
+            unknown_fields_ok=unknown_fields_ok,
+            positive_price_ok=price_e8 > 0,
+        )
+        if surface_err is not None:
+            return surface_err
 
         sig_err = _verify_perp_op_signature(
             config=config,
@@ -1294,10 +1811,34 @@ def _apply_ch3p_op(
         return None
 
     if action == "settle_epoch":
-        allowed = {"module", "version", "market_id", "action"}
+        allowed = {"module", "version", "market_id", "action", "oracle_adapter_bridge"}
         unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
         if unknown is not None:
             return unknown
+        err = _require_oracle_adapter_bridge(
+            config,
+            data=data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
+                config,
+                market_id=market_id,
+                action_kind="settle_epoch",
+                market_kind="clearinghouse_3p_transfer_v1",
+                quote_asset=ch3p_market.quote_asset,
+                state=ch3p_market.state,
+                participant_pubkeys=(
+                    ch3p_market.account_a_pubkey,
+                    ch3p_market.account_b_pubkey,
+                    ch3p_market.account_c_pubkey,
+                ),
+            ),
+            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
+        if err is not None:
+            return err
         try:
             next_state, eff = _ch3p_step(ch3p_market.state, tag="settle_epoch", args={})
         except Exception as exc:
@@ -1326,21 +1867,40 @@ def _apply_ch3p_op(
         return None
 
     if action == "set_market_params":
-        err = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey)
-        if err is not None:
-            return err
+        operator_ok = _require_operator(config, tx_sender_pubkey=tx_sender_pubkey) is None
+        epoch_settled_ok = int(ch3p_market.state.get("oracle_last_update_epoch", 0)) == int(
+            ch3p_market.state.get("now_epoch", 0)
+        )
+        pre_guard = evaluate_perp_clearinghouse_market_params_guard(
+            market_kind=MARKET_KIND_CH3P,
+            operator_ok=operator_ok,
+            epoch_settled_ok=epoch_settled_ok,
+            position_base_a=int(ch3p_market.state.get("position_base_a", 0)),
+            position_base_b=int(ch3p_market.state.get("position_base_b", 0)),
+            position_base_c=int(ch3p_market.state.get("position_base_c", 0)),
+            old_liquidation_penalty_bps=int(ch3p_market.state.get("liquidation_penalty_bps", 0)),
+            new_liquidation_penalty_bps=int(ch3p_market.state.get("liquidation_penalty_bps", 0)),
+            new_maintenance_margin_bps=int(ch3p_market.state.get("maintenance_margin_bps", 0)),
+        )
+        pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
+        if pre_guard_error is not None:
+            return pre_guard_error
         allowed = {"module", "version", "market_id", "action", "params"}
         unknown = _reject_unknown_fields(data, allowed, error="set_market_params has unknown fields")
         if unknown is not None:
             return unknown
-        if int(ch3p_market.state.get("oracle_last_update_epoch", 0)) != int(ch3p_market.state.get("now_epoch", 0)):
-            return "cannot update market params mid-epoch"
 
         params = data.get("params")
         if not isinstance(params, Mapping):
             return "params must be an object"
         try:
-            next_state = _apply_clearinghouse_market_params(ch3p_market.state, params=params, kind="ch3p")
+            next_state = _apply_clearinghouse_market_params(
+                ch3p_market.state,
+                params=params,
+                kind="ch3p",
+                operator_ok=operator_ok,
+                epoch_settled_ok=epoch_settled_ok,
+            )
         except Exception as exc:
             return str(exc)
         ctx.markets[market_id] = _ch3p_market_with_state(ch3p_market, state=next_state)
@@ -1355,13 +1915,12 @@ def _apply_ch3p_op(
             return unknown
 
         account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
-        try:
-            acct_b = _hex_to_bytes_allow_0x(account_pubkey, name="account_pubkey", expected_nbytes=48)
-            sender_b = _hex_to_bytes_allow_0x(tx_sender_pubkey, name="tx_sender_pubkey", expected_nbytes=48)
-        except Exception as exc:
-            return str(exc)
-        if acct_b != sender_b:
-            return "account_pubkey must match tx sender"
+        sender_err = _require_sender_bound_account_pubkey(
+            account_pubkey=account_pubkey,
+            tx_sender_pubkey=tx_sender_pubkey,
+        )
+        if sender_err is not None:
+            return sender_err
 
         role = ch3p_market.role_for_pubkey(account_pubkey)
         if role is None:
@@ -1400,8 +1959,15 @@ def _apply_ch3p_op(
         return None
 
     if action == "set_position_triplet":
-        if version != PERP_OP_VERSION_CH3P_V1_1:
-            return "set_position_triplet requires perps.version=1.1"
+        version_ok = version == PERP_OP_VERSION_CH3P_V1_1
+        if not version_ok:
+            surface_err = _evaluate_signed_surface(
+                action_kind=ACTION_SET_POSITION_TRIPLET,
+                action=action,
+                version_ok=False,
+                unknown_fields_ok=True,
+            )
+            return surface_err or "set_position_triplet requires perps.version=1.1"
 
         nonce_a = _require_int_u32_pos(data.get("nonce_a"), name="nonce_a")
         sig_a = _require_str(data.get("sig_a"), name="sig_a", non_empty=True, max_len=4096)
@@ -1429,9 +1995,15 @@ def _apply_ch3p_op(
             "nonce_c",
             "sig_c",
         }
-        unknown = _reject_unknown_fields(data, allowed, error="set_position_triplet has unknown fields")
-        if unknown is not None:
-            return unknown
+        unknown_fields_ok = not (set(data.keys()) - allowed)
+        if not unknown_fields_ok:
+            surface_err = _evaluate_signed_surface(
+                action_kind=ACTION_SET_POSITION_TRIPLET,
+                action=action,
+                version_ok=version_ok,
+                unknown_fields_ok=False,
+            )
+            return surface_err or "set_position_triplet has unknown fields"
 
         account_a_pubkey = _require_str(
             data.get("account_a_pubkey"), name="account_a_pubkey", non_empty=True, max_len=512
@@ -1451,16 +2023,22 @@ def _apply_ch3p_op(
             mc_b = _hex_to_bytes_allow_0x(ch3p_market.account_c_pubkey, name="market.account_c_pubkey", expected_nbytes=48)
         except Exception as exc:
             return str(exc)
-        if a_b != ma_b or b_b != mb_b or c_b != mc_b:
-            return "accounts do not match this market"
+        market_accounts_match_ok = bool(a_b == ma_b and b_b == mb_b and c_b == mc_b)
 
         new_a = _require_int(data.get("new_position_base_a"), name="new_position_base_a", non_negative=False)
         new_b = _require_int(data.get("new_position_base_b"), name="new_position_base_b", non_negative=False)
         new_c = _require_int(data.get("new_position_base_c"), name="new_position_base_c", non_negative=False)
-        if new_a + new_b + new_c != 0:
-            return "clearinghouse_3p requires net position == 0"
-        if not (new_a == 0 or new_b == 0 or new_c == 0):
-            return "clearinghouse_3p requires at least one flat position"
+        surface_err = _evaluate_signed_surface(
+            action_kind=ACTION_SET_POSITION_TRIPLET,
+            action=action,
+            version_ok=version_ok,
+            unknown_fields_ok=unknown_fields_ok,
+            market_accounts_match_ok=market_accounts_match_ok,
+            net_zero_ok=(new_a + new_b + new_c == 0),
+            idle_leg_ok=(new_a == 0 or new_b == 0 or new_c == 0),
+        )
+        if surface_err is not None:
+            return surface_err
 
         sig_err_a = _verify_perp_op_signature(
             config=config,
@@ -1532,15 +2110,17 @@ def _apply_isolated_advance_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mar
     market_id = op.market_id
     data = op.data
 
-    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
-    if err is not None:
-        return err
     allowed = {"module", "version", "market_id", "action", "delta"}
-    unknown = _reject_unknown_fields(data, allowed, error="advance_epoch has unknown fields")
-    if unknown is not None:
-        return unknown
-    if int(market.global_state.get("oracle_last_update_epoch", 0)) != int(market.global_state.get("now_epoch", 0)):
-        return "cannot advance epoch before settling current epoch"
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_ADVANCE_EPOCH,
+        action=action,
+        operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+        epoch_settled_ok=int(market.global_state.get("oracle_last_update_epoch", 0))
+        == int(market.global_state.get("now_epoch", 0)),
+    )
+    if gate_error is not None:
+        return gate_error
     delta = _require_int(data.get("delta"), name="delta", non_negative=True)
 
     dummy = _kernel_initial_account_state()
@@ -1570,16 +2150,27 @@ def _apply_isolated_publish_clearing_price(
     market_id = op.market_id
     data = op.data
 
-    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
-    if err is not None:
-        return err
     allowed = {"module", "version", "market_id", "action", "price_e8"}
-    unknown = _reject_unknown_fields(data, allowed, error="publish_clearing_price has unknown fields")
-    if unknown is not None:
-        return unknown
+    operator_err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    unknown_fields_ok = not (set(data.keys()) - allowed)
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_PUBLISH_CLEARING_PRICE,
+        action=action,
+        operator_err=operator_err,
+        unknown_fields_ok=unknown_fields_ok,
+    )
+    if gate_error is not None:
+        return gate_error
     price_e8 = _require_int(data.get("price_e8"), name="price_e8", non_negative=True)
-    if price_e8 <= 0:
-        return "publish_clearing_price requires price_e8 > 0"
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_PUBLISH_CLEARING_PRICE,
+        action=action,
+        operator_err=operator_err,
+        unknown_fields_ok=unknown_fields_ok,
+        positive_price_ok=price_e8 > 0,
+    )
+    if gate_error is not None:
+        return gate_error
 
     dummy = _kernel_initial_account_state()
     res = perp_epoch_isolated_default_apply(
@@ -1608,70 +2199,63 @@ def _apply_isolated_apply_funding_auto(
     market_id = op.market_id
     data = op.data
 
-    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
-    if err is not None:
-        return err
     allowed = {"module", "version", "market_id", "action"}
-    unknown = _reject_unknown_fields(data, allowed, error="apply_funding_auto has unknown fields")
-    if unknown is not None:
-        return unknown
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_APPLY_FUNDING_AUTO,
+        action=action,
+        operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+    )
+    if gate_error is not None:
+        return gate_error
 
     now_epoch = int(market.global_state.get("now_epoch", 0))
-    if not bool(market.global_state.get("clearing_price_seen", False)):
-        return "cannot apply funding before clearing price is published"
-    if int(market.global_state.get("clearing_price_epoch", 0)) != now_epoch:
-        return "cannot apply funding: clearing price is not for current epoch"
-    if int(market.global_state.get("oracle_last_update_epoch", 0)) >= now_epoch:
-        return "cannot apply funding after settlement"
-    if not bool(market.global_state.get("oracle_seen", False)):
-        return "cannot apply funding before oracle is established"
-
-    index_price_e8 = int(market.global_state.get("index_price_e8", 0))
-    if index_price_e8 <= 0:
-        return "cannot apply funding: index_price_e8 must be positive"
-    oracle_last_update_epoch = int(market.global_state.get("oracle_last_update_epoch", 0))
-    max_oracle_staleness_epochs = int(market.global_state.get("max_oracle_staleness_epochs", 0))
-    if max_oracle_staleness_epochs <= 0:
-        return "cannot apply funding: invalid max_oracle_staleness_epochs"
-    if not _perp_v2_is_oracle_fresh(
-        now_epoch,
-        oracle_last_update_epoch,
-        max_oracle_staleness_epochs,
-        oracle_seen=True,
-    ):
-        return "cannot apply funding: oracle is stale"
-
-    clearing_price_e8 = int(market.global_state.get("clearing_price_e8", 0))
-    if clearing_price_e8 <= 0:
-        return "cannot apply funding: clearing_price_e8 must be positive"
-    max_oracle_move_bps = int(market.global_state.get("max_oracle_move_bps", 0))
-    if max_oracle_move_bps < 0 or max_oracle_move_bps > _BPS_SCALE:
-        return "cannot apply funding: invalid max_oracle_move_bps"
-    funding_cap_bps = int(market.global_state.get("funding_cap_bps", 0))
-    if funding_cap_bps <= 0 or funding_cap_bps > _BPS_SCALE:
-        return "cannot apply funding: invalid funding_cap_bps"
-    mark_price_e8 = _perp_v2_settle_price(clearing_price_e8, index_price_e8, max_oracle_move_bps, oracle_seen=True)
-    new_rate_bps = compute_funding_rate_bps(
-        index_price_e8=index_price_e8,
-        mark_price_e8=mark_price_e8,
-        funding_cap_bps=funding_cap_bps,
-    )
-
     sorted_accounts = tuple(sorted(market.accounts.items()))
     open_accounts = tuple((pk, acct) for pk, acct in sorted_accounts if int(acct.position_base) != 0)
 
-    # Scientist-driven anti-gaming guard:
-    # funding updates must remain budget-balanced across all open positions.
+    any_funding_applied_this_epoch = any(int(acct.funding_last_applied_epoch) >= now_epoch for _, acct in open_accounts)
+
+    provisional_gate = evaluate_perp_apply_funding_auto_gate(
+        now_epoch=now_epoch,
+        clearing_price_seen=bool(market.global_state.get("clearing_price_seen", False)),
+        clearing_price_epoch=int(market.global_state.get("clearing_price_epoch", 0)),
+        oracle_last_update_epoch=int(market.global_state.get("oracle_last_update_epoch", 0)),
+        oracle_seen=bool(market.global_state.get("oracle_seen", False)),
+        index_price_e8=int(market.global_state.get("index_price_e8", 0)),
+        max_oracle_staleness_epochs=int(market.global_state.get("max_oracle_staleness_epochs", 0)),
+        clearing_price_e8=int(market.global_state.get("clearing_price_e8", 0)),
+        max_oracle_move_bps=int(market.global_state.get("max_oracle_move_bps", 0)),
+        funding_cap_bps=int(market.global_state.get("funding_cap_bps", 0)),
+        projected_net_funding_quote=0,
+        any_funding_applied_this_epoch=any_funding_applied_this_epoch,
+    )
+    new_rate_bps = int(provisional_gate.funding_rate_bps)
+
     projected_net_funding = 0
     for _, acct in open_accounts:
-        projected_net_funding += _perp_v2_funding_payment(acct.position_base, index_price_e8, int(new_rate_bps))
-    if projected_net_funding != 0:
-        return f"apply_funding_auto would violate funding budget balance (net={projected_net_funding})"
+        projected_net_funding += _perp_v2_funding_payment(
+            acct.position_base,
+            int(market.global_state.get("index_price_e8", 0)),
+            new_rate_bps,
+        )
 
-    # Fail-closed: prevent mixed funding states within the epoch (no partial application).
-    for _, acct in open_accounts:
-        if int(acct.funding_last_applied_epoch) >= now_epoch:
-            return "funding already applied this epoch"
+    funding_gate = evaluate_perp_apply_funding_auto_gate(
+        now_epoch=now_epoch,
+        clearing_price_seen=bool(market.global_state.get("clearing_price_seen", False)),
+        clearing_price_epoch=int(market.global_state.get("clearing_price_epoch", 0)),
+        oracle_last_update_epoch=int(market.global_state.get("oracle_last_update_epoch", 0)),
+        oracle_seen=bool(market.global_state.get("oracle_seen", False)),
+        index_price_e8=int(market.global_state.get("index_price_e8", 0)),
+        max_oracle_staleness_epochs=int(market.global_state.get("max_oracle_staleness_epochs", 0)),
+        clearing_price_e8=int(market.global_state.get("clearing_price_e8", 0)),
+        max_oracle_move_bps=int(market.global_state.get("max_oracle_move_bps", 0)),
+        funding_cap_bps=int(market.global_state.get("funding_cap_bps", 0)),
+        projected_net_funding_quote=int(projected_net_funding),
+        any_funding_applied_this_epoch=any_funding_applied_this_epoch,
+    )
+    gate_error = perp_apply_funding_auto_gate_error(funding_gate)
+    if gate_error is not None:
+        return gate_error
 
     pre_global = dict(market.global_state)
     expected_global = dict(pre_global)
@@ -1704,7 +2288,7 @@ def _apply_isolated_apply_funding_auto(
             "market_id": market_id,
             "action": action,
             "funding_rate_bps": int(new_rate_bps),
-            "mark_price_e8": int(mark_price_e8),
+            "mark_price_e8": int(funding_gate.mark_price_e8),
             "accounts_applied": int(applied_accounts),
         }
     )
@@ -1716,13 +2300,35 @@ def _apply_isolated_settle_epoch(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     market_id = op.market_id
     data = op.data
 
-    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
+    allowed = {"module", "version", "market_id", "action", "oracle_authorization", "oracle_adapter_bridge"}
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_SETTLE_EPOCH,
+        action=action,
+        operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+    )
+    if gate_error is not None:
+        return gate_error
+    err = _require_oracle_adapter_bridge(
+        ctx.config,
+        data=data,
+        consumer_module="zenodex.perps",
+        action_kind="settle_epoch",
+        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        expected_action_id=_perps_runtime_oracle_action_id(
+            ctx.config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market=market,
+        ),
+        required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
+    )
     if err is not None:
         return err
-    allowed = {"module", "version", "market_id", "action"}
-    unknown = _reject_unknown_fields(data, allowed, error="settle_epoch has unknown fields")
-    if unknown is not None:
-        return unknown
+    oracle_auth_error = _check_isolated_settle_oracle_authorization(ctx=ctx, op=op, market=market)
+    if oracle_auth_error is not None:
+        return oracle_auth_error
 
     pre_market = market
     pre_fee_pool = int(pre_market.global_state.get("fee_pool_quote", 0))
@@ -1838,15 +2444,16 @@ def _apply_isolated_clear_breaker(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mar
     market_id = op.market_id
     data = op.data
 
-    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
-    if err is not None:
-        return err
     allowed = {"module", "version", "market_id", "action"}
-    unknown = _reject_unknown_fields(data, allowed, error="clear_breaker has unknown fields")
-    if unknown is not None:
-        return unknown
-    if any(int(acct.position_base) != 0 for acct in market.accounts.values()):
-        return "cannot clear breaker while positions are open"
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_CLEAR_BREAKER,
+        action=action,
+        operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+        positions_flat_ok=not any(int(acct.position_base) != 0 for acct in market.accounts.values()),
+    )
+    if gate_error is not None:
+        return gate_error
 
     dummy = _kernel_initial_account_state()
     res = perp_epoch_isolated_default_apply(
@@ -1876,17 +2483,19 @@ def _apply_isolated_set_market_params(
     market_id = op.market_id
     data = op.data
 
-    err = _require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey)
-    if err is not None:
-        return err
     allowed = {"module", "version", "market_id", "action", "params"}
-    unknown = _reject_unknown_fields(data, allowed, error="set_market_params has unknown fields")
-    if unknown is not None:
-        return unknown
-    if int(market.global_state.get("oracle_last_update_epoch", 0)) != int(market.global_state.get("now_epoch", 0)):
-        return "cannot update market params mid-epoch"
-
     params = data.get("params")
+    gate_error = _operator_gate_error(
+        action_kind=RUNTIME_ACTION_SET_MARKET_PARAMS,
+        action=action,
+        operator_err=_require_operator(ctx.config, tx_sender_pubkey=ctx.tx_sender_pubkey),
+        unknown_fields_ok=not (set(data.keys()) - allowed),
+        epoch_settled_ok=int(market.global_state.get("oracle_last_update_epoch", 0))
+        == int(market.global_state.get("now_epoch", 0)),
+        params_object_ok=isinstance(params, Mapping),
+    )
+    if gate_error is not None:
+        return gate_error
     if not isinstance(params, Mapping):
         return "params must be an object"
     min_collectible_penalty = _min_collectible_liquidation_penalty_quote(ctx.config)
@@ -1909,13 +2518,29 @@ def _apply_isolated_deposit_collateral(
 
     allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
     allowed = allowed_common | {"amount"}
-    unknown = _reject_unknown_fields(data, allowed, error="deposit_collateral has unknown fields")
-    if unknown is not None:
-        return unknown
+    unknown_fields_ok = not (set(data.keys()) - allowed)
+    gate_error = _sender_gate_error(
+        action_kind=RUNTIME_ACTION_DEPOSIT_COLLATERAL,
+        action=action,
+        sender_err=None,
+        unknown_fields_ok=unknown_fields_ok,
+    )
+    if gate_error is not None:
+        return gate_error
 
     account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
-    if account_pubkey != ctx.tx_sender_pubkey:
-        return "account_pubkey must match tx sender"
+    sender_err = _require_sender_bound_account_pubkey(
+        account_pubkey=account_pubkey,
+        tx_sender_pubkey=ctx.tx_sender_pubkey,
+    )
+    gate_error = _sender_gate_error(
+        action_kind=RUNTIME_ACTION_DEPOSIT_COLLATERAL,
+        action=action,
+        sender_err=sender_err,
+        unknown_fields_ok=True,
+    )
+    if gate_error is not None:
+        return gate_error
 
     accounts = dict(market.accounts)
     acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
@@ -1962,13 +2587,29 @@ def _apply_isolated_withdraw_collateral(
 
     allowed_common = {"module", "version", "market_id", "action", "account_pubkey"}
     allowed = allowed_common | {"amount"}
-    unknown = _reject_unknown_fields(data, allowed, error="withdraw_collateral has unknown fields")
-    if unknown is not None:
-        return unknown
+    unknown_fields_ok = not (set(data.keys()) - allowed)
+    gate_error = _sender_gate_error(
+        action_kind=RUNTIME_ACTION_WITHDRAW_COLLATERAL,
+        action=action,
+        sender_err=None,
+        unknown_fields_ok=unknown_fields_ok,
+    )
+    if gate_error is not None:
+        return gate_error
 
     account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
-    if account_pubkey != ctx.tx_sender_pubkey:
-        return "account_pubkey must match tx sender"
+    sender_err = _require_sender_bound_account_pubkey(
+        account_pubkey=account_pubkey,
+        tx_sender_pubkey=ctx.tx_sender_pubkey,
+    )
+    gate_error = _sender_gate_error(
+        action_kind=RUNTIME_ACTION_WITHDRAW_COLLATERAL,
+        action=action,
+        sender_err=sender_err,
+        unknown_fields_ok=True,
+    )
+    if gate_error is not None:
+        return gate_error
 
     accounts = dict(market.accounts)
     acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
@@ -2009,13 +2650,29 @@ def _apply_isolated_set_position(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     data = op.data
 
     allowed = {"module", "version", "market_id", "action", "account_pubkey", "new_position_base"}
-    unknown = _reject_unknown_fields(data, allowed, error="set_position has unknown fields")
-    if unknown is not None:
-        return unknown
+    unknown_fields_ok = not (set(data.keys()) - allowed)
+    gate_error = _sender_gate_error(
+        action_kind=RUNTIME_ACTION_SET_POSITION,
+        action=action,
+        sender_err=None,
+        unknown_fields_ok=unknown_fields_ok,
+    )
+    if gate_error is not None:
+        return gate_error
 
     account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
-    if account_pubkey != ctx.tx_sender_pubkey:
-        return "account_pubkey must match tx sender"
+    sender_err = _require_sender_bound_account_pubkey(
+        account_pubkey=account_pubkey,
+        tx_sender_pubkey=ctx.tx_sender_pubkey,
+    )
+    gate_error = _sender_gate_error(
+        action_kind=RUNTIME_ACTION_SET_POSITION,
+        action=action,
+        sender_err=sender_err,
+        unknown_fields_ok=True,
+    )
+    if gate_error is not None:
+        return gate_error
 
     accounts = dict(market.accounts)
     acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
@@ -2049,6 +2706,94 @@ def _apply_isolated_set_position(ctx: _PerpApplyCtx, *, i: int, op: PerpOp, mark
     return None
 
 
+def _apply_isolated_partial_liquidate(
+    ctx: _PerpApplyCtx, *, i: int, op: PerpOp, market: PerpMarketState
+) -> Optional[str]:
+    action = op.action
+    market_id = op.market_id
+    data = op.data
+
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "account_pubkey",
+        "fraction_bps",
+        "oracle_adapter_bridge",
+    }
+    unknown_fields_ok = not (set(data.keys()) - allowed)
+    gate_error = _sender_gate_error(
+        action_kind=RUNTIME_ACTION_PARTIAL_LIQUIDATE,
+        action=action,
+        sender_err=None,
+        unknown_fields_ok=unknown_fields_ok,
+    )
+    if gate_error is not None:
+        return gate_error
+
+    account_pubkey = _require_str(data.get("account_pubkey"), name="account_pubkey", non_empty=True, max_len=512)
+    sender_err = _require_sender_bound_account_pubkey(
+        account_pubkey=account_pubkey,
+        tx_sender_pubkey=ctx.tx_sender_pubkey,
+    )
+    gate_error = _sender_gate_error(
+        action_kind=RUNTIME_ACTION_PARTIAL_LIQUIDATE,
+        action=action,
+        sender_err=sender_err,
+        unknown_fields_ok=True,
+    )
+    if gate_error is not None:
+        return gate_error
+
+    accounts = dict(market.accounts)
+    acct = accounts.get(account_pubkey) or _kernel_initial_account_state()
+
+    fraction_bps = _require_int(data.get("fraction_bps", 0), name="fraction_bps", non_negative=True)
+    err = _require_oracle_adapter_bridge(
+        ctx.config,
+        data=data,
+        consumer_module="zenodex.perps",
+        action_kind="liquidate_account",
+        expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+        expected_profile_id=_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+        expected_action_id=_perps_liquidate_account_runtime_oracle_action_id(
+            ctx.config,
+            market_id=market_id,
+            market=market,
+            account_pubkey=account_pubkey,
+            fraction_bps=fraction_bps,
+        ),
+        required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
+    )
+    if err is not None:
+        return err
+    res = perp_epoch_isolated_default_apply(
+        state=market.kernel_state_for_account(acct),
+        action="partial_liquidate",
+        params={"fraction_bps": fraction_bps, "auth_ok": True},
+    )
+    if not res.ok or res.state is None:
+        return res.error or "partial_liquidate rejected"
+    post_global, post_acct = _split_kernel_state(res.state)
+    accounts[account_pubkey] = post_acct
+    ctx.markets[market_id] = PerpMarketState(
+        quote_asset=market.quote_asset,
+        global_state=post_global,
+        accounts=accounts,
+    )
+    ctx.effects.append(
+        {
+            "i": i,
+            "market_id": market_id,
+            "action": action,
+            "account_pubkey": account_pubkey,
+            "effects": dict(res.effects or {}),
+        }
+    )
+    return None
+
+
 _ISOLATED_ACTION_HANDLERS = {
     "advance_epoch": _apply_isolated_advance_epoch,
     "publish_clearing_price": _apply_isolated_publish_clearing_price,
@@ -2059,6 +2804,7 @@ _ISOLATED_ACTION_HANDLERS = {
     "deposit_collateral": _apply_isolated_deposit_collateral,
     "withdraw_collateral": _apply_isolated_withdraw_collateral,
     "set_position": _apply_isolated_set_position,
+    "partial_liquidate": _apply_isolated_partial_liquidate,
 }
 
 
@@ -2160,8 +2906,15 @@ def apply_perp_ops(
                 continue
 
             if action == "init_market_2p":
-                if version not in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0):
-                    return PerpTxResult(ok=False, error="init_market_2p requires perps.version=0.2 or 1.0")
+                version_ok = version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+                if not version_ok:
+                    surface_err = _evaluate_signed_surface(
+                        action_kind=ACTION_INIT_MARKET_2P,
+                        action=action,
+                        version_ok=False,
+                        unknown_fields_ok=True,
+                    )
+                    return PerpTxResult(ok=False, error=surface_err or "init_market_2p requires perps.version=0.2 or 1.0")
                 if market_id in markets:
                     return PerpTxResult(ok=False, error="market already exists")
 
@@ -2172,15 +2925,13 @@ def apply_perp_ops(
                 account_b_pubkey = _require_str(
                     data.get("account_b_pubkey"), name="account_b_pubkey", non_empty=True, max_len=512
                 )
-                if account_a_pubkey == account_b_pubkey:
-                    return PerpTxResult(ok=False, error="accounts must be distinct")
+                distinct_accounts_ok = account_a_pubkey != account_b_pubkey
 
                 # Distinctness must be enforced by pubkey bytes (not string representation).
                 try:
                     a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
                     b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
-                    if a_b == b_b:
-                        return PerpTxResult(ok=False, error="accounts must be distinct")
+                    distinct_accounts_ok = bool(distinct_accounts_ok and a_b != b_b)
                 except Exception:
                     # Fail later via signature verification (keeps errors attributed to the signer).
                     pass
@@ -2204,9 +2955,15 @@ def apply_perp_ops(
                     "nonce_b",
                     "sig_b",
                 }
-                extra = set(data.keys()) - allowed
-                if extra:
-                    return PerpTxResult(ok=False, error="init_market_2p has unknown fields")
+                surface_err = _evaluate_signed_surface(
+                    action_kind=ACTION_INIT_MARKET_2P,
+                    action=action,
+                    version_ok=version_ok,
+                    unknown_fields_ok=not (set(data.keys()) - allowed),
+                    distinct_accounts_ok=distinct_accounts_ok,
+                )
+                if surface_err is not None:
+                    return PerpTxResult(ok=False, error=surface_err)
 
                 sig_err_a = _verify_perp_op_signature(
                     config=config,
@@ -2256,8 +3013,15 @@ def apply_perp_ops(
                 continue
 
             if action == "init_market_3p":
-                if version != PERP_OP_VERSION_CH3P_V1_1:
-                    return PerpTxResult(ok=False, error="init_market_3p requires perps.version=1.1")
+                version_ok = version == PERP_OP_VERSION_CH3P_V1_1
+                if not version_ok:
+                    surface_err = _evaluate_signed_surface(
+                        action_kind=ACTION_INIT_MARKET_3P,
+                        action=action,
+                        version_ok=False,
+                        unknown_fields_ok=True,
+                    )
+                    return PerpTxResult(ok=False, error=surface_err or "init_market_3p requires perps.version=1.1")
                 if market_id in markets:
                     return PerpTxResult(ok=False, error="market already exists")
 
@@ -2271,16 +3035,14 @@ def apply_perp_ops(
                 account_c_pubkey = _require_str(
                     data.get("account_c_pubkey"), name="account_c_pubkey", non_empty=True, max_len=512
                 )
-                if len({account_a_pubkey, account_b_pubkey, account_c_pubkey}) != 3:
-                    return PerpTxResult(ok=False, error="accounts must be distinct")
+                distinct_accounts_ok = len({account_a_pubkey, account_b_pubkey, account_c_pubkey}) == 3
 
                 # Distinctness must be enforced by pubkey bytes (not string representation).
                 try:
                     a_b = _hex_to_bytes_allow_0x(account_a_pubkey, name="account_a_pubkey", expected_nbytes=48)
                     b_b = _hex_to_bytes_allow_0x(account_b_pubkey, name="account_b_pubkey", expected_nbytes=48)
                     c_b = _hex_to_bytes_allow_0x(account_c_pubkey, name="account_c_pubkey", expected_nbytes=48)
-                    if len({a_b, b_b, c_b}) != 3:
-                        return PerpTxResult(ok=False, error="accounts must be distinct")
+                    distinct_accounts_ok = bool(distinct_accounts_ok and len({a_b, b_b, c_b}) == 3)
                 except Exception:
                     pass
 
@@ -2308,9 +3070,15 @@ def apply_perp_ops(
                     "nonce_c",
                     "sig_c",
                 }
-                extra = set(data.keys()) - allowed
-                if extra:
-                    return PerpTxResult(ok=False, error="init_market_3p has unknown fields")
+                surface_err = _evaluate_signed_surface(
+                    action_kind=ACTION_INIT_MARKET_3P,
+                    action=action,
+                    version_ok=version_ok,
+                    unknown_fields_ok=not (set(data.keys()) - allowed),
+                    distinct_accounts_ok=distinct_accounts_ok,
+                )
+                if surface_err is not None:
+                    return PerpTxResult(ok=False, error=surface_err)
 
                 sig_err_a = _verify_perp_op_signature(
                     config=config,

@@ -1300,3 +1300,342 @@ claims:
         - formal/tla/PerpSubmissionBuilderReorgQueue.tla
         - formal/tla/PerpSubmissionBuilderReorgQueue.cfg
         - tools/run_tla_models.py
+
+  - id: py:zeno_oracle:disaster_obligation_antichain_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public ZenoOracle disaster-obligation manifest is structurally valid: every selected
+      guard family has a private witness reference, quotient classes are represented by the
+      declared antichain, and no listed disaster axis is left outside the manifest taxonomy.
+      This is a certificate about manifest coverage and replayability, not a proof that all
+      possible Oracle or ZenoDEX disaster states have been discovered.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+      files:
+        - tools/check_disaster_obligation_certificate.py
+        - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+        - tests/test_zeno_oracle_disaster_obligation_certificate.py
+
+  - id: py:zeno_oracle:devnet_alpha_replay_gate
+    status: supported
+    layer: implementation
+    statement: >
+      The ZenoOracle devnet-alpha gate replays the local O3 shell, critical-action runtime map,
+      focused O3 receipt flow, devnet service tests, devnet disaster harness,
+      named disaster-class corpus, reporter economics replay, obligation-antichain
+      certificate, workflow evidence status checker, devnet alpha audit, and RC
+      package validation from public repo artifacts.
+      The gate supports a devnet package claim with an executable launcher, package receipt,
+      integrity signature, manifest hash checks, and explicit non-claims for production oracle
+      truth, on-chain feed governance, platform-native binaries, and production code signing.
+    evidence:
+      kind: bash
+      check:
+        - cmd: bash scripts/check_zeno_oracle_devnet_alpha.sh
+        - cmd: pytest -q tests/test_check_zeno_oracle_rc_package.py
+      files:
+        - scripts/check_zeno_oracle_devnet_alpha.sh
+        - scripts/check_zeno_oracle_mvp.sh
+        - scripts/package_zeno_oracle_rc.sh
+        - tools/check_disaster_obligation_certificate.py
+        - tools/check_zeno_oracle_critical_action_map.py
+        - tools/check_zeno_oracle_rc_package.py
+        - tools/zeno_oracle_o3_receipt_flow_replay.py
+        - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+        - tools/zenodex_oracle_devnet_disaster_harness.py
+        - tools/zeno_oracle_disaster_class_corpus.py
+        - tools/zeno_oracle_workflow_evidence_status.py
+        - tools/zenodex_oracle_devnet_alpha_audit.py
+        - tools/zenodex_oracle_reporter_economics_replay.py
+        - tests/test_zeno_oracle_o3_receipt_flow_replay.py
+        - tests/test_zenodex_oracle_reporter_economics_replay.py
+        - tests/test_check_zeno_oracle_rc_package.py
+        - docs/ZENO_ORACLE_DEVNET_ALPHA.md
+
+  - id: py:zeno_oracle:first_shell_critical_action_map
+    status: supported
+    layer: implementation
+    statement: >
+      The first-shell ZenoOracle critical consumer-profile catalog has seven
+      machine-checked runtime-wired profiles: perps settlement, standalone
+      perps liquidation, zUSD mint, zUSD liquidation, guarded routing, and
+      trigger execution, plus typed critical-settlement authorization in
+      `dex_engine`. The checker verifies catalog query IDs, profile IDs,
+      consumer modules, action kinds, and runtime action-ID bindings for this
+      catalog. Future critical consumers require their own catalog profiles and
+      runtime checks before they become covered guarantees.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/check_zeno_oracle_critical_action_map.py
+        - cmd: pytest -q tests/test_zeno_oracle_critical_action_map.py
+      files:
+        - tools/check_zeno_oracle_critical_action_map.py
+        - tests/test_zeno_oracle_critical_action_map.py
+        - docs/ZENO_ORACLE_CRITICAL_ACTION_MAP.md
+        - src/integration/perp_engine.py
+        - src/integration/zusd_api.py
+        - src/integration/api_server.py
+        - src/integration/dex_engine.py
+        - src/integration/zeno_oracle_settlement_authorization.py
+        - src/integration/zeno_oracle_trigger_authorization.py
+
+  - id: py:zeno_oracle:o3_receipt_flow_replay_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The focused local ZenoOracle O3 receipt-flow replay accepts the full
+      chain from feed registry through reporter lifecycle, signed reports,
+      report admission, admitted median3 aggregate, accepted read, action
+      adapter, and terminal DAG replay with eight accepted stages and no
+      replay errors. This is bounded local replay evidence; production oracle
+      network liveness, source honesty, reporter honesty, on-chain feed
+      governance, and true market price remain outside the claim.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/zeno_oracle_o3_receipt_flow_replay.py --format text
+        - cmd: pytest -q tests/test_zeno_oracle_o3_receipt_flow_replay.py
+      files:
+        - tools/zeno_oracle_o3_receipt_flow_replay.py
+        - tests/test_zeno_oracle_o3_receipt_flow_replay.py
+        - tools/zenodex_oracle.py
+        - tools/zenodex_oracle_feed_registry.py
+        - tools/zenodex_oracle_report_admission.py
+        - tools/zenodex_oracle_admitted_median3.py
+        - tools/zenodex_oracle_aggregate_read.py
+        - tools/zenodex_oracle_aggregate_adapter.py
+        - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
+
+  - id: py:zeno_oracle:reporter_economics_replay_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The local ZenoOracle reporter economics replay verifier deterministically
+      checks a shared reporter ledger covering bond deposits, report rewards,
+      dispute opening, reporter slashing, dispute rewards, reporter
+      unregistering, bond withdrawals, and fee splits. The replay rejects reward
+      budget overspend, slash-over-bond, dispute reward overspend, fee split
+      overspend, underbonded reports, active withdrawals, hidden fields, and
+      report query drift. This is a local replay claim, with production token
+      settlement and on-chain governance outside the claim.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
+        - cmd: pytest -q tests/test_zenodex_oracle_reporter_economics_replay.py
+      files:
+        - tools/zenodex_oracle_reporter_economics_replay.py
+        - tests/test_zenodex_oracle_reporter_economics_replay.py
+        - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
+
+  - id: py:zeno_oracle:named_disaster_class_corpus_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public first-shell ZenoOracle named disaster-class corpus replays
+      checker outcomes for source-cartel, dispute-griefing, registry-drift,
+      verifier-spoofing, O5 independence-spoofing, terminal replay-integrity,
+      proof-timeout fail-closed behavior, and cross-module split-brain
+      families. Each family is bound to a concrete verifier or harness result
+      and the claim is bounded to the shipped local corpus, with production
+      oracle truth, reporter honesty, live governance, and live proof-network
+      assumptions outside the claim.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/zeno_oracle_disaster_class_corpus.py --format text
+        - cmd: pytest -q tests/test_zeno_oracle_disaster_class_corpus.py
+      files:
+        - tools/zeno_oracle_disaster_class_corpus.py
+        - tests/test_zeno_oracle_disaster_class_corpus.py
+        - tools/zeno_oracle_disaster_obligation_certificate_manifest.json
+        - tools/zenodex_oracle_source_diversity.py
+        - tools/zenodex_oracle_reporter_economics_replay.py
+        - tools/zenodex_oracle_feed_registry.py
+        - tools/zenodex_oracle_devnet_disaster_harness.py
+        - tools/check_cross_module_oracle_split_brain_v1.py
+        - tools/zenoproof_verify.py
+        - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
+        - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
+
+  - id: julia:zeno_oracle:first_shell_math_witness_sweep_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The first ZenoOracle Julia math-witness sweep deterministically checks
+      bounded integer examples for median deviation boundaries, source-cartel
+      concentration, zero-bond dispute griefing, reward-pool conservation and
+      overpay rejection, cross-module split-brain divergence and epoch-lag
+      rejection, and O5 independence-witness acceptance/rejection. This is
+      witness evidence for the current first shell, with full Lean proofs,
+      Morph search, and production oracle benefit laws still outside the claim.
+    evidence:
+      kind: julia
+      check:
+        - cmd: julia tools/zeno_oracle_math_witness_sweep.jl
+      files:
+        - tools/zeno_oracle_math_witness_sweep.jl
+        - docs/research/ZENO_ORACLE_MATH_EVIDENCE_LANE.md
+        - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
+
+  - id: lean:zeno_oracle:first_shell_math_witness_anchor_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The first ZenoOracle Lean math-witness anchor checks bounded arithmetic
+      facts that mirror the Julia witness sweep: median deviation boundary
+      examples, reward-pool conservation and overpay rejection, source-cartel
+      concentration, and cross-module split-brain divergence and epoch-lag
+      witnesses. It also checks Prop-level O4/O5 Oracle-use anchors: O4/O5 use
+      implies an accepted O3 receipt and same consumer action, while O5 use
+      implies an independence witness with distinct verifiers and DAG closure.
+      This is a concrete theorem anchor, with generalized median/deviation,
+      economics, executable DAG, and sync theorems still outside the claim.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
+      files:
+        - lean-mathlib/Proofs/ZenoOracleMathWitness.lean
+        - lean-mathlib/Proofs.lean
+        - docs/research/ZENO_ORACLE_MATH_EVIDENCE_LANE.md
+        - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
+
+  - id: py:zeno_oracle:workflow_evidence_status_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public ZenoOracle workflow evidence status checker accepts five
+      first-shell lanes: TLA Oracle recovery lifecycle, LTLf Oracle recovery,
+      ESSO zUSD Oracle recovery lifecycle, a Morph oracle-clamp envelope smoke
+      check, and a temporary PopperPad append-only smoke. This is bounded
+      workflow status evidence; private PopperPad content, exhaustive Morph
+      campaigns, and production oracle truth remain outside the claim.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/zeno_oracle_workflow_evidence_status.py --format text
+        - cmd: pytest -q tests/test_zeno_oracle_workflow_evidence_status.py
+      files:
+        - tools/zeno_oracle_workflow_evidence_status.py
+        - tests/test_zeno_oracle_workflow_evidence_status.py
+        - tests/morph_domains/oracle_clamp_envelope_domain.py
+        - tools/perp_oracle_manipulation_lp_sweep.py
+        - tools/popper_pad.py
+        - formal/tla/OracleRecoveryLifecycle.tla
+        - formal/tla/OracleRecoveryLifecycle.cfg
+        - formal/ltlf/oracle_recovery_ltlf_v1.yaml
+        - formal/ltlf/oracle_recovery_goal_family_v1.json
+        - src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml
+        - docs/research/ZENO_ORACLE_WORKFLOW_EVIDENCE_STATUS.md
+        - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
+
+  - id: py:zenoproof:v0_artifact_verifier
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoProof v0 local verifier shell validates the public sample verifier
+      registry, accepts a well-formed proof artifact bound to that registry,
+      accepts an Oracle O4 bridge only when it also has an accepted O3 receipt,
+      accepts an Oracle O5 bridge only when it has an O5 primary proof and an
+      independence witness with distinct verifier IDs, distinct proof kinds,
+      shared Oracle input/output roots, and claim-DAG dependency closure,
+      accepts a local proof-mining reward gate only when proof, binding, policy,
+      freshness, uniqueness, and reward-pool budget checks pass, accepts
+      workflow-evidence, Julia witness-sweep, Lean witness-anchor, TLA Oracle
+      recovery, LTLf Oracle recovery, ESSO zUSD Oracle recovery, and Morph
+      oracle-clamp public replay, and SMT Oracle freshness public replay
+      verifiers only when their output roots match accepted public replay
+      receipts. It also replays a bounded local reward-payout bridge from an
+      accepted ZenoProof reward gate through proof-mining claim construction,
+      manager execution, and claimability checks. It rejects malformed
+      artifacts, stale verifier policy, wrong claim bindings, unknown proof
+      kinds, verifier timeouts, wrong public replay roots, wrong Oracle input
+      bindings, missing or weak O5 independence witnesses, duplicate reward
+      claims, reward budget mismatches, and bad reward-payout proof bindings.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
+        - cmd: pytest -q tests/test_zenoproof_verify.py
+        - cmd: python3 tools/zenoproof_reward_payout_replay.py --format text
+        - cmd: pytest -q tests/test_zenoproof_reward_payout_replay.py
+      files:
+        - tools/zenoproof_verify.py
+        - tools/zenoproof_public_replay_verifier.py
+        - tools/zenoproof_reward_payout_replay.py
+        - tools/zenoproof_registry_manifest.json
+        - tools/zeno_oracle_workflow_evidence_status.py
+        - tools/zeno_oracle_math_witness_sweep.jl
+        - lean-mathlib/Proofs/ZenoOracleMathWitness.lean
+        - lean-mathlib/Proofs.lean
+        - tests/formal/test_tla_oracle_recovery_lifecycle.py
+        - tests/formal/test_oracle_recovery_ltlf.py
+        - tests/formal/test_esso_zusd_oracle_recovery_lifecycle_v1.py
+        - formal/tla/OracleRecoveryLifecycle.tla
+        - formal/tla/OracleRecoveryLifecycle.cfg
+        - formal/ltlf/oracle_recovery_ltlf_v1.yaml
+        - formal/ltlf/oracle_recovery_goal_family_v1.json
+        - src/kernels/dex/zusd_oracle_recovery_lifecycle_v1.yaml
+        - tests/morph_domains/oracle_clamp_envelope_domain.py
+        - tools/perp_oracle_manipulation_lp_sweep.py
+        - tools/zeno_oracle_smt_freshness_replay.py
+        - formal/tau/contracts/oracle_freshness_v2.contract.json
+        - tests/test_zenoproof_verify.py
+        - tests/test_zenoproof_reward_payout_replay.py
+        - tests/test_zeno_oracle_smt_freshness_replay.py
+        - docs/ZENOPROOF_V0_DESIGN.md
+
+  - id: lean:zenodex:s_tier_disaster_math_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public Lean S-tier disaster math basis checks corrected reserve-first
+      payout, zero-surplus outflow collapse, canonical same-work deduplication,
+      raw inequality counterexample, oracle bridge gate exposure, and
+      code-signing revocation fail-closed admission. This is a compact
+      theorem-level gate basis; legal compliance, cryptographic security,
+      oracle truth, backend refinement, runtime liveness, and concrete
+      production-field instantiation remain outside the claim.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoDEXSTierDisasterMath.lean
+        - cmd: pytest -q tests/formal/test_lean_zenodex_s_tier_disaster_math.py
+      files:
+        - lean-mathlib/Proofs/ZenoDEXSTierDisasterMath.lean
+        - lean-mathlib/Proofs.lean
+        - lean-mathlib/proof_receipts/zenodex_s_tier_disaster_math_v1.json
+        - tests/formal/test_lean_zenodex_s_tier_disaster_math.py
+
+  - id: lean:zenodex:yield_like_funding_safety_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The public Lean yield-like funding safety basis refines the passive-yield
+      posture into a typed whitelist. Earned service rewards, fee rebates,
+      liquidity service fees, protocol staking security rewards, verified work
+      bounties, treasury operating revenue, liquid-staking pass-through
+      receipts, and deflationary burn sources can be admitted only when the
+      source is verified, bounded, non-guaranteed, non-profit-share,
+      non-future-entrant, disclosed, and compatible with reserve-first payout
+      caps. Hold-to-earn, guaranteed APY, profit-share, future-entrant, and
+      discretionary managerial-yield sources reject by kind or by flag. Legal
+      compliance, securities status, tax treatment, oracle truth, backend
+      refinement, runtime liveness, and live production-field instantiation
+      remain outside the claim.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoDEXYieldLikeFundingSafety.lean
+        - cmd: pytest -q tests/formal/test_lean_zenodex_yield_like_funding_safety.py
+      files:
+        - lean-mathlib/Proofs/ZenoDEXYieldLikeFundingSafety.lean
+        - lean-mathlib/Proofs.lean
+        - lean-mathlib/proof_receipts/zenodex_yield_like_funding_safety_v1.json
+        - tests/formal/test_lean_zenodex_yield_like_funding_safety.py
+        - docs/research/ZENODEX_YIELD_LIKE_FUNDING_SHAPES_V1.md

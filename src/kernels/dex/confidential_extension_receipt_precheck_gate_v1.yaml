@@ -1,0 +1,284 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "confidential_extension_receipt_precheck_gate_v1"
+  notes: |
+    Bounded reject-order law for confidential-extension receipt verification
+    before the normalized numeric receipt gate runs.
+
+    Scope:
+      - Models the fail-closed precedence among schema/hash/header/object/flag checks.
+      - Models only normalized booleans, not string parsing or receipt hashing itself.
+      - Numeric accounting and attestation freshness remain in the downstream receipt gate.
+
+observables:
+  state_vars:
+    - "schema_ok"
+    - "receipt_hash_present"
+    - "hash_matches"
+    - "extension_id_ok"
+    - "provider_id_ok"
+    - "request_id_ok"
+    - "policy_version_ok"
+    - "policy_digest_ok"
+    - "measurement_format_ok"
+    - "measurement_approved"
+    - "host_object_ok"
+    - "attestation_object_ok"
+    - "accounting_object_ok"
+    - "numeric_fields_ok"
+    - "do_execute_flag_ok"
+    - "policy_ok_flag_ok"
+    - "nonce_unused_flag_ok"
+    - "output_bound_ok_flag_ok"
+  effects:
+    - "precheck_ok"
+    - "reject_tag"
+
+state_vars:
+  - id: "schema_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "receipt_hash_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "hash_matches"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "extension_id_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "provider_id_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "request_id_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "policy_version_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "policy_digest_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "measurement_format_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "measurement_approved"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "host_object_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "attestation_object_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "accounting_object_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "numeric_fields_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "do_execute_flag_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "policy_ok_flag_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "nonce_unused_flag_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "output_bound_ok_flag_ok"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "schema_ok"
+    expr: { bool: false }
+  - var: "receipt_hash_present"
+    expr: { bool: false }
+  - var: "hash_matches"
+    expr: { bool: false }
+  - var: "extension_id_ok"
+    expr: { bool: false }
+  - var: "provider_id_ok"
+    expr: { bool: false }
+  - var: "request_id_ok"
+    expr: { bool: false }
+  - var: "policy_version_ok"
+    expr: { bool: false }
+  - var: "policy_digest_ok"
+    expr: { bool: false }
+  - var: "measurement_format_ok"
+    expr: { bool: false }
+  - var: "measurement_approved"
+    expr: { bool: false }
+  - var: "host_object_ok"
+    expr: { bool: false }
+  - var: "attestation_object_ok"
+    expr: { bool: false }
+  - var: "accounting_object_ok"
+    expr: { bool: false }
+  - var: "numeric_fields_ok"
+    expr: { bool: false }
+  - var: "do_execute_flag_ok"
+    expr: { bool: false }
+  - var: "policy_ok_flag_ok"
+    expr: { bool: false }
+  - var: "nonce_unused_flag_ok"
+    expr: { bool: false }
+  - var: "output_bound_ok_flag_ok"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_confidential_extension_receipt_precheck_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      precheck_ok:
+        op: "and"
+        args:
+          - { var: "schema_ok" }
+          - { var: "receipt_hash_present" }
+          - { var: "hash_matches" }
+          - { var: "extension_id_ok" }
+          - { var: "provider_id_ok" }
+          - { var: "request_id_ok" }
+          - { var: "policy_version_ok" }
+          - { var: "policy_digest_ok" }
+          - { var: "measurement_format_ok" }
+          - { var: "measurement_approved" }
+          - { var: "host_object_ok" }
+          - { var: "attestation_object_ok" }
+          - { var: "accounting_object_ok" }
+          - { var: "numeric_fields_ok" }
+          - { var: "do_execute_flag_ok" }
+          - { var: "policy_ok_flag_ok" }
+          - { var: "nonce_unused_flag_ok" }
+          - { var: "output_bound_ok_flag_ok" }
+      reject_tag:
+        op: "ite"
+        cond:
+          op: "not"
+          args:
+            - { var: "schema_ok" }
+        then: { const: 1 }
+        else:
+          op: "ite"
+          cond:
+            op: "not"
+            args:
+              - { var: "receipt_hash_present" }
+          then: { const: 2 }
+          else:
+            op: "ite"
+            cond:
+              op: "not"
+              args:
+                - { var: "hash_matches" }
+            then: { const: 3 }
+            else:
+              op: "ite"
+              cond:
+                op: "not"
+                args:
+                  - { var: "extension_id_ok" }
+              then: { const: 4 }
+              else:
+                op: "ite"
+                cond:
+                  op: "not"
+                  args:
+                    - { var: "provider_id_ok" }
+                then: { const: 5 }
+                else:
+                  op: "ite"
+                  cond:
+                    op: "not"
+                    args:
+                      - { var: "request_id_ok" }
+                  then: { const: 6 }
+                  else:
+                    op: "ite"
+                    cond:
+                      op: "not"
+                      args:
+                        - { var: "policy_version_ok" }
+                    then: { const: 7 }
+                    else:
+                      op: "ite"
+                      cond:
+                        op: "not"
+                        args:
+                          - { var: "policy_digest_ok" }
+                      then: { const: 8 }
+                      else:
+                        op: "ite"
+                        cond:
+                          op: "not"
+                          args:
+                            - { var: "measurement_format_ok" }
+                        then: { const: 9 }
+                        else:
+                          op: "ite"
+                          cond:
+                            op: "not"
+                            args:
+                              - { var: "measurement_approved" }
+                          then: { const: 10 }
+                          else:
+                            op: "ite"
+                            cond:
+                              op: "not"
+                              args:
+                                - { var: "host_object_ok" }
+                            then: { const: 11 }
+                            else:
+                              op: "ite"
+                              cond:
+                                op: "not"
+                                args:
+                                  - { var: "attestation_object_ok" }
+                              then: { const: 12 }
+                              else:
+                                op: "ite"
+                                cond:
+                                  op: "not"
+                                  args:
+                                    - { var: "accounting_object_ok" }
+                                then: { const: 13 }
+                                else:
+                                  op: "ite"
+                                  cond:
+                                    op: "not"
+                                    args:
+                                      - { var: "numeric_fields_ok" }
+                                  then: { const: 14 }
+                                  else:
+                                    op: "ite"
+                                    cond:
+                                      op: "not"
+                                      args:
+                                        - { var: "do_execute_flag_ok" }
+                                    then: { const: 15 }
+                                    else:
+                                      op: "ite"
+                                      cond:
+                                        op: "not"
+                                        args:
+                                          - { var: "policy_ok_flag_ok" }
+                                      then: { const: 16 }
+                                      else:
+                                        op: "ite"
+                                        cond:
+                                          op: "not"
+                                          args:
+                                            - { var: "nonce_unused_flag_ok" }
+                                        then: { const: 17 }
+                                        else:
+                                          op: "ite"
+                                          cond:
+                                            op: "not"
+                                            args:
+                                              - { var: "output_bound_ok_flag_ok" }
+                                          then: { const: 18 }
+                                          else: { const: 0 }
