@@ -189,6 +189,54 @@ def test_engine_rejects_unsigned_live_admission_nonce_replay_without_mutation() 
     assert state.balances.get(sender, max(asset0, asset1)) == 2000
 
 
+def test_engine_rejects_signed_intent_rebound_to_wrong_sender_without_nonce_mutation() -> None:
+    pytest.importorskip("py_ecc")
+
+    signing_privkey = 40
+    signer = "0x" + bls_pubkey_hex_from_privkey(signing_privkey)
+    rebound_sender = "0x" + bls_pubkey_hex_from_privkey(41)
+    asset0 = "0x" + "40" * 32
+    asset1 = "0x" + "41" * 32
+    intent_id = "0x" + "40" * 32
+
+    signed_intent_dict = _create_pool_intent_dict(
+        intent_id=intent_id,
+        sender=signer,
+        asset0=asset0,
+        asset1=asset1,
+    )
+    intent = parse_intents({"2": [signed_intent_dict]})[0]
+    signed = sign_intent(intent, signing_privkey, chain_id="tau-net-alpha")
+    rebound_intent_dict = dict(signed_intent_dict, sender_pubkey=rebound_sender, signature=signed.signature)
+
+    balances = BalanceTable()
+    balances.set(rebound_sender, min(asset0, asset1), 1000)
+    balances.set(rebound_sender, max(asset0, asset1), 2000)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable(), nonces=NonceTable())
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=True,
+            allow_unsigned_intents_if_tx_sender_matches=False,
+        ),
+        state=state,
+        operations={"2": [rebound_intent_dict]},
+        block_timestamp=0,
+        tx_sender_pubkey=None,
+    )
+
+    assert not res.ok
+    assert res.error == f"intent signature invalid: {intent_id}: invalid intent signature"
+    assert res.state is None
+    assert res.settlement is None
+    assert state.nonces.get_last(signer) == 0
+    assert state.nonces.get_last(rebound_sender) == 0
+    assert state.pools == {}
+    assert state.balances.get(rebound_sender, min(asset0, asset1)) == 1000
+    assert state.balances.get(rebound_sender, max(asset0, asset1)) == 2000
+
+
 def test_engine_accepts_proof_fields_when_verifier_disabled() -> None:
     sender = "0x" + "aa" * 48
     asset0 = "0x" + "11" * 32
