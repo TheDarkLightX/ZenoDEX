@@ -194,6 +194,23 @@ def test_exact_out_route_certificate_verifier_accepts_canonical_build() -> None:
     assert payload_ok, payload_err
 
 
+def test_exact_out_route_certificate_rejects_reordered_live_candidate_stream() -> None:
+    quotes = [_quote_two_legs_lex_high(), _quote_one_leg(), _quote_two_legs_lex_low()]
+    certificate = build_exact_out_route_canonical_certificate(quotes)
+    live_quotes = list(reversed(quotes))
+    live_certificate = build_exact_out_route_canonical_certificate(live_quotes)
+
+    payload_ok, payload_err = verify_exact_out_route_canonical_certificate_payload(certificate.to_dict())
+    ok, err = verify_exact_out_route_canonical_certificate(live_quotes, certificate=certificate)
+
+    assert payload_ok, payload_err
+    assert live_certificate.winner_index == certificate.winner_index
+    assert live_certificate.winner_quote == certificate.winner_quote
+    assert live_certificate.candidates != certificate.candidates
+    assert not ok
+    assert err == "candidate list mismatch"
+
+
 def test_exact_out_route_certificate_payload_verifier_rejects_tampering() -> None:
     certificate = build_exact_out_route_canonical_certificate(
         [_quote_two_legs_lex_high(), _quote_one_leg(), _quote_two_legs_lex_low()]
