@@ -177,3 +177,118 @@ def test_confidential_extension_live_admission_rejects_verified_attestation_poli
     assert ok is False
     assert err == "policy_digest_mismatch"
     assert updated is None
+
+
+def test_confidential_extension_live_admission_rejects_verified_attestation_request_replay() -> None:
+    receipt = make_confidential_extension_receipt_from_verified_attestation(
+        verified_attestation=VerifiedConfidentialAttestation(
+            measurement=f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",
+            policy_digest=POLICY_DIGEST,
+            attestation_epoch=8,
+        ),
+        extension_id="route-premium-v1",
+        provider_id="provider-1",
+        request_id="req-attested-replay",
+        policy_version="tee-policy-v1",
+        do_execute=1,
+        policy_ok=1,
+        nonce_unused=1,
+        output_bound_ok=1,
+        current_epoch=10,
+        max_attestation_age=2,
+        fee_charged=7,
+        receipt_fee=7,
+        credit_before=40,
+        credit_after=33,
+        provider_balance_before=9,
+        provider_balance_after=16,
+    )
+    request_table = ConfidentialRequestTable()
+    request_table.mark_used(
+        ConfidentialRequestKey(
+            extension_id="route-premium-v1",
+            provider_id="provider-1",
+            request_id="req-attested-replay",
+        )
+    )
+    ok, err, updated = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=APPROVED,
+        expected_policy_digest=POLICY_DIGEST,
+        request_table=request_table,
+    )
+    assert ok is False
+    assert err == "request_replay"
+    assert updated is None
+
+
+def test_confidential_extension_live_admission_rejects_verified_attestation_request_projection_drift() -> None:
+    receipt = make_confidential_extension_receipt_from_verified_attestation(
+        verified_attestation=VerifiedConfidentialAttestation(
+            measurement=f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",
+            policy_digest=POLICY_DIGEST,
+            attestation_epoch=8,
+        ),
+        extension_id="route-premium-v1",
+        provider_id="provider-1",
+        request_id="req-producer",
+        policy_version="tee-policy-v1",
+        do_execute=1,
+        policy_ok=1,
+        nonce_unused=1,
+        output_bound_ok=1,
+        current_epoch=10,
+        max_attestation_age=2,
+        fee_charged=7,
+        receipt_fee=7,
+        credit_before=40,
+        credit_after=33,
+        provider_balance_before=9,
+        provider_balance_after=16,
+    )
+    receipt["body"] = dict(receipt["body"], request_id="req-consumer")
+
+    ok, err, updated = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=APPROVED,
+        expected_policy_digest=POLICY_DIGEST,
+        request_table=ConfidentialRequestTable(),
+    )
+    assert ok is False
+    assert err == "hash_mismatch"
+    assert updated is None
+
+
+def test_confidential_extension_live_admission_rejects_verified_attestation_missing_measurement_allowlist() -> None:
+    receipt = make_confidential_extension_receipt_from_verified_attestation(
+        verified_attestation=VerifiedConfidentialAttestation(
+            measurement=f"nitro:pcr0:{NITRO_PCR0}:pcr8:{NITRO_PCR8}",
+            policy_digest=POLICY_DIGEST,
+            attestation_epoch=8,
+        ),
+        extension_id="route-premium-v1",
+        provider_id="provider-1",
+        request_id="req-missing-allowlist",
+        policy_version="tee-policy-v1",
+        do_execute=1,
+        policy_ok=1,
+        nonce_unused=1,
+        output_bound_ok=1,
+        current_epoch=10,
+        max_attestation_age=2,
+        fee_charged=7,
+        receipt_fee=7,
+        credit_before=40,
+        credit_after=33,
+        provider_balance_before=9,
+        provider_balance_after=16,
+    )
+    ok, err, updated = validate_confidential_extension_live_admission(
+        receipt=receipt,
+        approved_measurements=set(),
+        expected_policy_digest=POLICY_DIGEST,
+        request_table=ConfidentialRequestTable(),
+    )
+    assert ok is False
+    assert err == "measurement_not_approved"
+    assert updated is None
