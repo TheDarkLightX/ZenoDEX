@@ -737,9 +737,15 @@ def verify_route_quote_receipt(
     receipt: object,
     *,
     pools_by_id: Dict[str, PoolState],
+    expected_quote_epoch: int | None = None,
 ) -> Tuple[bool, str]:
     """
     Verify a quote receipt against pool snapshots and AMM semantics.
+
+    When `expected_quote_epoch` is supplied, the receipt must carry the same
+    non-negative epoch. This lets callers bind a quote receipt to the current
+    route/session context while preserving legacy verification for callers that
+    do not use quote epochs.
 
     Returns (ok, error_code).
     """
@@ -766,9 +772,10 @@ def verify_route_quote_receipt(
     )
     body_assets_ok = not body_assets_ok
     quote_epoch_ok = True
+    quote_epoch_value: int | None = None
     if "quote_epoch" in body:
-        quote_epoch = _require_receipt_int(body.get("quote_epoch"))
-        quote_epoch_ok = quote_epoch is not None and quote_epoch >= 0
+        quote_epoch_value = _require_receipt_int(body.get("quote_epoch"))
+        quote_epoch_ok = quote_epoch_value is not None and quote_epoch_value >= 0
     pools = body.get("pools")
     pools_object_ok = isinstance(pools, dict)
     legs = body.get("legs")
@@ -786,6 +793,14 @@ def verify_route_quote_receipt(
     )
     if not precheck.precheck_ok:
         return False, route_quote_receipt_precheck_error(precheck)
+    if expected_quote_epoch is not None:
+        expected_quote_epoch_value = _require_receipt_int(expected_quote_epoch)
+        if expected_quote_epoch_value is None or expected_quote_epoch_value < 0:
+            return False, "bad_expected_quote_epoch"
+        if quote_epoch_value is None:
+            return False, "missing_quote_epoch"
+        if quote_epoch_value != expected_quote_epoch_value:
+            return False, "quote_epoch_mismatch"
     if not isinstance(pools, dict):
         return False, "bad_pools"
     if not isinstance(legs, list) or not legs:
