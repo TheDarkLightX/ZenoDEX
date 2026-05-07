@@ -94,3 +94,55 @@ def test_exact_out_many_pool_guarded_quote_requires_oracle_bridge_when_configure
         assert body["detail"] == "guarded_quote requires oracle_adapter_bridge"
     finally:
         _stop_test_server(httpd, thread)
+
+
+def test_exact_out_many_pool_guard_rejects_when_projection_cover_unavailable(monkeypatch) -> None:
+    from src.integration import exact_out_route_certificate as cert
+
+    def _projection_cover_unavailable(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("projection cover unavailable")
+
+    monkeypatch.setattr(
+        cert,
+        "_kernel_audit_exact_out_many_pool_selected_domain_projection_cover",
+        _projection_cover_unavailable,
+    )
+    httpd, thread, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/guard_exact_out_many_pool_canonicality",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_out_total": 3,
+                "max_legs": 2,
+                "max_candidate_pools": 2,
+                "max_candidates": 6,
+                "max_iters": 512,
+                "window": 8,
+                "brute_force_max": 16,
+                "max_enumerated_candidates": 8000,
+                "pools": [
+                    _pool(pid="pool_a", a0="A", a1="B", r0=40, r1=20),
+                    {
+                        **_pool(pid="pool_b", a0="A", a1="B", r0=40, r1=20),
+                        "curve_tag": "SUM_BOOST_V1",
+                        "curve_params": {"mu_num": 200, "mu_den": 10000},
+                    },
+                ],
+            },
+        )
+
+        assert status == 200
+        assert body["ok"] is False
+        assert body["contract_ok"] is False
+        assert body["error"] == "many_pool_projection_cover_not_verified"
+        assert body["runtime_matches_canonical_projected_path"] is True
+        assert body["projection_cover_available"] is False
+        assert body["projection_cover_holds"] is None
+        assert body["contract"]["contract_ok"] is False
+        assert body["contract"]["audit"]["projection_cover_audit"] is None
+    finally:
+        _stop_test_server(httpd, thread)
