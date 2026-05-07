@@ -279,6 +279,52 @@ theorem claimable_implies_manager_ok
 
 end ProofMiningClaimability
 
+namespace ProofMiningStatusApi
+
+structure ApiResult where
+  ok : Bool
+  statusPresent : Bool
+  statusClaimable : Bool
+
+def exitSuccess (r : ApiResult) : Bool :=
+  r.ok && r.statusPresent && r.statusClaimable
+
+theorem exit_success_iff_obligations (r : ApiResult) :
+    exitSuccess r = true ↔
+      r.ok = true ∧
+      r.statusPresent = true ∧
+      r.statusClaimable = true := by
+  simp [exitSuccess, and_assoc]
+
+theorem exit_success_implies_status_present
+    (r : ApiResult)
+    (hSuccess : exitSuccess r = true) :
+    r.statusPresent = true := by
+  exact (exit_success_iff_obligations r).mp hSuccess |>.right.left
+
+theorem exit_success_implies_status_claimable
+    (r : ApiResult)
+    (hSuccess : exitSuccess r = true) :
+    r.statusClaimable = true := by
+  exact (exit_success_iff_obligations r).mp hSuccess |>.right.right
+
+theorem ok_without_status_not_exit_success
+    (r : ApiResult)
+    (hOk : r.ok = true)
+    (hStatus : r.statusPresent = false) :
+    exitSuccess r = false := by
+  simp [exitSuccess, hOk, hStatus]
+
+theorem ok_with_rejected_status_not_exit_success
+    (r : ApiResult)
+    (hOk : r.ok = true)
+    (hPresent : r.statusPresent = true)
+    (hClaimable : r.statusClaimable = false) :
+    exitSuccess r = false := by
+  simp [exitSuccess, hOk, hPresent, hClaimable]
+
+end ProofMiningStatusApi
+
 namespace ZenoProofRewardGate
 
 structure Gate where

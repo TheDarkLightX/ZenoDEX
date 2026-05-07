@@ -44,6 +44,11 @@ def _emit(path: Path | None, payload: Mapping[str, Any]) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _api_result_claimable(result: Mapping[str, Any]) -> bool:
+    status = result.get("status")
+    return bool(result.get("ok")) and isinstance(status, Mapping) and status.get("claimable") is True
+
+
 def _call_api(*, api_url: str, payload: Mapping[str, Any], timeout_s: float) -> Mapping[str, Any]:
     body = json.dumps(dict(payload), separators=(",", ":")).encode("utf-8")
     req = Request(
@@ -98,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     if str(args.api_url).strip():
         result = _call_api(api_url=str(args.api_url), payload=payload, timeout_s=float(args.timeout_s))
         _emit(output_path, result)
-        return 0 if bool(result.get("ok")) else 1
+        return 0 if _api_result_claimable(result) else 1
 
     reward_pool_pubkey = str(args.reward_pool_pubkey).strip() or os.environ.get("TAU_DEX_PROOF_MINING_POOL_PUBKEY", "").strip()
     status = evaluate_proof_mining_claimability(
