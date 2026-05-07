@@ -5349,11 +5349,13 @@ class _Handler(BaseHTTPRequestHandler):
                     brute_force_max=int(brute_force_max),
                     max_enumerated_candidates=int(max_enumerated_candidates),
                 )
+                contract_dict = contract.to_dict()
                 self._write_json(
                     200,
                     {
                         "ok": True,
-                        "contract": contract.to_dict(),
+                        "contract": contract_dict,
+                        "contract_ok": bool(contract_dict["contract_ok"]),
                         "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                         "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
                     },
@@ -5574,6 +5576,7 @@ class _Handler(BaseHTTPRequestHandler):
                 payload = {
                     "ok": bool(ok),
                     "contract": contract_dict,
+                    "contract_ok": bool(contract_dict["contract_ok"]),
                     "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                     "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
                     "verify_contract_endpoint": "/api/dex/verify_exact_out_many_pool_oracle_contract",
@@ -5679,6 +5682,7 @@ class _Handler(BaseHTTPRequestHandler):
                             "ok": True,
                             "quote": dict(contract_dict["audit"]["runtime_quote"]),
                             "contract": contract_dict,
+                            "contract_ok": bool(contract_dict["contract_ok"]),
                             "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                             "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
                             "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",
@@ -5704,6 +5708,7 @@ class _Handler(BaseHTTPRequestHandler):
                             "runtime_quote": dict(contract_dict["audit"]["runtime_quote"]),
                             "canonical_winner_quote": dict(contract_dict["audit"]["canonical_winner_quote"]),
                             "contract": contract_dict,
+                            "contract_ok": bool(contract_dict["contract_ok"]),
                             "contract_schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
                             "packet_schema": EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
                             "build_contract_endpoint": "/api/dex/build_exact_out_many_pool_oracle_contract",

@@ -67,7 +67,7 @@ theorem packetOk_implies_presented_feasible_minimality
         keyLe guardInputs.runtimeChoice (candidateOf alloc) := by
   rcases (packetOk_iff_audited_emitted_minimality domainInputs guardInputs).1 hPacket with
     ⟨_hSorted, _hBudget, _hNonempty, _hCompleteFlag, _hLegBounded, _hLegSorted, _hWithin, _hCount,
-      hMem, hMin⟩
+      hMem, hMin, _hCover⟩
   rcases hPresented.2 guardInputs.runtimeChoice hMem with ⟨allocStar, hEmitStar, hCandStar⟩
   exact ⟨allocStar, (hComplete allocStar).1 hEmitStar, hCandStar,
     by

@@ -72,6 +72,7 @@ EXACT_OUT_MANY_POOL_CERTIFIED_WINNER_PACKET_SCHEMA = "zenodex/exact-out-many-poo
 EXACT_OUT_MANY_POOL_AUDITED_BOUNDS_CONTRACT_SCHEMA = "zenodex/exact-out-many-pool-audited-bounds-contract/v1"
 EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA = "zenodex/exact-out-many-pool-adaptive-liveness-packet/v1"
 EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR = "many_pool_runtime_not_canonical_on_bounded_audit_domain"
+EXACT_OUT_MANY_POOL_PROJECTION_COVER_ERROR = "many_pool_projection_cover_not_verified"
 EXACT_OUT_MANY_POOL_REPAIRED_ADVISORY_UNAVAILABLE_ERROR = "many_pool_repaired_prefilter_contract_not_ok"
 EXACT_OUT_MANY_POOL_REPAIRED_SELECTED_DOMAIN_UNAVAILABLE_ERROR = "many_pool_repaired_selected_domain_contract_not_ok"
 EXACT_OUT_MANY_POOL_REPAIRED_FULL_DOMAIN_CERTIFIED_ERROR = "many_pool_repaired_advisory_not_full_domain_canonical"
@@ -617,6 +618,19 @@ class ExactOutManyPoolOracleContract:
     pool_snapshots: tuple[dict[str, Any], ...]
     audit: ExactOutManyPoolCanonicalityAudit
 
+    @property
+    def contract_ok(self) -> bool:
+        projection_cover = self.audit.projection_cover_audit
+        if projection_cover is None:
+            return False
+        runtime_projected_path = _quote_to_projected_path_payload(self.audit.runtime_quote)
+        canonical_projected_path = _quote_to_projected_path_payload(self.audit.canonical_winner_quote)
+        return bool(
+            self.audit.runtime_matches_canonical
+            and runtime_projected_path == canonical_projected_path
+            and projection_cover.projection_cover_holds
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema": EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
@@ -633,6 +647,7 @@ class ExactOutManyPoolOracleContract:
             "max_enumerated_candidates": int(self.max_enumerated_candidates),
             "pool_snapshots": [dict(snapshot) for snapshot in self.pool_snapshots],
             "audit": self.audit.to_dict(),
+            "contract_ok": bool(self.contract_ok),
         }
 
 
@@ -3844,8 +3859,10 @@ def guard_exact_out_many_pool_runtime_canonicality(
         max_full_domain_pools=int(max_full_domain_pools),
         max_enumerated_candidates=int(max_enumerated_candidates),
     )
-    if contract.audit.runtime_matches_canonical:
+    if contract.contract_ok:
         return True, None, contract
+    if contract.audit.runtime_matches_canonical:
+        return False, EXACT_OUT_MANY_POOL_PROJECTION_COVER_ERROR, contract
     return False, EXACT_OUT_MANY_POOL_GUARD_MISMATCH_ERROR, contract
 
 

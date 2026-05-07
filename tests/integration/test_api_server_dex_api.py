@@ -2405,6 +2405,8 @@ def test_api_server_build_and_verify_exact_out_many_pool_oracle_contract() -> No
         assert resp.status == 200
         assert body["ok"] is True
         contract = body["contract"]
+        assert body["contract_ok"] is True
+        assert contract["contract_ok"] is True
         assert contract["audit"]["runtime_matches_canonical"] is True
         assert contract["audit"]["runtime_quote"] == contract["audit"]["canonical_winner_quote"]
 
@@ -4373,6 +4375,8 @@ def test_api_server_guard_exact_out_many_pool_canonicality_accepts_match() -> No
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
         assert body["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_oracle_contract"
@@ -4419,6 +4423,8 @@ def test_api_server_guard_exact_out_many_pool_canonicality_accepts_known_counter
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
         assert body["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_oracle_contract"
@@ -4466,6 +4472,8 @@ def test_api_server_guard_exact_out_many_pool_canonicality_accepts_mixed_curve_s
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
         assert body["verify_contract_endpoint"] == "/api/dex/verify_exact_out_many_pool_oracle_contract"
@@ -4516,6 +4524,8 @@ def test_api_server_quote_exact_out_many_pool_guarded_accepts_match() -> None:
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["packet_schema"] == "zenodex/exact-out-many-pool-guarded-quote-packet/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
@@ -4565,6 +4575,8 @@ def test_api_server_quote_exact_out_many_pool_guarded_accepts_known_counterexamp
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["packet_schema"] == "zenodex/exact-out-many-pool-guarded-quote-packet/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
@@ -4615,6 +4627,8 @@ def test_api_server_quote_exact_out_many_pool_guarded_accepts_mixed_curve_select
         body = json.loads(resp.read().decode("utf-8"))
         assert resp.status == 200
         assert body["ok"] is True
+        assert body["contract_ok"] is True
+        assert body["contract"]["contract_ok"] is True
         assert body["contract_schema"] == "zenodex/exact-out-many-pool-oracle-contract/v1"
         assert body["packet_schema"] == "zenodex/exact-out-many-pool-guarded-quote-packet/v1"
         assert body["build_contract_endpoint"] == "/api/dex/build_exact_out_many_pool_oracle_contract"
@@ -4672,6 +4686,7 @@ def test_api_server_build_and_verify_exact_out_many_pool_guarded_quote_packet() 
         assert body["packet_schema"] == packet["schema"]
         assert body["verify_packet_endpoint"] == "/api/dex/verify_exact_out_many_pool_guarded_quote_packet"
         assert packet["guard_ok"] is True
+        assert packet["contract"]["contract_ok"] is True
         assert packet["quote"] == packet["contract"]["audit"]["runtime_quote"]
 
         conn2 = HTTPConnection(host, port, timeout=2.0)
