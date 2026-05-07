@@ -34,6 +34,8 @@ def test_quote_receipt_route_canonicalization_minimize_preserves_candidate_set_h
 def test_quote_receipt_route_canonicalization_minimize_preserves_missing_pool_fingerprint() -> None:
     witness = minimize_case("drop_winner_rebuild_sync_body")
     assert witness.outcome_label == "reject:step=3:missing_pool_fingerprint"
+    assert witness.path_id == "8d78016c8960bfea"
+    assert witness.minimized_size == 232
 
 
 def test_quote_receipt_route_canonicalization_minimize_preserves_full_repair_ok_path() -> None:
