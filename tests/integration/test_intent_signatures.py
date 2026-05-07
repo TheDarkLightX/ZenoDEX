@@ -6,28 +6,33 @@ import hashlib
 
 import pytest
 
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.integration.dex_engine import _verify_intent_signature_bytes
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes
 
 
-def _signing_dict(*, intent_id: str, sender_pubkey: str) -> dict:
-    # Matches src/integration/dex_engine.py::_intent_signing_dict for CREATE_POOL.
-    return {
-        "module": "TauSwap",
-        "version": "0.1",
-        "kind": "CREATE_POOL",
-        "intent_id": intent_id,
-        "sender_pubkey": sender_pubkey,
-        "deadline": 9999999999,
-        "fields": {
-            "asset0": "0x" + "11" * 32,
-            "asset1": "0x" + "22" * 32,
-            "fee_bps": 30,
-            "amount0": 1000,
-            "amount1": 2000,
-            "created_at": 1,
-        },
+def _signing_dict(*, intent_id: str, sender_pubkey: str, nonce: int | None = None) -> dict:
+    fields = {
+        "asset0": "0x" + "11" * 32,
+        "asset1": "0x" + "22" * 32,
+        "fee_bps": 30,
+        "amount0": 1000,
+        "amount1": 2000,
+        "created_at": 1,
     }
+    if nonce is not None:
+        fields["nonce"] = nonce
+    return build_dex_intent_signing_dict_v1(
+        {
+            "module": "TauSwap",
+            "version": "0.1",
+            "kind": "CREATE_POOL",
+            "intent_id": intent_id,
+            "sender_pubkey": sender_pubkey,
+            "deadline": 9999999999,
+            "fields": fields,
+        }
+    )
 
 
 def test_intent_signature_roundtrip_bls_g2basic() -> None:
@@ -55,6 +60,34 @@ def test_intent_signature_roundtrip_bls_g2basic() -> None:
         chain_id=chain_id,
     )
     assert ok, err
+
+
+def test_intent_signature_rejects_chain_id_session_replay_for_nonce_intent() -> None:
+    pytest.importorskip("py_ecc")
+    from py_ecc.bls import G2Basic
+
+    sk = G2Basic.KeyGen(b"\x03" * 32)
+    pk = G2Basic.SkToPk(sk)
+    sender_pubkey_hex = "0x" + pk.hex()
+    producer_chain_id = "tau-net-alpha"
+    consumer_chain_id = "tau-net-beta"
+
+    payload = canonical_json_bytes(
+        _signing_dict(intent_id="0x" + "cc" * 32, sender_pubkey=sender_pubkey_hex, nonce=1)
+    )
+    msg_hash = hashlib.sha256(
+        domain_sep_bytes(f"dex_intent_sig:{producer_chain_id}", version=1) + payload
+    ).digest()
+    signature_hex = "0x" + G2Basic.Sign(sk, msg_hash).hex()
+
+    ok, err = _verify_intent_signature_bytes(
+        sender_pubkey_hex=sender_pubkey_hex,
+        signature_hex=signature_hex,
+        signing_payload_bytes=payload,
+        chain_id=consumer_chain_id,
+    )
+    assert ok is False
+    assert err == "invalid intent signature"
 
 
 def test_intent_signature_rejects_payload_mismatch() -> None:
