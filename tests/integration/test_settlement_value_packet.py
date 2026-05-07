@@ -215,6 +215,47 @@ def test_settlement_value_packet_rejects_replay_with_different_settlement_identi
     assert err == "settlement value packet mismatch"
 
 
+def test_settlement_value_packet_rejects_missing_lp_projection_entry() -> None:
+    pk, asset0, asset1, pool_id, settlement = _swap_context()
+    second_pool_id = f"{pool_id}:secondary"
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=pool_id, delta_add=3, delta_sub=0))
+    settlement.lp_deltas.append(LPDelta(pubkey=pk, pool_id=second_pool_id, delta_add=5, delta_sub=0))
+    price_packet = build_settlement_spot_price_packet(
+        entries=(
+            SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
+            SettlementSpotPriceEntry(asset=asset1, price=120, observed_epoch=97, age_epochs=3, source_id="oracle:b"),
+        ),
+        now_epoch=100,
+        max_staleness_epochs=10,
+    )
+    attestation = build_settlement_spot_price_attestation(packet=price_packet, signer_privkey=7)
+    allowed_signers = {attestation.signer_pubkey: ["oracle:a", "oracle:b"]}
+
+    packet = build_settlement_value_packet_from_price_attestation(
+        settlement=settlement,
+        price_attestation=attestation,
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        lp_unit_values={pool_id: 50, second_pool_id: 75},
+        allowed_signers=allowed_signers,
+    )
+    assert packet.packet_ok is True
+    assert packet.lp_value_contract is not None
+    assert len(packet.lp_value_contract.lp_unit_values) == 2
+
+    ok, err = verify_settlement_value_packet_payload_from_price_attestation(
+        settlement=settlement,
+        price_attestation_payload=attestation.to_dict(),
+        consumer_now_epoch=103,
+        max_attestation_age_epochs=5,
+        packet_payload=packet.to_dict(),
+        lp_unit_values={pool_id: 50},
+        allowed_signers=allowed_signers,
+    )
+    assert ok is False
+    assert err == f"missing lp unit value for settlement lp value contract: {second_pool_id}"
+
+
 def test_settlement_value_packet_rejects_tampering() -> None:
     _pk, asset0, asset1, _pool_id, settlement = _swap_context()
     price_packet = build_settlement_spot_price_packet(
