@@ -96,6 +96,73 @@ def test_exact_out_many_pool_guarded_quote_requires_oracle_bridge_when_configure
         _stop_test_server(httpd, thread)
 
 
+def test_exact_out_many_pool_guarded_quote_rejects_bridge_for_reordered_pool_snapshot(
+    monkeypatch,
+) -> None:
+    from src.integration import api_server
+    from tools import zenodex_oracle_aggregate_adapter
+
+    pools = [
+        _pool(pid="pool_a", a0="A", a1="B", r0=40, r1=20),
+        _pool(pid="pool_b", a0="A", a1="B", r0=40, r1=63),
+        _pool(pid="pool_c", a0="A", a1="B", r0=40, r1=20),
+    ]
+    params = {
+        "asset_in": "A",
+        "asset_out": "B",
+        "amount_out_total": 3,
+        "max_legs": 3,
+        "max_candidate_pools": 3,
+        "max_candidates": 6,
+        "max_iters": 512,
+        "window": 8,
+        "brute_force_max": 16,
+        "max_enumerated_candidates": 8000,
+    }
+    wrong_action_id = api_server._routing_guarded_exact_out_quote_oracle_action_id(
+        path="/api/dex/quote_exact_out_many_pool_guarded",
+        pools_raw=list(reversed(pools)),
+        **params,
+    )
+
+    def _accepted_bridge_for_reordered_snapshot(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "consumer_module": "zenodex.routing",
+            "action_kind": "guarded_quote",
+            "query_id": api_server.DEX_ROUTING_REFERENCE_QUERY_ID,
+            "profile_id": api_server.DEX_ROUTING_GUARDED_QUOTE_PROFILE_ID,
+            "action_id": wrong_action_id,
+            "errors": [],
+        }
+
+    monkeypatch.setattr(
+        zenodex_oracle_aggregate_adapter,
+        "verify_aggregate_adapter_bridge",
+        _accepted_bridge_for_reordered_snapshot,
+    )
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "1")
+    httpd, thread, host, port = _start_test_server()
+    try:
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_out_many_pool_guarded",
+            {
+                **params,
+                "pools": pools,
+                "oracle_adapter_bridge": {"schema": "test.accepted-reordered-pool-snapshot"},
+            },
+        )
+
+        assert status == 400
+        assert body["ok"] is False
+        assert body["error"] == "rejected"
+        assert body["detail"] == "oracle_adapter_bridge action_id mismatch"
+    finally:
+        _stop_test_server(httpd, thread)
+
+
 def test_exact_out_many_pool_guard_rejects_when_projection_cover_unavailable(monkeypatch) -> None:
     from src.integration import exact_out_route_certificate as cert
 
