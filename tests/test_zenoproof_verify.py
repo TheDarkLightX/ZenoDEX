@@ -95,6 +95,21 @@ def test_stale_verifier_policy_rejects() -> None:
     assert not result.policy_ok
 
 
+def test_revoked_verifier_rejects() -> None:
+    registry = _manifest()
+    artifact = zv.sample_artifact()
+    verifier_id = artifact["verifier_id"]
+
+    verifier = next(v for v in registry["verifiers"] if v["verifier_id"] == verifier_id)
+    verifier["revoked"] = True
+
+    result = zv.verify_zenoproof_artifact(artifact, registry, now_epoch=150)
+
+    assert result.status == "rejected"
+    assert "verifier_revoked" in result.errors
+    assert not result.policy_ok
+
+
 def test_wrong_claim_binding_rejects() -> None:
     result = zv.verify_zenoproof_artifact(
         zv.sample_artifact(),
