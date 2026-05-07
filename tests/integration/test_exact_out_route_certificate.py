@@ -194,6 +194,26 @@ def test_exact_out_route_certificate_verifier_accepts_canonical_build() -> None:
     assert payload_ok, payload_err
 
 
+def test_exact_out_route_certificate_rejects_wrong_binding_context() -> None:
+    quotes = [_quote_two_legs_lex_high(), _quote_one_leg(), _quote_two_legs_lex_low()]
+    certificate = build_exact_out_route_canonical_certificate(quotes, binding_ok=1)
+
+    ok, err = verify_exact_out_route_canonical_certificate(
+        quotes,
+        certificate=certificate,
+        expected_binding_ok=0,
+    )
+    assert not ok
+    assert err == "argmin steps mismatch"
+
+    payload_ok, payload_err = verify_exact_out_route_canonical_certificate_payload(
+        certificate.to_dict(),
+        expected_binding_ok=0,
+    )
+    assert not payload_ok
+    assert payload_err == "certificate payload mismatch"
+
+
 def test_exact_out_route_certificate_rejects_reordered_live_candidate_stream() -> None:
     quotes = [_quote_two_legs_lex_high(), _quote_one_leg(), _quote_two_legs_lex_low()]
     certificate = build_exact_out_route_canonical_certificate(quotes)
