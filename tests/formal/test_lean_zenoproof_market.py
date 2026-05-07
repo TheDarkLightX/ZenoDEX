@@ -20,6 +20,10 @@ import Proofs.ZenoProofMarket
 #print axioms Proofs.ZenoProofMarket.accepted_settlement_contract_nonvacuous
 #print axioms Proofs.ZenoProofMarket.primary_market_without_secondary_exchange_nonvacuous
 #print axioms Proofs.ZenoProofMarket.full_exchange_nonvacuous
+#print axioms Proofs.ZenoProofMarket.zk_pre_disclosure_assumptions_nonvacuous
+#print axioms Proofs.ZenoProofMarket.zk_payment_release_assumptions_nonvacuous
+#print axioms Proofs.ZenoProofMarket.zk_pre_disclosure_acceptance_locks_without_reveal
+#print axioms Proofs.ZenoProofMarket.zk_payment_release_requires_reveal_and_conserves_payment
 """
 
 
@@ -57,3 +61,7 @@ def test_lean_zenoproof_market_nonvacuity_axiom_audit() -> None:
     assert "full_exchange_nonvacuous' does not depend on any axioms" in output
     assert "settlement_certificate_assumptions_nonvacuous' depends on axioms: [propext," in output
     assert "accepted_settlement_contract_nonvacuous' depends on axioms: [propext," in output
+    assert "zk_pre_disclosure_assumptions_nonvacuous' depends on axioms: [propext," in output
+    assert "zk_payment_release_assumptions_nonvacuous' depends on axioms: [propext," in output
+    assert "zk_pre_disclosure_acceptance_locks_without_reveal' does not depend on any axioms" in output
+    assert "zk_payment_release_requires_reveal_and_conserves_payment' depends on axioms: [propext," in output

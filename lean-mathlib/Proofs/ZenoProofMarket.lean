@@ -369,6 +369,301 @@ theorem concrete_same_work_duplicate_rejected :
     (by simp [workCanonicalId, exampleSafeOrder, exampleWork])
     (by norm_num [exampleSafeOrder, exampleSafeOffer, exampleWork, sameWork])
 
+/-! ## ZK pre-disclosure fair exchange -/
+
+structure ZKValidityReceipt where
+  work : ProofWork
+  proofCommitment : Nat
+  verifierRoot : Nat
+  circuitRoot : Nat
+  proofSystemRoot : Nat
+  accepted : Bool
+  statementBound : Bool
+  assumptionBound : Bool
+  commitmentBound : Bool
+  verifierPolicyOk : Bool
+  deriving DecidableEq, Repr
+
+structure ZKValidityReceiptAccepted (receipt : ZKValidityReceipt) : Prop where
+  accepted : receipt.accepted = true
+  statementBound : receipt.statementBound = true
+  assumptionBound : receipt.assumptionBound = true
+  commitmentBound : receipt.commitmentBound = true
+  verifierPolicyOk : receipt.verifierPolicyOk = true
+
+structure ZKPrivateOffer where
+  sellerId : Nat
+  work : ProofWork
+  askPrice : Nat
+  proofCommitment : Nat
+  encryptedArtifactRoot : Nat
+  proofPubliclyDisclosed : Bool
+  deriving DecidableEq, Repr
+
+structure BuyerZKAcceptance where
+  buyerId : Nat
+  work : ProofWork
+  proofCommitment : Nat
+  maxPrice : Nat
+  buyerAuthorized : Bool
+  qualityAccepted : Bool
+  escrowLocked : Bool
+  deriving DecidableEq, Repr
+
+structure BuyerZKAcceptanceAdmitted (acceptance : BuyerZKAcceptance) : Prop where
+  buyerAuthorized : acceptance.buyerAuthorized = true
+  qualityAccepted : acceptance.qualityAccepted = true
+  escrowLocked : acceptance.escrowLocked = true
+
+structure ZKPreDisclosureCert where
+  order : BuyOrder
+  privateOffer : ZKPrivateOffer
+  receipt : ZKValidityReceipt
+  acceptance : BuyerZKAcceptance
+  price : Nat
+  hOrder : BuyOrderAdmitted order
+  hReceipt : ZKValidityReceiptAccepted receipt
+  hAcceptance : BuyerZKAcceptanceAdmitted acceptance
+  hOrderOfferWork : sameWork order.work privateOffer.work
+  hReceiptOfferWork : sameWork receipt.work privateOffer.work
+  hAcceptanceOfferWork : sameWork acceptance.work privateOffer.work
+  hReceiptCommitment : receipt.proofCommitment = privateOffer.proofCommitment
+  hAcceptanceCommitment : acceptance.proofCommitment = privateOffer.proofCommitment
+  hHiddenBeforePayment : privateOffer.proofPubliclyDisclosed = false
+  hPriceAtLeastAsk : privateOffer.askPrice ≤ price
+  hPriceAtMostOrder : price ≤ order.maxPayment
+  hPriceAtMostAcceptance : price ≤ acceptance.maxPrice
+
+theorem zk_pre_disclosure_acceptance_locks_without_reveal
+    (cert : ZKPreDisclosureCert) :
+    cert.receipt.accepted = true ∧
+      cert.receipt.statementBound = true ∧
+      cert.receipt.assumptionBound = true ∧
+      cert.receipt.commitmentBound = true ∧
+      cert.receipt.verifierPolicyOk = true ∧
+      cert.acceptance.buyerAuthorized = true ∧
+      cert.acceptance.qualityAccepted = true ∧
+      cert.acceptance.escrowLocked = true ∧
+      cert.privateOffer.proofPubliclyDisclosed = false ∧
+      cert.price ≤ cert.order.escrow := by
+  have hPriceEscrow : cert.price ≤ cert.order.escrow :=
+    le_trans cert.hPriceAtMostOrder cert.hOrder.maxPaymentEscrowed
+  exact ⟨cert.hReceipt.accepted, cert.hReceipt.statementBound,
+    cert.hReceipt.assumptionBound, cert.hReceipt.commitmentBound,
+    cert.hReceipt.verifierPolicyOk, cert.hAcceptance.buyerAuthorized,
+    cert.hAcceptance.qualityAccepted, cert.hAcceptance.escrowLocked,
+    cert.hHiddenBeforePayment, hPriceEscrow⟩
+
+theorem rejected_zk_receipt_not_preaccepted
+    (order : BuyOrder) (receipt : ZKValidityReceipt)
+    (hBad : receipt.accepted = false) :
+    ¬ ∃ cert : ZKPreDisclosureCert, cert.order = order ∧ cert.receipt = receipt := by
+  intro h
+  rcases h with ⟨cert, hOrderEq, hReceiptEq⟩
+  subst hOrderEq
+  subst hReceiptEq
+  rw [cert.hReceipt.accepted] at hBad
+  contradiction
+
+theorem unauthorized_buyer_not_zk_preaccepted
+    (acceptance : BuyerZKAcceptance)
+    (hBad : acceptance.buyerAuthorized = false) :
+    ¬ ∃ cert : ZKPreDisclosureCert, cert.acceptance = acceptance := by
+  intro h
+  rcases h with ⟨cert, hAcceptanceEq⟩
+  subst hAcceptanceEq
+  rw [cert.hAcceptance.buyerAuthorized] at hBad
+  contradiction
+
+theorem disclosed_offer_not_zk_preaccepted
+    (offer : ZKPrivateOffer)
+    (hBad : offer.proofPubliclyDisclosed = true) :
+    ¬ ∃ cert : ZKPreDisclosureCert, cert.privateOffer = offer := by
+  intro h
+  rcases h with ⟨cert, hOfferEq⟩
+  subst hOfferEq
+  rw [cert.hHiddenBeforePayment] at hBad
+  contradiction
+
+structure ZKReveal where
+  proofCommitment : Nat
+  publicArtifactRoot : Nat
+  revealMatchesCommitment : Bool
+  artifactAvailable : Bool
+  decryptionKeyReleased : Bool
+  deriving DecidableEq, Repr
+
+structure ZKPaymentReleaseCert where
+  pre : ZKPreDisclosureCert
+  reveal : ZKReveal
+  escrowBefore : Nat
+  escrowAfter : Nat
+  sellerCreditBefore : Nat
+  sellerCreditAfter : Nat
+  hRevealCommitment : reveal.proofCommitment = pre.privateOffer.proofCommitment
+  hRevealMatches : reveal.revealMatchesCommitment = true
+  hArtifactAvailable : reveal.artifactAvailable = true
+  hKeyReleased : reveal.decryptionKeyReleased = true
+  hEscrowBefore : escrowBefore = pre.order.escrow
+  hEscrowDelta : escrowAfter + pre.price = escrowBefore
+  hSellerDelta : sellerCreditAfter = sellerCreditBefore + pre.price
+
+theorem zk_payment_release_requires_reveal_and_conserves_payment
+    (cert : ZKPaymentReleaseCert) :
+    cert.pre.acceptance.escrowLocked = true ∧
+      cert.reveal.revealMatchesCommitment = true ∧
+      cert.reveal.artifactAvailable = true ∧
+      cert.reveal.decryptionKeyReleased = true ∧
+      cert.pre.price ≤ cert.escrowBefore ∧
+      cert.escrowAfter ≤ cert.escrowBefore ∧
+      cert.sellerCreditAfter = cert.sellerCreditBefore + cert.pre.price := by
+  have hPriceEscrow : cert.pre.price ≤ cert.pre.order.escrow :=
+    le_trans cert.pre.hPriceAtMostOrder cert.pre.hOrder.maxPaymentEscrowed
+  have hPriceBefore : cert.pre.price ≤ cert.escrowBefore := by
+    rw [cert.hEscrowBefore]
+    exact hPriceEscrow
+  have hEscrowAfterLe : cert.escrowAfter ≤ cert.escrowBefore := by
+    have hDelta := cert.hEscrowDelta
+    omega
+  exact ⟨cert.pre.hAcceptance.escrowLocked, cert.hRevealMatches,
+    cert.hArtifactAvailable, cert.hKeyReleased, hPriceBefore,
+    hEscrowAfterLe, cert.hSellerDelta⟩
+
+theorem unrevealed_key_not_zk_released
+    (reveal : ZKReveal)
+    (hBad : reveal.decryptionKeyReleased = false) :
+    ¬ ∃ cert : ZKPaymentReleaseCert, cert.reveal = reveal := by
+  intro h
+  rcases h with ⟨cert, hRevealEq⟩
+  subst hRevealEq
+  rw [cert.hKeyReleased] at hBad
+  contradiction
+
+theorem unavailable_artifact_not_zk_released
+    (reveal : ZKReveal)
+    (hBad : reveal.artifactAvailable = false) :
+    ¬ ∃ cert : ZKPaymentReleaseCert, cert.reveal = reveal := by
+  intro h
+  rcases h with ⟨cert, hRevealEq⟩
+  subst hRevealEq
+  rw [cert.hArtifactAvailable] at hBad
+  contradiction
+
+theorem zk_receipt_truth_requires_soundness
+    (Truth : ProofWork → Prop)
+    (receipt : ZKValidityReceipt)
+    (hReceipt : ZKValidityReceiptAccepted receipt)
+    (hSound : ∀ r : ZKValidityReceipt, ZKValidityReceiptAccepted r → Truth r.work) :
+    Truth receipt.work :=
+  hSound receipt hReceipt
+
+def exampleZKReceipt : ZKValidityReceipt where
+  work := exampleWork
+  proofCommitment := 777
+  verifierRoot := 9001
+  circuitRoot := 9002
+  proofSystemRoot := 9003
+  accepted := true
+  statementBound := true
+  assumptionBound := true
+  commitmentBound := true
+  verifierPolicyOk := true
+
+theorem exampleZKReceipt_accepted :
+    ZKValidityReceiptAccepted exampleZKReceipt := by
+  constructor <;> norm_num [exampleZKReceipt]
+
+def exampleZKPrivateOffer : ZKPrivateOffer where
+  sellerId := 2002
+  work := exampleWork
+  askPrice := 6
+  proofCommitment := 777
+  encryptedArtifactRoot := 888
+  proofPubliclyDisclosed := false
+
+def exampleBuyerZKAcceptance : BuyerZKAcceptance where
+  buyerId := 1001
+  work := exampleWork
+  proofCommitment := 777
+  maxPrice := 7
+  buyerAuthorized := true
+  qualityAccepted := true
+  escrowLocked := true
+
+theorem exampleBuyerZKAcceptance_admitted :
+    BuyerZKAcceptanceAdmitted exampleBuyerZKAcceptance := by
+  constructor <;> norm_num [exampleBuyerZKAcceptance]
+
+def exampleZKPreDisclosureCert : ZKPreDisclosureCert where
+  order := exampleSafeOrder
+  privateOffer := exampleZKPrivateOffer
+  receipt := exampleZKReceipt
+  acceptance := exampleBuyerZKAcceptance
+  price := 7
+  hOrder := exampleSafeOrder_admitted
+  hReceipt := exampleZKReceipt_accepted
+  hAcceptance := exampleBuyerZKAcceptance_admitted
+  hOrderOfferWork := by
+    norm_num [exampleSafeOrder, exampleZKPrivateOffer, exampleWork, sameWork]
+  hReceiptOfferWork := by
+    norm_num [exampleZKReceipt, exampleZKPrivateOffer, exampleWork, sameWork]
+  hAcceptanceOfferWork := by
+    norm_num [exampleBuyerZKAcceptance, exampleZKPrivateOffer, exampleWork, sameWork]
+  hReceiptCommitment := by norm_num [exampleZKReceipt, exampleZKPrivateOffer]
+  hAcceptanceCommitment := by norm_num [exampleBuyerZKAcceptance, exampleZKPrivateOffer]
+  hHiddenBeforePayment := by norm_num [exampleZKPrivateOffer]
+  hPriceAtLeastAsk := by norm_num [exampleZKPrivateOffer]
+  hPriceAtMostOrder := by norm_num [exampleSafeOrder]
+  hPriceAtMostAcceptance := by norm_num [exampleBuyerZKAcceptance]
+
+theorem zk_pre_disclosure_assumptions_nonvacuous :
+    ∃ cert : ZKPreDisclosureCert,
+      cert.privateOffer.proofPubliclyDisclosed = false ∧
+        cert.receipt.accepted = true ∧
+        cert.acceptance.buyerAuthorized = true ∧
+        cert.acceptance.qualityAccepted = true ∧
+        cert.acceptance.escrowLocked = true ∧
+        cert.price = 7 := by
+  refine ⟨exampleZKPreDisclosureCert, ?_⟩
+  norm_num [exampleZKPreDisclosureCert, exampleZKPrivateOffer,
+    exampleZKReceipt, exampleBuyerZKAcceptance]
+
+def exampleZKReveal : ZKReveal where
+  proofCommitment := 777
+  publicArtifactRoot := 999
+  revealMatchesCommitment := true
+  artifactAvailable := true
+  decryptionKeyReleased := true
+
+def exampleZKPaymentReleaseCert : ZKPaymentReleaseCert where
+  pre := exampleZKPreDisclosureCert
+  reveal := exampleZKReveal
+  escrowBefore := 10
+  escrowAfter := 3
+  sellerCreditBefore := 5
+  sellerCreditAfter := 12
+  hRevealCommitment := by
+    norm_num [exampleZKReveal, exampleZKPreDisclosureCert, exampleZKPrivateOffer]
+  hRevealMatches := by norm_num [exampleZKReveal]
+  hArtifactAvailable := by norm_num [exampleZKReveal]
+  hKeyReleased := by norm_num [exampleZKReveal]
+  hEscrowBefore := by
+    norm_num [exampleZKPreDisclosureCert, exampleSafeOrder]
+  hEscrowDelta := by norm_num [exampleZKPreDisclosureCert]
+  hSellerDelta := by norm_num [exampleZKPreDisclosureCert]
+
+theorem zk_payment_release_assumptions_nonvacuous :
+    ∃ cert : ZKPaymentReleaseCert,
+      cert.pre.privateOffer.proofPubliclyDisclosed = false ∧
+        cert.reveal.decryptionKeyReleased = true ∧
+        cert.reveal.artifactAvailable = true ∧
+        cert.reveal.revealMatchesCommitment = true ∧
+        cert.escrowAfter = 3 ∧
+        cert.sellerCreditAfter = 12 := by
+  refine ⟨exampleZKPaymentReleaseCert, ?_⟩
+  norm_num [exampleZKPaymentReleaseCert, exampleZKPreDisclosureCert,
+    exampleZKPrivateOffer, exampleZKReveal]
+
 /-! ## Secondary-market boundary -/
 
 structure ProofMarketState where
