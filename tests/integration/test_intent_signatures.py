@@ -8,6 +8,7 @@ import pytest
 
 from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.integration.dex_engine import _verify_intent_signature_bytes
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_dex_intent_for_engine
 from src.state.canonical import canonical_json_bytes, domain_sep_bytes
 
 
@@ -88,6 +89,54 @@ def test_intent_signature_rejects_chain_id_session_replay_for_nonce_intent() -> 
     )
     assert ok is False
     assert err == "invalid intent signature"
+
+
+def test_intent_signature_rejects_nonce_projection_replay_between_auth_shapes() -> None:
+    pytest.importorskip("py_ecc")
+
+    privkey = 4
+    sender_pubkey_hex = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    chain_id = "tau-net-alpha"
+    common = {
+        "module": "TauSwap",
+        "version": "0.1",
+        "kind": "CREATE_POOL",
+        "intent_id": "0x" + "38" * 32,
+        "sender_pubkey": sender_pubkey_hex,
+        "deadline": 9999999999,
+    }
+    fields = {
+        "asset0": "0x" + "11" * 32,
+        "asset1": "0x" + "22" * 32,
+        "fee_bps": 30,
+        "amount0": 1000,
+        "amount1": 2000,
+        "created_at": 1,
+    }
+    producer_projection = {**common, "fields": dict(fields), "nonce": 1}
+    consumer_projection = {**common, **fields, "nonce": 1}
+
+    signature_hex = sign_dex_intent_for_engine(producer_projection, privkey=privkey, chain_id=chain_id)
+    producer_signing_dict = build_dex_intent_signing_dict_v1(producer_projection)
+    consumer_signing_dict = build_dex_intent_signing_dict_v1(consumer_projection)
+    assert producer_signing_dict["fields"] == fields
+    assert consumer_signing_dict["fields"] == {**fields, "nonce": 1}
+
+    producer_ok, producer_err = _verify_intent_signature_bytes(
+        sender_pubkey_hex=sender_pubkey_hex,
+        signature_hex=signature_hex,
+        signing_payload_bytes=canonical_json_bytes(producer_signing_dict),
+        chain_id=chain_id,
+    )
+    consumer_ok, consumer_err = _verify_intent_signature_bytes(
+        sender_pubkey_hex=sender_pubkey_hex,
+        signature_hex=signature_hex,
+        signing_payload_bytes=canonical_json_bytes(consumer_signing_dict),
+        chain_id=chain_id,
+    )
+    assert producer_ok, producer_err
+    assert consumer_ok is False
+    assert consumer_err == "invalid intent signature"
 
 
 def test_intent_signature_rejects_payload_mismatch() -> None:
