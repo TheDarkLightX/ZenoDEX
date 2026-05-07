@@ -249,6 +249,36 @@ def test_parse_signed_intents_output_rejects_mixed_nonce_live_admission_floor() 
     assert updated is None
 
 
+def test_parse_signed_intents_output_rejects_invalid_sender_boundary_before_nonce_update() -> None:
+    sender = "0x" + "50" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "50" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+        "signature": "0xsig-valid-sender",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "51" * 32),
+        "sender_pubkey": "not-hex",
+        "nonce": 2,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-invalid-sender"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-valid-sender", "0xsig-invalid-sender"]
+    assert [env.intent.sender_pubkey for env in envs] == [sender, "not-hex"]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, 2]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err is not None
+    assert err.startswith("invalid sender_pubkey for nonce accounting:")
+    assert updated is None
+
+
 def test_create_intent_operation_rejects_quote_receipt_reserved_key() -> None:
     intent = Intent(
         module="TauSwap",
