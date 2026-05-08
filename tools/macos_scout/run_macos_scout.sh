@@ -16,8 +16,32 @@ export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
 export JULIA_EXCLUSIVE="${JULIA_EXCLUSIVE:-1}"
 
 STAMP="$(date +%Y%m%d_%H%M%S)"
-OUTDIR="internal/macos_scout_runs/${STAMP}_${MODE}"
-mkdir -p "$OUTDIR"
+RUN_ROOT="${MACOS_SCOUT_RUN_ROOT:-internal/macos_scout_runs}"
+mkdir -p "$RUN_ROOT"
+
+if [[ -n "${MACOS_SCOUT_OUTDIR:-}" ]]; then
+  OUTDIR="$MACOS_SCOUT_OUTDIR"
+  mkdir -p "$OUTDIR"
+else
+  RUN_BASE="${RUN_ROOT}/${STAMP}_${MODE}"
+  OUTDIR=""
+  for suffix in "" "_pid$$" "_pid$$_1" "_pid$$_2" "_pid$$_3" "_pid$$_4" "_pid$$_5"; do
+    candidate="${RUN_BASE}${suffix}"
+    if mkdir "$candidate" 2>/dev/null; then
+      OUTDIR="$candidate"
+      break
+    fi
+  done
+  if [[ -z "$OUTDIR" ]]; then
+    echo "failed to allocate unique scout output directory under $RUN_ROOT" >&2
+    exit 1
+  fi
+fi
+
+if [[ "${MACOS_SCOUT_ALLOCATE_ONLY:-0}" == "1" ]]; then
+  echo "$OUTDIR"
+  exit 0
+fi
 
 {
   echo "date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")"

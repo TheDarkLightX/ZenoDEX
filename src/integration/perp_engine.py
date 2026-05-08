@@ -408,7 +408,16 @@ def _apply_clearinghouse_market_params(
         position_base_c=int(state.get("position_base_c", 0)),
         old_liquidation_penalty_bps=int(state.get("liquidation_penalty_bps", 0)),
         new_liquidation_penalty_bps=int(new_state.get("liquidation_penalty_bps", 0)),
+        old_max_oracle_move_bps=int(state.get("max_oracle_move_bps", 0)),
+        new_max_oracle_move_bps=int(new_state.get("max_oracle_move_bps", 0)),
+        old_max_oracle_staleness_epochs=int(state.get("max_oracle_staleness_epochs", 0)),
+        new_max_oracle_staleness_epochs=int(new_state.get("max_oracle_staleness_epochs", 0)),
+        old_initial_margin_bps=int(state.get("initial_margin_bps", 0)),
+        new_initial_margin_bps=int(new_state.get("initial_margin_bps", 0)),
+        old_maintenance_margin_bps=int(state.get("maintenance_margin_bps", 0)),
         new_maintenance_margin_bps=int(new_state.get("maintenance_margin_bps", 0)),
+        old_max_position_abs=int(state.get("max_position_abs", 0)),
+        new_max_position_abs=int(new_state.get("max_position_abs", 0)),
     )
     if not guard.admission_ok:
         raise ValueError(perp_clearinghouse_market_params_guard_error(guard) or "invalid clearinghouse market params")
@@ -1531,7 +1540,16 @@ def _apply_ch2p_op(
             position_base_c=0,
             old_liquidation_penalty_bps=int(ch2p_market.state.get("liquidation_penalty_bps", 0)),
             new_liquidation_penalty_bps=int(ch2p_market.state.get("liquidation_penalty_bps", 0)),
+            old_max_oracle_move_bps=int(ch2p_market.state.get("max_oracle_move_bps", 0)),
+            new_max_oracle_move_bps=int(ch2p_market.state.get("max_oracle_move_bps", 0)),
+            old_max_oracle_staleness_epochs=int(ch2p_market.state.get("max_oracle_staleness_epochs", 0)),
+            new_max_oracle_staleness_epochs=int(ch2p_market.state.get("max_oracle_staleness_epochs", 0)),
+            old_initial_margin_bps=int(ch2p_market.state.get("initial_margin_bps", 0)),
+            new_initial_margin_bps=int(ch2p_market.state.get("initial_margin_bps", 0)),
+            old_maintenance_margin_bps=int(ch2p_market.state.get("maintenance_margin_bps", 0)),
             new_maintenance_margin_bps=int(ch2p_market.state.get("maintenance_margin_bps", 0)),
+            old_max_position_abs=int(ch2p_market.state.get("max_position_abs", 0)),
+            new_max_position_abs=int(ch2p_market.state.get("max_position_abs", 0)),
         )
         pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
         if pre_guard_error is not None:
@@ -1886,7 +1904,16 @@ def _apply_ch3p_op(
             position_base_c=int(ch3p_market.state.get("position_base_c", 0)),
             old_liquidation_penalty_bps=int(ch3p_market.state.get("liquidation_penalty_bps", 0)),
             new_liquidation_penalty_bps=int(ch3p_market.state.get("liquidation_penalty_bps", 0)),
+            old_max_oracle_move_bps=int(ch3p_market.state.get("max_oracle_move_bps", 0)),
+            new_max_oracle_move_bps=int(ch3p_market.state.get("max_oracle_move_bps", 0)),
+            old_max_oracle_staleness_epochs=int(ch3p_market.state.get("max_oracle_staleness_epochs", 0)),
+            new_max_oracle_staleness_epochs=int(ch3p_market.state.get("max_oracle_staleness_epochs", 0)),
+            old_initial_margin_bps=int(ch3p_market.state.get("initial_margin_bps", 0)),
+            new_initial_margin_bps=int(ch3p_market.state.get("initial_margin_bps", 0)),
+            old_maintenance_margin_bps=int(ch3p_market.state.get("maintenance_margin_bps", 0)),
             new_maintenance_margin_bps=int(ch3p_market.state.get("maintenance_margin_bps", 0)),
+            old_max_position_abs=int(ch3p_market.state.get("max_position_abs", 0)),
+            new_max_position_abs=int(ch3p_market.state.get("max_position_abs", 0)),
         )
         pre_guard_error = perp_clearinghouse_market_params_guard_error(pre_guard)
         if pre_guard_error is not None:
