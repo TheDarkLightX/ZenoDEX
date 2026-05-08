@@ -36,6 +36,7 @@ UNKNOWN_BLOCKED = "UNKNOWN_BLOCKED"
 OPEN = "OPEN_FOR_BOUNDED_RESEARCH"
 BLOCKED = "BLOCKED_REACHABLE_WITNESS"
 MATERIALIZED_INDEPENDENT_ORDER = 2
+GRAPH_PATH_MIN_SURFACES = 3
 
 
 @dataclass(frozen=True)
@@ -166,6 +167,17 @@ def _witness(witness_id: str, family: str, surfaces: Sequence[str], reasons: Seq
     }
 
 
+def _reasons_for_surfaces(by_id: dict[str, dict[str, Any]], surfaces: Sequence[str]) -> list[str]:
+    reasons: list[str] = []
+    seen: set[str] = set()
+    for surface_id in surfaces:
+        if surface_id in seen:
+            continue
+        seen.add(surface_id)
+        reasons.extend(by_id[surface_id]["disaster_states"])
+    return reasons
+
+
 def _materialize_witnesses(atlas: dict[str, Any], reason_counts: Counter[str]) -> list[dict[str, Any]]:
     by_id = _surface_by_id(atlas)
     witnesses: list[dict[str, Any]] = []
@@ -181,7 +193,7 @@ def _materialize_witnesses(atlas: dict[str, Any], reason_counts: Counter[str]) -
                 )
             )
     for src, dst in atlas["composition_edges"]:
-        reasons = by_id[src]["disaster_states"] + by_id[dst]["disaster_states"]
+        reasons = _reasons_for_surfaces(by_id, [src, dst])
         witnesses.append(
             _witness(
                 f"edge:{src}->{dst}",
@@ -201,12 +213,58 @@ def _materialize_witnesses(atlas: dict[str, Any], reason_counts: Counter[str]) -
             )
         )
     for src, dst in atlas["reentry_edges"]:
-        reasons = by_id[src]["disaster_states"] + by_id[dst]["disaster_states"]
+        reasons = _reasons_for_surfaces(by_id, [src, dst])
         witnesses.append(
             _witness(
                 f"reentry:{src}->{dst}",
                 "reentry_retry_disaster",
                 [src, dst],
+                reasons,
+                _classify_reasons(reason_counts, reasons),
+            )
+        )
+    for path in _terminal_simple_paths(atlas):
+        reasons = _reasons_for_surfaces(by_id, path)
+        witnesses.append(
+            _witness(
+                f"chain:{'->'.join(path)}",
+                "chain_terminal_disaster",
+                list(path),
+                reasons,
+                _classify_reasons(reason_counts, reasons),
+            )
+        )
+    for src, dst_a, dst_b in _fanout_cases(atlas):
+        surfaces = [src, dst_a, dst_b]
+        reasons = _reasons_for_surfaces(by_id, surfaces)
+        witnesses.append(
+            _witness(
+                f"fanout:{src}->{dst_a}+{dst_b}",
+                "fanout_composition_disaster",
+                surfaces,
+                reasons,
+                _classify_reasons(reason_counts, reasons),
+            )
+        )
+    for dst, src_a, src_b in _convergence_cases(atlas):
+        surfaces = [src_a, dst, src_b]
+        reasons = _reasons_for_surfaces(by_id, surfaces)
+        witnesses.append(
+            _witness(
+                f"convergence:{src_a}+{src_b}->{dst}",
+                "convergence_composition_disaster",
+                surfaces,
+                reasons,
+                _classify_reasons(reason_counts, reasons),
+            )
+        )
+    for cycle in _simple_cycles(atlas):
+        reasons = _reasons_for_surfaces(by_id, cycle)
+        witnesses.append(
+            _witness(
+                f"cycle:{'->'.join(cycle)}->{cycle[0]}",
+                "cycle_amplification_disaster",
+                list(cycle),
                 reasons,
                 _classify_reasons(reason_counts, reasons),
             )
@@ -233,9 +291,116 @@ def _materialize_witnesses(atlas: dict[str, Any], reason_counts: Counter[str]) -
     return witnesses
 
 
+def _graph_edges(atlas: dict[str, Any]) -> list[tuple[str, str]]:
+    return atlas["composition_edges"] + atlas["reentry_edges"]
+
+
+def _successors(atlas: dict[str, Any]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {surface["id"]: [] for surface in atlas["surfaces"]}
+    for src, dst in _graph_edges(atlas):
+        out[src].append(dst)
+    return out
+
+
+def _predecessors(atlas: dict[str, Any]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {surface["id"]: [] for surface in atlas["surfaces"]}
+    for src, dst in _graph_edges(atlas):
+        out[dst].append(src)
+    return out
+
+
+def _simple_paths(atlas: dict[str, Any]) -> list[tuple[str, ...]]:
+    successors = _successors(atlas)
+    paths: list[tuple[str, ...]] = []
+
+    def walk(path: list[str]) -> None:
+        if len(path) >= GRAPH_PATH_MIN_SURFACES:
+            paths.append(tuple(path))
+        if len(path) >= atlas["depth"]:
+            return
+        for next_surface in successors[path[-1]]:
+            if next_surface not in path:
+                walk([*path, next_surface])
+
+    for surface in atlas["surfaces"]:
+        walk([surface["id"]])
+    return paths
+
+
+def _terminal_simple_paths(atlas: dict[str, Any]) -> list[tuple[str, ...]]:
+    successors = _successors(atlas)
+    terminal: list[tuple[str, ...]] = []
+    for path in _simple_paths(atlas):
+        can_extend = any(next_surface not in path for next_surface in successors[path[-1]])
+        if len(path) == atlas["depth"] or not can_extend:
+            terminal.append(path)
+    return terminal
+
+
+def _fanout_cases(atlas: dict[str, Any]) -> list[tuple[str, str, str]]:
+    successors = _successors(atlas)
+    cases: list[tuple[str, str, str]] = []
+    for surface in atlas["surfaces"]:
+        surface_id = surface["id"]
+        for dst_a, dst_b in combinations(successors[surface_id], 2):
+            cases.append((surface_id, dst_a, dst_b))
+    return cases
+
+
+def _convergence_cases(atlas: dict[str, Any]) -> list[tuple[str, str, str]]:
+    predecessors = _predecessors(atlas)
+    cases: list[tuple[str, str, str]] = []
+    for surface in atlas["surfaces"]:
+        surface_id = surface["id"]
+        for src_a, src_b in combinations(predecessors[surface_id], 2):
+            cases.append((surface_id, src_a, src_b))
+    return cases
+
+
+def _canonical_cycle(cycle: tuple[str, ...]) -> tuple[str, ...]:
+    rotations = [cycle[index:] + cycle[:index] for index in range(len(cycle))]
+    return min(rotations)
+
+
+def _simple_cycles(atlas: dict[str, Any]) -> list[tuple[str, ...]]:
+    successors = _successors(atlas)
+    cycles: set[tuple[str, ...]] = set()
+
+    def walk(start: str, path: list[str]) -> None:
+        if len(path) > atlas["depth"]:
+            return
+        for next_surface in successors[path[-1]]:
+            if next_surface == start and len(path) >= GRAPH_PATH_MIN_SURFACES:
+                cycles.add(_canonical_cycle(tuple(path)))
+            elif next_surface not in path and len(path) < atlas["depth"]:
+                walk(start, [*path, next_surface])
+
+    for surface in atlas["surfaces"]:
+        walk(surface["id"], [surface["id"]])
+    return sorted(cycles)
+
+
+def _graph_frontier(atlas: dict[str, Any]) -> dict[str, Any]:
+    simple_paths = _simple_paths(atlas)
+    terminal_paths = _terminal_simple_paths(atlas)
+    fanouts = _fanout_cases(atlas)
+    convergences = _convergence_cases(atlas)
+    cycles = _simple_cycles(atlas)
+    return {
+        "surface_count": len(atlas["surfaces"]),
+        "max_simple_path_depth": atlas["depth"],
+        "simple_path_count": len(simple_paths),
+        "terminal_path_count": len(terminal_paths),
+        "fanout_count": len(fanouts),
+        "convergence_count": len(convergences),
+        "cycle_count": len(cycles),
+        "simple_path_frontier_exhausted": True,
+    }
+
+
 def _adjacent_pairs(atlas: dict[str, Any]) -> set[frozenset[str]]:
     pairs: set[frozenset[str]] = set()
-    for edge in atlas["composition_edges"] + atlas["reentry_edges"]:
+    for edge in _graph_edges(atlas):
         pairs.add(frozenset(edge))
     return pairs
 
@@ -356,6 +521,7 @@ def build_receipt(
     reachable = [item for item in witnesses if item["verdict"] == REACHABLE]
     mutations = _synthetic_mutations(known_reasons)
     frontier = _compressed_frontier(atlas)
+    graph_frontier = _graph_frontier(atlas)
     dirty_paths = _worktree_dirty(
         [
             "tools/macos_scout/build_witness_space_receipt.py",
@@ -383,6 +549,7 @@ def build_receipt(
         "family_counts": _family_counts(witnesses),
         "verdict_counts": _verdict_counts(witnesses),
         "frontier": frontier,
+        "graph_frontier": graph_frontier,
         "regression": {
             "run_count": regression["run_count"],
             "counterexample_count": regression["counterexample_count"],
@@ -418,6 +585,7 @@ def _print_text(receipt: dict[str, Any]) -> None:
     print(f"family_counts = {json.dumps(receipt['family_counts'], sort_keys=True)}")
     print(f"verdict_counts = {json.dumps(receipt['verdict_counts'], sort_keys=True)}")
     print(f"compressed_frontier_total = {receipt['frontier']['total']}")
+    print(f"graph_frontier = {json.dumps(receipt['graph_frontier'], sort_keys=True)}")
     if receipt["gate_critical_dirty_paths"]:
         print(f"gate_critical_dirty_paths = {json.dumps(receipt['gate_critical_dirty_paths'], sort_keys=True)}")
 

@@ -1895,10 +1895,11 @@ claims:
       for the disaster classes found during local M3 Max runs. The gate maps
       simulator hazards and assurance-workflow hazards into a tracked atlas,
       materializes single-surface, edge-composition, order-inversion, re-entry,
-      and independent co-reachability witnesses, classifies each witness against
-      the regression gate's reason counts, runs synthetic fail-closed checks for
-      unclassified reasons and unsafe promotion candidates, and emits a stable
-      receipt hash.
+      terminal-chain, fan-out, convergence, cycle-amplification, and independent
+      co-reachability witnesses, classifies each witness against the regression
+      gate's reason counts, records the bounded graph frontier, runs synthetic
+      fail-closed checks for unclassified reasons and unsafe promotion
+      candidates, and emits a stable receipt hash.
       The tracked fixture proves the checker opens on zero-counterexample scout
       receipts and blocks on pre-hardening counterexample receipts. Full Mac
       campaign outputs remain under ignored `internal/` paths and are evidence
