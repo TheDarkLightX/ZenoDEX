@@ -28,7 +28,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping, Union
 
-
 try:
     import yaml  # type: ignore
 

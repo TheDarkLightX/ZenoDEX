@@ -21,7 +21,6 @@ from typing import Dict, Literal, Union
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
 
-
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
 Value = Union[bool, int, str]
 
@@ -369,7 +368,7 @@ class PerpMarketState:
             if ep not in _EPOCH_PHASE_INT_TO_STR:
                 raise ValueError(f"global_state['epoch_phase'] int value {ep} out of range [0,2]")
         else:
-            raise TypeError(f"global_state['epoch_phase'] must be a str or int")
+            raise TypeError("global_state['epoch_phase'] must be a str or int")
         for k, v in list(self.global_state.items()):
             # epoch_phase must be the canonical int encoding (never bool/str after normalization).
             if k == "epoch_phase":
