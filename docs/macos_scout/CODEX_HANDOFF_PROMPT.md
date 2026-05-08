@@ -42,6 +42,7 @@ bash tools/macos_scout/run_macos_scout.sh smoke
 Before a serious run, read:
 
 ```text
+docs/macos_scout/MAC_AGENT_COMPUTE_MAX_WORK_QUEUE.md
 docs/macos_scout/MAC_AGENT_OPERATING_LOOP.md
 docs/macos_scout/MACOS_OPTIMIZATION_BRIEF.md
 ```
@@ -62,6 +63,13 @@ For a maximum local CPU/memory campaign:
 
 ```bash
 bash tools/macos_scout/run_macos_scout.sh soak
+```
+
+For the current compute-max work queue:
+
+```bash
+bash tools/macos_scout/run_compute_campaign.sh
+RUN_SOAK=1 bash tools/macos_scout/run_compute_campaign.sh
 ```
 
 Optional Metal GPU check:

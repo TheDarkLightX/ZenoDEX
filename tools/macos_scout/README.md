@@ -18,6 +18,17 @@ Modes:
 - `deep`: larger run suitable for an overnight Mac session.
 - `soak`: maximum local CPU/memory campaign for the 128GB machine.
 
+For a multi-seed compute campaign:
+
+```bash
+bash tools/macos_scout/run_compute_campaign.sh
+RUN_SOAK=1 bash tools/macos_scout/run_compute_campaign.sh
+```
+
+The campaign wrapper runs smoke, several scout seeds, deep seeds, an optional
+soak, an aggregate witness-space receipt, and a campaign summary under
+`internal/macos_scout_campaigns/`.
+
 The launcher sets `OPENBLAS_NUM_THREADS=1`, `VECLIB_MAXIMUM_THREADS=1`, and
 `OMP_NUM_THREADS=1` by default so Julia task threads get the CPU instead of
 nested helper pools.
@@ -60,6 +71,14 @@ Each run writes:
 - `regression_gate.json`
 - `witness_space_receipt.json`
 - `host_info.txt`
+
+Campaign runs also write:
+
+- `campaign_env.txt`
+- `campaign_summary.json`
+- `campaign_review.md`
+- `witness_space_receipt.json`
+- `witness_space_receipt.txt`
 
 Review `counterexamples.jsonl` before reviewing top candidates.
 

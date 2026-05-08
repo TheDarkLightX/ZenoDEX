@@ -4,6 +4,7 @@ Transfer these paths to the Mac if you are not using a temporary Git branch:
 
 ```text
 docs/macos_scout/CODEX_HANDOFF_PROMPT.md
+docs/macos_scout/MAC_AGENT_COMPUTE_MAX_WORK_QUEUE.md
 docs/macos_scout/MAC_AGENT_OPERATING_LOOP.md
 docs/macos_scout/MACOS_OPTIMIZATION_BRIEF.md
 docs/macos_scout/M3_MAX_128GB_CAPABILITY_NOTE.md
@@ -18,7 +19,9 @@ tools/macos_scout/scout_regression_manifest.json
 tools/macos_scout/witness_space_atlas.json
 tools/macos_scout/metal_prefilter.jl
 tools/macos_scout/metal_smoke.jl
+tools/macos_scout/run_compute_campaign.sh
 tools/macos_scout/run_macos_scout.sh
+tools/macos_scout/summarize_compute_campaign.py
 tools/macos_scout/summarize_scout_outputs.py
 tools/macos_scout/make_transfer_bundle.sh
 ```
