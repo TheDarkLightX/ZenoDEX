@@ -171,3 +171,17 @@ synthetic fail-closed mutations reject as expected, and release runs using
 bounded graph frontier is recorded in the receipt, while independent
 co-reachability above the materialized order is kept as a compressed frontier
 count rather than expanded into raw witness rows.
+
+For public claim evidence, pair the current zero-counterexample run with a
+blocked witness run:
+
+```bash
+python3 tools/macos_scout/build_witness_space_receipt.py \
+  --run-dir tests/fixtures/macos_scout/post_hardening_zero \
+  --blocked-run-dir tests/fixtures/macos_scout/pre_hardening_blocked \
+  --require-clean
+```
+
+This mirrors the stateful witness-coverage technique used elsewhere in
+ZenoDEX: the blocked run must still witness every repeat-regression surface,
+and the current run must not reopen any of those surfaces.

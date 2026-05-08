@@ -142,6 +142,20 @@ def _known_reasons(manifest_path: Path) -> set[str]:
     }
 
 
+def _reason_statuses(manifest_path: Path) -> dict[str, str]:
+    payload = _load_json(manifest_path)
+    entries = payload.get("reason_classes")
+    if not isinstance(entries, list):
+        raise WitnessCheckError("reason manifest must contain reason_classes")
+    out: dict[str, str] = {}
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            continue
+        reason = _require_str(entry.get("reason"), name=f"reason_classes[{index}].reason")
+        out[reason] = _require_str(entry.get("status"), name=f"{reason}.status")
+    return out
+
+
 def _reason_counts(regression_receipt: dict[str, Any]) -> Counter[str]:
     counts: Counter[str] = Counter()
     for reason, count in regression_receipt.get("aggregate_reason_counts", {}).items():
@@ -155,6 +169,22 @@ def _surface_by_id(atlas: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def _classify_reasons(reason_counts: Counter[str], reasons: Iterable[str]) -> str:
     return REACHABLE if any(reason_counts.get(reason, 0) > 0 for reason in reasons) else NO_REACHABLE
+
+
+def _reachable_surface_ids(atlas: dict[str, Any], reason_counts: Counter[str]) -> list[str]:
+    return sorted(
+        surface["id"]
+        for surface in atlas["surfaces"]
+        if any(reason_counts.get(reason, 0) > 0 for reason in surface["disaster_states"])
+    )
+
+
+def _surface_ids_for_reason_status(atlas: dict[str, Any], reason_statuses: dict[str, str], status: str) -> list[str]:
+    return sorted(
+        surface["id"]
+        for surface in atlas["surfaces"]
+        if any(reason_statuses.get(reason) == status for reason in surface["disaster_states"])
+    )
 
 
 def _witness(witness_id: str, family: str, surfaces: Sequence[str], reasons: Sequence[str], verdict: str) -> dict[str, Any]:
@@ -499,11 +529,42 @@ def _verdict_counts(witnesses: Sequence[dict[str, Any]]) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
+def _blocked_run_coverage(
+    *,
+    atlas: dict[str, Any],
+    reason_statuses: dict[str, str],
+    current_reason_counts: Counter[str],
+    blocked_regression: dict[str, Any],
+) -> dict[str, Any]:
+    blocked_counts = _reason_counts(blocked_regression)
+    repeat_surface_ids = _surface_ids_for_reason_status(atlas, reason_statuses, "repeat_regression_target")
+    blocked_reachable_surface_ids = _reachable_surface_ids(atlas, blocked_counts)
+    current_reachable_surface_ids = _reachable_surface_ids(atlas, current_reason_counts)
+    blocked_reachable = set(blocked_reachable_surface_ids)
+    current_reachable = set(current_reachable_surface_ids)
+    repeat_surfaces = set(repeat_surface_ids)
+    covered_repeat = repeat_surfaces & blocked_reachable
+    return {
+        "schema": "zenodex/macos-scout-blocked-witness-coverage/v1",
+        "blocked_run_count": blocked_regression["run_count"],
+        "blocked_counterexample_count": blocked_regression["counterexample_count"],
+        "blocked_regression_ok": blocked_regression["ok"],
+        "repeat_regression_surface_ids": repeat_surface_ids,
+        "blocked_reachable_surface_ids": blocked_reachable_surface_ids,
+        "current_reachable_surface_ids": current_reachable_surface_ids,
+        "covered_repeat_regression_surface_ids": sorted(covered_repeat),
+        "missing_repeat_regression_surface_ids": sorted(repeat_surfaces - covered_repeat),
+        "closed_repeat_regression_surface_ids": sorted(covered_repeat - current_reachable),
+        "reopened_repeat_regression_surface_ids": sorted(repeat_surfaces & current_reachable),
+    }
+
+
 def build_receipt(
     run_dirs: Sequence[str | Path],
     *,
     atlas_path: str | Path = DEFAULT_ATLAS,
     manifest_path: str | Path = DEFAULT_MANIFEST,
+    blocked_run_dirs: Sequence[str | Path] | None = None,
     require_clean: bool = False,
 ) -> dict[str, Any]:
     if not run_dirs:
@@ -511,6 +572,7 @@ def build_receipt(
     manifest_path = Path(manifest_path)
     atlas_path = Path(atlas_path)
     known_reasons = _known_reasons(manifest_path)
+    reason_statuses = _reason_statuses(manifest_path)
     atlas = _load_atlas(atlas_path, known_reasons)
     try:
         regression = build_regression_receipt(run_dirs, manifest_path=manifest_path)
@@ -519,6 +581,19 @@ def build_receipt(
     counts = _reason_counts(regression)
     witnesses = _materialize_witnesses(atlas, counts)
     reachable = [item for item in witnesses if item["verdict"] == REACHABLE]
+    blocked_regression = None
+    blocked_witness_coverage = None
+    if blocked_run_dirs:
+        try:
+            blocked_regression = build_regression_receipt(blocked_run_dirs, manifest_path=manifest_path)
+        except RegressionCheckError as exc:
+            raise WitnessCheckError(str(exc)) from exc
+        blocked_witness_coverage = _blocked_run_coverage(
+            atlas=atlas,
+            reason_statuses=reason_statuses,
+            current_reason_counts=counts,
+            blocked_regression=blocked_regression,
+        )
     mutations = _synthetic_mutations(known_reasons)
     frontier = _compressed_frontier(atlas)
     graph_frontier = _graph_frontier(atlas)
@@ -531,12 +606,21 @@ def build_receipt(
         ]
     )
     clean_ok = not dirty_paths or not require_clean
+    blocked_coverage_ok = (
+        blocked_witness_coverage is None
+        or (
+            blocked_witness_coverage["blocked_regression_ok"]
+            and not blocked_witness_coverage["missing_repeat_regression_surface_ids"]
+            and not blocked_witness_coverage["reopened_repeat_regression_surface_ids"]
+        )
+    )
     gate_open = (
         regression["ok"]
         and regression["counterexample_count"] == 0
         and not reachable
         and all(mutation["fail_closed"] for mutation in mutations)
         and clean_ok
+        and blocked_coverage_ok
     )
     stable_payload = {
         "schema": RECEIPT_SCHEMA,
@@ -558,6 +642,8 @@ def build_receipt(
         "synthetic_mutations": mutations,
         "gate": OPEN if gate_open else BLOCKED,
     }
+    if blocked_witness_coverage is not None:
+        stable_payload["blocked_witness_coverage"] = blocked_witness_coverage
     receipt = {
         **stable_payload,
         "stable_receipt_hash": _stable_hash(stable_payload),
@@ -565,10 +651,12 @@ def build_receipt(
         "atlas_path": str(atlas_path),
         "manifest_path": str(manifest_path),
         "run_dirs": [str(path) for path in run_dirs],
+        "blocked_run_dirs": [str(path) for path in blocked_run_dirs or []],
         "materialized_witness_count": len(witnesses),
         "reachable_witness_count": len(reachable),
         "reachable_witnesses": reachable[:20],
         "regression_gate": regression,
+        "blocked_regression_gate": blocked_regression,
         "gate_critical_dirty_paths": dirty_paths,
         "require_clean": require_clean,
     }
@@ -586,6 +674,8 @@ def _print_text(receipt: dict[str, Any]) -> None:
     print(f"verdict_counts = {json.dumps(receipt['verdict_counts'], sort_keys=True)}")
     print(f"compressed_frontier_total = {receipt['frontier']['total']}")
     print(f"graph_frontier = {json.dumps(receipt['graph_frontier'], sort_keys=True)}")
+    if receipt.get("blocked_witness_coverage"):
+        print(f"blocked_witness_coverage = {json.dumps(receipt['blocked_witness_coverage'], sort_keys=True)}")
     if receipt["gate_critical_dirty_paths"]:
         print(f"gate_critical_dirty_paths = {json.dumps(receipt['gate_critical_dirty_paths'], sort_keys=True)}")
 
@@ -595,6 +685,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--atlas", default=str(DEFAULT_ATLAS))
     parser.add_argument("--manifest", default=str(DEFAULT_MANIFEST))
     parser.add_argument("--run-dir", action="append", required=True, help="Post-hardening scout run directory; repeatable.")
+    parser.add_argument(
+        "--blocked-run-dir",
+        action="append",
+        default=[],
+        help="Blocked pre-hardening or synthetic witness run directory; repeatable.",
+    )
     parser.add_argument("--require-clean", action="store_true")
     parser.add_argument("--output")
     parser.add_argument("--format", choices=("text", "json"), default="text")
@@ -604,6 +700,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.run_dir,
             atlas_path=args.atlas,
             manifest_path=args.manifest,
+            blocked_run_dirs=args.blocked_run_dir,
             require_clean=bool(args.require_clean),
         )
     except WitnessCheckError as exc:

@@ -87,6 +87,18 @@ cycle, and independent co-reachability witnesses from
 count the compressed independent frontier, run synthetic fail-closed checks, and
 emit a stable receipt hash.
 
+For release evidence, include a blocked witness run:
+
+```bash
+python3 tools/macos_scout/build_witness_space_receipt.py \
+  --run-dir tests/fixtures/macos_scout/post_hardening_zero \
+  --blocked-run-dir tests/fixtures/macos_scout/pre_hardening_blocked \
+  --require-clean
+```
+
+The blocked run ratchets the repeat-regression surfaces: they must be witnessed
+as reachable in the blocked fixture and absent from the current hardened run.
+
 ## Promotion Rule
 
 Promote only:
