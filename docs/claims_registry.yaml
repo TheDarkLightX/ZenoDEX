@@ -1897,9 +1897,11 @@ claims:
       materializes single-surface, edge-composition, order-inversion, re-entry,
       terminal-chain, fan-out, convergence, cycle-amplification, and independent
       co-reachability witnesses, classifies each witness against the regression
-      gate's reason counts, records the bounded graph frontier, runs synthetic
-      fail-closed checks for unclassified reasons and unsafe promotion
-      candidates, and emits a stable receipt hash.
+      gate's reason counts, records the bounded graph frontier, ratchets the
+      current zero-counterexample run against a replayable blocked witness for
+      every repeat-regression surface, runs synthetic fail-closed checks for
+      unclassified reasons and unsafe promotion candidates, and emits a stable
+      receipt hash.
       The tracked fixture proves the checker opens on zero-counterexample scout
       receipts and blocks on pre-hardening counterexample receipts. Full Mac
       campaign outputs remain under ignored `internal/` paths and are evidence
@@ -1907,7 +1909,7 @@ claims:
     evidence:
       kind: python
       check:
-        - cmd: python3 tools/macos_scout/build_witness_space_receipt.py --run-dir tests/fixtures/macos_scout/post_hardening_zero --require-clean --format text
+        - cmd: python3 tools/macos_scout/build_witness_space_receipt.py --run-dir tests/fixtures/macos_scout/post_hardening_zero --blocked-run-dir tests/fixtures/macos_scout/pre_hardening_blocked --require-clean --format text
         - cmd: pytest -q tests/test_macos_scout_witness_space_receipt.py tests/test_macos_scout_regression_gate.py
       files:
         - tools/macos_scout/build_witness_space_receipt.py

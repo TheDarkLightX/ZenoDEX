@@ -168,6 +168,7 @@ python3 tools/macos_scout/build_witness_space_receipt.py \
   --run-dir internal/macos_scout_runs/20260508_173348_deep \
   --run-dir internal/macos_scout_runs/20260508_174948_deep \
   --run-dir internal/macos_scout_runs/20260508_175632_soak \
+  --blocked-run-dir internal/macos_scout_runs/20260508_172456_scout \
   --output internal/macos_scout_runs/witness_space_receipt_20260508.json
 ```
 
@@ -175,13 +176,14 @@ Receipt:
 
 ```text
 gate = OPEN_FOR_BOUNDED_RESEARCH
-stable_receipt_hash = sha256:a9c996114db22efb2d12ebd626de2ce03462aedafeacbc87b1cff1d1ffbf19fd
+stable_receipt_hash = sha256:ed2f574f8d37f66983c5e5403d6abcdc1abdb2ff81de3c24d107c3e69ab398b4
 materialized_witness_count = 65
 reachable_witness_count = 0
 family_counts = {"chain_terminal_disaster": 12, "convergence_composition_disaster": 4, "cycle_amplification_disaster": 3, "edge_composition_disaster": 8, "fanout_composition_disaster": 2, "independent_2_coreachability": 18, "order_inversion_disaster": 8, "reentry_retry_disaster": 2, "single_surface_disaster": 8}
 verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 65}
 compressed_frontier_total = 9
 graph_frontier = {"convergence_count": 4, "cycle_count": 3, "fanout_count": 2, "max_simple_path_depth": 5, "simple_path_count": 17, "simple_path_frontier_exhausted": true, "surface_count": 8, "terminal_path_count": 12}
+blocked_witness_coverage = {"blocked_counterexample_count": 50000, "closed_repeat_regression_surface_ids": ["epoch_payout_budget", "oracle_liquidity_guard", "thin_liquidity_funding_clamp"], "missing_repeat_regression_surface_ids": [], "reopened_repeat_regression_surface_ids": []}
 ```
 
 The pre-hardening baseline run blocks under the same witness-space gate:
@@ -194,9 +196,9 @@ verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 22, "REACHABLE_DISASTER_WITNES
 ```
 
 The tracked public fixture receipt for a zero-counterexample post-hardening run
-is stable at
-`sha256:3cf55a9dc31294e707c0e219d335ebf258ad42d77670ef67862052a85f5e8d5a`;
-the paired pre-hardening fixture remains blocked at
+paired with a blocked witness fixture is stable at
+`sha256:3ac9a17bec691e90f7420314f05348cb66dd00344b9c111264f9030baccbb18d`.
+The paired pre-hardening fixture remains blocked at
 `sha256:ab48553793c32f496ad857722c5e44df8da14d2abdf97d748a9e0bdfa81eca55`.
 
 Next promotion work should target lower guard-block rates and higher

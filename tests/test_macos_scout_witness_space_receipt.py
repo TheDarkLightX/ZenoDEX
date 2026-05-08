@@ -11,8 +11,13 @@ from tools.macos_scout.build_witness_space_receipt import build_receipt
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "macos_scout"
-POST_HARDENING_FIXTURE_HASH = "sha256:3cf55a9dc31294e707c0e219d335ebf258ad42d77670ef67862052a85f5e8d5a"
+POST_HARDENING_FIXTURE_HASH = "sha256:3ac9a17bec691e90f7420314f05348cb66dd00344b9c111264f9030baccbb18d"
 PRE_HARDENING_BLOCKED_FIXTURE_HASH = "sha256:ab48553793c32f496ad857722c5e44df8da14d2abdf97d748a9e0bdfa81eca55"
+REPEAT_REGRESSION_SURFACES = [
+    "epoch_payout_budget",
+    "oracle_liquidity_guard",
+    "thin_liquidity_funding_clamp",
+]
 EXPECTED_FAMILY_COUNTS = {
     "chain_terminal_disaster": 12,
     "convergence_composition_disaster": 4,
@@ -116,7 +121,10 @@ def test_witness_space_receipt_blocks_dirty_checker_when_clean_required(tmp_path
 
 
 def test_public_post_hardening_fixture_has_stable_reduction_receipt() -> None:
-    receipt = build_receipt([FIXTURES / "post_hardening_zero"])
+    receipt = build_receipt(
+        [FIXTURES / "post_hardening_zero"],
+        blocked_run_dirs=[FIXTURES / "pre_hardening_blocked"],
+    )
 
     assert receipt["ok"] is True
     assert receipt["gate"] == "OPEN_FOR_BOUNDED_RESEARCH"
@@ -141,6 +149,34 @@ def test_public_post_hardening_fixture_has_stable_reduction_receipt() -> None:
         "cycle_count": 3,
         "simple_path_frontier_exhausted": True,
     }
+    assert receipt["blocked_witness_coverage"] == {
+        "schema": "zenodex/macos-scout-blocked-witness-coverage/v1",
+        "blocked_run_count": 1,
+        "blocked_counterexample_count": 3,
+        "blocked_regression_ok": True,
+        "repeat_regression_surface_ids": REPEAT_REGRESSION_SURFACES,
+        "blocked_reachable_surface_ids": REPEAT_REGRESSION_SURFACES,
+        "current_reachable_surface_ids": [],
+        "covered_repeat_regression_surface_ids": REPEAT_REGRESSION_SURFACES,
+        "missing_repeat_regression_surface_ids": [],
+        "closed_repeat_regression_surface_ids": REPEAT_REGRESSION_SURFACES,
+        "reopened_repeat_regression_surface_ids": [],
+    }
+
+
+def test_blocked_witness_ratchet_rejects_missing_repeat_surface(tmp_path: Path) -> None:
+    current = _run_dir(tmp_path, reasons=[])
+    incomplete_blocked = _run_dir(tmp_path, reasons=["liquidity_floor_breach_under_oracle_gap"])
+
+    receipt = build_receipt([current], blocked_run_dirs=[incomplete_blocked])
+
+    assert receipt["ok"] is False
+    assert receipt["gate"] == "BLOCKED_REACHABLE_WITNESS"
+    assert receipt["reachable_witness_count"] == 0
+    assert receipt["blocked_witness_coverage"]["missing_repeat_regression_surface_ids"] == [
+        "epoch_payout_budget",
+        "thin_liquidity_funding_clamp",
+    ]
 
 
 def test_public_pre_hardening_fixture_still_blocks_reachable_witnesses() -> None:

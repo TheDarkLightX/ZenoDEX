@@ -63,7 +63,7 @@ def test_macos_scout_witness_space_claim_tracks_public_fixture_gate() -> None:
     files = set(evidence["files"])
 
     assert (
-        "python3 tools/macos_scout/build_witness_space_receipt.py --run-dir tests/fixtures/macos_scout/post_hardening_zero --require-clean --format text"
+        "python3 tools/macos_scout/build_witness_space_receipt.py --run-dir tests/fixtures/macos_scout/post_hardening_zero --blocked-run-dir tests/fixtures/macos_scout/pre_hardening_blocked --require-clean --format text"
         in commands
     )
     assert "tools/macos_scout/build_witness_space_receipt.py" in files
