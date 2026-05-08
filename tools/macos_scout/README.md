@@ -49,14 +49,29 @@ Each run writes:
 
 - `summary.json`
 - `summary.md`
+- `review.md`
 - `all_scores.csv`
 - `top_candidates.jsonl`
 - `pareto_front.jsonl`
 - `counterexamples.jsonl`
 - `reranked_top_candidates.jsonl`
+- `reason_counts.json`
+- `promotion_candidates.jsonl`
+- `regression_gate.json`
 - `host_info.txt`
 
 Review `counterexamples.jsonl` before reviewing top candidates.
+
+The launcher also runs:
+
+```bash
+python3 tools/macos_scout/check_scout_regression_gate.py --run-dir <outdir>
+```
+
+That gate fails closed if a scout run emits a counterexample reason not tracked
+in `tools/macos_scout/scout_regression_manifest.json`, or if a candidate is
+written to `promotion_candidates.jsonl` without satisfying the strict
+no-disaster/legal-shape budget checks.
 
 ## Promotion Rule
 

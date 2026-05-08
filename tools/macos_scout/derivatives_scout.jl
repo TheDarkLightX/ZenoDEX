@@ -28,6 +28,9 @@ struct Result
     funding_stability::Float64
     worst_liquidity_ratio::Float64
     mean_fee_bps::Float64
+    guard_block_rate::Float64
+    payout_budget_clamp_rate::Float64
+    funding_clamp_rate::Float64
     legal_shape_ok::Bool
     candidate::Candidate
 end
@@ -122,6 +125,9 @@ function result_json(r::Result)::String
         json_pair("funding_stability", r.funding_stability),
         json_pair("worst_liquidity_ratio", r.worst_liquidity_ratio),
         json_pair("mean_fee_bps", r.mean_fee_bps),
+        json_pair("guard_block_rate", r.guard_block_rate),
+        json_pair("payout_budget_clamp_rate", r.payout_budget_clamp_rate),
+        json_pair("funding_clamp_rate", r.funding_clamp_rate),
         json_pair("legal_shape_ok", r.legal_shape_ok),
         "\"candidate\":" * candidate_json(r.candidate),
     ]
@@ -193,6 +199,9 @@ function evaluate_candidate(
     last_funding_sign = 0.0
     first_counterexample = nothing
     drawdowns = Float64[]
+    guard_block_count = 0
+    payout_budget_clamp_count = 0
+    funding_clamp_count = 0
 
     for path in 1:paths
         price = 1.0
@@ -222,7 +231,11 @@ function evaluate_candidate(
             insurance += insurance_fee + 0.20 * protocol_fee
 
             funding_raw = c.funding_gain * sign(price - oracle) * max(rel_gap - c.volatility_gate, 0.0)^c.convexity
-            funding = clamp(funding_raw, -0.050, 0.050)
+            funding_limit = liquidity < 0.10 ? 0.025 : 0.050
+            funding = clamp(funding_raw, -funding_limit, funding_limit)
+            if abs(funding_raw) > funding_limit
+                funding_clamp_count += 1
+            end
             funding_abs_sum += abs(funding)
             if funding_count > 0 && sign(funding) != 0.0 && last_funding_sign != 0.0 && sign(funding) != last_funding_sign
                 funding_flip_count += 1
@@ -235,10 +248,23 @@ function evaluate_candidate(
             liquidation_pressure = max(rel_gap - c.volatility_gate, 0.0)
             gross_loss = oi * 0.010 * liquidation_pressure^c.convexity
             haircut = 1.0 + c.oracle_delay_haircut * min(rel_gap, 0.75)
-            capped_payout = min(gross_loss * haircut, c.payout_cap_share * max(insurance, 0.0))
-            insurance -= capped_payout
 
             liquidity_floor_breach = liquidity < c.liquidity_floor
+            oracle_gap_liquidity_guard = liquidity_floor_breach && rel_gap > 0.10
+            if oracle_gap_liquidity_guard
+                guard_block_count += 1
+            end
+            payout_budget = c.payout_cap_share * max(min(insurance, initial_insurance), 0.0)
+            if oracle_gap_liquidity_guard
+                payout_budget = 0.0
+            end
+            raw_payout = gross_loss * haircut
+            capped_payout = min(raw_payout, payout_budget)
+            if raw_payout > payout_budget
+                payout_budget_clamp_count += 1
+            end
+            insurance -= capped_payout
+
             min_insurance_ratio = min(min_insurance_ratio, insurance / initial_insurance)
             worst_liquidity_ratio = min(worst_liquidity_ratio, liquidity)
             max_equity = max(max_equity, insurance)
@@ -252,7 +278,7 @@ function evaluate_candidate(
                 reason = "burn_starves_budget"
             elseif capped_payout > c.payout_cap_share * initial_insurance && rel_gap > 0.25
                 reason = "payout_cap_exceeded_initial_budget"
-            elseif liquidity_floor_breach && rel_gap > 0.10
+            elseif liquidity_floor_breach && rel_gap > 0.10 && !oracle_gap_liquidity_guard
                 reason = "liquidity_floor_breach_under_oracle_gap"
             elseif abs(funding) > 0.040 && liquidity < 0.10
                 reason = "funding_too_aggressive_in_thin_liquidity"
@@ -284,6 +310,9 @@ function evaluate_candidate(
     p99_drawdown_bps = 10_000.0 * percentile(drawdowns, 0.99)
     mean_fee_bps = total_fees / (paths * steps * base_oi) * 10_000.0
     funding_stability = 1.0 / (1.0 + funding_abs_sum / observations + funding_flip_count / observations)
+    guard_block_rate = guard_block_count / observations
+    payout_budget_clamp_rate = payout_budget_clamp_count / observations
+    funding_clamp_rate = funding_clamp_count / observations
     legal_shape_ok = (
         c.fee_burn_share + c.insurance_share <= 0.95
         && c.payout_cap_share <= 0.50
@@ -296,6 +325,9 @@ function evaluate_candidate(
         - 8_000.0 * disaster_rate
         - 0.045 * p99_drawdown_bps
         - 40.0 * max(c.liquidity_floor - worst_liquidity_ratio, 0.0)
+        - 1_200.0 * guard_block_rate
+        - 250.0 * payout_budget_clamp_rate
+        - 250.0 * funding_clamp_rate
         - (legal_shape_ok ? 0.0 : 500.0)
     )
     return (
@@ -309,6 +341,9 @@ function evaluate_candidate(
             funding_stability,
             worst_liquidity_ratio,
             mean_fee_bps,
+            guard_block_rate,
+            payout_budget_clamp_rate,
+            funding_clamp_rate,
             legal_shape_ok,
             c,
         ),
@@ -436,11 +471,11 @@ function main()
 
     all_scores_path = joinpath(outdir, "all_scores.csv")
     open(all_scores_path, "w") do io
-        println(io, "id,score,disaster_rate,deflation_bps,p99_drawdown_bps,min_insurance_ratio,funding_stability,worst_liquidity_ratio,mean_fee_bps,legal_shape_ok,convexity,funding_gain,volatility_gate,fee_burn_share,insurance_share,shock_damping,payout_cap_share,oracle_delay_haircut,liquidity_floor")
+        println(io, "id,score,disaster_rate,deflation_bps,p99_drawdown_bps,min_insurance_ratio,funding_stability,worst_liquidity_ratio,mean_fee_bps,guard_block_rate,payout_budget_clamp_rate,funding_clamp_rate,legal_shape_ok,convexity,funding_gain,volatility_gate,fee_burn_share,insurance_share,shock_damping,payout_cap_share,oracle_delay_haircut,liquidity_floor")
         for r in sorted
             @printf(
                 io,
-                "%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%s,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g\n",
+                "%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%s,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g\n",
                 r.id,
                 r.score,
                 r.disaster_rate,
@@ -450,6 +485,9 @@ function main()
                 r.funding_stability,
                 r.worst_liquidity_ratio,
                 r.mean_fee_bps,
+                r.guard_block_rate,
+                r.payout_budget_clamp_rate,
+                r.funding_clamp_rate,
                 string(r.legal_shape_ok),
                 r.candidate.convexity,
                 r.candidate.funding_gain,
@@ -523,6 +561,9 @@ function main()
         "- p99_drawdown_bps: $(round(best.p99_drawdown_bps, digits = 4))",
         "- min_insurance_ratio: $(round(best.min_insurance_ratio, digits = 6))",
         "- funding_stability: $(round(best.funding_stability, digits = 6))",
+        "- guard_block_rate: $(round(best.guard_block_rate, digits = 8))",
+        "- payout_budget_clamp_rate: $(round(best.payout_budget_clamp_rate, digits = 8))",
+        "- funding_clamp_rate: $(round(best.funding_clamp_rate, digits = 8))",
         "",
         "## Best Reranked Candidate",
         "",
@@ -533,6 +574,9 @@ function main()
         "- p99_drawdown_bps: $(round(best_reranked.p99_drawdown_bps, digits = 4))",
         "- min_insurance_ratio: $(round(best_reranked.min_insurance_ratio, digits = 6))",
         "- funding_stability: $(round(best_reranked.funding_stability, digits = 6))",
+        "- guard_block_rate: $(round(best_reranked.guard_block_rate, digits = 8))",
+        "- payout_budget_clamp_rate: $(round(best_reranked.payout_budget_clamp_rate, digits = 8))",
+        "- funding_clamp_rate: $(round(best_reranked.funding_clamp_rate, digits = 8))",
         "",
         "## Next Review",
         "",
