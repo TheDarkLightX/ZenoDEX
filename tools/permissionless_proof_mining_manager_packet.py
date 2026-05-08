@@ -67,24 +67,44 @@ def _snapshot_from_obj(obj: Mapping[str, Any]) -> ProofMiningManagerSnapshot:
         epoch=_require_int(obj.get("epoch"), name="snapshot.epoch"),
         base_reward=_require_int(obj.get("base_reward"), name="snapshot.base_reward"),
         initial_pool=_require_int(obj.get("initial_pool"), name="snapshot.initial_pool"),
-        reward_pool_balance=_require_int(obj.get("reward_pool_balance"), name="snapshot.reward_pool_balance"),
+        reward_pool_balance=_require_int(
+            obj.get("reward_pool_balance"), name="snapshot.reward_pool_balance"
+        ),
         total_paid=_require_int(obj.get("total_paid"), name="snapshot.total_paid"),
         claimed_slots=claimed_slots,
     )
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build or apply a bounded proof-mining-manager packet")
+    parser = argparse.ArgumentParser(
+        description="Build or apply a bounded proof-mining-manager packet"
+    )
     parser.add_argument("--claim", required=True, help="Proof-mining claim JSON path")
     parser.add_argument("--snapshot", required=True, help="Manager snapshot JSON path")
     parser.add_argument("--output", required=True, help="Output JSON path")
-    parser.add_argument("--apply", action="store_true", help="Execute the kernel step and emit the apply result")
+    parser.add_argument(
+        "--apply", action="store_true", help="Execute the kernel step and emit the apply result"
+    )
+    parser.add_argument("--proof-ok", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--binding-ok", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--policy-ok", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--nonce-ok", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args(argv)
 
     claim = _load_json(Path(args.claim))
     snapshot_obj = _load_json(Path(args.snapshot))
     snapshot = _snapshot_from_obj(snapshot_obj)
-    packet = build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot)
+    verification_flags = {
+        "proof_ok": bool(args.proof_ok),
+        "binding_ok": bool(args.binding_ok),
+        "policy_ok": bool(args.policy_ok),
+        "nonce_ok": bool(args.nonce_ok),
+    }
+    packet = build_submit_proof_packet(
+        claim_artifact=claim,
+        snapshot=snapshot,
+        verification_flags=verification_flags,
+    )
 
     if not bool(args.apply):
         out = {
@@ -99,7 +119,11 @@ def main(argv: list[str] | None = None) -> int:
             },
         }
     else:
-        res = apply_submit_proof_packet(packet=packet, snapshot=snapshot)
+        res = apply_submit_proof_packet(
+            packet=packet,
+            snapshot=snapshot,
+            verification_flags=verification_flags,
+        )
         out = {
             "schema": "zenodex/proof_mining_manager_apply_result/v1",
             "ok": bool(res.ok),
@@ -111,7 +135,9 @@ def main(argv: list[str] | None = None) -> int:
             },
             "state_after": None if res.state_after is None else dict(res.state_after),
             "effects": None if res.effects is None else dict(res.effects),
-            "claimed_slots_after": {str(k): v for k, v in sorted(dict(res.claimed_slots_after).items())},
+            "claimed_slots_after": {
+                str(k): v for k, v in sorted(dict(res.claimed_slots_after).items())
+            },
             "error_code": res.error_code,
             "error_message": res.error_message,
         }

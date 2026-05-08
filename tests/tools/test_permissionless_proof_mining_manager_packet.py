@@ -41,8 +41,12 @@ def test_permissionless_proof_mining_manager_packet_cli_build_and_apply(tmp_path
     packet_path = tmp_path / "packet.json"
     apply_path = tmp_path / "apply.json"
 
-    round_path.write_text(json.dumps(_round_obj(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    snapshot_path.write_text(json.dumps(_snapshot(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    round_path.write_text(
+        json.dumps(_round_obj(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    snapshot_path.write_text(
+        json.dumps(_snapshot(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     subprocess.check_call(
         [
@@ -111,16 +115,22 @@ def test_permissionless_proof_mining_manager_packet_cli_build_and_apply(tmp_path
     assert applied["state_after"]["reward_pool_balance"] == 16
 
 
-def test_permissionless_proof_mining_manager_packet_cli_rejects_aliased_snapshot_keys(tmp_path: Path) -> None:
+def test_permissionless_proof_mining_manager_packet_cli_rejects_aliased_snapshot_keys(
+    tmp_path: Path,
+) -> None:
     round_path = tmp_path / "round.json"
     claim_path = tmp_path / "claim.json"
     snapshot_path = tmp_path / "snapshot.json"
     packet_path = tmp_path / "packet.json"
 
-    round_path.write_text(json.dumps(_round_obj(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    round_path.write_text(
+        json.dumps(_round_obj(), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     snapshot = _snapshot()
     snapshot["claimed_slots"] = {"1": "sha256:occupied1", "01": "sha256:occupied01"}
-    snapshot_path.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    snapshot_path.write_text(
+        json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     subprocess.check_call(
         [
