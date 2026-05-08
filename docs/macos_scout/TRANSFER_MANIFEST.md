@@ -4,6 +4,7 @@ Transfer these paths to the Mac if you are not using a temporary Git branch:
 
 ```text
 docs/macos_scout/CODEX_HANDOFF_PROMPT.md
+docs/macos_scout/MAC_AGENT_OPERATING_LOOP.md
 docs/macos_scout/MACOS_OPTIMIZATION_BRIEF.md
 docs/macos_scout/M3_MAX_128GB_CAPABILITY_NOTE.md
 docs/macos_scout/TRANSFER_MANIFEST.md
