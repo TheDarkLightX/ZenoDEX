@@ -43,6 +43,83 @@ def _require_non_negative_int(value: Any, *, name: str) -> int:
     return int(value)
 
 
+@dataclass(frozen=True)
+class _RewardPayout:
+    amount: int
+    pool_before: int
+    pool_after: int
+
+
+def _validated_reward_payout(
+    *,
+    reward_amount: int,
+    reward_pool_before: int,
+    reward_pool_after: int,
+) -> _RewardPayout:
+    payout = _require_non_negative_int(reward_amount, name="reward_amount")
+    reward_before = _require_non_negative_int(reward_pool_before, name="reward_pool_before")
+    reward_after = _require_non_negative_int(reward_pool_after, name="reward_pool_after")
+    if reward_after > reward_before:
+        raise ValueError("reward_pool_after must not exceed reward_pool_before")
+    if payout != reward_before - reward_after:
+        raise ValueError("reward_amount must equal reward_pool_before - reward_pool_after")
+    return _RewardPayout(amount=payout, pool_before=reward_before, pool_after=reward_after)
+
+
+def _claimability_checks(
+    *,
+    reward_pool_configured: bool,
+    winner_matches_sender: bool,
+    proposal_hash_matches_context: bool,
+    reward_pool_balance_non_negative: bool,
+    runtime_state_present: bool,
+    reward_pool_pubkey_matches_state: bool,
+    reward_pool_balance_matches_state: bool,
+    manager_ok: bool,
+) -> dict[str, bool]:
+
+    runtime_present = bool(runtime_state_present)
+    runtime_pubkey_match = bool(runtime_present and reward_pool_pubkey_matches_state)
+    runtime_balance_match = bool(runtime_present and runtime_pubkey_match and reward_pool_balance_matches_state)
+    return {
+        "reward_pool_configured": bool(reward_pool_configured),
+        "winner_matches_sender": bool(winner_matches_sender),
+        "proposal_hash_matches_context": bool(proposal_hash_matches_context),
+        "reward_pool_balance_non_negative": bool(reward_pool_balance_non_negative),
+        "runtime_state_present": runtime_present,
+        "reward_pool_pubkey_matches_state": runtime_pubkey_match,
+        "reward_pool_balance_matches_state": runtime_balance_match,
+        "runtime_apply_ok": bool(manager_ok),
+    }
+
+
+def _runtime_reject_code(checks: Mapping[str, bool]) -> str | None:
+    if not checks["runtime_state_present"]:
+        return None
+    if not checks["reward_pool_pubkey_matches_state"]:
+        return REJECT_RUNTIME_POOL_PUBKEY_MISMATCH
+    if not checks["reward_pool_balance_matches_state"]:
+        return REJECT_RUNTIME_POOL_BALANCE_DRIFT
+    return None
+
+
+def _reject_code_for_checks(checks: Mapping[str, bool]) -> str:
+    if not checks["reward_pool_configured"]:
+        return REJECT_DISABLED
+    if not checks["winner_matches_sender"]:
+        return REJECT_WINNER_MISMATCH
+    if not checks["proposal_hash_matches_context"]:
+        return REJECT_PROPOSAL_HASH_MISMATCH
+    if not checks["reward_pool_balance_non_negative"]:
+        return REJECT_NEGATIVE_POOL_BALANCE
+    runtime_reject = _runtime_reject_code(checks)
+    if runtime_reject is not None:
+        return runtime_reject
+    if not checks["runtime_apply_ok"]:
+        return REJECT_MANAGER_REJECTED
+    return REJECT_OK
+
+
 def evaluate_proof_mining_claimability_gate(
     *,
     reward_pool_configured: bool,
@@ -57,50 +134,29 @@ def evaluate_proof_mining_claimability_gate(
     reward_pool_before: int,
     reward_pool_after: int,
 ) -> ProofMiningClaimabilityGateOutcome:
-    payout = _require_non_negative_int(reward_amount, name="reward_amount")
-    reward_before = _require_non_negative_int(reward_pool_before, name="reward_pool_before")
-    reward_after = _require_non_negative_int(reward_pool_after, name="reward_pool_after")
-    if reward_after > reward_before:
-        raise ValueError("reward_pool_after must not exceed reward_pool_before")
-    if payout != reward_before - reward_after:
-        raise ValueError("reward_amount must equal reward_pool_before - reward_pool_after")
-
-    runtime_present = bool(runtime_state_present)
-    runtime_pubkey_match = bool(runtime_present and reward_pool_pubkey_matches_state)
-    runtime_balance_match = bool(runtime_present and runtime_pubkey_match and reward_pool_balance_matches_state)
-    checks: dict[str, bool] = {
-        "reward_pool_configured": bool(reward_pool_configured),
-        "winner_matches_sender": bool(winner_matches_sender),
-        "proposal_hash_matches_context": bool(proposal_hash_matches_context),
-        "reward_pool_balance_non_negative": bool(reward_pool_balance_non_negative),
-        "runtime_state_present": runtime_present,
-        "reward_pool_pubkey_matches_state": runtime_pubkey_match,
-        "reward_pool_balance_matches_state": runtime_balance_match,
-        "runtime_apply_ok": bool(manager_ok),
-    }
-    if not checks["reward_pool_configured"]:
-        reject_code = REJECT_DISABLED
-    elif not checks["winner_matches_sender"]:
-        reject_code = REJECT_WINNER_MISMATCH
-    elif not checks["proposal_hash_matches_context"]:
-        reject_code = REJECT_PROPOSAL_HASH_MISMATCH
-    elif not checks["reward_pool_balance_non_negative"]:
-        reject_code = REJECT_NEGATIVE_POOL_BALANCE
-    elif checks["runtime_state_present"] and not checks["reward_pool_pubkey_matches_state"]:
-        reject_code = REJECT_RUNTIME_POOL_PUBKEY_MISMATCH
-    elif checks["runtime_state_present"] and not checks["reward_pool_balance_matches_state"]:
-        reject_code = REJECT_RUNTIME_POOL_BALANCE_DRIFT
-    elif not checks["runtime_apply_ok"]:
-        reject_code = REJECT_MANAGER_REJECTED
-    else:
-        reject_code = REJECT_OK
+    payout = _validated_reward_payout(
+        reward_amount=reward_amount,
+        reward_pool_before=reward_pool_before,
+        reward_pool_after=reward_pool_after,
+    )
+    checks = _claimability_checks(
+        reward_pool_configured=reward_pool_configured,
+        winner_matches_sender=winner_matches_sender,
+        proposal_hash_matches_context=proposal_hash_matches_context,
+        reward_pool_balance_non_negative=reward_pool_balance_non_negative,
+        runtime_state_present=runtime_state_present,
+        reward_pool_pubkey_matches_state=reward_pool_pubkey_matches_state,
+        reward_pool_balance_matches_state=reward_pool_balance_matches_state,
+        manager_ok=manager_ok,
+    )
+    reject_code = _reject_code_for_checks(checks)
 
     return ProofMiningClaimabilityGateOutcome(
         enabled=bool(checks["reward_pool_configured"]),
         claimable=bool(reject_code == REJECT_OK),
         reject_code=reject_code,
-        reward_amount=payout,
-        reward_pool_before=reward_before,
-        reward_pool_after=reward_after,
+        reward_amount=payout.amount,
+        reward_pool_before=payout.pool_before,
+        reward_pool_after=payout.pool_after,
         checks=checks,
     )
