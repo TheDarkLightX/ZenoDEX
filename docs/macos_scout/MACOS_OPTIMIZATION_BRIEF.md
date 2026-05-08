@@ -165,4 +165,7 @@ The receipt uses `tools/macos_scout/witness_space_atlas.json` to materialize
 single-surface, edge-composition, order-inversion, re-entry, and independent
 co-reachability witnesses for the scout disaster classes. It opens only when
 all supplied run directories have zero reachable counterexamples, the
-regression gate accepts, and synthetic fail-closed mutations reject as expected.
+regression gate accepts, synthetic fail-closed mutations reject as expected,
+and release runs using `--require-clean` have no dirty gate-critical checker or
+atlas paths. Independent co-reachability above the materialized order is kept
+as a compressed frontier count rather than expanded into raw witness rows.

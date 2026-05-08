@@ -35,6 +35,7 @@ REACHABLE = "REACHABLE_DISASTER_WITNESS"
 UNKNOWN_BLOCKED = "UNKNOWN_BLOCKED"
 OPEN = "OPEN_FOR_BOUNDED_RESEARCH"
 BLOCKED = "BLOCKED_REACHABLE_WITNESS"
+MATERIALIZED_INDEPENDENT_ORDER = 2
 
 
 @dataclass(frozen=True)
@@ -210,7 +211,11 @@ def _materialize_witnesses(atlas: dict[str, Any], reason_counts: Counter[str]) -
                 _classify_reasons(reason_counts, reasons),
             )
         )
-    independent_sets = _independent_sets(atlas, min_order=2, max_order=min(3, atlas["depth"]))
+    independent_sets = _independent_sets(
+        atlas,
+        min_order=2,
+        max_order=min(MATERIALIZED_INDEPENDENT_ORDER, atlas["depth"]),
+    )
     for order, sets in independent_sets.items():
         for surfaces in sets:
             reasons: list[str] = []
@@ -249,7 +254,7 @@ def _independent_sets(atlas: dict[str, Any], *, min_order: int, max_order: int) 
 
 
 def _compressed_frontier(atlas: dict[str, Any]) -> dict[str, Any]:
-    min_order = min(4, atlas["depth"] + 1)
+    min_order = min(MATERIALIZED_INDEPENDENT_ORDER + 1, atlas["depth"] + 1)
     sets = _independent_sets(atlas, min_order=min_order, max_order=atlas["depth"]) if min_order <= atlas["depth"] else {}
     by_order = {str(order): len(items) for order, items in sets.items()}
     return {

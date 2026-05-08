@@ -36,6 +36,27 @@
       "hazard": "Fee burn consumes more than the allowed budget share.",
       "hardening": "Legal-shape gate must cap burn plus insurance shares before promotion.",
       "proof_target": "Burn share stays below the configured maximum for every accepted fee transition."
+    },
+    {
+      "reason": "unclassified_disaster_reason",
+      "status": "declared_process_sentinel",
+      "hazard": "A scout run emits a new disaster reason that is not mapped to a tracked hardening or proof target.",
+      "hardening": "The regression gate must reject any unclassified reason before the run can become evidence.",
+      "proof_target": "Every emitted counterexample reason is a member of the tracked reason-class manifest."
+    },
+    {
+      "reason": "unsafe_candidate_promoted",
+      "status": "declared_process_sentinel",
+      "hazard": "A candidate is promoted despite nonzero disaster rate, illegal shape, underfunded insurance, or excessive guard reliance.",
+      "hardening": "Promotion candidates must pass strict no-disaster, legal-shape, insurance, and guard-use filters.",
+      "proof_target": "Every promotion candidate satisfies the strict candidate predicate checked by the regression gate."
+    },
+    {
+      "reason": "dirty_checker_promotes_receipt",
+      "status": "declared_process_sentinel",
+      "hazard": "A witness-space receipt is treated as authoritative while gate-critical checker or atlas files are dirty.",
+      "hardening": "Use --require-clean for release evidence and reject receipts with gate-critical dirty paths.",
+      "proof_target": "A release-bound witness-space receipt has no dirty gate-critical checker, manifest, or atlas paths."
     }
   ]
 }

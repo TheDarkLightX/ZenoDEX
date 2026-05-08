@@ -19,6 +19,7 @@ CHECK_SCHEMA = "zenodex/macos-scout-regression-gate/v1"
 ALLOWED_STATUSES = {
     "repeat_regression_target",
     "declared_simulator_sentinel",
+    "declared_process_sentinel",
 }
 
 
