@@ -1,5 +1,7 @@
 """Intent creation and signing for autonomous agents."""
 
+from __future__ import annotations
+
 import hashlib
 import json
 from typing import Any, Dict, Optional

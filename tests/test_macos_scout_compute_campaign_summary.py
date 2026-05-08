@@ -30,11 +30,24 @@ def _write_run(campaign_root: Path, name: str, *, reasons: list[str]) -> None:
         encoding="utf-8",
     )
     (run_dir / "regression_gate.json").write_text(
-        json.dumps({"schema": "zenodex/macos-scout-regression-gate/v1", "status": "accepted"}),
+        json.dumps(
+            {
+                "schema": "zenodex/macos-scout-regression-gate/v1",
+                "ok": True,
+                "status": "accepted",
+            }
+        ),
         encoding="utf-8",
     )
     (run_dir / "witness_space_receipt.json").write_text(
-        json.dumps({"schema": "zenodex/macos-scout-witness-space-receipt/v1", "status": "accepted"}),
+        json.dumps(
+            {
+                "schema": "zenodex/macos-scout-witness-space-receipt/v1",
+                "gate": "OPEN_FOR_BOUNDED_RESEARCH",
+                "ok": True,
+                "stable_receipt_hash": f"sha256:{name}",
+            }
+        ),
         encoding="utf-8",
     )
     _write_jsonl(
@@ -58,6 +71,18 @@ def test_summarize_compute_campaign_counts_runs_and_reasons(tmp_path: Path) -> N
         "run_b",
         reasons=["liquidity_floor_breach_under_oracle_gap", "payout_cap_exceeded_initial_budget"],
     )
+    (tmp_path / "witness_space_receipt.json").write_text(
+        json.dumps(
+            {
+                "schema": "zenodex/macos-scout-witness-space-receipt/v1",
+                "gate": "OPEN_FOR_BOUNDED_RESEARCH",
+                "ok": True,
+                "reachable_witness_count": 0,
+                "stable_receipt_hash": "sha256:campaign",
+            }
+        ),
+        encoding="utf-8",
+    )
 
     result = subprocess.run(
         [sys.executable, "tools/macos_scout/summarize_compute_campaign.py", str(tmp_path)],
@@ -73,12 +98,17 @@ def test_summarize_compute_campaign_counts_runs_and_reasons(tmp_path: Path) -> N
     assert payload["run_count"] == 2
     assert payload["accepted_gate_count"] == 2
     assert payload["accepted_witness_count"] == 2
+    assert payload["campaign_witness_status"] == "accepted"
+    assert payload["campaign_witness_receipt_hash"] == "sha256:campaign"
+    assert payload["campaign_reachable_witness_count"] == 0
     assert payload["total_candidates"] == 32
     assert payload["total_counterexamples"] == 3
+    assert payload["runs"][0]["witness_receipt_hash"] == "sha256:run_a"
     assert payload["aggregate_reason_counts"] == {
         "liquidity_floor_breach_under_oracle_gap": 2,
         "payout_cap_exceeded_initial_budget": 1,
     }
     review = (tmp_path / "campaign_review.md").read_text(encoding="utf-8")
     assert "MacOS Compute Campaign Review" in review
+    assert "Campaign witness receipt: accepted" in review
     assert "Promote no candidate unless it survives at least two seeds" in review

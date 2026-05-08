@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import product
-from typing import Sequence
+from typing import Optional, Sequence
 
 from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus, normalize_curve_config
 from .exact_out_route_certificate import build_exact_out_many_pool_repaired_replacement_shadow_packet
 
 
-CurveTemplate = tuple[tuple[int, int], str, object | None]
+CurveTemplate = tuple[tuple[int, int], str, Optional[object]]
 
 
 @dataclass(frozen=True)
