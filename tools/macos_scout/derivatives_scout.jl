@@ -32,6 +32,11 @@ struct Result
     candidate::Candidate
 end
 
+struct RunTimings
+    screen_seconds::Float64
+    rerank_seconds::Float64
+end
+
 struct CounterExample
     id::Int
     path::Int
@@ -346,10 +351,36 @@ function pareto_front(results::Vector{Result}; limit::Int)::Vector{Result}
     return front
 end
 
+function rerank_candidates(
+    initial_top::Vector{Result};
+    seed::Int,
+    paths::Int,
+    steps::Int,
+)::Vector{Result}
+    isempty(initial_top) && return Result[]
+    reranked = Vector{Result}(undef, length(initial_top))
+    Threads.@threads for i in eachindex(initial_top)
+        original = initial_top[i]
+        rng = MersenneTwister(seed + 17_000_019 * original.id)
+        res, _ = evaluate_candidate(original.candidate, rng; paths = paths, steps = steps)
+        reranked[i] = res
+    end
+    sort!(reranked, by = r -> r.score, rev = true)
+    return reranked
+end
+
 function write_lines(path::String, lines)
     open(path, "w") do io
         for line in lines
             println(io, line)
+        end
+    end
+end
+
+function write_result_jsonl(path::String, results)
+    open(path, "w") do io
+        for r in results
+            println(io, result_json(r))
         end
     end
 end
@@ -362,36 +393,54 @@ function main()
     seed = parse(Int, getarg("seed", "20260508"))
     topn = parse(Int, getarg("top", "50"))
     front_limit = parse(Int, getarg("front-limit", "5000"))
+    rerank_top = parse(Int, getarg("rerank-top", "0"))
+    rerank_paths = parse(Int, getarg("rerank-paths", string(paths)))
+    rerank_steps = parse(Int, getarg("rerank-steps", string(steps)))
+    write_all_jsonl = lowercase(getarg("write-all-jsonl", "false")) in ("1", "true", "yes")
     mkpath(outdir)
 
     println("ZenoDEX MacOS derivatives scout")
     println("out=", outdir)
     println("threads=", Threads.nthreads())
     println("candidates=", candidates, " paths=", paths, " steps=", steps, " seed=", seed)
+    println("rerank_top=", rerank_top, " rerank_paths=", rerank_paths, " rerank_steps=", rerank_steps)
 
     results = Vector{Result}(undef, candidates)
     counterexamples = Vector{Union{CounterExample, Nothing}}(undef, candidates)
 
-    Threads.@threads for i in 1:candidates
-        rng = MersenneTwister(seed + 1_000_003 * i)
-        c = random_candidate(rng, i)
-        res, ce = evaluate_candidate(c, rng; paths = paths, steps = steps)
-        results[i] = res
-        counterexamples[i] = ce
+    screen_seconds = @elapsed begin
+        Threads.@threads for i in 1:candidates
+            rng = MersenneTwister(seed + 1_000_003 * i)
+            c = random_candidate(rng, i)
+            res, ce = evaluate_candidate(c, rng; paths = paths, steps = steps)
+            results[i] = res
+            counterexamples[i] = ce
+        end
     end
 
     sorted = sort(results, by = r -> r.score, rev = true)
     top = sorted[1:min(topn, length(sorted))]
     front = pareto_front(sorted; limit = front_limit)
     ces = [ce for ce in counterexamples if ce !== nothing]
+    rerank_pool = sorted[1:min(rerank_top, length(sorted))]
+    reranked = Result[]
+    rerank_seconds = @elapsed begin
+        reranked = rerank_candidates(
+            rerank_pool;
+            seed = seed + 99_991,
+            paths = rerank_paths,
+            steps = rerank_steps,
+        )
+    end
+    timings = RunTimings(screen_seconds, rerank_seconds)
 
     all_scores_path = joinpath(outdir, "all_scores.csv")
     open(all_scores_path, "w") do io
-        println(io, "id,score,disaster_rate,deflation_bps,p99_drawdown_bps,min_insurance_ratio,funding_stability,worst_liquidity_ratio,mean_fee_bps,legal_shape_ok")
+        println(io, "id,score,disaster_rate,deflation_bps,p99_drawdown_bps,min_insurance_ratio,funding_stability,worst_liquidity_ratio,mean_fee_bps,legal_shape_ok,convexity,funding_gain,volatility_gate,fee_burn_share,insurance_share,shock_damping,payout_cap_share,oracle_delay_haircut,liquidity_floor")
         for r in sorted
             @printf(
                 io,
-                "%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%s\n",
+                "%d,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%s,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g,%.12g\n",
                 r.id,
                 r.score,
                 r.disaster_rate,
@@ -402,16 +451,31 @@ function main()
                 r.worst_liquidity_ratio,
                 r.mean_fee_bps,
                 string(r.legal_shape_ok),
+                r.candidate.convexity,
+                r.candidate.funding_gain,
+                r.candidate.volatility_gate,
+                r.candidate.fee_burn_share,
+                r.candidate.insurance_share,
+                r.candidate.shock_damping,
+                r.candidate.payout_cap_share,
+                r.candidate.oracle_delay_haircut,
+                r.candidate.liquidity_floor,
             )
         end
     end
 
-    write_lines(joinpath(outdir, "top_candidates.jsonl"), result_json.(top))
-    write_lines(joinpath(outdir, "pareto_front.jsonl"), result_json.(front))
+    write_result_jsonl(joinpath(outdir, "top_candidates.jsonl"), top)
+    write_result_jsonl(joinpath(outdir, "pareto_front.jsonl"), front)
+    write_result_jsonl(joinpath(outdir, "reranked_top_candidates.jsonl"), reranked)
     write_lines(joinpath(outdir, "counterexamples.jsonl"), counterexample_json.(ces))
+    if write_all_jsonl
+        write_result_jsonl(joinpath(outdir, "all_candidates.jsonl"), sorted)
+    end
 
     best = first(top)
+    best_reranked = isempty(reranked) ? best : first(reranked)
     zero_disaster = count(r -> r.disaster_rate == 0.0 && r.legal_shape_ok, results)
+    retained_bytes = Base.summarysize(results) + Base.summarysize(counterexamples) + Base.summarysize(sorted)
     summary_json = "{" * join(String[
         json_pair("schema", "zenodex/macos_derivatives_scout_summary/v1"),
         json_pair("created_at", string(now())),
@@ -422,9 +486,17 @@ function main()
         json_pair("steps", steps),
         json_pair("seed", seed),
         json_pair("topn", topn),
+        json_pair("front_limit", front_limit),
+        json_pair("rerank_top", rerank_top),
+        json_pair("rerank_paths", rerank_paths),
+        json_pair("rerank_steps", rerank_steps),
+        json_pair("screen_seconds", timings.screen_seconds),
+        json_pair("rerank_seconds", timings.rerank_seconds),
+        json_pair("retained_bytes_estimate", retained_bytes),
         json_pair("counterexample_count", length(ces)),
         json_pair("zero_disaster_legal_shape_count", zero_disaster),
         "\"best\":" * result_json(best),
+        "\"best_reranked\":" * result_json(best_reranked),
     ], ",") * "}"
     write_lines(joinpath(outdir, "summary.json"), [summary_json])
 
@@ -436,6 +508,9 @@ function main()
         "- Steps per path: $(steps)",
         "- Julia threads: $(Threads.nthreads())",
         "- Seed: $(seed)",
+        "- Screen seconds: $(round(timings.screen_seconds, digits = 3))",
+        "- Rerank seconds: $(round(timings.rerank_seconds, digits = 3))",
+        "- Retained bytes estimate: $(retained_bytes)",
         "- Counterexamples: $(length(ces))",
         "- Zero-disaster legal-shape candidates: $(zero_disaster)",
         "",
@@ -448,6 +523,16 @@ function main()
         "- p99_drawdown_bps: $(round(best.p99_drawdown_bps, digits = 4))",
         "- min_insurance_ratio: $(round(best.min_insurance_ratio, digits = 6))",
         "- funding_stability: $(round(best.funding_stability, digits = 6))",
+        "",
+        "## Best Reranked Candidate",
+        "",
+        "- id: $(best_reranked.id)",
+        "- score: $(round(best_reranked.score, digits = 4))",
+        "- disaster_rate: $(round(best_reranked.disaster_rate, digits = 8))",
+        "- deflation_bps: $(round(best_reranked.deflation_bps, digits = 4))",
+        "- p99_drawdown_bps: $(round(best_reranked.p99_drawdown_bps, digits = 4))",
+        "- min_insurance_ratio: $(round(best_reranked.min_insurance_ratio, digits = 6))",
+        "- funding_stability: $(round(best_reranked.funding_stability, digits = 6))",
         "",
         "## Next Review",
         "",
