@@ -19,13 +19,18 @@ def test_perps_snapshot_gate_accepts_bounded_roundtrip_cases() -> None:
 
     assert report["schema"] == "zenodex.oracle.perps_snapshot_gate_check.v1"
     assert report["status"] == "accepted"
-    assert report["case_count"] == 4
-    assert report["accepted_case_count"] == 4
+    assert report["case_count"] == 9
+    assert report["accepted_case_count"] == 9
     assert report["error_count"] == 0
     assert "does_not_claim_general_perps_snapshot_theorem" in report["not_claimed"]
     cases = {case["name"]: case for case in report["cases"]}
     assert cases["isolated_settle_snapshot_runtime_facts_roundtrip"]["details"]["runtime_value_e8"] == 100_000_000
+    assert cases["clearinghouse_2p_snapshot_action_id_roundtrip"]["details"]["action_id"].startswith("sha256:")
+    assert cases["clearinghouse_2p_adapter_bridge_executes_after_snapshot"]["status"] == "accepted"
+    assert cases["clearinghouse_3p_snapshot_action_id_roundtrip"]["details"]["action_id"].startswith("sha256:")
+    assert cases["clearinghouse_3p_adapter_bridge_executes_after_snapshot"]["status"] == "accepted"
     assert cases["invalid_oracle_snapshot_shape_rejected"]["details"]["rejection"]
+    assert "position_base_a + position_base_b" in cases["invalid_clearinghouse_snapshot_shape_rejected"]["details"]["rejection"]
 
 
 def test_perps_snapshot_gate_detects_tampered_settle_snapshot() -> None:
@@ -45,7 +50,7 @@ def test_perps_snapshot_gate_cli_text_and_json() -> None:
     )
     assert text.returncode == 0, text.stdout + text.stderr
     assert "status = accepted" in text.stdout
-    assert "case_count = 4" in text.stdout
+    assert "case_count = 9" in text.stdout
 
     json_run = subprocess.run(
         [sys.executable, "tools/check_zeno_oracle_perps_snapshot_gate.py"],
