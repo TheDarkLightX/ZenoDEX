@@ -37,6 +37,7 @@ def main(argv: list[str]) -> int:
     outdir = Path(argv[1])
     summary = _read_summary(outdir / "summary.json")
     top = _read_jsonl(outdir / "top_candidates.jsonl", 5)
+    reranked = _read_jsonl(outdir / "reranked_top_candidates.jsonl", 5)
     counterexamples = _read_jsonl(outdir / "counterexamples.jsonl", 10)
 
     lines = [
@@ -48,11 +49,29 @@ def main(argv: list[str]) -> int:
         f"- Steps: {summary.get('steps', 'unknown')}",
         f"- Counterexamples: {summary.get('counterexample_count', 'unknown')}",
         f"- Zero-disaster legal-shape candidates: {summary.get('zero_disaster_legal_shape_count', 'unknown')}",
+        f"- Screen seconds: {summary.get('screen_seconds', 'unknown')}",
+        f"- Rerank seconds: {summary.get('rerank_seconds', 'unknown')}",
+        f"- Retained bytes estimate: {summary.get('retained_bytes_estimate', 'unknown')}",
         "",
         "## Top Candidates",
         "",
     ]
     for item in top:
+        lines.append(
+            "- id={id} score={score:.4f} disaster_rate={disaster_rate:.8f} "
+            "deflation_bps={deflation_bps:.4f} p99_drawdown_bps={p99_drawdown_bps:.4f}".format(
+                id=item["id"],
+                score=float(item["score"]),
+                disaster_rate=float(item["disaster_rate"]),
+                deflation_bps=float(item["deflation_bps"]),
+                p99_drawdown_bps=float(item["p99_drawdown_bps"]),
+            )
+        )
+
+    lines.extend(["", "## Reranked Top Candidates", ""])
+    if not reranked:
+        lines.append("- reranking was disabled or produced no candidates")
+    for item in reranked:
         lines.append(
             "- id={id} score={score:.4f} disaster_rate={disaster_rate:.8f} "
             "deflation_bps={deflation_bps:.4f} p99_drawdown_bps={p99_drawdown_bps:.4f}".format(

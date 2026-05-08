@@ -39,6 +39,12 @@ chmod +x tools/macos_scout/run_macos_scout.sh
 bash tools/macos_scout/run_macos_scout.sh smoke
 ```
 
+Before a serious run, read:
+
+```text
+docs/macos_scout/MACOS_OPTIMIZATION_BRIEF.md
+```
+
 If the smoke run passes:
 
 ```bash
@@ -49,6 +55,12 @@ For a larger overnight run:
 
 ```bash
 bash tools/macos_scout/run_macos_scout.sh deep
+```
+
+For a maximum local CPU/memory campaign:
+
+```bash
+bash tools/macos_scout/run_macos_scout.sh soak
 ```
 
 Optional Metal GPU check:
@@ -79,6 +91,7 @@ Expected files:
 - `top_candidates.jsonl`
 - `pareto_front.jsonl`
 - `counterexamples.jsonl`
+- `reranked_top_candidates.jsonl`
 - `host_info.txt`
 
 `internal/` is git-ignored. Promote only distilled, replayable artifacts into
@@ -111,6 +124,22 @@ explicit work output, with caps and replayable evidence.
    bounded assumptions.
 6. Write a short public note only after the mechanism has a replay script and a
    formal proof target.
+
+## Optimization Requirement For The Receiving Agent
+
+The Mac agent should treat optimization as required work:
+
+- confirm Julia is running with all performance cores available;
+- set `JULIA_NUM_THREADS=auto` unless benchmarking a fixed thread count;
+- avoid CPU oversubscription by keeping BLAS/OpenMP helper pools at one thread;
+- run `scout`, then `deep`, then `soak` only after reviewing counterexamples;
+- use reranking with larger `RERANK_PATHS` and `RERANK_STEPS` for Pareto winners;
+- use the 128GB memory budget to retain large result corpora and counterexample
+  sets under `internal/`;
+- smoke-test Metal.jl and, if it works, run `metal_prefilter.jl` as a GPU
+  prefilter before deeper CPU path simulations;
+- profile the first serious run and update the defaults if the Mac is CPU,
+  memory, or GPU underutilized.
 
 ## Do Not Do
 
