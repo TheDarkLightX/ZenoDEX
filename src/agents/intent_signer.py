@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from typing import Any, Dict, Optional
 
 from ..core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
