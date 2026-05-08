@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from tools.permissionless_solver_proof_mining_claim import (
@@ -12,15 +14,23 @@ from tools.permissionless_solver_proof_mining_claim import (
     explicit_proposal_hash,
     fallback_proposal_hash,
     proof_mining_claim_hash,
-    validate_proof_mining_claim_artifact,
     schedule_reward_amount,
+    validate_proof_mining_claim_artifact,
 )
 
+SPEC_PATH = (
+    Path(__file__).resolve().parents[2] / "src" / "tau_specs" / "proof_mining_reward_32_v1.tau"
+)
+U32_MAX = 0xFFFFFFFF
 
-SPEC_PATH = Path(__file__).resolve().parents[2] / "src" / "tau_specs" / "proof_mining_reward_32_v1.tau"
 
-
-def _round_obj(*, miner_id: str = "alice", witness_sha256: str = "sha:a", improvement_u64: int = 7, job_digest: str = "job1") -> dict:
+def _round_obj(
+    *,
+    miner_id: str = "alice",
+    witness_sha256: str = "sha:a",
+    improvement_u64: int = 7,
+    job_digest: str = "job1",
+) -> dict:
     return {
         "schema": "zenodex/improvement_bounty_round/v1",
         "ok": True,
@@ -45,6 +55,17 @@ def _round_obj(*, miner_id: str = "alice", witness_sha256: str = "sha:a", improv
     ],
 )
 def test_schedule_reward_amount_bva(base_reward: int, epoch: int, expected: int) -> None:
+    assert schedule_reward_amount(base_reward=base_reward, epoch=epoch) == expected
+
+
+@settings(max_examples=64, deadline=None)
+@given(
+    base_reward=st.integers(min_value=1, max_value=U32_MAX),
+    epoch=st.integers(min_value=0, max_value=7),
+)
+def test_schedule_reward_amount_matches_shift_floor(base_reward: int, epoch: int) -> None:
+    expected = max(int(base_reward) >> int(epoch), 1)
+
     assert schedule_reward_amount(base_reward=base_reward, epoch=epoch) == expected
 
 
@@ -158,6 +179,86 @@ def test_validate_proof_mining_claim_rejects_reward_schedule_mismatch() -> None:
         validate_proof_mining_claim_artifact(claim, require_admissible=True)
 
 
+def test_build_proof_mining_claim_golden_hash_is_stable() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(
+            miner_id="miner-golden",
+            witness_sha256="witness-golden",
+            improvement_u64=17,
+            job_digest="job-golden",
+        ),
+        round_id="round-golden",
+        reward_pool_before=42,
+        base_reward=16,
+        epoch=2,
+        proposal_slot=3,
+        prover_id=2,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev-golden",
+        batch_hash="sha256:batch-golden",
+        dex_hash_after="sha256:after-golden",
+    )
+
+    assert (
+        claim["claim_hash"] == "0x6154a5e70897165da9f0bf69d1d818de8f09472edf006816024b72fb022446bf"
+    )
+    assert (
+        claim["body"]["proposal_hash"]
+        == "0x2f895d190716d06e619c79c53599084d968977bf1bb8853c0446cd5eb42c51e7"
+    )
+    assert (
+        validate_proof_mining_claim_artifact(claim, require_admissible=True)["payout_amount"] == 4
+    )
+
+
+@settings(max_examples=48, deadline=None)
+@given(
+    reward_pool_before=st.integers(min_value=1, max_value=128),
+    base_reward=st.integers(min_value=1, max_value=32),
+    epoch=st.integers(min_value=0, max_value=5),
+    proposal_slot=st.integers(min_value=0, max_value=7),
+    prover_id=st.integers(min_value=0, max_value=3),
+    explicit_binding=st.booleans(),
+)
+def test_build_validate_claim_roundtrips_generated_admissible_inputs(
+    reward_pool_before: int,
+    base_reward: int,
+    epoch: int,
+    proposal_slot: int,
+    prover_id: int,
+    explicit_binding: bool,
+) -> None:
+    reward_amount = schedule_reward_amount(base_reward=base_reward, epoch=epoch)
+    reward_pool_before = max(reward_pool_before, reward_amount)
+    kwargs = {
+        "chain_id": "tau-testnet-alpha",
+        "prev_state_hash": "sha256:prev-property",
+        "batch_hash": "sha256:batch-property",
+        "dex_hash_after": "sha256:after-property",
+    }
+    if not explicit_binding:
+        kwargs = {}
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(
+            improvement_u64=1 + proposal_slot, job_digest=f"job-{proposal_slot}-{prover_id}"
+        ),
+        round_id=f"round-{proposal_slot}-{prover_id}-{epoch}",
+        reward_pool_before=reward_pool_before,
+        base_reward=base_reward,
+        epoch=epoch,
+        proposal_slot=proposal_slot,
+        prover_id=prover_id,
+        **kwargs,
+    )
+
+    validated = validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+    assert validated["payout_amount"] == reward_amount
+    assert validated["reward_pool_before"] == reward_pool_before
+    assert validated["reward_pool_after"] == reward_pool_before - reward_amount
+    assert validated["proposal_hash"] == claim["body"]["proposal_hash"]
+
+
 def test_build_proof_mining_claim_supports_explicit_proposal_binding() -> None:
     claim = build_proof_mining_claim(
         round_obj=_round_obj(improvement_u64=9),
@@ -248,7 +349,9 @@ def test_validate_proof_mining_claim_rejects_improvement_u64_overflow() -> None:
 def test_claim_cli_emits_output(tmp_path: Path) -> None:
     round_path = tmp_path / "round.json"
     out_path = tmp_path / "claim.json"
-    round_path.write_text(json.dumps(_round_obj(improvement_u64=6), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    round_path.write_text(
+        json.dumps(_round_obj(improvement_u64=6), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     subprocess.check_call(
         [
@@ -281,7 +384,9 @@ def test_claim_cli_emits_output(tmp_path: Path) -> None:
 def test_claim_cli_fails_closed_when_tau_gate_would_reject(tmp_path: Path) -> None:
     round_path = tmp_path / "round.json"
     out_path = tmp_path / "claim.json"
-    round_path.write_text(json.dumps(_round_obj(improvement_u64=6), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    round_path.write_text(
+        json.dumps(_round_obj(improvement_u64=6), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     with pytest.raises(subprocess.CalledProcessError):
         subprocess.check_call(
