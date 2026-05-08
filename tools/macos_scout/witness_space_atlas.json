@@ -51,6 +51,36 @@
       "required_metrics": [
         "legal_shape_ok"
       ]
+    },
+    {
+      "id": "reason_classification_gate",
+      "fiber": "receipt",
+      "disaster_states": [
+        "unclassified_disaster_reason"
+      ],
+      "required_metrics": [
+        "unknown_reasons"
+      ]
+    },
+    {
+      "id": "promotion_candidate_gate",
+      "fiber": "claim",
+      "disaster_states": [
+        "unsafe_candidate_promoted"
+      ],
+      "required_metrics": [
+        "promotion_errors"
+      ]
+    },
+    {
+      "id": "receipt_provenance_gate",
+      "fiber": "receipt",
+      "disaster_states": [
+        "dirty_checker_promotes_receipt"
+      ],
+      "required_metrics": [
+        "gate_critical_dirty_paths"
+      ]
     }
   ],
   "composition_edges": [
@@ -77,12 +107,24 @@
     [
       "fee_budget_legal_shape",
       "insurance_solvency"
+    ],
+    [
+      "reason_classification_gate",
+      "promotion_candidate_gate"
+    ],
+    [
+      "promotion_candidate_gate",
+      "receipt_provenance_gate"
     ]
   ],
   "reentry_edges": [
     [
       "insurance_solvency",
       "oracle_liquidity_guard"
+    ],
+    [
+      "receipt_provenance_gate",
+      "reason_classification_gate"
     ]
   ]
 }

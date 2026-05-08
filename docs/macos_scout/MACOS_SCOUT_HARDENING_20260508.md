@@ -67,6 +67,10 @@ The gate rejects unclassified scout disaster reasons and rejects any candidate
 written to `promotion_candidates.jsonl` unless it passes the strict
 no-disaster/legal-shape/guard-use criteria.
 
+The witness-space gate also tracks assurance workflow disaster states:
+unclassified reason promotion, unsafe candidate promotion, and authoritative
+receipt generation from dirty gate-critical checker state.
+
 ## Post-Hardening Evidence
 
 First seed:
@@ -106,7 +110,23 @@ regression_gate = accepted
 strict_promotion_candidates = 0
 ```
 
-The two seeded 50k-candidate runs plus the 250k-candidate deep run show that
+Continuation deep run with a fresh seed:
+
+```text
+internal/macos_scout_runs/20260508_174948_deep
+seed = 20260510
+candidates = 250000
+paths = 96
+steps = 128
+counterexamples = 0
+zero_disaster_legal_shape_candidates = 250000
+screen_seconds = 30.331074334
+rerank_seconds = 0.358380333
+regression_gate = accepted
+strict_promotion_candidates = 0
+```
+
+The two seeded 50k-candidate runs plus two 250k-candidate deep runs show that
 the three repeated baseline disaster classes are now blocked under these
 bounded scout settings.
 
@@ -130,6 +150,7 @@ python3 tools/macos_scout/build_witness_space_receipt.py \
   --run-dir internal/macos_scout_runs/20260508_173037_scout \
   --run-dir internal/macos_scout_runs/20260508_173056_scout \
   --run-dir internal/macos_scout_runs/20260508_173348_deep \
+  --run-dir internal/macos_scout_runs/20260508_174948_deep \
   --output internal/macos_scout_runs/witness_space_receipt_20260508.json
 ```
 
@@ -137,18 +158,28 @@ Receipt:
 
 ```text
 gate = OPEN_FOR_BOUNDED_RESEARCH
-stable_receipt_hash = sha256:dcb59ebe501770d0cec67953e838276668ddbe84dea8af3e76fd6b494f08710a
-materialized_witness_count = 21
+stable_receipt_hash = sha256:ba93219d962215f6bfceeb28171f80b2e325a60bfe1ac027257df7b5fcdc4f14
+materialized_witness_count = 44
 reachable_witness_count = 0
-verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 21}
+family_counts = {"edge_composition_disaster": 8, "independent_2_coreachability": 18, "order_inversion_disaster": 8, "reentry_retry_disaster": 2, "single_surface_disaster": 8}
+verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 44}
+compressed_frontier_total = 9
 ```
 
 The pre-hardening baseline run blocks under the same witness-space gate:
 
 ```text
 gate = BLOCKED_REACHABLE_WITNESS
-reachable_witness_count = 17
+materialized_witness_count = 44
+reachable_witness_count = 26
+verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 18, "REACHABLE_DISASTER_WITNESS": 26}
 ```
+
+The tracked public fixture receipt for a zero-counterexample post-hardening run
+is stable at
+`sha256:003a94bde1798500397edd33736352cc704bd00aa5c756c5c676609d4d2581e4`;
+the paired pre-hardening fixture remains blocked at
+`sha256:c8c60fbec1a1cc86d9f599baf9e700a6b7b4759909e0282ca1162e151a850fa6`.
 
 Next promotion work should target lower guard-block rates and higher
 min-insurance ratios, then rerun two-seed scout and deep campaigns before

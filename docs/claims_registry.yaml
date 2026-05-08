@@ -1887,6 +1887,49 @@ claims:
         - docs/ZENO_DISASTER_STATE_MINIMIZATION_GOAL.md
         - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
 
+  - id: py:macos_scout:witness_space_disaster_gate_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The macOS derivatives scout now has a bounded what-if witness-space gate
+      for the disaster classes found during local M3 Max runs. The gate maps
+      simulator hazards and assurance-workflow hazards into a tracked atlas,
+      materializes single-surface, edge-composition, order-inversion, re-entry,
+      and independent co-reachability witnesses, classifies each witness against
+      the regression gate's reason counts, runs synthetic fail-closed checks for
+      unclassified reasons and unsafe promotion candidates, and emits a stable
+      receipt hash.
+      The tracked fixture proves the checker opens on zero-counterexample scout
+      receipts and blocks on pre-hardening counterexample receipts. Full Mac
+      campaign outputs remain under ignored `internal/` paths and are evidence
+      provenance, not public claim material.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/macos_scout/build_witness_space_receipt.py --run-dir tests/fixtures/macos_scout/post_hardening_zero --require-clean --format text
+        - cmd: pytest -q tests/test_macos_scout_witness_space_receipt.py tests/test_macos_scout_regression_gate.py
+      files:
+        - tools/macos_scout/build_witness_space_receipt.py
+        - tools/macos_scout/check_scout_regression_gate.py
+        - tools/macos_scout/witness_space_atlas.json
+        - tools/macos_scout/scout_regression_manifest.json
+        - tools/macos_scout/run_macos_scout.sh
+        - tools/macos_scout/summarize_scout_outputs.py
+        - tools/macos_scout/derivatives_scout.jl
+        - tests/test_macos_scout_witness_space_receipt.py
+        - tests/test_macos_scout_regression_gate.py
+        - tests/fixtures/macos_scout/post_hardening_zero/summary.json
+        - tests/fixtures/macos_scout/post_hardening_zero/counterexamples.jsonl
+        - tests/fixtures/macos_scout/post_hardening_zero/reranked_top_candidates.jsonl
+        - tests/fixtures/macos_scout/post_hardening_zero/promotion_candidates.jsonl
+        - tests/fixtures/macos_scout/pre_hardening_blocked/summary.json
+        - tests/fixtures/macos_scout/pre_hardening_blocked/counterexamples.jsonl
+        - tests/fixtures/macos_scout/pre_hardening_blocked/reranked_top_candidates.jsonl
+        - tests/fixtures/macos_scout/pre_hardening_blocked/promotion_candidates.jsonl
+        - docs/macos_scout/MACOS_SCOUT_HARDENING_20260508.md
+        - docs/macos_scout/MACOS_OPTIMIZATION_BRIEF.md
+        - docs/macos_scout/CODEX_HANDOFF_PROMPT.md
+
   - id: julia:zeno_oracle:first_shell_math_witness_sweep_v1
     status: supported
     layer: assurance
