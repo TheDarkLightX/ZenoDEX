@@ -1,0 +1,6 @@
+name = "ZenoDEXMacOSScout"
+uuid = "a4ebdc41-6f55-4824-88d5-d519de820801"
+version = "0.1.0"
+
+[compat]
+julia = "1.10"
