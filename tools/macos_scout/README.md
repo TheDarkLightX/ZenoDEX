@@ -58,6 +58,7 @@ Each run writes:
 - `reason_counts.json`
 - `promotion_candidates.jsonl`
 - `regression_gate.json`
+- `witness_space_receipt.json`
 - `host_info.txt`
 
 Review `counterexamples.jsonl` before reviewing top candidates.
@@ -72,6 +73,17 @@ That gate fails closed if a scout run emits a counterexample reason not tracked
 in `tools/macos_scout/scout_regression_manifest.json`, or if a candidate is
 written to `promotion_candidates.jsonl` without satisfying the strict
 no-disaster/legal-shape budget checks.
+
+The launcher also builds a compact what-if witness-space receipt:
+
+```bash
+python3 tools/macos_scout/build_witness_space_receipt.py --run-dir <outdir>
+```
+
+That receipt applies the `what-if-witness-spaces` pattern to the scout lane:
+materialize named surface/edge/re-entry witnesses from
+`tools/macos_scout/witness_space_atlas.json`, count the compressed independent
+frontier, run synthetic fail-closed checks, and emit a stable receipt hash.
 
 ## Promotion Rule
 

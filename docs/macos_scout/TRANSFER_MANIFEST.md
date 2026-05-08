@@ -13,7 +13,9 @@ tools/macos_scout/README.md
 tools/macos_scout/Project.toml
 tools/macos_scout/derivatives_scout.jl
 tools/macos_scout/check_scout_regression_gate.py
+tools/macos_scout/build_witness_space_receipt.py
 tools/macos_scout/scout_regression_manifest.json
+tools/macos_scout/witness_space_atlas.json
 tools/macos_scout/metal_prefilter.jl
 tools/macos_scout/metal_smoke.jl
 tools/macos_scout/run_macos_scout.sh

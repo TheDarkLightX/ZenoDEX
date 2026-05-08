@@ -148,3 +148,21 @@ two unsafe workflow failures:
   `tools/macos_scout/scout_regression_manifest.json`;
 - a candidate is promoted despite nonzero disaster rate, illegal fee/payout
   shape, underfunded insurance, or excessive reliance on emergency guards.
+
+## Witness-Space Reduction
+
+The `what-if-witness-spaces` method reduces disaster-state work by choosing a
+quotient that preserves gate-relevant observations, then checking every
+materialized witness in that quotient with deterministic receipts. The scout
+translation is:
+
+```bash
+python3 tools/macos_scout/build_witness_space_receipt.py \
+  --run-dir internal/macos_scout_runs/<timestamp>_<mode>
+```
+
+The receipt uses `tools/macos_scout/witness_space_atlas.json` to materialize
+single-surface, edge-composition, order-inversion, re-entry, and independent
+co-reachability witnesses for the scout disaster classes. It opens only when
+all supplied run directories have zero reachable counterexamples, the
+regression gate accepts, and synthetic fail-closed mutations reject as expected.
