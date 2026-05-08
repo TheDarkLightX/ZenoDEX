@@ -4,7 +4,7 @@ import yaml
 
 
 def test_claims_registry_is_valid() -> None:
-    from tools.check_claims_registry import validate_registry, REGISTRY_PATH
+    from tools.check_claims_registry import REGISTRY_PATH, validate_registry
 
     validate_registry(REGISTRY_PATH)
 
@@ -73,3 +73,23 @@ def test_macos_scout_witness_space_claim_tracks_public_fixture_gate() -> None:
     assert "tests/test_macos_scout_regression_gate.py" in files
     assert "tests/fixtures/macos_scout/post_hardening_zero/counterexamples.jsonl" in files
     assert "tests/fixtures/macos_scout/pre_hardening_blocked/counterexamples.jsonl" in files
+
+
+def test_zenoproof_claim_tracks_proof_market_policy_gate() -> None:
+    from tools.check_claims_registry import REGISTRY_PATH
+
+    registry = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
+    claims = {claim["id"]: claim for claim in registry["claims"]}
+    claim = claims["py:zenoproof:v0_artifact_verifier"]
+    evidence = claim["evidence"]
+    commands = [row["cmd"] for row in evidence["check"]]
+    files = set(evidence["files"])
+
+    assert (
+        "pytest -q tests/core/test_proof_market_policy.py tests/formal/test_lean_proof_market_safety.py"
+        in commands
+    )
+    assert "src/core/proof_market_policy.py" in files
+    assert "tests/core/test_proof_market_policy.py" in files
+    assert "tests/formal/test_lean_proof_market_safety.py" in files
+    assert "lean-mathlib/Proofs/ProofMarketSafety.lean" in files
