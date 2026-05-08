@@ -277,9 +277,11 @@ verified against live chain state.
 The usable perps oracle snapshot family now has bounded replay evidence through
 `tools/check_zeno_oracle_perps_snapshot_gate.py`. That gate checks snapshot
 roundtrip preservation for isolated perps settlement runtime facts, adapter
-execution after restore, liquidation action-ID binding after restore, and
-fail-closed rejection of malformed oracle snapshot state. It does not claim a
-general perps snapshot theorem or live runtime policy.
+execution after restore, liquidation action-ID binding after restore,
+clearinghouse 2p/3p settlement action-ID binding after restore, clearinghouse
+2p/3p adapter execution after restore, and fail-closed rejection of malformed
+oracle and clearinghouse snapshot state. It does not claim a general perps
+snapshot theorem or live runtime policy.
 
 The governance-timelock family now has local feed-governance
 approval/execution receipt replay through
