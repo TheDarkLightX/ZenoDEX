@@ -93,6 +93,9 @@ Expected files:
 - `pareto_front.jsonl`
 - `counterexamples.jsonl`
 - `reranked_top_candidates.jsonl`
+- `reason_counts.json`
+- `promotion_candidates.jsonl`
+- `regression_gate.json`
 - `host_info.txt`
 
 `internal/` is git-ignored. Promote only distilled, replayable artifacts into

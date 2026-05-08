@@ -117,5 +117,8 @@ JULIA_NUM_THREADS="$THREADS" julia --project=tools/macos_scout \
   --rerank-steps "$RERANK_STEPS"
 
 python3 tools/macos_scout/summarize_scout_outputs.py "$OUTDIR"
+python3 tools/macos_scout/check_scout_regression_gate.py \
+  --run-dir "$OUTDIR" \
+  --output "$OUTDIR/regression_gate.json"
 
 echo "done: $OUTDIR"

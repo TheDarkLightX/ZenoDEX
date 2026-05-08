@@ -7,10 +7,13 @@ docs/macos_scout/CODEX_HANDOFF_PROMPT.md
 docs/macos_scout/MAC_AGENT_OPERATING_LOOP.md
 docs/macos_scout/MACOS_OPTIMIZATION_BRIEF.md
 docs/macos_scout/M3_MAX_128GB_CAPABILITY_NOTE.md
+docs/macos_scout/MACOS_SCOUT_HARDENING_20260508.md
 docs/macos_scout/TRANSFER_MANIFEST.md
 tools/macos_scout/README.md
 tools/macos_scout/Project.toml
 tools/macos_scout/derivatives_scout.jl
+tools/macos_scout/check_scout_regression_gate.py
+tools/macos_scout/scout_regression_manifest.json
 tools/macos_scout/metal_prefilter.jl
 tools/macos_scout/metal_smoke.jl
 tools/macos_scout/run_macos_scout.sh

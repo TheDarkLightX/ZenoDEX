@@ -25,6 +25,9 @@ Confirm:
 - the run used `Threads.@threads`;
 - output files were written under `internal/`;
 - counterexamples and top candidates are non-empty.
+- `regression_gate.json` reports `status = accepted`, which means every
+  observed counterexample reason is mapped to the tracked regression manifest
+  and every strict promotion candidate satisfies the fail-closed budget gate.
 
 ## CPU Strategy
 
@@ -128,3 +131,20 @@ SEED=20260509 bash tools/macos_scout/run_macos_scout.sh scout
 
 A candidate that fails on the second seed becomes a counterexample class, not a
 mechanism claim.
+
+## Hardening Gate
+
+Every local run now writes a regression-gate receipt:
+
+```bash
+python3 tools/macos_scout/check_scout_regression_gate.py \
+  --run-dir internal/macos_scout_runs/<timestamp>_<mode>
+```
+
+The gate is intentionally narrow. It does not prove a mechanism safe; it blocks
+two unsafe workflow failures:
+
+- a new simulator disaster reason appears without being classified in
+  `tools/macos_scout/scout_regression_manifest.json`;
+- a candidate is promoted despite nonzero disaster rate, illegal fee/payout
+  shape, underfunded insurance, or excessive reliance on emergency guards.
