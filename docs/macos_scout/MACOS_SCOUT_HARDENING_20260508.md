@@ -126,9 +126,25 @@ regression_gate = accepted
 strict_promotion_candidates = 0
 ```
 
-The two seeded 50k-candidate runs plus two 250k-candidate deep runs show that
-the three repeated baseline disaster classes are now blocked under these
-bounded scout settings.
+Soak run:
+
+```text
+internal/macos_scout_runs/20260508_175632_soak
+seed = 20260511
+candidates = 1000000
+paths = 96
+steps = 128
+counterexamples = 0
+zero_disaster_legal_shape_candidates = 1000000
+screen_seconds = 117.943689375
+rerank_seconds = 1.040016
+regression_gate = accepted
+strict_promotion_candidates = 0
+```
+
+The two seeded 50k-candidate runs, two 250k-candidate deep runs, and one
+1M-candidate soak run show that the three repeated baseline disaster classes
+are now blocked under these bounded scout settings.
 
 ## Promotion Status
 
@@ -151,6 +167,7 @@ python3 tools/macos_scout/build_witness_space_receipt.py \
   --run-dir internal/macos_scout_runs/20260508_173056_scout \
   --run-dir internal/macos_scout_runs/20260508_173348_deep \
   --run-dir internal/macos_scout_runs/20260508_174948_deep \
+  --run-dir internal/macos_scout_runs/20260508_175632_soak \
   --output internal/macos_scout_runs/witness_space_receipt_20260508.json
 ```
 
@@ -158,28 +175,29 @@ Receipt:
 
 ```text
 gate = OPEN_FOR_BOUNDED_RESEARCH
-stable_receipt_hash = sha256:ba93219d962215f6bfceeb28171f80b2e325a60bfe1ac027257df7b5fcdc4f14
-materialized_witness_count = 44
+stable_receipt_hash = sha256:a9c996114db22efb2d12ebd626de2ce03462aedafeacbc87b1cff1d1ffbf19fd
+materialized_witness_count = 65
 reachable_witness_count = 0
-family_counts = {"edge_composition_disaster": 8, "independent_2_coreachability": 18, "order_inversion_disaster": 8, "reentry_retry_disaster": 2, "single_surface_disaster": 8}
-verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 44}
+family_counts = {"chain_terminal_disaster": 12, "convergence_composition_disaster": 4, "cycle_amplification_disaster": 3, "edge_composition_disaster": 8, "fanout_composition_disaster": 2, "independent_2_coreachability": 18, "order_inversion_disaster": 8, "reentry_retry_disaster": 2, "single_surface_disaster": 8}
+verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 65}
 compressed_frontier_total = 9
+graph_frontier = {"convergence_count": 4, "cycle_count": 3, "fanout_count": 2, "max_simple_path_depth": 5, "simple_path_count": 17, "simple_path_frontier_exhausted": true, "surface_count": 8, "terminal_path_count": 12}
 ```
 
 The pre-hardening baseline run blocks under the same witness-space gate:
 
 ```text
 gate = BLOCKED_REACHABLE_WITNESS
-materialized_witness_count = 44
-reachable_witness_count = 26
-verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 18, "REACHABLE_DISASTER_WITNESS": 26}
+materialized_witness_count = 65
+reachable_witness_count = 43
+verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 22, "REACHABLE_DISASTER_WITNESS": 43}
 ```
 
 The tracked public fixture receipt for a zero-counterexample post-hardening run
 is stable at
-`sha256:003a94bde1798500397edd33736352cc704bd00aa5c756c5c676609d4d2581e4`;
+`sha256:3cf55a9dc31294e707c0e219d335ebf258ad42d77670ef67862052a85f5e8d5a`;
 the paired pre-hardening fixture remains blocked at
-`sha256:c8c60fbec1a1cc86d9f599baf9e700a6b7b4759909e0282ca1162e151a850fa6`.
+`sha256:ab48553793c32f496ad857722c5e44df8da14d2abdf97d748a9e0bdfa81eca55`.
 
 Next promotion work should target lower guard-block rates and higher
 min-insurance ratios, then rerun two-seed scout and deep campaigns before

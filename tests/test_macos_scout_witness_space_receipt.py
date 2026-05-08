@@ -11,10 +11,14 @@ from tools.macos_scout.build_witness_space_receipt import build_receipt
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures" / "macos_scout"
-POST_HARDENING_FIXTURE_HASH = "sha256:003a94bde1798500397edd33736352cc704bd00aa5c756c5c676609d4d2581e4"
-PRE_HARDENING_BLOCKED_FIXTURE_HASH = "sha256:c8c60fbec1a1cc86d9f599baf9e700a6b7b4759909e0282ca1162e151a850fa6"
+POST_HARDENING_FIXTURE_HASH = "sha256:3cf55a9dc31294e707c0e219d335ebf258ad42d77670ef67862052a85f5e8d5a"
+PRE_HARDENING_BLOCKED_FIXTURE_HASH = "sha256:ab48553793c32f496ad857722c5e44df8da14d2abdf97d748a9e0bdfa81eca55"
 EXPECTED_FAMILY_COUNTS = {
+    "chain_terminal_disaster": 12,
+    "convergence_composition_disaster": 4,
+    "cycle_amplification_disaster": 3,
     "edge_composition_disaster": 8,
+    "fanout_composition_disaster": 2,
     "independent_2_coreachability": 18,
     "order_inversion_disaster": 8,
     "reentry_retry_disaster": 2,
@@ -117,7 +121,7 @@ def test_public_post_hardening_fixture_has_stable_reduction_receipt() -> None:
     assert receipt["ok"] is True
     assert receipt["gate"] == "OPEN_FOR_BOUNDED_RESEARCH"
     assert receipt["stable_receipt_hash"] == POST_HARDENING_FIXTURE_HASH
-    assert receipt["materialized_witness_count"] == 44
+    assert receipt["materialized_witness_count"] == 65
     assert receipt["reachable_witness_count"] == 0
     assert receipt["family_counts"] == EXPECTED_FAMILY_COUNTS
     assert receipt["frontier"] == {
@@ -127,6 +131,16 @@ def test_public_post_hardening_fixture_has_stable_reduction_receipt() -> None:
         "total": 9,
         "compressed": True,
     }
+    assert receipt["graph_frontier"] == {
+        "surface_count": 8,
+        "max_simple_path_depth": 5,
+        "simple_path_count": 17,
+        "terminal_path_count": 12,
+        "fanout_count": 2,
+        "convergence_count": 4,
+        "cycle_count": 3,
+        "simple_path_frontier_exhausted": True,
+    }
 
 
 def test_public_pre_hardening_fixture_still_blocks_reachable_witnesses() -> None:
@@ -135,11 +149,11 @@ def test_public_pre_hardening_fixture_still_blocks_reachable_witnesses() -> None
     assert receipt["ok"] is False
     assert receipt["gate"] == "BLOCKED_REACHABLE_WITNESS"
     assert receipt["stable_receipt_hash"] == PRE_HARDENING_BLOCKED_FIXTURE_HASH
-    assert receipt["materialized_witness_count"] == 44
-    assert receipt["reachable_witness_count"] == 26
+    assert receipt["materialized_witness_count"] == 65
+    assert receipt["reachable_witness_count"] == 43
     assert receipt["verdict_counts"] == {
-        "NO_REACHABLE_WITNESS_BOUNDED": 18,
-        "REACHABLE_DISASTER_WITNESS": 26,
+        "NO_REACHABLE_WITNESS_BOUNDED": 22,
+        "REACHABLE_DISASTER_WITNESS": 43,
     }
 
 

@@ -162,10 +162,12 @@ python3 tools/macos_scout/build_witness_space_receipt.py \
 ```
 
 The receipt uses `tools/macos_scout/witness_space_atlas.json` to materialize
-single-surface, edge-composition, order-inversion, re-entry, and independent
-co-reachability witnesses for the scout disaster classes. It opens only when
-all supplied run directories have zero reachable counterexamples, the
-regression gate accepts, synthetic fail-closed mutations reject as expected,
-and release runs using `--require-clean` have no dirty gate-critical checker or
-atlas paths. Independent co-reachability above the materialized order is kept
-as a compressed frontier count rather than expanded into raw witness rows.
+single-surface, edge-composition, order-inversion, terminal-chain, fan-out,
+convergence, re-entry, cycle-amplification, and independent co-reachability
+witnesses for the scout disaster classes. It opens only when all supplied run
+directories have zero reachable counterexamples, the regression gate accepts,
+synthetic fail-closed mutations reject as expected, and release runs using
+`--require-clean` have no dirty gate-critical checker or atlas paths. The
+bounded graph frontier is recorded in the receipt, while independent
+co-reachability above the materialized order is kept as a compressed frontier
+count rather than expanded into raw witness rows.

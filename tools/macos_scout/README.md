@@ -81,9 +81,11 @@ python3 tools/macos_scout/build_witness_space_receipt.py --run-dir <outdir>
 ```
 
 That receipt applies the `what-if-witness-spaces` pattern to the scout lane:
-materialize named surface/edge/re-entry witnesses from
-`tools/macos_scout/witness_space_atlas.json`, count the compressed independent
-frontier, run synthetic fail-closed checks, and emit a stable receipt hash.
+materialize named surface, edge, terminal-chain, fan-out, convergence, re-entry,
+cycle, and independent co-reachability witnesses from
+`tools/macos_scout/witness_space_atlas.json`, record the bounded graph frontier,
+count the compressed independent frontier, run synthetic fail-closed checks, and
+emit a stable receipt hash.
 
 ## Promotion Rule
 
