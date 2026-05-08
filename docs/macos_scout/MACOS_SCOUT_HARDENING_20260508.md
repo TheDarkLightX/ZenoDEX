@@ -116,6 +116,40 @@ No formula is promoted. The best reranked candidates still rely too heavily on
 emergency guards or fail the insurance-margin threshold used by the strict
 promotion filter. They remain search evidence only.
 
+## Witness-Space Reduction Receipt
+
+The `what-if-witness-spaces` reduction pattern was applied to the hardened
+macOS scout lane. The scout quotient keeps the gate-relevant observations:
+oracle/liquidity guard, epoch payout budget, thin-liquidity funding clamp,
+insurance solvency, and fee-budget legal shape.
+
+Command:
+
+```bash
+python3 tools/macos_scout/build_witness_space_receipt.py \
+  --run-dir internal/macos_scout_runs/20260508_173037_scout \
+  --run-dir internal/macos_scout_runs/20260508_173056_scout \
+  --run-dir internal/macos_scout_runs/20260508_173348_deep \
+  --output internal/macos_scout_runs/witness_space_receipt_20260508.json
+```
+
+Receipt:
+
+```text
+gate = OPEN_FOR_BOUNDED_RESEARCH
+stable_receipt_hash = sha256:dcb59ebe501770d0cec67953e838276668ddbe84dea8af3e76fd6b494f08710a
+materialized_witness_count = 21
+reachable_witness_count = 0
+verdict_counts = {"NO_REACHABLE_WITNESS_BOUNDED": 21}
+```
+
+The pre-hardening baseline run blocks under the same witness-space gate:
+
+```text
+gate = BLOCKED_REACHABLE_WITNESS
+reachable_witness_count = 17
+```
+
 Next promotion work should target lower guard-block rates and higher
 min-insurance ratios, then rerun two-seed scout and deep campaigns before
 drafting a Lean or SMT proof target.

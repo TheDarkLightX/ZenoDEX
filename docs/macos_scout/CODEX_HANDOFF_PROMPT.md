@@ -96,6 +96,7 @@ Expected files:
 - `reason_counts.json`
 - `promotion_candidates.jsonl`
 - `regression_gate.json`
+- `witness_space_receipt.json`
 - `host_info.txt`
 
 `internal/` is git-ignored. Promote only distilled, replayable artifacts into
