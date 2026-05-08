@@ -1568,6 +1568,7 @@ class _Handler(BaseHTTPRequestHandler):
             tx_sender_pubkey = str(obj.get("tx_sender_pubkey", ""))
             expected_proposal_hash = str(obj.get("expected_proposal_hash", ""))
             app_state_json = obj.get("app_state_json", "")
+            proof_mining_context_obj = obj.get("proof_mining_context")
             if not isinstance(claim_artifact, dict):
                 self._write_json(400, {"ok": False, "error": "bad_claim"}, cors_origin=cors_origin)
                 return True
@@ -1576,6 +1577,9 @@ class _Handler(BaseHTTPRequestHandler):
                 return True
             if not isinstance(app_state_json, str):
                 self._write_json(400, {"ok": False, "error": "bad_app_state_json"}, cors_origin=cors_origin)
+                return True
+            if proof_mining_context_obj is not None and not isinstance(proof_mining_context_obj, dict):
+                self._write_json(400, {"ok": False, "error": "bad_proof_mining_context"}, cors_origin=cors_origin)
                 return True
             if not tx_sender_pubkey:
                 self._write_json(400, {"ok": False, "error": "missing_tx_sender_pubkey"}, cors_origin=cors_origin)
@@ -1596,6 +1600,7 @@ class _Handler(BaseHTTPRequestHandler):
                     claim_artifact=claim_artifact,
                     tx_sender_pubkey=tx_sender_pubkey,
                     expected_proposal_hash=expected_proposal_hash,
+                    proof_mining_context_obj=proof_mining_context_obj,
                 )
                 self._write_json(200, {"ok": True, "status": status.to_public_dict()}, cors_origin=cors_origin)
                 return True
