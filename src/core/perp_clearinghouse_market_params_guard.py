@@ -14,6 +14,11 @@ REJECT_OPERATOR_ONLY = "OperatorOnly"
 REJECT_MID_EPOCH = "MidEpoch"
 REJECT_PENALTY_INCREASE_WHILE_OPEN = "PenaltyIncreaseWhileOpen"
 REJECT_PENALTY_ABOVE_MAINTENANCE = "PenaltyAboveMaintenance"
+REJECT_MAX_ORACLE_MOVE_INCREASE_WHILE_OPEN = "MaxOracleMoveIncreaseWhileOpen"
+REJECT_MAX_ORACLE_STALENESS_INCREASE_WHILE_OPEN = "MaxOracleStalenessIncreaseWhileOpen"
+REJECT_INITIAL_MARGIN_DECREASE_WHILE_OPEN = "InitialMarginDecreaseWhileOpen"
+REJECT_MAINTENANCE_MARGIN_DECREASE_WHILE_OPEN = "MaintenanceMarginDecreaseWhileOpen"
+REJECT_MAX_POSITION_INCREASE_WHILE_OPEN = "MaxPositionIncreaseWhileOpen"
 
 
 @dataclass(frozen=True)
@@ -25,6 +30,11 @@ class PerpClearinghouseMarketParamsGuardOutcome:
     positions_open: bool
     penalty_increase_ok: bool
     penalty_below_maintenance_ok: bool
+    max_oracle_move_increase_ok: bool
+    max_oracle_staleness_increase_ok: bool
+    initial_margin_decrease_ok: bool
+    maintenance_margin_decrease_ok: bool
+    max_position_increase_ok: bool
     admission_ok: bool
     reject_code: str
     checks: Mapping[str, bool | int]
@@ -64,7 +74,16 @@ def evaluate_perp_clearinghouse_market_params_guard(
     position_base_c: Any,
     old_liquidation_penalty_bps: Any,
     new_liquidation_penalty_bps: Any,
+    old_max_oracle_move_bps: Any,
+    new_max_oracle_move_bps: Any,
+    old_max_oracle_staleness_epochs: Any,
+    new_max_oracle_staleness_epochs: Any,
+    old_initial_margin_bps: Any,
+    new_initial_margin_bps: Any,
+    old_maintenance_margin_bps: Any,
     new_maintenance_margin_bps: Any,
+    old_max_position_abs: Any,
+    new_max_position_abs: Any,
 ) -> PerpClearinghouseMarketParamsGuardOutcome:
     kind = _require_market_kind(market_kind)
     operator = _require_flag(operator_ok, name="operator_ok")
@@ -74,7 +93,16 @@ def evaluate_perp_clearinghouse_market_params_guard(
     pos_c = _require_int(position_base_c, name="position_base_c")
     old_penalty = _require_int(old_liquidation_penalty_bps, name="old_liquidation_penalty_bps")
     new_penalty = _require_int(new_liquidation_penalty_bps, name="new_liquidation_penalty_bps")
+    old_max_move = _require_int(old_max_oracle_move_bps, name="old_max_oracle_move_bps")
+    new_max_move = _require_int(new_max_oracle_move_bps, name="new_max_oracle_move_bps")
+    old_max_staleness = _require_int(old_max_oracle_staleness_epochs, name="old_max_oracle_staleness_epochs")
+    new_max_staleness = _require_int(new_max_oracle_staleness_epochs, name="new_max_oracle_staleness_epochs")
+    old_initial = _require_int(old_initial_margin_bps, name="old_initial_margin_bps")
+    new_initial = _require_int(new_initial_margin_bps, name="new_initial_margin_bps")
+    old_maintenance = _require_int(old_maintenance_margin_bps, name="old_maintenance_margin_bps")
     new_maintenance = _require_int(new_maintenance_margin_bps, name="new_maintenance_margin_bps")
+    old_max_position = _require_int(old_max_position_abs, name="old_max_position_abs")
+    new_max_position = _require_int(new_max_position_abs, name="new_max_position_abs")
 
     market_kind_ok = bool(kind in (MARKET_KIND_CH2P, MARKET_KIND_CH3P))
     if kind == MARKET_KIND_CH2P:
@@ -86,6 +114,11 @@ def evaluate_perp_clearinghouse_market_params_guard(
 
     penalty_increase_ok = bool((not positions_open) or new_penalty <= old_penalty)
     penalty_below_maintenance_ok = bool(new_penalty < new_maintenance)
+    max_oracle_move_increase_ok = bool((not positions_open) or new_max_move <= old_max_move)
+    max_oracle_staleness_increase_ok = bool((not positions_open) or new_max_staleness <= old_max_staleness)
+    initial_margin_decrease_ok = bool((not positions_open) or new_initial >= old_initial)
+    maintenance_margin_decrease_ok = bool((not positions_open) or new_maintenance >= old_maintenance)
+    max_position_increase_ok = bool((not positions_open) or new_max_position <= old_max_position)
 
     if not market_kind_ok:
         reject_code = REJECT_INVALID_MARKET_KIND
@@ -95,6 +128,16 @@ def evaluate_perp_clearinghouse_market_params_guard(
         reject_code = REJECT_MID_EPOCH
     elif not penalty_increase_ok:
         reject_code = REJECT_PENALTY_INCREASE_WHILE_OPEN
+    elif not max_oracle_move_increase_ok:
+        reject_code = REJECT_MAX_ORACLE_MOVE_INCREASE_WHILE_OPEN
+    elif not max_oracle_staleness_increase_ok:
+        reject_code = REJECT_MAX_ORACLE_STALENESS_INCREASE_WHILE_OPEN
+    elif not initial_margin_decrease_ok:
+        reject_code = REJECT_INITIAL_MARGIN_DECREASE_WHILE_OPEN
+    elif not maintenance_margin_decrease_ok:
+        reject_code = REJECT_MAINTENANCE_MARGIN_DECREASE_WHILE_OPEN
+    elif not max_position_increase_ok:
+        reject_code = REJECT_MAX_POSITION_INCREASE_WHILE_OPEN
     elif not penalty_below_maintenance_ok:
         reject_code = REJECT_PENALTY_ABOVE_MAINTENANCE
     else:
@@ -108,6 +151,11 @@ def evaluate_perp_clearinghouse_market_params_guard(
         positions_open=positions_open,
         penalty_increase_ok=penalty_increase_ok,
         penalty_below_maintenance_ok=penalty_below_maintenance_ok,
+        max_oracle_move_increase_ok=max_oracle_move_increase_ok,
+        max_oracle_staleness_increase_ok=max_oracle_staleness_increase_ok,
+        initial_margin_decrease_ok=initial_margin_decrease_ok,
+        maintenance_margin_decrease_ok=maintenance_margin_decrease_ok,
+        max_position_increase_ok=max_position_increase_ok,
         admission_ok=bool(reject_code == REJECT_OK),
         reject_code=reject_code,
         checks={
@@ -117,6 +165,11 @@ def evaluate_perp_clearinghouse_market_params_guard(
             "positions_open": positions_open,
             "penalty_increase_ok": penalty_increase_ok,
             "penalty_below_maintenance_ok": penalty_below_maintenance_ok,
+            "max_oracle_move_increase_ok": max_oracle_move_increase_ok,
+            "max_oracle_staleness_increase_ok": max_oracle_staleness_increase_ok,
+            "initial_margin_decrease_ok": initial_margin_decrease_ok,
+            "maintenance_margin_decrease_ok": maintenance_margin_decrease_ok,
+            "max_position_increase_ok": max_position_increase_ok,
         },
     )
 
@@ -132,6 +185,16 @@ def perp_clearinghouse_market_params_guard_error(
         return "cannot update market params mid-epoch"
     if outcome.reject_code == REJECT_PENALTY_INCREASE_WHILE_OPEN:
         return "invalid params: cannot increase liquidation_penalty_bps while positions are open"
+    if outcome.reject_code == REJECT_MAX_ORACLE_MOVE_INCREASE_WHILE_OPEN:
+        return "invalid params: cannot increase max_oracle_move_bps while positions are open"
+    if outcome.reject_code == REJECT_MAX_ORACLE_STALENESS_INCREASE_WHILE_OPEN:
+        return "invalid params: cannot increase max_oracle_staleness_epochs while positions are open"
+    if outcome.reject_code == REJECT_INITIAL_MARGIN_DECREASE_WHILE_OPEN:
+        return "invalid params: cannot decrease initial_margin_bps while positions are open"
+    if outcome.reject_code == REJECT_MAINTENANCE_MARGIN_DECREASE_WHILE_OPEN:
+        return "invalid params: cannot decrease maintenance_margin_bps while positions are open"
+    if outcome.reject_code == REJECT_MAX_POSITION_INCREASE_WHILE_OPEN:
+        return "invalid params: cannot increase max_position_abs while positions are open"
     if outcome.reject_code == REJECT_PENALTY_ABOVE_MAINTENANCE:
         return "invalid params: require liquidation_penalty_bps < maintenance_margin_bps"
     return None

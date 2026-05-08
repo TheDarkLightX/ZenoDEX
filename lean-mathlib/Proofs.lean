@@ -25,6 +25,7 @@ import Proofs.ILFuturesSafety
 import Proofs.VolatilityTierSafety
 import Proofs.CurveSelectionSafety
 import Proofs.PerpFundingAlgebra
+import Proofs.PerpLiveRiskParamMonotonicity
 import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
 import Proofs.ZenoDEXRounding

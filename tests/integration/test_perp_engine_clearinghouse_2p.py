@@ -165,6 +165,28 @@ def _settle_ready_state_2p(*, market_id: str, quote_asset: str, relayer: str) ->
     )
 
 
+def _open_position_state_2p(*, market_id: str, quote_asset: str, relayer: str) -> DexState:
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=relayer,
+        ops=[_signed_init_market_2p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=_DEADLINE)],
+    )
+
+    assert state.perps is not None
+    m = state.perps.markets[market_id]
+    assert isinstance(m, PerpClearinghouse2pMarketState)
+    open_market = PerpClearinghouse2pMarketState(
+        quote_asset=m.quote_asset,
+        account_a_pubkey=m.account_a_pubkey,
+        account_b_pubkey=m.account_b_pubkey,
+        state={**m.state, "position_base_a": 1_000, "position_base_b": -1_000, "max_position_abs": 2_000},
+    )
+    markets = dict(state.perps.markets)
+    markets[market_id] = open_market
+    return replace(state, perps=replace(state.perps, markets=markets))
+
+
 def test_init_market_2p_is_strict_about_prefix_and_signatures() -> None:
     quote_asset = "0x" + "33" * 32
     relayer = "ff" * 48
@@ -645,25 +667,7 @@ def test_set_market_params_2p_rejects_penalty_increase_with_open_positions() -> 
     quote_asset = "0x" + "42" * 32
     relayer = "ff" * 48
 
-    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
-    state = _apply(
-        state=state,
-        tx_sender_pubkey=relayer,
-        ops=[_signed_init_market_2p(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1, deadline=_DEADLINE)],
-    )
-
-    assert state.perps is not None
-    m = state.perps.markets[market_id]
-    assert isinstance(m, PerpClearinghouse2pMarketState)
-    open_market = PerpClearinghouse2pMarketState(
-        quote_asset=m.quote_asset,
-        account_a_pubkey=m.account_a_pubkey,
-        account_b_pubkey=m.account_b_pubkey,
-        state={**m.state, "position_base_a": 1_000, "position_base_b": -1_000},
-    )
-    markets = dict(state.perps.markets)
-    markets[market_id] = open_market
-    state = replace(state, perps=replace(state.perps, markets=markets))
+    state = _open_position_state_2p(market_id=market_id, quote_asset=quote_asset, relayer=relayer)
 
     m = state.perps.markets[market_id]
     assert isinstance(m, PerpClearinghouse2pMarketState)
@@ -687,3 +691,48 @@ def test_set_market_params_2p_rejects_penalty_increase_with_open_positions() -> 
     )
     assert not res.ok
     assert res.error is not None and "cannot increase liquidation_penalty_bps while positions are open" in res.error
+
+
+def test_set_market_params_2p_rejects_live_risk_loosenings_with_open_positions() -> None:
+    market_id = "perp:ch2p:params_open_risk_guard"
+    quote_asset = "0x" + "43" * 32
+    relayer = "ff" * 48
+
+    state = _open_position_state_2p(market_id=market_id, quote_asset=quote_asset, relayer=relayer)
+    assert state.perps is not None
+    m = state.perps.markets[market_id]
+    assert isinstance(m, PerpClearinghouse2pMarketState)
+
+    cases = [
+        (
+            {"max_oracle_move_bps": int(m.state["max_oracle_move_bps"]) + 1},
+            "cannot increase max_oracle_move_bps while positions are open",
+        ),
+        (
+            {"max_oracle_staleness_epochs": int(m.state["max_oracle_staleness_epochs"]) + 1},
+            "cannot increase max_oracle_staleness_epochs while positions are open",
+        ),
+        (
+            {"initial_margin_bps": int(m.state["initial_margin_bps"]) - 1},
+            "cannot decrease initial_margin_bps while positions are open",
+        ),
+        (
+            {"maintenance_margin_bps": int(m.state["maintenance_margin_bps"]) - 1},
+            "cannot decrease maintenance_margin_bps while positions are open",
+        ),
+        (
+            {"max_position_abs": int(m.state["max_position_abs"]) + 1},
+            "cannot increase max_position_abs while positions are open",
+        ),
+    ]
+
+    for params, expected_error in cases:
+        res = _apply_result(
+            state=state,
+            tx_sender_pubkey=relayer,
+            operator_pubkey=relayer,
+            ops=[_op(market_id, "set_market_params", version="1.0", params=params)],
+        )
+
+        assert not res.ok
+        assert res.error is not None and expected_error in res.error
