@@ -42,6 +42,7 @@ bash tools/macos_scout/run_macos_scout.sh smoke
 Before a serious run, read:
 
 ```text
+docs/macos_scout/MAC_AGENT_OPERATING_LOOP.md
 docs/macos_scout/MACOS_OPTIMIZATION_BRIEF.md
 ```
 
@@ -124,6 +125,10 @@ explicit work output, with caps and replayable evidence.
    bounded assumptions.
 6. Write a short public note only after the mechanism has a replay script and a
    formal proof target.
+
+The detailed loop is in `docs/macos_scout/MAC_AGENT_OPERATING_LOOP.md`. Follow
+that file as the source of truth for what to run, how to interpret outputs, and
+what to commit or push back.
 
 ## Optimization Requirement For The Receiving Agent
 
