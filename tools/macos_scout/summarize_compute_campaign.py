@@ -44,6 +44,26 @@ def _read_reason_counts(path: Path) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
+def _receipt_status(receipt: dict[str, Any]) -> str | None:
+    status = receipt.get("status")
+    if isinstance(status, str) and status.strip():
+        return status.strip()
+    ok = receipt.get("ok")
+    if ok is True:
+        return "accepted"
+    if ok is False:
+        return "rejected"
+    return None
+
+
+def _receipt_hash(receipt: dict[str, Any]) -> str | None:
+    for key in ("receipt_hash", "stable_receipt_hash"):
+        value = receipt.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def _campaign_runs(campaign_root: Path) -> list[dict[str, Any]]:
     runs: list[dict[str, Any]] = []
     for path in sorted(campaign_root.iterdir()):
@@ -69,10 +89,10 @@ def _campaign_runs(campaign_root: Path) -> list[dict[str, Any]]:
                 "screen_seconds": summary.get("screen_seconds"),
                 "rerank_seconds": summary.get("rerank_seconds"),
                 "retained_bytes_estimate": summary.get("retained_bytes_estimate"),
-                "gate_status": gate.get("status"),
-                "gate_receipt_hash": gate.get("receipt_hash"),
-                "witness_status": witness.get("status"),
-                "witness_receipt_hash": witness.get("receipt_hash"),
+                "gate_status": _receipt_status(gate),
+                "gate_receipt_hash": _receipt_hash(gate),
+                "witness_status": _receipt_status(witness),
+                "witness_receipt_hash": _receipt_hash(witness),
                 "first_promotion_id": None if first_promotion is None else first_promotion.get("id"),
                 "first_promotion_score": None if first_promotion is None else first_promotion.get("score"),
                 "reason_counts": reason_counts,
@@ -86,6 +106,7 @@ def _write_campaign_summary(campaign_root: Path, runs: list[dict[str, Any]]) -> 
     for run in runs:
         for reason, count in dict(run.get("reason_counts") or {}).items():
             aggregate_reasons[str(reason)] += int(count)
+    campaign_witness = _read_json(campaign_root / "witness_space_receipt.json")
 
     payload = {
         "schema": "zenodex/macos-scout-compute-campaign/v1",
@@ -93,6 +114,9 @@ def _write_campaign_summary(campaign_root: Path, runs: list[dict[str, Any]]) -> 
         "run_count": len(runs),
         "accepted_gate_count": sum(1 for run in runs if run.get("gate_status") == "accepted"),
         "accepted_witness_count": sum(1 for run in runs if run.get("witness_status") == "accepted"),
+        "campaign_witness_status": _receipt_status(campaign_witness),
+        "campaign_witness_receipt_hash": _receipt_hash(campaign_witness),
+        "campaign_reachable_witness_count": campaign_witness.get("reachable_witness_count"),
         "total_candidates": sum(int(run.get("candidates") or 0) for run in runs),
         "total_counterexamples": sum(int(run.get("counterexample_count") or 0) for run in runs),
         "total_zero_disaster_legal_shape": sum(int(run.get("zero_disaster_legal_shape_count") or 0) for run in runs),
@@ -111,6 +135,9 @@ def _write_review(campaign_root: Path, payload: dict[str, Any]) -> Path:
         f"- Runs: {payload['run_count']}",
         f"- Accepted regression gates: {payload['accepted_gate_count']}",
         f"- Accepted witness receipts: {payload['accepted_witness_count']}",
+        f"- Campaign witness receipt: {payload.get('campaign_witness_status') or 'missing'}",
+        f"- Campaign witness receipt hash: {payload.get('campaign_witness_receipt_hash') or 'missing'}",
+        f"- Campaign reachable witnesses: {payload.get('campaign_reachable_witness_count') if payload.get('campaign_reachable_witness_count') is not None else 'unknown'}",
         f"- Total candidates screened: {payload['total_candidates']}",
         f"- Total counterexamples: {payload['total_counterexamples']}",
         f"- Total zero-disaster legal-shape candidates: {payload['total_zero_disaster_legal_shape']}",

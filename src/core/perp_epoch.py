@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Union
 
 
 try:
@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover - optional dependency in some environments
 
 # Kernel values are JSON-like scalars used by both the spec interpreter backend
 # and the generated reference models.
-Value = bool | int | str
+Value = Union[bool, int, str]
 
 
 @dataclass(frozen=True)

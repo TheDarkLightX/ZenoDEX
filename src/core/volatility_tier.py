@@ -19,7 +19,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum, unique
-from typing import TypeGuard, cast
+from typing import cast
+
+try:
+    from typing import TypeGuard
+except ImportError:  # pragma: no cover - Python 3.9 compatibility
+    from typing_extensions import TypeGuard
 
 from ..state.volatility import BPS_DENOM, TierEffects, TierState, tier_effects
 

@@ -7,7 +7,12 @@ These constants must stay aligned with the authoritative kernel specs:
 - ``src/kernels/dex/perp_epoch_isolated_v3.yaml``
 """
 
-from typing import TypeGuard
+from __future__ import annotations
+
+try:
+    from typing import TypeGuard
+except ImportError:  # pragma: no cover - Python 3.9 compatibility
+    from typing_extensions import TypeGuard
 
 DEX_POOL_RESERVE_MAX = 3_000_000_000
 DEX_SWAP_AMOUNT_MAX = 3_000_000_000

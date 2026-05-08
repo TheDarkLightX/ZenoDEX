@@ -17,13 +17,13 @@ Units note:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Literal
+from typing import Dict, Literal, Union
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
 
 
 # Kernel value domain (mirrors the YAML spec / generated refs): bool | int | str
-Value = bool | int | str
+Value = Union[bool, int, str]
 
 
 PERPS_STATE_VERSION_V4 = 4
@@ -665,7 +665,11 @@ class PerpClearinghouse3pTransferMarketState:
         return None
 
 
-PerpAnyMarketState = PerpMarketState | PerpClearinghouse2pMarketState | PerpClearinghouse3pTransferMarketState
+PerpAnyMarketState = Union[
+    PerpMarketState,
+    PerpClearinghouse2pMarketState,
+    PerpClearinghouse3pTransferMarketState,
+]
 
 
 @dataclass(frozen=True)
