@@ -118,6 +118,7 @@ import Proofs.CertificateGluing
 import Proofs.ForbiddenTraceMinor
 import Proofs.NoFreeResourceTraceLedger
 import Proofs.ZenoDEXDisasterSchemaInstantiations
+import Proofs.ProofMarketSafety
 import Proofs.ZenoDEXClosedAxisProofSchemaMap
 import Proofs.DisasterTraceDiscoveryChallenge
 import Proofs.FixedPointIntervalBridge

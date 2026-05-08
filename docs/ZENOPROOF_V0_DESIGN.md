@@ -167,6 +167,40 @@ The no-minting default remains preferred: rewards come from a bounded pool, and
 proof churn is rejected or unpaid when it does not add a new useful claim,
 counterexample, or proof obligation.
 
+## Proof Market Safety
+
+ZenoProof can support a proof market only through an escrowed acceptance gate.
+The market can let users buy and sell proofs, but payment authority is separate
+from social reputation and presentation quality.
+
+```text
+SellerPayable :=
+  verifier_accepts
+  and theorem_binding_matches
+  and artifact_hash_matches
+  and public_inputs_hash_matches
+  and assumptions_hash_matches
+  and non_vacuity_witness
+  and proposal_hash_unclaimed
+  and buyer_signoff_ok
+  and escrow_funded
+```
+
+The rule blocks the main proof-market disaster states:
+
+- a copied proof cannot earn a second payment for the same canonical proposal;
+- a vacuous proof cannot be paid without a non-vacuity witness;
+- reputation and stars are advisory and cannot override verifier rejection;
+- human signoff, when required by policy, is bound before payment;
+- the full proof payload is not released until payment is finalized or escrow is
+  locked.
+
+`src/core/proof_market_policy.py` is the first local gate for these boundaries,
+with public regressions in `tests/core/test_proof_market_policy.py`. The Lean
+anchor `lean-mathlib/Proofs/ProofMarketSafety.lean` proves the propositional
+shape: payable proofs imply verifier acceptance, non-vacuity, uniqueness, and
+escrow funding, and a full payload reveal implies payment lock.
+
 `tools/zenoproof_reward_payout_replay.py` is the v0 local payout bridge. It
 verifies an accepted ZenoProof reward gate, scales the e8 reward budget into the
 bounded proof-mining model, builds an explicit `proof_mining_claim`, executes

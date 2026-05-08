@@ -2076,11 +2076,17 @@ claims:
       root. It also replays a bounded local
       reward-payout bridge from an accepted ZenoProof reward gate through
       proof-mining claim construction, manager execution, and claimability
-      checks. It rejects malformed
+      checks. It also gates proof-market sale and reveal authorization on
+      verifier acceptance, theorem/artifact/public-input/assumption binding,
+      non-vacuity, proposal uniqueness, buyer signoff when required, escrow
+      funding, and payment lock before full-payload reveal, while keeping seller
+      reputation advisory. It rejects malformed
       artifacts, stale verifier policy, wrong claim bindings, unknown proof
       kinds, verifier timeouts, wrong public replay roots, wrong Oracle input
       bindings, missing or weak O5 independence witnesses, duplicate reward
-      claims, reward budget mismatches, and bad reward-payout proof bindings.
+      claims, reward budget mismatches, bad reward-payout proof bindings,
+      vacuous proof-market sales, copied-proof payouts, missing buyer signoff,
+      unpaid full-payload reveal, and reputation override attempts.
     evidence:
       kind: python
       check:
@@ -2088,10 +2094,12 @@ claims:
         - cmd: pytest -q tests/test_zenoproof_verify.py
         - cmd: python3 tools/zenoproof_reward_payout_replay.py --format text
         - cmd: pytest -q tests/test_zenoproof_reward_payout_replay.py
+        - cmd: pytest -q tests/core/test_proof_market_policy.py tests/formal/test_lean_proof_market_safety.py
       files:
         - tools/zenoproof_verify.py
         - tools/zenoproof_public_replay_verifier.py
         - tools/zenoproof_reward_payout_replay.py
+        - src/core/proof_market_policy.py
         - tools/zenoproof_registry_manifest.json
         - tools/zeno_oracle_workflow_evidence_status.py
         - tools/zeno_oracle_esso_zusd_recovery_replay.py
@@ -2099,6 +2107,7 @@ claims:
         - tools/zeno_oracle_ltlf_recovery_replay.py
         - tools/zeno_oracle_math_witness_sweep.jl
         - lean-mathlib/Proofs/ZenoOracleMathWitness.lean
+        - lean-mathlib/Proofs/ProofMarketSafety.lean
         - lean-mathlib/Proofs.lean
         - tests/formal/test_tla_oracle_recovery_lifecycle.py
         - tests/formal/test_oracle_recovery_ltlf.py
@@ -2114,6 +2123,8 @@ claims:
         - formal/tau/contracts/oracle_freshness_v2.contract.json
         - tests/test_zenoproof_verify.py
         - tests/test_zenoproof_reward_payout_replay.py
+        - tests/core/test_proof_market_policy.py
+        - tests/formal/test_lean_proof_market_safety.py
         - tests/test_zeno_oracle_smt_freshness_replay.py
         - docs/ZENOPROOF_V0_DESIGN.md
 

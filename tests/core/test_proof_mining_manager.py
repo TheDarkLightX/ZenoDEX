@@ -28,11 +28,18 @@ def _round_obj(*, miner_id: str = "alice", witness_sha256: str = "sha:a", improv
     }
 
 
-def _claim(*, round_id: str = "r1", witness_sha256: str = "sha:a", improvement_u64: int = 7, job_digest: str = "job1") -> dict:
+def _claim(
+    *,
+    round_id: str = "r1",
+    witness_sha256: str = "sha:a",
+    improvement_u64: int = 7,
+    job_digest: str = "job1",
+    reward_pool_before: int = 20,
+) -> dict:
     return build_proof_mining_claim(
         round_obj=_round_obj(witness_sha256=witness_sha256, improvement_u64=improvement_u64, job_digest=job_digest),
         round_id=round_id,
-        reward_pool_before=20,
+        reward_pool_before=reward_pool_before,
         base_reward=8,
         epoch=1,
         proposal_slot=0,
@@ -85,6 +92,43 @@ def test_build_submit_proof_packet_rejects_duplicate_proposal_hash() -> None:
     snapshot = _snapshot(claimed_slots={3: proposal_hash})
     with pytest.raises(ValueError, match="already claimed"):
         build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verification_flags=_verification_flags())
+
+
+def test_copied_proof_cannot_earn_second_reward_after_first_payment() -> None:
+    claim = _claim()
+    snapshot = _snapshot()
+    packet = build_submit_proof_packet(
+        claim_artifact=claim,
+        snapshot=snapshot,
+        verification_flags=_verification_flags(),
+    )
+    first = apply_submit_proof_packet(
+        packet=packet,
+        snapshot=snapshot,
+        verification_flags=_verification_flags(),
+    )
+    assert first.ok is True
+
+    next_snapshot = _snapshot(
+        reward_pool_balance=16,
+        total_paid=4,
+        claimed_slots=dict(first.claimed_slots_after),
+    )
+    copied_packet = build_submit_proof_packet(
+        claim_artifact=_claim(round_id="r2", reward_pool_before=16),
+        snapshot=_snapshot(reward_pool_balance=16, total_paid=0),
+        verification_flags=_verification_flags(),
+    )
+
+    second = apply_submit_proof_packet(
+        packet=copied_packet,
+        snapshot=next_snapshot,
+        verification_flags=_verification_flags(),
+    )
+
+    assert second.ok is False
+    assert second.error_code == "InvalidPacket"
+    assert second.error_message == "proposal_hash already claimed"
 
 
 def test_build_submit_proof_packet_rejects_stale_snapshot_budget() -> None:
