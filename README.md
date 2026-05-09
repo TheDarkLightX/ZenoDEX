@@ -48,6 +48,28 @@ More detail:
 
 Replay commands are documented in [docs/PUBLIC_ASSURANCE_REPLAY.md](docs/PUBLIC_ASSURANCE_REPLAY.md).
 
+## Disaster Hardness Level
+
+Current bounded disaster-hardening metric:
+
+```text
+DHAI = 81 / 100
+level = L3_STRONG_BOUNDED_DISASTER_HARDENING
+hardness_subscore = 100.0 / 100
+assurance_subscore = 72.6 / 100
+```
+
+`DHAI` is the Disaster Hardness and Assurance Index. It is computed from the
+promoted disaster closure rate, open disaster frontier, pre/post witness-space
+reduction, proof-schema coverage, and MacOS scout search pressure. The current
+public statistics are `29/29` closed core disaster axes over a `125`-axis
+inventory, `17/17` closed ZenoOracle devnet disaster states, `65/65` closed
+MacOS scout witnesses with `43 -> 0` reachable witnesses after hardening, and
+`29/29` closed core axes mapped to proof schemas.
+
+The detailed formula, replay command, and production blocker cap are in
+[docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md](docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md).
+
 ## Stateful Witness Coverage
 
 The stateful assurance lane is stronger than ordinary code-coverage reporting.
@@ -624,6 +646,7 @@ bash tests/tau/test_specs_syntax.sh
 ## Docs (current)
 - `docs/SPECIFICATION.md` — Protocol specification overview
 - `docs/SECURITY_POSTURE.md` — Runtime hardening choices and operator-facing security posture
+- `docs/DISASTER_HARDNESS_ASSURANCE_METRIC.md` — bounded disaster-hardness and assurance metric
 - `docs/ZDEX_TOKEN.md` — ZDEX tokenomics and spec references
 - `docs/ZENO_ORACLE_MVP_STATUS.md` — current Zeno Oracle MVP branch status
 - `docs/ZENO_ORACLE_MVP_DESIGN.md` — Zeno Oracle MVP design snapshot
