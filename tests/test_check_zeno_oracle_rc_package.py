@@ -65,6 +65,10 @@ def test_check_zeno_oracle_rc_package_accepts_built_devnet_bundle() -> None:
     assert (package_dir / "tools" / "zeno_oracle_disaster_obligation_certificate_manifest.json").is_file()
     assert (package_dir / "tools" / "zeno_oracle_math_witness_sweep.jl").is_file()
     assert (package_dir / "tools" / "zenodex_oracle_reporter_economics_replay.py").is_file()
+    assert (package_dir / "tools" / "macos_scout" / "build_witness_space_receipt.py").is_file()
+    assert (package_dir / "tools" / "macos_scout" / "check_scout_regression_gate.py").is_file()
+    assert (package_dir / "tools" / "macos_scout" / "witness_space_atlas.json").is_file()
+    assert (package_dir / "tools" / "macos_scout" / "scout_regression_manifest.json").is_file()
 
 
 def test_check_zeno_oracle_rc_package_rejects_manifest_hash_drift(tmp_path: Path) -> None:

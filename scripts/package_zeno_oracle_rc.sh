@@ -33,6 +33,7 @@ cp "${root}/tools/zeno_oracle_disaster_class_corpus.py" "${stage}/tools/zeno_ora
 cp "${root}/tools/zeno_oracle_o3_receipt_flow_replay.py" "${stage}/tools/zeno_oracle_o3_receipt_flow_replay.py"
 cp "${root}/tools/zeno_oracle_disaster_obligation_certificate_manifest.json" "${stage}/tools/zeno_oracle_disaster_obligation_certificate_manifest.json"
 cp "${root}/tools/zeno_oracle_math_witness_sweep.jl" "${stage}/tools/zeno_oracle_math_witness_sweep.jl"
+cp -R "${root}/tools/macos_scout" "${stage}/tools/macos_scout"
 
 find "${root}/tools" -maxdepth 1 -type f -name 'zenodex_oracle*.py' -print0 |
   sort -z |
@@ -72,6 +73,7 @@ chmod +x "${stage}/tools/check_zeno_oracle_live_economics_policy.py"
 chmod +x "${stage}/tools/check_zenoproof_production_governance_policy.py"
 chmod +x "${stage}/tools/zeno_oracle_disaster_class_corpus.py"
 chmod +x "${stage}/tools/zeno_oracle_o3_receipt_flow_replay.py"
+find "${stage}/tools/macos_scout" -type f \( -name '*.py' -o -name '*.sh' \) -exec chmod +x {} +
 chmod +x "${stage}/bin/zenodex-oracle"
 chmod +x "${stage}/scripts/check_zeno_oracle_mvp.sh"
 chmod +x "${stage}/scripts/check_zeno_oracle_devnet_alpha.sh"
