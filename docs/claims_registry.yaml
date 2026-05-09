@@ -1633,7 +1633,9 @@ claims:
       report signing, required code signing, at least five active bonded
       reporters with quorum and operator-diversity constraints, feed-level
       reporter/source/freshness/deviation policies, required critical-runtime
-      controls including typed isolated perps settlement authorization, a local
+      controls including typed isolated perps settlement authorization,
+      protected-swap authorization, guarded-quote authorization, zUSD
+      authorization, and critical-settlement authorization, a local
       receipt bundle for reporter-registry deployment, feed-governance
       deployment, feed-governance approval/execution with timelock checking,
       signed release artifact verification, signed-release transparency-log

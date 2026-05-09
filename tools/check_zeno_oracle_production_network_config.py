@@ -28,6 +28,7 @@ REQUIRED_RUNTIME_CONTROLS = {
     "require_oracle_adapter_for_isolated_settle_epoch",
     "require_oracle_adapter_for_clearinghouse_settle_epoch",
     "require_oracle_adapter_for_isolated_partial_liquidate",
+    "require_oracle_authorization_for_protected_swaps",
     "require_oracle_authorization_for_isolated_settle_epoch",
     "require_oracle_authorization_for_critical_settlements",
     "trigger_oracle_adapter_required",
