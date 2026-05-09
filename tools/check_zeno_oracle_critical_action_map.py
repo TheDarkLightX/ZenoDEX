@@ -310,9 +310,13 @@ def _check_trigger_execute(profiles: Mapping[tuple[str, str], Mapping[str, Any]]
     )
     for needle in (
         "check_trigger_execute_oracle_adapter_bridge(",
+        "check_trigger_execute_oracle_authorization(",
         "_default_oracle_adapter_bridge_verifier(",
         'consumer_module") != "zenodex.trigger"',
         'action_kind") != "execute_trigger"',
+        'consumer_module="zenodex.trigger"',
+        'action_kind="execute_trigger"',
+        "profile_id=_ORACLE_TRIGGER_EXECUTE_PROFILE_ID",
         "_ORACLE_TRIGGER_REFERENCE_QUERY_ID",
         "_ORACLE_TRIGGER_EXECUTE_PROFILE_ID",
         'expected_action_id = str(trigger_execute_runtime_facts(facts)["action_id"])',
@@ -325,7 +329,10 @@ def _check_trigger_execute(profiles: Mapping[tuple[str, str], Mapping[str, Any]]
         details={
             "query_id": profile["query_id"],
             "profile_id": profile["profile_id"],
-            "required_control": "check_trigger_execute_oracle_adapter_bridge(required=True)",
+            "required_controls": [
+                "check_trigger_execute_oracle_adapter_bridge(required=True)",
+                "trigger_oracle_authorization_required",
+            ],
             "covered_runtime_actions": ["trigger_execute"],
         },
         errors=errors,

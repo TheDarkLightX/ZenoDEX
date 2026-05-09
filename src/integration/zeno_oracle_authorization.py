@@ -43,6 +43,15 @@ _CRITICAL_SETTLEMENT_PROFILE_ID = _consumer_profile_id(
     query_id=_CRITICAL_SETTLEMENT_QUERY_ID,
     max_freshness_window_epochs=1,
 )
+_TRIGGER_REFERENCE_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.trigger.reference_price_e8").hexdigest()
+)
+_TRIGGER_EXECUTE_PROFILE_ID = _consumer_profile_id(
+    consumer_module="zenodex.trigger",
+    action_kind="execute_trigger",
+    query_id=_TRIGGER_REFERENCE_QUERY_ID,
+    max_freshness_window_epochs=2,
+)
 
 
 CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
@@ -54,7 +63,7 @@ CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
     ("zenodex.perps", "settle_epoch"): "critical-perps-v1",
     ("zenodex.perps", "liquidate"): "critical-perps-v1",
     ("zenodex.routing", "protected_swap"): "critical-routing-v1",
-    ("zenodex.trigger", "execute"): "critical-trigger-v1",
+    ("zenodex.trigger", "execute_trigger"): _TRIGGER_EXECUTE_PROFILE_ID,
     ("zenodex.settlement", "critical_settlement"): _CRITICAL_SETTLEMENT_PROFILE_ID,
 }
 
