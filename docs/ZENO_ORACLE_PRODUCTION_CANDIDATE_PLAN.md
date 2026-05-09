@@ -93,8 +93,9 @@ The active workspace now has:
   griefing, reward-pool conservation, live-economics settlement-execution total
   matching/drift rejection, live-economics receipt-dependency chain
   acceptance/rejection, live-economics and production-network receipt-chain
-  chronology acceptance/rejection, budget-widening preservation, and split-brain
-  boundary cases, plus O5 independence-witness acceptance/rejection, O5
+  chronology acceptance/rejection, production-network receipt-dependency chain
+  acceptance/rejection, budget-widening preservation, and split-brain boundary
+  cases, plus O5 independence-witness acceptance/rejection, O5
   proof/window/proof-kind/root drift rejection, and O3 sync-window composition
   preservation.
 - a Lean witness anchor at `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` for
@@ -103,7 +104,8 @@ The active workspace now has:
   restricted general theorems for median-bound monotonicity,
   settlement-budget widening, receipt-position transitivity/asymmetry,
   live-economics and production-network receipt-chain chronology,
-  live-economics receipt-dependency chain projection/rejection, O3
+  live-economics and production-network receipt-dependency chain
+  projection/rejection, O3
   sync-window composition, Prop-level
   live-economics receipt, O4/O5 Oracle-use binding, O4/O5 iff decomposition,
   and full O5 independence-witness obligation decomposition and rejection.

@@ -142,6 +142,21 @@ live_economics_receipt_dependency_chain_ok(
     settlement_binds_execution &&
     settlement_binds_escrow
 
+production_network_receipt_dependency_chain_ok(
+    governance_deploy_binds_registry::Bool,
+    governance_approval_binds_deploy::Bool,
+    governance_execution_binds_approval::Bool,
+    release_artifact_binds_execution::Bool,
+    transparency_log_binds_release_artifact::Bool,
+    runtime_controls_binds_transparency_log::Bool,
+)::Bool =
+    governance_deploy_binds_registry &&
+    governance_approval_binds_deploy &&
+    governance_execution_binds_approval &&
+    release_artifact_binds_execution &&
+    transparency_log_binds_release_artifact &&
+    runtime_controls_binds_transparency_log
+
 dispute_grief_rejected(dispute_bond::Int)::Bool = dispute_bond <= 0
 
 split_brain_rejected(
@@ -478,6 +493,24 @@ function run_cases()::Vector{Dict{String, Any}}
             "production_network_receipt_chain_order_inversion_rejects",
             !receipt_chain_ok(production_network_inverted_receipts),
             "release_log=(3199,0) before release_artifact=(3200,0)",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "production_network_receipt_dependency_chain_accepts",
+            production_network_receipt_dependency_chain_ok(true, true, true, true, true, true),
+            "deploy->registry=true approval->deploy=true execution->approval=true release->execution=true log->release=true runtime->log=true",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "production_network_receipt_dependency_chain_drift_rejects",
+            !production_network_receipt_dependency_chain_ok(true, true, true, true, true, false),
+            "runtime->log=false",
         ),
     )
 

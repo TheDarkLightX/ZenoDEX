@@ -225,6 +225,17 @@ def LiveEconomicsReceiptDependencyChainOK
   And executionBindsApproval
     (And escrowBindsExecution (And settlementBindsExecution settlementBindsEscrow))
 
+def ProductionNetworkReceiptDependencyChainOK
+    (governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog : Prop) :
+    Prop :=
+  And governanceDeployBindsRegistry
+    (And governanceApprovalBindsDeploy
+      (And governanceExecutionBindsApproval
+        (And releaseArtifactBindsExecution
+          (And transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog))))
+
 def LiveEconomicsReceiptBundleV3OK
     (governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
       settlementExecutionBound receiptDependencyChainBound : Prop) :
@@ -580,6 +591,108 @@ theorem production_network_receipt_order_rejects_sample_inversion :
     production_network_receipt_order_requires_release_before_transparency_log h
   unfold ReceiptBefore at hEdge
   omega
+
+theorem production_network_receipt_dependency_chain_requires_governance_deploy_registry_link
+    {governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog : Prop}
+    (h :
+      ProductionNetworkReceiptDependencyChainOK
+        governanceDeployBindsRegistry governanceApprovalBindsDeploy
+        governanceExecutionBindsApproval releaseArtifactBindsExecution
+        transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog) :
+    governanceDeployBindsRegistry := by
+  exact h.left
+
+theorem production_network_receipt_dependency_chain_requires_governance_approval_deploy_link
+    {governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog : Prop}
+    (h :
+      ProductionNetworkReceiptDependencyChainOK
+        governanceDeployBindsRegistry governanceApprovalBindsDeploy
+        governanceExecutionBindsApproval releaseArtifactBindsExecution
+        transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog) :
+    governanceApprovalBindsDeploy := by
+  exact h.right.left
+
+theorem production_network_receipt_dependency_chain_requires_governance_execution_approval_link
+    {governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog : Prop}
+    (h :
+      ProductionNetworkReceiptDependencyChainOK
+        governanceDeployBindsRegistry governanceApprovalBindsDeploy
+        governanceExecutionBindsApproval releaseArtifactBindsExecution
+        transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog) :
+    governanceExecutionBindsApproval := by
+  exact h.right.right.left
+
+theorem production_network_receipt_dependency_chain_requires_release_execution_link
+    {governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog : Prop}
+    (h :
+      ProductionNetworkReceiptDependencyChainOK
+        governanceDeployBindsRegistry governanceApprovalBindsDeploy
+        governanceExecutionBindsApproval releaseArtifactBindsExecution
+        transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog) :
+    releaseArtifactBindsExecution := by
+  exact h.right.right.right.left
+
+theorem production_network_receipt_dependency_chain_requires_log_release_link
+    {governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog : Prop}
+    (h :
+      ProductionNetworkReceiptDependencyChainOK
+        governanceDeployBindsRegistry governanceApprovalBindsDeploy
+        governanceExecutionBindsApproval releaseArtifactBindsExecution
+        transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog) :
+    transparencyLogBindsReleaseArtifact := by
+  exact h.right.right.right.right.left
+
+theorem production_network_receipt_dependency_chain_requires_runtime_log_link
+    {governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog : Prop}
+    (h :
+      ProductionNetworkReceiptDependencyChainOK
+        governanceDeployBindsRegistry governanceApprovalBindsDeploy
+        governanceExecutionBindsApproval releaseArtifactBindsExecution
+        transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog) :
+    runtimeControlsBindsTransparencyLog := by
+  exact h.right.right.right.right.right
+
+theorem production_network_receipt_dependency_chain_iff_obligations
+    {governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog : Prop} :
+    ProductionNetworkReceiptDependencyChainOK
+      governanceDeployBindsRegistry governanceApprovalBindsDeploy
+      governanceExecutionBindsApproval releaseArtifactBindsExecution
+      transparencyLogBindsReleaseArtifact runtimeControlsBindsTransparencyLog ↔
+        governanceDeployBindsRegistry ∧ governanceApprovalBindsDeploy ∧
+          governanceExecutionBindsApproval ∧ releaseArtifactBindsExecution ∧
+          transparencyLogBindsReleaseArtifact ∧ runtimeControlsBindsTransparencyLog := by
+  constructor
+  · intro h
+    exact
+      ⟨h.left, h.right.left, h.right.right.left, h.right.right.right.left,
+        h.right.right.right.right.left, h.right.right.right.right.right⟩
+  · intro h
+    exact
+      ⟨h.left, h.right.left, h.right.right.left, h.right.right.right.left,
+        h.right.right.right.right.left, h.right.right.right.right.right⟩
+
+theorem production_network_receipt_dependency_chain_sample :
+    ProductionNetworkReceiptDependencyChainOK True True True True True True := by
+  simp [ProductionNetworkReceiptDependencyChainOK]
+
+theorem production_network_receipt_dependency_chain_rejects_missing_runtime_log_link :
+    Not (ProductionNetworkReceiptDependencyChainOK True True True True True False) := by
+  intro h
+  exact h.right.right.right.right.right
 
 theorem live_economics_receipt_bundle_ok_requires_governance_execution
     {governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound : Prop}
