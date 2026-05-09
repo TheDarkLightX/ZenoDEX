@@ -1845,15 +1845,16 @@ claims:
     status: supported
     layer: assurance
     statement: >
-      The bounded perps oracle snapshot gate checks that the current isolated
-      perps snapshot encoder/decoder preserves settle-epoch oracle runtime
+      The bounded perps oracle snapshot gate checks that the current perps
+      snapshot encoder/decoder preserves isolated settle-epoch oracle runtime
       facts and action IDs across roundtrip, executes a perps settlement adapter
-      bridge after snapshot restore, preserves liquidation action-ID binding
-      after restore, and rejects malformed oracle snapshot state where
-      `oracle_seen` is false while oracle price fields remain populated. This
-      is local replay evidence for the production-disaster frontier family
-      covering usable perps oracle snapshots; it does not claim a general perps
-      snapshot theorem or live production runtime policy.
+      bridge after snapshot restore, rejects a stale pre-drift settle action ID
+      after snapshot price drift, preserves liquidation action-ID binding after
+      restore, preserves clearinghouse 2p/3p settle action IDs and adapter
+      execution after restore, and rejects malformed oracle/clearinghouse
+      snapshot state. This is local replay evidence for the production-disaster
+      frontier family covering usable perps oracle snapshots; it does not claim
+      a general perps snapshot theorem or live production runtime policy.
     evidence:
       kind: python
       check:

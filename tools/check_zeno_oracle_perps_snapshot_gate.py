@@ -11,7 +11,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -28,8 +27,8 @@ from src.core.perps import (  # noqa: E402
 from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot  # noqa: E402
 from src.integration.perp_engine import (  # noqa: E402
     _ORACLE_PERPS_INDEX_QUERY_ID,
-    _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
     _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    PerpEngineConfig,
     _ch2p_init_state_dict,
     _ch2p_step,
     _ch3p_init_state_dict,
@@ -39,11 +38,9 @@ from src.integration.perp_engine import (  # noqa: E402
     _perps_liquidate_account_runtime_oracle_action_id,
     _perps_runtime_oracle_action_id,
     apply_perp_ops,
-    PerpEngineConfig,
 )
 from src.state.balances import BalanceTable  # noqa: E402
 from src.state.lp import LPTable  # noqa: E402
-
 
 REPORT_SCHEMA = "zenodex.oracle.perps_snapshot_gate_check.v1"
 OPERATOR = "00" * 48
@@ -300,6 +297,72 @@ def settle_adapter_bridge_executes_after_snapshot_case() -> dict[str, Any]:
         ok=result.ok,
         errors=errors,
         details={"snapshot_commitment": commitment, "action_id": expected_action_id},
+    )
+
+
+def stale_settle_adapter_bridge_rejected_after_snapshot_drift_case() -> dict[str, Any]:
+    state = _ready_isolated_market(market_id=SETTLE_MARKET)
+    config = PerpEngineConfig(operator_pubkey=OPERATOR, allow_isolated_markets=True)
+    stale_action_id = _perps_runtime_oracle_action_id(
+        config,
+        market_id=SETTLE_MARKET,
+        action_kind="settle_epoch",
+        market=_market(state, SETTLE_MARKET),
+    )
+
+    def mutate(data: dict[str, Any]) -> None:
+        markets = data["perps"]["markets"]
+        for entry in markets:
+            if entry["market_id"] == SETTLE_MARKET:
+                entry["global_state"]["index_price_e8"] = int(entry["global_state"]["index_price_e8"]) + 1
+                return
+        raise AssertionError("settle market missing from snapshot")
+
+    restored, commitment = _roundtrip_state(state, mutate_snapshot=mutate)
+    fresh_action_id = _perps_runtime_oracle_action_id(
+        config,
+        market_id=SETTLE_MARKET,
+        action_kind="settle_epoch",
+        market=_market(restored, SETTLE_MARKET),
+    )
+
+    def verifier(_bridge: object) -> dict[str, object]:
+        return _accepted_bridge(
+            action_kind="settle_epoch",
+            profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            action_id=stale_action_id,
+        )
+
+    result = apply_perp_ops(
+        config=PerpEngineConfig(
+            operator_pubkey=OPERATOR,
+            allow_isolated_markets=True,
+            oracle_adapter_bridge_verifier=verifier,
+            require_oracle_adapter_for_isolated_settle_epoch=True,
+        ),
+        state=restored,
+        operations={"5": [_op(SETTLE_MARKET, "settle_epoch", oracle_adapter_bridge={"schema": "test"})]},
+        tx_sender_pubkey=OPERATOR,
+        block_timestamp=0,
+    )
+    rejection = result.error or ""
+    errors: list[str] = []
+    if stale_action_id == fresh_action_id:
+        errors.append("snapshot_drift_did_not_change_action_id")
+    if result.ok:
+        errors.append("stale_settle_action_id_was_accepted_after_snapshot_drift")
+    elif "oracle_adapter_bridge action_id mismatch" not in rejection:
+        errors.append("stale_settle_action_id_rejected_for_unexpected_reason")
+    return _case_result(
+        "isolated_settle_stale_action_id_rejected_after_snapshot_drift",
+        ok=not errors,
+        errors=errors,
+        details={
+            "snapshot_commitment": commitment,
+            "stale_action_id": stale_action_id,
+            "fresh_action_id": fresh_action_id,
+            "rejection": rejection,
+        },
     )
 
 
@@ -569,6 +632,7 @@ def build_report() -> dict[str, Any]:
     cases = [
         settle_snapshot_roundtrip_case(),
         settle_adapter_bridge_executes_after_snapshot_case(),
+        stale_settle_adapter_bridge_rejected_after_snapshot_drift_case(),
         liquidate_snapshot_action_id_roundtrip_case(),
         clearinghouse_2p_snapshot_action_id_roundtrip_case(),
         clearinghouse_2p_adapter_bridge_executes_after_snapshot_case(),
