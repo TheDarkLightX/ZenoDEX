@@ -1790,12 +1790,14 @@ claims:
       The local ZenoOracle reporter-soak gate accepts only when a
       production-candidate policy and observation bundle meet reporter count,
       distinct operator count, operator-share, per-reporter soak-epoch,
-      success-rate, dispute-rate, and source-diversity thresholds. It rejects
+      report-volume, success-rate, dispute-rate, signed-report-root uniqueness,
+      and source-diversity thresholds. It rejects
       missing observation bundles, operator-cartel concentration, low reporter
       success rates, source-diversity drift, duplicate reporter IDs, malformed
-      observation IDs, malformed signed-report roots, impossible active-epoch
-      claims beyond the observed bundle epoch, and remaining public-soak
-      blockers under `--require-live`. This is local observation replay
+      observation IDs, malformed or duplicate signed-report roots, active
+      observations with fewer total reports than active epochs, impossible
+      active-epoch claims beyond the observed bundle epoch, and remaining
+      public-soak blockers under `--require-live`. This is local observation replay
       evidence for the production-disaster frontier; it does not claim public telemetry
       verification, real-world operator independence, reporter honesty, or live
       oracle network safety.
