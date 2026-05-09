@@ -228,7 +228,10 @@ production-enabled verifier ID, artifact digest, command hash, toolchain hash,
 policy root, and local transparency-log entry. The transparency-log receipt
 checks the entry list, contiguous indices, tree size, and log root against that
 release manifest. These receipts are content-hashed and bound to the policy
-static hash plus the registry manifest id.
+static hash plus the registry manifest id. The bundle also enforces receipt
+happens-before order: approval precedes execution, execution precedes
+revocation/code signing, code signing precedes transparency-log binding, and
+the transparency-log binding precedes sandbox attestation.
 
 ```bash
 python3 tools/check_zenoproof_production_governance_policy.py --format text
