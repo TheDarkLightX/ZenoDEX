@@ -70,6 +70,12 @@ The active workspace now has:
   `tools/zenoproof_reward_payout_replay.py`, which takes an accepted local
   reward gate through proof-mining claim construction, manager execution, and
   claimability checks.
+- a ZenoProof production-candidate governance policy gate at
+  `tools/check_zenoproof_production_governance_policy.py`, which binds the
+  verifier registry to governance, code-signing, sandbox, revocation, O4/O5
+  bridge, reward-settlement controls, verifier-release transparency-log roots,
+  and explicit receipt-dependency links from approval to execution to
+  revocation/code-signing to transparency-log to sandbox attestation.
 - a devnet RC package validator at `tools/check_zeno_oracle_rc_package.py`,
   which checks the package manifest, launcher, docs, whitepaper, branding,
   receipt, and devnet integrity signature.
@@ -402,6 +408,7 @@ Before marking the goal complete, audit each item below against real artifacts:
   sample pass replay, including the workflow-evidence, Julia, Lean,
   deterministic bounded TLA, deterministic bounded LTLf, deterministic bounded
   ESSO, Morph, and SMT public replay verifiers and the local proof-mining
-  reward gate plus bounded reward-payout replay;
+  reward gate plus bounded reward-payout replay and the production-candidate
+  verifier governance policy gate;
 - devnet alpha package builds and validates its manifest, launcher, docs,
   replay, whitepaper, branding, receipt, integrity signature, and non-claims.

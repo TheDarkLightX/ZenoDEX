@@ -421,148 +421,161 @@ def _sample_receipts_for_policy(policy: Mapping[str, Any], registry: Mapping[str
     revocation_delay = int(revocation.get("max_revocation_delay_seconds", 86_400))
     drill_requested_at = executed_at + 1_000
     drill_executed_at = drill_requested_at + revocation_delay
+    approval = _receipt(
+        kind="governance_approval",
+        chain_id=chain_id,
+        contract_address=governance_contract,
+        tx_hash=_tx("zenoproof.production_governance.approval"),
+        block_number=2_000,
+        block_hash=_sha("zenoproof.production_governance.block.2000"),
+        log_index=0,
+        payload={
+            "approved": True,
+            "executable_after_timestamp": executable_after,
+            "policy_epoch": policy_epoch,
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "proposal_id": proposal_id,
+            "queued_at_timestamp": queued_at,
+            "registry_manifest_id": registry_id,
+            "timelock_seconds": timelock_seconds,
+        },
+    )
+    execution = _receipt(
+        kind="governance_execution",
+        chain_id=chain_id,
+        contract_address=governance_contract,
+        tx_hash=_tx("zenoproof.production_governance.execution"),
+        block_number=2_100,
+        block_hash=_sha("zenoproof.production_governance.block.2100"),
+        log_index=0,
+        payload={
+            "executed": True,
+            "executed_at_timestamp": executed_at,
+            "executable_after_timestamp": executable_after,
+            "governance_approval_receipt": approval["receipt_id"],
+            "policy_epoch": policy_epoch,
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "proposal_id": proposal_id,
+            "registry_manifest_id": registry_id,
+        },
+    )
+    revocation_list = _receipt(
+        kind="revocation_list",
+        chain_id=chain_id,
+        contract_address=governance_contract,
+        tx_hash=_tx("zenoproof.production_governance.revocation_list"),
+        block_number=2_200,
+        block_hash=_sha("zenoproof.production_governance.block.2200"),
+        log_index=0,
+        payload={
+            "governance_execution_receipt": execution["receipt_id"],
+            "policy_epoch": policy_epoch,
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "registry_manifest_id": registry_id,
+            "revocation_enabled": True,
+            "revoked_verifier_ids": [],
+        },
+    )
+    revocation_drill = _receipt(
+        kind="revocation_drill",
+        chain_id=chain_id,
+        contract_address=governance_contract,
+        tx_hash=_tx("zenoproof.production_governance.revocation_drill"),
+        block_number=2_300,
+        block_hash=_sha("zenoproof.production_governance.block.2300"),
+        log_index=0,
+        payload={
+            "drill_executed": True,
+            "executed_at_timestamp": drill_executed_at,
+            "governance_execution_receipt": execution["receipt_id"],
+            "max_revocation_delay_seconds": revocation_delay,
+            "policy_epoch": policy_epoch,
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "registry_manifest_id": registry_id,
+            "requested_at_timestamp": drill_requested_at,
+        },
+    )
+    code_signing_attestation = _receipt(
+        kind="code_signing_attestation",
+        chain_id=chain_id,
+        contract_address=governance_contract,
+        tx_hash=_tx("zenoproof.production_governance.code_signing_attestation"),
+        block_number=2_400,
+        block_hash=_sha("zenoproof.production_governance.block.2400"),
+        log_index=0,
+        payload={
+            "artifact_digest_alg": code_signing.get("artifact_digest_alg"),
+            "governance_execution_receipt": execution["receipt_id"],
+            "policy_bundle_digest": code_signing.get("policy_bundle_digest"),
+            "policy_epoch": policy_epoch,
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "registry_manifest_id": registry_id,
+            "release_signer_identity": code_signing.get("release_signer_identity"),
+            "scheme": code_signing.get("scheme"),
+            "transparency_log_observed": True,
+            "verified": True,
+            "verifier_release_entries": release_manifest["verifiers"],
+            "verifier_release_manifest_digest": code_signing.get("verifier_release_manifest_digest"),
+        },
+    )
+    transparency_log = _receipt(
+        kind="verifier_release_transparency_log",
+        chain_id=chain_id,
+        contract_address=governance_contract,
+        tx_hash=_tx("zenoproof.production_governance.verifier_release_transparency_log"),
+        block_number=2_450,
+        block_hash=_sha("zenoproof.production_governance.block.2450"),
+        log_index=0,
+        payload={
+            "code_signing_attestation_receipt": code_signing_attestation["receipt_id"],
+            "entries": verifier_release_transparency_log_entries(release_manifest),
+            "policy_epoch": policy_epoch,
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "registry_manifest_id": registry_id,
+            "transparency_log_observed": True,
+            "transparency_log_root": verifier_release_transparency_log_root(release_manifest),
+            "transparency_log_tree_size": len(release_manifest["verifiers"]),
+            "verified": True,
+            "verifier_release_manifest_digest": code_signing.get("verifier_release_manifest_digest"),
+        },
+    )
+    sandbox_attestation = _receipt(
+        kind="sandbox_attestation",
+        chain_id=chain_id,
+        contract_address=governance_contract,
+        tx_hash=_tx("zenoproof.production_governance.sandbox_attestation"),
+        block_number=2_500,
+        block_hash=_sha("zenoproof.production_governance.block.2500"),
+        log_index=0,
+        payload={
+            "deterministic_worker_image_digest": sandbox.get("deterministic_worker_image_digest"),
+            "filesystem_readonly": sandbox.get("filesystem_readonly"),
+            "max_input_bytes": sandbox.get("max_input_bytes"),
+            "max_timeout_ms": sandbox.get("max_timeout_ms"),
+            "network_disabled": sandbox.get("network_disabled"),
+            "policy_epoch": policy_epoch,
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "registry_manifest_id": registry_id,
+            "seccomp_profile_digest": sandbox.get("seccomp_profile_digest"),
+            "verified": True,
+            "verifier_release_transparency_log_receipt": transparency_log["receipt_id"],
+        },
+    )
     return [
-        _receipt(
-            kind="governance_approval",
-            chain_id=chain_id,
-            contract_address=governance_contract,
-            tx_hash=_tx("zenoproof.production_governance.approval"),
-            block_number=2_000,
-            block_hash=_sha("zenoproof.production_governance.block.2000"),
-            log_index=0,
-            payload={
-                "approved": True,
-                "executable_after_timestamp": executable_after,
-                "policy_epoch": policy_epoch,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "proposal_id": proposal_id,
-                "queued_at_timestamp": queued_at,
-                "registry_manifest_id": registry_id,
-                "timelock_seconds": timelock_seconds,
-            },
-        ),
-        _receipt(
-            kind="governance_execution",
-            chain_id=chain_id,
-            contract_address=governance_contract,
-            tx_hash=_tx("zenoproof.production_governance.execution"),
-            block_number=2_100,
-            block_hash=_sha("zenoproof.production_governance.block.2100"),
-            log_index=0,
-            payload={
-                "executed": True,
-                "executed_at_timestamp": executed_at,
-                "executable_after_timestamp": executable_after,
-                "policy_epoch": policy_epoch,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "proposal_id": proposal_id,
-                "registry_manifest_id": registry_id,
-            },
-        ),
-        _receipt(
-            kind="revocation_list",
-            chain_id=chain_id,
-            contract_address=governance_contract,
-            tx_hash=_tx("zenoproof.production_governance.revocation_list"),
-            block_number=2_200,
-            block_hash=_sha("zenoproof.production_governance.block.2200"),
-            log_index=0,
-            payload={
-                "policy_epoch": policy_epoch,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "registry_manifest_id": registry_id,
-                "revocation_enabled": True,
-                "revoked_verifier_ids": [],
-            },
-        ),
-        _receipt(
-            kind="revocation_drill",
-            chain_id=chain_id,
-            contract_address=governance_contract,
-            tx_hash=_tx("zenoproof.production_governance.revocation_drill"),
-            block_number=2_300,
-            block_hash=_sha("zenoproof.production_governance.block.2300"),
-            log_index=0,
-            payload={
-                "drill_executed": True,
-                "executed_at_timestamp": drill_executed_at,
-                "max_revocation_delay_seconds": revocation_delay,
-                "policy_epoch": policy_epoch,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "registry_manifest_id": registry_id,
-                "requested_at_timestamp": drill_requested_at,
-            },
-        ),
-        _receipt(
-            kind="code_signing_attestation",
-            chain_id=chain_id,
-            contract_address=governance_contract,
-            tx_hash=_tx("zenoproof.production_governance.code_signing_attestation"),
-            block_number=2_400,
-            block_hash=_sha("zenoproof.production_governance.block.2400"),
-            log_index=0,
-            payload={
-                "artifact_digest_alg": code_signing.get("artifact_digest_alg"),
-                "policy_bundle_digest": code_signing.get("policy_bundle_digest"),
-                "policy_epoch": policy_epoch,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "registry_manifest_id": registry_id,
-                "release_signer_identity": code_signing.get("release_signer_identity"),
-                "scheme": code_signing.get("scheme"),
-                "transparency_log_observed": True,
-                "verified": True,
-                "verifier_release_entries": release_manifest["verifiers"],
-                "verifier_release_manifest_digest": code_signing.get("verifier_release_manifest_digest"),
-            },
-        ),
-        _receipt(
-            kind="verifier_release_transparency_log",
-            chain_id=chain_id,
-            contract_address=governance_contract,
-            tx_hash=_tx("zenoproof.production_governance.verifier_release_transparency_log"),
-            block_number=2_450,
-            block_hash=_sha("zenoproof.production_governance.block.2450"),
-            log_index=0,
-            payload={
-                "entries": verifier_release_transparency_log_entries(release_manifest),
-                "policy_epoch": policy_epoch,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "registry_manifest_id": registry_id,
-                "transparency_log_observed": True,
-                "transparency_log_root": verifier_release_transparency_log_root(release_manifest),
-                "transparency_log_tree_size": len(release_manifest["verifiers"]),
-                "verified": True,
-                "verifier_release_manifest_digest": code_signing.get("verifier_release_manifest_digest"),
-            },
-        ),
-        _receipt(
-            kind="sandbox_attestation",
-            chain_id=chain_id,
-            contract_address=governance_contract,
-            tx_hash=_tx("zenoproof.production_governance.sandbox_attestation"),
-            block_number=2_500,
-            block_hash=_sha("zenoproof.production_governance.block.2500"),
-            log_index=0,
-            payload={
-                "deterministic_worker_image_digest": sandbox.get("deterministic_worker_image_digest"),
-                "filesystem_readonly": sandbox.get("filesystem_readonly"),
-                "max_input_bytes": sandbox.get("max_input_bytes"),
-                "max_timeout_ms": sandbox.get("max_timeout_ms"),
-                "network_disabled": sandbox.get("network_disabled"),
-                "policy_epoch": policy_epoch,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "registry_manifest_id": registry_id,
-                "seccomp_profile_digest": sandbox.get("seccomp_profile_digest"),
-                "verified": True,
-            },
-        ),
+        approval,
+        execution,
+        revocation_list,
+        revocation_drill,
+        code_signing_attestation,
+        transparency_log,
+        sandbox_attestation,
     ]
 
 
@@ -857,6 +870,21 @@ def check_receipt_bundle(
         if before_pos is not None and after_pos is not None and before_pos >= after_pos:
             errors.append(f"receipt_order_invalid:{before}->{after}")
 
+    def _receipt_id(kind: str) -> Any:
+        receipt = by_kind.get(kind)
+        return receipt.get("receipt_id") if receipt is not None else None
+
+    def _require_payload_receipt(
+        payload: Mapping[str, Any],
+        key: str,
+        *,
+        expected_kind: str,
+        error: str,
+    ) -> None:
+        expected = _receipt_id(expected_kind)
+        if payload and expected is not None and payload.get(key) != expected:
+            errors.append(error)
+
     for before, after in (
         ("governance_approval", "governance_execution"),
         ("governance_execution", "revocation_list"),
@@ -890,6 +918,12 @@ def check_receipt_bundle(
     if execution_payload:
         if execution_payload.get("executed") is not True:
             errors.append("governance_execution_not_true")
+        _require_payload_receipt(
+            execution_payload,
+            "governance_approval_receipt",
+            expected_kind="governance_approval",
+            error="governance_execution_approval_receipt_mismatch",
+        )
         if execution_payload.get("proposal_id") != approval_payload.get("proposal_id"):
             errors.append("governance_execution_proposal_mismatch")
         executed_at = execution_payload.get("executed_at_timestamp")
@@ -908,12 +942,24 @@ def check_receipt_bundle(
     if revocation_list_payload:
         if revocation_list_payload.get("revocation_enabled") is not True:
             errors.append("revocation_list_not_enabled")
+        _require_payload_receipt(
+            revocation_list_payload,
+            "governance_execution_receipt",
+            expected_kind="governance_execution",
+            error="revocation_list_governance_execution_receipt_mismatch",
+        )
         revoked_ids = revocation_list_payload.get("revoked_verifier_ids")
         if not isinstance(revoked_ids, list):
             errors.append("revoked_verifier_ids_must_be_list")
     if revocation_drill_payload:
         if revocation_drill_payload.get("drill_executed") is not True:
             errors.append("revocation_drill_not_executed")
+        _require_payload_receipt(
+            revocation_drill_payload,
+            "governance_execution_receipt",
+            expected_kind="governance_execution",
+            error="revocation_drill_governance_execution_receipt_mismatch",
+        )
         requested_at = revocation_drill_payload.get("requested_at_timestamp")
         executed_at = revocation_drill_payload.get("executed_at_timestamp")
         max_delay = revocation.get("max_revocation_delay_seconds")
@@ -933,6 +979,12 @@ def check_receipt_bundle(
     if code_signing_payload:
         if code_signing_payload.get("verified") is not True:
             errors.append("code_signing_attestation_not_verified")
+        _require_payload_receipt(
+            code_signing_payload,
+            "governance_execution_receipt",
+            expected_kind="governance_execution",
+            error="code_signing_attestation_governance_execution_receipt_mismatch",
+        )
         for key in (
             "artifact_digest_alg",
             "policy_bundle_digest",
@@ -954,6 +1006,12 @@ def check_receipt_bundle(
             errors.append("verifier_release_transparency_log_not_verified")
         if transparency_log_payload.get("transparency_log_observed") is not True:
             errors.append("verifier_release_transparency_log_not_observed")
+        _require_payload_receipt(
+            transparency_log_payload,
+            "code_signing_attestation_receipt",
+            expected_kind="code_signing_attestation",
+            error="verifier_release_transparency_log_code_signing_receipt_mismatch",
+        )
         expected_release_manifest = production_verifier_release_manifest(registry, policy)
         expected_log_entries = verifier_release_transparency_log_entries(expected_release_manifest)
         if transparency_log_payload.get("verifier_release_manifest_digest") != expected_release_manifest["manifest_digest"]:
@@ -971,6 +1029,12 @@ def check_receipt_bundle(
     if sandbox_payload:
         if sandbox_payload.get("verified") is not True:
             errors.append("sandbox_attestation_not_verified")
+        _require_payload_receipt(
+            sandbox_payload,
+            "verifier_release_transparency_log_receipt",
+            expected_kind="verifier_release_transparency_log",
+            error="sandbox_attestation_transparency_log_receipt_mismatch",
+        )
         for key in (
             "deterministic_worker_image_digest",
             "filesystem_readonly",

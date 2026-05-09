@@ -345,7 +345,7 @@ def build_audit() -> dict[str, Any]:
             ],
             limits=[
                 "local static verifier registry only",
-                "production governance policy gate exists and binds verifier-release manifests plus transparency-log receipts locally, but rejects --require-live while blockers remain",
+                "production governance policy gate exists and binds verifier-release manifests, transparency-log receipts, and local receipt-dependency links, but rejects --require-live while blockers remain",
                 "does_not_claim_live_proof_network",
                 "does_not_claim_governance_revocation_live",
             ],

@@ -2180,14 +2180,17 @@ claims:
       governance execution, revocation drill/list, code-signing attestation with
       verifier-release manifest binding, verifier-release transparency-log root
       binding, sandbox image/seccomp digest binding for every signed verifier
-      release entry, and sandbox attestation, and explicit non-claims. It
+      release entry, sandbox attestation, and explicit receipt-dependency links
+      from approval to execution to revocation/code-signing to transparency-log
+      to sandbox attestation, and explicit non-claims. It
       rejects static verifier promotion, devnet verifier production enablement,
       production verifier path-lookup enablement, weak bridge or sandbox
       controls, bad governance or reward controls, missing non-claims, missing
       receipt bundles, early governance execution, sandbox attestation drift,
       verifier-release entry drift, verifier release/sandbox digest drift,
       missing transparency-log observation, transparency-log root drift,
-      receipt happens-before drift, and failed reward-payout replay. The normal
+      receipt dependency drift, receipt happens-before drift, and failed
+      reward-payout replay. The normal
       checker accepts the current
       production-candidate policy; `--require-live` rejects while proof-network,
       code-signing, sandbox, revocation, and live proof-mining token-settlement
