@@ -1979,6 +1979,7 @@ claims:
       timelock receipt checks, settlement-execution total matching, drift
       rejection, live-economics receipt-dependency chain acceptance/rejection,
       live-economics and production-network receipt-chain chronology
+      acceptance/rejection, production-network receipt-dependency chain
       acceptance/rejection, component dominance by the computed settlement
       grand total, budget-to-component cap transfer, preservation of
       component caps under budget widening, settlement-execution receipt
@@ -2024,7 +2025,8 @@ claims:
       witnesses. It also checks receipt-position transitivity/asymmetry plus
       live-economics and production-network receipt-chain chronology
       acceptance/rejection anchors, and live-economics receipt-dependency chain
-      projection/rejection anchors. It also checks Prop-level terminal DAG,
+      projection/rejection anchors plus production-network receipt-dependency
+      chain projection/rejection anchors. It also checks Prop-level terminal DAG,
       runtime binding,
       iff decompositions for terminal DAG/runtime binding/O3 action-binding
       obligations, rejection of missing DAG dependencies, content-hash drift,
