@@ -24,9 +24,17 @@ def test_production_network_config_accepts_sample_candidate() -> None:
     assert result["error_count"] == 0
     assert result["receipt_bundle_status"] == "accepted"
     assert result["receipt_bundle_kind_count"] == 7
+    assert config["runtime_controls"]["require_oracle_authorization_for_protected_swaps"] is True
     assert config["runtime_controls"]["require_oracle_authorization_for_isolated_settle_epoch"] is True
     assert "live_token_settlement_disabled" in result["go_live_blockers"]
     assert "does_not_claim_live_token_settlement" in result["not_claimed"]
+
+    runtime_receipt = next(
+        receipt
+        for receipt in sample_receipt_bundle(config)["receipts"]
+        if receipt["kind"] == "runtime_controls_attestation"
+    )
+    assert "require_oracle_authorization_for_protected_swaps" in runtime_receipt["payload"]["enabled_runtime_controls"]
 
 
 def test_production_network_config_rejects_devnet_chain_id() -> None:
@@ -62,6 +70,7 @@ def test_production_network_config_rejects_missing_signing_and_runtime_controls(
     config["code_signing"]["required"] = False
     config["signing"]["receipt_signature_required"] = False
     del config["runtime_controls"]["DEX_ROUTING_ORACLE_ADAPTER_REQUIRED"]
+    del config["runtime_controls"]["require_oracle_authorization_for_protected_swaps"]
     del config["runtime_controls"]["require_oracle_authorization_for_isolated_settle_epoch"]
     config["runtime_controls"]["ZUSD_ORACLE_ADAPTER_REQUIRED"] = False
 
@@ -71,8 +80,19 @@ def test_production_network_config_rejects_missing_signing_and_runtime_controls(
     assert "required_must_be_true" in result["errors"]
     assert "receipt_signature_required_must_be_true" in result["errors"]
     assert "missing_runtime_control:DEX_ROUTING_ORACLE_ADAPTER_REQUIRED" in result["errors"]
+    assert "missing_runtime_control:require_oracle_authorization_for_protected_swaps" in result["errors"]
     assert "missing_runtime_control:require_oracle_authorization_for_isolated_settle_epoch" in result["errors"]
     assert "runtime_control_not_enabled:ZUSD_ORACLE_ADAPTER_REQUIRED" in result["errors"]
+
+
+def test_production_network_config_rejects_disabled_protected_swap_authorization() -> None:
+    config = sample_config()
+    config["runtime_controls"]["require_oracle_authorization_for_protected_swaps"] = False
+
+    result = check_config(config, sample_receipt_bundle(config))
+
+    assert result["status"] == "rejected"
+    assert "runtime_control_not_enabled:require_oracle_authorization_for_protected_swaps" in result["errors"]
 
 
 def test_production_network_config_rejects_missing_explicit_non_claims() -> None:

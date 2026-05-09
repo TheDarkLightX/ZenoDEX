@@ -1,11 +1,13 @@
 # Zeno Oracle Runtime Bridge V1
 
-Status: first concrete ZenoDEX perps, zUSD, and routing consumer hooks.
+Status: concrete ZenoDEX perps, zUSD, routing, protected swap, trigger, and
+critical-settlement consumer hooks.
 
 The Oracle receipt chain is useful only if runtime actions refuse to treat raw
 oracle-looking data as authority. The first runtime bridges are now wired into
 perps settlement paths, critical zUSD API actions, and guarded routing quote
-APIs.
+APIs, with typed authorization checks for protected swaps, zUSD, guarded
+quotes, isolated perps settlement, and critical settlement.
 
 ## Perps Settlement Hook
 
@@ -201,6 +203,23 @@ The routing hooks are currently limited to the exact-in guarded quote endpoint
 and the exact-out many-pool guarded quote endpoint. They do not claim every
 quote, packet-build, advisory, or verification endpoint is runtime-wired.
 
+## Protected Swap Authorization Hook
+
+`DexEngineConfig.require_oracle_authorization_for_protected_swaps` makes
+quote-receipt-bound exact-in and exact-out swaps require a typed
+`oracle_authorization`. The runtime derives protected-swap action facts from the
+intent, quote receipt, quoted leg, pool snapshot, amount constraint, query id,
+and block epoch, then checks the authorization against those facts before nonce
+application and settlement computation.
+
+The production-candidate network config gate requires this control in
+`runtime_controls` and binds the enabled-control set into the
+`runtime_controls_attestation` receipt.
+
+The protected swap hook rejects missing authorization when configured,
+non-object authorization payloads, missing quote receipt witnesses, quote-leg
+drift, wrong runtime value, wrong receipt context, and expired authorization.
+
 ## CI Coverage
 
 The Oracle MVP gate runs:
@@ -227,13 +246,12 @@ Those tests cover:
 
 This hook does not yet claim:
 
-- trigger consumers are runtime-wired;
 - every routing endpoint is runtime-wired;
 - the zUSD demo API is the production chain transaction path;
 - the external Oracle network is live;
 - verifier callbacks are automatically configured by deployment tooling.
 
-The current claim is narrower: perps settlement, critical zUSD demo API actions,
-and guarded routing quote APIs now have fail-closed runtime bridge
-points that can require an accepted aggregate-derived Oracle receipt before
-execution proceeds.
+The current claim covers perps settlement, critical zUSD demo API actions,
+guarded routing quote APIs, protected swaps, trigger execution helpers, and
+critical-settlement authorization helpers. Production deployment still has to
+enable the required runtime controls and provide the attestation receipt.

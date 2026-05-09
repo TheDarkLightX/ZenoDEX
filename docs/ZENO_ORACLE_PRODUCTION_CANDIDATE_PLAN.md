@@ -120,7 +120,8 @@ The active workspace now has:
   `tools/check_zeno_oracle_production_network_config.py` that validates local
   reporter-registry deployment, feed-governance deployment, feed-governance
   approval/execution, signed release artifact, signed-release transparency-log
-  root binding, runtime-control attestation receipts, and explicit
+  root binding, critical runtime-control attestation receipts, including
+  protected-swap typed authorization, and explicit
   receipt-dependency links from registry deployment to governance deployment to
   approval/execution to signed release to transparency log to runtime controls
   while keeping live chain and public soak verification outside the claim.
