@@ -300,85 +300,88 @@ def _sample_receipts_for_policy(policy: Mapping[str, Any], replay: Mapping[str, 
     executed_at = executable_after
     required_floor = minimum_escrow_floor_e8(replay)
     settlement_totals = settlement_execution_totals(replay)
-    return [
-        _receipt(
-            kind="governance_approval",
-            chain_id=chain_id,
-            contract_address=str(policy.get("governance_contract")),
-            tx_hash=_tx("zenodex.oracle.live_economics.governance_approval"),
-            block_number=1_000,
-            block_hash=_sha("zenodex.oracle.live_economics.block.1000"),
-            log_index=0,
-            payload={
-                "approved": True,
-                "executable_after_timestamp": executable_after,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "proposal_id": proposal_id,
-                "queued_at_timestamp": queued_at,
-                "timelock_seconds": timelock_seconds,
-            },
-        ),
-        _receipt(
-            kind="governance_execution",
-            chain_id=chain_id,
-            contract_address=str(policy.get("governance_contract")),
-            tx_hash=_tx("zenodex.oracle.live_economics.governance_execution"),
-            block_number=1_100,
-            block_hash=_sha("zenodex.oracle.live_economics.block.1100"),
-            log_index=0,
-            payload={
-                "executed": True,
-                "executed_at_timestamp": executed_at,
-                "executable_after_timestamp": executable_after,
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "proposal_id": proposal_id,
-            },
-        ),
-        _receipt(
-            kind="escrow_funding",
-            chain_id=chain_id,
-            contract_address=str(policy.get("escrow_contract")),
-            tx_hash=_tx("zenodex.oracle.live_economics.escrow_funding"),
-            block_number=1_200,
-            block_hash=_sha("zenodex.oracle.live_economics.block.1200"),
-            log_index=0,
-            payload={
-                "balance_e8": required_floor,
-                "escrow_contract": str(policy.get("escrow_contract")),
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "required_escrow_floor_e8": required_floor,
-                "token_contract": str(policy.get("token_contract")),
-            },
-        ),
-        _receipt(
-            kind="settlement_execution",
-            chain_id=chain_id,
-            contract_address=str(policy.get("escrow_contract")),
-            tx_hash=_tx("zenodex.oracle.live_economics.settlement_execution"),
-            block_number=1_300,
-            block_hash=_sha("zenodex.oracle.live_economics.block.1300"),
-            log_index=0,
-            payload={
-                "bond_withdrawn_e8": settlement_totals["bond_withdrawn_e8"],
-                "burn_delta_e8": settlement_totals["burn_delta_e8"],
-                "dispute_reward_paid_e8": settlement_totals["dispute_reward_paid_e8"],
-                "escrow_contract": str(policy.get("escrow_contract")),
-                "executed": True,
-                "fee_paid_e8": settlement_totals["fee_paid_e8"],
-                "policy_name": str(policy.get("policy_name")),
-                "policy_static_hash": static_hash,
-                "query_id": replay.get("query_id"),
-                "report_reward_paid_e8": settlement_totals["report_reward_paid_e8"],
-                "settlement_asset": policy.get("settlement_asset"),
-                "slashed_e8": settlement_totals["slashed_e8"],
-                "token_contract": str(policy.get("token_contract")),
-                "treasury_delta_e8": settlement_totals["treasury_delta_e8"],
-            },
-        ),
-    ]
+    approval = _receipt(
+        kind="governance_approval",
+        chain_id=chain_id,
+        contract_address=str(policy.get("governance_contract")),
+        tx_hash=_tx("zenodex.oracle.live_economics.governance_approval"),
+        block_number=1_000,
+        block_hash=_sha("zenodex.oracle.live_economics.block.1000"),
+        log_index=0,
+        payload={
+            "approved": True,
+            "executable_after_timestamp": executable_after,
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "proposal_id": proposal_id,
+            "queued_at_timestamp": queued_at,
+            "timelock_seconds": timelock_seconds,
+        },
+    )
+    execution = _receipt(
+        kind="governance_execution",
+        chain_id=chain_id,
+        contract_address=str(policy.get("governance_contract")),
+        tx_hash=_tx("zenodex.oracle.live_economics.governance_execution"),
+        block_number=1_100,
+        block_hash=_sha("zenodex.oracle.live_economics.block.1100"),
+        log_index=0,
+        payload={
+            "executed": True,
+            "executed_at_timestamp": executed_at,
+            "executable_after_timestamp": executable_after,
+            "governance_approval_receipt": approval["receipt_id"],
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "proposal_id": proposal_id,
+        },
+    )
+    funding = _receipt(
+        kind="escrow_funding",
+        chain_id=chain_id,
+        contract_address=str(policy.get("escrow_contract")),
+        tx_hash=_tx("zenodex.oracle.live_economics.escrow_funding"),
+        block_number=1_200,
+        block_hash=_sha("zenodex.oracle.live_economics.block.1200"),
+        log_index=0,
+        payload={
+            "balance_e8": required_floor,
+            "escrow_contract": str(policy.get("escrow_contract")),
+            "governance_execution_receipt": execution["receipt_id"],
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "required_escrow_floor_e8": required_floor,
+            "token_contract": str(policy.get("token_contract")),
+        },
+    )
+    settlement = _receipt(
+        kind="settlement_execution",
+        chain_id=chain_id,
+        contract_address=str(policy.get("escrow_contract")),
+        tx_hash=_tx("zenodex.oracle.live_economics.settlement_execution"),
+        block_number=1_300,
+        block_hash=_sha("zenodex.oracle.live_economics.block.1300"),
+        log_index=0,
+        payload={
+            "bond_withdrawn_e8": settlement_totals["bond_withdrawn_e8"],
+            "burn_delta_e8": settlement_totals["burn_delta_e8"],
+            "dispute_reward_paid_e8": settlement_totals["dispute_reward_paid_e8"],
+            "escrow_contract": str(policy.get("escrow_contract")),
+            "escrow_funding_receipt": funding["receipt_id"],
+            "executed": True,
+            "fee_paid_e8": settlement_totals["fee_paid_e8"],
+            "governance_execution_receipt": execution["receipt_id"],
+            "policy_name": str(policy.get("policy_name")),
+            "policy_static_hash": static_hash,
+            "query_id": replay.get("query_id"),
+            "report_reward_paid_e8": settlement_totals["report_reward_paid_e8"],
+            "settlement_asset": policy.get("settlement_asset"),
+            "slashed_e8": settlement_totals["slashed_e8"],
+            "token_contract": str(policy.get("token_contract")),
+            "treasury_delta_e8": settlement_totals["treasury_delta_e8"],
+        },
+    )
+    return [approval, execution, funding, settlement]
 
 
 def _sample_receipt_refs(policy: Mapping[str, Any], replay: Mapping[str, Any]) -> dict[str, str]:
@@ -618,6 +621,8 @@ def check_receipt_bundle(
     if execution_payload:
         if execution_payload.get("executed") is not True:
             errors.append("governance_execution_not_true")
+        if approval is not None and execution_payload.get("governance_approval_receipt") != approval.get("receipt_id"):
+            errors.append("governance_execution_approval_receipt_mismatch")
         if execution_payload.get("proposal_id") != approval_payload.get("proposal_id"):
             errors.append("governance_execution_proposal_mismatch")
         executed_at = execution_payload.get("executed_at_timestamp")
@@ -639,6 +644,8 @@ def check_receipt_bundle(
             errors.append("escrow_funding_token_contract_mismatch")
         if funding_payload.get("escrow_contract") != policy.get("escrow_contract"):
             errors.append("escrow_funding_contract_mismatch")
+        if execution is not None and funding_payload.get("governance_execution_receipt") != execution.get("receipt_id"):
+            errors.append("escrow_funding_governance_execution_receipt_mismatch")
         if funding_payload.get("required_escrow_floor_e8") != required_floor:
             errors.append("escrow_funding_required_floor_mismatch")
         balance = funding_payload.get("balance_e8")
@@ -654,6 +661,10 @@ def check_receipt_bundle(
             errors.append("settlement_execution_token_contract_mismatch")
         if settlement_payload.get("escrow_contract") != policy.get("escrow_contract"):
             errors.append("settlement_execution_escrow_contract_mismatch")
+        if execution is not None and settlement_payload.get("governance_execution_receipt") != execution.get("receipt_id"):
+            errors.append("settlement_execution_governance_execution_receipt_mismatch")
+        if funding is not None and settlement_payload.get("escrow_funding_receipt") != funding.get("receipt_id"):
+            errors.append("settlement_execution_escrow_funding_receipt_mismatch")
         if settlement_payload.get("settlement_asset") != policy.get("settlement_asset"):
             errors.append("settlement_execution_asset_mismatch")
         if settlement_payload.get("query_id") != replay.get("query_id"):

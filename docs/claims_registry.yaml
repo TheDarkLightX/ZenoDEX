@@ -1695,9 +1695,9 @@ claims:
       malformed settlement controls, missing non-claims, missing receipt
       bundles, early governance execution, escrow balances below the
       replay-derived floor, settlement execution total drift, receipt
-      happens-before drift, fee-split drift, low dispute bonds, slash amounts
-      above policy cap, early withdrawals, hidden policy fields, and remaining
-      live-deployment blockers under
+      dependency-chain drift, receipt happens-before drift, fee-split drift, low
+      dispute bonds, slash amounts above policy cap, early withdrawals, hidden
+      policy fields, and remaining live-deployment blockers under
       `--require-live`. This is a production-candidate policy gate only; it
       does not claim that escrow is funded on-chain, governance has executed,
       settlement executed on-chain, live receipts have been replayed against
