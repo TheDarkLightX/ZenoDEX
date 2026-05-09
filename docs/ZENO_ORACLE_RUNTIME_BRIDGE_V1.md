@@ -213,7 +213,9 @@ pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
+pytest -q tests/integration/test_zusd_api.py -k oracle_authorization
 pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
+pytest -q tests/integration/test_zeno_oracle_trigger_authorization.py
 ```
 
 Those tests cover:
@@ -230,13 +232,13 @@ Those tests cover:
 
 This hook does not yet claim:
 
-- trigger consumers are runtime-wired;
 - every routing endpoint is runtime-wired;
 - the zUSD demo API is the production chain transaction path;
 - the external Oracle network is live;
 - verifier callbacks are automatically configured by deployment tooling.
 
 The current claim is narrower: perps settlement, critical zUSD demo API actions,
-and guarded routing quote APIs now have fail-closed runtime bridge
-points that can require an accepted aggregate-derived Oracle receipt before
-execution proceeds.
+trigger execution, and guarded routing quote APIs now have fail-closed runtime
+bridge points that can require an accepted aggregate-derived Oracle receipt
+before execution proceeds. zUSD, trigger execution, protected swap, isolated
+perps settlement, and critical settlement also have typed authorization tests.

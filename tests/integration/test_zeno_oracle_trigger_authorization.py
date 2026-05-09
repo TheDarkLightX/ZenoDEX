@@ -46,11 +46,11 @@ def _authorization_for(
     observed_epoch = int(runtime["now_epoch"])
     auth = {
         "consumer_module": "zenodex.trigger",
-        "action_kind": "execute",
+        "action_kind": "execute_trigger",
         "action_id": str(runtime["action_id"]),
         "action_facts_hash": str(runtime["action_facts_hash"]),
         "pre_state_hash": str(runtime["pre_state_hash"]),
-        "profile_id": "critical-trigger-v1",
+        "profile_id": _ORACLE_TRIGGER_EXECUTE_PROFILE_ID,
         "query_id": query_id,
         "value_e8": value,
         "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed_epoch),

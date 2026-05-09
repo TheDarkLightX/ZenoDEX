@@ -43,5 +43,9 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
         "ZUSD_ORACLE_ADAPTER_REQUIRED",
         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
     ]
+    assert surfaces_by_key["zenodex.trigger:execute_trigger"]["details"]["required_controls"] == [
+        "check_trigger_execute_oracle_adapter_bridge(required=True)",
+        "check_trigger_execute_oracle_authorization",
+    ]
     backlog_keys = {item["key"] for item in receipt["design_only_backlog"]}
     assert backlog_keys == set()
