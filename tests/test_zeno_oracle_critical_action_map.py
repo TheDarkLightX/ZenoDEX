@@ -34,5 +34,14 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
         "zenodex.settlement:critical_settlement",
         "zenodex.trigger:execute_trigger",
     }
+    surfaces_by_key = {surface["key"]: surface for surface in receipt["runtime_surfaces"]}
+    assert surfaces_by_key["zenodex.zusd:mint"]["details"]["required_controls"] == [
+        "ZUSD_ORACLE_ADAPTER_REQUIRED",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+    ]
+    assert surfaces_by_key["zenodex.zusd:liquidate_vault"]["details"]["required_controls"] == [
+        "ZUSD_ORACLE_ADAPTER_REQUIRED",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+    ]
     backlog_keys = {item["key"] for item in receipt["design_only_backlog"]}
     assert backlog_keys == set()

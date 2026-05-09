@@ -41,7 +41,8 @@ The active workspace now has:
   shells from `origin/main`;
 - runtime `oracle_adapter_bridge` compatibility hooks for perps settlement,
   standalone perps liquidation, zUSD mint/liquidation, guarded routing, and
-  trigger execution, plus typed critical-settlement authorization;
+  trigger execution, plus typed zUSD mint/liquidation and
+  critical-settlement authorization;
 - the critical-action map now reports `7` catalog profiles, `7`
   runtime-wired profiles, and `0` design-only backlog profiles;
 - a local reporter/validator bundle builder in

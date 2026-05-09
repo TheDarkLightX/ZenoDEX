@@ -222,6 +222,13 @@ def _check_zusd_action(
         'consumer_module": "zenodex.zusd"',
         'if _adapter_result_get(result, "profile_id") != _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]',
         'if _adapter_result_get(result, "action_id") != expected_action_id',
+        "_check_zusd_oracle_authorization(",
+        "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+        "check_critical_consumer_authorization(",
+        "action_kind = _ZUSD_ORACLE_ADAPTER_ACTIONS.get(tag, tag)",
+        "profile_id = _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]",
+        "_zusd_critical_action_facts_hash(",
+        "_zusd_runtime_oracle_action_id(",
     ):
         _expect(needle in source, errors, f"zusd_{action_kind}_missing_static_wiring:{needle}")
     return _runtime_surface(
@@ -231,7 +238,10 @@ def _check_zusd_action(
         details={
             "query_id": profile["query_id"],
             "profile_id": profile["profile_id"],
-            "required_control": "ZUSD_ORACLE_ADAPTER_REQUIRED",
+            "required_controls": [
+                "ZUSD_ORACLE_ADAPTER_REQUIRED",
+                "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",
+            ],
             "runtime_tag": expected_tag,
         },
         errors=errors,

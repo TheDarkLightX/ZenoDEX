@@ -1363,10 +1363,12 @@ claims:
       machine-checked runtime-wired profiles: perps settlement, standalone
       perps liquidation, zUSD mint, zUSD liquidation, guarded routing, and
       trigger execution, plus typed critical-settlement authorization in
-      `dex_engine`. The checker verifies catalog query IDs, profile IDs,
-      consumer modules, action kinds, and runtime action-ID bindings for this
-      catalog. Future critical consumers require their own catalog profiles and
-      runtime checks before they become covered guarantees.
+      `dex_engine`. The zUSD mint/liquidation surfaces are checked for both O3
+      adapter bridge binding and typed OracleAuthorization binding. The checker
+      verifies catalog query IDs, profile IDs, consumer modules, action kinds,
+      runtime action-ID bindings, and typed zUSD action-facts/pre-state binding
+      for this catalog. Future critical consumers require their own catalog
+      profiles and runtime checks before they become covered guarantees.
     evidence:
       kind: python
       check:

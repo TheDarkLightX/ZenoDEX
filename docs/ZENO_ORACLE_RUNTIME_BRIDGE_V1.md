@@ -88,6 +88,14 @@ commands when `ZUSD_ORACLE_ADAPTER_REQUIRED` is enabled, and also verifies any
 `oracle_adapter_bridge` supplied on those commands even when the requirement flag
 is disabled.
 
+When `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` is enabled, the same critical
+`mint_zusd` and `liquidate` commands also require typed `oracle_authorization`.
+The authorization is checked against the runtime action kind (`mint` or
+`liquidate_vault`), the per-action zUSD profile, the runtime action ID,
+action-facts hash, pre-state hash, query ID, active or pending oracle price, and
+current epoch. This keeps the O3 adapter receipt and the runtime-consumed typed
+authorization bound to the same zUSD action surface.
+
 The verified bridge must bind to:
 
 ```text
@@ -120,6 +128,7 @@ The Oracle MVP gate also runs:
 
 ```bash
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
+pytest -q tests/integration/test_zusd_api.py -k oracle_authorization
 ```
 
 The zUSD hook does not claim that the zUSD API is the production chain
