@@ -220,6 +220,25 @@ The protected swap hook rejects missing authorization when configured,
 non-object authorization payloads, missing quote receipt witnesses, quote-leg
 drift, wrong runtime value, wrong receipt context, and expired authorization.
 
+## Trigger Execution Hooks
+
+Trigger execution uses the catalog action identity `execute_trigger` for both
+the O3 adapter bridge and typed Oracle authorization. The trigger command facts
+still carry the local command action `execute`, but the Oracle-facing action
+facts hash now records that local command under `trigger_action_kind` and records
+`action_kind = "execute_trigger"` for the consumer profile boundary.
+
+`check_trigger_execute_oracle_adapter_bridge(required=True)` rejects missing
+bridges, wrong consumer/action/query/profile, and action-id drift.
+`check_trigger_execute_oracle_authorization` rejects legacy `execute`
+authorization aliases, wrong value, wrong pre-state context, below-O3 evidence,
+expired authorization, unsatisfied trigger conditions, and catalog-profile
+drift.
+
+The production-candidate network config gate requires
+`trigger_oracle_authorization_required` in `runtime_controls` and binds that
+enabled control into the `runtime_controls_attestation` receipt.
+
 ## CI Coverage
 
 The Oracle MVP gate runs:
@@ -230,6 +249,7 @@ pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapt
 pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
 pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
+pytest -q tests/integration/test_zeno_oracle_trigger_authorization.py
 ```
 
 Those tests cover:

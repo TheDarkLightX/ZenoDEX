@@ -32,6 +32,7 @@ REQUIRED_RUNTIME_CONTROLS = {
     "require_oracle_authorization_for_isolated_settle_epoch",
     "require_oracle_authorization_for_critical_settlements",
     "trigger_oracle_adapter_required",
+    "trigger_oracle_authorization_required",
 }
 REQUIRED_NOT_CLAIMS = {
     "does_not_claim_network_deployed",

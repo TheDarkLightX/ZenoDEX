@@ -20,6 +20,7 @@ from tools.check_oracle_authorization_semantic_binding import (
     verify_typed_authorization,
 )
 from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id
+from src.integration.zeno_oracle_trigger_authorization import _ORACLE_TRIGGER_EXECUTE_PROFILE_ID
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
@@ -378,7 +379,7 @@ def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
         ("zenodex.perps", "settle_epoch", "critical-perps-v1"),
         ("zenodex.perps", "liquidate", "critical-perps-v1"),
         ("zenodex.routing", "protected_swap", "critical-routing-v1"),
-        ("zenodex.trigger", "execute", "critical-trigger-v1"),
+        ("zenodex.trigger", "execute_trigger", _ORACLE_TRIGGER_EXECUTE_PROFILE_ID),
         ("zenodex.settlement", "critical_settlement", critical_settlement_profile_id()),
     ]
     for consumer_module, action_kind, profile_id in surfaces:
@@ -410,6 +411,31 @@ def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
         assert result["typed_ok"] is True
         assert result["receipt_graph_ok"] is True
         assert result["critical_consumer_profile"] == profile_id
+
+
+def test_critical_consumer_wrapper_rejects_legacy_trigger_execute_alias() -> None:
+    authorization, runtime = _valid_pair()
+    surface_auth = replace(
+        authorization,
+        consumer_module="zenodex.trigger",
+        action_kind="execute",
+        profile_id="critical-trigger-v1",
+    )
+
+    result = check_critical_consumer_authorization(
+        authorization_bundle(asdict(surface_auth)),
+        consumer_module="zenodex.trigger",
+        action_kind="execute",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert "unsupported critical consumer/action" in result["typed_errors"]
 
 
 def test_critical_consumer_requires_terminal_receipt_graph() -> None:

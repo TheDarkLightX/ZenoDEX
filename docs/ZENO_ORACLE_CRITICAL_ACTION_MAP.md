@@ -30,7 +30,7 @@ status = accepted
 | `zenodex.zusd` | `liquidate_vault` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED` |
 | `zenodex.routing` | `guarded_quote` | `src/integration/api_server.py` | `DEX_ROUTING_ORACLE_ADAPTER_REQUIRED` |
 | `zenodex.settlement` | `critical_settlement` | `src/integration/dex_engine.py` | `require_oracle_authorization_for_critical_settlements` |
-| `zenodex.trigger` | `execute_trigger` | `src/integration/zeno_oracle_trigger_authorization.py` | `check_trigger_execute_oracle_adapter_bridge(required=True)` |
+| `zenodex.trigger` | `execute_trigger` | `src/integration/zeno_oracle_trigger_authorization.py` | `check_trigger_execute_oracle_adapter_bridge(required=True)`, `trigger_oracle_authorization_required` |
 
 The checker verifies that each runtime-wired surface still agrees with the
 catalog query ID, catalog profile ID, expected consumer module, expected action
@@ -40,8 +40,8 @@ clearinghouse settlement variants, and isolated partial liquidation under the
 `liquidate_account` profile. For critical settlements it checks the typed
 `OracleAuthorization` binding in `dex_engine` against the normalized settlement,
 pre-state root, current settlement price, and settlement freshness controls. For
-triggers it checks the existing typed trigger action facts against an O3 adapter
-bridge result.
+triggers it checks the typed trigger action facts against both an O3 adapter
+bridge result and the catalog-aligned `execute_trigger` authorization profile.
 
 ## Design-Only Backlog Profiles
 

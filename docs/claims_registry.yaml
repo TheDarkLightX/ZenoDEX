@@ -1576,11 +1576,11 @@ claims:
       The first-shell ZenoOracle critical consumer-profile catalog has seven
       machine-checked runtime-wired profiles: perps settlement, standalone
       perps liquidation, zUSD mint, zUSD liquidation, guarded routing, and
-      trigger execution, plus typed critical-settlement authorization in
-      `dex_engine`. The checker verifies catalog query IDs, profile IDs,
-      consumer modules, action kinds, and runtime action-ID bindings for this
-      catalog. Future critical consumers require their own catalog profiles and
-      runtime checks before they become covered guarantees.
+      trigger execution, plus typed trigger authorization and typed
+      critical-settlement authorization. The checker verifies catalog query IDs,
+      profile IDs, consumer modules, action kinds, and runtime action-ID
+      bindings for this catalog. Future critical consumers require their own
+      catalog profiles and runtime checks before they become covered guarantees.
     evidence:
       kind: python
       check:
@@ -1635,7 +1635,8 @@ claims:
       reporter/source/freshness/deviation policies, required critical-runtime
       controls including typed isolated perps settlement authorization,
       protected-swap authorization, guarded-quote authorization, zUSD
-      authorization, and critical-settlement authorization, a local
+      authorization, trigger authorization, and critical-settlement
+      authorization, a local
       receipt bundle for reporter-registry deployment, feed-governance
       deployment, feed-governance approval/execution with timelock checking,
       signed release artifact verification, signed-release transparency-log
