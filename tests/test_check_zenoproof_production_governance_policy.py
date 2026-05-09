@@ -13,7 +13,6 @@ from tools.check_zenoproof_production_governance_policy import (
     sample_receipt_bundle,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "tools" / "zenoproof_registry_manifest.json"
 ACCEPTED_REWARD_STATUS = {"status": "accepted", "errors": []}
@@ -252,6 +251,21 @@ def test_zenoproof_production_governance_policy_rejects_transparency_log_root_dr
 
     assert result["status"] == "rejected"
     assert "receipt:verifier_release_transparency_log_root_mismatch" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_receipt_order_drift() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    code_signing = _receipt(bundle, "code_signing_attestation")
+    transparency_log = _receipt(bundle, "verifier_release_transparency_log")
+    transparency_log["block_number"] = int(code_signing["block_number"]) - 1
+    transparency_log["receipt_id"] = receipt_content_hash(transparency_log)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:receipt_order_invalid:code_signing_attestation->verifier_release_transparency_log" in result["errors"]
 
 
 def test_zenoproof_production_governance_policy_cli_sample_and_require_live(tmp_path: Path) -> None:

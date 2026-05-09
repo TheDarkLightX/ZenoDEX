@@ -2170,10 +2170,11 @@ claims:
       controls, bad governance or reward controls, missing non-claims, missing
       receipt bundles, early governance execution, sandbox attestation drift,
       verifier-release entry drift, missing transparency-log observation,
-      transparency-log root drift, and failed reward-payout replay. The normal
-      checker accepts the current production-candidate policy; `--require-live`
-      rejects while proof-network, code-signing, sandbox, revocation, and live
-      proof-mining token-settlement blockers remain.
+      transparency-log root drift, receipt happens-before drift, and failed
+      reward-payout replay. The normal checker accepts the current
+      production-candidate policy; `--require-live` rejects while proof-network,
+      code-signing, sandbox, revocation, and live proof-mining token-settlement
+      blockers remain.
     evidence:
       kind: python
       check:
