@@ -93,3 +93,23 @@ def test_zenoproof_claim_tracks_proof_market_policy_gate() -> None:
     assert "tests/core/test_proof_market_policy.py" in files
     assert "tests/formal/test_lean_proof_market_safety.py" in files
     assert "lean-mathlib/Proofs/ProofMarketSafety.lean" in files
+
+
+def test_funding_rate_claim_tracks_decomposed_parity_gate() -> None:
+    from tools.check_claims_registry import REGISTRY_PATH
+
+    registry = yaml.safe_load(REGISTRY_PATH.read_text(encoding="utf-8"))
+    claims = {claim["id"]: claim for claim in registry["claims"]}
+    claim = claims["py:funding_rate_decomposed_v1_v1_1:conditional_parity"]
+    evidence = claim["evidence"]
+    commands = [row["cmd"] for row in evidence["check"]]
+    files = set(evidence["files"])
+
+    assert "pytest -q tests/core/test_funding_rate_decomposed_parity.py" in commands
+    assert "tests/core/test_funding_rate_decomposed_parity.py" in files
+    assert "src/kernels/python/funding_rate_settlement_runtime_v1_1.py" in files
+    assert "generated/derivatives_python/funding_rate_market_v1_ref.py" in files
+    assert "generated/derivatives_python/funding_rate_market_v1_1_ref.py" in files
+    assert "src/kernels/dex/funding_rate_market_v1.yaml" in files
+    assert "src/kernels/dex/funding_rate_market_v1_1.yaml" in files
+    assert "src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml" in files
