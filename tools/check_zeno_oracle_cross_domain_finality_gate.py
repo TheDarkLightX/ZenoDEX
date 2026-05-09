@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -488,6 +487,16 @@ def check_finality_gate(
                 if receipt.get("chain_id") != policy.get("source_chain_id"):
                     errors.append("source_receipt_chain_id_mismatch")
                 _validate_source_payload(policy, read, payload, errors)
+                receipt_block = receipt.get("block_number")
+                finalized_block = payload.get("finalized_block_number")
+                if (
+                    isinstance(receipt_block, int)
+                    and not isinstance(receipt_block, bool)
+                    and isinstance(finalized_block, int)
+                    and not isinstance(finalized_block, bool)
+                    and receipt_block < finalized_block
+                ):
+                    errors.append("source_receipt_block_before_finalized_block")
                 source_payload = payload
             elif kind == "target_adapter_acceptance":
                 if receipt.get("chain_id") != policy.get("target_chain_id"):
