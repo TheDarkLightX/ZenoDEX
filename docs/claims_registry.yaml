@@ -1819,11 +1819,13 @@ claims:
       source finality checkpoint receipt and target adapter-acceptance receipt
       bind to the same accepted read, policy, source and target chains, query
       ID, value hash, adapter contract, finality root, confirmation floor, and
-      reorg-depth limit. It rejects missing receipt bundles, insufficient
-      confirmations, read/hash drift, target adapter finality-receipt drift,
-      duplicate or unknown receipt kinds, malformed hashes, and remaining live
-      finality blockers under `--require-live`. This is local receipt-bundle
-      replay evidence for the production-disaster frontier; it does not claim
+      reorg-depth limit, and only when the source finality receipt block is at
+      or after the finalized source block it claims. It rejects missing receipt
+      bundles, insufficient confirmations, source finality receipt chronology
+      drift, read/hash drift, target adapter finality-receipt drift, duplicate
+      or unknown receipt kinds, malformed hashes, and remaining live finality
+      blockers under `--require-live`. This is local receipt-bundle replay
+      evidence for the production-disaster frontier; it does not claim
       live cross-domain finality, live RPC verification, target adapter
       deployment, or live oracle network safety.
     evidence:

@@ -15,7 +15,6 @@ from tools.check_zeno_oracle_cross_domain_finality_gate import (
     sample_receipt_bundle,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -75,6 +74,23 @@ def test_cross_domain_finality_gate_rejects_insufficient_confirmations() -> None
 
     assert result["status"] == "rejected"
     assert "source_payload_confirmation_count_below_policy" in result["errors"]
+
+
+def test_cross_domain_finality_gate_rejects_source_receipt_before_finalized_block() -> None:
+    policy, read, receipts = _sample_inputs()
+    mutated = copy.deepcopy(receipts)
+    raw = mutated["receipts"]
+    assert isinstance(raw, list)
+    source = next(receipt for receipt in raw if isinstance(receipt, dict) and receipt["kind"] == "source_finality_checkpoint")
+    payload = source["payload"]
+    assert isinstance(payload, dict)
+    source["block_number"] = int(payload["finalized_block_number"]) - 1
+    _refresh_receipt_id(mutated, "source_finality_checkpoint")
+
+    result = check_finality_gate(policy, read, mutated)
+
+    assert result["status"] == "rejected"
+    assert "source_receipt_block_before_finalized_block" in result["errors"]
 
 
 def test_cross_domain_finality_gate_rejects_target_finality_receipt_mismatch() -> None:
