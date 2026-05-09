@@ -221,6 +221,31 @@ def test_zenoproof_production_governance_policy_rejects_verifier_release_entry_d
     assert "receipt:code_signing_attestation_verifier_release_entries_mismatch" in result["errors"]
 
 
+def test_zenoproof_production_governance_policy_binds_release_entries_to_sandbox_digests() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    code_signing = _receipt(bundle, "code_signing_attestation")
+    payload = code_signing["payload"]
+    assert isinstance(payload, dict)
+    entries = payload["verifier_release_entries"]
+    assert isinstance(entries, list)
+    first = entries[0]
+    assert isinstance(first, dict)
+    sandbox = policy["sandbox"]
+    assert isinstance(sandbox, dict)
+    assert first["deterministic_worker_image_digest"] == sandbox["deterministic_worker_image_digest"]
+    assert first["seccomp_profile_digest"] == sandbox["seccomp_profile_digest"]
+
+    first["seccomp_profile_digest"] = "sha256:" + "1" * 64
+    code_signing["receipt_id"] = receipt_content_hash(code_signing)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:code_signing_attestation_verifier_release_entries_mismatch" in result["errors"]
+
+
 def test_zenoproof_production_governance_policy_rejects_missing_transparency_log_observation() -> None:
     registry = _registry()
     policy = sample_policy(registry)
