@@ -169,6 +169,22 @@ def test_live_economics_policy_rejects_escrow_funding_below_replay_floor() -> No
     assert "receipt:escrow_funding_below_replay_floor" in result["errors"]
 
 
+def test_live_economics_policy_rejects_escrow_funding_receipt_chain_drift() -> None:
+    policy = sample_policy()
+    replay = sample_replay()
+    bundle = sample_receipt_bundle(policy, replay)
+    funding = _receipt(bundle, "escrow_funding")
+    payload = funding["payload"]
+    assert isinstance(payload, dict)
+    payload["governance_execution_receipt"] = "sha256:" + "5" * 64
+    funding["receipt_id"] = receipt_content_hash(funding)
+
+    result = check_policy(policy, replay, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:escrow_funding_governance_execution_receipt_mismatch" in result["errors"]
+
+
 def test_live_economics_policy_rejects_settlement_execution_total_drift() -> None:
     policy = sample_policy()
     replay = sample_replay()
@@ -183,6 +199,22 @@ def test_live_economics_policy_rejects_settlement_execution_total_drift() -> Non
 
     assert result["status"] == "rejected"
     assert "receipt:settlement_execution_report_reward_paid_e8_mismatch" in result["errors"]
+
+
+def test_live_economics_policy_rejects_settlement_execution_receipt_chain_drift() -> None:
+    policy = sample_policy()
+    replay = sample_replay()
+    bundle = sample_receipt_bundle(policy, replay)
+    settlement = _receipt(bundle, "settlement_execution")
+    payload = settlement["payload"]
+    assert isinstance(payload, dict)
+    payload["escrow_funding_receipt"] = "sha256:" + "6" * 64
+    settlement["receipt_id"] = receipt_content_hash(settlement)
+
+    result = check_policy(policy, replay, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:settlement_execution_escrow_funding_receipt_mismatch" in result["errors"]
 
 
 def test_live_economics_policy_rejects_settlement_execution_query_drift() -> None:
