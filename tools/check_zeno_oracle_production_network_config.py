@@ -7,10 +7,8 @@ import argparse
 import hashlib
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any, Mapping
-
 
 SCHEMA = "zenodex.oracle.production_network_config.v1"
 REPORT_SCHEMA = "zenodex.oracle.production_network_config_check.v1"
@@ -80,6 +78,14 @@ REQUIRED_RECEIPT_KINDS = {
     "signed_release_artifact",
     "signed_release_transparency_log",
 }
+REQUIRED_RECEIPT_ORDER = (
+    ("reporter_registry_deployment", "feed_governance_deployment"),
+    ("feed_governance_deployment", "feed_governance_approval"),
+    ("feed_governance_approval", "feed_governance_execution"),
+    ("feed_governance_execution", "signed_release_artifact"),
+    ("signed_release_artifact", "signed_release_transparency_log"),
+    ("signed_release_transparency_log", "runtime_controls_attestation"),
+)
 RECEIPT_NOT_CLAIMS = {
     "does_not_claim_receipts_verified_against_live_rpc",
     "does_not_claim_contract_code_verified_onchain",
@@ -854,6 +860,27 @@ def check_receipt_bundle(config: Mapping[str, Any], receipt_bundle: Mapping[str,
             errors.append(f"receipt_{index}_payload_must_be_object")
             continue
         _check_receipt_payload(config, receipt, payload, errors)
+
+    def _receipt_position(kind: str) -> tuple[int, int] | None:
+        receipt = receipts_by_kind.get(kind)
+        if receipt is None:
+            return None
+        block_number = receipt.get("block_number")
+        log_index = receipt.get("log_index")
+        if (
+            isinstance(block_number, int)
+            and not isinstance(block_number, bool)
+            and isinstance(log_index, int)
+            and not isinstance(log_index, bool)
+        ):
+            return (block_number, log_index)
+        return None
+
+    for before, after in REQUIRED_RECEIPT_ORDER:
+        before_pos = _receipt_position(before)
+        after_pos = _receipt_position(after)
+        if before_pos is not None and after_pos is not None and before_pos >= after_pos:
+            errors.append(f"receipt_order_invalid:{before}->{after}")
 
     missing = sorted(REQUIRED_RECEIPT_KINDS - set(receipts_by_kind))
     errors.extend(f"missing_receipt_kind:{kind}" for kind in missing)

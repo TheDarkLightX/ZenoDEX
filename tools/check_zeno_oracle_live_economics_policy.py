@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -23,7 +22,6 @@ from zenodex_oracle_reporter_economics_replay import (  # noqa: E402
     sample_replay,
     verify_reporter_economics_replay,
 )
-
 
 POLICY_SCHEMA = "zenodex.oracle.live_economics_policy.v1"
 REPORT_SCHEMA = "zenodex.oracle.live_economics_policy_check.v1"
@@ -567,6 +565,34 @@ def check_receipt_bundle(
     settlement_payload = (
         settlement.get("payload") if isinstance(settlement, Mapping) and isinstance(settlement.get("payload"), Mapping) else {}
     )
+
+    def _receipt_position(kind: str) -> tuple[int, int] | None:
+        receipt = by_kind.get(kind)
+        if receipt is None:
+            return None
+        block_number = receipt.get("block_number")
+        log_index = receipt.get("log_index")
+        if (
+            isinstance(block_number, int)
+            and not isinstance(block_number, bool)
+            and isinstance(log_index, int)
+            and not isinstance(log_index, bool)
+        ):
+            return (block_number, log_index)
+        return None
+
+    def _require_receipt_order(before: str, after: str) -> None:
+        before_pos = _receipt_position(before)
+        after_pos = _receipt_position(after)
+        if before_pos is not None and after_pos is not None and before_pos >= after_pos:
+            errors.append(f"receipt_order_invalid:{before}->{after}")
+
+    for before, after in (
+        ("governance_approval", "governance_execution"),
+        ("governance_execution", "escrow_funding"),
+        ("escrow_funding", "settlement_execution"),
+    ):
+        _require_receipt_order(before, after)
 
     governance = policy.get("governance") if isinstance(policy.get("governance"), Mapping) else {}
     timelock_seconds = governance.get("timelock_seconds")

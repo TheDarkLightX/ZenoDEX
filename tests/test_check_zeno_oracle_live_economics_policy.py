@@ -14,7 +14,6 @@ from tools.check_zeno_oracle_live_economics_policy import (
     sample_replay,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -200,6 +199,21 @@ def test_live_economics_policy_rejects_settlement_execution_query_drift() -> Non
 
     assert result["status"] == "rejected"
     assert "receipt:settlement_execution_query_id_mismatch" in result["errors"]
+
+
+def test_live_economics_policy_rejects_receipt_order_drift() -> None:
+    policy = sample_policy()
+    replay = sample_replay()
+    bundle = sample_receipt_bundle(policy, replay)
+    funding = _receipt(bundle, "escrow_funding")
+    settlement = _receipt(bundle, "settlement_execution")
+    settlement["block_number"] = int(funding["block_number"]) - 1
+    settlement["receipt_id"] = receipt_content_hash(settlement)
+
+    result = check_policy(policy, replay, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:receipt_order_invalid:escrow_funding->settlement_execution" in result["errors"]
 
 
 def test_live_economics_policy_cli_sample_and_require_live(tmp_path: Path) -> None:

@@ -1637,14 +1637,15 @@ claims:
       receipt bundle for reporter-registry deployment, feed-governance
       deployment, feed-governance approval/execution with timelock checking,
       signed release artifact verification, signed-release transparency-log
-      root binding, runtime-control attestation, and
+      root binding, runtime-control attestation, receipt happens-before
+      ordering, and
       explicit non-claims for undeployed network, unexecuted
       governance, live token settlement, reporter honesty, and market-price
       truth. The checker rejects devnet chain ids, weak reporter quorum,
       concentrated operators, missing signing/code-signing controls, disabled
       runtime controls, missing receipt bundles, early governance execution,
       proposal drift, release transparency-log root drift, receipt drift, and
-      missing non-claims. This is a
+      receipt-order drift, and missing non-claims. This is a
       production-candidate config and local receipt gate only; it does not
       claim that the network is deployed, public release transparency logs have
       verified the artifact, the network is publicly soaked, governance has
@@ -1693,9 +1694,10 @@ claims:
       withdrawal-delay controls with explicit non-claims. The checker rejects
       malformed settlement controls, missing non-claims, missing receipt
       bundles, early governance execution, escrow balances below the
-      replay-derived floor, settlement execution total drift, fee-split drift,
-      low dispute bonds, slash amounts above policy cap, early withdrawals,
-      hidden policy fields, and remaining live-deployment blockers under
+      replay-derived floor, settlement execution total drift, receipt
+      happens-before drift, fee-split drift, low dispute bonds, slash amounts
+      above policy cap, early withdrawals, hidden policy fields, and remaining
+      live-deployment blockers under
       `--require-live`. This is a production-candidate policy gate only; it
       does not claim that escrow is funded on-chain, governance has executed,
       settlement executed on-chain, live receipts have been replayed against
