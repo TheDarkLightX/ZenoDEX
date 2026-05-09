@@ -60,7 +60,7 @@
     },
     {
       "path": "tests/kernels/test_runtime_shell_adapters.py",
-      "sha256": "f06086445ae76709b935fd662c85e1f23ecdb494eff48ce643ed14e76800d32a"
+      "sha256": "2c0bae9252425aaf413e4d595f30f0c51959fcf3ec02f136ccb946b7ce5c51f5"
     }
   ],
   "shell_lint": [

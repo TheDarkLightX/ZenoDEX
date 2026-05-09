@@ -216,6 +216,8 @@ pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
 pytest -q tests/integration/test_zusd_api.py -k oracle_authorization
 pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
 pytest -q tests/integration/test_zeno_oracle_trigger_authorization.py
+bash tools/run_runtime_shell_assurance_gate.sh
+python3 tools/check_runtime_shell_assurance_manifest.py
 ```
 
 Those tests cover:
@@ -227,6 +229,8 @@ Those tests cover:
 - accepted bridge for the wrong query;
 - accepted bridge for the wrong runtime action ID;
 - accepted bridge bound to the intended consumer/action.
+- isolated perps v3 `settle_epoch` rejection when the Oracle snapshot is
+  missing, zero-priced, stale, or from the same epoch.
 
 ## Non-Claims
 

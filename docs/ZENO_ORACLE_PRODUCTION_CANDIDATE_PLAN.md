@@ -43,6 +43,11 @@ The active workspace now has:
   standalone perps liquidation, zUSD mint/liquidation, guarded routing, and
   trigger execution, plus typed zUSD mint/liquidation, trigger execution, and
   critical-settlement authorization;
+- a runtime-shell assurance gate at `tools/run_runtime_shell_assurance_gate.sh`
+  with a pinned manifest at `tools/runtime_shell_assurance_manifest.json`;
+  the lane now pins isolated perps v3 settlement to a fresh, positive Oracle
+  snapshot and replays ESSO shell-lint/verify-shell checks for the perps,
+  proof-mining, and global-conservation shell adapters;
 - the critical-action map now reports `7` catalog profiles, `7`
   runtime-wired profiles, and `0` design-only backlog profiles;
 - a local reporter/validator bundle builder in
@@ -105,6 +110,9 @@ pytest -q tests/test_zenodex_oracle_devnet_service.py tests/test_zenodex_oracle_
 python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
 python3 tools/zenodex_oracle_devnet_alpha_audit.py
 python3 tools/check_claims_registry.py
+bash tools/run_runtime_shell_assurance_gate.sh
+python3 tools/check_runtime_shell_assurance_manifest.py
+PYTHONPATH=external/ESSO python3 -m ESSO verify-multi src/kernels/dex/perp_epoch_isolated_v3.yaml --solvers z3,cvc5
 python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
 python3 tools/zenoproof_reward_payout_replay.py --format text
 bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1

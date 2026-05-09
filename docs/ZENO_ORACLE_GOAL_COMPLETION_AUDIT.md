@@ -2,7 +2,7 @@
 
 Status: active audit, goal still open.
 
-Last checked: 2026-05-05.
+Last checked: 2026-05-09.
 
 This audit maps the active ZenoOracle/ZenoProof goal to concrete workspace
 evidence. It is intentionally conservative: an item is complete only when the
@@ -23,6 +23,7 @@ registry/verifier layer for O4/O5 claims.
 | One Oracle integration branch | Current branch is `codex/zeno-oracle-mvp-hardening`; public devnet/docs artifacts and typed `OracleAuthorization` code are present in the workspace. The worktree is very dirty, with many unrelated modified and untracked files, so a final merge/PR audit remains open. | Partial |
 | O3 receipt flow | `tools/zeno_oracle_o3_receipt_flow_replay.py` replays the focused local path from feed registry through reporter lifecycle, signed report, admission, admitted median3, accepted read, action adapter, and terminal DAG replay with `8/8` accepted stages. Devnet service tools and `bash scripts/check_zeno_oracle_devnet_alpha.sh` provide broader shell coverage. | Devnet complete |
 | Critical consumers | `tools/check_zeno_oracle_critical_action_map.py` reports `catalog_profile_count = 7`, `runtime_wired_count = 7`, and `design_only_backlog_count = 0`, covering zUSD, perps settlement/liquidation, routing, triggers, and critical settlement. The zUSD mint/liquidation and trigger execution entries now check both O3 adapter binding and typed `OracleAuthorization` binding. | Devnet complete |
+| Runtime shell assurance | `tools/run_runtime_shell_assurance_gate.sh` replays ESSO shell-lint/verify-shell checks for the runtime shell adapter package, `tools/check_runtime_shell_assurance_manifest.py` pins the exact source/toolchain/replay fingerprints, and `tests/kernels/test_runtime_shell_adapters.py::test_perp_epoch_isolated_v3_settle_epoch_is_oracle_bound` rejects missing, zero-priced, stale, and same-epoch Oracle snapshots for isolated perps v3 `settle_epoch`. | First shell complete |
 | Reporter economics | `tools/zenodex_oracle_reporter_economics_replay.py` and tests cover bonds, rewards, disputes, slashing, withdrawals, fee splits, and budget rejection. Live token settlement remains open. | Replay complete |
 | Disaster corpus | `tools/zenodex_oracle_devnet_disaster_harness.py` reports 17 selected states unreachable; `tools/zeno_oracle_disaster_class_corpus.py` reports 8 named families closed, including O5 independence-spoofing and proof-timeout fail-closed behavior. | First shell complete |
 | Obligation antichain | `tools/check_disaster_obligation_certificate.py` validates `tools/zeno_oracle_disaster_obligation_certificate_manifest.json`; the current certificate compresses 23 axes into 15 antichain classes and includes `proof_independence` as a required obligation atom. | First shell complete |
@@ -45,6 +46,8 @@ python3 tools/zeno_oracle_workflow_evidence_status.py --format text
 python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
 python3 tools/zenoproof_reward_payout_replay.py --format text --registry tools/zenoproof_registry_manifest.json
 python3 tools/check_claims_registry.py
+bash tools/run_runtime_shell_assurance_gate.sh
+python3 tools/check_runtime_shell_assurance_manifest.py
 ```
 
 ## Remaining Work Before Goal Closure

@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -49,6 +50,28 @@ def _require_esso(env: dict[str, str]) -> None:
     )
     if proc.returncode != 0:
         pytest.skip("ESSO is not available")
+
+
+def _load_perp_v3_ir() -> Any:
+    if ESSO_ROOT.is_dir() and str(ESSO_ROOT) not in sys.path:
+        sys.path.insert(0, str(ESSO_ROOT))
+    pytest.importorskip("ESSO")
+    yaml = pytest.importorskip("yaml")
+    from ESSO.ir.schema import CandidateIR
+
+    obj = yaml.safe_load((ROOT / "src/kernels/dex/perp_epoch_isolated_v3.yaml").read_text(encoding="utf-8"))
+    return CandidateIR.from_json_dict(obj).canonicalized()
+
+
+def _perp_v3_initial_state(ir: Any) -> dict[str, Any]:
+    from ESSO.kernel.interpreter import StepError, eval_expr
+
+    state: dict[str, Any] = {}
+    for assignment in ir.init:
+        value = eval_expr(assignment.expr, state=state, params={}, ir=ir, expected=None)
+        assert not isinstance(value, StepError)
+        state[assignment.var] = value
+    return state
 
 
 @pytest.mark.parametrize(("model", "adapter"), CASES)
@@ -101,3 +124,40 @@ def test_runtime_shell_adapters_shell_lint_and_verify(
     )
     verify = json.loads(verify_path.read_text(encoding="utf-8"))
     assert verify.get("ok") is True
+
+
+def test_perp_epoch_isolated_v3_settle_epoch_is_oracle_bound() -> None:
+    ir = _load_perp_v3_ir()
+    from ESSO.kernel.interpreter import Command, StepError, StepOk, prepare_step_context, step_ctx
+
+    ctx = prepare_step_context(ir)
+    assert not isinstance(ctx, StepError)
+    base = _perp_v3_initial_state(ir)
+    base.update(
+        {
+            "now_epoch": 5,
+            "epoch_phase": 1,
+            "clearing_price_seen": True,
+            "clearing_price_e8": 100_000_000,
+            "clearing_price_epoch": 5,
+            "oracle_seen": True,
+            "oracle_last_update_epoch": 4,
+            "index_price_e8": 100_000_000,
+            "max_oracle_staleness_epochs": 10,
+        }
+    )
+
+    accepted = step_ctx(base, Command("settle_epoch", {}), ctx)
+    assert isinstance(accepted, StepOk)
+
+    rejected_cases = {
+        "missing_snapshot": {"oracle_seen": False},
+        "zero_index": {"index_price_e8": 0},
+        "stale_snapshot": {"oracle_last_update_epoch": 0, "max_oracle_staleness_epochs": 2},
+        "same_epoch_snapshot": {"oracle_last_update_epoch": 5},
+    }
+    for patch in rejected_cases.values():
+        state = dict(base)
+        state.update(patch)
+        rejected = step_ctx(state, Command("settle_epoch", {}), ctx)
+        assert isinstance(rejected, StepError)
