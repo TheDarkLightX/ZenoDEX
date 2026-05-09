@@ -131,6 +131,17 @@ settlement_execution_receipt_ok(
     contract_bound::Bool,
 )::Bool = query_bound && totals_bound && asset_bound && contract_bound
 
+live_economics_receipt_dependency_chain_ok(
+    execution_binds_approval::Bool,
+    escrow_binds_execution::Bool,
+    settlement_binds_execution::Bool,
+    settlement_binds_escrow::Bool,
+)::Bool =
+    execution_binds_approval &&
+    escrow_binds_execution &&
+    settlement_binds_execution &&
+    settlement_binds_escrow
+
 dispute_grief_rejected(dispute_bond::Int)::Bool = dispute_bond <= 0
 
 split_brain_rejected(
@@ -413,6 +424,24 @@ function run_cases()::Vector{Dict{String, Any}}
             "live_economics_receipt_chain_order_inversion_rejects",
             !receipt_chain_ok(live_economics_inverted_receipts),
             "settlement=(1019,0) before escrow=(1020,0)",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_receipt_dependency_chain_accepts",
+            live_economics_receipt_dependency_chain_ok(true, true, true, true),
+            "execution->approval=true escrow->execution=true settlement->execution=true settlement->escrow=true",
+        ),
+    )
+
+    push!(
+        cases,
+        case_result(
+            "live_economics_receipt_dependency_chain_drift_rejects",
+            !live_economics_receipt_dependency_chain_ok(true, true, true, false),
+            "settlement->escrow=false",
         ),
     )
 
