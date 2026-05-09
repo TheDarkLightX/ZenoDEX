@@ -185,6 +185,66 @@ def test_zenoproof_production_governance_policy_rejects_early_governance_executi
     assert "receipt:governance_execution_before_timelock" in result["errors"]
 
 
+def test_zenoproof_production_governance_policy_rejects_governance_execution_dependency_drift() -> None:
+    registry = _registry()
+    policy = sample_policy(registry)
+    bundle = sample_receipt_bundle(policy, registry)
+    execution = _receipt(bundle, "governance_execution")
+    payload = execution["payload"]
+    assert isinstance(payload, dict)
+    payload["governance_approval_receipt"] = "sha256:" + "7" * 64
+    execution["receipt_id"] = receipt_content_hash(execution)
+
+    result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:governance_execution_approval_receipt_mismatch" in result["errors"]
+
+
+def test_zenoproof_production_governance_policy_rejects_receipt_dependency_drift() -> None:
+    registry = _registry()
+    cases = [
+        (
+            "revocation_list",
+            "governance_execution_receipt",
+            "revocation_list_governance_execution_receipt_mismatch",
+        ),
+        (
+            "revocation_drill",
+            "governance_execution_receipt",
+            "revocation_drill_governance_execution_receipt_mismatch",
+        ),
+        (
+            "code_signing_attestation",
+            "governance_execution_receipt",
+            "code_signing_attestation_governance_execution_receipt_mismatch",
+        ),
+        (
+            "verifier_release_transparency_log",
+            "code_signing_attestation_receipt",
+            "verifier_release_transparency_log_code_signing_receipt_mismatch",
+        ),
+        (
+            "sandbox_attestation",
+            "verifier_release_transparency_log_receipt",
+            "sandbox_attestation_transparency_log_receipt_mismatch",
+        ),
+    ]
+    for kind, payload_key, expected_error in cases:
+        policy = sample_policy(registry)
+        bundle = sample_receipt_bundle(policy, registry)
+        receipt = _receipt(bundle, kind)
+        payload = receipt["payload"]
+        assert isinstance(payload, dict)
+        payload[payload_key] = "sha256:" + "8" * 64
+        receipt["receipt_id"] = receipt_content_hash(receipt)
+
+        result = check_policy(policy, registry, ACCEPTED_REWARD_STATUS, bundle)
+
+        assert result["status"] == "rejected"
+        assert f"receipt:{expected_error}" in result["errors"]
+
+
 def test_zenoproof_production_governance_policy_rejects_sandbox_attestation_drift() -> None:
     registry = _registry()
     policy = sample_policy(registry)
