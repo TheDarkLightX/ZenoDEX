@@ -12,7 +12,7 @@ Current expected receipt:
 
 ```text
 schema = zenodex.oracle.math_witness_sweep.v1
-case_count = 41
+case_count = 43
 failed_count = 0
 status = accepted
 ```
@@ -23,8 +23,9 @@ of median deviation into low/high side obligations, monotonic acceptance under
 a widened deviation bound, source-cartel concentration, zero-bond dispute
 griefing, reward-pool conservation, overpay rejection, reward-cap rejection,
 live-economics escrow floor, timelock receipt checks, settlement-execution
-receipt-chain chronology acceptance/rejection for live economics and the
-production-network release path, settlement-execution
+receipt-dependency chain acceptance/rejection, receipt-chain chronology
+acceptance/rejection for live economics and the production-network release
+path, settlement-execution
 total matching, drift rejection, component dominance by the computed settlement
 grand total, the rule that a budget covering the grand total caps every
 component, and preservation of component caps under a larger budget,
@@ -59,8 +60,9 @@ conservation, live-economics escrow floor arithmetic, timelock execution
 obligations, settlement-execution total arithmetic, component dominance by the
 settlement total, budget-to-component cap transfer, monotone budget widening,
 settlement-execution receipt iff decomposition, and totals/asset/contract drift
-rejection, plus receipt-position transitivity/asymmetry and live-economics and
-production-network receipt-order acceptance/rejection anchors. It also
+rejection, plus receipt-position transitivity/asymmetry, live-economics and
+production-network receipt-order acceptance/rejection anchors, and
+live-economics receipt-dependency chain projection/rejection anchors. It also
 includes Prop-level bridge
 anchors for live-economics receipt bundles, terminal DAG closure, runtime
 binding, sync-window symmetry/rejection, O3 action binding from

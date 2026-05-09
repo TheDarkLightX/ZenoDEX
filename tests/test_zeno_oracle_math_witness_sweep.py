@@ -21,7 +21,7 @@ def test_zeno_oracle_math_witness_sweep_accepts_expected_cases() -> None:
     receipt = json.loads(result.stdout)
     assert receipt["schema"] == "zenodex.oracle.math_witness_sweep.v1"
     assert receipt["status"] == "accepted"
-    assert receipt["case_count"] == 41
+    assert receipt["case_count"] == 43
     assert receipt["failed_count"] == 0
     case_ids = {case["id"] for case in receipt["cases"]}
     assert "live_economics_escrow_floor_matches_replay" in case_ids
@@ -30,6 +30,8 @@ def test_zeno_oracle_math_witness_sweep_accepts_expected_cases() -> None:
     assert "live_economics_governance_early_execution_rejects" in case_ids
     assert "live_economics_receipt_chain_order_accepts" in case_ids
     assert "live_economics_receipt_chain_order_inversion_rejects" in case_ids
+    assert "live_economics_receipt_dependency_chain_accepts" in case_ids
+    assert "live_economics_receipt_dependency_chain_drift_rejects" in case_ids
     assert "production_network_receipt_chain_order_accepts" in case_ids
     assert "production_network_receipt_chain_order_inversion_rejects" in case_ids
     assert "live_economics_settlement_execution_totals_match_replay" in case_ids
@@ -56,4 +58,4 @@ def test_zeno_oracle_math_witness_sweep_accepts_expected_cases() -> None:
 def test_zenoproof_julia_replay_profile_minimum_tracks_witness_sweep() -> None:
     import tools.zenoproof_verify as zenoproof_verify
 
-    assert zenoproof_verify.MIN_JULIA_MATH_WITNESS_CASE_COUNT == 41
+    assert zenoproof_verify.MIN_JULIA_MATH_WITNESS_CASE_COUNT == 43

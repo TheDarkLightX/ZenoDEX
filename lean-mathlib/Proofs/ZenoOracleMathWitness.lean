@@ -219,6 +219,22 @@ def LiveEconomicsReceiptBundleV2OK
       governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound)
     settlementExecutionBound
 
+def LiveEconomicsReceiptDependencyChainOK
+    (executionBindsApproval escrowBindsExecution settlementBindsExecution
+      settlementBindsEscrow : Prop) : Prop :=
+  And executionBindsApproval
+    (And escrowBindsExecution (And settlementBindsExecution settlementBindsEscrow))
+
+def LiveEconomicsReceiptBundleV3OK
+    (governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
+      settlementExecutionBound receiptDependencyChainBound : Prop) :
+    Prop :=
+  And
+    (LiveEconomicsReceiptBundleV2OK
+      governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
+      settlementExecutionBound)
+    receiptDependencyChainBound
+
 theorem median_deviation_boundary_accepts :
     MaxDeviationBpsSorted 98000000 100000000 102000000 10000 = 200 := by
   norm_num [MaxDeviationBpsSorted]
@@ -670,9 +686,90 @@ theorem live_economics_receipt_bundle_v2_requires_settlement_execution
     (h :
       LiveEconomicsReceiptBundleV2OK
         governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
-        settlementExecutionBound) :
+      settlementExecutionBound) :
     settlementExecutionBound := by
   exact h.right
+
+theorem live_economics_receipt_dependency_chain_requires_execution_approval_link
+    {executionBindsApproval escrowBindsExecution settlementBindsExecution
+      settlementBindsEscrow : Prop}
+    (h :
+      LiveEconomicsReceiptDependencyChainOK
+        executionBindsApproval escrowBindsExecution settlementBindsExecution
+        settlementBindsEscrow) :
+    executionBindsApproval := by
+  exact h.left
+
+theorem live_economics_receipt_dependency_chain_requires_escrow_execution_link
+    {executionBindsApproval escrowBindsExecution settlementBindsExecution
+      settlementBindsEscrow : Prop}
+    (h :
+      LiveEconomicsReceiptDependencyChainOK
+        executionBindsApproval escrowBindsExecution settlementBindsExecution
+        settlementBindsEscrow) :
+    escrowBindsExecution := by
+  exact h.right.left
+
+theorem live_economics_receipt_dependency_chain_requires_settlement_execution_link
+    {executionBindsApproval escrowBindsExecution settlementBindsExecution
+      settlementBindsEscrow : Prop}
+    (h :
+      LiveEconomicsReceiptDependencyChainOK
+        executionBindsApproval escrowBindsExecution settlementBindsExecution
+        settlementBindsEscrow) :
+    settlementBindsExecution := by
+  exact h.right.right.left
+
+theorem live_economics_receipt_dependency_chain_requires_settlement_escrow_link
+    {executionBindsApproval escrowBindsExecution settlementBindsExecution
+      settlementBindsEscrow : Prop}
+    (h :
+      LiveEconomicsReceiptDependencyChainOK
+        executionBindsApproval escrowBindsExecution settlementBindsExecution
+        settlementBindsEscrow) :
+    settlementBindsEscrow := by
+  exact h.right.right.right
+
+theorem live_economics_receipt_dependency_chain_iff_obligations
+    {executionBindsApproval escrowBindsExecution settlementBindsExecution
+      settlementBindsEscrow : Prop} :
+    LiveEconomicsReceiptDependencyChainOK
+      executionBindsApproval escrowBindsExecution settlementBindsExecution
+      settlementBindsEscrow ↔
+        executionBindsApproval ∧ escrowBindsExecution ∧
+          settlementBindsExecution ∧ settlementBindsEscrow := by
+  constructor
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right.left, h.right.right.right⟩
+  · intro h
+    exact ⟨h.left, h.right.left, h.right.right.left, h.right.right.right⟩
+
+theorem live_economics_receipt_dependency_chain_rejects_missing_escrow_link
+    {executionBindsApproval escrowBindsExecution settlementBindsExecution : Prop} :
+    Not
+      (LiveEconomicsReceiptDependencyChainOK
+        executionBindsApproval escrowBindsExecution settlementBindsExecution False) := by
+  intro h
+  exact live_economics_receipt_dependency_chain_requires_settlement_escrow_link h
+
+theorem live_economics_receipt_bundle_v3_requires_dependency_chain
+    {governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
+      settlementExecutionBound receiptDependencyChainBound : Prop}
+    (h :
+      LiveEconomicsReceiptBundleV3OK
+        governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound
+        settlementExecutionBound receiptDependencyChainBound) :
+    receiptDependencyChainBound := by
+  exact h.right
+
+theorem live_economics_receipt_dependency_chain_sample :
+    LiveEconomicsReceiptDependencyChainOK True True True True := by
+  simp [LiveEconomicsReceiptDependencyChainOK]
+
+theorem live_economics_receipt_dependency_chain_rejects_sample_drift :
+    Not (LiveEconomicsReceiptDependencyChainOK True True True False) := by
+  intro h
+  exact h.right.right.right
 
 theorem reward_pool_conservation_witness :
     75000000 + 25000000 = 100000000 := by

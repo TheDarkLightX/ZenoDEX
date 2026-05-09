@@ -85,7 +85,8 @@ The active workspace now has:
   `tools/zeno_oracle_math_witness_sweep.jl` for median
   deviation, monotone deviation-bound widening, source cartel, dispute
   griefing, reward-pool conservation, live-economics settlement-execution total
-  matching/drift rejection, live-economics and production-network receipt-chain
+  matching/drift rejection, live-economics receipt-dependency chain
+  acceptance/rejection, live-economics and production-network receipt-chain
   chronology acceptance/rejection, budget-widening preservation, and split-brain
   boundary cases, plus O5 independence-witness acceptance/rejection, O5
   proof/window/proof-kind/root drift rejection, and O3 sync-window composition
@@ -95,7 +96,8 @@ The active workspace now has:
   settlement-execution total, source-cartel, and split-brain arithmetic, plus
   restricted general theorems for median-bound monotonicity,
   settlement-budget widening, receipt-position transitivity/asymmetry,
-  live-economics and production-network receipt-chain chronology, O3
+  live-economics and production-network receipt-chain chronology,
+  live-economics receipt-dependency chain projection/rejection, O3
   sync-window composition, Prop-level
   live-economics receipt, O4/O5 Oracle-use binding, O4/O5 iff decomposition,
   and full O5 independence-witness obligation decomposition and rejection.

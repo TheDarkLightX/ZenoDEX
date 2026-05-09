@@ -1975,9 +1975,10 @@ claims:
       concentration, zero-bond dispute griefing, reward-pool conservation,
       overpay rejection, reward-cap rejection, live-economics escrow floor and
       timelock receipt checks, settlement-execution total matching, drift
-      rejection, live-economics and production-network receipt-chain
-      chronology acceptance/rejection, component dominance by the computed
-      settlement grand total, budget-to-component cap transfer, preservation of
+      rejection, live-economics receipt-dependency chain acceptance/rejection,
+      live-economics and production-network receipt-chain chronology
+      acceptance/rejection, component dominance by the computed settlement
+      grand total, budget-to-component cap transfer, preservation of
       component caps under budget widening, settlement-execution receipt
       totals/asset/contract drift rejection, cross-module split-brain
       divergence, epoch-lag rejection, epoch-lag symmetry, O5
@@ -2020,7 +2021,8 @@ claims:
       concentration, and cross-module split-brain divergence and epoch-lag
       witnesses. It also checks receipt-position transitivity/asymmetry plus
       live-economics and production-network receipt-chain chronology
-      acceptance/rejection anchors. It also checks Prop-level terminal DAG,
+      acceptance/rejection anchors, and live-economics receipt-dependency chain
+      projection/rejection anchors. It also checks Prop-level terminal DAG,
       runtime binding,
       iff decompositions for terminal DAG/runtime binding/O3 action-binding
       obligations, rejection of missing DAG dependencies, content-hash drift,
