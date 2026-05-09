@@ -86,6 +86,43 @@ def test_reporter_soak_gate_rejects_low_success_rate() -> None:
     assert "reporter_success_rate_below_policy:reporter.prod.1" in result["errors"]
 
 
+def test_reporter_soak_gate_rejects_low_report_volume_for_active_epochs() -> None:
+    policy, observations = _sample_inputs()
+    mutated = copy.deepcopy(observations)
+    raw_observations = mutated["reporter_observations"]
+    assert isinstance(raw_observations, list)
+    first = raw_observations[0]
+    assert isinstance(first, dict)
+    first["active_epochs"] = 96
+    first["successful_report_count"] = 1
+    first["disputed_report_count"] = 0
+    first["rejected_report_count"] = 0
+    _refresh_observation_id(first)
+
+    result = check_reporter_soak_gate(policy, mutated)
+
+    assert result["status"] == "rejected"
+    assert "reporter_total_reports_below_active_epochs:reporter.prod.1" in result["errors"]
+
+
+def test_reporter_soak_gate_rejects_duplicate_signed_report_root() -> None:
+    policy, observations = _sample_inputs()
+    mutated = copy.deepcopy(observations)
+    raw_observations = mutated["reporter_observations"]
+    assert isinstance(raw_observations, list)
+    first = raw_observations[0]
+    second = raw_observations[1]
+    assert isinstance(first, dict)
+    assert isinstance(second, dict)
+    second["signed_report_root"] = first["signed_report_root"]
+    _refresh_observation_id(second)
+
+    result = check_reporter_soak_gate(policy, mutated)
+
+    assert result["status"] == "rejected"
+    assert "duplicate_signed_report_root" in result["errors"]
+
+
 def test_reporter_soak_gate_rejects_active_epochs_after_observed_epoch() -> None:
     policy, observations = _sample_inputs()
     mutated = copy.deepcopy(observations)

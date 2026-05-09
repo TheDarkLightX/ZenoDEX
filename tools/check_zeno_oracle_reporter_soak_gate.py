@@ -304,8 +304,15 @@ def check_reporter_soak_gate(
 
     reporter_ids = [str(observation.get("reporter_id")) for observation in observations if isinstance(observation.get("reporter_id"), str)]
     operator_ids = [str(observation.get("operator_id")) for observation in observations if isinstance(observation.get("operator_id"), str)]
+    signed_report_roots = [
+        str(observation.get("signed_report_root"))
+        for observation in observations
+        if isinstance(observation.get("signed_report_root"), str)
+    ]
     if len(set(reporter_ids)) != len(reporter_ids):
         errors.append("duplicate_reporter_id")
+    if len(set(signed_report_roots)) != len(signed_report_roots):
+        errors.append("duplicate_signed_report_root")
     min_reporters = policy.get("min_reporters")
     if isinstance(min_reporters, int) and len(set(reporter_ids)) < min_reporters:
         errors.append("reporter_count_below_policy")
@@ -334,6 +341,8 @@ def check_reporter_soak_gate(
             if total <= 0:
                 errors.append(f"reporter_observation_total_zero:{reporter_id}")
                 continue
+            if isinstance(active_epochs, int) and not isinstance(active_epochs, bool) and total < active_epochs:
+                errors.append(f"reporter_total_reports_below_active_epochs:{reporter_id}")
             success_rate_bps = (success * BPS_DENOM) // total
             dispute_rate_bps = (disputed * BPS_DENOM) // total
             if isinstance(min_success_rate_bps, int) and success_rate_bps < min_success_rate_bps:
