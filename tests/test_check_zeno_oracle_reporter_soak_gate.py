@@ -15,7 +15,6 @@ from tools.check_zeno_oracle_reporter_soak_gate import (
 )
 from tools.zenodex_oracle_source_diversity import source_set_content_hash
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -85,6 +84,38 @@ def test_reporter_soak_gate_rejects_low_success_rate() -> None:
 
     assert result["status"] == "rejected"
     assert "reporter_success_rate_below_policy:reporter.prod.1" in result["errors"]
+
+
+def test_reporter_soak_gate_rejects_active_epochs_after_observed_epoch() -> None:
+    policy, observations = _sample_inputs()
+    mutated = copy.deepcopy(observations)
+    raw_observations = mutated["reporter_observations"]
+    assert isinstance(raw_observations, list)
+    first = raw_observations[0]
+    assert isinstance(first, dict)
+    first["active_epochs"] = int(mutated["observed_epoch"]) + 1
+    _refresh_observation_id(first)
+
+    result = check_reporter_soak_gate(policy, mutated)
+
+    assert result["status"] == "rejected"
+    assert "reporter_active_epochs_exceeds_observed_epoch:reporter.prod.1" in result["errors"]
+
+
+def test_reporter_soak_gate_rejects_malformed_signed_report_root() -> None:
+    policy, observations = _sample_inputs()
+    mutated = copy.deepcopy(observations)
+    raw_observations = mutated["reporter_observations"]
+    assert isinstance(raw_observations, list)
+    first = raw_observations[0]
+    assert isinstance(first, dict)
+    first["signed_report_root"] = "sha256:not-a-digest"
+    _refresh_observation_id(first)
+
+    result = check_reporter_soak_gate(policy, mutated)
+
+    assert result["status"] == "rejected"
+    assert "observation_0_signed_report_root_must_be_sha256" in result["errors"]
 
 
 def test_reporter_soak_gate_rejects_source_diversity_drift() -> None:

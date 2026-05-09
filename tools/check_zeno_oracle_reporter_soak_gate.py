@@ -6,10 +6,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Mapping
-
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -23,12 +23,12 @@ from zenodex_oracle_source_diversity import (  # noqa: E402
     verify_source_diversity,
 )
 
-
 POLICY_SCHEMA = "zenodex.oracle.reporter_soak_policy.v1"
 BUNDLE_SCHEMA = "zenodex.oracle.reporter_soak_observation_bundle.v1"
 OBSERVATION_SCHEMA = "zenodex.oracle.reporter_soak_observation.v1"
 REPORT_SCHEMA = "zenodex.oracle.reporter_soak_gate_check.v1"
 BPS_DENOM = 10_000
+SHA_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 REQUIRED_NOT_CLAIMS = {
     "does_not_claim_live_oracle_network_safety",
     "does_not_claim_public_soak_completed",
@@ -98,6 +98,10 @@ def observation_content_hash(observation: Mapping[str, Any]) -> str:
 
 def _sha(label: str) -> str:
     return "sha256:" + hashlib.sha256(label.encode("utf-8")).hexdigest()
+
+
+def _is_sha(value: Any) -> bool:
+    return isinstance(value, str) and SHA_RE.fullmatch(value) is not None
 
 
 def _unknown_fields(obj: Mapping[str, Any], *, allowed: set[str], label: str, errors: list[str]) -> None:
@@ -253,8 +257,7 @@ def _validate_observation(raw: Any, *, index: int, errors: list[str]) -> Mapping
     _int_field(raw, "successful_report_count", errors, minimum=0)
     _int_field(raw, "disputed_report_count", errors, minimum=0)
     _int_field(raw, "rejected_report_count", errors, minimum=0)
-    signed_root = raw.get("signed_report_root")
-    if not isinstance(signed_root, str) or not signed_root.startswith("sha256:"):
+    if not _is_sha(raw.get("signed_report_root")):
         errors.append(f"observation_{index}_signed_report_root_must_be_sha256")
     return raw
 
@@ -280,7 +283,7 @@ def check_reporter_soak_gate(
             errors.append("observation_bundle_policy_id_mismatch")
         if observation_bundle.get("query_id") != policy.get("query_id"):
             errors.append("observation_bundle_query_id_mismatch")
-        _int_field(observation_bundle, "observed_epoch", errors, minimum=0)
+        observed_epoch = _int_field(observation_bundle, "observed_epoch", errors, minimum=0)
         _check_not_claims(observation_bundle, required=BUNDLE_NOT_CLAIMS, label="observation_bundle", errors=errors)
         raw_observations = observation_bundle.get("reporter_observations")
         if not isinstance(raw_observations, list):
@@ -289,6 +292,14 @@ def check_reporter_soak_gate(
         for index, raw in enumerate(raw_observations):
             observation = _validate_observation(raw, index=index, errors=errors)
             if observation is not None:
+                active_epochs = observation.get("active_epochs")
+                if (
+                    isinstance(observed_epoch, int)
+                    and isinstance(active_epochs, int)
+                    and not isinstance(active_epochs, bool)
+                    and active_epochs > observed_epoch
+                ):
+                    errors.append(f"reporter_active_epochs_exceeds_observed_epoch:{observation.get('reporter_id')}")
                 observations.append(observation)
 
     reporter_ids = [str(observation.get("reporter_id")) for observation in observations if isinstance(observation.get("reporter_id"), str)]
