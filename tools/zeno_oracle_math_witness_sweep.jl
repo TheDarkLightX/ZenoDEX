@@ -70,6 +70,12 @@ governance_timelock_ok(
     executable_after_timestamp - queued_at_timestamp >= timelock_seconds &&
     executed_at_timestamp >= executable_after_timestamp
 
+receipt_before(before::NTuple{2, Int}, after::NTuple{2, Int})::Bool =
+    before[1] < after[1] || (before[1] == after[1] && before[2] < after[2])
+
+receipt_chain_ok(receipts::Vector{NTuple{2, Int}})::Bool =
+    all(receipt_before(receipts[index], receipts[index + 1]) for index in 1:(length(receipts) - 1))
+
 settlement_execution_totals(
     report_rewards_e8::Vector{Int},
     dispute_rewards_e8::Vector{Int},
@@ -387,6 +393,62 @@ function run_cases()::Vector{Dict{String, Any}}
             "live_economics_governance_early_execution_rejects",
             !governance_timelock_ok(1_800_000_000, 1_800_172_800, 1_800_172_799, 172_800),
             "queued=1800000000 executable_after=1800172800 executed=1800172799 delay=172800",
+        ),
+    )
+
+    live_economics_receipts = [(1_000, 0), (1_010, 0), (1_020, 0), (1_030, 0)]
+    push!(
+        cases,
+        case_result(
+            "live_economics_receipt_chain_order_accepts",
+            receipt_chain_ok(live_economics_receipts),
+            "approval=(1000,0) execution=(1010,0) escrow=(1020,0) settlement=(1030,0)",
+        ),
+    )
+
+    live_economics_inverted_receipts = [(1_000, 0), (1_010, 0), (1_020, 0), (1_019, 0)]
+    push!(
+        cases,
+        case_result(
+            "live_economics_receipt_chain_order_inversion_rejects",
+            !receipt_chain_ok(live_economics_inverted_receipts),
+            "settlement=(1019,0) before escrow=(1020,0)",
+        ),
+    )
+
+    production_network_receipts = [
+        (3_000, 0),
+        (3_100, 0),
+        (3_150, 0),
+        (3_180, 0),
+        (3_200, 0),
+        (3_250, 0),
+        (3_300, 0),
+    ]
+    push!(
+        cases,
+        case_result(
+            "production_network_receipt_chain_order_accepts",
+            receipt_chain_ok(production_network_receipts),
+            "registry=3000 governance=3100/3150/3180 release=3200 log=3250 runtime=3300",
+        ),
+    )
+
+    production_network_inverted_receipts = [
+        (3_000, 0),
+        (3_100, 0),
+        (3_150, 0),
+        (3_180, 0),
+        (3_200, 0),
+        (3_199, 0),
+        (3_300, 0),
+    ]
+    push!(
+        cases,
+        case_result(
+            "production_network_receipt_chain_order_inversion_rejects",
+            !receipt_chain_ok(production_network_inverted_receipts),
+            "release_log=(3199,0) before release_artifact=(3200,0)",
         ),
     )
 

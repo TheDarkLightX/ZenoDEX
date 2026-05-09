@@ -76,6 +76,40 @@ def GovernanceTimelockOK
     (queuedAt executableAfter executedAt delay : Nat) : Prop :=
   And (queuedAt + delay <= executableAfter) (executableAfter <= executedAt)
 
+def ReceiptBefore
+    (beforeBlock beforeLog afterBlock afterLog : Nat) : Prop :=
+  beforeBlock < afterBlock ∨
+    (beforeBlock = afterBlock ∧ beforeLog < afterLog)
+
+def LiveEconomicsReceiptOrderOK
+    (approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+      settlementBlock settlementLog : Nat) : Prop :=
+  And
+    (ReceiptBefore approvalBlock approvalLog executionBlock executionLog)
+    (And
+      (ReceiptBefore executionBlock executionLog escrowBlock escrowLog)
+      (ReceiptBefore escrowBlock escrowLog settlementBlock settlementLog))
+
+def ProductionNetworkReceiptOrderOK
+    (registryBlock registryLog governanceDeployBlock governanceDeployLog governanceApprovalBlock
+      governanceApprovalLog governanceExecutionBlock governanceExecutionLog releaseArtifactBlock
+      releaseArtifactLog transparencyLogBlock transparencyLogLog runtimeControlsBlock
+      runtimeControlsLog : Nat) : Prop :=
+  And
+    (ReceiptBefore registryBlock registryLog governanceDeployBlock governanceDeployLog)
+    (And
+      (ReceiptBefore governanceDeployBlock governanceDeployLog governanceApprovalBlock governanceApprovalLog)
+      (And
+        (ReceiptBefore
+          governanceApprovalBlock governanceApprovalLog governanceExecutionBlock governanceExecutionLog)
+        (And
+          (ReceiptBefore
+            governanceExecutionBlock governanceExecutionLog releaseArtifactBlock releaseArtifactLog)
+          (And
+            (ReceiptBefore releaseArtifactBlock releaseArtifactLog transparencyLogBlock transparencyLogLog)
+            (ReceiptBefore
+              transparencyLogBlock transparencyLogLog runtimeControlsBlock runtimeControlsLog)))))
+
 def LiveEconomicsReceiptBundleOK
     (governanceApprovalBound governanceExecutionBound escrowFundingBound replayFloorBound : Prop) :
     Prop :=
@@ -357,6 +391,178 @@ theorem governance_timelock_rejects_early_execution
     Not (GovernanceTimelockOK queuedAt executableAfter executedAt delay) := by
   intro h
   unfold GovernanceTimelockOK at h
+  omega
+
+theorem receipt_before_irrefl
+    {block log : Nat} :
+    Not (ReceiptBefore block log block log) := by
+  intro h
+  unfold ReceiptBefore at h
+  omega
+
+theorem receipt_before_trans
+    {aBlock aLog bBlock bLog cBlock cLog : Nat}
+    (hAB : ReceiptBefore aBlock aLog bBlock bLog)
+    (hBC : ReceiptBefore bBlock bLog cBlock cLog) :
+    ReceiptBefore aBlock aLog cBlock cLog := by
+  unfold ReceiptBefore at *
+  omega
+
+theorem receipt_before_asymm
+    {aBlock aLog bBlock bLog : Nat}
+    (hAB : ReceiptBefore aBlock aLog bBlock bLog) :
+    Not (ReceiptBefore bBlock bLog aBlock aLog) := by
+  intro hBA
+  exact receipt_before_irrefl (receipt_before_trans hAB hBA)
+
+theorem live_economics_receipt_order_sample :
+    LiveEconomicsReceiptOrderOK
+      1000 0
+      1010 0
+      1020 0
+      1030 0 := by
+  norm_num [LiveEconomicsReceiptOrderOK, ReceiptBefore]
+
+theorem live_economics_receipt_order_requires_approval_before_execution
+    {approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+      settlementBlock settlementLog : Nat}
+    (h :
+      LiveEconomicsReceiptOrderOK
+        approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+        settlementBlock settlementLog) :
+    ReceiptBefore approvalBlock approvalLog executionBlock executionLog := by
+  exact h.left
+
+theorem live_economics_receipt_order_requires_execution_before_escrow
+    {approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+      settlementBlock settlementLog : Nat}
+    (h :
+      LiveEconomicsReceiptOrderOK
+        approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+        settlementBlock settlementLog) :
+    ReceiptBefore executionBlock executionLog escrowBlock escrowLog := by
+  exact h.right.left
+
+theorem live_economics_receipt_order_requires_escrow_before_settlement
+    {approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+      settlementBlock settlementLog : Nat}
+    (h :
+      LiveEconomicsReceiptOrderOK
+        approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+        settlementBlock settlementLog) :
+    ReceiptBefore escrowBlock escrowLog settlementBlock settlementLog := by
+  exact h.right.right
+
+theorem live_economics_receipt_order_implies_approval_before_settlement
+    {approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+      settlementBlock settlementLog : Nat}
+    (h :
+      LiveEconomicsReceiptOrderOK
+        approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+        settlementBlock settlementLog) :
+    ReceiptBefore approvalBlock approvalLog settlementBlock settlementLog := by
+  exact
+    receipt_before_trans
+      (receipt_before_trans h.left h.right.left)
+      h.right.right
+
+theorem live_economics_receipt_order_rejects_settlement_before_escrow
+    {approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+      settlementBlock settlementLog : Nat}
+    (hBackwards : ReceiptBefore settlementBlock settlementLog escrowBlock escrowLog) :
+    Not
+      (LiveEconomicsReceiptOrderOK
+        approvalBlock approvalLog executionBlock executionLog escrowBlock escrowLog
+        settlementBlock settlementLog) := by
+  intro h
+  exact
+    receipt_before_asymm
+      (live_economics_receipt_order_requires_escrow_before_settlement h)
+      hBackwards
+
+theorem live_economics_receipt_order_rejects_sample_inversion :
+    Not
+      (LiveEconomicsReceiptOrderOK
+        1000 0
+        1010 0
+        1020 0
+        1019 0) := by
+  intro h
+  have hEdge := live_economics_receipt_order_requires_escrow_before_settlement h
+  unfold ReceiptBefore at hEdge
+  omega
+
+theorem production_network_receipt_order_sample :
+    ProductionNetworkReceiptOrderOK
+      3000 0
+      3100 0
+      3150 0
+      3180 0
+      3200 0
+      3250 0
+      3300 0 := by
+  norm_num [ProductionNetworkReceiptOrderOK, ReceiptBefore]
+
+theorem production_network_receipt_order_requires_release_before_transparency_log
+    {registryBlock registryLog governanceDeployBlock governanceDeployLog governanceApprovalBlock
+      governanceApprovalLog governanceExecutionBlock governanceExecutionLog releaseArtifactBlock
+      releaseArtifactLog transparencyLogBlock transparencyLogLog runtimeControlsBlock
+      runtimeControlsLog : Nat}
+    (h :
+      ProductionNetworkReceiptOrderOK
+        registryBlock registryLog governanceDeployBlock governanceDeployLog governanceApprovalBlock
+        governanceApprovalLog governanceExecutionBlock governanceExecutionLog releaseArtifactBlock
+        releaseArtifactLog transparencyLogBlock transparencyLogLog runtimeControlsBlock
+        runtimeControlsLog) :
+    ReceiptBefore releaseArtifactBlock releaseArtifactLog transparencyLogBlock transparencyLogLog := by
+  exact h.right.right.right.right.left
+
+theorem production_network_receipt_order_requires_transparency_log_before_runtime_controls
+    {registryBlock registryLog governanceDeployBlock governanceDeployLog governanceApprovalBlock
+      governanceApprovalLog governanceExecutionBlock governanceExecutionLog releaseArtifactBlock
+      releaseArtifactLog transparencyLogBlock transparencyLogLog runtimeControlsBlock
+      runtimeControlsLog : Nat}
+    (h :
+      ProductionNetworkReceiptOrderOK
+        registryBlock registryLog governanceDeployBlock governanceDeployLog governanceApprovalBlock
+        governanceApprovalLog governanceExecutionBlock governanceExecutionLog releaseArtifactBlock
+        releaseArtifactLog transparencyLogBlock transparencyLogLog runtimeControlsBlock
+        runtimeControlsLog) :
+    ReceiptBefore transparencyLogBlock transparencyLogLog runtimeControlsBlock runtimeControlsLog := by
+  exact h.right.right.right.right.right
+
+theorem production_network_receipt_order_rejects_release_log_before_artifact
+    {registryBlock registryLog governanceDeployBlock governanceDeployLog governanceApprovalBlock
+      governanceApprovalLog governanceExecutionBlock governanceExecutionLog releaseArtifactBlock
+      releaseArtifactLog transparencyLogBlock transparencyLogLog runtimeControlsBlock
+      runtimeControlsLog : Nat}
+    (hBackwards : ReceiptBefore transparencyLogBlock transparencyLogLog releaseArtifactBlock releaseArtifactLog) :
+    Not
+      (ProductionNetworkReceiptOrderOK
+        registryBlock registryLog governanceDeployBlock governanceDeployLog governanceApprovalBlock
+        governanceApprovalLog governanceExecutionBlock governanceExecutionLog releaseArtifactBlock
+        releaseArtifactLog transparencyLogBlock transparencyLogLog runtimeControlsBlock
+        runtimeControlsLog) := by
+  intro h
+  exact
+    receipt_before_asymm
+      (production_network_receipt_order_requires_release_before_transparency_log h)
+      hBackwards
+
+theorem production_network_receipt_order_rejects_sample_inversion :
+    Not
+      (ProductionNetworkReceiptOrderOK
+        3000 0
+        3100 0
+        3150 0
+        3180 0
+        3200 0
+        3199 0
+        3300 0) := by
+  intro h
+  have hEdge :=
+    production_network_receipt_order_requires_release_before_transparency_log h
+  unfold ReceiptBefore at hEdge
   omega
 
 theorem live_economics_receipt_bundle_ok_requires_governance_execution
