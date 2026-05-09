@@ -274,6 +274,29 @@ claims:
         - generated/derivatives_python/funding_rate_market_v1_1_ref.py
         - src/kernels/dex/funding_rate_market_v1_1.yaml
 
+  - id: py:funding_rate_decomposed_v1_v1_1:conditional_parity
+    status: supported
+    layer: spec
+    statement: >
+      The decomposed funding-rate lane, consisting of the v1 phase/state shell plus deterministic v1.1
+      implied-rate and settlement witness values, matches the monolithic v1.1 generated reference over
+      deterministic example and randomized traces. The same check records that the v1 shell alone can
+      accept conserved but unbound settlement values, so this is a conditional parity claim and not an
+      authorization-complete settlement guarantee.
+    evidence:
+      kind: pytest
+      check:
+        - cmd: pytest -q tests/core/test_funding_rate_decomposed_parity.py
+      files:
+        - tests/core/test_funding_rate_decomposed_parity.py
+        - src/core/funding_rate_market.py
+        - src/kernels/python/funding_rate_settlement_runtime_v1_1.py
+        - generated/derivatives_python/funding_rate_market_v1_ref.py
+        - generated/derivatives_python/funding_rate_market_v1_1_ref.py
+        - src/kernels/dex/funding_rate_market_v1.yaml
+        - src/kernels/dex/funding_rate_market_v1_1.yaml
+        - src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml
+
   - id: smt:il_futures_market_v1:inductive_z3_cvc5
     status: supported
     layer: spec

@@ -19,6 +19,10 @@
       "sha256": "2bd2ff64d94545a8831e2a2c544edcf803ac9b7d377df58128e796c014086d71"
     },
     {
+      "path": "src/kernels/dex/funding_rate_settlement_witness_v1_1.yaml",
+      "sha256": "cc40b7c3441e18521d41e5cda851eabc3e955c1fa5197408790ce458708a57bc"
+    },
+    {
       "path": "src/kernels/dex/il_futures_market_v1.yaml",
       "sha256": "6db5fbd8d1c7a830f8ecf3cb5705c092238c8af407ffacdebe0e285644baf1b8"
     },
@@ -31,8 +35,28 @@
       "sha256": "3ccde42e046bb61b7a4aa238d21eb05c540209a006b54584cc8b4085e27661ed"
     },
     {
+      "path": "src/core/funding_rate_market.py",
+      "sha256": "9fbc84ecca745b13183aac8045b9db76b6be5b9af4c7ac9508b093afd587f2d7"
+    },
+    {
+      "path": "src/kernels/python/funding_rate_settlement_runtime_v1_1.py",
+      "sha256": "d36c13cb939aa17f0bc5ba43174ce1126181700b6a18db1ab1009287ea764ba6"
+    },
+    {
+      "path": "generated/derivatives_python/funding_rate_market_v1_ref.py",
+      "sha256": "c8851d0bf817033f5589b0a86d691678848bd339ee538fcbcadd07d5fcd41027"
+    },
+    {
+      "path": "generated/derivatives_python/funding_rate_market_v1_1_ref.py",
+      "sha256": "c2e0ee4393778fdaf0c9ca1d2cccecddede836356a62ada377dec1fef706153a"
+    },
+    {
       "path": "tests/core/test_derivatives_generated_refs.py",
       "sha256": "15349cccc363f281156969748a4c8c9e447255a18535ede17c1169525061eda2"
+    },
+    {
+      "path": "tests/core/test_funding_rate_decomposed_parity.py",
+      "sha256": "d114a810b8713c1513414c658a0e987b41deff4e4ee495889e14ce6895917ef2"
     },
     {
       "path": "tests/core/test_funding_rate_market.py",
@@ -57,6 +81,14 @@
     {
       "path": "tests/core/test_volatility_tier_ref_parity.py",
       "sha256": "4487294056cb30b4c2e6d6bcde472ebcb1ddb74ef91de655b04013b2da5418d8"
+    },
+    {
+      "path": "tests/test_derivatives_evidence_script.py",
+      "sha256": "a0a670c222090122eb72f4aa69b38c19c0b458525635ccd1e352ad790a70093d"
+    },
+    {
+      "path": "tools/run_derivatives_evidence.sh",
+      "sha256": "fdb796beb747292bbf9dca0680072854f445683d09d503b2ac2410d4e4dad027"
     }
   ],
   "verify_multi": [
@@ -70,6 +102,24 @@
       ],
       "solver_timeout_ms": 60000,
       "passed_queries": 6,
+      "toolchain": {
+        "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+        "solvers": {
+          "z3": "4.15.4",
+          "cvc5": "This is cvc5 version 1.1.2"
+        }
+      }
+    },
+    {
+      "report_path": "internal/esso_verify/derivatives/funding_rate_settlement_witness_v1_1/verification_report.json",
+      "model_id": "funding_rate_settlement_witness_v1_1",
+      "ir_hash": "be617ba62f6af879",
+      "solvers": [
+        "z3",
+        "cvc5"
+      ],
+      "solver_timeout_ms": 60000,
+      "passed_queries": 2,
       "toolchain": {
         "esso_code_hash": "1145cf77668b6d86cda83d79820b13a65fbde12f",
         "solvers": {
