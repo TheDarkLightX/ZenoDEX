@@ -225,13 +225,14 @@ for policy approval/execution, revocation list/drill, code-signing attestation,
 verifier-release transparency-log observation, and sandbox attestation. The
 code-signing attestation binds a verifier-release manifest covering every
 production-enabled verifier ID, artifact digest, command hash, toolchain hash,
-policy root, and local transparency-log entry. The transparency-log receipt
-checks the entry list, contiguous indices, tree size, and log root against that
-release manifest. These receipts are content-hashed and bound to the policy
-static hash plus the registry manifest id. The bundle also enforces receipt
-happens-before order: approval precedes execution, execution precedes
-revocation/code signing, code signing precedes transparency-log binding, and
-the transparency-log binding precedes sandbox attestation.
+policy root, deterministic worker image digest, seccomp profile digest, and
+local transparency-log entry. The transparency-log receipt checks the entry
+list, contiguous indices, tree size, and log root against that release manifest.
+These receipts are content-hashed and bound to the policy static hash plus the
+registry manifest id. The bundle also enforces receipt happens-before order:
+approval precedes execution, execution precedes revocation/code signing, code
+signing precedes transparency-log binding, and the transparency-log binding
+precedes sandbox attestation.
 
 ```bash
 python3 tools/check_zenoproof_production_governance_policy.py --format text

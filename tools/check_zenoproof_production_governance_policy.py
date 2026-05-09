@@ -290,6 +290,7 @@ def _registry_id(registry: Mapping[str, Any]) -> str:
 
 def production_verifier_release_manifest(registry: Mapping[str, Any], policy: Mapping[str, Any]) -> dict[str, Any]:
     verifier_policy = policy.get("verifier_policy") if isinstance(policy.get("verifier_policy"), Mapping) else {}
+    sandbox = policy.get("sandbox") if isinstance(policy.get("sandbox"), Mapping) else {}
     raw_ids = verifier_policy.get("production_enabled_verifier_ids")
     production_ids = sorted(str(item) for item in raw_ids if isinstance(item, str)) if isinstance(raw_ids, list) else []
     verifier_by_id = {
@@ -309,10 +310,12 @@ def production_verifier_release_manifest(registry: Mapping[str, Any], policy: Ma
         entry_base = {
             "allow_path_lookup": verifier.get("allow_path_lookup"),
             "current_policy_root": verifier.get("current_policy_root"),
+            "deterministic_worker_image_digest": sandbox.get("deterministic_worker_image_digest"),
             "execution_mode": verifier.get("execution_mode"),
             "max_input_bytes": verifier.get("max_input_bytes"),
             "name": verifier.get("name"),
             "proof_kinds": proof_kinds,
+            "seccomp_profile_digest": sandbox.get("seccomp_profile_digest"),
             "timeout_ms": verifier.get("timeout_ms"),
             "toolchain_ids_hash": sha256_json({"toolchain_ids": toolchain_ids}),
             "verifier_command_hash": sha256_json({"verifier_command": command}),
@@ -611,10 +614,6 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
         for verifier in verifiers
         if verifier.get("execution_mode") in PRODUCTION_EXECUTION_MODES and isinstance(verifier.get("verifier_id"), str)
     )
-    release_manifest = production_verifier_release_manifest(
-        active_registry,
-        {"verifier_policy": {"production_enabled_verifier_ids": production_enabled}},
-    )
     policy: dict[str, Any] = {
         "schema": POLICY_SCHEMA,
         "policy_name": "zenoproof-production-governance-candidate-1",
@@ -635,7 +634,7 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
             "release_signer_identity": "release@zenodex.org",
             "artifact_digest_alg": "sha256",
             "policy_bundle_digest": _sha("zenoproof.production_governance.policy_bundle"),
-            "verifier_release_manifest_digest": release_manifest["manifest_digest"],
+            "verifier_release_manifest_digest": "",
         },
         "sandbox": {
             "required": True,
@@ -675,6 +674,8 @@ def sample_policy(registry: Mapping[str, Any] | None = None) -> dict[str, Any]:
         },
         "not_claimed": sorted(REQUIRED_NOT_CLAIMS),
     }
+    release_manifest = production_verifier_release_manifest(active_registry, policy)
+    policy["code_signing"]["verifier_release_manifest_digest"] = release_manifest["manifest_digest"]
     refs = _sample_receipt_refs(policy, active_registry)
     policy["governance"].update(refs["governance"])
     policy["revocation"].update(refs["revocation"])
