@@ -12,7 +12,6 @@ from tools.check_zeno_oracle_production_network_config import (
     sample_receipt_bundle,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -130,6 +129,24 @@ def test_production_network_config_rejects_release_transparency_log_root_drift()
 
     assert result["status"] == "rejected"
     assert "receipt:signed_release_transparency_log_root_mismatch" in result["errors"]
+
+
+def test_production_network_config_rejects_release_receipt_order_drift() -> None:
+    config = sample_config()
+    bundle = sample_receipt_bundle(config)
+    receipts = bundle["receipts"]
+    assert isinstance(receipts, list)
+    release = next(receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == "signed_release_artifact")
+    release_log = next(
+        receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == "signed_release_transparency_log"
+    )
+    release_log["block_number"] = int(release["block_number"]) - 1
+    release_log["receipt_id"] = receipt_content_hash(release_log)
+
+    result = check_config(config, bundle)
+
+    assert result["status"] == "rejected"
+    assert "receipt:receipt_order_invalid:signed_release_artifact->signed_release_transparency_log" in result["errors"]
 
 
 def test_production_network_config_rejects_runtime_controls_receipt_drift() -> None:
