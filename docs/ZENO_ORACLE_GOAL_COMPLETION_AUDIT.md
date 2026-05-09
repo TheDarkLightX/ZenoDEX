@@ -31,7 +31,7 @@ registry/verifier layer for O4/O5 claims.
 | Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides a first witness anchor for bounded arithmetic plus Prop-level O4/O5 binding and O5 independence-witness projections. General median, deviation, economics, executable DAG closure, sync, and typed binding theorems remain open. | Partial |
 | ESSO/TLA/LTLf/Morph/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py` reports 5 accepted first-shell lanes. Private PopperPad content and deeper Morph campaigns remain outside public claims. | First shell complete |
 | Public claims registry | `docs/claims_registry.yaml` validates with `python3 tools/check_claims_registry.py` and `pytest -q tests/test_claims_registry.py`. | Complete for promoted claims |
-| ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. | Local v0 complete |
+| ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, verifier governance fields, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. | Local v0 complete |
 | Devnet alpha package | `scripts/package_zeno_oracle_rc.sh` and `tools/check_zeno_oracle_rc_package.py` build and validate the devnet alpha package, docs, whitepaper, branding, manifest, receipt, and devnet integrity signature. | Devnet complete |
 
 ## Latest Replay Commands

@@ -10,7 +10,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -20,7 +20,6 @@ sys.path.insert(0, str(ROOT))
 from src.integration.proof_verifier import ProofVerifierConfig, make_proof_verifier  # noqa: E402
 from src.state.canonical import canonical_json_bytes  # noqa: E402
 from tools.zenodex_oracle import sample_bundle, verify_bundle  # noqa: E402
-
 
 ARTIFACT_SCHEMA = "zenodex.zenoproof.artifact.v0"
 REGISTRY_SCHEMA = "zenodex.zenoproof.registry_manifest.v0"
@@ -34,6 +33,7 @@ REWARD_GATE_RESULT_SCHEMA = "zenodex.zenoproof.reward_gate_result.v0"
 MAX_JSON_BYTES = 1_000_000
 MAX_EPOCH = 2**63 - 1
 MAX_REWARD_AMOUNT = 10**30
+MAX_VERIFIER_TIMEOUT_MS = 300_000
 HASH_PREFIX = "sha256:"
 HASH_HEX_LEN = 64
 SUPPORTED_PROOF_KINDS = {
@@ -843,7 +843,9 @@ def run_public_replay_profile(profile: str) -> Mapping[str, Any]:
         return receipt
 
     if profile == MORPH_REPLAY_PROFILE:
-        from tools.zeno_oracle_workflow_evidence_status import build_morph_oracle_clamp_envelope_status
+        from tools.zeno_oracle_workflow_evidence_status import (
+            build_morph_oracle_clamp_envelope_status,
+        )
 
         receipt = build_morph_oracle_clamp_envelope_status()
         _require_replay_receipt(receipt, expected_schema=str(cfg["expected_schema"]))
@@ -996,6 +998,29 @@ def _require_int_epoch(obj: Mapping[str, Any], key: str, errors: list[str]) -> i
     return int(value)
 
 
+def _require_positive_int_at_most(
+    obj: Mapping[str, Any],
+    key: str,
+    errors: list[str],
+    *,
+    label: str,
+    identifier: str,
+    max_value: int,
+) -> int | None:
+    value = obj.get(key)
+    if not isinstance(value, int) or isinstance(value, bool):
+        errors.append(f"{label}_must_be_positive_int:{identifier}")
+        return None
+    out = int(value)
+    if out <= 0:
+        errors.append(f"{label}_must_be_positive:{identifier}")
+        return None
+    if out > max_value:
+        errors.append(f"{label}_too_large:{identifier}")
+        return None
+    return out
+
+
 def _require_reward_amount(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
     value = obj.get(key)
     if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > MAX_REWARD_AMOUNT:
@@ -1031,6 +1056,48 @@ def _str_list(value: object, *, label: str, errors: list[str]) -> list[str]:
     return result
 
 
+def _require_distinct(values: Sequence[str], *, label: str, identifier: str, errors: list[str]) -> None:
+    if len(set(values)) != len(values):
+        errors.append(f"{label}_must_be_distinct:{identifier}")
+
+
+def _check_verifier_command_policy(
+    verifier: Mapping[str, Any],
+    *,
+    verifier_id: str,
+    errors: list[str],
+) -> None:
+    mode = verifier.get("execution_mode")
+    command = verifier.get("verifier_command")
+    if not isinstance(command, list):
+        errors.append(f"verifier_command_must_be_list:{verifier_id}")
+        command_values: list[str] = []
+    else:
+        command_values = []
+        for index, item in enumerate(command):
+            if not isinstance(item, str) or not item:
+                errors.append(f"verifier_command_{index}_must_be_nonempty_string:{verifier_id}")
+            else:
+                command_values.append(str(item))
+
+    allow_path_lookup = verifier.get("allow_path_lookup")
+    if not isinstance(allow_path_lookup, bool):
+        errors.append(f"verifier_allow_path_lookup_must_be_bool:{verifier_id}")
+
+    if mode == "local_static_accept":
+        if isinstance(command, list) and command:
+            errors.append(f"verifier_local_static_command_must_be_empty:{verifier_id}")
+        if allow_path_lookup is True:
+            errors.append(f"verifier_local_static_allow_path_lookup_must_be_false:{verifier_id}")
+    elif mode == "subprocess_json":
+        if isinstance(command, list) and not command:
+            errors.append(f"verifier_subprocess_command_must_be_nonempty:{verifier_id}")
+        if allow_path_lookup is False and command_values and not os.path.isabs(command_values[0]):
+            errors.append(f"verifier_command_must_be_absolute_when_path_lookup_disabled:{verifier_id}")
+    else:
+        errors.append(f"verifier_execution_mode_invalid:{verifier_id}")
+
+
 def _registry_indexes(
     registry: Mapping[str, Any],
 ) -> tuple[dict[str, Mapping[str, Any]], dict[str, Mapping[str, Any]], list[str]]:
@@ -1057,18 +1124,41 @@ def _registry_indexes(
             if verifier_id in verifier_index:
                 errors.append(f"duplicate_verifier_id:{verifier_id}")
             verifier_index[verifier_id] = verifier
-            _str_list(verifier.get("proof_kinds"), label="verifier_proof_kinds", errors=errors)
-            _str_list(verifier.get("toolchain_ids"), label="verifier_toolchain_ids", errors=errors)
+            if not isinstance(verifier.get("name"), str) or not verifier.get("name"):
+                errors.append(f"verifier_name_must_be_nonempty_string:{verifier_id}")
+            proof_kinds = _str_list(verifier.get("proof_kinds"), label="verifier_proof_kinds", errors=errors)
+            if not proof_kinds:
+                errors.append(f"verifier_proof_kinds_must_be_nonempty:{verifier_id}")
+            for proof_kind in proof_kinds:
+                if proof_kind not in SUPPORTED_PROOF_KINDS:
+                    errors.append(f"verifier_proof_kind_unsupported:{verifier_id}:{proof_kind}")
+            _require_distinct(proof_kinds, label="verifier_proof_kinds", identifier=verifier_id, errors=errors)
+            toolchain_ids = _str_list(verifier.get("toolchain_ids"), label="verifier_toolchain_ids", errors=errors)
+            if not toolchain_ids:
+                errors.append(f"verifier_toolchain_ids_must_be_nonempty:{verifier_id}")
+            for toolchain_id in toolchain_ids:
+                if not _is_hash(toolchain_id):
+                    errors.append(f"verifier_toolchain_id_must_be_sha256:{verifier_id}:{toolchain_id}")
+            _require_distinct(toolchain_ids, label="verifier_toolchain_ids", identifier=verifier_id, errors=errors)
             if not isinstance(verifier.get("revoked"), bool):
                 errors.append(f"verifier_revoked_must_be_bool:{verifier_id}")
-            _require_int_epoch(verifier, "timeout_ms", errors)
-            _require_int_epoch(verifier, "max_input_bytes", errors)
-            if verifier.get("execution_mode") not in {"local_static_accept", "subprocess_json"}:
-                errors.append(f"verifier_execution_mode_invalid:{verifier_id}")
-            if not isinstance(verifier.get("verifier_command"), list):
-                errors.append(f"verifier_command_must_be_list:{verifier_id}")
-            if not isinstance(verifier.get("allow_path_lookup"), bool):
-                errors.append(f"verifier_allow_path_lookup_must_be_bool:{verifier_id}")
+            _require_positive_int_at_most(
+                verifier,
+                "timeout_ms",
+                errors,
+                label="verifier_timeout_ms",
+                identifier=verifier_id,
+                max_value=MAX_VERIFIER_TIMEOUT_MS,
+            )
+            _require_positive_int_at_most(
+                verifier,
+                "max_input_bytes",
+                errors,
+                label="verifier_max_input_bytes",
+                identifier=verifier_id,
+                max_value=MAX_JSON_BYTES,
+            )
+            _check_verifier_command_policy(verifier, verifier_id=verifier_id, errors=errors)
 
     claim_index: dict[str, Mapping[str, Any]] = {}
     claims = registry.get("claims")
@@ -1307,7 +1397,7 @@ def _run_external_verifier_if_needed(
         errors.append("verifier_execution_mode_invalid")
         return
     command = verifier.get("verifier_command")
-    if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+    if not isinstance(command, list) or not command or not all(isinstance(item, str) and item for item in command):
         errors.append("verifier_command_invalid")
         return
     timeout_ms = verifier.get("timeout_ms")
@@ -1318,6 +1408,9 @@ def _run_external_verifier_if_needed(
         return
     if not isinstance(max_input_bytes, int) or isinstance(max_input_bytes, bool) or max_input_bytes <= 0:
         errors.append("verifier_max_input_bytes_invalid")
+        return
+    if max_input_bytes > MAX_JSON_BYTES:
+        errors.append("verifier_max_input_bytes_too_large")
         return
     if not isinstance(allow_path_lookup, bool):
         errors.append("verifier_allow_path_lookup_invalid")

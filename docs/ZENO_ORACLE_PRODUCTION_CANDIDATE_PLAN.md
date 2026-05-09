@@ -65,7 +65,9 @@ The active workspace now has:
   public sample verifier manifest at `tools/zenoproof_registry_manifest.json`;
   the shell now checks Oracle O5 bridges with an independence witness requiring
   distinct verifier IDs, distinct proof kinds, shared Oracle input/output
-  roots, and claim-DAG dependency closure.
+  roots, and claim-DAG dependency closure, and its registry validator rejects
+  malformed verifier budgets, unsupported or duplicate proof kinds, duplicate
+  toolchains, and unsafe verifier command shapes.
 - ZenoProof public replay verifier roots at
   `tools/zenoproof_public_replay_verifier.py` for workflow-evidence status,
   Julia witness-sweep, Lean witness-anchor, TLA Oracle recovery, LTLf Oracle

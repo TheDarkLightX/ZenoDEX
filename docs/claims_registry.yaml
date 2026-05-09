@@ -1594,10 +1594,11 @@ claims:
       receipts. It also replays a bounded local reward-payout bridge from an
       accepted ZenoProof reward gate through proof-mining claim construction,
       manager execution, and claimability checks. It rejects malformed
-      artifacts, stale verifier policy, wrong claim bindings, unknown proof
-      kinds, verifier timeouts, wrong public replay roots, wrong Oracle input
-      bindings, missing or weak O5 independence witnesses, duplicate reward
-      claims, reward budget mismatches, and bad reward-payout proof bindings.
+      artifacts, stale verifier policy, malformed verifier registry governance
+      fields, wrong claim bindings, unknown proof kinds, verifier timeouts,
+      wrong public replay roots, wrong Oracle input bindings, missing or weak
+      O5 independence witnesses, duplicate reward claims, reward budget
+      mismatches, and bad reward-payout proof bindings.
     evidence:
       kind: python
       check:
