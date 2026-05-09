@@ -6,10 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "zenodex.oracle.goal_completion_audit.v1"
@@ -342,7 +340,7 @@ def build_audit() -> dict[str, Any]:
             status="local_v0_complete",
             blockers=[
                 "zenoproof_production_governance_policy_gate_is_candidate_only",
-                "production_verifier_sandbox_and_code_signing_not_verified",
+                "production_verifier_sandbox_and_code_signing_not_verified_on_live_network",
                 "live_proof_network_and_payout_settlement_not_enabled",
             ],
             limits=[
