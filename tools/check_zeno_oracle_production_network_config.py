@@ -639,6 +639,46 @@ def sample_receipt_bundle(config: Mapping[str, Any] | None = None) -> dict[str, 
             },
         ),
     ]
+    by_kind = {str(receipt["kind"]): receipt for receipt in receipts}
+
+    def _bind_dependency(kind: str, key: str, prior_kind: str) -> None:
+        receipt = by_kind[kind]
+        prior = by_kind[prior_kind]
+        payload = receipt["payload"]
+        if isinstance(payload, dict):
+            payload[key] = prior["receipt_id"]
+        receipt["receipt_id"] = receipt_content_hash(receipt)
+
+    _bind_dependency(
+        "feed_governance_deployment",
+        "reporter_registry_deployment_receipt",
+        "reporter_registry_deployment",
+    )
+    _bind_dependency(
+        "feed_governance_approval",
+        "feed_governance_deployment_receipt",
+        "feed_governance_deployment",
+    )
+    _bind_dependency(
+        "feed_governance_execution",
+        "feed_governance_approval_receipt",
+        "feed_governance_approval",
+    )
+    _bind_dependency(
+        "signed_release_artifact",
+        "feed_governance_execution_receipt",
+        "feed_governance_execution",
+    )
+    _bind_dependency(
+        "signed_release_transparency_log",
+        "signed_release_artifact_receipt",
+        "signed_release_artifact",
+    )
+    _bind_dependency(
+        "runtime_controls_attestation",
+        "signed_release_transparency_log_receipt",
+        "signed_release_transparency_log",
+    )
     return {
         "schema": RECEIPT_BUNDLE_SCHEMA,
         "config_id": config_id,
@@ -881,6 +921,63 @@ def check_receipt_bundle(config: Mapping[str, Any], receipt_bundle: Mapping[str,
         after_pos = _receipt_position(after)
         if before_pos is not None and after_pos is not None and before_pos >= after_pos:
             errors.append(f"receipt_order_invalid:{before}->{after}")
+
+    def _receipt_id(kind: str) -> Any:
+        receipt = receipts_by_kind.get(kind)
+        return receipt.get("receipt_id") if receipt is not None else None
+
+    def _payload(kind: str) -> Mapping[str, Any] | None:
+        receipt = receipts_by_kind.get(kind)
+        if receipt is None:
+            return None
+        payload = receipt.get("payload")
+        return payload if isinstance(payload, Mapping) else None
+
+    def _require_payload_receipt(kind: str, key: str, expected_kind: str, error: str) -> None:
+        payload = _payload(kind)
+        expected = _receipt_id(expected_kind)
+        if payload is not None and expected is not None and payload.get(key) != expected:
+            errors.append(error)
+
+    for kind, key, expected_kind, error in (
+        (
+            "feed_governance_deployment",
+            "reporter_registry_deployment_receipt",
+            "reporter_registry_deployment",
+            "feed_governance_deployment_reporter_registry_receipt_mismatch",
+        ),
+        (
+            "feed_governance_approval",
+            "feed_governance_deployment_receipt",
+            "feed_governance_deployment",
+            "feed_governance_approval_deployment_receipt_mismatch",
+        ),
+        (
+            "feed_governance_execution",
+            "feed_governance_approval_receipt",
+            "feed_governance_approval",
+            "feed_governance_execution_approval_receipt_mismatch",
+        ),
+        (
+            "signed_release_artifact",
+            "feed_governance_execution_receipt",
+            "feed_governance_execution",
+            "signed_release_feed_governance_execution_receipt_mismatch",
+        ),
+        (
+            "signed_release_transparency_log",
+            "signed_release_artifact_receipt",
+            "signed_release_artifact",
+            "signed_release_transparency_log_artifact_receipt_mismatch",
+        ),
+        (
+            "runtime_controls_attestation",
+            "signed_release_transparency_log_receipt",
+            "signed_release_transparency_log",
+            "runtime_controls_transparency_log_receipt_mismatch",
+        ),
+    ):
+        _require_payload_receipt(kind, key, expected_kind, error)
 
     missing = sorted(REQUIRED_RECEIPT_KINDS - set(receipts_by_kind))
     errors.extend(f"missing_receipt_kind:{kind}" for kind in missing)

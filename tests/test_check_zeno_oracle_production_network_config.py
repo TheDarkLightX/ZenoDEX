@@ -149,6 +149,58 @@ def test_production_network_config_rejects_release_receipt_order_drift() -> None
     assert "receipt:receipt_order_invalid:signed_release_artifact->signed_release_transparency_log" in result["errors"]
 
 
+def test_production_network_config_rejects_receipt_dependency_drift() -> None:
+    cases = [
+        (
+            "feed_governance_deployment",
+            "reporter_registry_deployment_receipt",
+            "feed_governance_deployment_reporter_registry_receipt_mismatch",
+        ),
+        (
+            "feed_governance_approval",
+            "feed_governance_deployment_receipt",
+            "feed_governance_approval_deployment_receipt_mismatch",
+        ),
+        (
+            "feed_governance_execution",
+            "feed_governance_approval_receipt",
+            "feed_governance_execution_approval_receipt_mismatch",
+        ),
+        (
+            "signed_release_artifact",
+            "feed_governance_execution_receipt",
+            "signed_release_feed_governance_execution_receipt_mismatch",
+        ),
+        (
+            "signed_release_transparency_log",
+            "signed_release_artifact_receipt",
+            "signed_release_transparency_log_artifact_receipt_mismatch",
+        ),
+        (
+            "runtime_controls_attestation",
+            "signed_release_transparency_log_receipt",
+            "runtime_controls_transparency_log_receipt_mismatch",
+        ),
+    ]
+    for kind, payload_key, expected_error in cases:
+        config = sample_config()
+        bundle = sample_receipt_bundle(config)
+        receipts = bundle["receipts"]
+        assert isinstance(receipts, list)
+        receipt = next(
+            receipt for receipt in receipts if isinstance(receipt, dict) and receipt["kind"] == kind
+        )
+        payload = receipt["payload"]
+        assert isinstance(payload, dict)
+        payload[payload_key] = "sha256:" + "8" * 64
+        receipt["receipt_id"] = receipt_content_hash(receipt)
+
+        result = check_config(config, bundle)
+
+        assert result["status"] == "rejected"
+        assert f"receipt:{expected_error}" in result["errors"]
+
+
 def test_production_network_config_rejects_runtime_controls_receipt_drift() -> None:
     config = sample_config()
     bundle = sample_receipt_bundle(config)

@@ -118,7 +118,7 @@ def build_audit() -> dict[str, Any]:
             ],
             status="devnet_complete",
             limits=[
-                "production-candidate config gate validates local deployment/signing receipts, but live chain and public soak remain blockers",
+                "production-candidate config gate validates local deployment/signing receipts and receipt-dependency links, but live chain and public soak remain blockers",
                 "does_not_claim_production_oracle_network_live",
             ],
         ),
