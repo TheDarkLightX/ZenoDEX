@@ -21,8 +21,8 @@ from ..core.perps import (
     PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1,
     PERP_MARKET_KIND_ISOLATED_V2,
     PERPS_STATE_VERSION_V5,
-    PerpAnyMarketState,
     PerpAccountState,
+    PerpAnyMarketState,
     PerpClearinghouse2pMarketState,
     PerpClearinghouse3pTransferMarketState,
     PerpMarketState,
@@ -31,11 +31,15 @@ from ..core.perps import (
 )
 from ..core.vault import VaultState
 from ..state.balances import BalanceTable
-from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..state.canonical import (
+    bounded_json_utf8_size,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
-from ..state.pools import PoolState, PoolStatus
-
+from ..state.pools import POOL_FEE_BPS_MAX, PoolState, PoolStatus
 
 DEX_SNAPSHOT_VERSION = 2
 
@@ -163,7 +167,7 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
                             "liquidated_this_step": bool(acct.liquidated_this_step),
                         }
                     )
-                acct_entries.sort(key=lambda e: e["pubkey"])
+                acct_entries.sort(key=lambda e: str(e["pubkey"]))
                 out_entry: Dict[str, Any] = {
                     "market_id": str(market_id),
                     "quote_asset": str(market.quote_asset),
@@ -309,7 +313,7 @@ def state_from_snapshot(
         except ValueError as exc:
             raise ValueError(f"invalid pool status: {status_raw}") from exc
         fee_bps = _require_int(entry.get("fee_bps", 0), name="fee_bps")
-        if fee_bps > 10_000:
+        if fee_bps > POOL_FEE_BPS_MAX:
             raise ValueError(f"fee_bps out of range for pool {pool_id}: {fee_bps}")
         pools[pool_id] = PoolState(
             pool_id=pool_id,
@@ -338,10 +342,10 @@ def state_from_snapshot(
         if not isinstance(entry, Mapping):
             raise TypeError("snapshot.lp_balances entries must be objects")
         pk = entry.get("pubkey")
-        pool_id = entry.get("pool_id")
+        pool_id_raw = entry.get("pool_id")
         amount = entry.get("amount")
         pk_s = _require_str(pk, name="lp.pubkey", non_empty=True, max_len=min(512, max_str_len))
-        pool_id_s = _require_str(pool_id, name="lp.pool_id", non_empty=True, max_len=min(256, max_str_len))
+        pool_id_s = _require_str(pool_id_raw, name="lp.pool_id", non_empty=True, max_len=min(256, max_str_len))
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise ValueError("invalid lp entry (amount)")
         key = (pk_s, pool_id_s)

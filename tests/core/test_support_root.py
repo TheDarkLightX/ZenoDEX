@@ -526,7 +526,7 @@ def test_compute_support_state_root_rejects_invalid_pool_and_amount_scalars() ->
         )
 
     bad_fee_pool = _pool(pool_id, asset0, asset1)
-    bad_fee_pool.fee_bps = 10_001
+    bad_fee_pool.fee_bps = 10_000
     with pytest.raises(ValueError, match="invalid pool fee_bps"):
         compute_support_state_root(
             balances=BalanceTable(),

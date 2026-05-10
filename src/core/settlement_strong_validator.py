@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 from ..state.balances import AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import PoolState, PoolStatus
+from ..state.pools import POOL_FEE_BPS_MAX, PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .batch_clearing import validate_settlement as validate_settlement_legacy
 from .cpmm import MIN_LP_LOCK, compute_fee_total
@@ -251,7 +251,12 @@ def _validate_settlement_strong_impl(
 
     # Replay state (pure local copies).
     balances = _copy_balance_table(pre_balances)
-    pools: Dict[str, PoolState] = {pool_id: replace(pool) for pool_id, pool in pre_pools.items()}
+    pools: Dict[str, PoolState] = {}
+    for pool_id, pool in pre_pools.items():
+        try:
+            pools[pool_id] = replace(pool)
+        except Exception as exc:
+            return False, f"invalid pre_pool state for pool_id={pool_id}: {exc}"
     lp = _copy_lp_table(pre_lp_balances) if pre_lp_balances is not None else LPTable()
 
     expected_events: List[dict] = []
@@ -336,7 +341,7 @@ def _validate_settlement_strong_impl(
                 return fail(f"missing CREATE_POOL fields for intent_id={intent_id}")
             if not isinstance(asset0, str) or not isinstance(asset1, str):
                 return fail(f"invalid CREATE_POOL asset ids for intent_id={intent_id}")
-            if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
+            if not is_strict_int(fee_bps) or not (0 <= fee_bps <= POOL_FEE_BPS_MAX):
                 return fail(f"invalid CREATE_POOL fee_bps for intent_id={intent_id}")
             if not is_strict_int(amount0) or amount0 <= 0:
                 return fail(f"invalid CREATE_POOL amount0 for intent_id={intent_id}")
