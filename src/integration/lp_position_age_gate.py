@@ -34,6 +34,47 @@ def _lp_recipient(intent: Intent) -> Optional[str]:
     return None
 
 
+def _remove_context_by_key(intents: list[Intent]) -> dict[tuple[str, str], str]:
+    contexts: dict[tuple[str, str], str] = {}
+    for intent in intents:
+        if intent.kind != IntentKind.REMOVE_LIQUIDITY:
+            continue
+        pool_id = _pool_id(intent)
+        if pool_id is None:
+            continue
+        contexts[(intent.sender_pubkey, pool_id)] = f"intent_id={intent.intent_id}"
+    return contexts
+
+
+def _age_context(contexts: dict[tuple[str, str], str], key: tuple[str, str]) -> str:
+    mapped = contexts.get(key)
+    if mapped is not None:
+        return mapped
+    owner, pool_id = key
+    return f"lp_delta={owner}:{pool_id}"
+
+
+def _validate_lp_age_for_key(
+    *,
+    lp_balances: LPTable,
+    owner: str,
+    pool_id: str,
+    block_timestamp: int,
+    min_lp_position_age_seconds: int,
+    context: str,
+) -> Optional[str]:
+    last_mint = lp_balances.get_last_mint_timestamp(owner, pool_id)
+    if last_mint is None:
+        return f"lp_position_age_missing for {context}"
+    if not _strict_non_negative_int(last_mint):
+        return f"invalid lp_position_mint_timestamp for {context}"
+    if last_mint > block_timestamp:
+        return f"lp_position_mint_timestamp_in_future for {context}"
+    if block_timestamp - last_mint < min_lp_position_age_seconds:
+        return f"lp_position_locked for {context}"
+    return None
+
+
 def validate_lp_position_age_gate(
     *,
     intents: list[Intent],
@@ -79,19 +120,80 @@ def validate_lp_position_age_gate(
         key = (intent.sender_pubkey, pool_id)
         remove_keys[key] = intent
 
-        last_mint = lp_balances.get_last_mint_timestamp(intent.sender_pubkey, pool_id)
-        if last_mint is None:
-            return f"lp_position_age_missing for intent_id={intent.intent_id}"
-        if not _strict_non_negative_int(last_mint):
-            return f"invalid lp_position_mint_timestamp for intent_id={intent.intent_id}"
-        if last_mint > block_timestamp:
-            return f"lp_position_mint_timestamp_in_future for intent_id={intent.intent_id}"
-        if block_timestamp - last_mint < min_lp_position_age_seconds:
-            return f"lp_position_locked for intent_id={intent.intent_id}"
+        err = _validate_lp_age_for_key(
+            lp_balances=lp_balances,
+            owner=intent.sender_pubkey,
+            pool_id=pool_id,
+            block_timestamp=block_timestamp,
+            min_lp_position_age_seconds=min_lp_position_age_seconds,
+            context=f"intent_id={intent.intent_id}",
+        )
+        if err is not None:
+            return err
 
     for key in sorted(add_keys.intersection(remove_keys.keys())):
         intent = remove_keys[key]
         return f"same_batch_lp_add_remove_rejected for intent_id={intent.intent_id}"
+
+    return None
+
+
+def validate_lp_settlement_age_gate(
+    *,
+    settlement: Settlement,
+    intents: list[Intent],
+    lp_balances: object,
+    block_timestamp: int,
+    min_lp_position_age_seconds: int,
+) -> Optional[str]:
+    """
+    Validate the accepted settlement's LP burns against runtime age metadata.
+
+    This is the authoritative runtime gate because `settlement.lp_deltas` are the
+    actual LP state transition that `apply_settlement_pure()` will apply. The
+    intent-level gate remains useful as a cheap syntactic checker, but production
+    safety must be bound to the accepted delta set.
+    """
+    if not _strict_non_negative_int(min_lp_position_age_seconds):
+        return "invalid min_lp_position_age_seconds"
+    if min_lp_position_age_seconds == 0:
+        return None
+    if not _strict_non_negative_int(block_timestamp):
+        return "invalid block_timestamp for lp_position_age_gate"
+    if not isinstance(lp_balances, LPTable):
+        return "invalid lp_balances for lp_position_age_gate"
+    if not isinstance(settlement, Settlement):
+        return "invalid settlement for lp_position_age_gate"
+
+    contexts = _remove_context_by_key(intents)
+    add_keys: set[tuple[str, str]] = set()
+    remove_keys: set[tuple[str, str]] = set()
+
+    for delta in settlement.lp_deltas:
+        key = (delta.pubkey, delta.pool_id)
+        if not _strict_non_negative_int(delta.delta_add):
+            return f"invalid lp_delta_add for {_age_context(contexts, key)}"
+        if not _strict_non_negative_int(delta.delta_sub):
+            return f"invalid lp_delta_sub for {_age_context(contexts, key)}"
+        if int(delta.delta_add) > 0:
+            add_keys.add(key)
+        if int(delta.delta_sub) > 0:
+            remove_keys.add(key)
+
+    for key in sorted(add_keys.intersection(remove_keys)):
+        return f"same_batch_lp_add_remove_rejected for {_age_context(contexts, key)}"
+
+    for key in sorted(remove_keys):
+        err = _validate_lp_age_for_key(
+            lp_balances=lp_balances,
+            owner=key[0],
+            pool_id=key[1],
+            block_timestamp=block_timestamp,
+            min_lp_position_age_seconds=min_lp_position_age_seconds,
+            context=_age_context(contexts, key),
+        )
+        if err is not None:
+            return err
 
     return None
 

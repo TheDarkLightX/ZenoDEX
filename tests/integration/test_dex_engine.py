@@ -14,6 +14,7 @@ from src.core.dex import DexState
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
+from src.core.settlement import LPDelta, Settlement
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import (
     SignedIntentEnvelope,
@@ -302,6 +303,57 @@ def test_engine_rejects_same_batch_lp_add_remove_under_age_gate() -> None:
 
     assert not res.ok
     assert res.error == f"same_batch_lp_add_remove_rejected for intent_id={remove_id}"
+
+
+def test_engine_rejects_supplied_settlement_lp_burn_when_settlement_match_disabled() -> None:
+    sender = "0x" + "ae" * 48
+    asset0 = "0x" + "21" * 32
+    asset1 = "0x" + "22" * 32
+    pool_id = "0x" + "20" * 32
+    balances = BalanceTable()
+    balances.set(sender, min(asset0, asset1), 1_000)
+    balances.set(sender, max(asset0, asset1), 1_000)
+    lp = LPTable()
+    lp.set(sender, pool_id, 100)
+    lp.set_last_mint_timestamp(sender, pool_id, 10)
+    state = DexState(balances=balances, pools={}, lp_balances=lp)
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="external",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=10)],
+    )
+    ops = {
+        "2": [
+            _create_pool_intent_dict(
+                intent_id="0x" + "23" * 32,
+                sender=sender,
+                asset0=asset0,
+                asset1=asset1,
+            )
+        ],
+        **create_settlement_operation(settlement),
+    }
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            require_settlement_match=False,
+            require_intent_signatures=False,
+            min_lp_position_age_seconds=20,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=15,
+        tx_sender_pubkey=sender,
+    )
+
+    assert not res.ok
+    assert res.error == f"lp_position_locked for lp_delta={sender}:{pool_id}"
+    assert state.lp_balances.get(sender, pool_id) == 100
 
 
 def test_engine_rejects_signature_valid_cross_batch_nonce_replay_without_mutation() -> None:
