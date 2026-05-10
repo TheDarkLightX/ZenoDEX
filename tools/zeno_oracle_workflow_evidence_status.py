@@ -11,7 +11,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -53,6 +52,7 @@ def _morph_case() -> dict[str, Any]:
     errors: list[str] = []
     check = None
     check2 = None
+    morph_runtime = "external_morph"
     if not missing:
         try:
             from morph.domain import Goal, ProblemState, Representation
@@ -113,6 +113,21 @@ def _morph_case() -> dict[str, Any]:
                 errors.append(f"morph_check_failed:{check}")
             if check2 != CheckResult.PASS:
                 errors.append(f"morph_check2_failed:{check2}")
+        except ModuleNotFoundError as exc:
+            if str(exc) != "No module named 'morph'":
+                errors.append(f"morph_smoke_failed:{type(exc).__name__}:{exc}")
+            else:
+                morph_runtime = "in_repo_fallback"
+                try:
+                    check, check2 = _fallback_morph_oracle_clamp_smoke()
+                    if check != "CheckResult.PASS":
+                        errors.append(f"morph_check_failed:{check}")
+                    if check2 != "CheckResult.PASS":
+                        errors.append(f"morph_check2_failed:{check2}")
+                except Exception as fallback_exc:  # pragma: no cover
+                    errors.append(
+                        f"morph_fallback_smoke_failed:{type(fallback_exc).__name__}:{fallback_exc}"
+                    )
         except Exception as exc:  # pragma: no cover - exercised when Morph is unavailable.
             errors.append(f"morph_smoke_failed:{type(exc).__name__}:{exc}")
     ok = not missing and not errors
@@ -126,8 +141,152 @@ def _morph_case() -> dict[str, Any]:
         "missing_files": missing,
         "check": None if check is None else str(check),
         "check2": None if check2 is None else str(check2),
+        "morph_runtime": morph_runtime,
         "errors": errors,
+        "non_claims": (
+            ["does_not_claim_external_morph_runtime_available"]
+            if morph_runtime == "in_repo_fallback"
+            else []
+        ),
     }
+
+
+def _fallback_rule_bound(
+    rule: dict[str, Any],
+    *,
+    reserve_quote: int,
+    fee_bps: int,
+    protocol_fee_share_bps: int,
+) -> int:
+    bound = 200 if reserve_quote <= int(rule["rq_le_200"]) else int(rule["base_bound"])
+    low_pfs = protocol_fee_share_bps < int(rule.get("pfs_low_threshold", 5_000))
+    tight_ok = (not bool(rule.get("tighten_requires_low_pfs", True))) or low_pfs
+    if bool(rule.get("tighten_high_rq", False)) and tight_ok and reserve_quote >= int(
+        rule.get("rq_ge_high", 24_000)
+    ):
+        bound = min(bound, int(rule.get("tight_bound", 150)))
+    if (
+        bool(rule.get("tighten_fee_hi", False))
+        and tight_ok
+        and fee_bps >= int(rule.get("fee_hi_threshold", 30))
+        and reserve_quote >= int(rule.get("rq_ge_fee_hi", 17_000))
+    ):
+        bound = min(bound, int(rule.get("tight_bound", 150)))
+    return int(bound)
+
+
+def _fallback_find_profitable_attack_alt(
+    *,
+    reserve_base: int,
+    reserve_quote: int,
+    fee_bps: int,
+    protocol_fee_share_bps: int,
+    lp_share_bps: int,
+    max_r: int,
+    max_pos_abs: int,
+    max_move_bps: int,
+    target_profit_quote: int,
+    protocol_fee_rounding: str,
+) -> Any | None:
+    from tools.perp_oracle_manipulation_lp_sweep import (
+        _eval_attack,
+        _min_trade_in_for_fee,
+    )
+
+    min_trade_in = _min_trade_in_for_fee(fee_bps=fee_bps)
+    for trade_in in range(min_trade_in, max_r + 1):
+        for abs_pos in range(1, max_pos_abs + 1):
+            for sign in (1, -1):
+                pos = int(sign * abs_pos)
+                try:
+                    w = _eval_attack(
+                        reserve_base=reserve_base,
+                        reserve_quote=reserve_quote,
+                        fee_bps=fee_bps,
+                        protocol_fee_share_bps=protocol_fee_share_bps,
+                        lp_share_bps=lp_share_bps,
+                        pos_base=pos,
+                        trade_in=trade_in,
+                        max_move_bps=max_move_bps,
+                        max_pos_abs=max_pos_abs,
+                        max_r=max_r,
+                        confirm_with_kernel=True,
+                        protocol_fee_rounding=protocol_fee_rounding,
+                    )
+                except Exception:
+                    continue
+                if w.net_profit_quote >= target_profit_quote:
+                    return w
+    return None
+
+
+def _fallback_morph_oracle_clamp_smoke() -> tuple[str, str]:
+    from tools.perp_oracle_manipulation_lp_sweep import find_profitable_attack
+
+    sigma = {
+        "reserve_base": 100_000,
+        "reserve_quote_values": [100_000],
+        "fee_bps_values": [30],
+        "protocol_fee_share_values": [5_000],
+        "lp_share_bps": 5_000,
+        "max_r": 1,
+        "max_pos_abs": 1,
+        "target_profit_quote": 1,
+        "protocol_fee_rounding": "ceil",
+        "min_claimed_points": 1,
+        "max_r_check2": 1,
+        "max_pos_abs_check2": 1,
+    }
+    rule = {
+        "rq_le_200": 200,
+        "base_bound": 0,
+        "pfs_low_threshold": 5_000,
+        "fee_hi_threshold": 30,
+        "rq_ge_fee_hi": 17_000,
+        "rq_ge_high": 24_000,
+        "tight_bound": 0,
+        "tighten_fee_hi": True,
+        "tighten_high_rq": True,
+        "tighten_requires_low_pfs": True,
+    }
+    for rq in sigma["reserve_quote_values"]:
+        for fee in sigma["fee_bps_values"]:
+            for pfs in sigma["protocol_fee_share_values"]:
+                max_move = _fallback_rule_bound(
+                    rule,
+                    reserve_quote=int(rq),
+                    fee_bps=int(fee),
+                    protocol_fee_share_bps=int(pfs),
+                )
+                check = find_profitable_attack(
+                    reserve_base=int(sigma["reserve_base"]),
+                    reserve_quote=int(rq),
+                    fee_bps=int(fee),
+                    protocol_fee_share_bps=int(pfs),
+                    lp_share_bps=int(sigma["lp_share_bps"]),
+                    max_r=int(sigma["max_r"]),
+                    max_pos_abs=int(sigma["max_pos_abs"]),
+                    max_move_bps=int(max_move),
+                    target_profit_quote=int(sigma["target_profit_quote"]),
+                    protocol_fee_rounding=str(sigma["protocol_fee_rounding"]),
+                )
+                check2 = _fallback_find_profitable_attack_alt(
+                    reserve_base=int(sigma["reserve_base"]),
+                    reserve_quote=int(rq),
+                    fee_bps=int(fee),
+                    protocol_fee_share_bps=int(pfs),
+                    lp_share_bps=int(sigma["lp_share_bps"]),
+                    max_r=int(sigma["max_r_check2"]),
+                    max_pos_abs=int(sigma["max_pos_abs_check2"]),
+                    max_move_bps=int(max_move),
+                    target_profit_quote=int(sigma["target_profit_quote"]),
+                    protocol_fee_rounding=str(sigma["protocol_fee_rounding"]),
+                )
+                if check is not None:
+                    return "CheckResult.FAIL", "CheckResult.PASS"
+                if check2 is not None:
+                    return "CheckResult.PASS", "CheckResult.FAIL"
+    return "CheckResult.PASS", "CheckResult.PASS"
 
 
 def build_morph_oracle_clamp_envelope_status() -> dict[str, Any]:

@@ -28,6 +28,22 @@ def _stop_test_server(httpd, thread: threading.Thread) -> None:
     thread.join(timeout=2.0)
 
 
+def _post_json(host: str, port: int, path: str, payload: dict) -> tuple[int, dict]:
+    conn = HTTPConnection(host, port, timeout=2.0)
+    try:
+        conn.request(
+            "POST",
+            path,
+            body=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        resp = conn.getresponse()
+        body = json.loads(resp.read().decode("utf-8"))
+        return int(resp.status), body
+    finally:
+        conn.close()
+
+
 def _pool_dict(
     *,
     pid: str,
@@ -652,6 +668,34 @@ def test_api_server_quote_exact_in_route_guarded() -> None:
         assert body["error"] is None
         assert body["quote"] == body["contract"]["runtime_quote"]
         assert body["contract"]["runtime_matches_canonical"] is True
+    finally:
+        _stop_test_server(httpd, t)
+
+
+def test_api_server_oracle_adapter_guarded_quote_requires_bridge_when_configured(monkeypatch) -> None:
+    monkeypatch.setenv("DEX_ROUTING_ORACLE_ADAPTER_REQUIRED", "1")
+    httpd, t, host, port = _start_test_server()
+    try:
+        pools = [
+            _pool_dict(pid="p_ab", a0="A", a1="B", r0=1000, r1=1001, fee_bps=0),
+            _pool_dict(pid="p_ac", a0="A", a1="C", r0=1000, r1=1000, fee_bps=0),
+            _pool_dict(pid="p_cb", a0="C", a1="B", r0=1000, r1=1000, fee_bps=0),
+        ]
+
+        status, body = _post_json(
+            host,
+            port,
+            "/api/dex/quote_exact_in_route_guarded",
+            {
+                "asset_in": "A",
+                "asset_out": "B",
+                "amount_in": 10,
+                "pools": pools,
+            },
+        )
+        assert status == 400
+        assert body["ok"] is False
+        assert body["detail"] == "guarded_quote requires oracle_adapter_bridge"
     finally:
         _stop_test_server(httpd, t)
 
