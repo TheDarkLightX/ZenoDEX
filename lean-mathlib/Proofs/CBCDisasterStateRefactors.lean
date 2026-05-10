@@ -469,5 +469,125 @@ theorem dynamic_margin_ratio_eventually_freezes
       _ ≤ penalty * t := Nat.mul_le_mul_right t hPenaltyOne
   exact Nat.le_trans hMul (Nat.le_add_left (penalty * t) base)
 
+/-! ## 12. Pessimistic dual-oracle routing blocks split-brain cherry-picking -/
+
+structure DualOraclePriceBook where
+  collateralPriceA : ℝ
+  collateralPriceB : ℝ
+  debtPriceA : ℝ
+  debtPriceB : ℝ
+  collateralPriceANonneg : 0 ≤ collateralPriceA
+  collateralPriceBNonneg : 0 ≤ collateralPriceB
+  debtPriceANonneg : 0 ≤ debtPriceA
+  debtPriceBNonneg : 0 ≤ debtPriceB
+
+noncomputable def pessimisticCollateralValue
+    (collateral : ℝ) (o : DualOraclePriceBook) : ℝ :=
+  collateral * min o.collateralPriceA o.collateralPriceB
+
+noncomputable def pessimisticDebtValue
+    (debt : ℝ) (o : DualOraclePriceBook) : ℝ :=
+  debt * max o.debtPriceA o.debtPriceB
+
+def pricePairHealthy
+    (collateral debt marginRatio collateralPrice debtPrice : ℝ) : Prop :=
+  marginRatio * (debt * debtPrice) ≤ collateral * collateralPrice
+
+def pessimisticOracleHealthy
+    (collateral debt marginRatio : ℝ) (o : DualOraclePriceBook) : Prop :=
+  marginRatio * pessimisticDebtValue debt o ≤
+    pessimisticCollateralValue collateral o
+
+/--
+Worst-case collateral routing never values collateral above either oracle's
+collateral price.
+-/
+theorem pessimistic_collateral_no_overvalue
+    (collateral : ℝ) (hCollateral : 0 ≤ collateral)
+    (o : DualOraclePriceBook) :
+    pessimisticCollateralValue collateral o ≤
+      collateral * o.collateralPriceA ∧
+    pessimisticCollateralValue collateral o ≤
+      collateral * o.collateralPriceB := by
+  unfold pessimisticCollateralValue
+  exact ⟨
+    mul_le_mul_of_nonneg_left
+      (min_le_left o.collateralPriceA o.collateralPriceB) hCollateral,
+    mul_le_mul_of_nonneg_left
+      (min_le_right o.collateralPriceA o.collateralPriceB) hCollateral
+  ⟩
+
+/--
+Worst-case debt routing never values debt below either oracle's debt price.
+-/
+theorem pessimistic_debt_no_undervalue
+    (debt : ℝ) (hDebt : 0 ≤ debt) (o : DualOraclePriceBook) :
+    debt * o.debtPriceA ≤ pessimisticDebtValue debt o ∧
+    debt * o.debtPriceB ≤ pessimisticDebtValue debt o := by
+  unfold pessimisticDebtValue
+  exact ⟨
+    mul_le_mul_of_nonneg_left (le_max_left o.debtPriceA o.debtPriceB) hDebt,
+    mul_le_mul_of_nonneg_left (le_max_right o.debtPriceA o.debtPriceB) hDebt
+  ⟩
+
+/--
+If an account passes the pessimistic check, it passes any price pair whose
+collateral price is at least the minimum reported collateral price and whose
+debt price is at most the maximum reported debt price.
+-/
+theorem pessimistic_health_dominates_price_pair
+    (collateral debt marginRatio collateralPrice debtPrice : ℝ)
+    (hCollateral : 0 ≤ collateral)
+    (hDebt : 0 ≤ debt)
+    (hMargin : 0 ≤ marginRatio)
+    (o : DualOraclePriceBook)
+    (hCollateralPrice :
+      min o.collateralPriceA o.collateralPriceB ≤ collateralPrice)
+    (hDebtPrice : debtPrice ≤ max o.debtPriceA o.debtPriceB) :
+    pessimisticOracleHealthy collateral debt marginRatio o →
+      pricePairHealthy collateral debt marginRatio collateralPrice debtPrice := by
+  intro hPess
+  unfold pessimisticOracleHealthy pessimisticDebtValue
+    pessimisticCollateralValue at hPess
+  unfold pricePairHealthy
+  calc
+    marginRatio * (debt * debtPrice)
+        ≤ marginRatio * (debt * max o.debtPriceA o.debtPriceB) :=
+      mul_le_mul_of_nonneg_left
+        (mul_le_mul_of_nonneg_left hDebtPrice hDebt) hMargin
+    _ ≤ collateral * min o.collateralPriceA o.collateralPriceB := hPess
+    _ ≤ collateral * collateralPrice :=
+      mul_le_mul_of_nonneg_left hCollateralPrice hCollateral
+
+/--
+The common two-oracle case: pessimistic health implies health under oracle A
+and under oracle B.
+-/
+theorem pessimistic_health_dominates_both_oracles
+    (collateral debt marginRatio : ℝ)
+    (hCollateral : 0 ≤ collateral)
+    (hDebt : 0 ≤ debt)
+    (hMargin : 0 ≤ marginRatio)
+    (o : DualOraclePriceBook) :
+    pessimisticOracleHealthy collateral debt marginRatio o →
+      pricePairHealthy collateral debt marginRatio
+        o.collateralPriceA o.debtPriceA ∧
+      pricePairHealthy collateral debt marginRatio
+        o.collateralPriceB o.debtPriceB := by
+  intro hPess
+  constructor
+  · exact pessimistic_health_dominates_price_pair
+      collateral debt marginRatio o.collateralPriceA o.debtPriceA
+      hCollateral hDebt hMargin o
+      (min_le_left o.collateralPriceA o.collateralPriceB)
+      (le_max_left o.debtPriceA o.debtPriceB)
+      hPess
+  · exact pessimistic_health_dominates_price_pair
+      collateral debt marginRatio o.collateralPriceB o.debtPriceB
+      hCollateral hDebt hMargin o
+      (min_le_right o.collateralPriceA o.collateralPriceB)
+      (le_max_right o.debtPriceA o.debtPriceB)
+      hPess
+
 end CBCDisasterStateRefactors
 end Proofs

@@ -12,8 +12,8 @@ lean-mathlib/Proofs/CBCDisasterStateRefactors.lean
 The proof file compiles as part of `Proofs` and gives scoped theorem targets
 for gross margin, ADL, oracle typestate, validated intents, uniform clearing,
 checked route settlement, ceiling fees, liquidation dust thresholds, and
-stability-pool reward cooldown. It also includes route acyclicity and graceful
-oracle-degradation margin rules.
+stability-pool reward cooldown. It also includes route acyclicity, graceful
+oracle-degradation margin rules, and pessimistic dual-oracle routing.
 
 ## Prime Directive
 
@@ -338,6 +338,42 @@ Runtime direction:
 Residual gap: this is a margin-shape theorem. Production still needs integer
 unit binding, oracle receipt freshness binding, and per-action command gates.
 
+## 12. Pessimistic Dual-Oracle Routing
+
+Multiple oracle sources are useful for fault tolerance, but raw averaging or
+fail-open fallback can create split-brain arbitrage when one source lags the
+other. The safe CBC shape is worst-case pricing:
+
+```text
+collateral_value := collateral * min(collateralPriceA, collateralPriceB)
+debt_value       := debt       * max(debtPriceA, debtPriceB)
+```
+
+The Lean boundary proves:
+
+```text
+pessimistic_collateral_no_overvalue
+pessimistic_debt_no_undervalue
+pessimistic_health_dominates_price_pair
+pessimistic_health_dominates_both_oracles
+```
+
+If an account passes the pessimistic check, it also passes under each oracle's
+own collateral/debt price pair. This blocks cherry-picking the lagging oracle
+for borrowing power or debt understatement.
+
+Runtime direction:
+
+- dual-oracle borrowing, liquidation, and cross-module settlement paths should
+  use min collateral price and max debt price where both values are exposed;
+- if divergence or epoch lag exceeds policy, risk-increasing actions should
+  move to the stale/degraded path rather than averaging prices;
+- the receipt should record each oracle price, observed epoch, divergence bound,
+  lag bound, selected pessimistic prices, and action-specific consumer profile.
+
+Residual gap: the theorem is real-valued and model-level. Runtime still needs
+fixed-point integer bridges and exact wiring for zUSD/perps/settlement surfaces.
+
 ## Promotion Checklist
 
 A CBC lane can be promoted from design boundary to production claim only when:
@@ -362,6 +398,7 @@ liquidation dust threshold: proved no positive sub-threshold debt remains
 stability-pool cooldown: proved same-epoch pending deposit extracts zero reward
 acyclic routing: proved no repeated pool visit in the route typestate
 graceful oracle degradation: proved monotone capped margin with eventual freeze
+pessimistic dual-oracle routing: proved min-collateral/max-debt health dominance
 ```
 
 This reduces the proof frontier. It does not yet finish the runtime refactor.
