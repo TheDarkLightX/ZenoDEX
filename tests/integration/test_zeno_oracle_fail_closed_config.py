@@ -19,10 +19,12 @@ def test_fail_closed_dex_config_forces_critical_oracle_authorization() -> None:
     cfg = zeno_oracle_fail_closed_dex_config(
         require_oracle_authorization_for_protected_swaps=False,
         require_oracle_authorization_for_critical_settlements=False,
+        min_lp_position_age_seconds=0,
     )
 
     assert cfg.require_oracle_authorization_for_protected_swaps is True
     assert cfg.require_oracle_authorization_for_critical_settlements is True
+    assert cfg.min_lp_position_age_seconds == 1
 
 
 def test_fail_closed_perp_config_forces_oracle_adapter_and_authorization() -> None:

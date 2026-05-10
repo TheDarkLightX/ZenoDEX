@@ -255,6 +255,9 @@ def _copy_lp_table(lp_balances: LPTable) -> LPTable:
     copied = LPTable()
     for (pubkey, pool_id), amount in lp_balances.get_all_balances().items():
         copied.set(pubkey, pool_id, amount)
+    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
+        if copied.get(pubkey, pool_id) > 0:
+            copied.set_last_mint_timestamp(pubkey, pool_id, timestamp)
     return copied
 
 

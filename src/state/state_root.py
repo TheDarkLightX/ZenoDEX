@@ -12,11 +12,16 @@ from __future__ import annotations
 from typing import Mapping
 
 from .balances import BalanceTable
-from .canonical import domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex
+from .canonical import (
+    domain_sep_bytes,
+    encode_bytes,
+    encode_uvarint,
+    hex_to_bytes_fixed,
+    sha256_hex,
+)
 from .lp import LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus
-
 
 STATE_ROOT_VERSION = 2
 
@@ -57,6 +62,25 @@ def _sorted_lp_entries(lp_balances: LPTable) -> list[tuple[bytes, bytes, int]]:
         if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
             raise ValueError(f"invalid LP amount: {amount!r}")
         entries.append((pk_b, pool_b, amount))
+    entries.sort(key=lambda t: (t[0], t[1]))
+    return entries
+
+
+def _sorted_lp_mint_timestamp_entries(lp_balances: LPTable) -> list[tuple[bytes, bytes, int]]:
+    entries: list[tuple[bytes, bytes, int]] = []
+    seen: set[tuple[bytes, bytes]] = set()
+    for (pubkey, pool_id), timestamp in lp_balances.get_all_last_mint_timestamps().items():
+        if lp_balances.get(pubkey, pool_id) <= 0:
+            continue
+        pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
+        pool_b = hex_to_bytes_fixed(pool_id, nbytes=32, name="pool_id")
+        key = (pk_b, pool_b)
+        if key in seen:
+            raise ValueError("duplicate decoded (pubkey, pool_id) in lp_mint_timestamps")
+        seen.add(key)
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
+            raise ValueError(f"invalid LP mint timestamp: {timestamp!r}")
+        entries.append((pk_b, pool_b, timestamp))
     entries.sort(key=lambda t: (t[0], t[1]))
     return entries
 
@@ -135,6 +159,17 @@ def _encode_lp_section(lp_balances: LPTable) -> bytes:
     return bytes(out)
 
 
+def _encode_lp_mint_timestamp_section(lp_balances: LPTable) -> bytes:
+    out = bytearray()
+    entries = _sorted_lp_mint_timestamp_entries(lp_balances)
+    out += encode_uvarint(len(entries))
+    for pk_b, pool_b, timestamp in entries:
+        out += pk_b
+        out += pool_b
+        out += encode_uvarint(timestamp)
+    return bytes(out)
+
+
 def _encode_nonce_section(nonces: NonceTable) -> bytes:
     out = bytearray()
     entries: list[tuple[bytes, int]] = []
@@ -178,6 +213,12 @@ def compute_state_root(
     balances_section = _encode_balances_section(balances)
     pools_section = _encode_pools_section(pools)
     lp_section = _encode_lp_section(lp_balances)
+    lp_mint_timestamp_entries = lp_balances.get_all_last_mint_timestamps()
+    lp_mint_timestamp_section = (
+        _encode_lp_mint_timestamp_section(lp_balances)
+        if lp_mint_timestamp_entries
+        else b""
+    )
     nonce_section = _encode_nonce_section(nonce_table)
 
     payload = (
@@ -191,4 +232,6 @@ def compute_state_root(
         + b"NNC"
         + encode_bytes(nonce_section)
     )
+    if lp_mint_timestamp_section:
+        payload += b"LPA" + encode_bytes(lp_mint_timestamp_section)
     return sha256_hex(payload)

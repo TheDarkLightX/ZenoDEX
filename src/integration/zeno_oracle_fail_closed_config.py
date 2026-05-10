@@ -29,6 +29,7 @@ def zeno_oracle_fail_closed_dex_config(**overrides: Any) -> DexEngineConfig:
         cfg,
         require_oracle_authorization_for_protected_swaps=True,
         require_oracle_authorization_for_critical_settlements=True,
+        min_lp_position_age_seconds=max(int(cfg.min_lp_position_age_seconds), 1),
     )
 
 

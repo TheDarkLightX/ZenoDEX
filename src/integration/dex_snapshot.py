@@ -21,8 +21,8 @@ from ..core.perps import (
     PERP_MARKET_KIND_CLEARINGHOUSE_3P_TRANSFER_V1,
     PERP_MARKET_KIND_ISOLATED_V2,
     PERPS_STATE_VERSION_V5,
-    PerpAnyMarketState,
     PerpAccountState,
+    PerpAnyMarketState,
     PerpClearinghouse2pMarketState,
     PerpClearinghouse3pTransferMarketState,
     PerpMarketState,
@@ -31,11 +31,15 @@ from ..core.perps import (
 )
 from ..core.vault import VaultState
 from ..state.balances import BalanceTable
-from ..state.canonical import bounded_json_utf8_size, canonical_json_bytes, domain_sep_bytes, sha256_hex
+from ..state.canonical import (
+    bounded_json_utf8_size,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from ..state.pools import PoolState, PoolStatus
-
 
 DEX_SNAPSHOT_VERSION = 2
 
@@ -121,6 +125,12 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         for (pk, pool_id), amount in state.lp_balances.get_all_balances().items()
     ]
     lp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+
+    lp_mint_timestamp_entries = [
+        {"pubkey": pk, "pool_id": pool_id, "last_mint_timestamp": int(timestamp)}
+        for (pk, pool_id), timestamp in state.lp_balances.get_all_last_mint_timestamps().items()
+    ]
+    lp_mint_timestamp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
 
     nonce_entries = [{"pubkey": pk, "last_nonce": int(last)} for pk, last in state.nonces.get_all().items()]
     nonce_entries.sort(key=lambda e: e["pubkey"])
@@ -209,6 +219,7 @@ def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION)
         "balances": balances_entries,
         "pools": pools_entries,
         "lp_balances": lp_entries,
+        "lp_mint_timestamps": lp_mint_timestamp_entries,
         "nonces": nonce_entries,
         "fee_accumulator": fee_acc_obj,
         "vault": vault_obj,
@@ -349,6 +360,32 @@ def state_from_snapshot(
             raise ValueError("duplicate lp entry (pubkey, pool_id)")
         seen_lp.add(key)
         lp_balances.set(pk_s, pool_id_s, amount)
+
+    lp_mint_timestamp_entries = snapshot.get("lp_mint_timestamps")
+    if lp_mint_timestamp_entries is None:
+        lp_mint_timestamp_entries = []
+    if not isinstance(lp_mint_timestamp_entries, list):
+        raise TypeError("snapshot.lp_mint_timestamps must be a list")
+    if len(lp_mint_timestamp_entries) > max_lp_balances:
+        raise ValueError(
+            f"too many lp_mint_timestamps entries: {len(lp_mint_timestamp_entries)} > {max_lp_balances}"
+        )
+    seen_lp_mint: set[tuple[str, str]] = set()
+    for entry in lp_mint_timestamp_entries:
+        if not isinstance(entry, Mapping):
+            raise TypeError("snapshot.lp_mint_timestamps entries must be objects")
+        pk = entry.get("pubkey")
+        pool_id = entry.get("pool_id")
+        timestamp = entry.get("last_mint_timestamp")
+        pk_s = _require_str(pk, name="lp_mint.pubkey", non_empty=True, max_len=min(512, max_str_len))
+        pool_id_s = _require_str(pool_id, name="lp_mint.pool_id", non_empty=True, max_len=min(256, max_str_len))
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
+            raise ValueError("invalid lp_mint_timestamps entry (last_mint_timestamp)")
+        key = (pk_s, pool_id_s)
+        if key in seen_lp_mint:
+            raise ValueError("duplicate lp_mint_timestamps entry (pubkey, pool_id)")
+        seen_lp_mint.add(key)
+        lp_balances.set_last_mint_timestamp(pk_s, pool_id_s, timestamp)
 
     nonces = NonceTable()
     nonce_entries = snapshot.get("nonces")
