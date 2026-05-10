@@ -6,21 +6,21 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
+from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id
+from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 from tools.check_oracle_authorization_semantic_binding import (
     SCHEMA,
     OracleAuthorization,
     RuntimeActionFacts,
-    check_critical_consumer_authorization,
     check_authorization_for_runtime,
     check_authorization_payload,
+    check_critical_consumer_authorization,
     economic_envelope_hash,
     oracle_value_hash,
     semantic_hash,
     verify_opaque_authorization,
     verify_typed_authorization,
 )
-from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id
-from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
 
 def _hash(domain: str, name: str) -> str:
@@ -371,22 +371,54 @@ def test_critical_consumer_wrapper_accepts_zusd_mint_and_rejects_wrong_profile()
     assert "critical profile mismatch" in rejected["typed_errors"]
 
 
+def test_critical_consumer_rejects_receipt_outside_profile_freshness_window() -> None:
+    authorization, runtime = _valid_pair()
+    stale_observed_epoch = runtime.now_epoch - 3
+    stale_authorization = replace(
+        authorization,
+        observed_epoch=stale_observed_epoch,
+        expires_at_epoch=runtime.now_epoch + 1,
+        value_hash=oracle_value_hash(
+            query_id=authorization.query_id,
+            value_e8=authorization.value_e8,
+            observed_epoch=stale_observed_epoch,
+        ),
+    )
+
+    result = check_critical_consumer_authorization(
+        authorization_bundle(asdict(stale_authorization)),
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    assert result["typed_ok"] is False
+    assert "authorization freshness window exceeds runtime profile" in result["typed_errors"]
+    assert "authorization observed_epoch outside runtime freshness window" in result["typed_errors"]
+
+
 def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
     authorization, runtime = _valid_pair()
     surfaces = [
-        ("zenodex.zusd", "liquidate", "critical-zusd-v1"),
-        ("zenodex.perps", "settle_epoch", "critical-perps-v1"),
-        ("zenodex.perps", "liquidate", "critical-perps-v1"),
-        ("zenodex.routing", "protected_swap", "critical-routing-v1"),
-        ("zenodex.trigger", "execute", "critical-trigger-v1"),
-        ("zenodex.settlement", "critical_settlement", critical_settlement_profile_id()),
+        ("zenodex.zusd", "liquidate", "critical-zusd-v1", 1),
+        ("zenodex.perps", "settle_epoch", "critical-perps-v1", 2),
+        ("zenodex.perps", "liquidate", "critical-perps-v1", 1),
+        ("zenodex.routing", "protected_swap", "critical-routing-v1", 4),
+        ("zenodex.trigger", "execute", "critical-trigger-v1", 2),
+        ("zenodex.settlement", "critical_settlement", critical_settlement_profile_id(), 1),
     ]
-    for consumer_module, action_kind, profile_id in surfaces:
+    for consumer_module, action_kind, profile_id, max_window in surfaces:
         surface_auth = replace(
             authorization,
             consumer_module=consumer_module,
             action_kind=action_kind,
             profile_id=profile_id,
+            expires_at_epoch=authorization.observed_epoch + max_window,
         )
         surface_runtime = replace(
             runtime,

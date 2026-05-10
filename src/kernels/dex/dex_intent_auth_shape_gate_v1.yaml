@@ -1,0 +1,97 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "dex_intent_auth_shape_gate_v1"
+  notes: |
+    Bounded shape-selection law for DEX intent authorization signing dicts.
+
+    Scope:
+      - Models object-mode vs transport-mapping-mode selection.
+      - Models explicit `fields` vs flattened transport-field selection.
+      - Models optional salt inclusion.
+      - String content, key names, and canonical JSON encoding stay outside this kernel.
+
+observables:
+  state_vars:
+    - "intent_object_mode"
+    - "fields_object_ok"
+    - "explicit_fields_present"
+    - "explicit_fields_mapping_ok"
+    - "salt_present"
+  effects:
+    - "mapping_mode"
+    - "use_object_fields"
+    - "use_explicit_mapping_fields"
+    - "use_transport_flattened_fields"
+    - "include_salt"
+    - "shape_ok"
+
+state_vars:
+  - id: "intent_object_mode"
+    role: "control"
+    type: { kind: "bool" }
+  - id: "fields_object_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "explicit_fields_present"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "explicit_fields_mapping_ok"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "salt_present"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "intent_object_mode"
+    expr: { bool: false }
+  - var: "fields_object_ok"
+    expr: { bool: false }
+  - var: "explicit_fields_present"
+    expr: { bool: false }
+  - var: "explicit_fields_mapping_ok"
+    expr: { bool: false }
+  - var: "salt_present"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_intent_auth_shape_gate"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      mapping_mode:
+        op: "not"
+        args:
+          - { var: "intent_object_mode" }
+      use_object_fields:
+        var: "intent_object_mode"
+      use_explicit_mapping_fields:
+        op: "and"
+        args:
+          - op: "not"
+            args:
+              - { var: "intent_object_mode" }
+          - { var: "explicit_fields_present" }
+      use_transport_flattened_fields:
+        op: "and"
+        args:
+          - op: "not"
+            args:
+              - { var: "intent_object_mode" }
+          - op: "not"
+            args:
+              - { var: "explicit_fields_present" }
+      include_salt:
+        var: "salt_present"
+      shape_ok:
+        op: "ite"
+        cond: { var: "intent_object_mode" }
+        then: { var: "fields_object_ok" }
+        else:
+          op: "or"
+          args:
+            - op: "not"
+              args:
+                - { var: "explicit_fields_present" }
+            - { var: "explicit_fields_mapping_ok" }

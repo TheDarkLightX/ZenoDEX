@@ -6,11 +6,13 @@ from src.core.liquidity import create_pool
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
-from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id, critical_settlement_runtime_facts
+from src.integration.zeno_oracle_settlement_authorization import (
+    critical_settlement_profile_id,
+    critical_settlement_runtime_facts,
+)
 from src.state import BalanceTable, LPTable
 from src.state.state_root import compute_state_root
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
-
 
 PRICE_HISTORY = (100, 110, 120)
 
@@ -229,6 +231,31 @@ def test_critical_settlement_rejects_expired_authorization() -> None:
     assert res.ok is False
     assert res.error is not None
     assert "authorization expired" in res.error
+
+
+def test_critical_settlement_rejects_stale_but_unexpired_authorization() -> None:
+    state, intent_dicts, settlement_op, runtime = _state_intent_and_settlement()
+    settlement_op["oracle_authorization"] = _authorization_for(
+        runtime,
+        observed_epoch=39,
+        expires_at_epoch=int(runtime["now_epoch"]),
+    )
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            require_intent_signatures=False,
+            settlement_certificate_price_history=PRICE_HISTORY,
+            require_oracle_authorization_for_critical_settlements=True,
+        ),
+        state=state,
+        operations={"2": intent_dicts, "3": settlement_op},
+        block_timestamp=42,
+        tx_sender_pubkey=intent_dicts[0]["sender_pubkey"],
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "authorization observed_epoch outside runtime freshness window" in res.error
 
 
 def test_critical_settlement_rejects_authorization_without_price_history() -> None:

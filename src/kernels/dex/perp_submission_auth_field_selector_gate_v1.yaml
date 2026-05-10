@@ -1,0 +1,228 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_submission_auth_field_selector_gate_v1"
+  notes: |
+    Bounded field-selection law for perps op-authorization signing messages.
+
+    Scope:
+      - Models which candidate fields are part of the signed surface for each supported action.
+      - Models whether the required field-presence bitmap is complete for that action.
+      - String field values and canonical JSON encoding stay outside this kernel.
+
+observables:
+  state_vars:
+    - "action_tag"
+    - "has_quote_asset"
+    - "has_account_a_pubkey"
+    - "has_account_b_pubkey"
+    - "has_account_c_pubkey"
+    - "has_new_position_base_a"
+    - "has_new_position_base_b"
+    - "has_new_position_base_c"
+    - "has_price_e8"
+    - "has_deadline"
+  effects:
+    - "include_quote_asset"
+    - "include_account_a_pubkey"
+    - "include_account_b_pubkey"
+    - "include_account_c_pubkey"
+    - "include_new_position_base_a"
+    - "include_new_position_base_b"
+    - "include_new_position_base_c"
+    - "include_price_e8"
+    - "include_deadline"
+    - "required_fields_present"
+    - "signed_field_count"
+
+state_vars:
+  - id: "action_tag"
+    role: "control"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "has_quote_asset"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_account_a_pubkey"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_account_b_pubkey"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_account_c_pubkey"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_new_position_base_a"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_new_position_base_b"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_new_position_base_c"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_price_e8"
+    role: "data"
+    type: { kind: "bool" }
+  - id: "has_deadline"
+    role: "data"
+    type: { kind: "bool" }
+
+init:
+  - var: "action_tag"
+    expr: { const: 0 }
+  - var: "has_quote_asset"
+    expr: { bool: false }
+  - var: "has_account_a_pubkey"
+    expr: { bool: false }
+  - var: "has_account_b_pubkey"
+    expr: { bool: false }
+  - var: "has_account_c_pubkey"
+    expr: { bool: false }
+  - var: "has_new_position_base_a"
+    expr: { bool: false }
+  - var: "has_new_position_base_b"
+    expr: { bool: false }
+  - var: "has_new_position_base_c"
+    expr: { bool: false }
+  - var: "has_price_e8"
+    expr: { bool: false }
+  - var: "has_deadline"
+    expr: { bool: false }
+
+actions:
+  - id: "evaluate_field_selector"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      include_quote_asset:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_tag" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+      include_account_a_pubkey:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_tag" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+      include_account_b_pubkey:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_tag" }, { const: 0 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+      include_account_c_pubkey:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+      include_new_position_base_a:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+      include_new_position_base_b:
+        op: "or"
+        args:
+          - { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+          - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+      include_new_position_base_c:
+        op: "="
+        args: [{ var: "action_tag" }, { const: 3 }]
+      include_price_e8:
+        op: "="
+        args: [{ var: "action_tag" }, { const: 4 }]
+      include_deadline: { bool: true }
+      required_fields_present:
+        op: "and"
+        args:
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 0 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+              - { var: "has_quote_asset" }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 0 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+              - { var: "has_account_a_pubkey" }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 0 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+              - { var: "has_account_b_pubkey" }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+              - { var: "has_account_c_pubkey" }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+              - { var: "has_new_position_base_a" }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - op: "or"
+                    args:
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+                      - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+              - { var: "has_new_position_base_b" }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+              - { var: "has_new_position_base_c" }
+          - op: "or"
+            args:
+              - op: "not"
+                args:
+                  - { op: "=", args: [{ var: "action_tag" }, { const: 4 }] }
+              - { var: "has_price_e8" }
+          - { var: "has_deadline" }
+      signed_field_count:
+        op: "ite"
+        cond: { op: "=", args: [{ var: "action_tag" }, { const: 0 }] }
+        then: { const: 4 }
+        else:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "action_tag" }, { const: 1 }] }
+          then: { const: 5 }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "action_tag" }, { const: 2 }] }
+            then: { const: 5 }
+            else:
+              op: "ite"
+              cond: { op: "=", args: [{ var: "action_tag" }, { const: 3 }] }
+              then: { const: 7 }
+              else: { const: 2 }

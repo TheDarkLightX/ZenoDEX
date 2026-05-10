@@ -7,7 +7,6 @@ from typing import Any
 
 from tools import zenoproof_verify as zv
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "tools" / "zenoproof_registry_manifest.json"
 
@@ -228,6 +227,65 @@ def test_registry_rejects_missing_dependency_and_claim_cycle() -> None:
     cycle_errors = zv.verify_registry_manifest(registry)
 
     assert any(error.startswith("claim_dependency_cycle:") for error in cycle_errors)
+
+
+def test_registry_rejects_unsafe_verifier_governance_fields() -> None:
+    def errors_for_verifier_patch(**patch: Any) -> tuple[list[str], str]:
+        registry = _manifest()
+        verifier = registry["verifiers"][0]
+        verifier.update(patch)
+        return zv.verify_registry_manifest(registry), str(verifier["verifier_id"])
+
+    errors, verifier_id = errors_for_verifier_patch(timeout_ms=0)
+    assert f"verifier_timeout_ms_must_be_positive:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(timeout_ms=zv.MAX_VERIFIER_TIMEOUT_MS + 1)
+    assert f"verifier_timeout_ms_too_large:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(max_input_bytes=0)
+    assert f"verifier_max_input_bytes_must_be_positive:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(max_input_bytes=zv.MAX_JSON_BYTES + 1)
+    assert f"verifier_max_input_bytes_too_large:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(proof_kinds=["lean", "lean"])
+    assert f"verifier_proof_kinds_must_be_distinct:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(proof_kinds=["lean", "unknown_kind"])
+    assert f"verifier_proof_kind_unsupported:{verifier_id}:unknown_kind" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(toolchain_ids=[zv.SAMPLE_TOOLCHAIN_ID, zv.SAMPLE_TOOLCHAIN_ID])
+    assert f"verifier_toolchain_ids_must_be_distinct:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(toolchain_ids=["not-a-hash"])
+    assert f"verifier_toolchain_id_must_be_sha256:{verifier_id}:not-a-hash" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(
+        execution_mode="local_static_accept",
+        verifier_command=[sys.executable],
+    )
+    assert f"verifier_local_static_command_must_be_empty:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(
+        execution_mode="subprocess_json",
+        verifier_command=[],
+        allow_path_lookup=True,
+    )
+    assert f"verifier_subprocess_command_must_be_nonempty:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(
+        execution_mode="subprocess_json",
+        verifier_command=["python3", ""],
+        allow_path_lookup=True,
+    )
+    assert f"verifier_command_1_must_be_nonempty_string:{verifier_id}" in errors
+
+    errors, verifier_id = errors_for_verifier_patch(
+        execution_mode="subprocess_json",
+        verifier_command=["python3", "-c", "print('{\"ok\": true}')"],
+        allow_path_lookup=False,
+    )
+    assert f"verifier_command_must_be_absolute_when_path_lookup_disabled:{verifier_id}" in errors
 
 
 def test_reward_gate_rejects_duplicate_claim() -> None:

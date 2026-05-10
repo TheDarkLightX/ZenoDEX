@@ -41,7 +41,13 @@ The active workspace now has:
   shells from `origin/main`;
 - runtime `oracle_adapter_bridge` compatibility hooks for perps settlement,
   standalone perps liquidation, zUSD mint/liquidation, guarded routing, and
-  trigger execution, plus typed critical-settlement authorization;
+  trigger execution, plus typed zUSD mint/liquidation, trigger execution, and
+  critical-settlement authorization;
+- a runtime-shell assurance gate at `tools/run_runtime_shell_assurance_gate.sh`
+  with a pinned manifest at `tools/runtime_shell_assurance_manifest.json`;
+  the lane now pins isolated perps v3 settlement to a fresh, positive Oracle
+  snapshot and replays ESSO shell-lint/verify-shell checks for the perps,
+  proof-mining, and global-conservation shell adapters;
 - the critical-action map now reports `7` catalog profiles, `7`
   runtime-wired profiles, and `0` design-only backlog profiles;
 - a local reporter/validator bundle builder in
@@ -59,7 +65,9 @@ The active workspace now has:
   public sample verifier manifest at `tools/zenoproof_registry_manifest.json`;
   the shell now checks Oracle O5 bridges with an independence witness requiring
   distinct verifier IDs, distinct proof kinds, shared Oracle input/output
-  roots, and claim-DAG dependency closure.
+  roots, and claim-DAG dependency closure, and its registry validator rejects
+  malformed verifier budgets, unsupported or duplicate proof kinds, duplicate
+  toolchains, and unsafe verifier command shapes.
 - ZenoProof public replay verifier roots at
   `tools/zenoproof_public_replay_verifier.py` for workflow-evidence status,
   Julia witness-sweep, Lean witness-anchor, TLA Oracle recovery, LTLf Oracle
@@ -90,6 +98,11 @@ The active workspace now has:
   median/deviation, reward-pool, source-cartel, and split-brain arithmetic,
   plus Prop-level O4/O5 Oracle-use binding and O5 independence-witness
   projections.
+- a promoted generalized Lean boundary layer at
+  `lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean` for deviation
+  component closure and rejection, freshness/sync laws, reward-pool
+  composition, O5 independence requirements, typed authorization binding,
+  receipt-borrowing rejection, and stale-oracle rejection.
 - a public workflow evidence status checker at
   `tools/zeno_oracle_workflow_evidence_status.py` for the first TLA, LTLf,
   ESSO, Morph smoke, and PopperPad smoke lanes.
@@ -104,6 +117,9 @@ pytest -q tests/test_zenodex_oracle_devnet_service.py tests/test_zenodex_oracle_
 python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
 python3 tools/zenodex_oracle_devnet_alpha_audit.py
 python3 tools/check_claims_registry.py
+bash tools/run_runtime_shell_assurance_gate.sh
+python3 tools/check_runtime_shell_assurance_manifest.py
+PYTHONPATH=external/ESSO python3 -m ESSO verify-multi src/kernels/dex/perp_epoch_isolated_v3.yaml --solvers z3,cvc5
 python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
 python3 tools/zenoproof_reward_payout_replay.py --format text
 bash scripts/package_zeno_oracle_rc.sh zeno-oracle-devnet-alpha-rc1
@@ -113,6 +129,7 @@ python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
 julia tools/zeno_oracle_math_witness_sweep.jl
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
+cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
 python3 tools/zeno_oracle_workflow_evidence_status.py --format text
 ```
 
@@ -127,15 +144,15 @@ still open. The remaining completion work is:
 - connect the local reporter economics replay to production token settlement
   and on-chain governance once those surfaces exist;
 - deepen the current SMT, TLA, ESSO, Lean, Julia, and Morph ZenoProof roots
-  beyond bounded witness anchors;
+  beyond bounded witness anchors and abstract boundary theorems;
 - promote the bounded local ZenoProof reward-payout replay to live proof-mining
   token settlement once that settlement surface exists;
 - add deterministic Julia witnesses for quorum, median deviation, slash
   economics, and any new oracle benefit/search cases beyond the first witness
   sweep;
-- add Lean/TLA/LTLf gates for median/deviation laws, action binding,
-  receipt-borrowing exclusion, terminal DAG closure, budget inequalities, and
-  cross-module sync;
+- add Lean/TLA/LTLf gates for concrete runtime instantiation, terminal DAG
+  closure, broader median/economics families, and cross-module sync beyond the
+  promoted abstract boundary layer;
 - keep extending the disaster-obligation antichain and named-class corpus when
   new axes are found;
 - build a production package with on-chain feed governance, production signing,
@@ -297,12 +314,18 @@ Lean lane:
 cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean
 ```
 
-- median and deviation laws;
-- action binding and receipt-borrowing exclusion;
+- generalized boundary layer:
+
+```bash
+cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
+```
+
+- concrete runtime instantiation for typed authorization predicates;
 - terminal DAG closure;
-- economic budget and deterrence inequalities;
-- cross-module sync including epoch-lag composition beyond the current local
-  theorem scope.
+- broader median and economics theorem families;
+- deterrence inequalities;
+- cross-module sync including epoch-lag composition beyond the current theorem
+  scope.
 
 Workflow lane:
 
@@ -363,7 +386,8 @@ Before marking the goal complete, audit each item below against real artifacts:
 - named disaster-class corpus passes for the current first-shell named classes;
 - Julia witness sweep passes, and Morph witnesses are captured as deterministic
   tests or artifacts as they are promoted;
-- Lean/TLA/LTLf gates pass for promoted formal claims;
+- Lean/TLA/LTLf gates pass for promoted formal claims, including the
+  generalized Lean boundary layer;
 - workflow evidence status checker passes for promoted public workflow lanes;
 - public claims registry validates;
 - ZenoProof v0 design, verifier shell, registry manifest, Oracle O4 bridge,

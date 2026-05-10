@@ -7,6 +7,7 @@ from dataclasses import replace
 from src.agents.intent_signer import create_swap_intent_from_quote_receipt
 from src.core.batch_clearing import compute_settlement
 from src.core.dex import DexConfig, DexState, step, step_with_candidate_settlement
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
@@ -199,6 +200,39 @@ def test_step_with_candidate_settlement_accepts_valid_candidate() -> None:
     assert r_candidate.state.pools[pool_id].reserve1 == r_internal.state.pools[pool_id].reserve1
     assert r_candidate.state.nonces.get_last(pk) == 1
     assert r_internal.state.nonces.get_last(pk) == 1
+
+
+def test_intent_auth_shape_covers_material_swap_fields_before_candidate_settlement() -> None:
+    state, intents, _pool_id, _pk, _asset0, _asset1 = _make_single_swap_setup()
+    intent = intents[0]
+    intent.set_field("nonce", 1)
+    material_fields = {
+        "pool_id": intent.fields["pool_id"],
+        "asset_in": intent.fields["asset_in"],
+        "asset_out": intent.fields["asset_out"],
+        "amount_in": intent.fields["amount_in"],
+        "min_amount_out": intent.fields["min_amount_out"],
+        "nonce": 1,
+    }
+
+    signing_dict = build_dex_intent_signing_dict_v1(intent)
+    assert signing_dict["fields"] == material_fields
+
+    cfg = DexConfig(settlement_validation="strong_replay")
+    candidate = compute_settlement(
+        intents=intents,
+        pools=state.pools,
+        balances=state.balances,
+        lp_balances=state.lp_balances,
+        swap_ordering=str(cfg.swap_ordering),
+    )
+    assert candidate.fills
+    assert candidate.fills[0].amount_in_filled == material_fields["amount_in"]
+    assert candidate.fills[0].intent_id == intent.intent_id
+
+    result = step_with_candidate_settlement(cfg, state, intents, candidate_settlement=candidate)
+    assert result.ok, result.error
+    assert result.state is not None
 
 
 def test_step_advances_nonce_state_for_valid_out_of_order_batch() -> None:

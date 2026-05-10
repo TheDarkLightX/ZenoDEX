@@ -1363,10 +1363,14 @@ claims:
       machine-checked runtime-wired profiles: perps settlement, standalone
       perps liquidation, zUSD mint, zUSD liquidation, guarded routing, and
       trigger execution, plus typed critical-settlement authorization in
-      `dex_engine`. The checker verifies catalog query IDs, profile IDs,
-      consumer modules, action kinds, and runtime action-ID bindings for this
-      catalog. Future critical consumers require their own catalog profiles and
-      runtime checks before they become covered guarantees.
+      `dex_engine`. The zUSD mint/liquidation and trigger execution surfaces
+      are checked for both O3 adapter bridge binding and typed
+      OracleAuthorization binding. The checker verifies catalog query IDs,
+      profile IDs, consumer modules, action kinds, runtime action-ID bindings,
+      typed zUSD action-facts/pre-state binding, and typed trigger
+      action-facts/pre-state binding for this catalog. Future critical
+      consumers require their own catalog profiles and runtime checks before
+      they become covered guarantees.
     evidence:
       kind: python
       check:
@@ -1382,6 +1386,43 @@ claims:
         - src/integration/dex_engine.py
         - src/integration/zeno_oracle_settlement_authorization.py
         - src/integration/zeno_oracle_trigger_authorization.py
+
+  - id: shell:zeno_oracle:runtime_shell_oracle_bound_perps_settlement_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The runtime-shell assurance lane pins the current isolated perps v3
+      kernel and adapter to a manifest-backed ESSO toolchain, checks
+      shell-lint and deterministic verify-shell replay for the perps,
+      proof-mining, and global-conservation shell adapters, and directly
+      rejects isolated `settle_epoch` when the Oracle snapshot is missing,
+      zero-priced, stale, or from the same epoch. The isolated perps v3 kernel
+      also passes Z3/CVC5 `verify-multi` induction under the finite ESSO model.
+      This is a local kernel/shell assurance claim; it does not prove live
+      oracle truth, live reporter honesty, on-chain feed governance, or
+      production settlement.
+    evidence:
+      kind: shell
+      check:
+        - cmd: bash tools/run_runtime_shell_assurance_gate.sh
+        - cmd: python3 tools/check_runtime_shell_assurance_manifest.py
+        - cmd: PYTHONPATH=external/ESSO python3 -m ESSO verify-multi src/kernels/dex/perp_epoch_isolated_v3.yaml --solvers z3,cvc5
+        - cmd: PYTHONPATH=external/ESSO pytest -q tests/kernels/test_runtime_shell_adapters.py::test_perp_epoch_isolated_v3_settle_epoch_is_oracle_bound
+      files:
+        - tools/run_runtime_shell_assurance_gate.sh
+        - tools/check_runtime_shell_assurance_manifest.py
+        - tools/runtime_shell_assurance_manifest.json
+        - tests/kernels/test_runtime_shell_adapters.py
+        - src/kernels/dex/perp_epoch_isolated_v3.yaml
+        - src/kernels/python/perp_epoch_isolated_v3_adapter.py
+        - src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml
+        - src/kernels/python/perp_epoch_clearinghouse_2p_v0_1_adapter.py
+        - src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml
+        - src/kernels/python/perp_epoch_clearinghouse_3p_transfer_v0_1_adapter.py
+        - src/kernels/dex/proof_mining_manager_v1.yaml
+        - src/kernels/python/proof_mining_manager_v1_adapter.py
+        - src/kernels/dex/dex_global_conservation_v1.yaml
+        - src/kernels/python/dex_global_conservation_v1_adapter.py
 
   - id: py:zeno_oracle:o3_receipt_flow_replay_v1
     status: supported
@@ -1505,6 +1546,30 @@ claims:
         - docs/research/ZENO_ORACLE_MATH_EVIDENCE_LANE.md
         - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
 
+  - id: lean:zeno_oracle:generalized_math_boundary_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoOracle generalized Lean boundary layer proves reusable
+      first-shell laws for max-deviation component closure and one-sided
+      deviation rejection, self-divergence zero, epoch-lag symmetry and zero
+      equivalence, stale/freshness rejection and monotone lag windows,
+      reward-pool conservation and sequential payout composition, O5
+      independence DAG-closure and distinct-verifier requirements, typed
+      authorization action/action-facts/pre-state binding, receipt-borrowing
+      rejection, and stale-oracle rejection at the critical runtime boundary.
+      This is an abstract theorem layer; live oracle truth, cryptographic
+      signature security, production code signing, production settlement,
+      proof-network liveness, and proof that every Python runtime path
+      instantiates every abstract predicate remain outside the claim.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
+      files:
+        - lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean
+        - lean-mathlib/proof_receipts/zeno_oracle_generalization_v1.json
+
   - id: py:zeno_oracle:workflow_evidence_status_v1
     status: supported
     layer: assurance
@@ -1553,10 +1618,11 @@ claims:
       receipts. It also replays a bounded local reward-payout bridge from an
       accepted ZenoProof reward gate through proof-mining claim construction,
       manager execution, and claimability checks. It rejects malformed
-      artifacts, stale verifier policy, wrong claim bindings, unknown proof
-      kinds, verifier timeouts, wrong public replay roots, wrong Oracle input
-      bindings, missing or weak O5 independence witnesses, duplicate reward
-      claims, reward budget mismatches, and bad reward-payout proof bindings.
+      artifacts, stale verifier policy, malformed verifier registry governance
+      fields, wrong claim bindings, unknown proof kinds, verifier timeouts,
+      wrong public replay roots, wrong Oracle input bindings, missing or weak
+      O5 independence witnesses, duplicate reward claims, reward budget
+      mismatches, and bad reward-payout proof bindings.
     evidence:
       kind: python
       check:

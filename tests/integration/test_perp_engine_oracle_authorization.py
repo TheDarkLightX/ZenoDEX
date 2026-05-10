@@ -268,3 +268,29 @@ def test_isolated_settle_rejects_expired_authorization() -> None:
     assert res.ok is False
     assert res.error is not None
     assert "authorization expired" in res.error
+
+
+def test_isolated_settle_rejects_stale_but_unexpired_authorization() -> None:
+    market_id = "perp:auth-stale-window"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]) - 3,
+        expires_at_epoch=int(runtime["now_epoch"]),
+    )
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "authorization observed_epoch outside runtime freshness window" in res.error

@@ -17,12 +17,17 @@ from dataclasses import dataclass
 from typing import Mapping, Sequence, Tuple
 
 from .balances import AssetId, BalanceTable, PubKey
-from .canonical import domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex
+from .canonical import (
+    domain_sep_bytes,
+    encode_bytes,
+    encode_uvarint,
+    hex_to_bytes_fixed,
+    sha256_hex,
+)
 from .intents import Intent, IntentKind
 from .lp import LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
-
 
 SUPPORT_ROOT_VERSION = 2
 
@@ -257,6 +262,32 @@ def compute_support_state_root(
         lp_out += encode_uvarint(amount)
     lp_section = bytes(lp_out)
 
+    lp_mint_out = bytearray()
+    lp_mint_entries: list[tuple[bytes, bytes, int]] = []
+    lp_mint_seen: set[tuple[bytes, bytes]] = set()
+    for pubkey, pool_id in support.lp_keys:
+        timestamp = lp_balances.get_last_mint_timestamp(pubkey, pool_id)
+        if timestamp is None:
+            continue
+        if lp_balances.get(pubkey, pool_id) == 0:
+            continue
+        pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
+        pool_b = hex_to_bytes_fixed(pool_id, nbytes=32, name="pool_id")
+        key = (pk_b, pool_b)
+        if key in lp_mint_seen:
+            raise ValueError("duplicate decoded (pubkey, pool_id) in support lp_mint_timestamps")
+        lp_mint_seen.add(key)
+        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
+            raise ValueError(f"invalid LP mint timestamp: {timestamp!r}")
+        lp_mint_entries.append((pk_b, pool_b, timestamp))
+    lp_mint_entries.sort(key=lambda t: (t[0], t[1]))
+    lp_mint_out += encode_uvarint(len(lp_mint_entries))
+    for pk_b, pool_b, timestamp in lp_mint_entries:
+        lp_mint_out += pk_b
+        lp_mint_out += pool_b
+        lp_mint_out += encode_uvarint(timestamp)
+    lp_mint_section = bytes(lp_mint_out) if lp_mint_entries else b""
+
     nonce_out = bytearray()
     nonce_entries: list[tuple[bytes, int]] = []
     nonce_seen: set[bytes] = set()
@@ -287,6 +318,8 @@ def compute_support_state_root(
         + b"NNC"
         + encode_bytes(nonce_section)
     )
+    if lp_mint_section:
+        payload += b"LPA" + encode_bytes(lp_mint_section)
     return sha256_hex(payload)
 
 

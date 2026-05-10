@@ -15,6 +15,7 @@ from src.integration.operations import (
 )
 from src.core.settlement import Settlement
 from src.state.intents import Intent, IntentKind
+from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 
 
 def _min_intent_dict(*, intent_id: str = "0x" + "11" * 32) -> dict[str, object]:
@@ -122,6 +123,160 @@ def test_create_signed_intent_operation_roundtrips_transport_metadata() -> None:
     assert len(reparsed) == 1
     assert reparsed[0].signature == "0xsig"
     assert reparsed[0].quote_receipt == receipt
+
+
+def test_parse_signed_intents_output_rejects_duplicate_nonce_after_carrier_normalization() -> None:
+    sender = "0x" + "41" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "41" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+        "signature": "0xsig-a",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "42" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-b"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-a", "0xsig-b"]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, 1]
+    assert all("signature" not in (env.intent.fields or {}) for env in envs)
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err == "duplicate nonce in batch"
+    assert updated is None
+
+
+def test_parse_signed_intents_output_rejects_duplicate_nonce_after_sender_canonicalization() -> None:
+    sender_lower = "0x" + "ab" * 48
+    sender_upper = "0x" + ("ab" * 48).upper()
+    first = {
+        **_min_intent_dict(intent_id="0x" + "43" * 32),
+        "sender_pubkey": sender_upper,
+        "nonce": 1,
+        "signature": "0xsig-upper",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "44" * 32),
+        "sender_pubkey": sender_lower,
+        "nonce": 1,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-lower"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-upper", "0xsig-lower"]
+    assert [env.intent.sender_pubkey for env in envs] == [sender_upper, sender_lower]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, 1]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err == "duplicate nonce in batch"
+    assert updated is None
+
+
+def test_parse_signed_intents_output_rejects_out_of_order_duplicate_nonce_projection() -> None:
+    sender = "0x" + "45" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "45" * 32),
+        "sender_pubkey": sender,
+        "nonce": 2,
+        "signature": "0xsig-nonce-2a",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "46" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+    }
+    third = {
+        **_min_intent_dict(intent_id="0x" + "47" * 32),
+        "sender_pubkey": sender,
+        "nonce": 2,
+        "signature": "0xsig-nonce-2b",
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-nonce-1"], third]})
+
+    assert [env.signature for env in envs] == [
+        "0xsig-nonce-2a",
+        "0xsig-nonce-1",
+        "0xsig-nonce-2b",
+    ]
+    assert [env.intent.fields.get("nonce") for env in envs] == [2, 1, 2]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err == "duplicate nonce in batch"
+    assert updated is None
+
+
+def test_parse_signed_intents_output_rejects_mixed_nonce_live_admission_floor() -> None:
+    sender = "0x" + "48" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "48" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+        "signature": "0xsig-nonce",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "49" * 32),
+        "sender_pubkey": sender,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-missing-nonce"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-nonce", "0xsig-missing-nonce"]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, None]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=False,
+    )
+    assert not ok
+    assert err == "nonce presence must be consistent across batch"
+    assert updated is None
+
+
+def test_parse_signed_intents_output_rejects_invalid_sender_boundary_before_nonce_update() -> None:
+    sender = "0x" + "50" * 48
+    first = {
+        **_min_intent_dict(intent_id="0x" + "50" * 32),
+        "sender_pubkey": sender,
+        "nonce": 1,
+        "signature": "0xsig-valid-sender",
+    }
+    second = {
+        **_min_intent_dict(intent_id="0x" + "51" * 32),
+        "sender_pubkey": "not-hex",
+        "nonce": 2,
+    }
+    envs = parse_signed_intents({"2": [first, [second, "0xsig-invalid-sender"]]})
+
+    assert [env.signature for env in envs] == ["0xsig-valid-sender", "0xsig-invalid-sender"]
+    assert [env.intent.sender_pubkey for env in envs] == [sender, "not-hex"]
+    assert [env.intent.fields.get("nonce") for env in envs] == [1, 2]
+
+    ok, err, updated = validate_and_apply_intent_nonce_batch(
+        nonces=NonceTable(),
+        intents=[env.intent for env in envs],
+        require_all_nonces=True,
+    )
+    assert not ok
+    assert err is not None
+    assert err.startswith("invalid sender_pubkey for nonce accounting:")
+    assert updated is None
 
 
 def test_create_intent_operation_rejects_quote_receipt_reserved_key() -> None:

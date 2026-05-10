@@ -1,0 +1,398 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "perp_funding_apply_v1"
+  created_by: "zenodex"
+  notes: |
+    Micro-kernel: isolated-perps apply_funding admission witness.
+
+    Purpose:
+      - Make the top-level admission checks for `apply_funding` explicit and replayable.
+      - Cover phase/auth/oracle/rate/maintenance/cumulative checks before the main kernel update.
+
+    Assume/guarantee split:
+      - Assumes the state update itself remains in the main `perp_epoch_isolated_v3` kernel.
+      - Guarantees only the top-level apply-funding admission booleans and derived funding/post-funding quantities.
+
+observables:
+  state_vars:
+    [
+      "now_epoch",
+      "epoch_phase",
+      "auth_ok",
+      "index_price_e8",
+      "oracle_last_update_epoch",
+      "max_oracle_staleness_epochs",
+      "oracle_seen",
+      "funding_last_applied_epoch",
+      "funding_cap_bps",
+      "new_rate_bps",
+      "position_base",
+      "collateral_quote",
+      "maintenance_margin_bps",
+      "depeg_buffer_bps",
+      "funding_paid_cumulative",
+    ]
+  effects:
+    [
+      "phase_allows_funding",
+      "auth_ok",
+      "index_price_ok",
+      "staleness_param_ok",
+      "oracle_seen_ok",
+      "oracle_fresh",
+      "funding_not_applied_this_epoch",
+      "rate_within_cap",
+      "position_open_ok",
+      "funding_payment_quote",
+      "collateral_after_quote",
+      "collateral_bounds_ok",
+      "maint_req_quote",
+      "maint_margin_ok",
+      "cumulative_after_quote",
+      "cumulative_bounds_ok",
+      "funding_apply_allowed",
+    ]
+
+types: []
+
+state_vars:
+  - id: "now_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "epoch_phase"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "auth_ok"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "index_price_e8"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000 }
+  - id: "oracle_last_update_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "max_oracle_staleness_epochs"
+    role: "control"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+  - id: "oracle_seen"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "funding_last_applied_epoch"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000 }
+  - id: "funding_cap_bps"
+    role: "control"
+    type: { kind: "int", min: -10000, max: 10000 }
+  - id: "new_rate_bps"
+    role: "data"
+    type: { kind: "int", min: -10000, max: 10000 }
+  - id: "position_base"
+    role: "data"
+    type: { kind: "int", min: -1000000, max: 1000000 }
+  - id: "collateral_quote"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1000000000000000 }
+  - id: "maintenance_margin_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 10000 }
+  - id: "depeg_buffer_bps"
+    role: "control"
+    type: { kind: "int", min: 0, max: 5000 }
+  - id: "funding_paid_cumulative"
+    role: "data"
+    type: { kind: "int", min: -1000000000000000, max: 1000000000000000 }
+
+init:
+  - var: "now_epoch"
+    expr: { const: 0 }
+  - var: "epoch_phase"
+    expr: { const: 0 }
+  - var: "auth_ok"
+    expr: { const: 0 }
+  - var: "index_price_e8"
+    expr: { const: 0 }
+  - var: "oracle_last_update_epoch"
+    expr: { const: 0 }
+  - var: "max_oracle_staleness_epochs"
+    expr: { const: 100 }
+  - var: "oracle_seen"
+    expr: { const: 0 }
+  - var: "funding_last_applied_epoch"
+    expr: { const: 0 }
+  - var: "funding_cap_bps"
+    expr: { const: 100 }
+  - var: "new_rate_bps"
+    expr: { const: 0 }
+  - var: "position_base"
+    expr: { const: 0 }
+  - var: "collateral_quote"
+    expr: { const: 0 }
+  - var: "maintenance_margin_bps"
+    expr: { const: 500 }
+  - var: "depeg_buffer_bps"
+    expr: { const: 100 }
+  - var: "funding_paid_cumulative"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_bool_inputs"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "auth_ok" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "oracle_seen" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+
+actions:
+  - id: "evaluate_funding_apply_gate"
+    params: []
+    guard:
+      op: "="
+      args: [{ const: 0 }, { const: 0 }]
+    updates: []
+    effects:
+      phase_allows_funding:
+        op: "<="
+        args: [{ var: "epoch_phase" }, { const: 1 }]
+      auth_ok:
+        op: "="
+        args: [{ var: "auth_ok" }, { const: 1 }]
+      index_price_ok:
+        op: ">"
+        args: [{ var: "index_price_e8" }, { const: 0 }]
+      staleness_param_ok:
+        op: ">"
+        args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }]
+      oracle_seen_ok:
+        op: "="
+        args: [{ var: "oracle_seen" }, { const: 1 }]
+      oracle_fresh:
+        op: "and"
+        args:
+          - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+          - { op: ">", args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }] }
+          - { op: ">=", args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }] }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+              - { var: "max_oracle_staleness_epochs" }
+      funding_not_applied_this_epoch:
+        op: "<"
+        args: [{ var: "funding_last_applied_epoch" }, { var: "now_epoch" }]
+      rate_within_cap:
+        op: "and"
+        args:
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ const: 0 }, { var: "funding_cap_bps" }]
+              - { var: "new_rate_bps" }
+          - op: "<="
+            args: [{ var: "new_rate_bps" }, { var: "funding_cap_bps" }]
+      position_open_ok:
+        op: "not"
+        args:
+          - op: "="
+            args: [{ var: "position_base" }, { const: 0 }]
+      funding_payment_quote: &funding_payment
+        op: "ite"
+        cond:
+          op: "="
+          args:
+            - op: ">="
+              args: [{ var: "position_base" }, { const: 0 }]
+            - op: ">="
+              args: [{ var: "new_rate_bps" }, { const: 0 }]
+        then: &funding_magnitude
+          op: "div"
+          args:
+            - op: "*"
+              args:
+                - op: "div"
+                  args:
+                    - op: "*"
+                      args:
+                        - op: "ite"
+                          cond: { op: ">=", args: [{ var: "position_base" }, { const: 0 }] }
+                          then: { var: "position_base" }
+                          else: { op: "-", args: [{ const: 0 }, { var: "position_base" }] }
+                        - { var: "index_price_e8" }
+                    - { const: 100000000 }
+                - op: "ite"
+                  cond: { op: ">=", args: [{ var: "new_rate_bps" }, { const: 0 }] }
+                  then: { var: "new_rate_bps" }
+                  else: { op: "-", args: [{ const: 0 }, { var: "new_rate_bps" }] }
+            - { const: 10000 }
+        else:
+          op: "-"
+          args:
+            - { const: 0 }
+            - *funding_magnitude
+      collateral_after_quote:
+        op: "-"
+        args:
+          - { var: "collateral_quote" }
+          - *funding_payment
+      collateral_bounds_ok:
+        op: "and"
+        args:
+          - op: ">="
+            args:
+              - op: "-"
+                args: [{ var: "collateral_quote" }, *funding_payment]
+              - { const: 0 }
+          - op: "<="
+            args:
+              - op: "-"
+                args: [{ var: "collateral_quote" }, *funding_payment]
+              - { const: 1000000000000000 }
+      maint_req_quote:
+        op: "div"
+        args:
+          - op: "*"
+            args:
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "ite"
+                        cond:
+                          op: ">="
+                          args: [{ var: "position_base" }, { const: 0 }]
+                        then: { var: "position_base" }
+                        else:
+                          op: "-"
+                          args: [{ const: 0 }, { var: "position_base" }]
+                      - { var: "index_price_e8" }
+                  - { const: 100000000 }
+              - op: "+"
+                args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+          - { const: 10000 }
+      maint_margin_ok:
+        op: ">="
+        args:
+          - op: "-"
+            args: [{ var: "collateral_quote" }, *funding_payment]
+          - op: "div"
+            args:
+              - op: "*"
+                args:
+                  - op: "div"
+                    args:
+                      - op: "*"
+                        args:
+                          - op: "ite"
+                            cond:
+                              op: ">="
+                              args: [{ var: "position_base" }, { const: 0 }]
+                            then: { var: "position_base" }
+                            else:
+                              op: "-"
+                              args: [{ const: 0 }, { var: "position_base" }]
+                          - { var: "index_price_e8" }
+                      - { const: 100000000 }
+                  - op: "+"
+                    args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+              - { const: 10000 }
+      cumulative_after_quote:
+        op: "+"
+        args: [{ var: "funding_paid_cumulative" }, *funding_payment]
+      cumulative_bounds_ok:
+        op: "and"
+        args:
+          - op: "<="
+            args:
+              - op: "+"
+                args: [{ var: "funding_paid_cumulative" }, *funding_payment]
+              - { const: 1000000000000000 }
+          - op: ">="
+            args:
+              - op: "+"
+                args: [{ var: "funding_paid_cumulative" }, *funding_payment]
+              - { const: -1000000000000000 }
+      funding_apply_allowed:
+        op: "and"
+        args:
+          - { op: "<=", args: [{ var: "epoch_phase" }, { const: 1 }] }
+          - { op: "=", args: [{ var: "auth_ok" }, { const: 1 }] }
+          - { op: ">", args: [{ var: "index_price_e8" }, { const: 0 }] }
+          - op: "and"
+            args:
+              - { op: "=", args: [{ var: "oracle_seen" }, { const: 1 }] }
+              - { op: ">", args: [{ var: "max_oracle_staleness_epochs" }, { const: 0 }] }
+              - { op: ">=", args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }] }
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "now_epoch" }, { var: "oracle_last_update_epoch" }]
+                  - { var: "max_oracle_staleness_epochs" }
+          - { op: "<", args: [{ var: "funding_last_applied_epoch" }, { var: "now_epoch" }] }
+          - op: "and"
+            args:
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ const: 0 }, { var: "funding_cap_bps" }]
+                  - { var: "new_rate_bps" }
+              - op: "<="
+                args: [{ var: "new_rate_bps" }, { var: "funding_cap_bps" }]
+          - op: "not"
+            args:
+              - op: "="
+                args: [{ var: "position_base" }, { const: 0 }]
+          - op: "and"
+            args:
+              - op: ">="
+                args:
+                  - op: "-"
+                    args: [{ var: "collateral_quote" }, *funding_payment]
+                  - { const: 0 }
+              - op: "<="
+                args:
+                  - op: "-"
+                    args: [{ var: "collateral_quote" }, *funding_payment]
+                  - { const: 1000000000000000 }
+          - op: ">="
+            args:
+              - op: "-"
+                args: [{ var: "collateral_quote" }, *funding_payment]
+              - op: "div"
+                args:
+                  - op: "*"
+                    args:
+                      - op: "div"
+                        args:
+                          - op: "*"
+                            args:
+                              - op: "ite"
+                                cond:
+                                  op: ">="
+                                  args: [{ var: "position_base" }, { const: 0 }]
+                                then: { var: "position_base" }
+                                else:
+                                  op: "-"
+                                  args: [{ const: 0 }, { var: "position_base" }]
+                              - { var: "index_price_e8" }
+                          - { const: 100000000 }
+                      - op: "+"
+                        args: [{ var: "maintenance_margin_bps" }, { var: "depeg_buffer_bps" }]
+                  - { const: 10000 }
+          - op: "and"
+            args:
+              - op: "<="
+                args:
+                  - op: "+"
+                    args: [{ var: "funding_paid_cumulative" }, *funding_payment]
+                  - { const: 1000000000000000 }
+              - op: ">="
+                args:
+                  - op: "+"
+                    args: [{ var: "funding_paid_cumulative" }, *funding_payment]
+                  - { const: -1000000000000000 }

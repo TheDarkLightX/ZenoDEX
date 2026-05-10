@@ -183,6 +183,47 @@ def test_quote_receipt_roundtrip_with_quote_epoch() -> None:
     assert ok, err
 
 
+def test_quote_receipt_accepts_expected_quote_epoch() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert q is not None
+
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=7)
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=7)
+    assert ok, err
+
+
+def test_quote_receipt_rejects_quote_epoch_session_mismatch() -> None:
+    pools = {
+        "p_ab": _pool("p_ab", "A", "B", 1000, 1000, 10),
+    }
+    q = best_route_exact_in_2hop(pools_by_id=pools, asset_in="A", asset_out="B", amount_in=120)
+    assert q is not None
+
+    receipt = make_route_quote_receipt(kind="exact_in", quote=q, pools_by_id=pools, quote_epoch=7)
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=8)
+    assert not ok
+    assert err == "quote_epoch_mismatch"
+
+
+def test_quote_receipt_rejects_missing_quote_epoch_when_expected() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=7)
+    assert not ok
+    assert err == "missing_quote_epoch"
+
+
+def test_quote_receipt_rejects_bad_expected_quote_epoch() -> None:
+    receipt, pools = _single_hop_exact_in_receipt()
+
+    ok, err = verify_route_quote_receipt(receipt, pools_by_id=pools, expected_quote_epoch=-1)
+    assert not ok
+    assert err == "bad_expected_quote_epoch"
+
+
 def test_quote_receipt_exact_out_split_roundtrip() -> None:
     pools = {
         "p1": _pool("p1", "A", "B", 1000, 1000, 0),
@@ -1156,4 +1197,3 @@ def test_hop_replay_gate_rejects_invalid_next_reserves(
             next_reserve_in=next_in,
             next_reserve_out=next_out,
         )
-

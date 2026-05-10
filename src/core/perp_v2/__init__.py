@@ -14,10 +14,14 @@ Public API:
 - `step_or_raise(state, params) -> StepResult` (raises on rejection)
 """
 
-from .engine import step, step_or_raise
+from typing import TYPE_CHECKING
+
 from .errors import PerpGuardError, PerpInvariantError, PerpOverflowError
 from .state import initial_state, state_from_dict, state_to_dict
 from .types import Action, ActionParams, Effect, EpochPhase, Event, PerpState, StepResult
+
+if TYPE_CHECKING:
+    from .engine import step, step_or_raise
 
 __all__ = [
     "step",
@@ -36,3 +40,14 @@ __all__ = [
     "PerpInvariantError",
     "PerpOverflowError",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Load engine entry points lazily to keep submodule imports acyclic."""
+    if name in {"step", "step_or_raise"}:
+        from .engine import step, step_or_raise
+
+        globals()["step"] = step
+        globals()["step_or_raise"] = step_or_raise
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

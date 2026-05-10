@@ -123,7 +123,8 @@ def trigger_execute_runtime_facts(facts: TriggerExecutionFacts) -> dict[str, Any
     payload = asdict(facts)
     payload["condition"] = facts.condition.strip().lower()
     payload["consumer_module"] = "zenodex.trigger"
-    payload["action_kind"] = "execute"
+    payload["trigger_action_kind"] = facts.action_kind
+    payload["action_kind"] = "execute_trigger"
     pre_state_hash = facts.pre_state_hash or semantic_hash("zenodex.trigger.execute.pre_state.v1", payload)
     payload["pre_state_hash"] = pre_state_hash
     action_facts_hash = semantic_hash("zenodex.trigger.execute.facts.v1", payload)
@@ -218,10 +219,11 @@ def check_trigger_execute_oracle_authorization(
     return check_critical_consumer_authorization(
         authorization_payload,
         consumer_module="zenodex.trigger",
-        action_kind="execute",
+        action_kind="execute_trigger",
         action_id=str(runtime["action_id"]),
         action_facts_hash=str(runtime["action_facts_hash"]),
         pre_state_hash=str(runtime["pre_state_hash"]),
+        profile_id=_ORACLE_TRIGGER_EXECUTE_PROFILE_ID,
         query_id=str(runtime["query_id"]),
         runtime_value_e8=int(runtime["runtime_value_e8"]),
         now_epoch=int(runtime["now_epoch"]),

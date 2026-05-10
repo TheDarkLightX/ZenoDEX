@@ -25,7 +25,6 @@ from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
-    canonical_hex_fixed_allow_0x,
     canonical_json_bytes,
     domain_sep_bytes,
     sha256_hex,
@@ -34,25 +33,33 @@ from ..state.intents import Intent
 from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
+from .lp_position_age_gate import (
+    apply_lp_mint_timestamps_after_settlement,
+    validate_lp_position_age_gate,
+)
 from .operations import (
-    SignedIntentEnvelope,
     SettlementEnvelope,
+    SignedIntentEnvelope,
     create_settlement_operation,
     parse_settlement_envelope,
     parse_signed_intents,
 )
 from .proof_mining_context import ProofMiningContext, build_proof_mining_context
-from .proof_verifier import MisconfiguredProofVerifier, ProofVerifier, ProofVerifierConfig, make_proof_verifier
-from .zeno_oracle_routing_authorization import check_protected_swap_oracle_authorization
-from .zeno_oracle_settlement_authorization import check_critical_settlement_oracle_authorization
+from .proof_verifier import (
+    MisconfiguredProofVerifier,
+    ProofVerifier,
+    ProofVerifierConfig,
+    make_proof_verifier,
+)
+from .settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
 from .settlement_strong_certificate import (
     SettlementProofFlags,
     derive_verified_replay_bound_certificate_flags,
 )
-from .settlement_end_to_end_certificate_packet import SettlementEndToEndCertificateInputs
 from .tau_gate import TauGateConfig
 from .validation import validate_operations
-
+from .zeno_oracle_routing_authorization import check_protected_swap_oracle_authorization
+from .zeno_oracle_settlement_authorization import check_critical_settlement_oracle_authorization
 
 G2Basic: Any | None
 
@@ -202,6 +209,10 @@ class DexEngineConfig:
     # and price_curr value consumed by the settlement certificate lane.
     require_oracle_authorization_for_critical_settlements: bool = False
 
+    # Optional LP duration-risk gate. When positive, REMOVE_LIQUIDITY burns must
+    # be at least this old according to runtime-tracked LP mint timestamps.
+    min_lp_position_age_seconds: int = 0
+
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
 
@@ -239,6 +250,13 @@ class DexEngineConfig:
             for idx, value in enumerate(price_history):
                 if not isinstance(value, int) or isinstance(value, bool):
                     raise ValueError(f"settlement_certificate_price_history[{idx}] must be an int")
+
+        if not isinstance(self.min_lp_position_age_seconds, int) or isinstance(
+            self.min_lp_position_age_seconds, bool
+        ):
+            raise TypeError("min_lp_position_age_seconds must be an int")
+        if self.min_lp_position_age_seconds < 0:
+            raise ValueError("min_lp_position_age_seconds must be non-negative")
 
 
 @dataclass(frozen=True)
@@ -393,7 +411,7 @@ def _verify_all_intent_signatures(
                 return False, f"intent sender mismatch: {env.intent.intent_id}"
         return True, None
 
-    for env, signing_payload in zip(intents, signing_payloads):
+    for env, signing_payload in zip(intents, signing_payloads, strict=True):
         if env.signature is None:
             if allow_tx_sender_bypass:
                 sender_b = _pubkey_bytes48_or_none(tx_sender_pubkey, name="tx_sender_pubkey")
@@ -1028,6 +1046,15 @@ def apply_ops(
             return DexTxResult(ok=False, error=err)
         _fault_stage(config, "after_preconditions")
 
+        err = validate_lp_position_age_gate(
+            intents=intents,
+            lp_balances=state.lp_balances,
+            block_timestamp=block_timestamp,
+            min_lp_position_age_seconds=config.min_lp_position_age_seconds,
+        )
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
+
         try:
             signing_dicts, signing_payloads = _build_signing_payloads(
                 signed_intents,
@@ -1256,6 +1283,13 @@ def apply_ops(
             pools=state.pools,
             lp_balances=state.lp_balances,
         )
+        err = apply_lp_mint_timestamps_after_settlement(
+            lp_balances=next_lp,
+            settlement=settlement,
+            block_timestamp=block_timestamp,
+        )
+        if err is not None:
+            return DexTxResult(ok=False, error=err)
         _fault_stage(config, "after_apply_pure")
 
         # Optional fee split accounting (dust carry). This is a local/accounting module

@@ -88,6 +88,14 @@ commands when `ZUSD_ORACLE_ADAPTER_REQUIRED` is enabled, and also verifies any
 `oracle_adapter_bridge` supplied on those commands even when the requirement flag
 is disabled.
 
+When `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` is enabled, the same critical
+`mint_zusd` and `liquidate` commands also require typed `oracle_authorization`.
+The authorization is checked against the runtime action kind (`mint` or
+`liquidate_vault`), the per-action zUSD profile, the runtime action ID,
+action-facts hash, pre-state hash, query ID, active or pending oracle price, and
+current epoch. This keeps the O3 adapter receipt and the runtime-consumed typed
+authorization bound to the same zUSD action surface.
+
 The verified bridge must bind to:
 
 ```text
@@ -120,6 +128,7 @@ The Oracle MVP gate also runs:
 
 ```bash
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
+pytest -q tests/integration/test_zusd_api.py -k oracle_authorization
 ```
 
 The zUSD hook does not claim that the zUSD API is the production chain
@@ -204,7 +213,11 @@ pytest -q tests/integration/test_perp_engine.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_2p.py -k oracle_adapter
 pytest -q tests/integration/test_perp_engine_clearinghouse_3p_transfer.py -k oracle_adapter
 pytest -q tests/integration/test_zusd_api.py -k oracle_adapter
+pytest -q tests/integration/test_zusd_api.py -k oracle_authorization
 pytest -q tests/integration/test_api_server_dex_api.py -k oracle_adapter
+pytest -q tests/integration/test_zeno_oracle_trigger_authorization.py
+bash tools/run_runtime_shell_assurance_gate.sh
+python3 tools/check_runtime_shell_assurance_manifest.py
 ```
 
 Those tests cover:
@@ -216,18 +229,20 @@ Those tests cover:
 - accepted bridge for the wrong query;
 - accepted bridge for the wrong runtime action ID;
 - accepted bridge bound to the intended consumer/action.
+- isolated perps v3 `settle_epoch` rejection when the Oracle snapshot is
+  missing, zero-priced, stale, or from the same epoch.
 
 ## Non-Claims
 
 This hook does not yet claim:
 
-- trigger consumers are runtime-wired;
 - every routing endpoint is runtime-wired;
 - the zUSD demo API is the production chain transaction path;
 - the external Oracle network is live;
 - verifier callbacks are automatically configured by deployment tooling.
 
 The current claim is narrower: perps settlement, critical zUSD demo API actions,
-and guarded routing quote APIs now have fail-closed runtime bridge
-points that can require an accepted aggregate-derived Oracle receipt before
-execution proceeds.
+trigger execution, and guarded routing quote APIs now have fail-closed runtime
+bridge points that can require an accepted aggregate-derived Oracle receipt
+before execution proceeds. zUSD, trigger execution, protected swap, isolated
+perps settlement, and critical settlement also have typed authorization tests.

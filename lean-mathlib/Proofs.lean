@@ -82,6 +82,7 @@ import Proofs.FeeDustCarryConservation
 import Proofs.FeeRevenueBoundedness
 import Proofs.FeeSplitRoundingGap
 import Proofs.ProtocolFeeShareThreshold
+import Proofs.CBCDisasterStateRefactors
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
 import Proofs.ZenoPayoffLanguage

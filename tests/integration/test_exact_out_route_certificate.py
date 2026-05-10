@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+import src.integration.exact_out_route_certificate as exact_out_module
 from src.core.split_routing_dispatch import SplitLegExactOutQuote, SplitManyPoolsExactOutQuote
 from src.integration.exact_out_route_certificate import (
     EXACT_OUT_MANY_POOL_BOUNDED_ADVISORY_QUOTE_PACKET_SCHEMA,
@@ -23,6 +24,7 @@ from src.integration.exact_out_route_certificate import (
     EXACT_OUT_MANY_POOL_ADAPTIVE_LIVENESS_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA,
     EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA,
+    EXACT_OUT_MANY_POOL_PROJECTION_COVER_ERROR,
     EXACT_OUT_ROUTE_CERTIFICATE_SCHEMA,
     audit_exact_out_many_pool_runtime_canonicality,
     build_exact_out_many_pool_candidate_domain_contract,
@@ -192,6 +194,43 @@ def test_exact_out_route_certificate_verifier_accepts_canonical_build() -> None:
     assert payload_ok, payload_err
 
 
+def test_exact_out_route_certificate_rejects_wrong_binding_context() -> None:
+    quotes = [_quote_two_legs_lex_high(), _quote_one_leg(), _quote_two_legs_lex_low()]
+    certificate = build_exact_out_route_canonical_certificate(quotes, binding_ok=1)
+
+    ok, err = verify_exact_out_route_canonical_certificate(
+        quotes,
+        certificate=certificate,
+        expected_binding_ok=0,
+    )
+    assert not ok
+    assert err == "argmin steps mismatch"
+
+    payload_ok, payload_err = verify_exact_out_route_canonical_certificate_payload(
+        certificate.to_dict(),
+        expected_binding_ok=0,
+    )
+    assert not payload_ok
+    assert payload_err == "certificate payload mismatch"
+
+
+def test_exact_out_route_certificate_rejects_reordered_live_candidate_stream() -> None:
+    quotes = [_quote_two_legs_lex_high(), _quote_one_leg(), _quote_two_legs_lex_low()]
+    certificate = build_exact_out_route_canonical_certificate(quotes)
+    live_quotes = list(reversed(quotes))
+    live_certificate = build_exact_out_route_canonical_certificate(live_quotes)
+
+    payload_ok, payload_err = verify_exact_out_route_canonical_certificate_payload(certificate.to_dict())
+    ok, err = verify_exact_out_route_canonical_certificate(live_quotes, certificate=certificate)
+
+    assert payload_ok, payload_err
+    assert live_certificate.winner_index == certificate.winner_index
+    assert live_certificate.winner_quote == certificate.winner_quote
+    assert live_certificate.candidates != certificate.candidates
+    assert not ok
+    assert err == "candidate list mismatch"
+
+
 def test_exact_out_route_certificate_payload_verifier_rejects_tampering() -> None:
     certificate = build_exact_out_route_canonical_certificate(
         [_quote_two_legs_lex_high(), _quote_one_leg(), _quote_two_legs_lex_low()]
@@ -277,6 +316,7 @@ def test_exact_out_many_pool_oracle_contract_rebuilds_small_domain() -> None:
     payload = contract.to_dict()
 
     assert payload["schema"] == EXACT_OUT_MANY_POOL_ORACLE_CONTRACT_SCHEMA
+    assert payload["contract_ok"] is True
     assert payload["audit"]["runtime_matches_canonical"] is True
     assert payload["audit"]["runtime_quote"] == payload["audit"]["canonical_winner_quote"]
     assert payload["audit"]["projection_cover_audit"] is not None
@@ -1388,6 +1428,7 @@ def test_exact_out_many_pool_oracle_contract_aligns_runtime_on_known_counterexam
     )
     payload = contract.to_dict()
 
+    assert payload["contract_ok"] is True
     assert payload["audit"]["runtime_matches_canonical"] is True
     assert payload["audit"]["runtime_quote"]["amount_in_total"] == 2
     assert payload["audit"]["canonical_winner_quote"]["amount_in_total"] == 2
@@ -1425,6 +1466,7 @@ def test_exact_out_many_pool_oracle_contract_carries_projection_cover_on_mixed_c
     )
     payload = contract.to_dict()
 
+    assert payload["contract_ok"] is True
     assert payload["audit"]["runtime_matches_canonical"] is True
     assert payload["audit"]["runtime_projected_path"] == [["pool_b", 3, 5]]
     assert payload["audit"]["canonical_winner_projected_path"] == [["pool_b", 3, 5]]
@@ -1465,6 +1507,33 @@ def test_exact_out_many_pool_oracle_contract_rejects_tampering() -> None:
     assert err == "oracle contract payload mismatch"
 
 
+def test_exact_out_many_pool_oracle_contract_rejects_contract_ok_tampering() -> None:
+    pools = (
+        _pool(pool_id="pool_a", reserve0=40, reserve1=20, fee_bps=0),
+        _pool(pool_id="pool_b", reserve0=40, reserve1=63, fee_bps=0),
+        _pool(pool_id="pool_c", reserve0=40, reserve1=20, fee_bps=0),
+    )
+    payload = build_exact_out_many_pool_oracle_contract(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=3,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_candidates=6,
+        max_iters=512,
+        window=8,
+        brute_force_max=16,
+        max_enumerated_candidates=8_000,
+    ).to_dict()
+    assert payload["contract_ok"] is True
+    payload["contract_ok"] = False
+
+    ok, err = verify_exact_out_many_pool_oracle_contract_payload(payload)
+    assert not ok
+    assert err == "oracle contract payload mismatch"
+
+
 def test_guard_exact_out_many_pool_runtime_canonicality_accepts_small_match() -> None:
     pools = (
         _pool(pool_id="pool_b", reserve0=100, reserve1=34),
@@ -1490,6 +1559,7 @@ def test_guard_exact_out_many_pool_runtime_canonicality_accepts_small_match() ->
     assert err is None
     assert contract.audit.runtime_matches_canonical is True
     assert contract.audit.runtime_quote == contract.audit.canonical_winner_quote
+    assert contract.contract_ok is True
     assert contract.audit.projection_cover_audit is not None
     assert contract.audit.projection_cover_audit.projection_cover_holds is True
 
@@ -1520,6 +1590,7 @@ def test_guard_exact_out_many_pool_runtime_canonicality_accepts_known_counterexa
     assert contract.audit.runtime_matches_canonical is True
     assert contract.audit.runtime_quote.amount_in_total == 2
     assert contract.audit.canonical_winner_quote.amount_in_total == 2
+    assert contract.contract_ok is True
     assert contract.audit.projection_cover_audit is not None
     assert contract.audit.projection_cover_audit.projection_cover_holds is True
 
@@ -1547,9 +1618,48 @@ def test_guard_exact_out_many_pool_runtime_canonicality_accepts_mixed_curve_sele
     assert ok is True
     assert err is None
     assert contract.audit.runtime_matches_canonical is True
+    assert contract.contract_ok is True
     assert contract.audit.projection_cover_audit is not None
     assert contract.audit.projection_cover_audit.projection_cover_holds is True
     assert contract.audit.projection_cover_audit.canonical_quote_projected_path == (("pool_b", 3, 5),)
+
+
+def test_guard_exact_out_many_pool_runtime_canonicality_requires_projection_cover(monkeypatch: pytest.MonkeyPatch) -> None:
+    pools = (
+        _pool(pool_id="pool_b", reserve0=100, reserve1=34),
+        _pool(pool_id="pool_a", reserve0=120, reserve1=40),
+        _pool(pool_id="pool_c", reserve0=160, reserve1=60),
+    )
+
+    def _raise_projection_cover_unavailable(*_args: object, **_kwargs: object) -> object:
+        raise ValueError("projection cover unavailable")
+
+    monkeypatch.setattr(
+        exact_out_module,
+        "_kernel_audit_exact_out_many_pool_selected_domain_projection_cover",
+        _raise_projection_cover_unavailable,
+    )
+
+    ok, err, contract = guard_exact_out_many_pool_runtime_canonicality(
+        pools,
+        asset_in="A",
+        asset_out="B",
+        amount_out_total=6,
+        max_legs=3,
+        max_candidate_pools=3,
+        max_candidates=6,
+        max_iters=512,
+        window=8,
+        brute_force_max=12,
+        max_enumerated_candidates=2_000,
+    )
+
+    assert ok is False
+    assert err == EXACT_OUT_MANY_POOL_PROJECTION_COVER_ERROR
+    assert contract.audit.runtime_matches_canonical is True
+    assert contract.audit.projection_cover_audit is None
+    assert contract.contract_ok is False
+    assert contract.to_dict()["contract_ok"] is False
 
 
 def test_quote_exact_out_many_pool_guarded_returns_quote_on_match() -> None:
@@ -1576,6 +1686,7 @@ def test_quote_exact_out_many_pool_guarded_returns_quote_on_match() -> None:
     assert err is None
     assert quote == contract.audit.runtime_quote
     assert contract.audit.runtime_matches_canonical is True
+    assert contract.contract_ok is True
 
 
 def test_quote_exact_out_many_pool_guarded_accepts_mixed_curve_selected_domain() -> None:
@@ -1601,6 +1712,7 @@ def test_quote_exact_out_many_pool_guarded_accepts_mixed_curve_selected_domain()
     assert err is None
     assert quote == contract.audit.runtime_quote
     assert contract.audit.runtime_matches_canonical is True
+    assert contract.contract_ok is True
     assert contract.audit.projection_cover_audit is not None
     assert contract.audit.projection_cover_audit.projection_cover_holds is True
     assert contract.audit.projection_cover_audit.canonical_quote_projected_path == (("pool_b", 3, 5),)
@@ -1630,6 +1742,7 @@ def test_quote_exact_out_many_pool_guarded_accepts_known_counterexample_after_al
     assert err is None
     assert quote == contract.audit.runtime_quote
     assert contract.audit.runtime_matches_canonical is True
+    assert contract.contract_ok is True
 
 
 def test_exact_out_many_pool_guarded_quote_packet_builds_on_match() -> None:
@@ -1655,6 +1768,7 @@ def test_exact_out_many_pool_guarded_quote_packet_builds_on_match() -> None:
 
     assert payload["schema"] == EXACT_OUT_MANY_POOL_GUARDED_QUOTE_PACKET_SCHEMA
     assert payload["guard_ok"] is True
+    assert payload["contract"]["contract_ok"] is True
     assert payload["quote"] == payload["contract"]["audit"]["runtime_quote"]
 
     ok, err = verify_exact_out_many_pool_guarded_quote_packet_payload(payload)
@@ -1682,6 +1796,7 @@ def test_exact_out_many_pool_guarded_quote_packet_carries_projection_cover_on_mi
     payload = packet.to_dict()
 
     assert payload["guard_ok"] is True
+    assert payload["contract"]["contract_ok"] is True
     assert payload["selected_domain_projection_cover_available"] is True
     assert payload["selected_domain_projection_cover_holds"] is True
     assert payload["selected_domain_canonical_projected_path"] == [["pool_b", 3, 5]]
@@ -1719,6 +1834,7 @@ def test_exact_out_many_pool_guarded_quote_packet_builds_on_known_counterexample
     ).to_dict()
 
     assert payload["guard_ok"] is True
+    assert payload["contract"]["contract_ok"] is True
     assert payload["error"] is None
     assert payload["quote"] == payload["contract"]["audit"]["runtime_quote"]
 

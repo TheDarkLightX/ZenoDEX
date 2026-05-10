@@ -208,6 +208,10 @@ def _planned_single_oracle_authorization_value(
         return None
     if tag == "oracle_commit" and state.price_pending_e8 > 0:
         return int(state.price_pending_e8)
+    if tag == "mint_zusd" and state.price_e8 > 0:
+        return int(state.price_e8)
+    if tag == "liquidate" and state.price_pending_e8 > 0:
+        return int(state.price_pending_e8)
     return None
 
 
@@ -224,7 +228,15 @@ def _planned_multi_oracle_authorization_value(
         return None
     if tag == "oracle_commit" and state.price_pending_e8 > 0:
         return int(state.price_pending_e8)
+    if tag == "mint_zusd" and state.price_e8 > 0:
+        return int(state.price_e8)
+    if tag == "liquidate" and state.price_pending_e8 > 0:
+        return int(state.price_pending_e8)
     return None
+
+
+def _zusd_runtime_bound_args(args: Mapping[str, Any]) -> Dict[str, Any]:
+    return {str(key): value for key, value in args.items() if key != "oracle_authorization"}
 
 
 def _zusd_oracle_runtime_facts(
@@ -234,28 +246,49 @@ def _zusd_oracle_runtime_facts(
     tag: str,
     query_id: str,
     runtime_value_e8: int,
+    args: Mapping[str, Any] | None = None,
 ) -> RuntimeActionFacts:
+    action_kind = _ZUSD_ORACLE_ADAPTER_ACTIONS.get(tag, tag)
     pre_state_hash = _zusd_pre_state_hash(mode=mode, state=state)
-    action_facts_hash = _zusd_action_facts_hash(
-        mode=mode,
-        tag=tag,
-        query_id=query_id,
-        runtime_value_e8=runtime_value_e8,
-        now_epoch=int(state.now_epoch),
-    )
-    action_id = _zusd_action_id(
-        action_facts_hash=action_facts_hash,
-        pre_state_hash=pre_state_hash,
-        query_id=query_id,
-        runtime_value_e8=runtime_value_e8,
-    )
+    if tag in _ZUSD_ORACLE_ADAPTER_ACTIONS:
+        action_facts_hash = _zusd_critical_action_facts_hash(
+            mode=mode,
+            state=state,
+            tag=tag,
+            action_kind=action_kind,
+            args=args or {},
+            query_id=query_id,
+            runtime_value_e8=runtime_value_e8,
+        )
+        action_id = _zusd_runtime_oracle_action_id(
+            mode=mode,
+            state=state,
+            tag=tag,
+            args=args or {},
+        )
+        profile_id = _ZUSD_ORACLE_CONSUMER_PROFILE_IDS[action_kind]
+    else:
+        action_facts_hash = _zusd_action_facts_hash(
+            mode=mode,
+            tag=tag,
+            query_id=query_id,
+            runtime_value_e8=runtime_value_e8,
+            now_epoch=int(state.now_epoch),
+        )
+        action_id = _zusd_action_id(
+            action_facts_hash=action_facts_hash,
+            pre_state_hash=pre_state_hash,
+            query_id=query_id,
+            runtime_value_e8=runtime_value_e8,
+        )
+        profile_id = "critical-zusd-v1"
     return RuntimeActionFacts(
         consumer_module="zenodex.zusd",
-        action_kind=tag,
+        action_kind=action_kind,
         action_id=action_id,
         action_facts_hash=action_facts_hash,
         pre_state_hash=pre_state_hash,
-        profile_id="critical-zusd-v1",
+        profile_id=profile_id,
         query_id=query_id,
         runtime_value_e8=int(runtime_value_e8),
         now_epoch=int(state.now_epoch),
@@ -288,6 +321,7 @@ def _check_zusd_oracle_authorization(
         tag=tag,
         query_id=query_id,
         runtime_value_e8=int(runtime_value_e8),
+        args=args,
     )
     result = check_critical_consumer_authorization(
         auth_obj,
@@ -340,7 +374,7 @@ def _zusd_runtime_oracle_action_id(
         "action_kind": action_kind,
         "mode": mode,
         "tag": tag,
-        "args": dict(args),
+        "args": _zusd_runtime_bound_args(args),
         "now_epoch": int(state.now_epoch),
         "price_e8": int(state.price_e8),
         "price_pending_e8": int(state.price_pending_e8),
@@ -483,6 +517,33 @@ def _zusd_action_facts_hash(
             "query_id": query_id,
             "runtime_value_e8": int(runtime_value_e8),
             "now_epoch": int(now_epoch),
+        },
+    )
+
+
+def _zusd_critical_action_facts_hash(
+    *,
+    mode: str,
+    state: ZUSDState | ZUSDMultiState,
+    tag: str,
+    action_kind: str,
+    args: Mapping[str, Any],
+    query_id: str,
+    runtime_value_e8: int,
+) -> str:
+    return semantic_hash(
+        "zenodex.zusd.critical_action_facts.v1",
+        {
+            "action_kind": action_kind,
+            "args": _zusd_runtime_bound_args(args),
+            "mode": mode,
+            "now_epoch": int(state.now_epoch),
+            "oracle_last_update_epoch": int(state.oracle_last_update_epoch),
+            "price_e8": int(state.price_e8),
+            "price_pending_e8": int(state.price_pending_e8),
+            "query_id": query_id,
+            "runtime_value_e8": int(runtime_value_e8),
+            "tag": tag,
         },
     )
 
