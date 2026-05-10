@@ -5,7 +5,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -24,6 +23,7 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
     assert receipt["catalog_profile_count"] == 7
     assert receipt["runtime_wired_count"] == 7
     assert receipt["design_only_backlog_count"] == 0
+    assert receipt["fail_closed_config"]["status"] == "accepted"
     runtime_keys = {surface["key"] for surface in receipt["runtime_surfaces"]}
     assert runtime_keys == {
         "zenodex.perps:settle_epoch",
@@ -47,5 +47,8 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
         "check_trigger_execute_oracle_adapter_bridge(required=True)",
         "check_trigger_execute_oracle_authorization",
     ]
+    required_controls = set(receipt["fail_closed_config"]["required_controls"])
+    covered_controls = set(receipt["fail_closed_config"]["covered_controls"])
+    assert required_controls <= covered_controls
     backlog_keys = {item["key"] for item in receipt["design_only_backlog"]}
     assert backlog_keys == set()
