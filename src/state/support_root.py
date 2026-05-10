@@ -25,11 +25,11 @@ from .canonical import (
     sha256_hex,
 )
 from .intents import Intent, IntentKind
-from .lp import LPTable
+from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
 
-SUPPORT_ROOT_VERSION = 3
+SUPPORT_ROOT_VERSION = 4
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -121,6 +121,9 @@ def derive_batch_state_support(
 
         if intent.kind == IntentKind.ADD_LIQUIDITY:
             if isinstance(pool_id, str) and pool_id:
+                recipient = intent.get_field("recipient", sender)
+                if isinstance(recipient, str) and recipient:
+                    lp_keys.add((recipient, pool_id))
                 if pool_id in pools:
                     pool = pools[pool_id]
                     balance_keys.add((sender, pool.asset0))
@@ -262,31 +265,57 @@ def compute_support_state_root(
         lp_out += encode_uvarint(amount)
     lp_section = bytes(lp_out)
 
-    lp_mint_out = bytearray()
-    lp_mint_entries: list[tuple[bytes, bytes, int]] = []
-    lp_mint_seen: set[tuple[bytes, bytes]] = set()
+    lp_duration_out = bytearray()
+    lp_duration_entries: list[tuple[bytes, bytes, LPDurationRiskMetadata]] = []
+    lp_duration_seen: set[tuple[bytes, bytes]] = set()
     for pubkey, pool_id in support.lp_keys:
-        timestamp = lp_balances.get_last_mint_timestamp(pubkey, pool_id)
-        if timestamp is None:
-            continue
-        if lp_balances.get(pubkey, pool_id) == 0:
+        metadata = lp_balances.get_duration_risk_metadata(pubkey, pool_id)
+        if (
+            metadata.last_mint_timestamp is None
+            and metadata.last_remove_timestamp is None
+            and metadata.churn_tier == 0
+            and metadata.last_churn_update_timestamp is None
+        ):
             continue
         pk_b = hex_to_bytes_fixed(pubkey, nbytes=48, name="pubkey")
         pool_b = hex_to_bytes_fixed(pool_id, nbytes=32, name="pool_id")
         key = (pk_b, pool_b)
-        if key in lp_mint_seen:
-            raise ValueError("duplicate decoded (pubkey, pool_id) in support lp_mint_timestamps")
-        lp_mint_seen.add(key)
-        if not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0:
-            raise ValueError(f"invalid LP mint timestamp: {timestamp!r}")
-        lp_mint_entries.append((pk_b, pool_b, timestamp))
-    lp_mint_entries.sort(key=lambda t: (t[0], t[1]))
-    lp_mint_out += encode_uvarint(len(lp_mint_entries))
-    for pk_b, pool_b, timestamp in lp_mint_entries:
-        lp_mint_out += pk_b
-        lp_mint_out += pool_b
-        lp_mint_out += encode_uvarint(timestamp)
-    lp_mint_section = bytes(lp_mint_out)
+        if key in lp_duration_seen:
+            raise ValueError("duplicate decoded (pubkey, pool_id) in support lp_duration_risk")
+        lp_duration_seen.add(key)
+        for name, timestamp in (
+            ("LP mint timestamp", metadata.last_mint_timestamp),
+            ("LP remove timestamp", metadata.last_remove_timestamp),
+            ("LP churn update timestamp", metadata.last_churn_update_timestamp),
+        ):
+            if timestamp is not None and (
+                not isinstance(timestamp, int) or isinstance(timestamp, bool) or timestamp < 0
+            ):
+                raise ValueError(f"invalid support {name}: {timestamp!r}")
+        if (
+            not isinstance(metadata.churn_tier, int)
+            or isinstance(metadata.churn_tier, bool)
+            or metadata.churn_tier < 0
+        ):
+            raise ValueError(f"invalid support LP churn tier: {metadata.churn_tier!r}")
+        lp_duration_entries.append((pk_b, pool_b, metadata))
+    lp_duration_entries.sort(key=lambda t: (t[0], t[1]))
+    lp_duration_out += encode_uvarint(len(lp_duration_entries))
+    for pk_b, pool_b, metadata in lp_duration_entries:
+        lp_duration_out += pk_b
+        lp_duration_out += pool_b
+        for timestamp in (
+            metadata.last_mint_timestamp,
+            metadata.last_remove_timestamp,
+        ):
+            lp_duration_out += encode_uvarint(1 if timestamp is not None else 0)
+            if timestamp is not None:
+                lp_duration_out += encode_uvarint(timestamp)
+        lp_duration_out += encode_uvarint(metadata.churn_tier)
+        lp_duration_out += encode_uvarint(1 if metadata.last_churn_update_timestamp is not None else 0)
+        if metadata.last_churn_update_timestamp is not None:
+            lp_duration_out += encode_uvarint(metadata.last_churn_update_timestamp)
+    lp_duration_section = bytes(lp_duration_out)
 
     nonce_out = bytearray()
     nonce_entries: list[tuple[bytes, int]] = []
@@ -316,7 +345,7 @@ def compute_support_state_root(
         + b"LPB"
         + encode_bytes(lp_section)
         + b"LPA"
-        + encode_bytes(lp_mint_section)
+        + encode_bytes(lp_duration_section)
         + b"NNC"
         + encode_bytes(nonce_section)
     )

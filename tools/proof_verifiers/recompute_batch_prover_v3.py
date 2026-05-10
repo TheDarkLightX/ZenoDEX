@@ -139,13 +139,13 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
 
     lp_entries = []
     lp_mint_timestamp_entries = []
+    lp_duration_risk_entries = []
     for pubkey, pool_id in support.lp_keys:
         amount = state.lp_balances.get(pubkey, pool_id)
-        if amount == 0:
-            continue
-        lp_entries.append({"pubkey": pubkey, "pool_id": pool_id, "amount": int(amount)})
+        if amount != 0:
+            lp_entries.append({"pubkey": pubkey, "pool_id": pool_id, "amount": int(amount)})
         timestamp = state.lp_balances.get_last_mint_timestamp(pubkey, pool_id)
-        if timestamp is not None:
+        if amount != 0 and timestamp is not None:
             lp_mint_timestamp_entries.append(
                 {
                     "pubkey": pubkey,
@@ -153,8 +153,24 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
                     "last_mint_timestamp": int(timestamp),
                 }
             )
+        metadata = state.lp_balances.get_duration_risk_metadata(pubkey, pool_id)
+        if (
+            metadata.last_remove_timestamp is not None
+            or metadata.churn_tier > 0
+            or metadata.last_churn_update_timestamp is not None
+        ):
+            lp_duration_risk_entries.append(
+                {
+                    "pubkey": pubkey,
+                    "pool_id": pool_id,
+                    "last_remove_timestamp": metadata.last_remove_timestamp,
+                    "churn_tier": int(metadata.churn_tier),
+                    "last_churn_update_timestamp": metadata.last_churn_update_timestamp,
+                }
+            )
     lp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
     lp_mint_timestamp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+    lp_duration_risk_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
 
     nonce_entries = []
     for pubkey in support.nonce_keys:
@@ -189,6 +205,7 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
         "pools": pools_entries,
         "lp_balances": lp_entries,
         "lp_mint_timestamps": lp_mint_timestamp_entries,
+        "lp_duration_risk": lp_duration_risk_entries,
         "nonces": nonce_entries,
         "fee_accumulator": fee_acc_obj,
         "vault": vault_obj,

@@ -8,7 +8,9 @@ from src.integration.dex_snapshot import (
     state_from_snapshot,
 )
 from src.integration.lp_position_age_gate import (
+    LPDurationRiskPolicy,
     apply_lp_mint_timestamps_after_settlement,
+    effective_lp_position_age_seconds,
     validate_lp_position_age_gate,
     validate_lp_settlement_age_gate,
 )
@@ -259,6 +261,196 @@ def test_lp_settlement_age_gate_accepts_old_effective_burn() -> None:
     assert err is None
 
 
+def test_progressive_lp_duration_policy_raises_required_age_from_churn_tier() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    policy = LPDurationRiskPolicy(
+        base_age_seconds=60,
+        max_age_seconds=3600,
+        churn_window_seconds=86_400,
+        decay_seconds=86_400,
+        multiplier=2,
+        max_churn_tier=5,
+    )
+    remove = _liquidity_intent(
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(10),
+        sender=sender,
+        pool_id=pool_id,
+        fields={"lp_amount": 1},
+    )
+    lp = LPTable()
+    lp.set(sender, pool_id, 10)
+    lp.set_last_mint_timestamp(sender, pool_id, 100)
+    lp.set_churn_tier(sender, pool_id, 2)
+    lp.set_last_churn_update_timestamp(sender, pool_id, 100)
+
+    assert (
+        effective_lp_position_age_seconds(
+            lp_balances=lp,
+            owner=sender,
+            pool_id=pool_id,
+            block_timestamp=300,
+            min_lp_position_age_seconds=0,
+            duration_risk_policy=policy,
+        )
+        == 240
+    )
+    err = validate_lp_position_age_gate(
+        intents=[remove],
+        lp_balances=lp,
+        block_timestamp=300,
+        min_lp_position_age_seconds=0,
+        duration_risk_policy=policy,
+    )
+    assert err == f"lp_position_locked for intent_id={remove.intent_id}"
+
+    err = validate_lp_position_age_gate(
+        intents=[remove],
+        lp_balances=lp,
+        block_timestamp=340,
+        min_lp_position_age_seconds=0,
+        duration_risk_policy=policy,
+    )
+    assert err is None
+
+
+def test_accepted_remove_then_reentry_escalates_lp_churn_tier() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    policy = LPDurationRiskPolicy(
+        base_age_seconds=60,
+        max_age_seconds=3600,
+        churn_window_seconds=600,
+        decay_seconds=86_400,
+        multiplier=2,
+        max_churn_tier=5,
+    )
+    lp = LPTable()
+    lp.set(sender, pool_id, 10)
+    lp.set_last_mint_timestamp(sender, pool_id, 100)
+    remove_settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="remove",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=5)],
+    )
+    add_settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="add",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=sender, pool_id=pool_id, delta_add=5, delta_sub=0)],
+    )
+
+    err = apply_lp_mint_timestamps_after_settlement(
+        lp_balances=lp,
+        settlement=remove_settlement,
+        block_timestamp=500,
+        duration_risk_policy=policy,
+    )
+    assert err is None
+    assert lp.get_last_remove_timestamp(sender, pool_id) == 500
+
+    err = apply_lp_mint_timestamps_after_settlement(
+        lp_balances=lp,
+        settlement=add_settlement,
+        block_timestamp=550,
+        duration_risk_policy=policy,
+    )
+    assert err is None
+    assert lp.get_churn_tier(sender, pool_id) == 1
+    assert lp.get_last_churn_update_timestamp(sender, pool_id) == 550
+    assert lp.get_last_mint_timestamp(sender, pool_id) == 550
+
+    assert (
+        effective_lp_position_age_seconds(
+            lp_balances=lp,
+            owner=sender,
+            pool_id=pool_id,
+            block_timestamp=650,
+            min_lp_position_age_seconds=0,
+            duration_risk_policy=policy,
+        )
+        == 120
+    )
+
+
+def test_progressive_lp_duration_policy_decays_churn_after_quiet_period() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    policy = LPDurationRiskPolicy(
+        base_age_seconds=60,
+        max_age_seconds=3600,
+        churn_window_seconds=600,
+        decay_seconds=100,
+        multiplier=2,
+        max_churn_tier=5,
+    )
+    lp = LPTable()
+    lp.set(sender, pool_id, 10)
+    lp.set_last_mint_timestamp(sender, pool_id, 0)
+    lp.set_churn_tier(sender, pool_id, 3)
+    lp.set_last_churn_update_timestamp(sender, pool_id, 0)
+
+    assert (
+        effective_lp_position_age_seconds(
+            lp_balances=lp,
+            owner=sender,
+            pool_id=pool_id,
+            block_timestamp=250,
+            min_lp_position_age_seconds=0,
+            duration_risk_policy=policy,
+        )
+        == 120
+    )
+
+
+def test_rejected_progressive_remove_does_not_mutate_churn_metadata() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    policy = LPDurationRiskPolicy(
+        base_age_seconds=60,
+        max_age_seconds=3600,
+        churn_window_seconds=600,
+        decay_seconds=86_400,
+        multiplier=2,
+        max_churn_tier=5,
+    )
+    remove = _liquidity_intent(
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(11),
+        sender=sender,
+        pool_id=pool_id,
+        fields={"lp_amount": 1},
+    )
+    lp = LPTable()
+    lp.set(sender, pool_id, 10)
+    lp.set_last_mint_timestamp(sender, pool_id, 150)
+    lp.set_churn_tier(sender, pool_id, 1)
+    lp.set_last_churn_update_timestamp(sender, pool_id, 150)
+
+    err = validate_lp_position_age_gate(
+        intents=[remove],
+        lp_balances=lp,
+        block_timestamp=200,
+        min_lp_position_age_seconds=0,
+        duration_risk_policy=policy,
+    )
+
+    assert err == f"lp_position_locked for intent_id={remove.intent_id}"
+    assert lp.get_churn_tier(sender, pool_id) == 1
+    assert lp.get_last_churn_update_timestamp(sender, pool_id) == 150
+    assert lp.get_last_remove_timestamp(sender, pool_id) is None
+
+
 def test_lp_mint_timestamp_update_and_state_root_binding() -> None:
     sender = _pk()
     pool_id = _pool()
@@ -326,8 +518,9 @@ def test_lp_mint_timestamp_snapshot_roundtrip() -> None:
     lp.set_last_mint_timestamp(sender, pool_id, 42)
     snapshot = snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=lp)).data
 
-    assert snapshot["version"] == DEX_SNAPSHOT_VERSION == 3
+    assert snapshot["version"] == DEX_SNAPSHOT_VERSION == 4
     assert "lp_mint_timestamps" in snapshot
+    assert "lp_duration_risk" in snapshot
     restored = state_from_snapshot(snapshot)
 
     assert restored.lp_balances.get(sender, pool_id) == 10
@@ -341,9 +534,40 @@ def test_snapshot_v3_requires_explicit_lp_mint_timestamp_section() -> None:
     try:
         state_from_snapshot(snapshot)
     except ValueError as exc:
-        assert str(exc) == "snapshot.lp_mint_timestamps is required for snapshot v3"
+        assert str(exc) == "snapshot.lp_mint_timestamps is required for snapshot v3+"
     else:  # pragma: no cover
         raise AssertionError("expected v3 snapshot without lp_mint_timestamps to reject")
+
+
+def test_snapshot_v4_requires_explicit_lp_duration_risk_section() -> None:
+    snapshot = snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())).data
+    snapshot.pop("lp_duration_risk")
+
+    try:
+        state_from_snapshot(snapshot)
+    except ValueError as exc:
+        assert str(exc) == "snapshot.lp_duration_risk is required for snapshot v4"
+    else:  # pragma: no cover
+        raise AssertionError("expected v4 snapshot without lp_duration_risk to reject")
+
+
+def test_lp_duration_risk_snapshot_roundtrip() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    lp = LPTable()
+    lp.set(sender, pool_id, 10)
+    lp.set_last_mint_timestamp(sender, pool_id, 42)
+    lp.set_last_remove_timestamp(sender, pool_id, 50)
+    lp.set_churn_tier(sender, pool_id, 3)
+    lp.set_last_churn_update_timestamp(sender, pool_id, 50)
+    snapshot = snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=lp)).data
+
+    restored = state_from_snapshot(snapshot)
+
+    assert restored.lp_balances.get_last_mint_timestamp(sender, pool_id) == 42
+    assert restored.lp_balances.get_last_remove_timestamp(sender, pool_id) == 50
+    assert restored.lp_balances.get_churn_tier(sender, pool_id) == 3
+    assert restored.lp_balances.get_last_churn_update_timestamp(sender, pool_id) == 50
 
 
 def test_snapshot_strict_lp_age_migration_rejects_legacy_positive_lp_without_timestamp() -> None:
