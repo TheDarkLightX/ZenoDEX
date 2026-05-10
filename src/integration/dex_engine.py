@@ -35,7 +35,7 @@ from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
 from .lp_position_age_gate import (
     apply_lp_mint_timestamps_after_settlement,
-    validate_lp_position_age_gate,
+    validate_lp_settlement_age_gate,
 )
 from .operations import (
     SettlementEnvelope,
@@ -1046,15 +1046,6 @@ def apply_ops(
             return DexTxResult(ok=False, error=err)
         _fault_stage(config, "after_preconditions")
 
-        err = validate_lp_position_age_gate(
-            intents=intents,
-            lp_balances=state.lp_balances,
-            block_timestamp=block_timestamp,
-            min_lp_position_age_seconds=config.min_lp_position_age_seconds,
-        )
-        if err is not None:
-            return DexTxResult(ok=False, error=err)
-
         try:
             signing_dicts, signing_payloads = _build_signing_payloads(
                 signed_intents,
@@ -1120,6 +1111,17 @@ def apply_ops(
                     return DexTxResult(ok=False, error="settlement mismatch")
                 settlement = computed_settlement
         _fault_stage(config, "after_settlement_compute")
+
+        if settlement is not None:
+            err = validate_lp_settlement_age_gate(
+                settlement=settlement,
+                intents=intents,
+                lp_balances=state.lp_balances,
+                block_timestamp=block_timestamp,
+                min_lp_position_age_seconds=config.min_lp_position_age_seconds,
+            )
+            if err is not None:
+                return DexTxResult(ok=False, error=err)
 
         err = _validate_critical_settlement_oracle_authorization(
             settlement=settlement,

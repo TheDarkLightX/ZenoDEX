@@ -14,6 +14,8 @@ ZENO_ORACLE_FAIL_CLOSED_ENV: dict[str, str] = {
     "ZUSD_ORACLE_AUTHORIZATION_REQUIRED": "1",
 }
 
+ZENO_ORACLE_MIN_LP_POSITION_AGE_SECONDS = 300
+
 
 def zeno_oracle_fail_closed_env() -> dict[str, str]:
     """Return API environment variables that require Oracle adapter/auth gates."""
@@ -29,7 +31,10 @@ def zeno_oracle_fail_closed_dex_config(**overrides: Any) -> DexEngineConfig:
         cfg,
         require_oracle_authorization_for_protected_swaps=True,
         require_oracle_authorization_for_critical_settlements=True,
-        min_lp_position_age_seconds=max(int(cfg.min_lp_position_age_seconds), 1),
+        min_lp_position_age_seconds=max(
+            int(cfg.min_lp_position_age_seconds),
+            ZENO_ORACLE_MIN_LP_POSITION_AGE_SECONDS,
+        ),
     )
 
 

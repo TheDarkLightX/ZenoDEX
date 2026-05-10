@@ -6,6 +6,7 @@ from src.integration.dex_snapshot import snapshot_from_state, state_from_snapsho
 from src.integration.lp_position_age_gate import (
     apply_lp_mint_timestamps_after_settlement,
     validate_lp_position_age_gate,
+    validate_lp_settlement_age_gate,
 )
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
@@ -147,6 +148,111 @@ def test_lp_position_age_gate_rejects_same_batch_add_remove_for_same_owner_pool(
     )
 
     assert err == f"same_batch_lp_add_remove_rejected for intent_id={remove.intent_id}"
+
+
+def test_lp_settlement_age_gate_rejects_external_burn_without_remove_intent() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    lp = LPTable()
+    lp.set(sender, pool_id, 10)
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=1)],
+    )
+
+    err = validate_lp_settlement_age_gate(
+        settlement=settlement,
+        intents=[],
+        lp_balances=lp,
+        block_timestamp=10,
+        min_lp_position_age_seconds=2,
+    )
+
+    assert err == f"lp_position_age_missing for lp_delta={sender}:{pool_id}"
+
+
+def test_lp_settlement_age_gate_rejects_recipient_directed_same_batch_add_remove() -> None:
+    alice = _pk("11")
+    bob = _pk("22")
+    pool_id = _pool()
+    lp = LPTable()
+    lp.set(bob, pool_id, 10)
+    lp.set_last_mint_timestamp(bob, pool_id, 1)
+    add = _liquidity_intent(
+        kind=IntentKind.ADD_LIQUIDITY,
+        intent_id=_iid(7),
+        sender=alice,
+        pool_id=pool_id,
+        fields={"recipient": bob, "amount0_desired": 1, "amount1_desired": 1},
+    )
+    remove = _liquidity_intent(
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(8),
+        sender=bob,
+        pool_id=pool_id,
+        fields={"lp_amount": 1},
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=bob, pool_id=pool_id, delta_add=1, delta_sub=1)],
+    )
+
+    err = validate_lp_settlement_age_gate(
+        settlement=settlement,
+        intents=[add, remove],
+        lp_balances=lp,
+        block_timestamp=10,
+        min_lp_position_age_seconds=2,
+    )
+
+    assert err == f"same_batch_lp_add_remove_rejected for intent_id={remove.intent_id}"
+
+
+def test_lp_settlement_age_gate_accepts_old_effective_burn() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    lp = LPTable()
+    lp.set(sender, pool_id, 10)
+    lp.set_last_mint_timestamp(sender, pool_id, 1)
+    remove = _liquidity_intent(
+        kind=IntentKind.REMOVE_LIQUIDITY,
+        intent_id=_iid(9),
+        sender=sender,
+        pool_id=pool_id,
+        fields={"lp_amount": 1},
+    )
+    settlement = Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=sender, pool_id=pool_id, delta_add=0, delta_sub=1)],
+    )
+
+    err = validate_lp_settlement_age_gate(
+        settlement=settlement,
+        intents=[remove],
+        lp_balances=lp,
+        block_timestamp=10,
+        min_lp_position_age_seconds=2,
+    )
+
+    assert err is None
 
 
 def test_lp_mint_timestamp_update_and_state_root_binding() -> None:
