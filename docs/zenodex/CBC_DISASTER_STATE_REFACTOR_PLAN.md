@@ -12,7 +12,8 @@ lean-mathlib/Proofs/CBCDisasterStateRefactors.lean
 The proof file compiles as part of `Proofs` and gives scoped theorem targets
 for gross margin, ADL, oracle typestate, validated intents, uniform clearing,
 checked route settlement, ceiling fees, liquidation dust thresholds, and
-stability-pool reward cooldown.
+stability-pool reward cooldown. It also includes route acyclicity and graceful
+oracle-degradation margin rules.
 
 ## Prime Directive
 
@@ -276,6 +277,67 @@ Runtime direction:
 Residual gap: production still needs epoch transition rules, withdrawal
 cooldowns, and reward-index accounting proofs.
 
+## 10. Acyclic Route Typestate
+
+Route cycles should be rejected as a structural property of a route, rather
+than handled by gas limits, max-hop heuristics, or post-execution unwind logic.
+
+```text
+AcyclicRoute.path.Nodup
+```
+
+The Lean boundary proves:
+
+```text
+acyclic_route_length_equals_unique_pool_count
+acyclic_route_no_revisit
+```
+
+Runtime direction:
+
+- route constructors should reject repeated pool IDs before quote or settlement;
+- settlement should consume an acyclic route object or receipt, rather than a
+  raw list of pools;
+- cyclic routes can remain available to offline search tools, but they must not
+  enter the value-moving execution path without a separate, explicit proof.
+
+Residual gap: this proves route-shape acyclicity. Runtime still needs a
+parser/checker bridge from encoded route receipts to the `Nodup` route model,
+plus tests for repeated-pool paths.
+
+## 11. Graceful Oracle Degradation
+
+A stale oracle need not force a single global halt. A dynamic margin function can
+make new risk progressively harder while keeping safe recovery commands
+available.
+
+```text
+margin(t) := min(maxMargin, baseMargin + penaltyPerEpoch * staleness)
+```
+
+The Lean boundary proves:
+
+```text
+dynamic_margin_ratio_monotone
+dynamic_margin_ratio_capped
+dynamic_margin_ratio_eventually_freezes
+```
+
+Staler oracle evidence never lowers the margin requirement. With a positive
+penalty, sufficiently stale evidence reaches the configured freeze boundary.
+
+Runtime direction:
+
+- stale oracle modes should distinguish risk-increasing actions from
+  risk-reducing actions;
+- risk-increasing actions can require dynamic-margin satisfaction before the
+  active-window hard stop;
+- once the cap is reached, new debt or leverage issuance should be effectively
+  unavailable while repay, close, freeze, and safe-exit paths remain explicit.
+
+Residual gap: this is a margin-shape theorem. Production still needs integer
+unit binding, oracle receipt freshness binding, and per-action command gates.
+
 ## Promotion Checklist
 
 A CBC lane can be promoted from design boundary to production claim only when:
@@ -298,6 +360,8 @@ route safety checker: proved for checked settlement record
 ceil fee: proved positive for positive trade and fee tier
 liquidation dust threshold: proved no positive sub-threshold debt remains
 stability-pool cooldown: proved same-epoch pending deposit extracts zero reward
+acyclic routing: proved no repeated pool visit in the route typestate
+graceful oracle degradation: proved monotone capped margin with eventual freeze
 ```
 
 This reduces the proof frontier. It does not yet finish the runtime refactor.

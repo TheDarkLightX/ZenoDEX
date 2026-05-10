@@ -1,3 +1,4 @@
+import Mathlib.Data.Finset.Card
 import Mathlib.Tactic
 
 /-!
@@ -395,6 +396,78 @@ theorem cooldown_pending_deposit_extracts_zero_reward
       attackerActive * (sp''.rewardPerShare - sp'.rewardPerShare)
     extracted = 0 := by
   exact zero_mul _
+
+/-! ## 10. Acyclic route typestate blocks pool revisits -/
+
+structure AcyclicRoute (PoolId : Type) [DecidableEq PoolId] where
+  path : List PoolId
+  acyclic : path.Nodup
+
+section AcyclicRouting
+
+variable {PoolId : Type} [DecidableEq PoolId]
+
+/--
+An acyclic route has exactly as many hops as unique pools in the route. A
+repeated-pool cycle cannot be constructed inside `AcyclicRoute`.
+-/
+theorem acyclic_route_length_equals_unique_pool_count
+    (r : AcyclicRoute PoolId) :
+    r.path.length = r.path.toFinset.card := by
+  exact (List.toFinset_card_of_nodup r.acyclic).symm
+
+/-- No indexed pool in an acyclic route can reappear at a distinct index. -/
+theorem acyclic_route_no_revisit
+    (r : AcyclicRoute PoolId) (i j : Fin r.path.length)
+    (hDistinctIndex : i.val ≠ j.val) :
+    r.path.get i ≠ r.path.get j := by
+  intro hSamePool
+  have hSameIndex := (List.Nodup.get_inj_iff r.acyclic).mp hSamePool
+  exact hDistinctIndex (congrArg Fin.val hSameIndex)
+
+end AcyclicRouting
+
+/-! ## 11. Graceful oracle degradation raises risk requirements monotonically -/
+
+def dynamicMarginRatio
+    (baseMargin penaltyPerEpoch maxMargin staleness : ℕ) : ℕ :=
+  min maxMargin (baseMargin + penaltyPerEpoch * staleness)
+
+/-- Staler oracle evidence never lowers the required margin ratio. -/
+theorem dynamic_margin_ratio_monotone
+    (base penalty maxMargin t1 t2 : ℕ) (hTime : t1 ≤ t2) :
+    dynamicMarginRatio base penalty maxMargin t1 ≤
+      dynamicMarginRatio base penalty maxMargin t2 := by
+  unfold dynamicMarginRatio
+  exact min_le_min le_rfl
+    (Nat.add_le_add_left (Nat.mul_le_mul_left penalty hTime) base)
+
+/-- The degradation rule is bounded by the configured maximum margin. -/
+theorem dynamic_margin_ratio_capped
+    (base penalty maxMargin t : ℕ) :
+    dynamicMarginRatio base penalty maxMargin t ≤ maxMargin := by
+  unfold dynamicMarginRatio
+  exact Nat.min_le_left maxMargin (base + penalty * t)
+
+/--
+With a positive per-epoch penalty, sufficiently stale oracle evidence reaches
+the maximum-margin freeze boundary.
+-/
+theorem dynamic_margin_ratio_eventually_freezes
+    (base penalty maxMargin : ℕ) (hPenalty : 0 < penalty) :
+    ∃ T, ∀ t, T ≤ t →
+      dynamicMarginRatio base penalty maxMargin t = maxMargin := by
+  refine ⟨maxMargin, ?_⟩
+  intro t hTime
+  unfold dynamicMarginRatio
+  apply Nat.min_eq_left
+  have hPenaltyOne : 1 ≤ penalty := Nat.succ_le_of_lt hPenalty
+  have hMul : maxMargin ≤ penalty * t := by
+    calc
+      maxMargin ≤ t := hTime
+      _ = 1 * t := by rw [Nat.one_mul]
+      _ ≤ penalty * t := Nat.mul_le_mul_right t hPenaltyOne
+  exact Nat.le_trans hMul (Nat.le_add_left (penalty * t) base)
 
 end CBCDisasterStateRefactors
 end Proofs
