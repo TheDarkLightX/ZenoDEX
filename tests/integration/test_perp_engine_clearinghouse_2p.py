@@ -8,7 +8,6 @@ from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_per
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 
-
 _CHAIN_ID = "tau-test"
 _BLOCK_TIMESTAMP = 1
 _DEADLINE = 10_000
@@ -563,3 +562,39 @@ def test_set_market_params_2p_rejects_penalty_increase_with_open_positions() -> 
     )
     assert not res.ok
     assert res.error is not None and "cannot increase liquidation_penalty_bps while positions are open" in res.error
+
+
+def test_settle_epoch_2p_oracle_adapter_bridge_required_when_configured() -> None:
+    from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
+
+    market_id = "perp:ch2p:oracle-adapter-required"
+    quote_asset = "0x" + "31" * 32
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=_ALICE_PUBKEY,
+        ops=[
+            _signed_init_market_2p(
+                market_id=market_id,
+                quote_asset=quote_asset,
+                nonce_a=1,
+                nonce_b=1,
+                deadline=_DEADLINE,
+            )
+        ],
+    )
+
+    cfg = PerpEngineConfig(
+        chain_id=_CHAIN_ID,
+        oracle_pubkey=_ORACLE_PUBKEY,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+    )
+    res = apply_perp_ops(
+        config=cfg,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", version="1.0")]},
+        tx_sender_pubkey=_ALICE_PUBKEY,
+        block_timestamp=_BLOCK_TIMESTAMP,
+    )
+    assert res.ok is False
+    assert res.error == "settle_epoch requires oracle_adapter_bridge"

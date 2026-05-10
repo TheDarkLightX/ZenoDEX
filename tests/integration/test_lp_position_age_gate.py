@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from itertools import product
+
 from src.core.dex import DexState
 from src.core.settlement import LPDelta, Settlement
 from src.integration.dex_snapshot import (
@@ -48,6 +50,28 @@ def _liquidity_intent(
         sender_pubkey=sender,
         deadline=1_000,
         fields={"pool_id": pool_id, **(fields or {})},
+    )
+
+
+def _lp_metadata_tuple(lp: LPTable, owner: str, pool_id: str) -> tuple[int | None, int | None, int, int | None]:
+    return (
+        lp.get_last_mint_timestamp(owner, pool_id),
+        lp.get_last_remove_timestamp(owner, pool_id),
+        lp.get_churn_tier(owner, pool_id),
+        lp.get_last_churn_update_timestamp(owner, pool_id),
+    )
+
+
+def _lp_delta_settlement(*, owner: str, pool_id: str, delta_add: int = 0, delta_sub: int = 0) -> Settlement:
+    return Settlement(
+        module="TauSwap",
+        version="0.1",
+        batch_ref="batch",
+        included_intents=[],
+        fills=[],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[LPDelta(pubkey=owner, pool_id=pool_id, delta_add=delta_add, delta_sub=delta_sub)],
     )
 
 
@@ -449,6 +473,91 @@ def test_rejected_progressive_remove_does_not_mutate_churn_metadata() -> None:
     assert lp.get_churn_tier(sender, pool_id) == 1
     assert lp.get_last_churn_update_timestamp(sender, pool_id) == 150
     assert lp.get_last_remove_timestamp(sender, pool_id) is None
+
+
+def test_bounded_lp_lifecycle_rejects_every_early_progressive_burn() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    policy = LPDurationRiskPolicy(
+        base_age_seconds=2,
+        max_age_seconds=8,
+        churn_window_seconds=6,
+        decay_seconds=5,
+        multiplier=2,
+        max_churn_tier=3,
+    )
+
+    for actions in product(("add", "remove", "wait"), repeat=5):
+        lp = LPTable()
+        balance = 0
+        now = 0
+        for step, action in enumerate(actions):
+            now += 1 + (step % 2)
+            if action == "wait":
+                continue
+
+            if action == "add":
+                settlement = _lp_delta_settlement(owner=sender, pool_id=pool_id, delta_add=1)
+                assert validate_lp_settlement_age_gate(
+                    settlement=settlement,
+                    intents=[],
+                    lp_balances=lp,
+                    block_timestamp=now,
+                    min_lp_position_age_seconds=0,
+                    duration_risk_policy=policy,
+                ) is None
+                lp.set(sender, pool_id, balance + 1)
+                err = apply_lp_mint_timestamps_after_settlement(
+                    lp_balances=lp,
+                    settlement=settlement,
+                    block_timestamp=now,
+                    duration_risk_policy=policy,
+                )
+                assert err is None
+                balance += 1
+                assert lp.get_last_mint_timestamp(sender, pool_id) == now
+                continue
+
+            before = _lp_metadata_tuple(lp, sender, pool_id)
+            settlement = _lp_delta_settlement(owner=sender, pool_id=pool_id, delta_sub=1)
+            err = validate_lp_settlement_age_gate(
+                settlement=settlement,
+                intents=[],
+                lp_balances=lp,
+                block_timestamp=now,
+                min_lp_position_age_seconds=0,
+                duration_risk_policy=policy,
+            )
+            last_mint = lp.get_last_mint_timestamp(sender, pool_id)
+            if balance <= 0 or last_mint is None:
+                assert err == f"lp_position_age_missing for lp_delta={sender}:{pool_id}"
+                assert _lp_metadata_tuple(lp, sender, pool_id) == before
+                continue
+
+            required_age = effective_lp_position_age_seconds(
+                lp_balances=lp,
+                owner=sender,
+                pool_id=pool_id,
+                block_timestamp=now,
+                min_lp_position_age_seconds=0,
+                duration_risk_policy=policy,
+            )
+            if now - last_mint < required_age:
+                assert err == f"lp_position_locked for lp_delta={sender}:{pool_id}"
+                assert _lp_metadata_tuple(lp, sender, pool_id) == before
+                continue
+
+            assert err is None
+            lp.set(sender, pool_id, balance - 1)
+            err = apply_lp_mint_timestamps_after_settlement(
+                lp_balances=lp,
+                settlement=settlement,
+                block_timestamp=now,
+                duration_risk_policy=policy,
+            )
+            assert err is None
+            balance -= 1
+            assert lp.get_last_remove_timestamp(sender, pool_id) == now
 
 
 def test_lp_mint_timestamp_update_and_state_root_binding() -> None:
