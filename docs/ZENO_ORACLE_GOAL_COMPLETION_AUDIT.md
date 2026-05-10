@@ -28,7 +28,7 @@ registry/verifier layer for O4/O5 claims.
 | Disaster corpus | `tools/zenodex_oracle_devnet_disaster_harness.py` reports 17 selected states unreachable; `tools/zeno_oracle_disaster_class_corpus.py` reports 8 named families closed, including O5 independence-spoofing and proof-timeout fail-closed behavior. | First shell complete |
 | Obligation antichain | `tools/check_disaster_obligation_certificate.py` validates `tools/zeno_oracle_disaster_obligation_certificate_manifest.json`; the current certificate compresses 23 axes into 15 antichain classes and includes `proof_independence` as a required obligation atom. | First shell complete |
 | Julia math lane | `tools/zeno_oracle_math_witness_sweep.jl` checks bounded witnesses for median deviation, source cartel, dispute griefing, reward conservation, split-brain, and O5 independence-witness cases. | Bounded witness |
-| Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides a first witness anchor for bounded arithmetic plus Prop-level O4/O5 binding and O5 independence-witness projections. General median, deviation, economics, executable DAG closure, sync, and typed binding theorems remain open. | Partial |
+| Lean math lane | `lean-mathlib/Proofs/ZenoOracleMathWitness.lean` provides a first witness anchor for bounded arithmetic plus Prop-level O4/O5 binding and O5 independence-witness projections. `lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean` adds a checked generalized boundary layer for deviation closure, freshness/sync laws, reward-pool composition, O5 independence requirements, typed authorization binding, receipt-borrowing rejection, and stale-oracle rejection. Executable DAG closure, concrete runtime instantiation, and broader generalized median/economics theorem families remain open. | Partial |
 | ESSO/TLA/LTLf/Morph/PopperPad | `tools/zeno_oracle_workflow_evidence_status.py` reports 5 accepted first-shell lanes. Private PopperPad content and deeper Morph campaigns remain outside public claims. | First shell complete |
 | Public claims registry | `docs/claims_registry.yaml` validates with `python3 tools/check_claims_registry.py` and `pytest -q tests/test_claims_registry.py`. | Complete for promoted claims |
 | ZenoProof v0 | `tools/zenoproof_verify.py` validates artifacts, registry DAGs, verifier governance fields, public replay profiles, O4 bridge, O5 independence witness bridge, reward gate, and bounded payout replay. | Local v0 complete |
@@ -43,6 +43,7 @@ python3 tools/zeno_oracle_o3_receipt_flow_replay.py --format text
 python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 python3 tools/check_disaster_obligation_certificate.py --manifest tools/zeno_oracle_disaster_obligation_certificate_manifest.json
 python3 tools/zeno_oracle_workflow_evidence_status.py --format text
+cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
 python3 tools/zenoproof_verify.py self-test --registry tools/zenoproof_registry_manifest.json
 python3 tools/zenoproof_reward_payout_replay.py --format text --registry tools/zenoproof_registry_manifest.json
 python3 tools/check_claims_registry.py
@@ -61,9 +62,9 @@ python3 tools/check_runtime_shell_assurance_manifest.py
    and governance-approved payout/slash/dispute flows.
 4. Broader disaster search: expand beyond the first-shell selected corpus and
    maintain public evidence for every newly promoted disaster family.
-5. General formal math: lift current Julia/Lean witnesses into generalized
-   theorems for median/deviation, economics, DAG closure, synchronization, and
-   typed Oracle binding.
+5. General formal math: extend the promoted generalized boundary theorems into
+   concrete runtime instantiation proofs, executable DAG closure, broader
+   median/economics families, and full synchronization theorem coverage.
 6. Deeper proof lanes: strengthen ESSO/TLA/LTLf/Morph evidence beyond current
    bounded anchors and promote only replayable public outputs.
 7. ZenoProof productionization: replace local static sample verifiers with
@@ -73,6 +74,7 @@ python3 tools/check_runtime_shell_assurance_manifest.py
 ## Completion Decision
 
 The active goal is not complete. The workspace now has strong devnet and local
-v0 evidence, including O5 independence-witness checking, but production network,
-live settlement, broader disaster search, generalized formal proofs, and final
-branch integration remain open.
+v0 evidence, including O5 independence-witness checking and generalized Lean
+boundary proofs, but production network, live settlement, broader disaster
+search, runtime-instantiated formal proofs, and final branch integration remain
+open.

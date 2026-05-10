@@ -1546,6 +1546,30 @@ claims:
         - docs/research/ZENO_ORACLE_MATH_EVIDENCE_LANE.md
         - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
 
+  - id: lean:zeno_oracle:generalized_math_boundary_v1
+    status: supported
+    layer: assurance
+    statement: >
+      The ZenoOracle generalized Lean boundary layer proves reusable
+      first-shell laws for max-deviation component closure and one-sided
+      deviation rejection, self-divergence zero, epoch-lag symmetry and zero
+      equivalence, stale/freshness rejection and monotone lag windows,
+      reward-pool conservation and sequential payout composition, O5
+      independence DAG-closure and distinct-verifier requirements, typed
+      authorization action/action-facts/pre-state binding, receipt-borrowing
+      rejection, and stale-oracle rejection at the critical runtime boundary.
+      This is an abstract theorem layer; live oracle truth, cryptographic
+      signature security, production code signing, production settlement,
+      proof-network liveness, and proof that every Python runtime path
+      instantiates every abstract predicate remain outside the claim.
+    evidence:
+      kind: lean
+      check:
+        - cmd: cd lean-mathlib && lake env lean Proofs/ZenoOracleGeneralizationV1.lean
+      files:
+        - lean-mathlib/Proofs/ZenoOracleGeneralizationV1.lean
+        - lean-mathlib/proof_receipts/zeno_oracle_generalization_v1.json
+
   - id: py:zeno_oracle:workflow_evidence_status_v1
     status: supported
     layer: assurance
