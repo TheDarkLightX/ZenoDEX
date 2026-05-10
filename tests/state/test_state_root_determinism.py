@@ -11,7 +11,7 @@ from src.state.state_root import STATE_ROOT_VERSION, compute_state_root
 
 
 def test_state_root_version_commits_lp_age_schema() -> None:
-    assert STATE_ROOT_VERSION == 3
+    assert STATE_ROOT_VERSION == 4
 
 
 def test_state_root_is_insertion_order_independent() -> None:

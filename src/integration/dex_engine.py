@@ -34,6 +34,7 @@ from ..state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 from ..state.state_root import compute_state_root
 from ..state.support_root import compute_support_state_root_for_batch
 from .lp_position_age_gate import (
+    LPDurationRiskPolicy,
     apply_lp_mint_timestamps_after_settlement,
     validate_lp_settlement_age_gate,
 )
@@ -212,6 +213,9 @@ class DexEngineConfig:
     # Optional LP duration-risk gate. When positive, REMOVE_LIQUIDITY burns must
     # be at least this old according to runtime-tracked LP mint timestamps.
     min_lp_position_age_seconds: int = 0
+    # Optional accepted-lifecycle churn policy. When set, the effective LP age
+    # floor grows with committed LP churn metadata and decays over quiet periods.
+    lp_duration_risk_policy: Optional[LPDurationRiskPolicy] = None
 
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
@@ -257,6 +261,10 @@ class DexEngineConfig:
             raise TypeError("min_lp_position_age_seconds must be an int")
         if self.min_lp_position_age_seconds < 0:
             raise ValueError("min_lp_position_age_seconds must be non-negative")
+        if self.lp_duration_risk_policy is not None and not isinstance(
+            self.lp_duration_risk_policy, LPDurationRiskPolicy
+        ):
+            raise TypeError("lp_duration_risk_policy must be an LPDurationRiskPolicy")
 
 
 @dataclass(frozen=True)
@@ -1119,6 +1127,7 @@ def apply_ops(
                 lp_balances=state.lp_balances,
                 block_timestamp=block_timestamp,
                 min_lp_position_age_seconds=config.min_lp_position_age_seconds,
+                duration_risk_policy=config.lp_duration_risk_policy,
             )
             if err is not None:
                 return DexTxResult(ok=False, error=err)
@@ -1289,6 +1298,7 @@ def apply_ops(
             lp_balances=next_lp,
             settlement=settlement,
             block_timestamp=block_timestamp,
+            duration_risk_policy=config.lp_duration_risk_policy,
         )
         if err is not None:
             return DexTxResult(ok=False, error=err)

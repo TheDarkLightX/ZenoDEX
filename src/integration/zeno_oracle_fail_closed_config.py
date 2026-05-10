@@ -6,6 +6,7 @@ from dataclasses import replace
 from typing import Any
 
 from .dex_engine import DexEngineConfig
+from .lp_position_age_gate import LPDurationRiskPolicy
 from .perp_engine import OracleAdapterBridgeVerifier, PerpEngineConfig
 
 ZENO_ORACLE_FAIL_CLOSED_ENV: dict[str, str] = {
@@ -15,6 +16,14 @@ ZENO_ORACLE_FAIL_CLOSED_ENV: dict[str, str] = {
 }
 
 ZENO_ORACLE_MIN_LP_POSITION_AGE_SECONDS = 300
+ZENO_ORACLE_LP_DURATION_RISK_POLICY = LPDurationRiskPolicy(
+    base_age_seconds=300,
+    max_age_seconds=3600,
+    churn_window_seconds=86_400,
+    decay_seconds=86_400,
+    multiplier=2,
+    max_churn_tier=5,
+)
 
 
 def zeno_oracle_fail_closed_env() -> dict[str, str]:
@@ -35,6 +44,7 @@ def zeno_oracle_fail_closed_dex_config(**overrides: Any) -> DexEngineConfig:
             int(cfg.min_lp_position_age_seconds),
             ZENO_ORACLE_MIN_LP_POSITION_AGE_SECONDS,
         ),
+        lp_duration_risk_policy=cfg.lp_duration_risk_policy or ZENO_ORACLE_LP_DURATION_RISK_POLICY,
     )
 
 
