@@ -21,7 +21,7 @@ from .canonical import (
 )
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
-from .pools import PoolState, PoolStatus
+from .pools import POOL_FEE_BPS_MAX, PoolState, PoolStatus
 
 STATE_ROOT_VERSION = 4
 
@@ -143,7 +143,7 @@ def _encode_pools_section(pools: Mapping[str, PoolState]) -> bytes:
         ):
             if not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 raise ValueError(f"invalid pool {name}: {v!r}")
-        if pool.fee_bps > 10_000:
+        if pool.fee_bps > POOL_FEE_BPS_MAX:
             raise ValueError(f"invalid pool fee_bps: {pool.fee_bps!r}")
 
         out += pool_b

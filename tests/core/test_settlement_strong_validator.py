@@ -2397,30 +2397,29 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     assert err.startswith(f"swap apply error for intent_id={intent.intent_id}:")
 
 
-def test_compute_settlement_rejects_exact_out_when_cpmm_fee_is_100_percent() -> None:
+def test_compute_settlement_rejects_invalid_100_percent_fee_pool_state() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, _settlement = _setup_swap_exact_out_context()
-    fee_pool = replace(pool, fee_bps=10_000)
+    fee_pool = replace(pool)
+    fee_pool.fee_bps = 10_000
 
-    settlement = compute_settlement(
-        [intent],
-        {pool_id: fee_pool},
-        balances,
-        LPTable(),
-        swap_ordering="greedy_ab_refined",
-    )
-
-    assert len(settlement.fills) == 1
-    fill = settlement.fills[0]
-    assert fill.action == FillAction.REJECT
-    assert fill.reason is not None
-    assert "cannot compute with 100% fee" in fill.reason
-    assert settlement.balance_deltas == []
-    assert settlement.reserve_deltas == []
+    try:
+        compute_settlement(
+            [intent],
+            {pool_id: fee_pool},
+            balances,
+            LPTable(),
+            swap_ordering="greedy_ab_refined",
+        )
+    except ValueError as exc:
+        assert "fee_bps must be in [0, 9999]" in str(exc)
+    else:
+        assert False, "expected malformed 100 percent fee pool state to reject before settlement"
 
 
 def test_strong_validator_rejects_filled_exact_out_when_cpmm_fee_is_100_percent() -> None:
     _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
-    fee_pool = replace(pool, fee_bps=10_000)
+    fee_pool = replace(pool)
+    fee_pool.fee_bps = 10_000
     malicious_fill = replace(
         settlement.fills[0],
         action=FillAction.FILL,
@@ -2450,8 +2449,8 @@ def test_strong_validator_rejects_filled_exact_out_when_cpmm_fee_is_100_percent(
 
     assert ok is False
     assert err is not None
-    assert err.startswith(f"swap_exact_out kernel error for intent_id={intent.intent_id}:")
-    assert "cannot compute with 100% fee" in err
+    assert err.startswith(f"invalid pre_pool state for pool_id={pool_id}:")
+    assert "fee_bps must be in [0, 9999]" in err
 
 
 def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
@@ -2481,7 +2480,7 @@ def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
     assert ok is False
     assert err == f"invalid CREATE_POOL asset ids for intent_id={intent.intent_id}"
 
-    invalid_fee_intent = replace(intent, fields={**intent.fields, "fee_bps": 10_001})
+    invalid_fee_intent = replace(intent, fields={**intent.fields, "fee_bps": 10_000})
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[invalid_fee_intent],

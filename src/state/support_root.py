@@ -27,7 +27,7 @@ from .canonical import (
 from .intents import Intent, IntentKind
 from .lp import LPDurationRiskMetadata, LPTable
 from .nonces import NonceTable
-from .pools import PoolState, PoolStatus, compute_pool_id
+from .pools import POOL_FEE_BPS_MAX, PoolState, PoolStatus, compute_pool_id
 
 SUPPORT_ROOT_VERSION = 4
 
@@ -226,7 +226,7 @@ def compute_support_state_root(
         ):
             if not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 raise ValueError(f"invalid pool {name}: {v!r}")
-        if pool.fee_bps > 10_000:
+        if pool.fee_bps > POOL_FEE_BPS_MAX:
             raise ValueError(f"invalid pool fee_bps: {pool.fee_bps!r}")
         pool_out += pool_b
         pool_out += asset0_b

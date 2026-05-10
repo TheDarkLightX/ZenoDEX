@@ -39,7 +39,7 @@ from ..state.canonical import (
 )
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
-from ..state.pools import PoolState, PoolStatus
+from ..state.pools import POOL_FEE_BPS_MAX, PoolState, PoolStatus
 
 DEX_SNAPSHOT_VERSION = 4
 
@@ -335,7 +335,7 @@ def state_from_snapshot(
         except ValueError as exc:
             raise ValueError(f"invalid pool status: {status_raw}") from exc
         fee_bps = _require_int(entry.get("fee_bps", 0), name="fee_bps")
-        if fee_bps > 10_000:
+        if fee_bps > POOL_FEE_BPS_MAX:
             raise ValueError(f"fee_bps out of range for pool {pool_id}: {fee_bps}")
         pools[pool_id] = PoolState(
             pool_id=pool_id,

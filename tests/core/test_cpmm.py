@@ -137,8 +137,7 @@ def test_swap_exact_out_overdelivery_gap_bps_guard() -> None:
 
 
 def test_swap_exact_out_rejects_fee_bps_10000() -> None:
-    # Exact-out pricing divides by (10_000 - fee_bps).  A 100% fee pool may
-    # exist as a dead exact-out market, but exact-out execution must fail closed.
+    # Exact-out pricing divides by (10_000 - fee_bps), so 100% fees fail closed.
     try:
         swap_exact_out(
             reserve_in=1_000,
@@ -150,3 +149,17 @@ def test_swap_exact_out_rejects_fee_bps_10000() -> None:
         assert "cannot compute with 100% fee" in str(exc)
     else:
         assert False, "expected exact-out to reject fee_bps=10000"
+
+
+def test_swap_exact_in_rejects_fee_bps_10000_without_state_change() -> None:
+    try:
+        swap_exact_in(
+            reserve_in=1_000,
+            reserve_out=1_000,
+            amount_in=10,
+            fee_bps=10_000,
+        )
+    except ValueError as exc:
+        assert "net_in must be positive" in str(exc)
+    else:
+        assert False, "expected exact-in to reject fee_bps=10000"

@@ -179,7 +179,7 @@ def test_state_root_rejects_duplicate_decoded_pool_ids() -> None:
         compute_state_root(balances=BalanceTable(), pools=pools, lp_balances=LPTable())
 
 
-def test_state_root_rejects_fee_bps_above_10000() -> None:
+def test_state_root_rejects_100_percent_fee_pool() -> None:
     pk = "0x" + "11" * 48
     asset0 = "0x" + "01" * 32
     asset1 = "0x" + "02" * 32
@@ -194,7 +194,7 @@ def test_state_root_rejects_fee_bps_above_10000() -> None:
         created_at=0,
     )
 
-    pool.fee_bps = 10_001
+    pool.fee_bps = 10_000
     with pytest.raises(ValueError):
         compute_state_root(balances=BalanceTable(), pools={pool_id: pool}, lp_balances=LPTable())
 
