@@ -223,20 +223,17 @@ def _fallback_find_profitable_attack_alt(
 def _fallback_morph_oracle_clamp_smoke() -> tuple[str, str]:
     from tools.perp_oracle_manipulation_lp_sweep import find_profitable_attack
 
-    sigma = {
-        "reserve_base": 100_000,
-        "reserve_quote_values": [100_000],
-        "fee_bps_values": [30],
-        "protocol_fee_share_values": [5_000],
-        "lp_share_bps": 5_000,
-        "max_r": 1,
-        "max_pos_abs": 1,
-        "target_profit_quote": 1,
-        "protocol_fee_rounding": "ceil",
-        "min_claimed_points": 1,
-        "max_r_check2": 1,
-        "max_pos_abs_check2": 1,
-    }
+    reserve_base = 100_000
+    reserve_quote_values = [100_000]
+    fee_bps_values = [30]
+    protocol_fee_share_values = [5_000]
+    lp_share_bps = 5_000
+    max_r = 1
+    max_pos_abs = 1
+    target_profit_quote = 1
+    protocol_fee_rounding = "ceil"
+    max_r_check2 = 1
+    max_pos_abs_check2 = 1
     rule = {
         "rq_le_200": 200,
         "base_bound": 0,
@@ -249,38 +246,38 @@ def _fallback_morph_oracle_clamp_smoke() -> tuple[str, str]:
         "tighten_high_rq": True,
         "tighten_requires_low_pfs": True,
     }
-    for rq in sigma["reserve_quote_values"]:
-        for fee in sigma["fee_bps_values"]:
-            for pfs in sigma["protocol_fee_share_values"]:
+    for rq in reserve_quote_values:
+        for fee in fee_bps_values:
+            for pfs in protocol_fee_share_values:
                 max_move = _fallback_rule_bound(
                     rule,
-                    reserve_quote=int(rq),
-                    fee_bps=int(fee),
-                    protocol_fee_share_bps=int(pfs),
+                    reserve_quote=rq,
+                    fee_bps=fee,
+                    protocol_fee_share_bps=pfs,
                 )
                 check = find_profitable_attack(
-                    reserve_base=int(sigma["reserve_base"]),
-                    reserve_quote=int(rq),
-                    fee_bps=int(fee),
-                    protocol_fee_share_bps=int(pfs),
-                    lp_share_bps=int(sigma["lp_share_bps"]),
-                    max_r=int(sigma["max_r"]),
-                    max_pos_abs=int(sigma["max_pos_abs"]),
-                    max_move_bps=int(max_move),
-                    target_profit_quote=int(sigma["target_profit_quote"]),
-                    protocol_fee_rounding=str(sigma["protocol_fee_rounding"]),
+                    reserve_base=reserve_base,
+                    reserve_quote=rq,
+                    fee_bps=fee,
+                    protocol_fee_share_bps=pfs,
+                    lp_share_bps=lp_share_bps,
+                    max_r=max_r,
+                    max_pos_abs=max_pos_abs,
+                    max_move_bps=max_move,
+                    target_profit_quote=target_profit_quote,
+                    protocol_fee_rounding=protocol_fee_rounding,
                 )
                 check2 = _fallback_find_profitable_attack_alt(
-                    reserve_base=int(sigma["reserve_base"]),
-                    reserve_quote=int(rq),
-                    fee_bps=int(fee),
-                    protocol_fee_share_bps=int(pfs),
-                    lp_share_bps=int(sigma["lp_share_bps"]),
-                    max_r=int(sigma["max_r_check2"]),
-                    max_pos_abs=int(sigma["max_pos_abs_check2"]),
-                    max_move_bps=int(max_move),
-                    target_profit_quote=int(sigma["target_profit_quote"]),
-                    protocol_fee_rounding=str(sigma["protocol_fee_rounding"]),
+                    reserve_base=reserve_base,
+                    reserve_quote=rq,
+                    fee_bps=fee,
+                    protocol_fee_share_bps=pfs,
+                    lp_share_bps=lp_share_bps,
+                    max_r=max_r_check2,
+                    max_pos_abs=max_pos_abs_check2,
+                    max_move_bps=max_move,
+                    target_profit_quote=target_profit_quote,
+                    protocol_fee_rounding=protocol_fee_rounding,
                 )
                 if check is not None:
                     return "CheckResult.FAIL", "CheckResult.PASS"
