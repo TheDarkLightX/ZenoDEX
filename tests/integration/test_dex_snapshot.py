@@ -442,7 +442,7 @@ def test_state_from_snapshot_rejects_snapshot_too_large_when_limited() -> None:
         state_from_snapshot(snap, max_snapshot_bytes=256)
 
 
-def test_state_from_snapshot_rejects_fee_bps_above_10000() -> None:
+def test_state_from_snapshot_rejects_100_percent_fee_pool() -> None:
     asset0 = "0x" + "11" * 32
     asset1 = "0x" + "22" * 32
     snap = {
@@ -453,7 +453,7 @@ def test_state_from_snapshot_rejects_fee_bps_above_10000() -> None:
                 "pool_id": "0x" + "aa" * 32,
                 "asset0": asset0,
                 "asset1": asset1,
-                "fee_bps": 10_001,
+                "fee_bps": 10_000,
             }
         ],
         "lp_balances": [],

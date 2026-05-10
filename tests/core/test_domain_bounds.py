@@ -16,6 +16,22 @@ def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
 
 
+def test_create_pool_rejects_100_percent_fee() -> None:
+    pk = "0x" + "11" * 48
+    asset0 = "0x" + "01" * 32
+    asset1 = "0x" + "02" * 32
+
+    with pytest.raises(ValueError, match="fee_bps exceeds kernel domain max 9999"):
+        create_pool(
+            asset0=asset0,
+            asset1=asset1,
+            amount0=100_000,
+            amount1=100_000,
+            fee_bps=10_000,
+            creator_pubkey=pk,
+        )
+
+
 def test_swap_exact_in_rejects_post_update_reserve_overflow() -> None:
     with pytest.raises(ValueError, match="swap would exceed reserve_in domain max"):
         swap_exact_in(
