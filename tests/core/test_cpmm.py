@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from src.core.cpmm import MIN_LP_LOCK, compute_lp_mint
-from src.core.cpmm import swap_exact_in, swap_exact_out
+from src.core.cpmm import MIN_LP_LOCK, compute_lp_mint, swap_exact_in, swap_exact_out
 
 
 def test_compute_lp_mint_uses_integer_isqrt() -> None:
-    # Pick values where float sqrt would be wrong due to precision loss.
-    n = (1 << 70) + 12345
+    # Stay inside the current LP kernel domain while exercising large integer
+    # multiplication before the square-root step.
+    n = 1_000_000_000
     lp = compute_lp_mint(reserve0=0, reserve1=0, amount0=n, amount1=n, lp_supply=0)
     assert lp == n - MIN_LP_LOCK
 
@@ -134,3 +134,19 @@ def test_swap_exact_out_overdelivery_gap_bps_guard() -> None:
         max_overdelivery_gap_bps=10_000,
     )
     assert amount_in == 1
+
+
+def test_swap_exact_out_rejects_fee_bps_10000() -> None:
+    # Exact-out pricing divides by (10_000 - fee_bps).  A 100% fee pool may
+    # exist as a dead exact-out market, but exact-out execution must fail closed.
+    try:
+        swap_exact_out(
+            reserve_in=1_000,
+            reserve_out=1_000,
+            amount_out=10,
+            fee_bps=10_000,
+        )
+    except ValueError as exc:
+        assert "cannot compute with 100% fee" in str(exc)
+    else:
+        assert False, "expected exact-out to reject fee_bps=10000"

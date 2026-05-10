@@ -2397,6 +2397,63 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     assert err.startswith(f"swap apply error for intent_id={intent.intent_id}:")
 
 
+def test_compute_settlement_rejects_exact_out_when_cpmm_fee_is_100_percent() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, _settlement = _setup_swap_exact_out_context()
+    fee_pool = replace(pool, fee_bps=10_000)
+
+    settlement = compute_settlement(
+        [intent],
+        {pool_id: fee_pool},
+        balances,
+        LPTable(),
+        swap_ordering="greedy_ab_refined",
+    )
+
+    assert len(settlement.fills) == 1
+    fill = settlement.fills[0]
+    assert fill.action == FillAction.REJECT
+    assert fill.reason is not None
+    assert "cannot compute with 100% fee" in fill.reason
+    assert settlement.balance_deltas == []
+    assert settlement.reserve_deltas == []
+
+
+def test_strong_validator_rejects_filled_exact_out_when_cpmm_fee_is_100_percent() -> None:
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
+    fee_pool = replace(pool, fee_bps=10_000)
+    malicious_fill = replace(
+        settlement.fills[0],
+        action=FillAction.FILL,
+        amount_in_filled=1,
+        amount_out_filled=int(intent.fields["amount_out"]),
+        fee_paid=0,
+    )
+    malicious_settlement = Settlement(
+        module=settlement.module,
+        version=settlement.version,
+        batch_ref=settlement.batch_ref,
+        included_intents=[(intent.intent_id, FillAction.FILL)],
+        fills=[malicious_fill],
+        balance_deltas=[],
+        reserve_deltas=[],
+        lp_deltas=[],
+    )
+
+    ok, err = validate_settlement_strong(
+        settlement=malicious_settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool_id: fee_pool},
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+    )
+
+    assert ok is False
+    assert err is not None
+    assert err.startswith(f"swap_exact_out kernel error for intent_id={intent.intent_id}:")
+    assert "cannot compute with 100% fee" in err
+
+
 def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
     _pk, asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
 

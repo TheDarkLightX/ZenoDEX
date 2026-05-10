@@ -145,6 +145,16 @@ def test_quote_cpmm_swap_exact_out_rejects_known_overdelivery_policy_case() -> N
         )
 
 
+def test_quote_cpmm_swap_exact_out_rejects_fee_bps_10000() -> None:
+    with pytest.raises(ValueError, match="cannot compute with 100% fee"):
+        quote_cpmm_swap_exact_out(
+            reserve_in=1_000,
+            reserve_out=1_000,
+            amount_out=10,
+            fee_bps=10_000,
+        )
+
+
 @pytest.mark.parametrize(
     ("kwargs", "exc_type", "pattern"),
     [
