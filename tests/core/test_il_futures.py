@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from src.core.il_futures_math import compute_il_bps, compute_payout
 from src.core.il_futures import (
+    ILF_TWAP_REFERENCE_SOURCE_KIND,
     ILFAction,
     ILFActionParams,
     ILFState,
     step,
 )
-
+from src.core.il_futures_math import compute_il_bps, compute_payout
 
 # ---------------------------------------------------------------------------
 # IL Math
@@ -206,6 +206,34 @@ def test_snapshot_no_auth_rejected() -> None:
     assert not r.accepted
 
 
+def test_snapshot_requires_twap_reference_when_hardened_mode_enabled() -> None:
+    s = ILFState(require_twap_reference=True, min_twap_window_blocks=10)
+
+    spot = step(s, ILFActionParams(
+        action=ILFAction.SNAPSHOT_EPOCH_START,
+        reserve_x=1000000,
+        reserve_y=1000000,
+        auth_ok=True,
+        reference_source_kind="spot",
+        twap_window_blocks=10,
+        reference_elapsed_blocks=1,
+    ))
+    twap = step(s, ILFActionParams(
+        action=ILFAction.SNAPSHOT_EPOCH_START,
+        reserve_x=1000000,
+        reserve_y=1000000,
+        auth_ok=True,
+        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
+        twap_window_blocks=10,
+        reference_elapsed_blocks=1,
+    ))
+
+    assert not spot.accepted
+    assert twap.accepted
+    assert twap.state is not None
+    assert twap.state.snapshot_taken is True
+
+
 def test_snapshot_twice_rejected() -> None:
     s = ILFState(snapshot_taken=True)
     r = step(s, ILFActionParams(
@@ -253,6 +281,45 @@ def test_settle_no_auth_rejected() -> None:
         auth_ok=False,
     ))
     assert not r.accepted
+
+
+def test_settle_requires_elapsed_twap_reference_when_hardened_mode_enabled() -> None:
+    s = ILFState(
+        snapshot_taken=True,
+        pool_snapshot_reserve_x=1000000,
+        pool_snapshot_reserve_y=1000000,
+        long_exposure=100000,
+        short_exposure=200000,
+        premium_pool=5000,
+        margin_pool=200000,
+        require_twap_reference=True,
+        min_twap_window_blocks=10,
+        min_reference_elapsed_blocks=1,
+    )
+
+    same_block = step(s, ILFActionParams(
+        action=ILFAction.SETTLE_IL_EPOCH,
+        current_reserve_x=500000,
+        current_reserve_y=2000000,
+        auth_ok=True,
+        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
+        twap_window_blocks=10,
+        reference_elapsed_blocks=0,
+    ))
+    elapsed = step(s, ILFActionParams(
+        action=ILFAction.SETTLE_IL_EPOCH,
+        current_reserve_x=500000,
+        current_reserve_y=2000000,
+        auth_ok=True,
+        reference_source_kind=ILF_TWAP_REFERENCE_SOURCE_KIND,
+        twap_window_blocks=10,
+        reference_elapsed_blocks=1,
+    ))
+
+    assert not same_block.accepted
+    assert elapsed.accepted
+    assert elapsed.state is not None
+    assert elapsed.state.realized_il_bps > 0
 
 
 def test_settle_before_snapshot_rejected() -> None:
@@ -322,27 +389,32 @@ def test_full_lifecycle() -> None:
     # Open short position
     r = step(s, ILFActionParams(action=ILFAction.OPEN_SHORT_IL, amount=200000, auth_ok=True))
     assert r.accepted
+    assert r.state is not None
     s = r.state
 
     # Open long position
     r = step(s, ILFActionParams(action=ILFAction.OPEN_LONG_IL, amount=50000, premium_amount=2000, auth_ok=True))
     assert r.accepted
+    assert r.state is not None
     s = r.state
 
     # Snapshot
     r = step(s, ILFActionParams(action=ILFAction.SNAPSHOT_EPOCH_START, reserve_x=1000000, reserve_y=1000000, auth_ok=True))
     assert r.accepted
+    assert r.state is not None
     s = r.state
 
     # Settle (price changed)
     r = step(s, ILFActionParams(action=ILFAction.SETTLE_IL_EPOCH, current_reserve_x=700000, current_reserve_y=1400000, auth_ok=True))
     assert r.accepted
+    assert r.state is not None
     s = r.state
     assert s.settled_this_epoch is True
 
     # Advance
     r = step(s, ILFActionParams(action=ILFAction.ADVANCE_EPOCH))
     assert r.accepted
+    assert r.state is not None
     assert r.state.epoch == 1
 
 
@@ -443,6 +515,7 @@ def test_open_long_at_leverage_boundary() -> None:
         auth_ok=True,
     ))
     assert r.accepted
+    assert r.state is not None
     assert r.state.long_exposure == 100000
 
 
@@ -505,6 +578,8 @@ def test_settle_payout_fee_accounting() -> None:
         auth_ok=True,
     ))
     assert r.accepted
+    assert r.state is not None
+    assert r.effect is not None
     ns = r.state
     eff = r.effect
 
@@ -564,6 +639,7 @@ def test_settle_margin_short_consistent() -> None:
         auth_ok=True,
     ))
     assert r.accepted
+    assert r.state is not None
     assert r.state.margin_pool == r.state.short_exposure
 
 
@@ -586,6 +662,7 @@ def test_close_short_after_settle() -> None:
         auth_ok=True,
     ))
     assert r.accepted
+    assert r.state is not None
     s = r.state
 
     # Close part of short position
@@ -598,6 +675,7 @@ def test_close_short_after_settle() -> None:
             auth_ok=True,
         ))
         assert r.accepted
+        assert r.state is not None
         assert r.state.short_exposure == s.short_exposure - close_amt
         assert r.state.margin_pool == s.margin_pool - close_amt
 
