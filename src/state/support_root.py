@@ -29,7 +29,7 @@ from .lp import LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus, compute_pool_id
 
-SUPPORT_ROOT_VERSION = 2
+SUPPORT_ROOT_VERSION = 3
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -286,7 +286,7 @@ def compute_support_state_root(
         lp_mint_out += pk_b
         lp_mint_out += pool_b
         lp_mint_out += encode_uvarint(timestamp)
-    lp_mint_section = bytes(lp_mint_out) if lp_mint_entries else b""
+    lp_mint_section = bytes(lp_mint_out)
 
     nonce_out = bytearray()
     nonce_entries: list[tuple[bytes, int]] = []
@@ -315,11 +315,11 @@ def compute_support_state_root(
         + encode_bytes(pools_section)
         + b"LPB"
         + encode_bytes(lp_section)
+        + b"LPA"
+        + encode_bytes(lp_mint_section)
         + b"NNC"
         + encode_bytes(nonce_section)
     )
-    if lp_mint_section:
-        payload += b"LPA" + encode_bytes(lp_mint_section)
     return sha256_hex(payload)
 
 

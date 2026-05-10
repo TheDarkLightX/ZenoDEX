@@ -1,5 +1,5 @@
 """
-Deterministic state root hashing (v2).
+Deterministic state root hashing (v3).
 
 This is intended for:
 - debugging / audit (stable hashes for the same logical state),
@@ -23,7 +23,7 @@ from .lp import LPTable
 from .nonces import NonceTable
 from .pools import PoolState, PoolStatus
 
-STATE_ROOT_VERSION = 2
+STATE_ROOT_VERSION = 3
 
 _POOL_STATUS_CODE: dict[PoolStatus, int] = {
     PoolStatus.ACTIVE: 1,
@@ -213,12 +213,7 @@ def compute_state_root(
     balances_section = _encode_balances_section(balances)
     pools_section = _encode_pools_section(pools)
     lp_section = _encode_lp_section(lp_balances)
-    lp_mint_timestamp_entries = lp_balances.get_all_last_mint_timestamps()
-    lp_mint_timestamp_section = (
-        _encode_lp_mint_timestamp_section(lp_balances)
-        if lp_mint_timestamp_entries
-        else b""
-    )
+    lp_mint_timestamp_section = _encode_lp_mint_timestamp_section(lp_balances)
     nonce_section = _encode_nonce_section(nonce_table)
 
     payload = (
@@ -229,9 +224,9 @@ def compute_state_root(
         + encode_bytes(pools_section)
         + b"LPB"
         + encode_bytes(lp_section)
+        + b"LPA"
+        + encode_bytes(lp_mint_timestamp_section)
         + b"NNC"
         + encode_bytes(nonce_section)
     )
-    if lp_mint_timestamp_section:
-        payload += b"LPA" + encode_bytes(lp_mint_timestamp_section)
     return sha256_hex(payload)

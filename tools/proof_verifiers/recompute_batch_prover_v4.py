@@ -23,8 +23,17 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.core.intent_normal_form import IntentNormalFormError, require_normal_form  # noqa: E402
 from src.core.settlement_normal_form import normalize_settlement_op_for_commitment  # noqa: E402
 from src.integration.dex_snapshot import DEX_SNAPSHOT_VERSION, state_from_snapshot  # noqa: E402
-from src.integration.operations import create_settlement_operation, parse_intents, parse_settlement  # noqa: E402
-from src.state.canonical import CANONICAL_ENCODING_VERSION, canonical_json_bytes, domain_sep_bytes, sha256_hex  # noqa: E402
+from src.integration.operations import (  # noqa: E402
+    create_settlement_operation,
+    parse_intents,
+    parse_settlement,
+)
+from src.state.canonical import (  # noqa: E402
+    CANONICAL_ENCODING_VERSION,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 from src.state.support_root import (  # noqa: E402
     BatchStateSupport,
     compute_support_state_root,
@@ -108,12 +117,23 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
     pools_entries.sort(key=lambda e: e["pool_id"])
 
     lp_entries = []
+    lp_mint_timestamp_entries = []
     for pubkey, pool_id in support.lp_keys:
         amount = state.lp_balances.get(pubkey, pool_id)
         if amount == 0:
             continue
         lp_entries.append({"pubkey": pubkey, "pool_id": pool_id, "amount": int(amount)})
+        timestamp = state.lp_balances.get_last_mint_timestamp(pubkey, pool_id)
+        if timestamp is not None:
+            lp_mint_timestamp_entries.append(
+                {
+                    "pubkey": pubkey,
+                    "pool_id": pool_id,
+                    "last_mint_timestamp": int(timestamp),
+                }
+            )
     lp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
+    lp_mint_timestamp_entries.sort(key=lambda e: (e["pubkey"], e["pool_id"]))
 
     nonce_entries = []
     for pubkey in support.nonce_keys:
@@ -147,6 +167,7 @@ def _project_snapshot(state: Any, support: BatchStateSupport) -> Dict[str, Any]:
         "balances": balances_entries,
         "pools": pools_entries,
         "lp_balances": lp_entries,
+        "lp_mint_timestamps": lp_mint_timestamp_entries,
         "nonces": nonce_entries,
         "fee_accumulator": fee_acc_obj,
         "vault": vault_obj,
