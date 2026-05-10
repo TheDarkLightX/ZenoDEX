@@ -27,7 +27,14 @@ import Proofs.VolatilityTierSafety
 import Proofs.CurveSelectionSafety
 import Proofs.ZenoDEXNonces
 import Proofs.ZenoDEXRoutingArgmin
+import Proofs.ZenoDEXExactInTrueKeyWinner
 import Proofs.ZenoDEXExactOutManyPoolPathWitnessCanonicalCandidateMinimum
+import Proofs.ZenoDEXExactOutManyPoolCpmmOrderedQuotedPathCompleteness
+import Proofs.ZenoDEXExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness
+import Proofs.ZenoDEXExactOutManyPoolQuotedPathQuoteStreamCompleteness
+import Proofs.ZenoDEXExactOutManyPoolRepairedAdvisoryQuotePacket
+import Proofs.ZenoDEXExactOutManyPoolRepairedFullDomainCertifiedPacket
+import Proofs.ZenoDEXExactOutManyPoolRepairedPrefilterSemanticBridge
 import Proofs.ZenoDEXRounding
 import Proofs.BatchApproximation
 import Proofs.ExactOutAdaptiveGate
@@ -42,6 +49,7 @@ import Proofs.CBCDisasterStateRefactors
 import Proofs.CertifiedFinancialMathObjects
 import Proofs.CALCoreSoundness
 import Proofs.ZenoPayoffLanguage
+import Proofs.ZenoDEXSettlementAttestationAllowlist
 
 /-!
 Proofs library root.
