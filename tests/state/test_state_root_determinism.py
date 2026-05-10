@@ -7,7 +7,11 @@ import pytest
 from src.core.liquidity import create_pool
 from src.state import BalanceTable, LPTable
 from src.state.nonces import NonceTable
-from src.state.state_root import compute_state_root
+from src.state.state_root import STATE_ROOT_VERSION, compute_state_root
+
+
+def test_state_root_version_commits_lp_age_schema() -> None:
+    assert STATE_ROOT_VERSION == 3
 
 
 def test_state_root_is_insertion_order_independent() -> None:

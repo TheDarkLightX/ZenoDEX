@@ -41,7 +41,7 @@ from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from ..state.pools import PoolState, PoolStatus
 
-DEX_SNAPSHOT_VERSION = 2
+DEX_SNAPSHOT_VERSION = 3
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -241,6 +241,7 @@ def state_from_snapshot(
     max_perp_markets: int = 10_000,
     max_perp_accounts: int = 200_000,
     max_str_len: int = 4096,
+    require_lp_mint_timestamps: bool = False,
 ) -> DexState:
     if not isinstance(snapshot, Mapping):
         raise TypeError("snapshot must be a mapping")
@@ -268,7 +269,7 @@ def state_from_snapshot(
     version = snapshot.get("version", DEX_SNAPSHOT_VERSION)
     if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
         raise ValueError("snapshot.version must be a positive int")
-    if version not in (1, 2):
+    if version not in (1, 2, 3):
         raise ValueError(f"unsupported snapshot version: {version}")
 
     balances = BalanceTable()
@@ -362,6 +363,8 @@ def state_from_snapshot(
         lp_balances.set(pk_s, pool_id_s, amount)
 
     lp_mint_timestamp_entries = snapshot.get("lp_mint_timestamps")
+    if version >= 3 and lp_mint_timestamp_entries is None:
+        raise ValueError("snapshot.lp_mint_timestamps is required for snapshot v3")
     if lp_mint_timestamp_entries is None:
         lp_mint_timestamp_entries = []
     if not isinstance(lp_mint_timestamp_entries, list):
@@ -386,6 +389,16 @@ def state_from_snapshot(
             raise ValueError("duplicate lp_mint_timestamps entry (pubkey, pool_id)")
         seen_lp_mint.add(key)
         lp_balances.set_last_mint_timestamp(pk_s, pool_id_s, timestamp)
+
+    if require_lp_mint_timestamps:
+        missing_lp_age = [
+            (pk, pool_id)
+            for (pk, pool_id), amount in lp_balances.get_all_balances().items()
+            if amount > 0 and lp_balances.get_last_mint_timestamp(pk, pool_id) is None
+        ]
+        if missing_lp_age:
+            pk, pool_id = sorted(missing_lp_age)[0]
+            raise ValueError(f"missing lp_mint_timestamps entry for positive LP balance: {pk}:{pool_id}")
 
     nonces = NonceTable()
     nonce_entries = snapshot.get("nonces")

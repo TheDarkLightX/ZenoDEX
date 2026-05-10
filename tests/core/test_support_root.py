@@ -10,6 +10,7 @@ from src.state.lp import LPTable
 from src.state.nonces import NonceTable
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
 from src.state.support_root import (
+    SUPPORT_ROOT_VERSION,
     BatchStateSupport,
     compute_support_state_root,
     compute_support_state_root_for_batch,
@@ -19,6 +20,10 @@ from src.state.support_root import (
 
 def _iid(n: int) -> str:
     return "0x" + f"{n:064x}"
+
+
+def test_support_root_version_commits_lp_age_schema() -> None:
+    assert SUPPORT_ROOT_VERSION == 3
 
 
 def test_support_root_commits_to_balances_for_add_liquidity_into_new_pool() -> None:

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from src.core.dex import DexState
 from src.core.settlement import LPDelta, Settlement
-from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
+from src.integration.dex_snapshot import (
+    DEX_SNAPSHOT_VERSION,
+    snapshot_from_state,
+    state_from_snapshot,
+)
 from src.integration.lp_position_age_gate import (
     apply_lp_mint_timestamps_after_settlement,
     validate_lp_position_age_gate,
@@ -322,7 +326,48 @@ def test_lp_mint_timestamp_snapshot_roundtrip() -> None:
     lp.set_last_mint_timestamp(sender, pool_id, 42)
     snapshot = snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=lp)).data
 
+    assert snapshot["version"] == DEX_SNAPSHOT_VERSION == 3
+    assert "lp_mint_timestamps" in snapshot
     restored = state_from_snapshot(snapshot)
 
     assert restored.lp_balances.get(sender, pool_id) == 10
     assert restored.lp_balances.get_last_mint_timestamp(sender, pool_id) == 42
+
+
+def test_snapshot_v3_requires_explicit_lp_mint_timestamp_section() -> None:
+    snapshot = snapshot_from_state(DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())).data
+    snapshot.pop("lp_mint_timestamps")
+
+    try:
+        state_from_snapshot(snapshot)
+    except ValueError as exc:
+        assert str(exc) == "snapshot.lp_mint_timestamps is required for snapshot v3"
+    else:  # pragma: no cover
+        raise AssertionError("expected v3 snapshot without lp_mint_timestamps to reject")
+
+
+def test_snapshot_strict_lp_age_migration_rejects_legacy_positive_lp_without_timestamp() -> None:
+    sender = _pk()
+    pool_id = _pool()
+    snapshot = {
+        "version": 2,
+        "balances": [],
+        "pools": [],
+        "lp_balances": [{"pubkey": sender, "pool_id": pool_id, "amount": 10}],
+        "nonces": [],
+        "fee_accumulator": {"dust": 0},
+        "vault": None,
+        "oracle": None,
+        "perps": None,
+    }
+
+    restored = state_from_snapshot(snapshot)
+    assert restored.lp_balances.get(sender, pool_id) == 10
+    assert restored.lp_balances.get_last_mint_timestamp(sender, pool_id) is None
+
+    try:
+        state_from_snapshot(snapshot, require_lp_mint_timestamps=True)
+    except ValueError as exc:
+        assert str(exc) == f"missing lp_mint_timestamps entry for positive LP balance: {sender}:{pool_id}"
+    else:  # pragma: no cover
+        raise AssertionError("expected strict LP age migration check to reject")
