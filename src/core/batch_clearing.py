@@ -42,7 +42,7 @@ from ..kernels.python.settlement_swap_runtime_v1 import (
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
 from ..state.intents import Intent, IntentKind
 from ..state.lp import LPTable
-from ..state.pools import CURVE_TAG_CPMM, PoolState, PoolStatus
+from ..state.pools import CURVE_TAG_CPMM, POOL_FEE_BPS_MAX, PoolState, PoolStatus
 from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
 from .cpmm import MIN_LP_LOCK, compute_fee_total
 from .domain_limits import DEX_LP_AMOUNT_MAX, is_strict_int
@@ -274,7 +274,11 @@ def _parse_create_pool_event_payload(
         raise ValueError("Invalid CREATE_POOL event: missing pool_id")
     if not isinstance(asset0, str) or not isinstance(asset1, str):
         raise ValueError(f"Invalid CREATE_POOL assets for pool: {pool_id}")
-    if not isinstance(fee_bps, int) or isinstance(fee_bps, bool):
+    if (
+        not isinstance(fee_bps, int)
+        or isinstance(fee_bps, bool)
+        or not (0 <= fee_bps <= POOL_FEE_BPS_MAX)
+    ):
         raise ValueError(f"Invalid CREATE_POOL fee_bps for pool: {pool_id}")
     if not isinstance(curve_tag, str) or not curve_tag:
         raise ValueError(f"Invalid CREATE_POOL curve_tag for pool: {pool_id}")
@@ -399,7 +403,7 @@ def _try_create_pool(
             None,
             "asset ids must be strings",
         )
-    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= 10000):
+    if not is_strict_int(fee_bps) or not (0 <= fee_bps <= POOL_FEE_BPS_MAX):
         return (
             Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_PARAMS"),
             None,

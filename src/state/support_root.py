@@ -17,12 +17,17 @@ from dataclasses import dataclass
 from typing import Mapping, Sequence, Tuple
 
 from .balances import AssetId, BalanceTable, PubKey
-from .canonical import domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex
+from .canonical import (
+    domain_sep_bytes,
+    encode_bytes,
+    encode_uvarint,
+    hex_to_bytes_fixed,
+    sha256_hex,
+)
 from .intents import Intent, IntentKind
 from .lp import LPTable
 from .nonces import NonceTable
-from .pools import PoolState, PoolStatus, compute_pool_id
-
+from .pools import POOL_FEE_BPS_MAX, PoolState, PoolStatus, compute_pool_id
 
 SUPPORT_ROOT_VERSION = 2
 
@@ -218,7 +223,7 @@ def compute_support_state_root(
         ):
             if not isinstance(v, int) or isinstance(v, bool) or v < 0:
                 raise ValueError(f"invalid pool {name}: {v!r}")
-        if pool.fee_bps > 10_000:
+        if pool.fee_bps > POOL_FEE_BPS_MAX:
             raise ValueError(f"invalid pool fee_bps: {pool.fee_bps!r}")
         pool_out += pool_b
         pool_out += asset0_b
