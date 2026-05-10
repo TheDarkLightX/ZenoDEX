@@ -40,10 +40,11 @@ def _authorization_for(
     value_e8: int | None = None,
     evidence_class: str = "O3",
     expires_at_epoch: int | None = None,
+    observed_epoch: int | None = None,
 ) -> dict[str, object]:
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
     query_id = str(runtime["query_id"])
-    observed_epoch = int(runtime["now_epoch"])
+    observed_epoch = int(runtime["now_epoch"] if observed_epoch is None else observed_epoch)
     auth = {
         "consumer_module": "zenodex.trigger",
         "action_kind": "execute_trigger",
@@ -123,6 +124,21 @@ def test_trigger_execute_rejects_expired_authorization() -> None:
 
     assert result["typed_ok"] is False
     assert "authorization expired" in result["typed_errors"]
+
+
+def test_trigger_execute_rejects_stale_but_unexpired_authorization() -> None:
+    facts = _facts()
+    runtime = trigger_execute_runtime_facts(facts)
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]) - 3,
+        expires_at_epoch=int(runtime["now_epoch"]),
+    )
+
+    result = check_trigger_execute_oracle_authorization(authorization_payload=auth, facts=facts)
+
+    assert result["typed_ok"] is False
+    assert "authorization observed_epoch outside runtime freshness window" in result["typed_errors"]
 
 
 def test_trigger_execute_rejects_unsatisfied_trigger_condition() -> None:

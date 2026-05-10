@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.agents.intent_signer import create_swap_intent_from_quote_receipt
+from src.core.dex import DexState
 from src.core.quote_receipts import make_route_quote_receipt
 from src.core.routing import best_route_exact_in_2hop
 from src.integration.dex_engine import DexEngineConfig, apply_ops
@@ -8,7 +9,6 @@ from src.integration.operations import SignedIntentEnvelope, create_signed_inten
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
 from src.integration.zeno_oracle_routing_authorization import protected_swap_runtime_facts
 from src.state import BalanceTable, LPTable
-from src.core.dex import DexState
 from src.state.pools import PoolState, PoolStatus
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 
@@ -51,12 +51,13 @@ def _state_and_intent(*, sender: str, block_timestamp: int = 42):
 def _authorization_for(
     runtime: dict[str, object],
     *,
-    observed_epoch: int = 1,
+    observed_epoch: int | None = None,
     value_e8: int | None = None,
     expires_at_epoch: int | None = None,
 ) -> dict[str, object]:
     query_id = str(runtime["query_id"])
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
+    observed = int(int(runtime["now_epoch"]) - 1 if observed_epoch is None else observed_epoch)
     auth = {
         "consumer_module": "zenodex.routing",
         "action_kind": "protected_swap",
@@ -66,10 +67,10 @@ def _authorization_for(
         "profile_id": "critical-routing-v1",
         "query_id": query_id,
         "value_e8": value,
-        "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed_epoch),
+        "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed),
         "confidence_e8": 1,
         "deviation_bps": 1,
-        "observed_epoch": int(observed_epoch),
+        "observed_epoch": observed,
         "expires_at_epoch": int(runtime["now_epoch"] if expires_at_epoch is None else expires_at_epoch),
         "feed_id": "feed:routing:protected-swap",
         "feed_registry_root": semantic_hash("test.feed-root", {"surface": "routing"}),
@@ -195,3 +196,26 @@ def test_protected_swap_rejects_expired_authorization() -> None:
     assert res.ok is False
     assert res.error is not None
     assert "authorization expired" in res.error
+
+
+def test_protected_swap_rejects_stale_but_unexpired_authorization() -> None:
+    sender = "0x" + "aa" * 48
+    state, intent, receipt, runtime = _state_and_intent(sender=sender)
+    intent.set_field("oracle_authorization", _authorization_for(runtime, observed_epoch=1, expires_at_epoch=42))
+    ops = create_signed_intent_operation([SignedIntentEnvelope(intent=intent, quote_receipt=receipt)])
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            allow_missing_settlement=True,
+            require_intent_signatures=False,
+            require_oracle_authorization_for_protected_swaps=True,
+        ),
+        state=state,
+        operations=ops,
+        block_timestamp=42,
+        tx_sender_pubkey=sender,
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "authorization observed_epoch outside runtime freshness window" in res.error
