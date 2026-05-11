@@ -55,6 +55,7 @@ from .settlement import (
     ReserveDelta,
     Settlement,
 )
+from .settlement_admission import admit_settlement_intents
 
 LP_LOCK_PUBKEY: PubKey = "0x" + "00" * 48
 
@@ -121,21 +122,9 @@ def compute_settlement(
 
     events: List[Dict[str, Any]] = []
 
-    # Group intents by pool
-    intents_by_pool: Dict[str, List[Intent]] = defaultdict(list)
-    create_pool_intents: List[Intent] = []
-    non_pool_intents: List[Intent] = []
-
-    for intent in intents:
-        if intent.kind == IntentKind.CREATE_POOL:
-            create_pool_intents.append(intent)
-            continue
-
-        pool_id = intent.get_field("pool_id")
-        if isinstance(pool_id, str) and pool_id:
-            intents_by_pool[pool_id].append(intent)
-        else:
-            non_pool_intents.append(intent)
+    admission = admit_settlement_intents(intents)
+    intents_by_pool = admission.intents_by_pool()
+    create_pool_intents = list(admission.create_pool_intents)
     
     # Process each pool's intents
     all_fills: List[Fill] = []
@@ -211,10 +200,11 @@ def compute_settlement(
 
         pool_states[pool_id] = pool_state
     
-    # Process non-pool intents (invalid/malformed)
-    for intent in non_pool_intents:
-        included_intents.append((intent.intent_id, FillAction.REJECT))
-        all_fills.append(Fill(intent_id=intent.intent_id, action=FillAction.REJECT, reason="INVALID_INTENT"))
+    # Process non-pool intents (invalid/malformed) after pool-scoped lanes to
+    # preserve the legacy settlement ordering.
+    for rejected in admission.rejected_intents:
+        included_intents.append((rejected.intent.intent_id, FillAction.REJECT))
+        all_fills.append(rejected.to_fill())
     
     # Create settlement
     # Invariant chunking: aggregate deltas in bounded chunks to reduce payload
