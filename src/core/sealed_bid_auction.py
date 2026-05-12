@@ -230,6 +230,7 @@ def verify_sealed_bid_reveals_for_batch(
         )
 
     commit_keys: set[tuple[str, str]] = set()
+    commitments_seen: set[str] = set()
     commit_by_key: dict[tuple[str, str], Mapping[str, Any]] = {}
     for receipt in commit_receipts:
         if not isinstance(receipt, Mapping):
@@ -241,10 +242,14 @@ def verify_sealed_bid_reveals_for_batch(
             raise ValueError("commit_units_for_sale_mismatch")
         if current_epoch_int is not None and current_epoch_int > int(body["reveal_deadline_epoch"]):
             raise ValueError("reveal_deadline_passed")
-        key = (str(body["bidder_id"]), str(body["commitment"]))
+        commitment = str(body["commitment"])
+        key = (str(body["bidder_id"]), commitment)
         if key in commit_keys:
             raise ValueError("duplicate_commit_key")
+        if commitment in commitments_seen:
+            raise ValueError("duplicate_commitment")
         commit_keys.add(key)
+        commitments_seen.add(commitment)
         commit_by_key[key] = body
 
     reveal_keys: set[tuple[str, str]] = set()
