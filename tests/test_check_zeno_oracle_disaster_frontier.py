@@ -65,7 +65,7 @@ def test_disaster_frontier_accepts_sample_against_live_public_evidence() -> None
         family for family in frontier["families"] if family["family_id"] == "oracle_settlement_without_usable_snapshot"
     )
     assert "python3 tools/check_zeno_oracle_perps_snapshot_gate.py --format text" in snapshot_family["replay_commands"]
-    assert "perps_snapshot_gate_is_bounded_replay_not_general_theorem" in snapshot_family["blockers"]
+    assert "perps_snapshot_theorem_is_restricted_to_usability_obligations" in snapshot_family["blockers"]
     finality_family = next(
         family for family in frontier["families"] if family["family_id"] == "cross_domain_finality_reorg_feeds_oracle_read"
     )

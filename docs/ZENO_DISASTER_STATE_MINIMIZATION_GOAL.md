@@ -280,8 +280,10 @@ roundtrip preservation for isolated perps settlement runtime facts, adapter
 execution after restore, liquidation action-ID binding after restore,
 clearinghouse 2p/3p settlement action-ID binding after restore, clearinghouse
 2p/3p adapter execution after restore, and fail-closed rejection of malformed
-oracle and clearinghouse snapshot state. It does not claim a general perps
-snapshot theorem or live runtime policy.
+oracle and clearinghouse snapshot state. `ZenoOracleMathWitness.lean` now adds
+a restricted theorem anchor for the usable-snapshot obligation shape and the
+critical-action rejection when that obligation is missing. It does not claim a
+full perps-state snapshot theorem or live runtime policy.
 
 The governance-timelock family now has local feed-governance
 approval/execution receipt replay through
