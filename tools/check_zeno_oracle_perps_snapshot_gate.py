@@ -55,7 +55,7 @@ CH2P_MARKET = "perp:ch2p:snapshot-settle"
 CH3P_MARKET = "perp:ch3p:snapshot-settle"
 REQUIRED_NOT_CLAIMS = {
     "does_not_claim_live_perps_runtime_policy",
-    "does_not_claim_general_perps_snapshot_theorem",
+    "does_not_claim_full_perps_state_snapshot_theorem",
     "does_not_claim_live_oracle_network_safety",
 }
 

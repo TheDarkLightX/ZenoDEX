@@ -65,6 +65,18 @@ def OracleSyncWindowOK (sourceEpoch targetEpoch maxLag : Nat) : Prop :=
 def O3ActionBindingOK (terminalDAGOK runtimeBindingOK syncWindowOK : Prop) : Prop :=
   And terminalDAGOK (And runtimeBindingOK syncWindowOK)
 
+def PerpsOracleSnapshotUsableOK
+    (snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop) : Prop :=
+  And snapshotDecoded
+    (And runtimeFactsPreserved
+      (And actionIdPreserved
+        (And adapterBridgeAccepted (And staleActionRejected shapeValidated))))
+
+def PerpsSnapshotCriticalActionOK
+    (usableSnapshotOK o3ActionBindingOK : Prop) : Prop :=
+  And usableSnapshotOK o3ActionBindingOK
+
 def LiveEconomicsEscrowFloor
     (initialDisputePool bondA bondB bondC feePaid : Nat) : Nat :=
   initialDisputePool + bondA + bondB + bondC + feePaid
@@ -1207,6 +1219,153 @@ theorem o3_action_binding_preserved_by_sync_window_composition
     And.intro h.left
       (And.intro h.right.left
         (oracle_sync_window_ok_compose h.right.right hBC))
+
+theorem perps_snapshot_usable_requires_snapshot_decoded
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (h :
+      PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) :
+    snapshotDecoded := by
+  exact h.left
+
+theorem perps_snapshot_usable_requires_runtime_facts_preserved
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (h :
+      PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) :
+    runtimeFactsPreserved := by
+  exact h.right.left
+
+theorem perps_snapshot_usable_requires_action_id_preserved
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (h :
+      PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) :
+    actionIdPreserved := by
+  exact h.right.right.left
+
+theorem perps_snapshot_usable_requires_adapter_bridge_accepted
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (h :
+      PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) :
+    adapterBridgeAccepted := by
+  exact h.right.right.right.left
+
+theorem perps_snapshot_usable_requires_stale_action_rejected
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (h :
+      PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) :
+    staleActionRejected := by
+  exact h.right.right.right.right.left
+
+theorem perps_snapshot_usable_requires_shape_validated
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (h :
+      PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) :
+    shapeValidated := by
+  exact h.right.right.right.right.right
+
+theorem perps_snapshot_usable_iff_obligations
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop} :
+    PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated ↔
+      snapshotDecoded ∧ runtimeFactsPreserved ∧ actionIdPreserved ∧
+        adapterBridgeAccepted ∧ staleActionRejected ∧ shapeValidated := by
+  constructor
+  · intro h
+    exact
+      ⟨h.left, h.right.left, h.right.right.left, h.right.right.right.left,
+        h.right.right.right.right.left, h.right.right.right.right.right⟩
+  · intro h
+    exact
+      ⟨h.left, h.right.left, h.right.right.left, h.right.right.right.left,
+        h.right.right.right.right.left, h.right.right.right.right.right⟩
+
+theorem perps_snapshot_usable_rejects_action_id_drift
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (hDrift : Not actionIdPreserved) :
+    Not
+      (PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) := by
+  intro h
+  exact hDrift (perps_snapshot_usable_requires_action_id_preserved h)
+
+theorem perps_snapshot_usable_rejects_runtime_fact_drift
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (hDrift : Not runtimeFactsPreserved) :
+    Not
+      (PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) := by
+  intro h
+  exact hDrift (perps_snapshot_usable_requires_runtime_facts_preserved h)
+
+theorem perps_snapshot_usable_rejects_missing_shape_validation
+    {snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+      staleActionRejected shapeValidated : Prop}
+    (hMissingShape : Not shapeValidated) :
+    Not
+      (PerpsOracleSnapshotUsableOK
+        snapshotDecoded runtimeFactsPreserved actionIdPreserved adapterBridgeAccepted
+        staleActionRejected shapeValidated) := by
+  intro h
+  exact hMissingShape (perps_snapshot_usable_requires_shape_validated h)
+
+theorem perps_snapshot_critical_action_requires_usable_snapshot
+    {usableSnapshotOK o3ActionBindingOK : Prop}
+    (h : PerpsSnapshotCriticalActionOK usableSnapshotOK o3ActionBindingOK) :
+    usableSnapshotOK := by
+  exact h.left
+
+theorem perps_snapshot_critical_action_requires_o3_action_binding
+    {usableSnapshotOK o3ActionBindingOK : Prop}
+    (h : PerpsSnapshotCriticalActionOK usableSnapshotOK o3ActionBindingOK) :
+    o3ActionBindingOK := by
+  exact h.right
+
+theorem perps_snapshot_critical_action_iff_obligations
+    {usableSnapshotOK o3ActionBindingOK : Prop} :
+    PerpsSnapshotCriticalActionOK usableSnapshotOK o3ActionBindingOK ↔
+      usableSnapshotOK ∧ o3ActionBindingOK := by
+  constructor
+  · intro h
+    exact ⟨h.left, h.right⟩
+  · intro h
+    exact ⟨h.left, h.right⟩
+
+theorem perps_snapshot_critical_action_rejects_missing_usable_snapshot
+    {usableSnapshotOK o3ActionBindingOK : Prop}
+    (hMissingSnapshot : Not usableSnapshotOK) :
+    Not (PerpsSnapshotCriticalActionOK usableSnapshotOK o3ActionBindingOK) := by
+  intro h
+  exact hMissingSnapshot (perps_snapshot_critical_action_requires_usable_snapshot h)
+
+theorem perps_snapshot_critical_action_rejects_missing_o3_action_binding
+    {usableSnapshotOK o3ActionBindingOK : Prop}
+    (hMissingBinding : Not o3ActionBindingOK) :
+    Not (PerpsSnapshotCriticalActionOK usableSnapshotOK o3ActionBindingOK) := by
+  intro h
+  exact hMissingBinding (perps_snapshot_critical_action_requires_o3_action_binding h)
 
 theorem o4_or_o5_use_requires_o3_receipt
     {o3ReceiptOK zenoProofAccepted sameQueryValueWindow sameConsumerAction : Prop}
