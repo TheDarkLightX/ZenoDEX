@@ -121,7 +121,13 @@ from ..core.perp_submission_auth_gate import (
 from ..state.balances import BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.nonces import NonceTable
-from .zeno_oracle_authorization import check_critical_consumer_authorization, semantic_hash
+from .zeno_oracle_authorization import (
+    ORACLE_PERPS_INDEX_QUERY_ID as _ORACLE_PERPS_INDEX_QUERY_ID,
+    ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID as _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+    ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID as _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    check_critical_consumer_authorization,
+    semantic_hash,
+)
 
 
 PERP_OP_MODULE = "TauPerp"
@@ -176,39 +182,6 @@ _ASCII_TOKEN_CHARS_MODULE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO
 _ASCII_TOKEN_CHARS_VERSION = frozenset("0123456789.")
 _ASCII_TOKEN_CHARS_ACTION = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 _ASCII_TOKEN_CHARS_MARKET_ID = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:._-")
-_ORACLE_CONSUMER_PROFILE_SCHEMA = "zenodex.oracle.consumer_profile.v1"
-_ORACLE_PERPS_INDEX_QUERY_ID = (
-    "sha256:"
-    + hashlib.sha256("zenodex.oracle.query.perps.index_price_e8".encode("utf-8")).hexdigest()
-)
-
-
-def _oracle_consumer_profile_id(*, action_kind: str, max_freshness_window_epochs: int) -> str:
-    return "sha256:" + hashlib.sha256(
-        canonical_json_bytes(
-            {
-                "schema": _ORACLE_CONSUMER_PROFILE_SCHEMA,
-                "consumer_module": "zenodex.perps",
-                "action_kind": action_kind,
-                "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
-                "required_evidence_floor": "O3",
-                "max_freshness_window_epochs": int(max_freshness_window_epochs),
-                "critical": True,
-            }
-        )
-    ).hexdigest()
-
-
-_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID = _oracle_consumer_profile_id(
-    action_kind="settle_epoch",
-    max_freshness_window_epochs=2,
-)
-_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID = _oracle_consumer_profile_id(
-    action_kind="liquidate_account",
-    max_freshness_window_epochs=1,
-)
-
-
 def _require_ascii_token(value: Any, *, name: str, max_len: int, allowed: frozenset[str]) -> str:
     s = _require_str(value, name=name, non_empty=True, max_len=max_len)
     if s != s.strip():
@@ -774,6 +747,8 @@ def _check_isolated_settle_oracle_authorization(
             query_id=str(runtime["query_id"]),
             runtime_value_e8=int(runtime["runtime_value_e8"]),
             now_epoch=int(runtime["now_epoch"]),
+            profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            max_freshness_window_epochs=2,
         )
     except Exception as exc:
         return f"oracle_authorization_rejected: {exc}"
