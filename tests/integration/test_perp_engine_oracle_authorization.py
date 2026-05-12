@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from src.core.dex import DexState
 from src.integration.perp_engine import (
     PerpEngineConfig,
+    _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
     _isolated_settle_oracle_runtime_facts,
     apply_perp_ops,
 )
@@ -111,7 +114,7 @@ def _authorization_for(
         "action_id": str(runtime["action_id"]),
         "action_facts_hash": str(runtime["action_facts_hash"]),
         "pre_state_hash": str(runtime["pre_state_hash"]),
-        "profile_id": "critical-perps-v1",
+        "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
         "query_id": query_id,
         "value_e8": value,
         "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed_epoch),
@@ -166,6 +169,45 @@ def test_isolated_settle_accepts_matching_typed_oracle_authorization() -> None:
     )
 
     assert res.ok is True, res.error
+
+
+def test_isolated_settle_rejects_stale_oracle_authorization_even_if_unexpired() -> None:
+    market_id = "perp:auth-stale-window"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    stale_global_state = dict(market.global_state)
+    stale_global_state["now_epoch"] = int(stale_global_state.get("now_epoch", 0)) + 5
+    stale_global_state["clearing_price_epoch"] = int(stale_global_state["now_epoch"])
+    stale_global_state["oracle_last_update_epoch"] = int(stale_global_state["now_epoch"]) - 3
+    markets = dict(state.perps.markets)
+    markets[market_id] = type(market)(
+        quote_asset=market.quote_asset,
+        global_state=stale_global_state,
+        accounts=dict(market.accounts),
+    )
+    state = replace(state, perps=type(state.perps)(version=state.perps.version, markets=markets))
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    stale_observed_epoch = int(runtime["now_epoch"]) - 3
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=stale_observed_epoch,
+        expires_at_epoch=int(runtime["now_epoch"]) + 100,
+    )
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "authorization freshness window exceeded" in res.error
 
 
 def test_isolated_settle_rejects_authorization_for_different_oracle_value() -> None:

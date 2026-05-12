@@ -12,6 +12,8 @@ sys.path.insert(0, str(ROOT))
 
 from src.integration.zeno_oracle_authorization import (
     CRITICAL_CONSUMER_PROFILES,
+    ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+    ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
     SCHEMA,
     OracleAuthorization,
     RuntimeActionFacts,
@@ -29,6 +31,8 @@ from src.integration.zeno_oracle_authorization import (
 __all__ = [
     "SCHEMA",
     "CRITICAL_CONSUMER_PROFILES",
+    "ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID",
+    "ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID",
     "OracleAuthorization",
     "RuntimeActionFacts",
     "check_critical_consumer_authorization",

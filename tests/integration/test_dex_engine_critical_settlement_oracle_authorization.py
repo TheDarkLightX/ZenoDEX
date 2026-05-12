@@ -231,6 +231,27 @@ def test_critical_settlement_rejects_expired_authorization() -> None:
     assert "authorization expired" in res.error
 
 
+def test_critical_settlement_rejects_stale_observed_epoch_even_if_not_expired() -> None:
+    state, intent_dicts, settlement_op, runtime = _state_intent_and_settlement()
+    settlement_op["oracle_authorization"] = _authorization_for(runtime, observed_epoch=40, expires_at_epoch=99)
+
+    res = apply_ops(
+        config=DexEngineConfig(
+            require_intent_signatures=False,
+            settlement_certificate_price_history=PRICE_HISTORY,
+            require_oracle_authorization_for_critical_settlements=True,
+        ),
+        state=state,
+        operations={"2": intent_dicts, "3": settlement_op},
+        block_timestamp=42,
+        tx_sender_pubkey=intent_dicts[0]["sender_pubkey"],
+    )
+
+    assert res.ok is False
+    assert res.error is not None
+    assert "authorization freshness window exceeded" in res.error
+
+
 def test_critical_settlement_rejects_authorization_without_price_history() -> None:
     state, intent_dicts, settlement_op, runtime = _state_intent_and_settlement()
     settlement_op["oracle_authorization"] = _authorization_for(runtime)

@@ -7,6 +7,8 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from tools.check_oracle_authorization_semantic_binding import (
+    ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+    ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
     SCHEMA,
     OracleAuthorization,
     RuntimeActionFacts,
@@ -112,6 +114,7 @@ def _check_with_runtime(
     runtime: RuntimeActionFacts,
     *,
     runtime_notional_value_e8: int | None = None,
+    max_freshness_window_epochs: int | None = None,
 ) -> dict:
     return check_critical_consumer_authorization(
         authorization_payload,
@@ -124,6 +127,7 @@ def _check_with_runtime(
         runtime_value_e8=runtime.runtime_value_e8,
         now_epoch=runtime.now_epoch,
         runtime_notional_value_e8=runtime_notional_value_e8,
+        max_freshness_window_epochs=max_freshness_window_epochs,
     )
 
 
@@ -137,6 +141,26 @@ def test_typed_authorization_accepts_matching_runtime_facts() -> None:
     assert opaque_errors == ()
     assert typed_ok is True
     assert typed_errors == ()
+
+
+def test_typed_authorization_rejects_stale_observed_epoch_when_window_is_bound() -> None:
+    authorization, runtime = _valid_pair()
+
+    accepted = _check_with_runtime(
+        authorization_bundle(asdict(authorization)),
+        runtime,
+        max_freshness_window_epochs=1,
+    )
+    stale_runtime = replace(runtime, now_epoch=int(authorization.observed_epoch) + 3)
+    rejected = _check_with_runtime(
+        authorization_bundle(asdict(authorization)),
+        stale_runtime,
+        max_freshness_window_epochs=1,
+    )
+
+    assert accepted["typed_ok"] is True
+    assert rejected["typed_ok"] is False
+    assert "authorization freshness window exceeded" in rejected["typed_errors"]
 
 
 def test_typed_authorization_accepts_bound_economic_envelope() -> None:
@@ -376,8 +400,8 @@ def test_critical_consumer_wrapper_covers_named_surfaces() -> None:
     authorization, runtime = _valid_pair()
     surfaces = [
         ("zenodex.zusd", "liquidate", "critical-zusd-v1"),
-        ("zenodex.perps", "settle_epoch", "critical-perps-v1"),
-        ("zenodex.perps", "liquidate", "critical-perps-v1"),
+        ("zenodex.perps", "settle_epoch", ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID),
+        ("zenodex.perps", "liquidate", ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID),
         ("zenodex.routing", "protected_swap", "critical-routing-v1"),
         ("zenodex.trigger", "execute_trigger", _ORACLE_TRIGGER_EXECUTE_PROFILE_ID),
         ("zenodex.settlement", "critical_settlement", critical_settlement_profile_id()),
