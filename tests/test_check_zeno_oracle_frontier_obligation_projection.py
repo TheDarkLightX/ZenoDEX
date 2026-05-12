@@ -26,9 +26,9 @@ def test_frontier_obligation_projection_accepts_current_frontier() -> None:
 
     assert result["schema"] == "zenodex.oracle.frontier_obligation_projection.v1"
     assert result["status"] == "accepted"
-    assert result["frontier_family_count"] == 29
-    assert result["projected_family_count"] == 29
-    assert result["closed_family_count"] == 24
+    assert result["frontier_family_count"] == 35
+    assert result["projected_family_count"] == 35
+    assert result["closed_family_count"] == 30
     assert result["blocked_or_backlog_count"] == 5
     assert result["new_obligation_family_count"] == 0
     assert result["projection_relation_counts"]["unprojected"] == 0
