@@ -52,6 +52,21 @@ _TRIGGER_EXECUTE_PROFILE_ID = _consumer_profile_id(
     query_id=_TRIGGER_REFERENCE_QUERY_ID,
     max_freshness_window_epochs=2,
 )
+ORACLE_PERPS_INDEX_QUERY_ID = (
+    "sha256:" + hashlib.sha256(b"zenodex.oracle.query.perps.index_price_e8").hexdigest()
+)
+ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID = _consumer_profile_id(
+    consumer_module="zenodex.perps",
+    action_kind="settle_epoch",
+    query_id=ORACLE_PERPS_INDEX_QUERY_ID,
+    max_freshness_window_epochs=2,
+)
+ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID = _consumer_profile_id(
+    consumer_module="zenodex.perps",
+    action_kind="liquidate_account",
+    query_id=ORACLE_PERPS_INDEX_QUERY_ID,
+    max_freshness_window_epochs=1,
+)
 
 
 CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
@@ -60,8 +75,8 @@ CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
     ("zenodex.zusd", "oracle_commit"): "critical-zusd-v1",
     ("zenodex.zusd", "mint"): "critical-zusd-v1",
     ("zenodex.zusd", "liquidate"): "critical-zusd-v1",
-    ("zenodex.perps", "settle_epoch"): "critical-perps-v1",
-    ("zenodex.perps", "liquidate"): "critical-perps-v1",
+    ("zenodex.perps", "settle_epoch"): ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    ("zenodex.perps", "liquidate"): ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
     ("zenodex.routing", "protected_swap"): "critical-routing-v1",
     ("zenodex.trigger", "execute_trigger"): _TRIGGER_EXECUTE_PROFILE_ID,
     ("zenodex.settlement", "critical_settlement"): _CRITICAL_SETTLEMENT_PROFILE_ID,
@@ -105,6 +120,7 @@ class RuntimeActionFacts:
     runtime_value_e8: int
     now_epoch: int
     runtime_notional_value_e8: int | None = None
+    max_freshness_window_epochs: int | None = None
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -429,6 +445,14 @@ def verify_typed_authorization(
         errors.append("observed_epoch after expires_at_epoch")
     if int(authorization.observed_epoch) > int(runtime.now_epoch):
         errors.append("authorization observed in the future")
+    max_freshness = runtime.max_freshness_window_epochs
+    if max_freshness is not None:
+        if isinstance(max_freshness, bool) or not isinstance(max_freshness, int) or int(max_freshness) < 0:
+            errors.append("max_freshness_window_epochs must be a non-negative int")
+        elif int(runtime.now_epoch) >= int(authorization.observed_epoch):
+            observed_age = int(runtime.now_epoch) - int(authorization.observed_epoch)
+            if observed_age > int(max_freshness):
+                errors.append("authorization freshness window exceeded")
     if int(authorization.confidence_e8) < 0:
         errors.append("confidence_e8 must be non-negative")
     if int(authorization.deviation_bps) < 0 or int(authorization.deviation_bps) > 10_000:
@@ -512,6 +536,11 @@ def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
         if isinstance(runtime_notional_value, bool) or not isinstance(runtime_notional_value, int):
             raise ValueError("runtime_notional_value_e8 must be an int when present")
         runtime_notional_value = int(runtime_notional_value)
+    max_freshness = obj.get("max_freshness_window_epochs")
+    if max_freshness is not None:
+        if isinstance(max_freshness, bool) or not isinstance(max_freshness, int):
+            raise ValueError("max_freshness_window_epochs must be an int when present")
+        max_freshness = int(max_freshness)
     return RuntimeActionFacts(
         consumer_module=_require_str(obj, "consumer_module"),
         action_kind=_require_str(obj, "action_kind"),
@@ -523,6 +552,7 @@ def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
         runtime_value_e8=_require_int(obj, "runtime_value_e8"),
         now_epoch=_require_int(obj, "now_epoch"),
         runtime_notional_value_e8=runtime_notional_value,
+        max_freshness_window_epochs=max_freshness,
     )
 
 
@@ -602,6 +632,7 @@ def check_critical_consumer_authorization(
     runtime_value_e8: int,
     now_epoch: int,
     runtime_notional_value_e8: int | None = None,
+    max_freshness_window_epochs: int | None = None,
     profile_id: str | None = None,
     require_receipt_graph: bool = True,
 ) -> dict[str, Any]:
@@ -629,6 +660,7 @@ def check_critical_consumer_authorization(
                 "runtime_value_e8": runtime_value_e8,
                 "now_epoch": now_epoch,
                 "runtime_notional_value_e8": runtime_notional_value_e8,
+                "max_freshness_window_epochs": max_freshness_window_epochs,
             },
         }
     runtime = RuntimeActionFacts(
@@ -642,6 +674,7 @@ def check_critical_consumer_authorization(
         runtime_value_e8=int(runtime_value_e8),
         now_epoch=int(now_epoch),
         runtime_notional_value_e8=runtime_notional_value_e8,
+        max_freshness_window_epochs=max_freshness_window_epochs,
     )
     result = check_authorization_for_runtime(
         authorization_payload,
