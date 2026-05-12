@@ -73,6 +73,21 @@ class SealedBidSettlement:
     clearing_price: int
     total_filled: int
     fills: tuple[SealedBidFill, ...]
+    price_witness: "SealedBidPriceWitness | None" = None
+
+
+@dataclass(frozen=True)
+class SealedBidPriceWitness:
+    pricing_rule: str
+    reserve_price: int
+    threshold_price: int
+    winner_bidder_id: str | None
+    winner_commitment: str | None
+    winner_limit_price: int
+    runner_up_bidder_id: str | None
+    runner_up_commitment: str | None
+    runner_up_limit_price: int
+    eligible_bid_count: int
 
 
 @dataclass(frozen=True)
@@ -356,10 +371,27 @@ def settle_checked_second_price_sealed_bid(
         key=lambda bid: (-int(bid.limit_price), str(bid.commitment), str(bid.bidder_id)),
     )
     if not ordered:
-        return SealedBidSettlement(clearing_price=0, total_filled=0, fills=())
+        return SealedBidSettlement(
+            clearing_price=0,
+            total_filled=0,
+            fills=(),
+            price_witness=SealedBidPriceWitness(
+                pricing_rule="second_price_single_item_v1",
+                reserve_price=reserve_price_int,
+                threshold_price=reserve_price_int,
+                winner_bidder_id=None,
+                winner_commitment=None,
+                winner_limit_price=0,
+                runner_up_bidder_id=None,
+                runner_up_commitment=None,
+                runner_up_limit_price=0,
+                eligible_bid_count=0,
+            ),
+        )
 
     winner = ordered[0]
-    second_price = int(ordered[1].limit_price) if len(ordered) > 1 else 0
+    runner_up = ordered[1] if len(ordered) > 1 else None
+    second_price = int(runner_up.limit_price) if runner_up is not None else 0
     paid_price = max(reserve_price_int, second_price)
     return SealedBidSettlement(
         clearing_price=paid_price,
@@ -371,6 +403,18 @@ def settle_checked_second_price_sealed_bid(
                 filled_quantity=1,
                 paid_price=paid_price,
             ),
+        ),
+        price_witness=SealedBidPriceWitness(
+            pricing_rule="second_price_single_item_v1",
+            reserve_price=reserve_price_int,
+            threshold_price=paid_price,
+            winner_bidder_id=str(winner.bidder_id),
+            winner_commitment=str(winner.commitment),
+            winner_limit_price=int(winner.limit_price),
+            runner_up_bidder_id=str(runner_up.bidder_id) if runner_up is not None else None,
+            runner_up_commitment=str(runner_up.commitment) if runner_up is not None else None,
+            runner_up_limit_price=second_price,
+            eligible_bid_count=len(ordered),
         ),
     )
 
