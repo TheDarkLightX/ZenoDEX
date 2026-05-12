@@ -20,8 +20,10 @@ from .settlement_feature_extension_packet import (
 )
 from .settlement_price_provenance import SettlementSpotPricePacket
 from .settlement_strong_certificate import (
+    SettlementReplayContextCommitment,
     SettlementProofFlags,
     SettlementStrongCertificate,
+    build_settlement_replay_context_commitment,
     build_replay_bound_settlement_strong_certificate,
     derive_replay_bound_certificate_flags,
     verify_settlement_strong_certificate,
@@ -218,6 +220,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_packet(
     price_packet: SettlementSpotPricePacket,
     lp_unit_values: Mapping[str, int] | None = None,
     pool_snapshots: Sequence[PoolState] | None = None,
+    replay_context_commitment: SettlementReplayContextCommitment | None = None,
 ) -> SettlementEndToEndCertificatePacket:
     _validate_value_mode_inputs(lp_unit_values=lp_unit_values, pool_snapshots=pool_snapshots)
     feature_extension_packet = build_settlement_feature_extension_packet(feature_extension_inputs)
@@ -229,6 +232,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_packet(
         settlement=settlement,
         proof_flags=effective_flags,
         price_history=price_history,
+        replay_context_commitment=replay_context_commitment,
     )
     strong_certificate_ok, err = verify_settlement_strong_certificate(
         settlement=settlement,
@@ -281,6 +285,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation(
     attestation_policy: SettlementAttestationPolicy | None = None,
     attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
     attestation_registry_snapshot_loader: object | None = None,
+    replay_context_commitment: SettlementReplayContextCommitment | None = None,
 ) -> SettlementEndToEndCertificatePacket:
     _validate_value_mode_inputs(lp_unit_values=lp_unit_values, pool_snapshots=pool_snapshots)
     feature_extension_packet = build_settlement_feature_extension_packet(feature_extension_inputs)
@@ -292,6 +297,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation(
         settlement=settlement,
         proof_flags=effective_flags,
         price_history=price_history,
+        replay_context_commitment=replay_context_commitment,
     )
     strong_certificate_ok, err = verify_settlement_strong_certificate(
         settlement=settlement,
@@ -354,6 +360,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle
     attestation_policy: SettlementAttestationPolicy | None = None,
     attestation_registry_snapshot: SettlementSignerRegistrySnapshot | None = None,
     attestation_registry_snapshot_loader: object | None = None,
+    replay_context_commitment: SettlementReplayContextCommitment | None = None,
 ) -> SettlementEndToEndCertificatePacket:
     _validate_value_mode_inputs(lp_unit_values=lp_unit_values, pool_snapshots=pool_snapshots)
     feature_extension_packet = build_settlement_feature_extension_packet(feature_extension_inputs)
@@ -365,6 +372,7 @@ def build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle
         settlement=settlement,
         proof_flags=effective_flags,
         price_history=price_history,
+        replay_context_commitment=replay_context_commitment,
     )
     strong_certificate_ok, err = verify_settlement_strong_certificate(
         settlement=settlement,
@@ -479,6 +487,16 @@ def enforce_settlement_end_to_end_certificate(
 
     effective_flags = derive_replay_bound_certificate_flags(certificate_inputs.proof_flags)
     try:
+        replay_context_commitment = build_settlement_replay_context_commitment(
+            settlement=settlement,
+            intents=intents,
+            pre_balances=pre_balances,
+            pre_pools=pre_pools,
+            pre_lp_balances=pre_lp_balances,
+        )
+    except Exception as exc:
+        return False, f"settlement replay context commitment failed: {exc}", None
+    try:
         if certificate_inputs.price_packet is not None:
             packet = build_settlement_end_to_end_certificate_packet_from_price_packet(
                 settlement=settlement,
@@ -488,6 +506,7 @@ def enforce_settlement_end_to_end_certificate(
                 price_packet=certificate_inputs.price_packet,
                 lp_unit_values=certificate_inputs.lp_unit_values,
                 pool_snapshots=certificate_inputs.pool_snapshots,
+                replay_context_commitment=replay_context_commitment,
             )
         elif certificate_inputs.price_attestation is not None:
             packet = build_settlement_end_to_end_certificate_packet_from_price_attestation(
@@ -503,6 +522,7 @@ def enforce_settlement_end_to_end_certificate(
                 attestation_policy=certificate_inputs.attestation_policy,
                 attestation_registry_snapshot=certificate_inputs.attestation_registry_snapshot,
                 attestation_registry_snapshot_loader=certificate_inputs.attestation_registry_snapshot_loader,
+                replay_context_commitment=replay_context_commitment,
             )
         else:
             packet = build_settlement_end_to_end_certificate_packet_from_price_attestation_bundle(
@@ -518,6 +538,7 @@ def enforce_settlement_end_to_end_certificate(
                 attestation_policy=certificate_inputs.attestation_policy,
                 attestation_registry_snapshot=certificate_inputs.attestation_registry_snapshot,
                 attestation_registry_snapshot_loader=certificate_inputs.attestation_registry_snapshot_loader,
+                replay_context_commitment=replay_context_commitment,
             )
     except Exception as exc:
         return False, str(exc), None
