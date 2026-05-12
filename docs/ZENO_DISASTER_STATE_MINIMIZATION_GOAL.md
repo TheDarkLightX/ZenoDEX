@@ -160,17 +160,20 @@ python3 tools/zeno_oracle_disaster_class_corpus.py --format text
 Current expected receipt:
 
 ```text
-named_disaster_class_count = 9
-closed_class_count = 9
+named_disaster_class_count = 15
+closed_class_count = 15
 failed_class_count = 0
 status = accepted
 ```
 
 The corpus binds the named source-cartel, dispute-griefing, registry-drift,
 settlement-execution total drift, verifier-spoofing, O5 independence-spoofing,
-proof-timeout, replay-integrity, and cross-module split-brain families to
-public checker outcomes. This is
-bounded first-shell evidence. It does not claim exhaustive production oracle
+proof-timeout, replay-integrity, cross-module split-brain, manipulable internal
+spot-price overvaluation, governance parameter drift, stale quote free-option
+value, recursive collateral dependency, funding zero-crossing deadband, and
+pre-slash withdrawal escape families to public checker outcomes or exact
+integer/rational witnesses. This is bounded first-shell evidence. It does not
+claim exhaustive production oracle
 safety, live on-chain governance, reporter honesty, or a live proof network.
 
 ## Current Compositional Disaster Regression Projection
@@ -215,8 +218,8 @@ Current expected receipt:
 
 ```text
 status = accepted
-frontier_family_count = 29
-closed_family_count = 24
+frontier_family_count = 35
+closed_family_count = 30
 blocked_or_backlog_count = 5
 new_obligation_family_count = 0
 ```
@@ -236,8 +239,8 @@ Current expected receipt:
 
 ```text
 status = accepted
-frontier_family_count = 29
-projected_family_count = 29
+frontier_family_count = 35
+projected_family_count = 35
 new_obligation_family_count = 0
 error_count = 0
 ```

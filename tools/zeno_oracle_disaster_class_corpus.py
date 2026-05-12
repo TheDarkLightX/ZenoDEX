@@ -8,6 +8,7 @@ import copy
 import json
 import sys
 import tempfile
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -399,6 +400,267 @@ def _cross_module_split_brain_case() -> dict[str, Any]:
     )
 
 
+def _fraction_obj(value: Fraction) -> dict[str, int]:
+    return {"num": value.numerator, "den": value.denominator}
+
+
+def _spot_price_overvaluation_case() -> dict[str, Any]:
+    base_reserve = 1_000_000
+    quote_reserve = 1_000_000
+    quote_in = 10_000_000
+    k_value = base_reserve * quote_reserve
+    true_price = Fraction(quote_reserve, base_reserve)
+    manipulated_price = Fraction((quote_reserve + quote_in) * (quote_reserve + quote_in), k_value)
+    overvaluation_multiplier = manipulated_price / true_price
+
+    ok = manipulated_price > true_price and overvaluation_multiplier == Fraction(121, 1)
+    return _case_receipt(
+        "spot_price_overvaluation_requires_nonspot_oracle",
+        manifest_axis="wrong_value_hash_consumed_by_action",
+        guard_family="critical_value_source_gate",
+        obligations=["critical_action_bound", "receipt_dag_closed", "schema_total", "value_binding"],
+        ok=ok,
+        expected="critical mint/collateral actions must not consume a manipulable internal spot value as the sole price source",
+        observed={
+            "model": "exact_cpmm_no_fee_price_witness",
+            "base_reserve": base_reserve,
+            "quote_reserve": quote_reserve,
+            "quote_in": quote_in,
+            "true_price_quote_per_base": _fraction_obj(true_price),
+            "manipulated_spot_price_quote_per_base": _fraction_obj(manipulated_price),
+            "overvaluation_multiplier": _fraction_obj(overvaluation_multiplier),
+            "non_claim": "does_not_claim_attacker_pnl_or_flash_loan_feasibility",
+        },
+    )
+
+
+def _governance_parameter_drift_case() -> dict[str, Any]:
+    fee_start_bps = 30
+    fee_step_bps = 5
+    fee_absolute_ceiling_bps = 100
+    fee_epochs = 15
+    fee_final_bps = fee_start_bps + fee_step_bps * fee_epochs
+
+    mcr_start_bps = 15_000
+    mcr_step_down_bps = 200
+    mcr_absolute_floor_bps = 12_000
+    mcr_epochs = 16
+    mcr_final_bps = mcr_start_bps - mcr_step_down_bps * mcr_epochs
+
+    twap_start_epochs = 100
+    twap_step_down_epochs = 5
+    twap_absolute_floor_epochs = 30
+    twap_epochs = 15
+    twap_final_epochs = twap_start_epochs - twap_step_down_epochs * twap_epochs
+
+    ok = (
+        fee_final_bps > fee_absolute_ceiling_bps
+        and mcr_final_bps < mcr_absolute_floor_bps
+        and twap_final_epochs < twap_absolute_floor_epochs
+    )
+    return _case_receipt(
+        "governance_parameter_drift_crosses_absolute_guardrails",
+        manifest_axis="governance_policy_downgrade",
+        guard_family="governance_absolute_guardrail_gate",
+        obligations=["evidence_floor_o3", "query_semantics", "registry_root_binding", "schema_total"],
+        ok=ok,
+        expected="bounded per-epoch parameter deltas are insufficient without absolute floors, ceilings, timelock receipts, and semantic-impact checks",
+        observed={
+            "model": "integer_step_drift_witness",
+            "fee": {
+                "start_bps": fee_start_bps,
+                "step_bps": fee_step_bps,
+                "epochs": fee_epochs,
+                "final_bps": fee_final_bps,
+                "absolute_ceiling_bps": fee_absolute_ceiling_bps,
+            },
+            "mcr": {
+                "start_bps": mcr_start_bps,
+                "step_down_bps": mcr_step_down_bps,
+                "epochs": mcr_epochs,
+                "final_bps": mcr_final_bps,
+                "absolute_floor_bps": mcr_absolute_floor_bps,
+            },
+            "twap": {
+                "start_epochs": twap_start_epochs,
+                "step_down_epochs": twap_step_down_epochs,
+                "epochs": twap_epochs,
+                "final_epochs": twap_final_epochs,
+                "absolute_floor_epochs": twap_absolute_floor_epochs,
+            },
+        },
+    )
+
+
+def _quote_farming_free_option_case() -> dict[str, Any]:
+    bps_den = 10_000
+    notional_e8 = 1_000_000_000
+    up_move_bps = 500
+    down_move_bps = -500
+    execution_fee_bps = 30
+
+    up_payoff_e8 = notional_e8 * max(up_move_bps - execution_fee_bps, 0) // bps_den
+    down_payoff_e8 = notional_e8 * max(down_move_bps - execution_fee_bps, 0) // bps_den
+    expected_payoff = Fraction(up_payoff_e8 + down_payoff_e8, 2)
+
+    ok = up_payoff_e8 > 0 and down_payoff_e8 == 0 and expected_payoff > 0
+    return _case_receipt(
+        "quote_farming_free_option_from_settlement_lag",
+        manifest_axis="stale_read_used_for_critical_action",
+        guard_family="quote_freshness_and_execution_bond_gate",
+        obligations=["critical_action_bound", "receipt_dag_closed", "schema_total", "time_freshness"],
+        ok=ok,
+        expected="a stale optional quote is a positive-EV exercise option unless freshness expiry or bonded execution removes the lag option value",
+        observed={
+            "model": "two_state_exact_option_witness",
+            "notional_e8": notional_e8,
+            "up_move_bps": up_move_bps,
+            "down_move_bps": down_move_bps,
+            "execution_fee_bps": execution_fee_bps,
+            "up_payoff_e8": up_payoff_e8,
+            "down_payoff_e8": down_payoff_e8,
+            "expected_payoff_e8": _fraction_obj(expected_payoff),
+            "minimum_single_state_bond_e8": up_payoff_e8,
+        },
+    )
+
+
+def _recursive_collateral_dependency_case() -> dict[str, Any]:
+    dependencies = {
+        "LP_ZUSD_USDC": ["ZUSD", "USDC"],
+        "WRAPPED_LP_ZUSD_USDC": ["LP_ZUSD_USDC"],
+        "SAFE_USDC": [],
+    }
+
+    def reaches_forbidden(token: str, forbidden: set[str]) -> bool:
+        visited: set[str] = set()
+        frontier = [token]
+        while frontier:
+            current = frontier.pop()
+            if current in forbidden:
+                return True
+            if current in visited:
+                continue
+            visited.add(current)
+            frontier.extend(dependencies.get(current, []))
+        return False
+
+    forbidden_roots = {"ZUSD", "INTERNAL_AMM_SPOT"}
+    unsafe_direct = reaches_forbidden("LP_ZUSD_USDC", forbidden_roots)
+    unsafe_indirect = reaches_forbidden("WRAPPED_LP_ZUSD_USDC", forbidden_roots)
+    safe_external = not reaches_forbidden("SAFE_USDC", forbidden_roots)
+    ok = unsafe_direct and unsafe_indirect and safe_external
+    return _case_receipt(
+        "recursive_collateral_dependency_reaches_zusd",
+        manifest_axis="wrong_value_hash_consumed_by_action",
+        guard_family="collateral_dependency_acyclicity_gate",
+        obligations=["critical_action_bound", "receipt_dag_closed", "schema_total", "value_binding"],
+        ok=ok,
+        expected="collateral admission must reject direct or transitive dependency on ZUSD or internal AMM spot references",
+        observed={
+            "model": "finite_transitive_dependency_graph",
+            "forbidden_roots": sorted(forbidden_roots),
+            "unsafe_direct_lp": unsafe_direct,
+            "unsafe_indirect_wrapper": unsafe_indirect,
+            "safe_external_asset": safe_external,
+            "dependencies": dependencies,
+        },
+    )
+
+
+def _funding_deadband_case() -> dict[str, Any]:
+    index_price = 10_000
+    threshold = 50
+    micro_mark = index_price + 25
+    boundary_mark = index_price + threshold
+    outside_mark = index_price + threshold + 1
+
+    def standard_funding(mark: int, index: int) -> int:
+        return mark - index
+
+    def deadband_funding(mark: int, index: int, band: int) -> int:
+        delta = mark - index
+        if abs(delta) <= band:
+            return 0
+        return delta - band if delta > 0 else delta + band
+
+    ok = (
+        standard_funding(micro_mark, index_price) == 25
+        and deadband_funding(micro_mark, index_price, threshold) == 0
+        and deadband_funding(boundary_mark, index_price, threshold) == 0
+        and deadband_funding(outside_mark, index_price, threshold) == 1
+    )
+    return _case_receipt(
+        "funding_zero_crossing_micro_oscillation",
+        manifest_axis="wrong_value_hash_consumed_by_action",
+        guard_family="funding_deadband_gate",
+        obligations=["critical_action_bound", "receipt_dag_closed", "schema_total", "value_binding"],
+        ok=ok,
+        expected="funding references can zero micro-deviations inside a symmetric deadband while preserving nonzero response outside the boundary",
+        observed={
+            "model": "integer_deadband_witness",
+            "index_price": index_price,
+            "threshold": threshold,
+            "micro_mark": micro_mark,
+            "standard_micro_funding": standard_funding(micro_mark, index_price),
+            "deadband_micro_funding": deadband_funding(micro_mark, index_price, threshold),
+            "deadband_boundary_funding": deadband_funding(boundary_mark, index_price, threshold),
+            "deadband_outside_funding": deadband_funding(outside_mark, index_price, threshold),
+        },
+    )
+
+
+def _pre_slash_withdrawal_escape_case() -> dict[str, Any]:
+    replay = sample_replay()
+    alpha_report = next(
+        event
+        for event in replay["events"]
+        if event.get("type") == "submit_report" and event.get("reporter_id") == "reporter.alpha"
+    )
+    open_dispute = copy.deepcopy(next(event for event in replay["events"] if event.get("type") == "open_dispute"))
+    slash_reporter = copy.deepcopy(next(event for event in replay["events"] if event.get("type") == "slash_reporter"))
+
+    replay["events"] = [
+        event
+        for event in replay["events"]
+        if event.get("type") in {"register_reporter", "deposit_bond", "fee_split"}
+    ]
+    replay["events"].extend(
+        [
+            alpha_report,
+            {"type": "unregister_reporter", "epoch": 12, "reporter_id": "reporter.alpha"},
+            {
+                "type": "withdraw_bond",
+                "epoch": 13,
+                "reporter_id": "reporter.alpha",
+                "amount_e8": 250_000_000_000,
+            },
+        ]
+    )
+    open_dispute["epoch"] = 14
+    slash_reporter["epoch"] = 15
+    replay["events"].extend([open_dispute, slash_reporter])
+
+    result = verify_reporter_economics_replay(replay).to_json_obj()
+    ok = result["status"] == "rejected" and "slash_exceeds_reporter_bond" in result["errors"]
+    return _case_receipt(
+        "pre_slash_withdrawal_escape_attempt",
+        manifest_axis="slash_exceeds_reporter_bond",
+        guard_family="reporter_unbonding_slashability_gate",
+        obligations=["budget_conservation", "economic_margin", "reporter_bonded", "schema_total"],
+        ok=ok,
+        expected="a trace where a reporter withdraws the slashable bond before the dispute slash is rejected by reporter economics replay",
+        observed={
+            "verifier": "zenodex_oracle_reporter_economics_replay.verify_reporter_economics_replay",
+            "status": result["status"],
+            "errors": result["errors"],
+            "total_withdrawn_e8": result["total_withdrawn_e8"],
+            "total_slashed_e8": result["total_slashed_e8"],
+            "design_note": "production unbonding should use an explicit cooldown or slashable tombstone state",
+        },
+    )
+
+
 def build_corpus(
     *,
     zenoproof_registry: Path = DEFAULT_ZENOPROOF_REGISTRY,
@@ -415,6 +677,12 @@ def build_corpus(
         lambda: _proof_timeout_case(zenoproof_registry),
         lambda: _replay_integrity_case(store_root),
         _cross_module_split_brain_case,
+        _spot_price_overvaluation_case,
+        _governance_parameter_drift_case,
+        _quote_farming_free_option_case,
+        _recursive_collateral_dependency_case,
+        _funding_deadband_case,
+        _pre_slash_withdrawal_escape_case,
     ):
         try:
             cases.append(builder())

@@ -219,8 +219,8 @@ Current expected frontier receipt:
 
 ```text
 status = accepted
-frontier_family_count = 29
-closed_family_count = 24
+frontier_family_count = 35
+closed_family_count = 30
 blocked_or_backlog_count = 5
 new_obligation_family_count = 0
 error_count = 0
@@ -236,8 +236,8 @@ Current expected projection receipt:
 
 ```text
 status = accepted
-frontier_family_count = 29
-projected_family_count = 29
+frontier_family_count = 35
+projected_family_count = 35
 new_obligation_family_count = 0
 error_count = 0
 ```
