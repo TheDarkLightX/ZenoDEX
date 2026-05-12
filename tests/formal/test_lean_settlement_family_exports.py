@@ -35,6 +35,7 @@ def test_lean_settlement_family_exported_via_proofs_root() -> None:
     smoke = (
         'import Proofs\n'
         '#check TauSwap.ZenoDEX.SettlementCompactBundle.compactBundleOk_implies_canonicalIds\n'
+        '#check TauSwap.ZenoDEX.SettlementReplayContext.requiredReplayContext_inputs_unique\n'
         '#check TauSwap.SettlementEndToEndCertificatePacket.packetOk_iff\n'
         '#check TauSwap.SettlementEndogenousLPValuePacket.packetOk_iff\n'
         '#check TauSwap.SettlementFeatureExtensionPacket.packetOk_iff\n'
