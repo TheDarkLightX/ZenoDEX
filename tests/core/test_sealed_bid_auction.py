@@ -243,6 +243,15 @@ def test_second_price_single_item_charges_second_highest_bid() -> None:
     assert settlement.clearing_price == 119
     assert settlement.total_filled == 1
     assert [(f.bidder_id, f.filled_quantity, f.paid_price) for f in settlement.fills] == [("bob", 1, 119)]
+    assert settlement.price_witness is not None
+    assert settlement.price_witness.pricing_rule == "second_price_single_item_v1"
+    assert settlement.price_witness.reserve_price == 0
+    assert settlement.price_witness.threshold_price == 119
+    assert settlement.price_witness.winner_bidder_id == "bob"
+    assert settlement.price_witness.winner_limit_price == 130
+    assert settlement.price_witness.runner_up_bidder_id == "carol"
+    assert settlement.price_witness.runner_up_limit_price == 119
+    assert settlement.price_witness.eligible_bid_count == 3
 
 
 def test_second_price_single_item_is_deterministic_under_reordering() -> None:
@@ -299,6 +308,9 @@ def test_second_price_single_item_reserve_and_tie_boundaries() -> None:
     assert tied_settlement.clearing_price == 110
     assert tied_settlement.total_filled == 1
     assert tied_settlement.fills[0].bidder_id in {"alice", "bob"}
+    assert tied_settlement.price_witness is not None
+    assert tied_settlement.price_witness.threshold_price == 110
+    assert tied_settlement.price_witness.runner_up_limit_price == 110
 
     reserve_receipt = [_commit("vickrey-4", "alice", 1, 105, "n1", units_for_sale=1)]
     reserve_reveal = [_reveal("alice", 1, 105, "n1")]
@@ -310,8 +322,16 @@ def test_second_price_single_item_reserve_and_tie_boundaries() -> None:
         current_epoch=2,
     )
 
-    assert settle_checked_second_price_sealed_bid(checked_batch=checked, reserve_price=100).clearing_price == 100
-    assert settle_checked_second_price_sealed_bid(checked_batch=checked, reserve_price=106).total_filled == 0
+    accepted = settle_checked_second_price_sealed_bid(checked_batch=checked, reserve_price=100)
+    rejected = settle_checked_second_price_sealed_bid(checked_batch=checked, reserve_price=106)
+    assert accepted.clearing_price == 100
+    assert accepted.price_witness is not None
+    assert accepted.price_witness.threshold_price == 100
+    assert accepted.price_witness.runner_up_bidder_id is None
+    assert rejected.total_filled == 0
+    assert rejected.price_witness is not None
+    assert rejected.price_witness.threshold_price == 106
+    assert rejected.price_witness.eligible_bid_count == 0
 
 
 def test_second_price_single_item_rejects_wrong_scope_and_bad_reserve() -> None:
