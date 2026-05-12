@@ -10,13 +10,14 @@ Scope is deliberately narrow and one-sided (buyers bid for a fixed inventory).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, Mapping, Tuple
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
 MAX_UNITS = 0xFFFF
 MAX_PRICE = 0xFFFF
+_CHECKED_BATCH_TOKEN = object()
 
 
 def _require_non_empty_str(value: object, error: str) -> str:
@@ -72,6 +73,18 @@ class SealedBidSettlement:
     clearing_price: int
     total_filled: int
     fills: tuple[SealedBidFill, ...]
+
+
+@dataclass(frozen=True)
+class CheckedSealedBidBatch:
+    batch_id: str
+    units_for_sale: int
+    bids: tuple[RevealedSealedBid, ...]
+    _token: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._token is not _CHECKED_BATCH_TOKEN:
+            raise ValueError("CheckedSealedBidBatch must be constructed by verifier")
 
 
 def sealed_bid_reveal_hash(*, quantity: int, limit_price: int, nonce: str) -> str:
@@ -206,7 +219,7 @@ def verify_sealed_bid_reveals_for_batch(
     commit_receipts: Iterable[Mapping[str, Any]],
     reveals: Iterable[SealedBidReveal],
     current_epoch: int | None = None,
-) -> tuple[RevealedSealedBid, ...]:
+) -> CheckedSealedBidBatch:
     """Verify reveal payloads against public commit receipts.
 
     This keeps the private auction execution path small: the uniform-price
@@ -297,7 +310,24 @@ def verify_sealed_bid_reveals_for_batch(
             )
         )
 
-    return tuple(sorted(checked, key=lambda bid: (str(bid.commitment), str(bid.bidder_id))))
+    return CheckedSealedBidBatch(
+        batch_id=batch_id,
+        units_for_sale=units_for_sale_int,
+        bids=tuple(sorted(checked, key=lambda bid: (str(bid.commitment), str(bid.bidder_id)))),
+        _token=_CHECKED_BATCH_TOKEN,
+    )
+
+
+def settle_checked_uniform_price_sealed_bids(
+    *,
+    checked_batch: CheckedSealedBidBatch,
+) -> SealedBidSettlement:
+    if not isinstance(checked_batch, CheckedSealedBidBatch):
+        raise ValueError("checked_batch must be a CheckedSealedBidBatch")
+    return _settle_uniform_price_checked_bids(
+        units_for_sale=checked_batch.units_for_sale,
+        bids=checked_batch.bids,
+    )
 
 
 def settle_committed_uniform_price_sealed_bids(
@@ -308,17 +338,17 @@ def settle_committed_uniform_price_sealed_bids(
     reveals: Iterable[SealedBidReveal],
     current_epoch: int | None = None,
 ) -> SealedBidSettlement:
-    checked = verify_sealed_bid_reveals_for_batch(
+    checked_batch = verify_sealed_bid_reveals_for_batch(
         batch_id=batch_id,
         units_for_sale=units_for_sale,
         commit_receipts=commit_receipts,
         reveals=reveals,
         current_epoch=current_epoch,
     )
-    return settle_uniform_price_sealed_bids(units_for_sale=units_for_sale, bids=checked)
+    return settle_checked_uniform_price_sealed_bids(checked_batch=checked_batch)
 
 
-def settle_uniform_price_sealed_bids(
+def _settle_uniform_price_checked_bids(
     *,
     units_for_sale: int,
     bids: Iterable[RevealedSealedBid],
