@@ -90,6 +90,7 @@ import Proofs.ZUSDSPWholeVaultLiquidation
 import Proofs.GaloisSplitCertificate
 import Proofs.ArbitrageCertificate
 import Proofs.ZenoDEXSettlementCompactBundle
+import Proofs.ZenoDEXSettlementReplayContext
 import Proofs.ZenoDEXSettlementEndToEndCertificatePacket
 import Proofs.ZenoDEXSettlementEndogenousLPValuePacket
 import Proofs.ZenoDEXSettlementFeatureExtensionPacket
