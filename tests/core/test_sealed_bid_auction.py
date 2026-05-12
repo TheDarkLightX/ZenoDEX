@@ -2,17 +2,40 @@ from __future__ import annotations
 
 import pytest
 
+import src.core.sealed_bid_auction as sealed_bid_auction
 from src.core.sealed_bid_auction import (
-    RevealedSealedBid,
+    CheckedSealedBidBatch,
     SealedBidReveal,
     make_sealed_bid_commit_receipt,
     reveal_matches_commitment,
     sealed_bid_reveal_hash,
+    settle_checked_uniform_price_sealed_bids,
     settle_committed_uniform_price_sealed_bids,
-    settle_uniform_price_sealed_bids,
     verify_sealed_bid_reveals_for_batch,
     verify_commit_receipt,
 )
+
+
+def _commit(batch_id: str, bidder_id: str, quantity: int, limit_price: int, nonce: str, *, units_for_sale: int = 10):
+    commitment = sealed_bid_reveal_hash(quantity=quantity, limit_price=limit_price, nonce=nonce)
+    return make_sealed_bid_commit_receipt(
+        batch_id=batch_id,
+        bidder_id=bidder_id,
+        commitment=commitment,
+        commit_epoch=1,
+        reveal_deadline_epoch=3,
+        units_for_sale=units_for_sale,
+    )
+
+
+def _reveal(bidder_id: str, quantity: int, limit_price: int, nonce: str) -> SealedBidReveal:
+    return SealedBidReveal(
+        bidder_id=bidder_id,
+        commitment=sealed_bid_reveal_hash(quantity=quantity, limit_price=limit_price, nonce=nonce),
+        quantity=quantity,
+        limit_price=limit_price,
+        nonce=nonce,
+    )
 
 
 def test_commit_receipt_hides_private_fields() -> None:
@@ -125,13 +148,33 @@ def test_reveal_matches_commitment_and_rejects_mismatch() -> None:
 
 
 def test_uniform_price_settlement_is_deterministic_under_reordering() -> None:
-    bids = [
-        RevealedSealedBid("alice", sealed_bid_reveal_hash(quantity=4, limit_price=105, nonce="n1"), 4, 105),
-        RevealedSealedBid("bob", sealed_bid_reveal_hash(quantity=5, limit_price=103, nonce="n2"), 5, 103),
-        RevealedSealedBid("carol", sealed_bid_reveal_hash(quantity=7, limit_price=100, nonce="n3"), 7, 100),
+    receipts = [
+        _commit("batch-1", "alice", 4, 105, "n1"),
+        _commit("batch-1", "bob", 5, 103, "n2"),
+        _commit("batch-1", "carol", 7, 100, "n3"),
     ]
-    s1 = settle_uniform_price_sealed_bids(units_for_sale=10, bids=bids)
-    s2 = settle_uniform_price_sealed_bids(units_for_sale=10, bids=list(reversed(bids)))
+    reveals = [
+        _reveal("alice", 4, 105, "n1"),
+        _reveal("bob", 5, 103, "n2"),
+        _reveal("carol", 7, 100, "n3"),
+    ]
+    checked1 = verify_sealed_bid_reveals_for_batch(
+        batch_id="batch-1",
+        units_for_sale=10,
+        commit_receipts=receipts,
+        reveals=reveals,
+        current_epoch=2,
+    )
+    checked2 = verify_sealed_bid_reveals_for_batch(
+        batch_id="batch-1",
+        units_for_sale=10,
+        commit_receipts=list(reversed(receipts)),
+        reveals=list(reversed(reveals)),
+        current_epoch=2,
+    )
+    s1 = settle_checked_uniform_price_sealed_bids(checked_batch=checked1)
+    s2 = settle_checked_uniform_price_sealed_bids(checked_batch=checked2)
+
     assert s1 == s2
     assert s1.clearing_price == 100
     assert s1.total_filled == 10
@@ -143,42 +186,40 @@ def test_uniform_price_settlement_is_deterministic_under_reordering() -> None:
 
 
 def test_uniform_price_boundary_exact_units() -> None:
-    bids = [
-        RevealedSealedBid("alice", sealed_bid_reveal_hash(quantity=3, limit_price=110, nonce="m1"), 3, 110),
-        RevealedSealedBid("bob", sealed_bid_reveal_hash(quantity=4, limit_price=110, nonce="m2"), 4, 110),
-        RevealedSealedBid("carol", sealed_bid_reveal_hash(quantity=4, limit_price=108, nonce="m3"), 4, 108),
+    receipts = [
+        _commit("batch-2", "alice", 3, 110, "m1", units_for_sale=5),
+        _commit("batch-2", "bob", 4, 110, "m2", units_for_sale=5),
+        _commit("batch-2", "carol", 4, 108, "m3", units_for_sale=5),
     ]
-    s = settle_uniform_price_sealed_bids(units_for_sale=5, bids=bids)
+    reveals = [
+        _reveal("alice", 3, 110, "m1"),
+        _reveal("bob", 4, 110, "m2"),
+        _reveal("carol", 4, 108, "m3"),
+    ]
+    checked = verify_sealed_bid_reveals_for_batch(
+        batch_id="batch-2",
+        units_for_sale=5,
+        commit_receipts=receipts,
+        reveals=reveals,
+        current_epoch=2,
+    )
+    s = settle_checked_uniform_price_sealed_bids(checked_batch=checked)
+
     assert s.clearing_price == 110
     assert s.total_filled == 5
     assert [(f.bidder_id, f.filled_quantity) for f in s.fills] == [("bob", 4), ("alice", 1)]
 
 
-def test_uniform_price_rejects_raw_bid_objects() -> None:
-    with pytest.raises(ValueError, match="^bid must be a RevealedSealedBid$"):
-        settle_uniform_price_sealed_bids(units_for_sale=5, bids=[object()])  # type: ignore[list-item]
+def test_checked_settlement_requires_checked_batch_type() -> None:
+    with pytest.raises(ValueError, match="^checked_batch must be a CheckedSealedBidBatch$"):
+        settle_checked_uniform_price_sealed_bids(checked_batch=object())  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="^CheckedSealedBidBatch must be constructed by verifier$"):
+        CheckedSealedBidBatch(batch_id="batch-1", units_for_sale=1, bids=(), _token=object())
 
 
-def _commit(batch_id: str, bidder_id: str, quantity: int, limit_price: int, nonce: str, *, units_for_sale: int = 10):
-    commitment = sealed_bid_reveal_hash(quantity=quantity, limit_price=limit_price, nonce=nonce)
-    return make_sealed_bid_commit_receipt(
-        batch_id=batch_id,
-        bidder_id=bidder_id,
-        commitment=commitment,
-        commit_epoch=1,
-        reveal_deadline_epoch=3,
-        units_for_sale=units_for_sale,
-    )
-
-
-def _reveal(bidder_id: str, quantity: int, limit_price: int, nonce: str) -> SealedBidReveal:
-    return SealedBidReveal(
-        bidder_id=bidder_id,
-        commitment=sealed_bid_reveal_hash(quantity=quantity, limit_price=limit_price, nonce=nonce),
-        quantity=quantity,
-        limit_price=limit_price,
-        nonce=nonce,
-    )
+def test_raw_uniform_settlement_is_not_public_api() -> None:
+    assert not hasattr(sealed_bid_auction, "settle_uniform_price_sealed_bids")
 
 
 def test_committed_settlement_binds_reveals_to_commit_receipts() -> None:
