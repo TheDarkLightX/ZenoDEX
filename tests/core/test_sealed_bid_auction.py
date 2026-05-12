@@ -9,6 +9,7 @@ from src.core.sealed_bid_auction import (
     make_sealed_bid_commit_receipt,
     reveal_matches_commitment,
     sealed_bid_reveal_hash,
+    settle_checked_second_price_sealed_bid,
     settle_checked_uniform_price_sealed_bids,
     settle_committed_uniform_price_sealed_bids,
     verify_sealed_bid_reveals_for_batch,
@@ -216,6 +217,131 @@ def test_checked_settlement_requires_checked_batch_type() -> None:
 
     with pytest.raises(ValueError, match="^CheckedSealedBidBatch must be constructed by verifier$"):
         CheckedSealedBidBatch(batch_id="batch-1", units_for_sale=1, bids=(), _token=object())
+
+
+def test_second_price_single_item_charges_second_highest_bid() -> None:
+    receipts = [
+        _commit("vickrey-1", "alice", 1, 105, "n1", units_for_sale=1),
+        _commit("vickrey-1", "bob", 1, 130, "n2", units_for_sale=1),
+        _commit("vickrey-1", "carol", 1, 119, "n3", units_for_sale=1),
+    ]
+    reveals = [
+        _reveal("carol", 1, 119, "n3"),
+        _reveal("bob", 1, 130, "n2"),
+        _reveal("alice", 1, 105, "n1"),
+    ]
+    checked = verify_sealed_bid_reveals_for_batch(
+        batch_id="vickrey-1",
+        units_for_sale=1,
+        commit_receipts=receipts,
+        reveals=reveals,
+        current_epoch=2,
+    )
+
+    settlement = settle_checked_second_price_sealed_bid(checked_batch=checked)
+
+    assert settlement.clearing_price == 119
+    assert settlement.total_filled == 1
+    assert [(f.bidder_id, f.filled_quantity, f.paid_price) for f in settlement.fills] == [("bob", 1, 119)]
+
+
+def test_second_price_single_item_is_deterministic_under_reordering() -> None:
+    receipts = [
+        _commit("vickrey-2", "alice", 1, 105, "n1", units_for_sale=1),
+        _commit("vickrey-2", "bob", 1, 130, "n2", units_for_sale=1),
+        _commit("vickrey-2", "carol", 1, 119, "n3", units_for_sale=1),
+    ]
+    reveals = [
+        _reveal("alice", 1, 105, "n1"),
+        _reveal("bob", 1, 130, "n2"),
+        _reveal("carol", 1, 119, "n3"),
+    ]
+    checked1 = verify_sealed_bid_reveals_for_batch(
+        batch_id="vickrey-2",
+        units_for_sale=1,
+        commit_receipts=receipts,
+        reveals=reveals,
+        current_epoch=2,
+    )
+    checked2 = verify_sealed_bid_reveals_for_batch(
+        batch_id="vickrey-2",
+        units_for_sale=1,
+        commit_receipts=list(reversed(receipts)),
+        reveals=list(reversed(reveals)),
+        current_epoch=2,
+    )
+
+    assert settle_checked_second_price_sealed_bid(checked_batch=checked1) == settle_checked_second_price_sealed_bid(
+        checked_batch=checked2
+    )
+
+
+def test_second_price_single_item_reserve_and_tie_boundaries() -> None:
+    tied_receipts = [
+        _commit("vickrey-3", "alice", 1, 110, "n1", units_for_sale=1),
+        _commit("vickrey-3", "bob", 1, 110, "n2", units_for_sale=1),
+        _commit("vickrey-3", "carol", 1, 90, "n3", units_for_sale=1),
+    ]
+    tied_reveals = [
+        _reveal("alice", 1, 110, "n1"),
+        _reveal("bob", 1, 110, "n2"),
+        _reveal("carol", 1, 90, "n3"),
+    ]
+    tied = verify_sealed_bid_reveals_for_batch(
+        batch_id="vickrey-3",
+        units_for_sale=1,
+        commit_receipts=tied_receipts,
+        reveals=tied_reveals,
+        current_epoch=2,
+    )
+    tied_settlement = settle_checked_second_price_sealed_bid(checked_batch=tied)
+
+    assert tied_settlement.clearing_price == 110
+    assert tied_settlement.total_filled == 1
+    assert tied_settlement.fills[0].bidder_id in {"alice", "bob"}
+
+    reserve_receipt = [_commit("vickrey-4", "alice", 1, 105, "n1", units_for_sale=1)]
+    reserve_reveal = [_reveal("alice", 1, 105, "n1")]
+    checked = verify_sealed_bid_reveals_for_batch(
+        batch_id="vickrey-4",
+        units_for_sale=1,
+        commit_receipts=reserve_receipt,
+        reveals=reserve_reveal,
+        current_epoch=2,
+    )
+
+    assert settle_checked_second_price_sealed_bid(checked_batch=checked, reserve_price=100).clearing_price == 100
+    assert settle_checked_second_price_sealed_bid(checked_batch=checked, reserve_price=106).total_filled == 0
+
+
+def test_second_price_single_item_rejects_wrong_scope_and_bad_reserve() -> None:
+    multi_receipts = [
+        _commit("batch-2", "alice", 3, 110, "m1", units_for_sale=5),
+        _commit("batch-2", "bob", 4, 110, "m2", units_for_sale=5),
+    ]
+    multi_reveals = [
+        _reveal("alice", 3, 110, "m1"),
+        _reveal("bob", 4, 110, "m2"),
+    ]
+    multi_checked = verify_sealed_bid_reveals_for_batch(
+        batch_id="batch-2",
+        units_for_sale=5,
+        commit_receipts=multi_receipts,
+        reveals=multi_reveals,
+        current_epoch=2,
+    )
+    single_checked = verify_sealed_bid_reveals_for_batch(
+        batch_id="vickrey-5",
+        units_for_sale=1,
+        commit_receipts=[_commit("vickrey-5", "alice", 1, 110, "n1", units_for_sale=1)],
+        reveals=[_reveal("alice", 1, 110, "n1")],
+        current_epoch=2,
+    )
+
+    with pytest.raises(ValueError, match="^second-price settlement requires units_for_sale == 1$"):
+        settle_checked_second_price_sealed_bid(checked_batch=multi_checked)
+    with pytest.raises(ValueError, match="^reserve_price out of range$"):
+        settle_checked_second_price_sealed_bid(checked_batch=single_checked, reserve_price=True)  # type: ignore[arg-type]
 
 
 def test_raw_uniform_settlement_is_not_public_api() -> None:
