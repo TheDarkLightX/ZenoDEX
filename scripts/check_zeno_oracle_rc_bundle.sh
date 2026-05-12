@@ -9,6 +9,7 @@ export PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 python3 tools/zenodex_oracle_cli.py doctor
 python3 tools/zeno_oracle_o3_receipt_flow_replay.py --format text
 python3 tools/zenodex_oracle_reporter_economics_replay.py self-test
+python3 tools/zenodex_oracle_reporter_token_settlement_replay.py self-test
 python3 tools/check_zeno_oracle_live_economics_policy.py --format text
 python3 tools/zenodex_oracle_devnet_disaster_harness.py --format text
 python3 tools/zeno_oracle_disaster_class_corpus.py --format text
