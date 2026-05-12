@@ -294,6 +294,27 @@ def test_committed_reveal_rejects_duplicate_commit_and_reveal_keys() -> None:
         )
 
 
+def test_committed_reveal_rejects_copied_commitment_by_other_bidder() -> None:
+    alice = _commit("batch-1", "alice", 4, 105, "n1")
+    copied = make_sealed_bid_commit_receipt(
+        batch_id="batch-1",
+        bidder_id="bob",
+        commitment=alice["body"]["commitment"],
+        commit_epoch=1,
+        reveal_deadline_epoch=3,
+        units_for_sale=10,
+    )
+
+    with pytest.raises(ValueError, match="^duplicate_commitment$"):
+        verify_sealed_bid_reveals_for_batch(
+            batch_id="batch-1",
+            units_for_sale=10,
+            commit_receipts=[alice, copied],
+            reveals=[_reveal("alice", 4, 105, "n1")],
+            current_epoch=2,
+        )
+
+
 def test_committed_reveal_rejects_non_canonical_reveal_fields() -> None:
     receipt = _commit("batch-1", "alice", 4, 105, "n1")
     bad_quantity = SealedBidReveal(
