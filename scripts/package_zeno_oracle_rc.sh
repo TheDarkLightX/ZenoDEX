@@ -62,6 +62,7 @@ find "${stage}" -type f -name '*.pyc' -delete
 chmod +x "${stage}/tools/zenodex_oracle_cli.py"
 chmod +x "${stage}/tools/zenodex_oracle_devnet_disaster_harness.py"
 chmod +x "${stage}/tools/zenodex_oracle_reporter_economics_replay.py"
+chmod +x "${stage}/tools/zenodex_oracle_reporter_token_settlement_replay.py"
 chmod +x "${stage}/tools/check_zeno_oracle_critical_action_map.py"
 chmod +x "${stage}/tools/check_zeno_oracle_rc_package.py"
 chmod +x "${stage}/tools/check_disaster_obligation_certificate.py"

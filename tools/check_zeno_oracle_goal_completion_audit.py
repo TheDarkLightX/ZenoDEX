@@ -152,11 +152,14 @@ def build_audit() -> dict[str, Any]:
             evidence_files=[
                 "tools/zenodex_oracle_reporter_economics_replay.py",
                 "tests/test_zenodex_oracle_reporter_economics_replay.py",
+                "tools/zenodex_oracle_reporter_token_settlement_replay.py",
+                "tests/test_zenodex_oracle_reporter_token_settlement_replay.py",
                 "tools/check_zeno_oracle_live_economics_policy.py",
                 "tests/test_check_zeno_oracle_live_economics_policy.py",
             ],
             replay_commands=[
                 "python3 tools/zenodex_oracle_reporter_economics_replay.py self-test",
+                "python3 tools/zenodex_oracle_reporter_token_settlement_replay.py self-test",
                 "python3 tools/check_zeno_oracle_live_economics_policy.py --format text",
                 "pytest -q tests/test_check_zeno_oracle_live_economics_policy.py",
             ],
@@ -168,7 +171,7 @@ def build_audit() -> dict[str, Any]:
                 "settlement_execution_receipt_not_verified_onchain",
             ],
             limits=[
-                "local replay validates accounting transitions and local receipt bundles, including settlement-execution totals, only",
+                "local replay validates accounting transitions, token-transfer conservation, and local receipt bundles, including settlement-execution totals, only",
                 "policy checker binds replay to production-candidate controls but does not prove live chain settlement",
             ],
         ),

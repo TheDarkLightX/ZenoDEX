@@ -142,6 +142,7 @@ def _workflow_ok() -> bool:
         and "tools/check_claims_registry.py" in gate
         and "tools/check_zeno_oracle_goal_completion_audit.py" in gate
         and "tools/zenodex_oracle_reporter_economics_replay.py" in gate
+        and "tools/zenodex_oracle_reporter_token_settlement_replay.py" in gate
     )
 
 
@@ -349,6 +350,7 @@ def run_audit() -> dict[str, Any]:
                     "tools/check_zeno_oracle_critical_action_map.py",
                     "tools/zeno_oracle_o3_receipt_flow_replay.py",
                     "tools/zenodex_oracle_reporter_economics_replay.py",
+                    "tools/zenodex_oracle_reporter_token_settlement_replay.py",
                     "tools/check_zeno_oracle_live_economics_policy.py",
                     "tools/zenodex_oracle_devnet_disaster_harness.py",
                     "tools/check_disaster_obligation_certificate.py",

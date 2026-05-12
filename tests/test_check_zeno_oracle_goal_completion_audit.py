@@ -28,6 +28,7 @@ def test_goal_completion_audit_maps_all_prompt_items_and_blocks_goal_closure() -
     assert items[3]["status"] == "devnet_complete"
     assert items[4]["status"] == "partial"
     assert "live_economics_policy_gate_is_production_candidate_only" in items[4]["blockers"]
+    assert "tools/zenodex_oracle_reporter_token_settlement_replay.py" in items[4]["evidence_files"]
     assert "tools/check_zeno_oracle_live_economics_policy.py" in items[4]["evidence_files"]
     assert audit["live_economics_policy_gate"]["status"] == "production_candidate_only"
     assert "tools/check_zeno_oracle_disaster_frontier.py" in items[5]["evidence_files"]
