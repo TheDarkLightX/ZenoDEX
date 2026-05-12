@@ -1688,6 +1688,30 @@ claims:
         - tests/test_zenodex_oracle_reporter_economics_replay.py
         - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
 
+  - id: py:zeno_oracle:reporter_token_settlement_replay_v1
+    status: supported
+    layer: implementation
+    statement: >
+      The local ZenoOracle reporter token-settlement replay verifier checks
+      that an accepted reporter economics ledger is governed by an approved
+      policy and settled by an explicit token-transfer ledger. It verifies
+      policy binding, transfer reason allowlisting, policy-id consistency,
+      sufficient balances, per-reason totals against the economics replay,
+      final escrow/reward/treasury/burn balances, and no-mint token
+      conservation. This is a local replay claim; production chain execution,
+      on-chain governance liveness, reporter honesty, and oracle truth remain
+      outside the claim.
+    evidence:
+      kind: python
+      check:
+        - cmd: python3 tools/zenodex_oracle_reporter_token_settlement_replay.py self-test
+        - cmd: pytest -q tests/test_zenodex_oracle_reporter_token_settlement_replay.py
+      files:
+        - tools/zenodex_oracle_reporter_token_settlement_replay.py
+        - tests/test_zenodex_oracle_reporter_token_settlement_replay.py
+        - tools/zenodex_oracle_reporter_economics_replay.py
+        - docs/ZENO_ORACLE_GOAL_COMPLETION_AUDIT.md
+
   - id: py:zeno_oracle:live_economics_policy_gate_v1
     status: supported
     layer: implementation
