@@ -21,7 +21,7 @@ def test_perps_snapshot_gate_accepts_bounded_roundtrip_cases() -> None:
     assert report["case_count"] == 10
     assert report["accepted_case_count"] == 10
     assert report["error_count"] == 0
-    assert "does_not_claim_general_perps_snapshot_theorem" in report["not_claimed"]
+    assert "does_not_claim_full_perps_state_snapshot_theorem" in report["not_claimed"]
     cases = {case["name"]: case for case in report["cases"]}
     assert cases["isolated_settle_snapshot_runtime_facts_roundtrip"]["details"]["runtime_value_e8"] == 100_000_000
     stale_case = cases["isolated_settle_stale_action_id_rejected_after_snapshot_drift"]

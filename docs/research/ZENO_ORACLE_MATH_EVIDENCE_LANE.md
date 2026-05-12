@@ -74,7 +74,11 @@ content-hash drift, registry-root drift, runtime-state drift, missing value
 binding, or wrong consumer action, sync-window widening preservation for O3
 action binding, and O3 preservation through sync-window composition. It also
 proves epoch-lag triangle composition and Oracle sync-window composition with
-summed lag bounds. The O4/O5 Oracle-use
+summed lag bounds. It now adds a restricted perps snapshot usability theorem:
+usable snapshots decompose into decoded snapshot, preserved runtime facts,
+preserved action ID, accepted adapter bridge, stale-action rejection, and shape
+validation obligations; a perps critical action is rejected if the usable
+snapshot or O3 action-binding obligation is missing. The O4/O5 Oracle-use
 rule now has iff decompositions for O4/O5 bridge obligations and full O5 use:
 accepted O3 receipt, ZenoProof acceptance, same query/value/window, same
 consumer action, primary O5 claim, distinct verifiers, distinct proof kinds,

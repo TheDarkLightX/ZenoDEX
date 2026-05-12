@@ -348,7 +348,10 @@ def sample_frontier() -> dict[str, Any]:
             manifest_axis="stale_read_used_for_critical_action",
             manifest_obligations=["critical_action_bound", "receipt_dag_closed", "schema_total", "time_freshness"],
             replay_commands=["python3 tools/check_zeno_oracle_critical_action_map.py", perps_snapshot_command],
-            blockers=["perps_snapshot_gate_is_bounded_replay_not_general_theorem", "production_runtime_policy_not_live"],
+            blockers=[
+                "perps_snapshot_theorem_is_restricted_to_usability_obligations",
+                "production_runtime_policy_not_live",
+            ],
         ),
         _family(
             "cross_domain_finality_reorg_feeds_oracle_read",
