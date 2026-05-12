@@ -123,6 +123,7 @@ import Proofs.ZenoDEXClosedAxisProofSchemaMap
 import Proofs.DisasterTraceDiscoveryChallenge
 import Proofs.FixedPointIntervalBridge
 import Proofs.FixedPointPortfolioBridge
+import Proofs.ZenoOracleMathWitness
 import Proofs.TokenomicsTraceSafety
 import Proofs.TokenomicsMechanismSafety
 import Proofs.ZenoPayoffFixedPointBridge

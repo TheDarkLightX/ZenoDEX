@@ -107,7 +107,8 @@ The active workspace now has:
   live-economics and production-network receipt-dependency chain
   projection/rejection, O3
   sync-window composition, Prop-level
-  live-economics receipt, O4/O5 Oracle-use binding, O4/O5 iff decomposition,
+  live-economics receipt, restricted perps snapshot usability,
+  O4/O5 Oracle-use binding, O4/O5 iff decomposition,
   and full O5 independence-witness obligation decomposition and rejection.
 - a public workflow evidence status checker at
   `tools/zeno_oracle_workflow_evidence_status.py` for the first TLA, LTLf,

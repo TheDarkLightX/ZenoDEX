@@ -1884,8 +1884,10 @@ claims:
       restore, preserves clearinghouse 2p/3p settle action IDs and adapter
       execution after restore, and rejects malformed oracle/clearinghouse
       snapshot state. This is local replay evidence for the production-disaster
-      frontier family covering usable perps oracle snapshots; it does not claim
-      a general perps snapshot theorem or live production runtime policy.
+      frontier family covering usable perps oracle snapshots; it is paired with
+      a restricted Lean theorem over the usability obligations and does not
+      claim a full perps-state snapshot theorem or live production runtime
+      policy.
     evidence:
       kind: python
       check:
@@ -2063,6 +2065,9 @@ claims:
       projections, epoch-lag triangle composition, Oracle sync-window
       composition with summed lag bounds, O3 sync-window widening preservation,
       O3 preservation through sync-window composition,
+      restricted perps snapshot usability decomposition and critical-action
+      rejection when the usable-snapshot or O3-action-binding obligation is
+      missing,
       and O4/O5 Oracle-use
       anchors: O4/O5 use decomposes exactly into accepted O3 receipt,
       ZenoProof acceptance, same query/value/window, and same consumer-action
@@ -2080,6 +2085,7 @@ claims:
       files:
         - lean-mathlib/Proofs/ZenoOracleMathWitness.lean
         - lean-mathlib/Proofs.lean
+        - tests/formal/test_lean_zeno_oracle_math_witness_exports.py
         - docs/research/ZENO_ORACLE_MATH_EVIDENCE_LANE.md
         - docs/ZENO_ORACLE_PRODUCTION_CANDIDATE_PLAN.md
 

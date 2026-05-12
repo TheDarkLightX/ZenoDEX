@@ -275,6 +275,7 @@ def build_audit() -> dict[str, Any]:
                 "tools/zeno_oracle_math_witness_sweep.jl",
                 "tests/test_zeno_oracle_math_witness_sweep.py",
                 "lean-mathlib/Proofs/ZenoOracleMathWitness.lean",
+                "tests/formal/test_lean_zeno_oracle_math_witness_exports.py",
                 "formal/ltlf/oracle_recovery_ltlf_v1.yaml",
                 "formal/ltlf/oracle_recovery_goal_family_v1.json",
                 "formal/tla/OracleRecoveryLifecycle.tla",
@@ -295,6 +296,7 @@ def build_audit() -> dict[str, Any]:
                 "julia tools/zeno_oracle_math_witness_sweep.jl",
                 "pytest -q tests/test_zeno_oracle_math_witness_sweep.py",
                 "cd lean-mathlib && lake env lean Proofs/ZenoOracleMathWitness.lean",
+                "pytest -q tests/formal/test_lean_zeno_oracle_math_witness_exports.py",
             ],
             status="partial_restricted_math_packet",
             blockers=[
