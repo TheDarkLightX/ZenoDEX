@@ -330,6 +330,51 @@ def settle_checked_uniform_price_sealed_bids(
     )
 
 
+def settle_checked_second_price_sealed_bid(
+    *,
+    checked_batch: CheckedSealedBidBatch,
+    reserve_price: int = 0,
+) -> SealedBidSettlement:
+    """Settle a checked single-item sealed-bid auction at the second price."""
+
+    if not isinstance(checked_batch, CheckedSealedBidBatch):
+        raise ValueError("checked_batch must be a CheckedSealedBidBatch")
+    if checked_batch.units_for_sale != 1:
+        raise ValueError("second-price settlement requires units_for_sale == 1")
+    reserve_price_int = _require_int_range(
+        reserve_price,
+        "reserve_price out of range",
+        minimum=0,
+        maximum=MAX_PRICE,
+    )
+    ordered = sorted(
+        (
+            bid
+            for bid in _normalize_checked_bids(checked_batch.bids)
+            if int(bid.limit_price) >= reserve_price_int
+        ),
+        key=lambda bid: (-int(bid.limit_price), str(bid.commitment), str(bid.bidder_id)),
+    )
+    if not ordered:
+        return SealedBidSettlement(clearing_price=0, total_filled=0, fills=())
+
+    winner = ordered[0]
+    second_price = int(ordered[1].limit_price) if len(ordered) > 1 else 0
+    paid_price = max(reserve_price_int, second_price)
+    return SealedBidSettlement(
+        clearing_price=paid_price,
+        total_filled=1,
+        fills=(
+            SealedBidFill(
+                bidder_id=str(winner.bidder_id),
+                commitment=str(winner.commitment),
+                filled_quantity=1,
+                paid_price=paid_price,
+            ),
+        ),
+    )
+
+
 def settle_committed_uniform_price_sealed_bids(
     *,
     batch_id: str,
@@ -348,18 +393,7 @@ def settle_committed_uniform_price_sealed_bids(
     return settle_checked_uniform_price_sealed_bids(checked_batch=checked_batch)
 
 
-def _settle_uniform_price_checked_bids(
-    *,
-    units_for_sale: int,
-    bids: Iterable[RevealedSealedBid],
-) -> SealedBidSettlement:
-    units_for_sale_int = _require_int_range(
-        units_for_sale,
-        "units_for_sale out of range",
-        minimum=0,
-        maximum=MAX_UNITS,
-    )
-
+def _normalize_checked_bids(bids: Iterable[RevealedSealedBid]) -> list[RevealedSealedBid]:
     normalized: list[RevealedSealedBid] = []
     for bid in bids:
         if not isinstance(bid, RevealedSealedBid):
@@ -388,7 +422,22 @@ def _settle_uniform_price_checked_bids(
                 limit_price=limit_price,
             )
         )
+    return normalized
 
+
+def _settle_uniform_price_checked_bids(
+    *,
+    units_for_sale: int,
+    bids: Iterable[RevealedSealedBid],
+) -> SealedBidSettlement:
+    units_for_sale_int = _require_int_range(
+        units_for_sale,
+        "units_for_sale out of range",
+        minimum=0,
+        maximum=MAX_UNITS,
+    )
+
+    normalized = _normalize_checked_bids(bids)
     ordered = sorted(normalized, key=lambda b: (-int(b.limit_price), str(b.commitment), str(b.bidder_id)))
     remaining = units_for_sale_int
     fills: list[SealedBidFill] = []
