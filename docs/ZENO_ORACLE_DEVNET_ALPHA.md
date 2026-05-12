@@ -166,6 +166,21 @@ Current expected economics receipt:
 "dispute_count": 1
 ```
 
+The reporter token-settlement replay binds the accepted economics ledger to an
+approved local policy and an explicit transfer ledger:
+
+```bash
+python3 tools/zenodex_oracle_reporter_token_settlement_replay.py self-test
+```
+
+Current expected token-settlement receipt:
+
+```text
+"status": "accepted"
+"token_conservation_ok": true
+"transfer_count": 14
+```
+
 The live-economics production-candidate policy can be checked directly:
 
 ```bash
@@ -279,6 +294,7 @@ dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_disaster_obligation_certific
 dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_math_witness_sweep.jl
 dist/zeno-oracle-devnet-alpha-rc1/tools/zeno_oracle_o3_receipt_flow_replay.py
 dist/zeno-oracle-devnet-alpha-rc1/tools/zenodex_oracle_reporter_economics_replay.py
+dist/zeno-oracle-devnet-alpha-rc1/tools/zenodex_oracle_reporter_token_settlement_replay.py
 dist/zeno-oracle-devnet-alpha-rc1/docs/claims_registry.yaml
 dist/zeno-oracle-devnet-alpha-rc1/src/
 dist/zeno-oracle-devnet-alpha-rc1/tests/

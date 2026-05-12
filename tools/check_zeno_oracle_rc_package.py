@@ -42,6 +42,7 @@ REQUIRED_PACKAGE_FILES = {
     "tools/zenodex_oracle_cli.py",
     "tools/zenodex_oracle_devnet_service.py",
     "tools/zenodex_oracle_reporter_economics_replay.py",
+    "tools/zenodex_oracle_reporter_token_settlement_replay.py",
     "scripts/check_zeno_oracle_devnet_alpha.sh",
     "docs/ZENO_ORACLE_DEVNET_ALPHA.md",
     "docs/ZENO_ORACLE_CLI_V1.md",
