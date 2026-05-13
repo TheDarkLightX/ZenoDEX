@@ -75,6 +75,13 @@ The Python verifier binds the Lean model boundary to runtime by requiring:
 - aggregate CPMM invariant preservation;
 - settlement equality at the engine boundary.
 
+The scoped production-candidate helper
+`make_upba_v1_bounded_price_grid_engine_config()` in
+`src/integration/upba_production_config.py` turns the checker into the required
+swap-batch posture. It requires a UPBA certificate for swap intents and requires
+the bounded price-grid table evidence bundle for every accepted UPBA
+certificate.
+
 ## Verification Commands
 
 Focused runtime checks:
