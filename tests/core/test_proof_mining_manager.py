@@ -48,6 +48,10 @@ def _claim(
         prev_state_hash="sha256:prev",
         batch_hash="sha256:batch",
         dex_hash_after="sha256:after",
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
 
 
@@ -136,6 +140,33 @@ def test_build_submit_proof_packet_rejects_stale_snapshot_budget() -> None:
     snapshot = _snapshot(reward_pool_balance=19, total_paid=1)
     with pytest.raises(ValueError, match="reward_pool_before does not match snapshot"):
         build_submit_proof_packet(claim_artifact=claim, snapshot=snapshot, verification_flags=_verification_flags())
+
+
+def test_build_submit_proof_packet_rejects_nonadmissible_verifier_evidence() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=7),
+        round_id="r-bad-verifier",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=2,
+        chain_id="tau-testnet-alpha",
+        prev_state_hash="sha256:prev",
+        batch_hash="sha256:batch",
+        dex_hash_after="sha256:after",
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 0, "accepted": 1},
+        ],
+        allow_rejected=True,
+    )
+    with pytest.raises(ValueError, match="inadmissible"):
+        build_submit_proof_packet(
+            claim_artifact=claim,
+            snapshot=_snapshot(),
+            verification_flags=_verification_flags(),
+        )
 
 
 def test_assign_proposal_slot_linear_probe() -> None:

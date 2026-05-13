@@ -748,6 +748,10 @@ def test_apply_app_tx_proof_mining_claim_updates_reward_pool_and_wrapper_state(m
         prev_state_hash=ctx.prev_state_hash,
         batch_hash=ctx.batch_hash,
         dex_hash_after=ctx.dex_hash_after,
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
 
     ok1, app_state_json1, _hash1, balances_patch1, err1 = plugin.apply_app_tx(
@@ -914,6 +918,10 @@ def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
         prev_state_hash=ctx.prev_state_hash,
         batch_hash=ctx.batch_hash,
         dex_hash_after="sha256:wrong",
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
 
     ok1, _state1, _hash1, _patch1, err1 = plugin.apply_app_tx(

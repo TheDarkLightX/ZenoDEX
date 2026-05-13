@@ -5,12 +5,20 @@ from typing import Any, Mapping
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
 
-CLAIM_SCHEMA = "zenodex/permissionless_solver_proof_mining_claim/v1"
+CLAIM_SCHEMA = "zenodex/permissionless_solver_proof_mining_claim/v2"
+VERIFIER_EVIDENCE_SCHEMA = "zenodex/proof_mining_verifier_evidence/v1"
 U32_MAX = 0xFFFFFFFF
 U64_MAX = 0xFFFFFFFFFFFFFFFF
 MAX_EPOCH = 7
 MAX_PROPOSAL_SLOT = 7
 MAX_PROVER_ID = 3
+MAX_VERIFIER_ID = 7
+MAX_VERIFIER_DOMAIN_ID = 7
+MAX_VERIFIER_COUNT = 8
+MAX_VERIFIER_QUORUM = 8
+MAX_VERIFIER_DOMAIN_DIVERSITY = 8
+DEFAULT_MIN_VERIFIER_QUORUM = 2
+DEFAULT_MIN_VERIFIER_DOMAIN_DIVERSITY = 2
 
 
 @dataclass(frozen=True)
@@ -39,6 +47,20 @@ class _BudgetFacts:
     reward_pool_before: int
     reward_pool_after: int
     budget_ok: bool
+
+
+@dataclass(frozen=True)
+class _VerifierEvidenceFacts:
+    min_quorum: int
+    min_domain_diversity: int
+    verifier_count: int
+    distinct_domain_count: int
+    quorum_ok: bool
+    diversity_ok: bool
+
+    @property
+    def evidence_ok(self) -> bool:
+        return bool(self.quorum_ok and self.diversity_ok)
 
 
 def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
@@ -93,6 +115,27 @@ def _require_prover_id(value: Any, *, name: str) -> int:
     return prover
 
 
+def _require_verifier_id(value: Any, *, name: str) -> int:
+    verifier_id = _require_int(value, name=name)
+    if verifier_id < 0 or verifier_id > MAX_VERIFIER_ID:
+        raise ValueError("verifier_id out of range")
+    return verifier_id
+
+
+def _require_verifier_domain_id(value: Any, *, name: str) -> int:
+    domain_id = _require_int(value, name=name)
+    if domain_id < 0 or domain_id > MAX_VERIFIER_DOMAIN_ID:
+        raise ValueError("verifier domain_id out of range")
+    return domain_id
+
+
+def _require_verifier_threshold(value: Any, *, name: str, maximum: int) -> int:
+    threshold = _require_int(value, name=name)
+    if threshold <= 0 or threshold > maximum:
+        raise ValueError(f"{name} out of range")
+    return threshold
+
+
 def _require_winner_facts(winner: Mapping[str, Any], *, name: str) -> _WinnerFacts:
     witness_hash = _require_str(winner.get("witness_sha256"), name=f"{name}.witness_sha256")
     improvement_u64 = _require_int(winner.get("improvement_u64"), name=f"{name}.improvement_u64")
@@ -118,6 +161,85 @@ def _require_build_flags(
         "nonce_ok": _require_flag(nonce_ok, name="nonce_ok"),
         "unclaimed_ok": _require_flag(unclaimed_ok, name="unclaimed_ok"),
     }
+
+
+def _canonical_verifier_evidence(
+    *,
+    verifier_evidence: Any,
+    min_verifier_quorum: int,
+    min_verifier_domain_diversity: int,
+) -> tuple[dict[str, Any], _VerifierEvidenceFacts]:
+    min_quorum = _require_verifier_threshold(
+        min_verifier_quorum,
+        name="min_verifier_quorum",
+        maximum=MAX_VERIFIER_QUORUM,
+    )
+    min_domain_diversity = _require_verifier_threshold(
+        min_verifier_domain_diversity,
+        name="min_verifier_domain_diversity",
+        maximum=MAX_VERIFIER_DOMAIN_DIVERSITY,
+    )
+    if min_domain_diversity > min_quorum:
+        raise ValueError("min_verifier_domain_diversity cannot exceed min_verifier_quorum")
+
+    if verifier_evidence is None:
+        raw_entries: list[Any] = []
+    elif isinstance(verifier_evidence, Mapping):
+        raise TypeError("verifier_evidence must be a sequence")
+    else:
+        raw_entries = list(verifier_evidence)
+    if len(raw_entries) > MAX_VERIFIER_COUNT:
+        raise ValueError("too many verifier evidence entries")
+
+    entries: list[dict[str, int]] = []
+    seen_verifier_ids: set[int] = set()
+    accepted_domains: set[int] = set()
+    accepted_count = 0
+    for index, raw_entry in enumerate(raw_entries):
+        entry = _require_mapping(raw_entry, name=f"verifier_evidence[{index}]")
+        verifier_id = _require_verifier_id(
+            entry.get("verifier_id"),
+            name=f"verifier_evidence[{index}].verifier_id",
+        )
+        if verifier_id in seen_verifier_ids:
+            raise ValueError("duplicate verifier_id")
+        seen_verifier_ids.add(verifier_id)
+        domain_id = _require_verifier_domain_id(
+            entry.get("domain_id"),
+            name=f"verifier_evidence[{index}].domain_id",
+        )
+        accepted = _require_flag(
+            entry.get("accepted"),
+            name=f"verifier_evidence[{index}].accepted",
+        )
+        if accepted == 1:
+            accepted_count += 1
+            accepted_domains.add(domain_id)
+        entries.append(
+            {
+                "verifier_id": int(verifier_id),
+                "domain_id": int(domain_id),
+                "accepted": int(accepted),
+            }
+        )
+
+    entries.sort(key=lambda item: item["verifier_id"])
+    distinct_domain_count = len(accepted_domains)
+    facts = _VerifierEvidenceFacts(
+        min_quorum=int(min_quorum),
+        min_domain_diversity=int(min_domain_diversity),
+        verifier_count=int(accepted_count),
+        distinct_domain_count=int(distinct_domain_count),
+        quorum_ok=bool(accepted_count >= min_quorum),
+        diversity_ok=bool(distinct_domain_count >= min_domain_diversity),
+    )
+    evidence = {
+        "schema": VERIFIER_EVIDENCE_SCHEMA,
+        "min_quorum": int(min_quorum),
+        "min_domain_diversity": int(min_domain_diversity),
+        "verifiers": entries,
+    }
+    return evidence, facts
 
 
 def _tau_gate_expected_ok(*, flags: Mapping[str, int], budget_ok: bool) -> bool:
@@ -268,6 +390,9 @@ def build_proof_mining_claim(
     batch_hash: str = "",
     dex_hash_after: str = "",
     allow_rejected: bool = False,
+    verifier_evidence: Any = None,
+    min_verifier_quorum: int = DEFAULT_MIN_VERIFIER_QUORUM,
+    min_verifier_domain_diversity: int = DEFAULT_MIN_VERIFIER_DOMAIN_DIVERSITY,
 ) -> dict[str, Any]:
     if bool(round_obj.get("ok")) is not True:
         raise ValueError("round must be ok")
@@ -302,8 +427,15 @@ def build_proof_mining_claim(
     )
     budget_ok = bool(reward_pool >= reward_amount)
     tau_gate_ok = _tau_gate_expected_ok(flags=flags, budget_ok=budget_ok)
+    verifier_evidence_obj, verifier_evidence_facts = _canonical_verifier_evidence(
+        verifier_evidence=verifier_evidence,
+        min_verifier_quorum=min_verifier_quorum,
+        min_verifier_domain_diversity=min_verifier_domain_diversity,
+    )
     if not bool(tau_gate_ok) and not bool(allow_rejected):
         raise ValueError("proof-mining claim would fail Tau gate")
+    if not bool(verifier_evidence_facts.evidence_ok) and not bool(allow_rejected):
+        raise ValueError("proof-mining claim would fail verifier evidence gate")
 
     body = {
         "schema": CLAIM_SCHEMA,
@@ -328,6 +460,7 @@ def build_proof_mining_claim(
             "reward_pool_before": int(reward_pool),
             "reward_pool_after": int(reward_pool_after),
         },
+        "verifier_evidence": verifier_evidence_obj,
         "verification_flags": dict(flags),
         "tau_inputs": _tau_inputs(
             base_reward=base_reward,
@@ -341,6 +474,11 @@ def build_proof_mining_claim(
             "positive_improvement": True,
             "budget_ok": bool(budget_ok),
             "tau_gate_expected_ok": bool(tau_gate_ok),
+            "verifier_quorum_ok": bool(verifier_evidence_facts.quorum_ok),
+            "verifier_diversity_ok": bool(verifier_evidence_facts.diversity_ok),
+            "admissible_expected_ok": bool(
+                tau_gate_ok and verifier_evidence_facts.evidence_ok
+            ),
         },
     }
     claim_hash = proof_mining_claim_hash(body)
@@ -525,6 +663,26 @@ def _validate_flags(body: Mapping[str, Any]) -> dict[str, int]:
     }
 
 
+def _validate_verifier_evidence(body: Mapping[str, Any]) -> _VerifierEvidenceFacts:
+    verifier_evidence_obj = _require_mapping(
+        body.get("verifier_evidence"),
+        name="claim.body.verifier_evidence",
+    )
+    if (
+        _require_str(verifier_evidence_obj.get("schema"), name="claim.body.verifier_evidence.schema")
+        != VERIFIER_EVIDENCE_SCHEMA
+    ):
+        raise ValueError("unsupported verifier evidence schema")
+    canonical, facts = _canonical_verifier_evidence(
+        verifier_evidence=verifier_evidence_obj.get("verifiers"),
+        min_verifier_quorum=verifier_evidence_obj.get("min_quorum"),
+        min_verifier_domain_diversity=verifier_evidence_obj.get("min_domain_diversity"),
+    )
+    if dict(verifier_evidence_obj) != canonical:
+        raise ValueError("verifier_evidence not canonical")
+    return facts
+
+
 def _validate_tau_inputs(
     *,
     body: Mapping[str, Any],
@@ -553,7 +711,8 @@ def _validate_conditions(
     body: Mapping[str, Any],
     budget_ok: bool,
     flags: Mapping[str, int],
-) -> bool:
+    verifier_evidence: _VerifierEvidenceFacts,
+) -> tuple[bool, bool]:
     conditions = _require_mapping(body.get("conditions"), name="claim.body.conditions")
     if bool(conditions.get("round_ok")) is not True:
         raise ValueError("round_ok must be true")
@@ -565,7 +724,14 @@ def _validate_conditions(
     tau_gate_ok = _tau_gate_expected_ok(flags=flags, budget_ok=budget_ok)
     if bool(conditions.get("tau_gate_expected_ok")) != tau_gate_ok:
         raise ValueError("tau_gate_expected_ok mismatch")
-    return tau_gate_ok
+    if bool(conditions.get("verifier_quorum_ok")) != verifier_evidence.quorum_ok:
+        raise ValueError("verifier_quorum_ok mismatch")
+    if bool(conditions.get("verifier_diversity_ok")) != verifier_evidence.diversity_ok:
+        raise ValueError("verifier_diversity_ok mismatch")
+    admissible_ok = bool(tau_gate_ok and verifier_evidence.evidence_ok)
+    if bool(conditions.get("admissible_expected_ok")) != admissible_ok:
+        raise ValueError("admissible_expected_ok mismatch")
+    return tau_gate_ok, admissible_ok
 
 
 def validate_proof_mining_claim_artifact(
@@ -580,10 +746,16 @@ def validate_proof_mining_claim_artifact(
     )
     bounded_model = _validate_bounded_model(body)
     budget = _validate_budget(body=body, reward_amount=bounded_model.reward_amount)
+    verifier_evidence = _validate_verifier_evidence(body)
     flags = _validate_flags(body)
     _validate_tau_inputs(body=body, bounded_model=bounded_model, budget=budget, flags=flags)
-    tau_gate_ok = _validate_conditions(body=body, budget_ok=budget.budget_ok, flags=flags)
-    if require_admissible and not tau_gate_ok:
+    _, admissible_ok = _validate_conditions(
+        body=body,
+        budget_ok=budget.budget_ok,
+        flags=flags,
+        verifier_evidence=verifier_evidence,
+    )
+    if require_admissible and not admissible_ok:
         raise ValueError("proof-mining claim inadmissible")
 
     return {
@@ -600,4 +772,8 @@ def validate_proof_mining_claim_artifact(
         "proposal_slot": bounded_model.proposal_slot,
         "prover_id": bounded_model.prover_id,
         "proposal_hash": expected_proposal_hash,
+        "verifier_count": verifier_evidence.verifier_count,
+        "verifier_domain_count": verifier_evidence.distinct_domain_count,
+        "min_verifier_quorum": verifier_evidence.min_quorum,
+        "min_verifier_domain_diversity": verifier_evidence.min_domain_diversity,
     }
