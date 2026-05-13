@@ -183,6 +183,61 @@ def test_price_grid_table_accepts_complete_recomputed_grid() -> None:
     assert all(result.tau_facts.values())
 
 
+def test_price_grid_table_root_is_row_order_invariant() -> None:
+    _intents, _pool_obj, _balances_obj, _certificate, config, rows, _witness = _artifacts()
+
+    root_a = uniform_batch_price_grid_table_root(
+        settlement_id=config.settlement_id,
+        max_price_num=config.max_price_num,
+        max_price_den=config.max_price_den,
+        score_function_id=config.score_function_id,
+        rows=rows,
+    )
+    root_b = uniform_batch_price_grid_table_root(
+        settlement_id=config.settlement_id,
+        max_price_num=config.max_price_num,
+        max_price_den=config.max_price_den,
+        score_function_id=config.score_function_id,
+        rows=tuple(reversed(rows)),
+    )
+
+    assert root_a == root_b == config.candidate_table_root
+
+
+def test_price_grid_table_accepts_row_order_permutation() -> None:
+    intents, pool, balances, certificate, config, rows, witness = _artifacts()
+
+    result = verify_uniform_batch_price_grid_table_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        uniform_batch_certificate=certificate,
+        config=config,
+        rows=tuple(reversed(rows)),
+        witness=witness,
+    )
+
+    assert result.ok is True
+    assert result.error is None
+
+
+def test_price_grid_table_accepts_intent_order_permutation() -> None:
+    intents, pool, balances, certificate, config, rows, witness = _artifacts()
+
+    result = verify_uniform_batch_price_grid_table_v1(
+        intents=list(reversed(intents)),
+        pool=pool,
+        balances=balances,
+        uniform_batch_certificate=certificate,
+        config=config,
+        rows=rows,
+        witness=witness,
+    )
+
+    assert result.ok is True
+    assert result.error is None
+
+
 def test_price_grid_table_rejects_missing_grid_key() -> None:
     intents, pool, balances, certificate, config, rows, witness = _artifacts()
     rows_without_key = rows[:-1]
@@ -286,6 +341,24 @@ def test_price_grid_table_rejects_table_root_mismatch() -> None:
     assert result.error == "price grid candidate_table_root mismatch"
 
 
+def test_price_grid_table_rejects_witness_table_root_mismatch() -> None:
+    intents, pool, balances, certificate, config, rows, witness = _artifacts()
+    witness = replace(witness, candidate_table_root="0x" + "0" * 64)
+
+    result = verify_uniform_batch_price_grid_table_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        uniform_batch_certificate=certificate,
+        config=config,
+        rows=rows,
+        witness=witness,
+    )
+
+    assert result.ok is False
+    assert result.error == "price grid witness candidate_table_root mismatch"
+
+
 def test_price_grid_table_rejects_missing_winner_row() -> None:
     intents, pool, balances, certificate, config, rows, witness = _artifacts()
     mutated_rows = tuple(replace(row, winner_row_ok=False) for row in rows)
@@ -303,6 +376,60 @@ def test_price_grid_table_rejects_missing_winner_row() -> None:
 
     assert result.ok is False
     assert result.error == "price grid requires exactly one winner row"
+
+
+def test_price_grid_table_rejects_witness_winner_candidate_mismatch() -> None:
+    intents, pool, balances, certificate, config, rows, witness = _artifacts()
+    witness = replace(witness, winner_candidate_id="0x" + "0" * 64)
+
+    result = verify_uniform_batch_price_grid_table_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        uniform_batch_certificate=certificate,
+        config=config,
+        rows=rows,
+        witness=witness,
+    )
+
+    assert result.ok is False
+    assert result.error == "price grid witness winner_candidate_id mismatch"
+
+
+def test_price_grid_table_rejects_witness_winner_price_mismatch() -> None:
+    intents, pool, balances, certificate, config, rows, witness = _artifacts()
+    witness = replace(witness, winner_price_num=2)
+
+    result = verify_uniform_batch_price_grid_table_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        uniform_batch_certificate=certificate,
+        config=config,
+        rows=rows,
+        witness=witness,
+    )
+
+    assert result.ok is False
+    assert result.error == "price grid witness winner price mismatch"
+
+
+def test_price_grid_table_rejects_config_row_count_mismatch() -> None:
+    intents, pool, balances, certificate, config, rows, witness = _artifacts()
+    config = replace(config, row_count=config.row_count + 1)
+
+    result = verify_uniform_batch_price_grid_table_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        uniform_batch_certificate=certificate,
+        config=config,
+        rows=rows,
+        witness=witness,
+    )
+
+    assert result.ok is False
+    assert result.error == "price grid config row_count mismatch"
 
 
 def test_price_grid_table_rejects_dominance_flag_mismatch() -> None:
@@ -324,6 +451,26 @@ def test_price_grid_table_rejects_dominance_flag_mismatch() -> None:
 
     assert result.ok is False
     assert result.error == "price grid row dominated_by_winner_ok mismatch"
+
+
+def test_price_grid_table_rejects_candidate_id_mismatch() -> None:
+    intents, pool, balances, certificate, config, rows, witness = _artifacts()
+    mutated_row = replace(rows[0], candidate_id="0x" + "0" * 64)
+    mutated_rows = (mutated_row,) + rows[1:]
+    config, witness = _with_root(config, mutated_rows, witness)
+
+    result = verify_uniform_batch_price_grid_table_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        uniform_batch_certificate=certificate,
+        config=config,
+        rows=mutated_rows,
+        witness=witness,
+    )
+
+    assert result.ok is False
+    assert result.error == "price grid row candidate_id mismatch"
 
 
 def test_price_grid_table_rejects_invalid_boolean_shape() -> None:
