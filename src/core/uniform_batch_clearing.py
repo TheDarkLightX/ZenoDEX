@@ -21,6 +21,7 @@ from .domain_limits import DEX_POOL_RESERVE_MAX, DEX_SWAP_AMOUNT_MAX
 from .settlement import BalanceDelta, Fill, FillAction, ReserveDelta, Settlement
 
 UNIFORM_BATCH_CERTIFICATE_SCHEMA = "zenodex/uniform_batch_clearing_certificate/v1"
+UNIFORM_BATCH_INTENT_SET_SCHEMA = "zenodex/uniform_batch_intent_set/v1"
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class UniformBatchCertificateV1:
     pool_id: str
     base_asset: str
     quote_asset: str
+    intent_set_hash: str
     price_num: int
     price_den: int
     fills: tuple[UniformBatchFillV1, ...]
@@ -60,6 +62,7 @@ class UniformBatchCertificateV1:
             "pool_id": self.pool_id,
             "base_asset": self.base_asset,
             "quote_asset": self.quote_asset,
+            "intent_set_hash": self.intent_set_hash,
             "price_num": int(self.price_num),
             "price_den": int(self.price_den),
             "fills": [fill.to_dict() for fill in self.fills],
@@ -76,6 +79,10 @@ class UniformBatchCertificateV1:
             pool_id=_require_str(obj.get("pool_id"), name="certificate.pool_id"),
             base_asset=_require_str(obj.get("base_asset"), name="certificate.base_asset"),
             quote_asset=_require_str(obj.get("quote_asset"), name="certificate.quote_asset"),
+            intent_set_hash=_require_str(
+                obj.get("intent_set_hash"),
+                name="certificate.intent_set_hash",
+            ),
             price_num=_require_positive_int(obj.get("price_num"), name="certificate.price_num"),
             price_den=_require_positive_int(obj.get("price_den"), name="certificate.price_den"),
             fills=tuple(UniformBatchFillV1.from_obj(_require_mapping(fill, name="certificate.fill")) for fill in fills_obj),
@@ -97,6 +104,40 @@ def uniform_batch_certificate_hash(certificate: UniformBatchCertificateV1 | Mapp
     body = certificate.to_dict() if isinstance(certificate, UniformBatchCertificateV1) else dict(certificate)
     return sha256_hex(
         domain_sep_bytes("uniform_batch_clearing_certificate", version=1)
+        + canonical_json_bytes(body)
+    )
+
+
+def uniform_batch_intent_set_hash(intents: Sequence[Intent]) -> str:
+    entries: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for intent in intents:
+        intent_id = _require_str(intent.intent_id, name="intent.intent_id")
+        if intent_id in seen_ids:
+            raise ValueError("duplicate intent_id")
+        seen_ids.add(intent_id)
+        fields = intent.fields if isinstance(intent.fields, Mapping) else {}
+        if not isinstance(intent.kind, IntentKind):
+            raise TypeError("intent.kind must be an IntentKind")
+        entries.append(
+            {
+                "module": _require_str(intent.module, name="intent.module"),
+                "version": _require_str(intent.version, name="intent.version"),
+                "kind": intent.kind.value,
+                "intent_id": intent_id,
+                "sender_pubkey": _require_str(intent.sender_pubkey, name="intent.sender_pubkey"),
+                "deadline": _require_nonnegative_int(intent.deadline, name="intent.deadline"),
+                "salt": intent.salt,
+                "fields": dict(fields),
+            }
+        )
+    entries.sort(key=lambda entry: entry["intent_id"])
+    body = {
+        "schema": UNIFORM_BATCH_INTENT_SET_SCHEMA,
+        "intents": entries,
+    }
+    return sha256_hex(
+        domain_sep_bytes("uniform_batch_intent_set", version=1)
         + canonical_json_bytes(body)
     )
 
@@ -176,6 +217,9 @@ def _build_uniform_batch_settlement_checked(
     _validate_pool_scope(pool=pool, certificate=certificate)
     if not intents:
         raise ValueError("uniform batch requires at least one intent")
+    expected_intent_set_hash = uniform_batch_intent_set_hash(intents)
+    if certificate.intent_set_hash != expected_intent_set_hash:
+        raise ValueError("certificate intent_set_hash mismatch")
 
     intents_by_id: dict[str, Intent] = {}
     for intent in intents:
@@ -290,6 +334,7 @@ def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
     _require_str(certificate.pool_id, name="certificate.pool_id")
     _require_str(certificate.base_asset, name="certificate.base_asset")
     _require_str(certificate.quote_asset, name="certificate.quote_asset")
+    _require_str(certificate.intent_set_hash, name="certificate.intent_set_hash")
     _require_positive_int(certificate.price_num, name="certificate.price_num")
     _require_positive_int(certificate.price_den, name="certificate.price_den")
     if not isinstance(certificate.fills, tuple):
