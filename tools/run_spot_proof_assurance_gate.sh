@@ -64,6 +64,7 @@ LEAN_FILES=(
   "lean-mathlib/Proofs/BatchAuctionCanonical.lean"
   "lean-mathlib/Proofs/CPMMInvariants.lean"
   "lean-mathlib/Proofs/SettlementAlgebra.lean"
+  "lean-mathlib/Proofs/UniformBatchOptimality.lean"
 )
 
 LEAN_MODULES=(
@@ -94,6 +95,8 @@ echo "== spot-proof: lean build =="
     echo "  lake build $module"
     lake build "$module"
   done
+  echo "  lean Proofs/UniformBatchOptimality.lean"
+  lean Proofs/UniformBatchOptimality.lean
 )
 
 VERIFY_MULTI_COMMON=(
