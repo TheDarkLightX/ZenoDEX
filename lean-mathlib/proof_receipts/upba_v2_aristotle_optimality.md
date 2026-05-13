@@ -52,6 +52,16 @@ local checked implementation in `lean-mathlib/Proofs/UniformBatchOptimality.lean
 The local proof is equivalent in substance and follows the repository comment
 style.
 
+Follow-up local extension: the repository proof file now also includes
+`upper_bound_certificate_with_winner_implies_present_and_weak_optimal`, which
+adds the runtime requirement that the declared winner is present in the audited
+candidate list. This theorem was proved locally with the direct checker:
+
+```bash
+cd lean-mathlib
+~/.elan/bin/lean Proofs/UniformBatchOptimality.lean
+```
+
 Boundary: these are model-level optimality lemmas. They do not prove global
 price-search completeness, fair order inclusion, solver correctness, or MEV
 elimination.
