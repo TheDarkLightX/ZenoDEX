@@ -13,6 +13,12 @@ integer price vector.
 
 The verifier lives in `src/core/uniform_batch_clearing.py`.
 
+The integration shell accepts the certificate only when
+`DexEngineConfig.allow_uniform_batch_certificate=True`. The certificate is
+carried inside `ops["3"].uniform_batch_certificate`, and the supplied settlement
+must match the canonical settlement produced by the verifier when
+`require_settlement_match=True`.
+
 ## Scope
 
 Supported:
@@ -99,17 +105,22 @@ tampered-settlement rejection.
 
 ## Promotion Boundary
 
-Current evidence class: `implemented + tested_discovery`.
+Current evidence class: `proved model + implemented + tested_discovery`.
 
-The next promotion step is a small Lean theorem mirroring the runtime shape:
+The model proof lives in `lean-mathlib/Proofs/UniformBatchClearingV1.lean`.
+It proves that aggregate uniform execution is invariant under order-list
+permutation for the abstract sum-of-deltas model.
 
 ```text
-Perm intents1 intents2
-same certificate
-same fixed pool and balances
+List.Perm fills1 fills2
 ->
-build(intents1, certificate) = build(intents2, certificate)
+executeUniform state fills1 = executeUniform state fills2
 ```
 
-After that, the production path can add a settlement mode that accepts UPBA v1
-only when the certificate verifier produces the exact accepted settlement.
+The runtime bridge now accepts UPBA v1 only when the local verifier produces the
+exact accepted settlement. Remaining non-claims:
+
+- the submitted price maximizes volume or surplus;
+- the fixed admission set is fair or inclusion-resistant;
+- the price is safe as an oracle or derivatives mark;
+- exact-out, multi-hop, or LP-management intents are supported.

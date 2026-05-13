@@ -22,6 +22,7 @@ from ..core.intent_normal_form import IntentNormalFormError, require_normal_form
 from ..core.quote_receipts import verify_route_quote_receipt
 from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
+from ..core.uniform_batch_clearing import UniformBatchCertificateV1, build_uniform_batch_settlement_v1
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
@@ -201,6 +202,11 @@ class DexEngineConfig:
     # typed ZenoOracle authorization binding the exact settlement, pre-state,
     # and price_curr value consumed by the settlement certificate lane.
     require_oracle_authorization_for_critical_settlements: bool = False
+    # Optional UPBA v1 bridge. When enabled, ops["3"].uniform_batch_certificate
+    # is accepted as the settlement construction rule for a single-pool exact-in
+    # uniform-price batch. The default keeps the existing sequential settlement
+    # path authoritative.
+    allow_uniform_batch_certificate: bool = False
 
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
@@ -1005,6 +1011,7 @@ def apply_ops(
             return DexTxResult(ok=False, error="invalid settlement")
         settlement = settlement_env.settlement if settlement_env else None
         proof = settlement_env.proof if settlement_env else None
+        uniform_batch_certificate = settlement_env.uniform_batch_certificate if settlement_env else None
         proof_scheme: Optional[str] = None
         if proof is not None:
             scheme_raw = proof.get("scheme")
@@ -1071,13 +1078,30 @@ def apply_ops(
         # Compute settlement deterministically and (optionally) require an exact match.
         computed_settlement: Optional[Settlement] = None
         if intents:
-            computed_settlement = compute_settlement(
-                intents=intents,
-                pools=state.pools,
-                balances=state.balances,
-                lp_balances=state.lp_balances,
-                swap_ordering=str(config.swap_ordering),
-            )
+            if uniform_batch_certificate is not None:
+                if not config.allow_uniform_batch_certificate:
+                    return DexTxResult(ok=False, error="uniform batch certificate not enabled")
+                try:
+                    cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
+                    pool = state.pools.get(cert.pool_id)
+                    if pool is None:
+                        return DexTxResult(ok=False, error=f"uniform batch certificate pool not found: {cert.pool_id}")
+                    computed_settlement = build_uniform_batch_settlement_v1(
+                        intents=validation_intents,
+                        pool=pool,
+                        balances=state.balances,
+                        certificate=cert,
+                    )
+                except Exception as exc:
+                    return DexTxResult(ok=False, error=f"uniform batch certificate rejected: {_clean_error(exc)}")
+            else:
+                computed_settlement = compute_settlement(
+                    intents=intents,
+                    pools=state.pools,
+                    balances=state.balances,
+                    lp_balances=state.lp_balances,
+                    swap_ordering=str(config.swap_ordering),
+                )
 
             if settlement is None:
                 if not config.allow_missing_settlement:
@@ -1227,6 +1251,7 @@ def apply_ops(
             settlement_price_history=config.settlement_certificate_price_history,
             require_settlement_end_to_end_certificate=bool(config.require_settlement_end_to_end_certificate),
             settlement_end_to_end_certificate_inputs=effective_settlement_end_to_end_inputs,
+            uniform_batch_certificate=uniform_batch_certificate,
         )
         if not ok:
             return DexTxResult(ok=False, error=err or "operations invalid")
