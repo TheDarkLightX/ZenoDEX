@@ -209,6 +209,10 @@ class DexEngineConfig:
     # uniform-price batch. The default keeps the existing sequential settlement
     # path authoritative.
     allow_uniform_batch_certificate: bool = False
+    # Production UPBA optimality posture. When enabled, every accepted
+    # uniform_batch_certificate must carry bounded price-grid evidence that
+    # passes the functional-core table verifier.
+    require_uniform_batch_price_grid_evidence: bool = False
 
     # Optional fee split params (applied after any successful settlement).
     dex_config: DexConfig = DexConfig()
@@ -225,6 +229,10 @@ class DexEngineConfig:
         if self.require_settlement_end_to_end_certificate and self.settlement_end_to_end_certificate_inputs is None:
             raise ValueError(
                 "require_settlement_end_to_end_certificate=True requires settlement_end_to_end_certificate_inputs"
+            )
+        if self.require_uniform_batch_price_grid_evidence and not self.allow_uniform_batch_certificate:
+            raise ValueError(
+                "require_uniform_batch_price_grid_evidence=True requires allow_uniform_batch_certificate=True"
             )
 
         if self.settlement_certificate_proof_flags is not None and not isinstance(
@@ -1059,6 +1067,12 @@ def apply_ops(
                 ok=False,
                 error="uniform batch price grid evidence requires uniform batch certificate",
             )
+        if (
+            uniform_batch_certificate is not None
+            and config.require_uniform_batch_price_grid_evidence
+            and not price_grid_evidence_complete
+        ):
+            return DexTxResult(ok=False, error="uniform batch price grid evidence required")
         proof_scheme: Optional[str] = None
         if proof is not None:
             scheme_raw = proof.get("scheme")

@@ -469,6 +469,9 @@ if price_grid_witness is present:
   require config, rows, and witness together
   verify table root, full bounded-grid coverage, row scores, and winner dominance
   verify the attached UPBA certificate against the same pre-state and intents
+
+if require_uniform_batch_price_grid_evidence is true:
+  every accepted uniform_batch_certificate must include config, rows, and witness
 ```
 
 The existing optional optimality certificate remains valid for audited-set
@@ -476,6 +479,11 @@ claims. The table witness upgrades the claim to bounded-grid global weak
 optimality for the v1 single-pool exact-in full-fill scorer. Tau-facing fact
 packets are produced by the table verifier and will feed the Tau gate once Tau
 Tables are available.
+
+Production deployments that want the bounded-grid global weak optimality claim
+should enable `require_uniform_batch_price_grid_evidence=True` together with
+`allow_uniform_batch_certificate=True`. With that posture, the engine rejects a
+UPBA certificate that lacks the table evidence bundle.
 
 ### Phase 4: Claim Registry
 
