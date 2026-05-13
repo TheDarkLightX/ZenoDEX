@@ -1,14 +1,14 @@
 /-!
-# Uniform Batch Clearing V1
+# Uniform Batch Clearing V1/V2
 
 This file formalizes the small algebraic shape used by the UPBA v1 runtime
-certificate verifier:
+certificate verifier and the v2 partial-fill extension:
 
 * fills are reduced to aggregate reserve deltas;
 * execution applies the aggregate deltas once;
 * any permutation of the fill list yields the same final state.
-* the v1 canonical price objective depends only on aggregate net flow, so it is
-  invariant under order-list permutation for a fixed admission set.
+* the canonical price objective depends only on executed aggregate net flow, so
+  it is invariant under order-list permutation for a fixed admission set.
 
 The theorem is intentionally scoped. It does not prove price optimality,
 admission fairness, oracle safety, or multi-hop clearing.
@@ -120,11 +120,13 @@ theorem uniform_execution_append_decomposes
 /-! ## Canonical price-objective model -/
 
 /--
-Abstract admitted exact-in order, reduced to the net input it contributes on
-each side of the single v1 pool.
+Abstract admitted exact-in order, reduced to the executed net input it
+contributes on each side of the single pool.
 
 The Python runtime computes these values after the deterministic fee rule and
-before checking the submitted certificate price.
+before checking the submitted certificate price. For UPBA v2, a zero-fill member
+contributes zero to both fields and a partial fill contributes only its executed
+net input.
 -/
 structure NetOrder where
   baseToQuoteNet : Nat
@@ -147,6 +149,10 @@ structure PriceRatio where
   denominator : Nat
 deriving DecidableEq, Repr
 
+/-- A price ratio whose denominator is usable in integer price arithmetic. -/
+def PositivePriceRatio (ratio : PriceRatio) : Prop :=
+  0 < ratio.numerator ∧ 0 < ratio.denominator
+
 /-- Reduce a positive rational ratio to a canonical representative. -/
 def reducePriceRatio (ratio : PriceRatio) : PriceRatio :=
   let divisor := Nat.gcd ratio.numerator ratio.denominator
@@ -154,6 +160,19 @@ def reducePriceRatio (ratio : PriceRatio) : PriceRatio :=
     numerator := ratio.numerator / divisor
     denominator := ratio.denominator / divisor
   }
+
+theorem reduce_price_ratio_positive
+    {ratio : PriceRatio}
+    (h : PositivePriceRatio ratio) :
+    PositivePriceRatio (reducePriceRatio ratio) := by
+  unfold reducePriceRatio PositivePriceRatio
+  constructor
+  · exact Nat.div_pos
+      (Nat.gcd_le_left ratio.denominator h.1)
+      (Nat.gcd_pos_of_pos_left ratio.denominator h.1)
+  · exact Nat.div_pos
+      (Nat.gcd_le_right ratio.numerator h.2)
+      (Nat.gcd_pos_of_pos_right ratio.numerator h.2)
 
 /--
 Raw v1 price objective before ratio reduction.
@@ -181,6 +200,38 @@ def canonicalPriceObjective
     (reserveQuote reserveBase : Nat)
     (orders : List NetOrder) : PriceRatio :=
   reducePriceRatio (canonicalPriceObjectiveRaw reserveQuote reserveBase orders)
+
+/--
+The raw price objective stays in the positive-ratio domain when pool reserves
+are positive.
+
+For mixed-direction batches, positivity comes from the executed net-flow branch.
+For one-sided or zero-executed-flow batches, positivity comes from the fallback
+pre-pool reserve ratio. The runtime uses this same boundary before reducing the
+ratio and before integer price arithmetic.
+-/
+theorem canonical_price_objective_raw_positive
+    (reserveQuote reserveBase : Nat)
+    (orders : List NetOrder)
+    (hReserveQuote : 0 < reserveQuote)
+    (hReserveBase : 0 < reserveBase) :
+    PositivePriceRatio (canonicalPriceObjectiveRaw reserveQuote reserveBase orders) := by
+  by_cases hMixed : 0 < sumBaseToQuoteNet orders ∧ 0 < sumQuoteToBaseNet orders
+  · simp [canonicalPriceObjectiveRaw, PositivePriceRatio, hMixed]
+  · simp [canonicalPriceObjectiveRaw, PositivePriceRatio, hMixed, hReserveQuote, hReserveBase]
+
+/--
+The reduced price objective also stays in the positive-ratio domain. This is the
+model-side counterpart of the runtime `_reduce_ratio` guard.
+-/
+theorem canonical_price_objective_positive
+    (reserveQuote reserveBase : Nat)
+    (orders : List NetOrder)
+    (hReserveQuote : 0 < reserveQuote)
+    (hReserveBase : 0 < reserveBase) :
+    PositivePriceRatio (canonicalPriceObjective reserveQuote reserveBase orders) := by
+  exact reduce_price_ratio_positive
+    (canonical_price_objective_raw_positive reserveQuote reserveBase orders hReserveQuote hReserveBase)
 
 theorem sumBaseToQuoteNet_perm {ordersA ordersB : List NetOrder}
     (h : ordersA.Perm ordersB) :

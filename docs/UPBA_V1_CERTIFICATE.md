@@ -241,3 +241,23 @@ exact accepted settlement. Remaining non-claims:
 - support for partially-filled or rejected members of an admitted UPBA batch;
 - the price is safe as an oracle or derivatives mark;
 - exact-out, multi-hop, or LP-management intents are supported.
+
+## V2 Extension
+
+UPBA v2 is the partial-fill extension of this verifier. It uses schema
+`zenodex/uniform_batch_clearing_certificate/v2` and policy id
+`zenodex/upba_v2/fixed_admission_partial_fill_cpmm_exact_in`.
+
+V2 keeps the same fixed pool, exact-in, aggregate-price-objective surface. It
+changes fill admissibility from full fills only to:
+
+```text
+0 <= executed_in <= intent.amount_in
+```
+
+Zero-fill members are represented as local rejected fills with reason
+`UNIFORM_BATCH_UNFILLED`. The canonical price objective is computed from
+executed net flow, excluding zero-fill members.
+
+See `docs/UPBA_V2_CERTIFICATE.md` and
+`docs/UPBA_V2_EVIDENCE_BOUNDARY.md` for the v2 evidence boundary.
