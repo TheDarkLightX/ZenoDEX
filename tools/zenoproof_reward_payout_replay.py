@@ -174,6 +174,10 @@ def build_status(
         prev_state_hash=prev_state_hash,
         batch_hash=batch_hash,
         dex_hash_after=dex_hash_after,
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
     claim = validate_proof_mining_claim_artifact(claim_artifact, require_admissible=True)
     context = ProofMiningContext(

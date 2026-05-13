@@ -56,6 +56,10 @@ def _claim(*, miner_id: str, reward_pool_before: int) -> dict:
         prev_state_hash="sha256:prev",
         batch_hash="sha256:batch",
         dex_hash_after="sha256:after",
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+        ],
     )
 
 

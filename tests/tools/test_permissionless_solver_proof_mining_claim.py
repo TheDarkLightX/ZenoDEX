@@ -10,7 +10,7 @@ from hypothesis import strategies as st
 
 from src.integration.tau_runner import find_tau_bin, run_tau_spec_steps
 from tools.permissionless_solver_proof_mining_claim import (
-    build_proof_mining_claim,
+    build_proof_mining_claim as _build_proof_mining_claim,
     explicit_proposal_hash,
     fallback_proposal_hash,
     proof_mining_claim_hash,
@@ -22,6 +22,18 @@ SPEC_PATH = (
     Path(__file__).resolve().parents[2] / "src" / "tau_specs" / "proof_mining_reward_32_v1.tau"
 )
 U32_MAX = 0xFFFFFFFF
+
+
+def _verifier_evidence() -> list[dict[str, int]]:
+    return [
+        {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+        {"verifier_id": 1, "domain_id": 1, "accepted": 1},
+    ]
+
+
+def build_proof_mining_claim(**kwargs):
+    kwargs.setdefault("verifier_evidence", _verifier_evidence())
+    return _build_proof_mining_claim(**kwargs)
 
 
 def _round_obj(
@@ -94,10 +106,13 @@ def test_build_proof_mining_claim_matches_tau_gate_inputs() -> None:
         prover_id=1,
     )
     body = claim["body"]
-    assert body["schema"] == "zenodex/permissionless_solver_proof_mining_claim/v1"
+    assert body["schema"] == "zenodex/permissionless_solver_proof_mining_claim/v2"
     assert body["budget"]["reward_pool_after"] == 16
     assert body["bounded_model"]["reward_amount"] == 4
     assert body["conditions"]["tau_gate_expected_ok"] is True
+    assert body["conditions"]["admissible_expected_ok"] is True
+    assert body["verifier_evidence"]["min_quorum"] == 2
+    assert body["verifier_evidence"]["min_domain_diversity"] == 2
     assert body["proposal_hash"] == fallback_proposal_hash(
         round_id="round-proof-1",
         job_digest="job1",
@@ -163,6 +178,93 @@ def test_build_proof_mining_claim_fails_closed_by_default_on_budget_failure() ->
         )
 
 
+def test_build_proof_mining_claim_fails_closed_on_insufficient_verifier_quorum() -> None:
+    with pytest.raises(ValueError, match="verifier evidence gate"):
+        _build_proof_mining_claim(
+            round_obj=_round_obj(improvement_u64=5),
+            round_id="round-proof-verifier-1",
+            reward_pool_before=20,
+            base_reward=8,
+            epoch=1,
+            proposal_slot=0,
+            prover_id=0,
+            verifier_evidence=[{"verifier_id": 0, "domain_id": 0, "accepted": 1}],
+        )
+
+
+def test_validate_proof_mining_claim_rejects_verifier_domain_collapse() -> None:
+    claim = _build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=5),
+        round_id="round-proof-verifier-2",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+        verifier_evidence=[
+            {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+            {"verifier_id": 1, "domain_id": 0, "accepted": 1},
+        ],
+        allow_rejected=True,
+    )
+    assert claim["body"]["conditions"]["verifier_quorum_ok"] is True
+    assert claim["body"]["conditions"]["verifier_diversity_ok"] is False
+    with pytest.raises(ValueError, match="inadmissible"):
+        validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
+def test_validate_proof_mining_claim_rejects_duplicate_verifier_id() -> None:
+    with pytest.raises(ValueError, match="duplicate verifier_id"):
+        _build_proof_mining_claim(
+            round_obj=_round_obj(improvement_u64=5),
+            round_id="round-proof-verifier-3",
+            reward_pool_before=20,
+            base_reward=8,
+            epoch=1,
+            proposal_slot=0,
+            prover_id=0,
+            verifier_evidence=[
+                {"verifier_id": 0, "domain_id": 0, "accepted": 1},
+                {"verifier_id": 0, "domain_id": 1, "accepted": 1},
+            ],
+            allow_rejected=True,
+        )
+
+
+def test_validate_proof_mining_claim_rejects_tampered_verifier_condition() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=5),
+        round_id="round-proof-verifier-4",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+    )
+    claim["body"]["conditions"]["verifier_quorum_ok"] = False
+    claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
+    with pytest.raises(ValueError, match="verifier_quorum_ok mismatch"):
+        validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
+def test_validate_proof_mining_claim_rejects_noncanonical_verifier_order() -> None:
+    claim = build_proof_mining_claim(
+        round_obj=_round_obj(improvement_u64=5),
+        round_id="round-proof-verifier-5",
+        reward_pool_before=20,
+        base_reward=8,
+        epoch=1,
+        proposal_slot=0,
+        prover_id=0,
+    )
+    claim["body"]["verifier_evidence"]["verifiers"] = list(
+        reversed(claim["body"]["verifier_evidence"]["verifiers"])
+    )
+    claim["claim_hash"] = proof_mining_claim_hash(claim["body"])
+    with pytest.raises(ValueError, match="verifier_evidence not canonical"):
+        validate_proof_mining_claim_artifact(claim, require_admissible=True)
+
+
 def test_validate_proof_mining_claim_rejects_reward_schedule_mismatch() -> None:
     claim = build_proof_mining_claim(
         round_obj=_round_obj(improvement_u64=9),
@@ -200,7 +302,7 @@ def test_build_proof_mining_claim_golden_hash_is_stable() -> None:
     )
 
     assert (
-        claim["claim_hash"] == "0x6154a5e70897165da9f0bf69d1d818de8f09472edf006816024b72fb022446bf"
+        claim["claim_hash"] == "0x87ff6026781c476bb33e747a821c1609c7dc229b8ae07985810fa28f7454a0c4"
     )
     assert (
         claim["body"]["proposal_hash"]
@@ -373,6 +475,10 @@ def test_claim_cli_emits_output(tmp_path: Path) -> None:
             "0",
             "--prover-id",
             "0",
+            "--verifier",
+            "0:0",
+            "--verifier",
+            "1:1",
         ]
     )
 
@@ -409,5 +515,9 @@ def test_claim_cli_fails_closed_when_tau_gate_would_reject(tmp_path: Path) -> No
                 "0",
                 "--prover-id",
                 "0",
+                "--verifier",
+                "0:0",
+                "--verifier",
+                "1:1",
             ]
         )
