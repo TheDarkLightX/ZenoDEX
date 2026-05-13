@@ -192,14 +192,33 @@ rejection, a partial-fill rejection, and a tampered-settlement rejection.
 Current evidence class: `proved model + implemented + tested_discovery`.
 
 The model proof lives in `lean-mathlib/Proofs/UniformBatchClearingV1.lean`.
-It proves that aggregate uniform execution is invariant under order-list
-permutation for the abstract sum-of-deltas model.
+It proves two scoped permutation-invariance facts for the abstract v1 model.
+
+First, aggregate uniform execution is invariant under order-list permutation for
+the sum-of-deltas model:
 
 ```text
 List.Perm fills1 fills2
 ->
 executeUniform state fills1 = executeUniform state fills2
 ```
+
+Second, the fixed v1 price objective is invariant under permutation of the
+admitted order list:
+
+```text
+List.Perm orders1 orders2
+->
+canonicalPriceObjective reserveQuote reserveBase orders1
+  =
+canonicalPriceObjective reserveQuote reserveBase orders2
+```
+
+This second theorem models the runtime obligation identified by
+`price_objective_id =
+zenodex/upba_v1/net_flow_ratio_or_pool_spot_price`: the certificate price must
+be the reduced aggregate net-flow ratio when both directions are present, or the
+reduced pre-pool spot ratio for one-sided batches.
 
 The runtime bridge now accepts UPBA v1 only when the local verifier produces the
 exact accepted settlement. Remaining non-claims:
