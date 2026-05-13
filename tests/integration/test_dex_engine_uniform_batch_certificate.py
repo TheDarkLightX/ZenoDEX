@@ -7,6 +7,7 @@ from src.core.uniform_batch_clearing import (
     UniformBatchFillV1,
     build_uniform_batch_settlement_v1,
     uniform_batch_intent_set_hash,
+    uniform_batch_pool_state_hash,
 )
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
@@ -116,6 +117,7 @@ def _certificate(intents: list[Intent]) -> UniformBatchCertificateV1:
         pool_id="pool_ab",
         base_asset="A",
         quote_asset="B",
+        pool_state_hash=uniform_batch_pool_state_hash(_pool()),
         intent_set_hash=uniform_batch_intent_set_hash(intents),
         price_num=1,
         price_den=1,
@@ -155,6 +157,7 @@ def _ops_with_missing_uniform_fill() -> dict[str, object]:
         pool_id=cert.pool_id,
         base_asset=cert.base_asset,
         quote_asset=cert.quote_asset,
+        pool_state_hash=cert.pool_state_hash,
         intent_set_hash=cert.intent_set_hash,
         price_num=cert.price_num,
         price_den=cert.price_den,
@@ -180,6 +183,7 @@ def _ops_with_partial_uniform_fill() -> dict[str, object]:
         pool_id=cert.pool_id,
         base_asset=cert.base_asset,
         quote_asset=cert.quote_asset,
+        pool_state_hash=cert.pool_state_hash,
         intent_set_hash=cert.intent_set_hash,
         price_num=cert.price_num,
         price_den=cert.price_den,
@@ -200,6 +204,31 @@ def _ops_with_partial_uniform_fill() -> dict[str, object]:
     )
     settlement_op = create_settlement_operation(settlement)["3"]
     settlement_op["uniform_batch_certificate"] = partial_cert.to_dict()
+    return {"2": _intent_ops(), "3": settlement_op}
+
+
+def _ops_with_pool_snapshot_mismatch() -> dict[str, object]:
+    state = _state()
+    intents = _intents()
+    cert = _certificate(intents)
+    mismatched_cert = UniformBatchCertificateV1(
+        pool_id=cert.pool_id,
+        base_asset=cert.base_asset,
+        quote_asset=cert.quote_asset,
+        pool_state_hash="0x" + "ff" * 32,
+        intent_set_hash=cert.intent_set_hash,
+        price_num=cert.price_num,
+        price_den=cert.price_den,
+        fills=cert.fills,
+    )
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = mismatched_cert.to_dict()
     return {"2": _intent_ops(), "3": settlement_op}
 
 
@@ -291,6 +320,22 @@ def test_engine_rejects_uniform_batch_certificate_missing_admitted_fill() -> Non
 
     assert result.ok is False
     assert result.error == "uniform batch certificate rejected: certificate must fill every admitted intent"
+
+
+def test_engine_rejects_uniform_batch_certificate_pool_snapshot_mismatch() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_pool_snapshot_mismatch(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch certificate rejected: certificate pool_state_hash mismatch"
 
 
 def test_engine_rejects_uniform_batch_certificate_partial_fill() -> None:

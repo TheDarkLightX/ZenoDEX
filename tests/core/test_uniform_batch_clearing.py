@@ -9,6 +9,7 @@ from src.core.uniform_batch_clearing import (
     UniformBatchFillV1,
     build_uniform_batch_settlement_v1,
     uniform_batch_intent_set_hash,
+    uniform_batch_pool_state_hash,
     validate_uniform_batch_settlement_v1,
     verify_uniform_batch_certificate_v1,
 )
@@ -88,6 +89,7 @@ def _certificate_for(intents: list[Intent]) -> UniformBatchCertificateV1:
         pool_id="pool_ab",
         base_asset="A",
         quote_asset="B",
+        pool_state_hash=uniform_batch_pool_state_hash(_pool()),
         intent_set_hash=uniform_batch_intent_set_hash(intents),
         price_num=1,
         price_den=1,
@@ -156,6 +158,14 @@ def test_uniform_batch_intent_set_hash_is_permutation_invariant() -> None:
     assert uniform_batch_intent_set_hash(intents) == uniform_batch_intent_set_hash(list(reversed(intents)))
 
 
+def test_uniform_batch_pool_state_hash_changes_with_reserves() -> None:
+    pool_a = _pool()
+    pool_b = _pool()
+    pool_b.reserve0 += 1
+
+    assert uniform_batch_pool_state_hash(pool_a) != uniform_batch_pool_state_hash(pool_b)
+
+
 def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> None:
     pool = _fee_pool()
     balances = _balances()
@@ -164,6 +174,7 @@ def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> Non
         pool_id="pool_ab",
         base_asset="A",
         quote_asset="B",
+        pool_state_hash=uniform_batch_pool_state_hash(pool),
         intent_set_hash=uniform_batch_intent_set_hash(intents),
         price_num=1,
         price_den=1,
@@ -236,6 +247,7 @@ def test_uniform_batch_certificate_rejects_noncanonical_fill_order() -> None:
         pool_id=certificate.pool_id,
         base_asset=certificate.base_asset,
         quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
         intent_set_hash=certificate.intent_set_hash,
         price_num=certificate.price_num,
         price_den=certificate.price_den,
@@ -253,6 +265,33 @@ def test_uniform_batch_certificate_rejects_noncanonical_fill_order() -> None:
     assert result.error == "certificate fills must be sorted by intent_id"
 
 
+def test_uniform_batch_certificate_rejects_pool_snapshot_mismatch() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _certificate_for(intents)
+    certificate = UniformBatchCertificateV1(
+        pool_id=certificate.pool_id,
+        base_asset=certificate.base_asset,
+        quote_asset=certificate.quote_asset,
+        pool_state_hash="0x" + "ff" * 32,
+        intent_set_hash=certificate.intent_set_hash,
+        price_num=certificate.price_num,
+        price_den=certificate.price_den,
+        fills=certificate.fills,
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate pool_state_hash mismatch"
+
+
 def test_uniform_batch_certificate_rejects_missing_admitted_intent_fill() -> None:
     pool = _pool()
     balances = _balances()
@@ -262,6 +301,7 @@ def test_uniform_batch_certificate_rejects_missing_admitted_intent_fill() -> Non
         pool_id=certificate.pool_id,
         base_asset=certificate.base_asset,
         quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
         intent_set_hash=certificate.intent_set_hash,
         price_num=certificate.price_num,
         price_den=certificate.price_den,
@@ -289,6 +329,7 @@ def test_uniform_batch_certificate_rejects_partial_fill() -> None:
         pool_id=certificate.pool_id,
         base_asset=certificate.base_asset,
         quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
         intent_set_hash=certificate.intent_set_hash,
         price_num=certificate.price_num,
         price_den=certificate.price_den,
@@ -322,6 +363,7 @@ def test_uniform_batch_certificate_rejects_invalid_direct_dataclass_shape() -> N
         pool_id=certificate.pool_id,
         base_asset=certificate.base_asset,
         quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
         intent_set_hash=certificate.intent_set_hash,
         price_num=0,
         price_den=certificate.price_den,

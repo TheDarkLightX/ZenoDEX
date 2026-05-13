@@ -26,6 +26,7 @@ Supported:
 - one existing `PoolState`
 - `PoolStatus.ACTIVE`
 - `CURVE_TAG_CPMM`
+- committed pre-pool snapshot hash
 - `SWAP_EXACT_IN` intents only
 - the pool's two assets only
 - one rational price vector `price_num / price_den`
@@ -58,11 +59,17 @@ UniformBatchCertificateV1 :=
   pool_id
   base_asset
   quote_asset
+  pool_state_hash
   intent_set_hash
   price_num
   price_den
   fills: [(intent_id, executed_in, executed_out)]
 ```
+
+`pool_state_hash` is the same deterministic pool fingerprint used by quote
+receipts. It includes reserves, fee, curve metadata, LP supply, status, and
+creation time. A certificate replayed against a different pool snapshot fails
+before settlement construction.
 
 `intent_set_hash` is the canonical hash of the fixed admission set. It includes
 the sorted intent identifiers, common intent fields, and full intent field maps.
@@ -105,9 +112,9 @@ v1 removes that dimension for this narrow surface because the certificate is
 keyed by the order multiset and canonical fill list rather than input sequence.
 
 The tests include a permutation-invariance check, an aggregate `k` decrease
-rejection, a limit-price rejection, a noncanonical fill-order rejection, an
-admitted-intent omission rejection, a partial-fill rejection, and a
-tampered-settlement rejection.
+rejection, a limit-price rejection, a pre-pool snapshot rejection, a
+noncanonical fill-order rejection, an admitted-intent omission rejection, a
+partial-fill rejection, and a tampered-settlement rejection.
 
 ## Promotion Boundary
 
