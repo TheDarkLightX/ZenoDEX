@@ -174,6 +174,7 @@ import Proofs.ZPLPayoffCombinators
 import Proofs.ZenoPayoffLanguage
 import Proofs.FIREStrictSettlementAuthority
 import Proofs.FIREStrictSpecParsing
+import Proofs.UniformBatchClearingV1
 
 /-!
 Proofs library root.
