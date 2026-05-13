@@ -111,10 +111,10 @@ One row per settlement certificate.
 | `score_function_id` | string | Deterministic scorer version. |
 | `candidate_table_root` | bytes32/string | Canonical commitment to candidate rows. |
 | `row_count` | uint | Expected row count. |
-| `grid_complete_ok` | bool | Host/table checker proved full grid coverage. |
-| `scores_recomputed_ok` | bool | Host recomputed candidate scores from grid prices. |
-| `winner_feasible_ok` | bool | Winner row exists and is settlement-bound. |
-| `dominance_ok` | bool | Winner dominates every valid row by objective. |
+
+The Python v1 verifier keeps boolean gates in a separate Tau-facing fact packet
+rather than in the config object. Tau Tables may store those facts beside the
+config row if that is more natural once table syntax lands.
 
 The expected row count is:
 
@@ -145,7 +145,6 @@ Rows:
 | `score_recomputed_ok` | bool | Host recomputed the row score from deterministic scorer. |
 | `volume` | uint | Candidate matched volume. |
 | `surplus` | uint | Candidate surplus score. |
-| `settlement_hash` | bytes32/string | Optional candidate settlement digest. |
 | `winner_row_ok` | bool | True only for the winner row. |
 | `dominated_by_winner_ok` | bool | Host proved winner objective dominates this row. |
 
@@ -183,19 +182,18 @@ The candidate table root must be computed over canonical rows sorted by:
 (settlement_id, price_num, price_den)
 ```
 
-Recommended row hash body:
+Recommended candidate id body:
 
 ```json
 {
-  "schema": "zenodex/upba_candidate_grid_row/v1",
+  "schema": "zenodex/upba_price_grid_candidate_id/v1",
   "settlement_id": "...",
   "score_function_id": "...",
   "price_num": 1,
   "price_den": 2,
   "valid_price_ok": true,
   "volume": 100,
-  "surplus": 40,
-  "settlement_hash": "..."
+  "surplus": 40
 }
 ```
 
@@ -203,11 +201,26 @@ Recommended table root body:
 
 ```json
 {
-  "schema": "zenodex/upba_candidate_grid_table/v1",
+  "schema": "zenodex/upba_price_grid_table/v1",
   "settlement_id": "...",
   "max_price_num": 128,
   "max_price_den": 128,
-  "row_hashes": ["..."]
+  "score_function_id": "zenodex/upba_price_grid/full_fill_exact_in_limit/v1",
+  "rows": [
+    {
+      "schema": "zenodex/upba_price_grid_row/v1",
+      "settlement_id": "...",
+      "price_num": 1,
+      "price_den": 2,
+      "candidate_id": "...",
+      "valid_price_ok": true,
+      "score_recomputed_ok": true,
+      "volume": 100,
+      "surplus": 40,
+      "winner_row_ok": false,
+      "dominated_by_winner_ok": true
+    }
+  ]
 }
 ```
 
@@ -300,7 +313,7 @@ The host recomputes score using deterministic integer code and checks:
 score_function_id matches deployed code version
 row.volume matches recomputed volume
 row.surplus matches recomputed surplus
-row.settlement_hash matches recomputed candidate settlement digest
+row.candidate_id matches recomputed candidate id
 ```
 
 Tau receives `scores_recomputed_ok`.
@@ -383,6 +396,8 @@ Status: done.
 
 ### Phase 1: Python Table Verifier
 
+Status: implemented in `src/core/uniform_batch_price_grid_table.py`.
+
 Add:
 
 ```text
@@ -413,8 +428,14 @@ Required negative cases:
 - score mismatch;
 - table-root mismatch;
 - winner row missing;
-- omitted better row;
+- invalid certificate fill binding;
 - dominance flag inconsistent with row scores.
+
+The implemented v1 scorer is intentionally narrow: single-pool CPMM,
+`SWAP_EXACT_IN`, UPBA v1 full-fill certificate semantics, and full-fill-or-reject
+candidate scoring for each bounded integer price pair. The table verifier calls
+the existing UPBA certificate verifier before accepting the grid witness, so the
+table cannot upgrade an invalid settlement certificate.
 
 ### Phase 2: Tau Table Contract Draft
 
