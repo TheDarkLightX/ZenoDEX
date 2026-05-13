@@ -216,6 +216,40 @@ def test_uniform_batch_certificate_hash_accepts_canonical_mapping() -> None:
     assert uniform_batch_certificate_hash(certificate.to_dict()) == certificate.hash()
 
 
+def test_uniform_batch_certificate_hash_rejects_invalid_direct_dataclass() -> None:
+    certificate = _certificate_for(_balanced_intents())
+    certificate = UniformBatchCertificateV1(
+        pool_id=certificate.pool_id,
+        base_asset=certificate.base_asset,
+        quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
+        intent_set_hash=certificate.intent_set_hash,
+        price_num=2,
+        price_den=2,
+        fills=certificate.fills,
+    )
+
+    try:
+        certificate.hash()
+    except ValueError as exc:
+        assert str(exc) == "certificate price ratio must be reduced"
+    else:  # pragma: no cover - explicit failure branch for assertion clarity
+        raise AssertionError("expected direct dataclass hash rejection")
+
+
+def test_uniform_batch_certificate_hash_rejects_invalid_mapping_shape() -> None:
+    certificate_obj = _certificate_for(_balanced_intents()).to_dict()
+    certificate_obj["price_num"] = 2
+    certificate_obj["price_den"] = 2
+
+    try:
+        uniform_batch_certificate_hash(certificate_obj)
+    except ValueError as exc:
+        assert str(exc) == "certificate price ratio must be reduced"
+    else:  # pragma: no cover - explicit failure branch for assertion clarity
+        raise AssertionError("expected parsed mapping hash rejection")
+
+
 def test_uniform_batch_certificate_handles_fee_adjusted_uniform_outputs() -> None:
     pool = _fee_pool()
     balances = _balances()
