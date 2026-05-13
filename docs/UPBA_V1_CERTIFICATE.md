@@ -29,7 +29,7 @@ Supported:
 - committed pre-pool snapshot hash
 - `SWAP_EXACT_IN` intents only
 - the pool's two assets only
-- one rational price vector `price_num / price_den`
+- one reduced rational price vector `price_num / price_den`
 - deterministic ceil fee on gross input
 - deterministic floor output on net input
 - canonical fill ordering by `intent_id`
@@ -70,6 +70,10 @@ UniformBatchCertificateV1 :=
 receipts. It includes reserves, fee, curve metadata, LP supply, status, and
 creation time. A certificate replayed against a different pool snapshot fails
 before settlement construction.
+
+`price_num / price_den` must be reduced to lowest terms. This makes the
+certificate hash canonical for the represented rational price and rejects
+duplicate encodings such as `1 / 1` and `2 / 2`.
 
 `intent_set_hash` is the canonical hash of the fixed admission set. It includes
 the sorted intent identifiers, common intent fields, and full intent field maps.
@@ -113,8 +117,9 @@ keyed by the order multiset and canonical fill list rather than input sequence.
 
 The tests include a permutation-invariance check, an aggregate `k` decrease
 rejection, a limit-price rejection, a pre-pool snapshot rejection, a
-noncanonical fill-order rejection, an admitted-intent omission rejection, a
-partial-fill rejection, and a tampered-settlement rejection.
+nonreduced price rejection, a noncanonical fill-order rejection, an
+admitted-intent omission rejection, a partial-fill rejection, and a
+tampered-settlement rejection.
 
 ## Promotion Boundary
 

@@ -292,6 +292,33 @@ def test_uniform_batch_certificate_rejects_pool_snapshot_mismatch() -> None:
     assert result.error == "certificate pool_state_hash mismatch"
 
 
+def test_uniform_batch_certificate_rejects_nonreduced_price_ratio() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _certificate_for(intents)
+    certificate = UniformBatchCertificateV1(
+        pool_id=certificate.pool_id,
+        base_asset=certificate.base_asset,
+        quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
+        intent_set_hash=certificate.intent_set_hash,
+        price_num=2,
+        price_den=2,
+        fills=certificate.fills,
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate price ratio must be reduced"
+
+
 def test_uniform_batch_certificate_rejects_missing_admitted_intent_fill() -> None:
     pool = _pool()
     balances = _balances()

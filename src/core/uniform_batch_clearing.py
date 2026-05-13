@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from math import gcd
 from typing import Any, Mapping, Sequence
 
 from ..state.balances import Amount, AssetId, BalanceTable, PubKey
@@ -340,6 +341,8 @@ def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
     _require_str(certificate.intent_set_hash, name="certificate.intent_set_hash")
     _require_positive_int(certificate.price_num, name="certificate.price_num")
     _require_positive_int(certificate.price_den, name="certificate.price_den")
+    if gcd(int(certificate.price_num), int(certificate.price_den)) != 1:
+        raise ValueError("certificate price ratio must be reduced")
     if not isinstance(certificate.fills, tuple):
         raise TypeError("certificate.fills must be a tuple")
     for fill in certificate.fills:
