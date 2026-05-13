@@ -63,6 +63,18 @@ theorem sumDelta1_perm {fillsA fillsB : List FillDelta}
   | swap _ _ _ => simp [sumDelta1, Int.add_left_comm]
   | trans _ _ ihAB ihBC => exact Eq.trans ihAB ihBC
 
+theorem sumDelta0_append (fillsA fillsB : List FillDelta) :
+    sumDelta0 (fillsA ++ fillsB) = sumDelta0 fillsA + sumDelta0 fillsB := by
+  induction fillsA with
+  | nil => simp [sumDelta0]
+  | cons _ fillsA ih => simp [sumDelta0, ih, Int.add_assoc]
+
+theorem sumDelta1_append (fillsA fillsB : List FillDelta) :
+    sumDelta1 (fillsA ++ fillsB) = sumDelta1 fillsA + sumDelta1 fillsB := by
+  induction fillsA with
+  | nil => simp [sumDelta1]
+  | cons _ fillsA ih => simp [sumDelta1, ih, Int.add_assoc]
+
 /--
 UPBA v1 permutation invariance.
 
@@ -92,6 +104,18 @@ theorem uniform_execution_is_linear_aggregation
         reserve1 := state.reserve1 + sumDelta1 fills
       } := by
   rfl
+
+/--
+Uniform execution over concatenated fill lists is equivalent to applying the
+first aggregate delta and then the second aggregate delta.
+-/
+theorem uniform_execution_append_decomposes
+    (state : PoolState)
+    (fillsA fillsB : List FillDelta) :
+    executeUniform state (fillsA ++ fillsB) =
+      executeUniform (executeUniform state fillsA) fillsB := by
+  cases state
+  simp [executeUniform, sumDelta0_append, sumDelta1_append, Int.add_assoc]
 
 /-! ## Canonical price-objective model -/
 
@@ -177,6 +201,36 @@ theorem sumQuoteToBaseNet_perm {ordersA ordersB : List NetOrder}
   | trans _ _ ihAB ihBC => exact Eq.trans ihAB ihBC
 
 /--
+The raw v1 price objective depends only on aggregate net base and quote flow.
+This is stronger than permutation invariance and is the theorem shape closest to
+the runtime verifier.
+-/
+theorem canonical_price_objective_raw_eq_of_equal_net_sums
+    (reserveQuote reserveBase : Nat)
+    {ordersA ordersB : List NetOrder}
+    (hBase : sumBaseToQuoteNet ordersA = sumBaseToQuoteNet ordersB)
+    (hQuote : sumQuoteToBaseNet ordersA = sumQuoteToBaseNet ordersB) :
+    canonicalPriceObjectiveRaw reserveQuote reserveBase ordersA =
+      canonicalPriceObjectiveRaw reserveQuote reserveBase ordersB := by
+  simp [canonicalPriceObjectiveRaw, hBase, hQuote]
+
+/--
+The reduced v1 price objective depends only on aggregate net base and quote
+flow. This is the checker-level version after ratio canonicalization.
+-/
+theorem canonical_price_objective_eq_of_equal_net_sums
+    (reserveQuote reserveBase : Nat)
+    {ordersA ordersB : List NetOrder}
+    (hBase : sumBaseToQuoteNet ordersA = sumBaseToQuoteNet ordersB)
+    (hQuote : sumQuoteToBaseNet ordersA = sumQuoteToBaseNet ordersB) :
+    canonicalPriceObjective reserveQuote reserveBase ordersA =
+      canonicalPriceObjective reserveQuote reserveBase ordersB := by
+  simp [
+    canonicalPriceObjective,
+    canonical_price_objective_raw_eq_of_equal_net_sums reserveQuote reserveBase hBase hQuote,
+  ]
+
+/--
 The raw v1 price objective is invariant under permutation of the admitted order
 list.
 
@@ -208,9 +262,23 @@ theorem canonical_price_objective_permutation_invariant
     (h : ordersA.Perm ordersB) :
     canonicalPriceObjective reserveQuote reserveBase ordersA =
       canonicalPriceObjective reserveQuote reserveBase ordersB := by
-  simp [
-    canonicalPriceObjective,
-    canonical_price_objective_raw_permutation_invariant reserveQuote reserveBase h,
-  ]
+  exact canonical_price_objective_eq_of_equal_net_sums
+    reserveQuote
+    reserveBase
+    (sumBaseToQuoteNet_perm h)
+    (sumQuoteToBaseNet_perm h)
+
+/--
+Net-flow equality recovers permutation invariance as a corollary. This theorem
+is named separately so proof consumers can depend on the stronger aggregate-sum
+boundary directly.
+-/
+theorem canonical_price_objective_permutation_invariant_via_net_sums
+    (reserveQuote reserveBase : Nat)
+    {ordersA ordersB : List NetOrder}
+    (h : ordersA.Perm ordersB) :
+    canonicalPriceObjective reserveQuote reserveBase ordersA =
+      canonicalPriceObjective reserveQuote reserveBase ordersB := by
+  exact canonical_price_objective_permutation_invariant reserveQuote reserveBase h
 
 end UniformBatchClearingV1

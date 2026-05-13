@@ -36,14 +36,23 @@ It proves:
 
 - `uniform_execution_permutation_invariant`
 - `uniform_execution_is_linear_aggregation`
+- `uniform_execution_append_decomposes`
+- `canonical_price_objective_raw_eq_of_equal_net_sums`
+- `canonical_price_objective_eq_of_equal_net_sums`
 - `canonical_price_objective_raw_permutation_invariant`
 - `canonical_price_objective_permutation_invariant`
+- `canonical_price_objective_permutation_invariant_via_net_sums`
 
 The model captures the algebraic fact UPBA v1 relies on:
 
 ```text
 same admitted multiset -> same aggregate deltas and same canonical price target
 ```
+
+The aggregate-sum theorems are the closest formal boundary to the runtime
+verifier: once fee-adjusted net base and quote input are fixed, the canonical
+price objective is fixed. Permutation invariance follows as a corollary because
+permutation preserves those sums.
 
 The theorem is intentionally about a fixed admission set. It does not prove that
 the admission set is fair, inclusion-resistant, or welfare-optimal.
