@@ -10,9 +10,12 @@ settlement can match more than the smaller side.
 
 The second lemma is certificate-facing: if a verifier checks upper bounds over a
 finite audited candidate list, then the submitted candidate is weakly optimal in
-that audited list by volume first and surplus second.
+that audited list by volume first and surplus second. The final lemmas make the
+completeness boundary explicit: audited-set optimality lifts to global
+optimality only when the audit set covers every feasible candidate and the
+declared winner is feasible.
 
-These theorems do not prove fair order inclusion, global price search
+These theorems do not prove fair order inclusion, global price-search
 completeness, multi-hop routing, or solver correctness.
 -/
 
@@ -112,6 +115,24 @@ def WeaklyOptimalIn
     (candidates : List SettlementCandidate) : Prop :=
   ∀ candidate, candidate ∈ candidates -> WeaklyDominates winner candidate
 
+/-- The audited list covers every candidate that the external feasibility predicate admits. -/
+def CompleteAuditSet
+    (candidates : List SettlementCandidate)
+    (Feasible : SettlementCandidate -> Prop) : Prop :=
+  ∀ candidate, Feasible candidate -> candidate ∈ candidates
+
+/--
+Global weak optimality over a feasibility predicate.
+
+This definition includes winner feasibility. A candidate that dominates all
+feasible candidates but is itself infeasible is not a valid global winner.
+-/
+def GloballyWeaklyOptimal
+    (winner : SettlementCandidate)
+    (Feasible : SettlementCandidate -> Prop) : Prop :=
+  Feasible winner ∧
+    ∀ candidate, Feasible candidate -> WeaklyDominates winner candidate
+
 /--
 Certificate-style upper-bound check.
 
@@ -183,5 +204,71 @@ theorem upper_bound_certificate_with_winner_implies_present_and_weak_optimal
     WeaklyOptimalIn winner candidates ∧ winner ∈ candidates := by
   rcases hCert with ⟨hUpper, hMember⟩
   exact ⟨upper_bound_certificate_implies_weak_optimal hUpper, hMember⟩
+
+/--
+Audited-set optimality lifts to global optimality only through an explicit
+completeness bridge.
+-/
+theorem complete_audit_set_lifts_weak_optimal_to_global
+    {winner : SettlementCandidate}
+    {candidates : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hWinnerFeasible : Feasible winner)
+    (hComplete : CompleteAuditSet candidates Feasible)
+    (hAudit : WeaklyOptimalIn winner candidates) :
+    GloballyWeaklyOptimal winner Feasible := by
+  unfold CompleteAuditSet WeaklyOptimalIn GloballyWeaklyOptimal at *
+  constructor
+  · exact hWinnerFeasible
+  · intro candidate hFeasible
+    exact hAudit candidate (hComplete candidate hFeasible)
+
+/--
+A runtime-strengthened upper-bound certificate gives global weak optimality
+only when paired with winner feasibility and audit-set completeness.
+-/
+theorem complete_upper_bound_certificate_implies_global_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {candidates : List SettlementCandidate}
+    {Feasible : SettlementCandidate -> Prop}
+    (hWinnerFeasible : Feasible winner)
+    (hComplete : CompleteAuditSet candidates Feasible)
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        candidates) :
+    GloballyWeaklyOptimal winner Feasible ∧ winner ∈ candidates := by
+  rcases upper_bound_certificate_with_winner_implies_present_and_weak_optimal hCert with
+    ⟨hAudit, hMember⟩
+  exact
+    ⟨complete_audit_set_lifts_weak_optimal_to_global
+      hWinnerFeasible
+      hComplete
+      hAudit,
+      hMember⟩
+
+/--
+Negative boundary: audited-set optimality alone says nothing about a better
+candidate omitted from the audited list.
+-/
+theorem audited_set_optimality_does_not_exclude_omitted_better_candidate :
+    ∃ winner omitted candidates,
+      WeaklyOptimalIn winner candidates ∧
+        omitted ∉ candidates ∧
+        ¬ WeaklyDominates winner omitted := by
+  let winner : SettlementCandidate := { volume := 1, surplus := 0 }
+  let omitted : SettlementCandidate := { volume := 2, surplus := 0 }
+  refine ⟨winner, omitted, [winner], ?_, ?_, ?_⟩
+  · intro candidate hMember
+    simp only [List.mem_singleton] at hMember
+    subst candidate
+    unfold WeaklyDominates
+    exact ⟨Nat.le_refl 1, by intro _; exact Nat.le_refl 0⟩
+  · decide
+  · intro hDominates
+    exact Nat.not_succ_le_self 1 hDominates.1
 
 end UniformBatchOptimality
