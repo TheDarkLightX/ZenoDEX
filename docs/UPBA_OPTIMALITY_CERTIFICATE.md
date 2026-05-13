@@ -129,6 +129,29 @@ The bound verifier additionally enforces:
 - `winner_id` equals the domain-separated candidate id derived from that UPBA
   certificate hash.
 
+## Engine Attachment
+
+`src/integration/dex_engine.py` accepts optional optimality evidence under:
+
+```text
+ops["3"]["uniform_batch_optimality_certificate"]
+```
+
+The field is valid only when the same settlement operation also includes:
+
+```text
+ops["3"]["uniform_batch_certificate"]
+```
+
+When the field is present, the engine runs
+`verify_uniform_batch_bound_optimality_certificate_v1` before applying the
+settlement. A mismatch between the optimality winner id and the attached UPBA
+certificate hash rejects the transaction. A malformed optimality payload also
+rejects at the settlement-envelope parser.
+
+The evidence remains optional. Supplying it adds a checked audited-set claim to
+that settlement; omitting it preserves the existing UPBA settlement behavior.
+
 ## Formal Boundary
 
 The Lean theorem file is `lean-mathlib/Proofs/UniformBatchOptimality.lean`.

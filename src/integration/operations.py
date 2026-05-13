@@ -83,6 +83,7 @@ class SettlementEnvelope:
     proof: Optional[Dict[str, Any]] = None
     oracle_authorization: Optional[Dict[str, Any]] = None
     uniform_batch_certificate: Optional[Dict[str, Any]] = None
+    uniform_batch_optimality_certificate: Optional[Dict[str, Any]] = None
 
 
 def _require_list_or_empty(value: Any, *, name: str) -> list[Any]:
@@ -421,6 +422,10 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
 
     UPBA v1 certificate payload is passed through as an opaque JSON object under:
     - settlement_data["uniform_batch_certificate"]
+
+    UPBA bounded optimality certificate payload is passed through as an opaque
+    JSON object under:
+    - settlement_data["uniform_batch_optimality_certificate"]
     """
     if not isinstance(operations, Mapping):
         raise ValueError(f"operations must be an object, got {type(operations)}")
@@ -458,10 +463,23 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
             raise ValueError("settlement uniform_batch_certificate must be an object")
         uniform_batch_certificate = raw_uniform_batch_certificate
 
+    uniform_batch_optimality_certificate = None
+    raw_uniform_batch_optimality_certificate = settlement_data.get("uniform_batch_optimality_certificate")
+    if raw_uniform_batch_optimality_certificate is not None:
+        if not isinstance(raw_uniform_batch_optimality_certificate, dict):
+            raise ValueError("settlement uniform_batch_optimality_certificate must be an object")
+        uniform_batch_optimality_certificate = raw_uniform_batch_optimality_certificate
+
     settlement_data_no_proof = {
         k: v
         for k, v in settlement_data.items()
-        if k not in ("proof", "zk_proof", "oracle_authorization", "uniform_batch_certificate")
+        if k not in (
+            "proof",
+            "zk_proof",
+            "oracle_authorization",
+            "uniform_batch_certificate",
+            "uniform_batch_optimality_certificate",
+        )
     }
     settlement = _parse_settlement(settlement_data_no_proof)
     return SettlementEnvelope(
@@ -469,6 +487,7 @@ def parse_settlement_envelope(operations: Dict[str, Any]) -> Optional[Settlement
         proof=proof,
         oracle_authorization=oracle_authorization,
         uniform_batch_certificate=uniform_batch_certificate,
+        uniform_batch_optimality_certificate=uniform_batch_optimality_certificate,
     )
 
 

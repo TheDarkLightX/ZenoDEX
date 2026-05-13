@@ -19,6 +19,12 @@ from src.core.uniform_batch_clearing import (
     uniform_batch_intent_set_hash,
     uniform_batch_pool_state_hash,
 )
+from src.core.uniform_batch_optimality import (
+    UniformBatchAuditCandidateV1,
+    UniformBatchOptimalityCertificateV1,
+    uniform_batch_candidate_id_for_certificate,
+    uniform_batch_optimality_candidate_set_hash,
+)
 from src.core.settlement import FillAction
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
@@ -34,6 +40,10 @@ SENDER = "0x" + "aa" * 48
 
 def _intent_id(label: str) -> str:
     return "0x" + sha256(label.encode("utf-8")).hexdigest()
+
+
+def _audit_candidate_id(label: str) -> str:
+    return "0x" + sha256(f"audit:{label}".encode("utf-8")).hexdigest()
 
 
 def _pool() -> PoolState:
@@ -308,6 +318,49 @@ def _ops_with_uniform_certificate(*, tamper_settlement: bool = False) -> dict[st
     settlement_op = create_settlement_operation(settlement)["3"]
     settlement_op["uniform_batch_certificate"] = cert.to_dict()
     return {"2": _intent_ops(), "3": settlement_op}
+
+
+def _optimality_certificate_for_uniform_certificate(
+    cert: UniformBatchCertificateV1,
+    *,
+    winner_id: str | None = None,
+) -> UniformBatchOptimalityCertificateV1:
+    declared_winner_id = winner_id or uniform_batch_candidate_id_for_certificate(cert)
+    candidates = tuple(
+        sorted(
+            (
+                UniformBatchAuditCandidateV1(
+                    candidate_id=_audit_candidate_id("lower-volume"),
+                    volume=199,
+                    surplus=50,
+                ),
+                UniformBatchAuditCandidateV1(
+                    candidate_id=declared_winner_id,
+                    volume=200,
+                    surplus=40,
+                ),
+            ),
+            key=lambda item: item.candidate_id,
+        )
+    )
+    return UniformBatchOptimalityCertificateV1(
+        candidate_set_hash=uniform_batch_optimality_candidate_set_hash(candidates),
+        winner_id=declared_winner_id,
+        volume_upper=200,
+        surplus_upper_at_winner_volume=40,
+        candidates=candidates,
+    )
+
+
+def _ops_with_uniform_certificate_and_optimality(
+    *,
+    winner_id: str | None = None,
+) -> dict[str, object]:
+    ops = _ops_with_uniform_certificate()
+    cert = UniformBatchCertificateV1.from_obj(ops["3"]["uniform_batch_certificate"])
+    optimality = _optimality_certificate_for_uniform_certificate(cert, winner_id=winner_id)
+    ops["3"]["uniform_batch_optimality_certificate"] = optimality.to_dict()
+    return ops
 
 
 def _ops_with_missing_uniform_fill() -> dict[str, object]:
@@ -591,6 +644,86 @@ def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
             "certificate_hash": _certificate(_intents()).hash(),
         }
     ]
+
+
+def test_engine_accepts_uniform_batch_optimality_certificate_when_bound() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_certificate_and_optimality(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
+
+
+def test_engine_rejects_uniform_batch_optimality_without_uniform_certificate() -> None:
+    ops = _ops_with_uniform_certificate_and_optimality()
+    del ops["3"]["uniform_batch_certificate"]
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch optimality certificate requires uniform batch certificate"
+
+
+def test_engine_rejects_uniform_batch_optimality_certificate_mismatched_winner() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_certificate_and_optimality(
+            winner_id=_audit_candidate_id("mismatch"),
+        ),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert (
+        result.error
+        == "uniform batch optimality certificate rejected: "
+        "optimality certificate winner_id does not match uniform batch certificate"
+    )
+
+
+def test_engine_rejects_uniform_batch_optimality_certificate_non_object() -> None:
+    ops = _ops_with_uniform_certificate()
+    ops["3"]["uniform_batch_optimality_certificate"] = "bad"
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == (
+        "invalid settlement: settlement uniform_batch_optimality_certificate must be an object"
+    )
 
 
 def test_engine_accepts_uniform_batch_v2_partial_certificate_when_enabled() -> None:
