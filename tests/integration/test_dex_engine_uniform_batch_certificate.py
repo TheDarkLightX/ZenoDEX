@@ -5,6 +5,7 @@ from hashlib import sha256
 from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
+    UNIFORM_BATCH_POLICY_ID,
     build_uniform_batch_settlement_v1,
     uniform_batch_intent_set_hash,
     uniform_batch_pool_state_hash,
@@ -257,6 +258,32 @@ def _ops_with_nonreduced_price_ratio() -> dict[str, object]:
     return {"2": _intent_ops(), "3": settlement_op}
 
 
+def _ops_with_unsupported_policy_id() -> dict[str, object]:
+    state = _state()
+    intents = _intents()
+    cert = _certificate(intents)
+    unsupported_cert = UniformBatchCertificateV1(
+        pool_id=cert.pool_id,
+        base_asset=cert.base_asset,
+        quote_asset=cert.quote_asset,
+        pool_state_hash=cert.pool_state_hash,
+        intent_set_hash=cert.intent_set_hash,
+        price_num=cert.price_num,
+        price_den=cert.price_den,
+        fills=cert.fills,
+        policy_id="zenodex/upba_v1/partial_fill_experiment",
+    )
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = unsupported_cert.to_dict()
+    return {"2": _intent_ops(), "3": settlement_op}
+
+
 def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
     state = _state()
     result = apply_ops(
@@ -280,6 +307,7 @@ def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
         {
             "type": "UNIFORM_BATCH_CLEARING_V1",
             "pool_id": "pool_ab",
+            "policy_id": UNIFORM_BATCH_POLICY_ID,
             "certificate_hash": _certificate(_intents()).hash(),
         }
     ]
@@ -377,6 +405,22 @@ def test_engine_rejects_uniform_batch_certificate_nonreduced_price_ratio() -> No
 
     assert result.ok is False
     assert result.error == "uniform batch certificate rejected: certificate price ratio must be reduced"
+
+
+def test_engine_rejects_uniform_batch_certificate_unsupported_policy_id() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_unsupported_policy_id(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch certificate rejected: unsupported uniform batch policy_id"
 
 
 def test_engine_rejects_uniform_batch_certificate_partial_fill() -> None:

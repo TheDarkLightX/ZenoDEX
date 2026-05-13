@@ -7,6 +7,7 @@ from src.core.settlement import FillAction
 from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
+    UNIFORM_BATCH_POLICY_ID,
     build_uniform_batch_settlement_v1,
     uniform_batch_intent_set_hash,
     uniform_batch_pool_state_hash,
@@ -121,6 +122,7 @@ def test_uniform_batch_certificate_builds_conservative_settlement() -> None:
     assert result.error is None
     assert result.settlement is not None
     assert result.certificate_hash == certificate.hash()
+    assert certificate.to_dict()["policy_id"] == UNIFORM_BATCH_POLICY_ID
     assert [fill.action for fill in result.settlement.fills] == [FillAction.FILL, FillAction.FILL]
     assert result.settlement.reserve_deltas == []
     valid, err = validate_settlement(result.settlement, balances, {"pool_ab": pool}, LPTable())
@@ -317,6 +319,70 @@ def test_uniform_batch_certificate_rejects_nonreduced_price_ratio() -> None:
 
     assert result.ok is False
     assert result.error == "certificate price ratio must be reduced"
+
+
+def test_uniform_batch_certificate_rejects_unsupported_policy_id() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _certificate_for(intents)
+    certificate = UniformBatchCertificateV1(
+        pool_id=certificate.pool_id,
+        base_asset=certificate.base_asset,
+        quote_asset=certificate.quote_asset,
+        pool_state_hash=certificate.pool_state_hash,
+        intent_set_hash=certificate.intent_set_hash,
+        price_num=certificate.price_num,
+        price_den=certificate.price_den,
+        fills=certificate.fills,
+        policy_id="zenodex/upba_v1/partial_fill_experiment",
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "unsupported uniform batch policy_id"
+
+
+def test_uniform_batch_certificate_rejects_unknown_certificate_key() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate_obj = _certificate_for(intents).to_dict()
+    certificate_obj["future_policy_knob"] = True
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate_obj,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate contains unsupported keys: future_policy_knob"
+
+
+def test_uniform_batch_certificate_rejects_unknown_fill_key() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate_obj = _certificate_for(intents).to_dict()
+    certificate_obj["fills"][0]["future_fill_knob"] = True
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate_obj,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate.fill contains unsupported keys: future_fill_knob"
 
 
 def test_uniform_batch_certificate_rejects_missing_admitted_intent_fill() -> None:

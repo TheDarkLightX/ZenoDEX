@@ -24,6 +24,22 @@ from .settlement import BalanceDelta, Fill, FillAction, ReserveDelta, Settlement
 
 UNIFORM_BATCH_CERTIFICATE_SCHEMA = "zenodex/uniform_batch_clearing_certificate/v1"
 UNIFORM_BATCH_INTENT_SET_SCHEMA = "zenodex/uniform_batch_intent_set/v1"
+UNIFORM_BATCH_POLICY_ID = "zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in"
+_UNIFORM_BATCH_CERTIFICATE_KEYS = frozenset(
+    {
+        "schema",
+        "policy_id",
+        "pool_id",
+        "base_asset",
+        "quote_asset",
+        "pool_state_hash",
+        "intent_set_hash",
+        "price_num",
+        "price_den",
+        "fills",
+    }
+)
+_UNIFORM_BATCH_FILL_KEYS = frozenset({"intent_id", "executed_in", "executed_out"})
 
 
 @dataclass(frozen=True)
@@ -41,6 +57,7 @@ class UniformBatchFillV1:
 
     @classmethod
     def from_obj(cls, obj: Mapping[str, Any]) -> "UniformBatchFillV1":
+        _reject_unknown_keys(obj, allowed=_UNIFORM_BATCH_FILL_KEYS, name="certificate.fill")
         return cls(
             intent_id=_require_str(obj.get("intent_id"), name="fill.intent_id"),
             executed_in=_require_positive_int(obj.get("executed_in"), name="fill.executed_in"),
@@ -58,10 +75,12 @@ class UniformBatchCertificateV1:
     price_num: int
     price_den: int
     fills: tuple[UniformBatchFillV1, ...]
+    policy_id: str = UNIFORM_BATCH_POLICY_ID
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema": UNIFORM_BATCH_CERTIFICATE_SCHEMA,
+            "policy_id": self.policy_id,
             "pool_id": self.pool_id,
             "base_asset": self.base_asset,
             "quote_asset": self.quote_asset,
@@ -74,8 +93,12 @@ class UniformBatchCertificateV1:
 
     @classmethod
     def from_obj(cls, obj: Mapping[str, Any]) -> "UniformBatchCertificateV1":
+        _reject_unknown_keys(obj, allowed=_UNIFORM_BATCH_CERTIFICATE_KEYS, name="certificate")
         if _require_str(obj.get("schema"), name="certificate.schema") != UNIFORM_BATCH_CERTIFICATE_SCHEMA:
             raise ValueError("unsupported uniform batch certificate schema")
+        policy_id = _require_str(obj.get("policy_id"), name="certificate.policy_id")
+        if policy_id != UNIFORM_BATCH_POLICY_ID:
+            raise ValueError("unsupported uniform batch policy_id")
         fills_obj = obj.get("fills")
         if not isinstance(fills_obj, Sequence) or isinstance(fills_obj, (str, bytes, bytearray)):
             raise TypeError("certificate.fills must be a sequence")
@@ -94,6 +117,7 @@ class UniformBatchCertificateV1:
             price_num=_require_positive_int(obj.get("price_num"), name="certificate.price_num"),
             price_den=_require_positive_int(obj.get("price_den"), name="certificate.price_den"),
             fills=tuple(UniformBatchFillV1.from_obj(_require_mapping(fill, name="certificate.fill")) for fill in fills_obj),
+            policy_id=policy_id,
         )
 
     def hash(self) -> str:
@@ -327,6 +351,7 @@ def _build_uniform_batch_settlement_checked(
             {
                 "type": "UNIFORM_BATCH_CLEARING_V1",
                 "pool_id": pool.pool_id,
+                "policy_id": certificate.policy_id,
                 "certificate_hash": certificate_hash,
             }
         ],
@@ -334,6 +359,8 @@ def _build_uniform_batch_settlement_checked(
 
 
 def _validate_certificate_shape(certificate: UniformBatchCertificateV1) -> None:
+    if certificate.policy_id != UNIFORM_BATCH_POLICY_ID:
+        raise ValueError("unsupported uniform batch policy_id")
     _require_str(certificate.pool_id, name="certificate.pool_id")
     _require_str(certificate.base_asset, name="certificate.base_asset")
     _require_str(certificate.quote_asset, name="certificate.quote_asset")
@@ -490,6 +517,13 @@ def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise TypeError(f"{name} must be an object")
     return value
+
+
+def _reject_unknown_keys(value: Mapping[str, Any], *, allowed: frozenset[str], name: str) -> None:
+    unknown = sorted(set(value) - set(allowed))
+    if unknown:
+        joined = ", ".join(unknown)
+        raise ValueError(f"{name} contains unsupported keys: {joined}")
 
 
 def _require_str(value: Any, *, name: str) -> str:

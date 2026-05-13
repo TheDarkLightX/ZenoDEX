@@ -26,6 +26,7 @@ Supported:
 - one existing `PoolState`
 - `PoolStatus.ACTIVE`
 - `CURVE_TAG_CPMM`
+- explicit policy id `zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in`
 - committed pre-pool snapshot hash
 - `SWAP_EXACT_IN` intents only
 - the pool's two assets only
@@ -56,6 +57,7 @@ optimality.
 
 ```text
 UniformBatchCertificateV1 :=
+  policy_id
   pool_id
   base_asset
   quote_asset
@@ -70,6 +72,12 @@ UniformBatchCertificateV1 :=
 receipts. It includes reserves, fee, curve metadata, LP supply, status, and
 creation time. A certificate replayed against a different pool snapshot fails
 before settlement construction.
+
+`policy_id` is fixed to
+`zenodex/upba_v1/fixed_admission_full_fill_cpmm_exact_in`. Certificates with a
+different policy id fail closed, and v1 rejects unknown certificate or fill
+keys. This prevents a future UPBA variant from being silently interpreted under
+the current fixed-admission, full-fill exact-in semantics.
 
 `price_num / price_den` must be reduced to lowest terms. This makes the
 certificate hash canonical for the represented rational price and rejects
@@ -117,9 +125,9 @@ keyed by the order multiset and canonical fill list rather than input sequence.
 
 The tests include a permutation-invariance check, an aggregate `k` decrease
 rejection, a limit-price rejection, a pre-pool snapshot rejection, a
-nonreduced price rejection, a noncanonical fill-order rejection, an
-admitted-intent omission rejection, a partial-fill rejection, and a
-tampered-settlement rejection.
+nonreduced price rejection, an unsupported-policy rejection, closed-schema
+rejections, a noncanonical fill-order rejection, an admitted-intent omission
+rejection, a partial-fill rejection, and a tampered-settlement rejection.
 
 ## Promotion Boundary
 
