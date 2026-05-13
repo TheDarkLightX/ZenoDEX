@@ -93,6 +93,11 @@ The first runtime bridge for the finite audited-set theorem is
 weakly optimal inside a certificate-supplied audited candidate set. This still
 does not prove the audited set is complete.
 
+The checker also exposes a bound verification path that derives the winner
+candidate id from the UPBA certificate hash. This prevents a valid audited-set
+optimality certificate from being replayed as evidence for a different UPBA
+settlement certificate.
+
 ## Tests
 
 Focused runtime checks:

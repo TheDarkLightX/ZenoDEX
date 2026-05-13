@@ -14,10 +14,16 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from ..state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
-from .uniform_batch_clearing import UNIFORM_BATCH_MAX_FILLS, UNIFORM_BATCH_OUTPUT_AMOUNT_MAX
+from .uniform_batch_clearing import (
+    UniformBatchCertificateV1,
+    UNIFORM_BATCH_MAX_FILLS,
+    UNIFORM_BATCH_OUTPUT_AMOUNT_MAX,
+    uniform_batch_certificate_hash,
+)
 
 UNIFORM_BATCH_OPTIMALITY_CERTIFICATE_SCHEMA = "zenodex/uniform_batch_optimality_certificate/v1"
 UNIFORM_BATCH_OPTIMALITY_CANDIDATE_SET_SCHEMA = "zenodex/uniform_batch_optimality_candidate_set/v1"
+UNIFORM_BATCH_OPTIMALITY_WINNER_BINDING_SCHEMA = "zenodex/uniform_batch_optimality_winner_binding/v1"
 UNIFORM_BATCH_OPTIMALITY_OBJECTIVE_ID = "zenodex/upba/lexicographic_volume_then_surplus/audit_set_v1"
 UNIFORM_BATCH_OPTIMALITY_MAX_CANDIDATES = UNIFORM_BATCH_MAX_FILLS
 UNIFORM_BATCH_OPTIMALITY_SCORE_MAX = UNIFORM_BATCH_OUTPUT_AMOUNT_MAX * UNIFORM_BATCH_MAX_FILLS
@@ -181,6 +187,24 @@ def uniform_batch_optimality_certificate_hash(
     )
 
 
+def uniform_batch_candidate_id_for_certificate(
+    certificate: UniformBatchCertificateV1 | Mapping[str, Any],
+) -> str:
+    return uniform_batch_candidate_id_for_certificate_hash(uniform_batch_certificate_hash(certificate))
+
+
+def uniform_batch_candidate_id_for_certificate_hash(certificate_hash: str) -> str:
+    parsed_hash = _require_sha256_hex(certificate_hash, name="uniform_batch_certificate_hash")
+    body = {
+        "schema": UNIFORM_BATCH_OPTIMALITY_WINNER_BINDING_SCHEMA,
+        "uniform_batch_certificate_hash": parsed_hash,
+    }
+    return sha256_hex(
+        domain_sep_bytes("uniform_batch_optimality_winner_binding", version=1)
+        + canonical_json_bytes(body)
+    )
+
+
 def verify_uniform_batch_optimality_certificate_v1(
     certificate: UniformBatchOptimalityCertificateV1 | Mapping[str, Any],
 ) -> UniformBatchOptimalityVerificationResult:
@@ -217,6 +241,27 @@ def verify_uniform_batch_optimality_certificate_v1(
             error=None,
             certificate_hash=parsed.hash(),
         )
+    except (TypeError, ValueError) as exc:
+        return UniformBatchOptimalityVerificationResult(ok=False, error=str(exc))
+
+
+def verify_uniform_batch_bound_optimality_certificate_v1(
+    *,
+    optimality_certificate: UniformBatchOptimalityCertificateV1 | Mapping[str, Any],
+    uniform_batch_certificate: UniformBatchCertificateV1 | Mapping[str, Any],
+) -> UniformBatchOptimalityVerificationResult:
+    try:
+        parsed = (
+            optimality_certificate
+            if isinstance(optimality_certificate, UniformBatchOptimalityCertificateV1)
+            else UniformBatchOptimalityCertificateV1.from_obj(
+                _require_mapping(optimality_certificate, name="optimality.certificate")
+            )
+        )
+        expected_winner_id = uniform_batch_candidate_id_for_certificate(uniform_batch_certificate)
+        if parsed.winner_id != expected_winner_id:
+            raise ValueError("optimality certificate winner_id does not match uniform batch certificate")
+        return verify_uniform_batch_optimality_certificate_v1(parsed)
     except (TypeError, ValueError) as exc:
         return UniformBatchOptimalityVerificationResult(ok=False, error=str(exc))
 
@@ -284,6 +329,17 @@ def _require_str(value: Any, *, name: str) -> str:
     if not isinstance(value, str) or value == "":
         raise TypeError(f"{name} must be a non-empty string")
     return value
+
+
+def _require_sha256_hex(value: Any, *, name: str) -> str:
+    parsed = _require_str(value, name=name)
+    if (
+        len(parsed) != 66
+        or not parsed.startswith("0x")
+        or any(char not in "0123456789abcdef" for char in parsed[2:])
+    ):
+        raise ValueError(f"{name} must be 0x-prefixed lowercase sha256 hex")
+    return parsed
 
 
 def _require_nonnegative_int(value: Any, *, name: str, maximum: int | None = None) -> int:

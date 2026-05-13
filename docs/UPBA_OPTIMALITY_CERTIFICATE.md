@@ -26,6 +26,19 @@ State:
 - integer matched volume;
 - integer surplus.
 
+For a value-moving UPBA settlement candidate, the candidate id is derived from
+the UPBA certificate hash:
+
+```text
+candidate_id :=
+  H(domain = uniform_batch_optimality_winner_binding,
+    schema = zenodex/uniform_batch_optimality_winner_binding/v1,
+    uniform_batch_certificate_hash)
+```
+
+This makes the winner id a commitment to the actual UPBA settlement certificate,
+rather than an arbitrary solver label.
+
 Objective:
 
 ```text
@@ -47,6 +60,15 @@ exists candidate in audited_set:
 ```
 
 The verifier rejects exactly this condition.
+
+The bound-verifier deviation condition is stronger:
+
+```text
+winner_id != candidate_id_for(uniform_batch_certificate_hash)
+```
+
+The verifier rejects this before accepting the optimality proof, so an audited
+optimality certificate cannot be presented for a different UPBA settlement.
 
 ## Certificate Shape
 
@@ -99,6 +121,14 @@ The verifier enforces:
 - every candidate with `volume = volume_upper` has surplus
   `<= surplus_upper_at_winner_volume`.
 
+The bound verifier additionally enforces:
+
+- the supplied UPBA certificate is hash-valid under the UPBA verifier schema;
+- direct certificate-hash binding inputs must be canonical `0x`-prefixed
+  lowercase SHA-256 hex;
+- `winner_id` equals the domain-separated candidate id derived from that UPBA
+  certificate hash.
+
 ## Formal Boundary
 
 The Lean theorem file is `lean-mathlib/Proofs/UniformBatchOptimality.lean`.
@@ -117,6 +147,15 @@ The Python checker implements the runtime-strengthened certificate predicate. It
 also adds runtime hygiene that the theorem leaves abstract: canonical hashes,
 closed schemas, sorted unique ids, and integer domain bounds.
 
+The bound verifier implements the next runtime obligation:
+
+```text
+winner_id = candidate_id_for(uniform_batch_certificate_hash)
+```
+
+This is a hash-binding obligation, so it is kept in Python rather than modeled
+as arithmetic in Lean.
+
 ## Non-Claims
 
 This certificate does not prove:
@@ -127,6 +166,12 @@ This certificate does not prove:
 - censorship resistance;
 - oracle safety;
 - global MEV elimination.
+
+The bound verifier also does not prove that the UPBA settlement certificate is
+accepted against live balances and pool state. It proves that the optimality
+certificate's winner id is bound to the supplied UPBA certificate hash. The
+normal UPBA settlement verifier still has to accept that certificate in its own
+runtime context.
 
 The claim is deliberately local:
 
