@@ -79,6 +79,33 @@ def test_uniform_batch_optimality_certificate_accepts_weak_winner() -> None:
     assert result.certificate_hash == uniform_batch_optimality_certificate_hash(certificate)
 
 
+def test_uniform_batch_optimality_certificate_is_audited_set_scoped() -> None:
+    winner = _candidate("winner", volume=100, surplus=40)
+    omitted_better = _candidate("omitted-better", volume=101, surplus=0)
+    scoped_certificate = _certificate(
+        (winner,),
+        winner_id="winner",
+        volume_upper=100,
+        surplus_upper=40,
+    )
+
+    scoped_result = verify_uniform_batch_optimality_certificate_v1(scoped_certificate)
+
+    assert scoped_result.ok is True
+
+    expanded_certificate = _certificate(
+        _sorted_candidates([winner, omitted_better]),
+        winner_id="winner",
+        volume_upper=100,
+        surplus_upper=40,
+    )
+
+    expanded_result = verify_uniform_batch_optimality_certificate_v1(expanded_certificate)
+
+    assert expanded_result.ok is False
+    assert expanded_result.error == "audited candidate exceeds volume upper bound"
+
+
 def test_uniform_batch_optimality_certificate_rejects_candidate_with_more_volume() -> None:
     candidates = (
         _candidate("a", volume=90, surplus=1_000),

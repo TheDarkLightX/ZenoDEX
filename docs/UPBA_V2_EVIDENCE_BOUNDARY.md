@@ -81,11 +81,21 @@ The starter optimality boundary is
 - finite audit-set upper-bound certificates imply weak optimality inside the
   audited candidate list;
 - runtime-strengthened audit certificates imply the winner is both present and
-  weakly optimal inside the audited candidate list.
+  weakly optimal inside the audited candidate list;
+- audited-set optimality lifts to global weak optimality when the winner is
+  feasible and the audited set is complete;
+- audited-set optimality alone can omit a better candidate, so incompleteness is
+  a formal non-claim rather than an implementation detail.
 
 These optimality lemmas are model-level. They become runtime claims only after a
 verifier binds acceptable side capacities or the audited candidate set to the
 deployed solver path.
+
+The current runtime verifier is exact over a finite audited set. It is an
+approximation to global optimality whenever that audited set is a sample,
+heuristic frontier, or otherwise incomplete. It becomes a proof of global weak
+optimality only when a separate completeness argument establishes that every
+feasible candidate is in the audited set.
 
 The first runtime bridge for the finite audited-set theorem is
 `src/core/uniform_batch_optimality.py`, documented in

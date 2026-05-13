@@ -62,6 +62,19 @@ cd lean-mathlib
 ~/.elan/bin/lean Proofs/UniformBatchOptimality.lean
 ```
 
+Second local extension: the repository proof file now also includes a precise
+global-optimality bridge and a negative boundary theorem:
+
+- `complete_audit_set_lifts_weak_optimal_to_global`
+- `complete_upper_bound_certificate_implies_global_weak_optimal`
+- `audited_set_optimality_does_not_exclude_omitted_better_candidate`
+
+These theorems make the Aristotle result's scope explicit. The audited-set
+certificate is exact inside the supplied finite candidate set. It becomes a
+global weak-optimality proof only with a winner-feasibility proof and an
+audit-set-completeness proof. Without completeness, a better omitted candidate
+can exist.
+
 Boundary: these are model-level optimality lemmas. They do not prove global
 price-search completeness, fair order inclusion, solver correctness, or MEV
 elimination.

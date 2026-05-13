@@ -48,6 +48,35 @@ volume first, surplus second
 The checker accepts when no audited candidate has greater volume, and no audited
 candidate with equal volume has greater surplus.
 
+## Exactness Boundary
+
+The current certificate is exact inside the candidate set it audits. It is not a
+statistical approximation, and it does not use numeric tolerances.
+
+The global claim requires one additional bridge:
+
+```text
+winner is feasible
+and audited_set contains every feasible candidate
+and winner is weakly optimal in audited_set
+-> winner is globally weakly optimal
+```
+
+The Lean file now proves this bridge as
+`complete_audit_set_lifts_weak_optimal_to_global` and
+`complete_upper_bound_certificate_implies_global_weak_optimal`.
+
+The same file also records the negative boundary:
+
+```text
+audited_set optimality does not exclude a better omitted candidate
+```
+
+So the word `optimality` in the current runtime verifier means
+`audited-set optimality`. A future global-optimality claim must either make the
+candidate set complete by construction, or attach a separately verified
+candidate-set-completeness certificate.
+
 ## Attack Query
 
 The local deviation condition is:
@@ -164,7 +193,10 @@ It proves:
 - finite audit-set upper-bound certificates imply weak optimality inside the
   audited candidate list;
 - runtime-strengthened audit certificates imply the winner is both present and
-  weakly optimal inside the audited candidate list.
+  weakly optimal inside the audited candidate list;
+- complete audit sets lift audited-set optimality to global weak optimality;
+- incomplete audit sets can certify a local winner while omitting a better
+  candidate.
 
 The Python checker implements the runtime-strengthened certificate predicate. It
 also adds runtime hygiene that the theorem leaves abstract: canonical hashes,
