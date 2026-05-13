@@ -6,6 +6,7 @@ from src.core.uniform_batch_clearing import (
     UniformBatchCertificateV1,
     UniformBatchFillV1,
     UNIFORM_BATCH_POLICY_ID,
+    UNIFORM_BATCH_PRICE_RATIO_MAX,
     build_uniform_batch_settlement_v1,
     uniform_batch_intent_set_hash,
     uniform_batch_pool_state_hash,
@@ -284,6 +285,31 @@ def _ops_with_unsupported_policy_id() -> dict[str, object]:
     return {"2": _intent_ops(), "3": settlement_op}
 
 
+def _ops_with_price_ratio_above_domain() -> dict[str, object]:
+    state = _state()
+    intents = _intents()
+    cert = _certificate(intents)
+    out_of_domain_cert = UniformBatchCertificateV1(
+        pool_id=cert.pool_id,
+        base_asset=cert.base_asset,
+        quote_asset=cert.quote_asset,
+        pool_state_hash=cert.pool_state_hash,
+        intent_set_hash=cert.intent_set_hash,
+        price_num=UNIFORM_BATCH_PRICE_RATIO_MAX + 1,
+        price_den=1,
+        fills=cert.fills,
+    )
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = out_of_domain_cert.to_dict()
+    return {"2": _intent_ops(), "3": settlement_op}
+
+
 def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
     state = _state()
     result = apply_ops(
@@ -421,6 +447,22 @@ def test_engine_rejects_uniform_batch_certificate_unsupported_policy_id() -> Non
 
     assert result.ok is False
     assert result.error == "uniform batch certificate rejected: unsupported uniform batch policy_id"
+
+
+def test_engine_rejects_uniform_batch_certificate_price_ratio_above_domain() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_price_ratio_above_domain(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch certificate rejected: certificate.price_num exceeds maximum"
 
 
 def test_engine_rejects_uniform_batch_certificate_partial_fill() -> None:
