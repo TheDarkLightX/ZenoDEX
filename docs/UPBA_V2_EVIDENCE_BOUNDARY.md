@@ -98,6 +98,11 @@ candidate id from the UPBA certificate hash. This prevents a valid audited-set
 optimality certificate from being replayed as evidence for a different UPBA
 settlement certificate.
 
+The DEX engine now wires this bound verifier into the optional settlement
+envelope field `uniform_batch_optimality_certificate`. When supplied, the
+certificate must bind to the attached `uniform_batch_certificate`; otherwise
+settlement fails closed before state application.
+
 ## Tests
 
 Focused runtime checks:

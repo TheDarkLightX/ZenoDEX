@@ -23,6 +23,7 @@ from ..core.quote_receipts import verify_route_quote_receipt
 from ..core.settlement import Settlement
 from ..core.settlement_normal_form import normalize_settlement_op_for_commitment
 from ..core.uniform_batch_clearing import UniformBatchCertificateV1, build_uniform_batch_settlement_v1
+from ..core.uniform_batch_optimality import verify_uniform_batch_bound_optimality_certificate_v1
 from ..state.canonical import (
     CANONICAL_ENCODING_VERSION,
     bounded_json_utf8_size,
@@ -1012,6 +1013,14 @@ def apply_ops(
         settlement = settlement_env.settlement if settlement_env else None
         proof = settlement_env.proof if settlement_env else None
         uniform_batch_certificate = settlement_env.uniform_batch_certificate if settlement_env else None
+        uniform_batch_optimality_certificate = (
+            settlement_env.uniform_batch_optimality_certificate if settlement_env else None
+        )
+        if uniform_batch_optimality_certificate is not None and uniform_batch_certificate is None:
+            return DexTxResult(
+                ok=False,
+                error="uniform batch optimality certificate requires uniform batch certificate",
+            )
         proof_scheme: Optional[str] = None
         if proof is not None:
             scheme_raw = proof.get("scheme")
@@ -1083,9 +1092,31 @@ def apply_ops(
                     return DexTxResult(ok=False, error="uniform batch certificate not enabled")
                 try:
                     cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
-                    pool = state.pools.get(cert.pool_id)
-                    if pool is None:
-                        return DexTxResult(ok=False, error=f"uniform batch certificate pool not found: {cert.pool_id}")
+                except Exception as exc:
+                    return DexTxResult(
+                        ok=False,
+                        error=f"uniform batch certificate rejected: {_clean_error(exc)}",
+                    )
+                if uniform_batch_optimality_certificate is not None:
+                    optimality_result = verify_uniform_batch_bound_optimality_certificate_v1(
+                        optimality_certificate=uniform_batch_optimality_certificate,
+                        uniform_batch_certificate=cert,
+                    )
+                    if not optimality_result.ok:
+                        return DexTxResult(
+                            ok=False,
+                            error=(
+                                "uniform batch optimality certificate rejected: "
+                                f"{optimality_result.error or 'invalid certificate'}"
+                            ),
+                        )
+                pool = state.pools.get(cert.pool_id)
+                if pool is None:
+                    return DexTxResult(
+                        ok=False,
+                        error=f"uniform batch certificate pool not found: {cert.pool_id}",
+                    )
+                try:
                     computed_settlement = build_uniform_batch_settlement_v1(
                         intents=validation_intents,
                         pool=pool,
@@ -1093,7 +1124,10 @@ def apply_ops(
                         certificate=cert,
                     )
                 except Exception as exc:
-                    return DexTxResult(ok=False, error=f"uniform batch certificate rejected: {_clean_error(exc)}")
+                    return DexTxResult(
+                        ok=False,
+                        error=f"uniform batch certificate rejected: {_clean_error(exc)}",
+                    )
             else:
                 computed_settlement = compute_settlement(
                     intents=intents,
