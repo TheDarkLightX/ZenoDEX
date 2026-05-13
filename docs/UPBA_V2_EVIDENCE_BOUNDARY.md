@@ -107,6 +107,10 @@ solver/auditor enumerates every integer price pair up to configured
 claim is exact over the bounded grid. A separate economic/domain argument still
 has to justify the chosen bounds and grid resolution.
 
+The forward design for Tau Tables is documented in
+`docs/UPBA_TAU_TABLES_DESIGN_SPEC.md`. The intended split is host arithmetic and
+canonical hashing, Tau table/fact validation, and Lean theorem transport.
+
 The first runtime bridge for the finite audited-set theorem is
 `src/core/uniform_batch_optimality.py`, documented in
 `docs/UPBA_OPTIMALITY_CERTIFICATE.md`. It verifies that a declared winner is
