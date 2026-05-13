@@ -25,6 +25,7 @@ from src.core.uniform_batch_optimality import (
     uniform_batch_candidate_id_for_certificate,
     uniform_batch_optimality_candidate_set_hash,
 )
+from src.core.uniform_batch_price_grid_table import build_uniform_batch_price_grid_table_v1
 from src.core.settlement import FillAction
 from src.integration.dex_engine import DexEngineConfig, apply_ops
 from src.integration.operations import create_settlement_operation, parse_intents
@@ -363,6 +364,26 @@ def _ops_with_uniform_certificate_and_optimality(
     return ops
 
 
+def _ops_with_uniform_certificate_and_price_grid() -> dict[str, object]:
+    state = _state()
+    intents = _intents()
+    cert = _certificate(intents)
+    ops = _ops_with_uniform_certificate()
+    config, rows, witness = build_uniform_batch_price_grid_table_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        uniform_batch_certificate=cert,
+        settlement_id="settlement-engine-price-grid",
+        max_price_num=2,
+        max_price_den=2,
+    )
+    ops["3"]["uniform_batch_price_grid_config"] = config.to_dict()
+    ops["3"]["uniform_batch_price_grid_rows"] = [row.to_dict() for row in rows]
+    ops["3"]["uniform_batch_price_grid_witness"] = witness.to_dict()
+    return ops
+
+
 def _ops_with_missing_uniform_fill() -> dict[str, object]:
     state = _state()
     intents = _intents()
@@ -662,6 +683,105 @@ def test_engine_accepts_uniform_batch_optimality_certificate_when_bound() -> Non
     assert result.settlement is not None
     assert result.settlement.events is not None
     assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
+
+
+def test_engine_accepts_uniform_batch_price_grid_evidence_when_bound() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_certificate_and_price_grid(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
+
+
+def test_engine_rejects_uniform_batch_price_grid_without_uniform_certificate() -> None:
+    ops = _ops_with_uniform_certificate_and_price_grid()
+    del ops["3"]["uniform_batch_certificate"]
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch price grid evidence requires uniform batch certificate"
+
+
+def test_engine_rejects_partial_uniform_batch_price_grid_evidence() -> None:
+    ops = _ops_with_uniform_certificate_and_price_grid()
+    del ops["3"]["uniform_batch_price_grid_rows"]
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch price grid evidence requires config, rows, and witness"
+
+
+def test_engine_rejects_uniform_batch_price_grid_non_list_rows() -> None:
+    ops = _ops_with_uniform_certificate_and_price_grid()
+    ops["3"]["uniform_batch_price_grid_rows"] = "bad"
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "invalid settlement: settlement uniform_batch_price_grid_rows must be a list"
+
+
+def test_engine_rejects_tampered_uniform_batch_price_grid_evidence() -> None:
+    ops = _ops_with_uniform_certificate_and_price_grid()
+    rows = ops["3"]["uniform_batch_price_grid_rows"]
+    assert isinstance(rows, list)
+    rows[0]["volume"] = int(rows[0]["volume"]) + 1
+
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=ops,
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == (
+        "uniform batch price grid evidence rejected: "
+        "price grid candidate_table_root mismatch"
+    )
 
 
 def test_engine_rejects_uniform_batch_optimality_without_uniform_certificate() -> None:
