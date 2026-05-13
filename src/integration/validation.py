@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from ..core.batch_clearing import apply_settlement
 from ..core.settlement import Settlement
 from ..core.settlement_strong_validator import validate_settlement_strong
+from ..core.uniform_batch_clearing import UniformBatchCertificateV1, validate_uniform_batch_settlement_v1
 from ..state.balances import BalanceTable
 from ..state.intents import Intent
 from ..state.lp import LPTable
@@ -45,6 +46,7 @@ def validate_operations(
     settlement_price_history: Optional[Tuple[int, int, int]] = None,
     require_settlement_end_to_end_certificate: bool = False,
     settlement_end_to_end_certificate_inputs: Optional[SettlementEndToEndCertificateInputs] = None,
+    uniform_batch_certificate: Optional[Dict[str, object]] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate TauSwap operations using Tau Language validation.
@@ -79,7 +81,25 @@ def validate_operations(
         use_end_to_end_certificate = bool(
             require_settlement_end_to_end_certificate or require_settlement_certificate
         )
-        if use_end_to_end_certificate:
+        if uniform_batch_certificate is not None and use_end_to_end_certificate:
+            return False, "uniform batch certificate cannot be combined with settlement end-to-end certificate"
+
+        if uniform_batch_certificate is not None:
+            try:
+                cert = UniformBatchCertificateV1.from_obj(uniform_batch_certificate)
+            except Exception as exc:
+                return False, f"invalid uniform batch certificate: {exc}"
+            pool = pools.get(cert.pool_id)
+            if pool is None:
+                return False, f"uniform batch certificate pool not found: {cert.pool_id}"
+            is_valid, error = validate_uniform_batch_settlement_v1(
+                intents=intents,
+                pool=pool,
+                balances=balances,
+                certificate=cert,
+                settlement=settlement,
+            )
+        elif use_end_to_end_certificate:
             if settlement_end_to_end_certificate_inputs is None:
                 return False, "settlement certificate required but settlement_end_to_end_certificate_inputs missing"
             try:
