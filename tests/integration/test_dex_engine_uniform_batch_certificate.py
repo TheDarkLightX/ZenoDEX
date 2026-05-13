@@ -147,6 +147,30 @@ def _ops_with_uniform_certificate(*, tamper_settlement: bool = False) -> dict[st
     return {"2": _intent_ops(), "3": settlement_op}
 
 
+def _ops_with_missing_uniform_fill() -> dict[str, object]:
+    state = _state()
+    intents = _intents()
+    cert = _certificate(intents)
+    missing_fill_cert = UniformBatchCertificateV1(
+        pool_id=cert.pool_id,
+        base_asset=cert.base_asset,
+        quote_asset=cert.quote_asset,
+        intent_set_hash=cert.intent_set_hash,
+        price_num=cert.price_num,
+        price_den=cert.price_den,
+        fills=cert.fills[:1],
+    )
+    settlement = build_uniform_batch_settlement_v1(
+        intents=intents,
+        pool=state.pools["pool_ab"],
+        balances=state.balances,
+        certificate=cert,
+    )
+    settlement_op = create_settlement_operation(settlement)["3"]
+    settlement_op["uniform_batch_certificate"] = missing_fill_cert.to_dict()
+    return {"2": _intent_ops(), "3": settlement_op}
+
+
 def test_engine_accepts_uniform_batch_certificate_when_enabled() -> None:
     state = _state()
     result = apply_ops(
@@ -219,6 +243,22 @@ def test_engine_rejects_tampered_uniform_batch_settlement_without_match_gate() -
 
     assert result.ok is False
     assert result.error == "uniform batch settlement mismatch"
+
+
+def test_engine_rejects_uniform_batch_certificate_missing_admitted_fill() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_missing_uniform_fill(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch certificate rejected: certificate must fill every admitted intent"
 
 
 def test_validation_accepts_uniform_batch_certificate_without_sequential_replay() -> None:

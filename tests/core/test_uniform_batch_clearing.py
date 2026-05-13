@@ -253,6 +253,32 @@ def test_uniform_batch_certificate_rejects_noncanonical_fill_order() -> None:
     assert result.error == "certificate fills must be sorted by intent_id"
 
 
+def test_uniform_batch_certificate_rejects_missing_admitted_intent_fill() -> None:
+    pool = _pool()
+    balances = _balances()
+    intents = _balanced_intents()
+    certificate = _certificate_for(intents)
+    certificate = UniformBatchCertificateV1(
+        pool_id=certificate.pool_id,
+        base_asset=certificate.base_asset,
+        quote_asset=certificate.quote_asset,
+        intent_set_hash=certificate.intent_set_hash,
+        price_num=certificate.price_num,
+        price_den=certificate.price_den,
+        fills=certificate.fills[:1],
+    )
+
+    result = verify_uniform_batch_certificate_v1(
+        intents=intents,
+        pool=pool,
+        balances=balances,
+        certificate=certificate,
+    )
+
+    assert result.ok is False
+    assert result.error == "certificate must fill every admitted intent"
+
+
 def test_uniform_batch_certificate_rejects_invalid_direct_dataclass_shape() -> None:
     pool = _pool()
     balances = _balances()

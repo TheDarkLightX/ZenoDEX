@@ -233,6 +233,9 @@ def _build_uniform_batch_settlement_checked(
         raise ValueError("certificate fills must be sorted by intent_id")
     if len(fill_ids) != len(set(fill_ids)):
         raise ValueError("duplicate certificate fill intent_id")
+    expected_fill_ids = sorted(intents_by_id)
+    if fill_ids != expected_fill_ids:
+        raise ValueError("certificate must fill every admitted intent")
 
     balance_net: dict[tuple[PubKey, AssetId], int] = defaultdict(int)
     reserve_net: dict[AssetId, int] = defaultdict(int)
@@ -293,18 +296,6 @@ def _build_uniform_batch_settlement_checked(
         raise ValueError("uniform batch would exceed reserve domain")
     if reserve0_after * reserve1_after < pool.reserve0 * pool.reserve1:
         raise ValueError("uniform batch violates aggregate CPMM invariant")
-
-    fill_id_set = set(fill_ids)
-    for intent in sorted(intents, key=lambda item: item.intent_id):
-        if intent.intent_id in fill_id_set:
-            continue
-        fills.append(
-            Fill(
-                intent_id=intent.intent_id,
-                action=FillAction.REJECT,
-                reason="UNIFORM_BATCH_NOT_FILLED",
-            )
-        )
 
     fills.sort(key=lambda fill: fill.intent_id)
     included_intents = [(fill.intent_id, fill.action) for fill in fills]
