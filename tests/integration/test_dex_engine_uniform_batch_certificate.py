@@ -703,6 +703,54 @@ def test_engine_accepts_uniform_batch_price_grid_evidence_when_bound() -> None:
     assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
 
 
+def test_engine_accepts_uniform_batch_price_grid_evidence_when_required() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_price_grid_evidence=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_certificate_and_price_grid(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok, result.error
+    assert result.settlement is not None
+    assert result.settlement.events is not None
+    assert result.settlement.events[0]["type"] == "UNIFORM_BATCH_CLEARING_V1"
+
+
+def test_engine_rejects_uniform_batch_certificate_without_price_grid_when_required() -> None:
+    result = apply_ops(
+        config=DexEngineConfig(
+            allow_uniform_batch_certificate=True,
+            require_uniform_batch_price_grid_evidence=True,
+            require_intent_signatures=False,
+        ),
+        state=_state(),
+        operations=_ops_with_uniform_certificate(),
+        block_timestamp=0,
+        tx_sender_pubkey=SENDER,
+    )
+
+    assert result.ok is False
+    assert result.error == "uniform batch price grid evidence required"
+
+
+def test_engine_config_rejects_required_price_grid_without_uniform_batch_bridge() -> None:
+    try:
+        DexEngineConfig(require_uniform_batch_price_grid_evidence=True)
+    except ValueError as exc:
+        assert str(exc) == (
+            "require_uniform_batch_price_grid_evidence=True "
+            "requires allow_uniform_batch_certificate=True"
+        )
+    else:  # pragma: no cover - explicit failure branch for assertion clarity
+        raise AssertionError("expected price-grid requirement config rejection")
+
+
 def test_engine_rejects_uniform_batch_price_grid_without_uniform_certificate() -> None:
     ops = _ops_with_uniform_certificate_and_price_grid()
     del ops["3"]["uniform_batch_certificate"]
