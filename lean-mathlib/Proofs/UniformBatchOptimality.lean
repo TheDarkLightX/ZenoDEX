@@ -130,6 +130,17 @@ def UpperBoundCertificateChecks
           candidate.surplus <= surplusUpperAtWinnerVolume)
 
 /--
+Runtime certificate checks also require the declared winner to be a member of
+the audited candidate list.
+-/
+def UpperBoundCertificateChecksWithWinner
+    (winner : SettlementCandidate)
+    (volumeUpper surplusUpperAtWinnerVolume : Nat)
+    (candidates : List SettlementCandidate) : Prop :=
+  UpperBoundCertificateChecks winner volumeUpper surplusUpperAtWinnerVolume candidates ∧
+    winner ∈ candidates
+
+/--
 If the finite audit-set certificate checks, the winner is weakly optimal in that
 audited set.
 -/
@@ -154,5 +165,23 @@ theorem upper_bound_certificate_implies_weak_optimal
     have hEqualUpper : candidate.volume = volumeUpper := by
       simpa [hWinnerVolume] using hEqualVolume
     simpa [hWinnerSurplus] using hSurplusAtUpper hEqualUpper
+
+/--
+If the runtime-strengthened finite audit-set certificate checks, the declared
+winner is both present and weakly optimal in that audited set.
+-/
+theorem upper_bound_certificate_with_winner_implies_present_and_weak_optimal
+    {winner : SettlementCandidate}
+    {volumeUpper surplusUpperAtWinnerVolume : Nat}
+    {candidates : List SettlementCandidate}
+    (hCert :
+      UpperBoundCertificateChecksWithWinner
+        winner
+        volumeUpper
+        surplusUpperAtWinnerVolume
+        candidates) :
+    WeaklyOptimalIn winner candidates ∧ winner ∈ candidates := by
+  rcases hCert with ⟨hUpper, hMember⟩
+  exact ⟨upper_bound_certificate_implies_weak_optimal hUpper, hMember⟩
 
 end UniformBatchOptimality

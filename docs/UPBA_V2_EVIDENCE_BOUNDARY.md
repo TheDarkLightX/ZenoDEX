@@ -79,11 +79,19 @@ The starter optimality boundary is
 - fixed-price aggregate clearing feasibility;
 - fixed-price aggregate clearing volume optimality;
 - finite audit-set upper-bound certificates imply weak optimality inside the
-  audited candidate list.
+  audited candidate list;
+- runtime-strengthened audit certificates imply the winner is both present and
+  weakly optimal inside the audited candidate list.
 
 These optimality lemmas are model-level. They become runtime claims only after a
 verifier binds acceptable side capacities or the audited candidate set to the
 deployed solver path.
+
+The first runtime bridge for the finite audited-set theorem is
+`src/core/uniform_batch_optimality.py`, documented in
+`docs/UPBA_OPTIMALITY_CERTIFICATE.md`. It verifies that a declared winner is
+weakly optimal inside a certificate-supplied audited candidate set. This still
+does not prove the audited set is complete.
 
 ## Tests
 
@@ -91,6 +99,7 @@ Focused runtime checks:
 
 ```bash
 pytest -q tests/core/test_uniform_batch_clearing.py \
+  tests/core/test_uniform_batch_optimality.py \
   tests/integration/test_dex_engine_uniform_batch_certificate.py
 ```
 
@@ -99,6 +108,7 @@ Nearby integration checks:
 ```bash
 pytest -q tests/integration/test_dex_engine.py \
   tests/core/test_uniform_batch_clearing.py \
+  tests/core/test_uniform_batch_optimality.py \
   tests/integration/test_dex_engine_uniform_batch_certificate.py \
   tests/core/test_settlement_strong_validator.py \
   tests/core/test_batch_greedy.py
